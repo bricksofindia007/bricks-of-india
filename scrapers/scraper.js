@@ -5,7 +5,7 @@
  * Falls back to "Check Price" link if blocked.
  */
 
-require('dotenv').config({ path: '../.env.local' });
+require('dotenv').config({ path: require('path').join(__dirname, '../.env.local') });
 const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
 const cheerio = require('cheerio');
