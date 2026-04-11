@@ -1,0 +1,14 @@
+{
+  "name": "bricks-of-india-scraper",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "start": "node scraper.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.103.0",
+    "axios": "^1.15.0",
+    "cheerio": "^1.2.0",
+    "dotenv": "^17.4.1"
+  }
+}
