@@ -1,0 +1,14 @@
+services:
+  - type: cron
+    name: bricks-of-india-price-scraper
+    runtime: node
+    schedule: "0 */6 * * *"
+    buildCommand: "cd scrapers && npm install axios cheerio dotenv @supabase/supabase-js"
+    startCommand: "node scrapers/scraper.js"
+    envVars:
+      - key: NEXT_PUBLIC_SUPABASE_URL
+        value: https://hqpaiarhmiocmjrzjhtw.supabase.co
+      - key: NEXT_PUBLIC_SUPABASE_ANON_KEY
+        sync: false
+      - key: NODE_ENV
+        value: production
