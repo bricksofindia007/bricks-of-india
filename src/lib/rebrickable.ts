@@ -103,35 +103,51 @@ export async function getSetsByTheme(
 
 /**
  * Fetches ALL sets for a theme by following the `next` pagination cursor.
- * Stops after MAX_PAGES pages to avoid runaway API consumption.
- * Results are cached for 24 hours via Next.js fetch cache.
+ * - Retries automatically on 429 (rate limit) after 2 s.
+ * - Waits 500 ms between successful pages to stay within rate limits.
+ * - Logs every failure clearly with status code and theme ID.
+ * - Never silently returns [] without a console.error explaining why.
  */
-const MAX_PAGES = 15; // 15 × 100 = 1 500 sets max per theme
-
 export async function getAllSetsForTheme(themeId: number): Promise<RebrickableSet[]> {
-  const allSets: RebrickableSet[] = [];
-  let nextUrl: string | null =
-    `${REBRICKABLE_BASE}/sets/?theme_id=${themeId}&page_size=100&ordering=-year`;
-  let pages = 0;
+  const apiKey = process.env.REBRICKABLE_API_KEY;
+  if (!apiKey) {
+    console.error('[RB] REBRICKABLE_API_KEY missing — cannot fetch theme', themeId);
+    return [];
+  }
 
-  while (nextUrl && pages < MAX_PAGES) {
-    try {
-      const fetchUrl = nextUrl;
-      const res: Response = await fetch(fetchUrl, {
-        headers: getHeaders(),
-        next: { revalidate: 86400 }, // cache 24 h — re-fetched only on daily build
-      });
-      if (!res.ok) break;
-      const data = await res.json();
-      allSets.push(...(data.results ?? []));
-      nextUrl = data.next ?? null;
-      pages++;
-    } catch (err) {
-      console.error(`Rebrickable getAllSetsForTheme error (theme ${themeId}):`, err);
+  const allSets: RebrickableSet[] = [];
+  let url: string | null =
+    `${REBRICKABLE_BASE}/sets/?theme_id=${themeId}&page_size=100&ordering=-year`;
+
+  while (url) {
+    const fetchUrl: string = url;
+    const res: Response = await fetch(fetchUrl, {
+      headers: { Authorization: `key ${apiKey}` },
+      next: { revalidate: 86400 }, // Next.js Data Cache — 24 h
+    });
+
+    if (res.status === 429) {
+      console.warn(`[RB] Rate limited on theme ${themeId} — retrying in 2 s`);
+      await new Promise((r) => setTimeout(r, 2000));
+      continue; // retry same url
+    }
+
+    if (!res.ok) {
+      console.error(`[RB] HTTP ${res.status} fetching theme ${themeId} — url: ${fetchUrl}`);
       break;
+    }
+
+    const data: { results: RebrickableSet[]; next: string | null } = await res.json();
+    allSets.push(...(data.results ?? []));
+    url = data.next ?? null;
+
+    if (url) {
+      // Polite 500 ms gap between pages to avoid triggering rate limits
+      await new Promise((r) => setTimeout(r, 500));
     }
   }
 
+  console.log(`[RB] Fetched ${allSets.length} sets for theme ${themeId}`);
   return allSets;
 }
 
