@@ -9,25 +9,26 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        primary: "#1A56DB",
-        "primary-dark": "#1e3a8a",
-        "primary-light": "#EFF6FF",
-        accent: "#F59E0B",
-        "accent-hover": "#D97706",
-        secondary: "#CC0000",
-        dark: "#111827",
-        "light-grey": "#F9FAFB",
-        surface: "#F9FAFB",
-        border: "#E5E7EB",
-        "accent-blue": "#1A56DB",
-        "deal-green": "#00A650",
+        primary:          "#006CB7",   // LEGO blue — links, outlines, nav accents
+        "primary-dark":   "#E3000B",   // LEGO red — footer, hero band, dark sections
+        "primary-light":  "#FFF9E6",   // light yellow tint — callout / featured sections
+        accent:           "#FFED00",   // LEGO yellow — primary CTA buttons
+        "accent-hover":   "#F7A800",   // saffron — hover state
+        secondary:        "#E3000B",   // LEGO red — badges, alerts, NEW tags
+        dark:             "#1A1A1A",   // body text, headings
+        "light-grey":     "#F5F5F0",   // warm off-white
+        surface:          "#F5F5F0",   // alternating section backgrounds
+        border:           "#E5E5E5",
+        "border-strong":  "#CCCCCC",
+        "accent-blue":    "#006CB7",
+        "deal-green":     "#16A34A",   // best price badges
         "warning-orange": "#FF6B00",
-        "text-secondary": "#6B7280",
+        "text-secondary": "#555555",
       },
       fontFamily: {
         heading: ["var(--font-poppins)", "sans-serif"],
-        body: ["var(--font-poppins)", "sans-serif"],
-        price: ["var(--font-poppins)", "sans-serif"],
+        body:    ["var(--font-poppins)", "sans-serif"],
+        price:   ["var(--font-poppins)", "sans-serif"],
       },
       screens: {
         xs: "375px",

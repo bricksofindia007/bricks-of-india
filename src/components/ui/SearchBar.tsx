@@ -48,7 +48,7 @@ export function SearchBar({
       <button
         type="submit"
         className={cn(
-          'bg-accent text-dark font-bold border-2 border-amber-600 border-l-0 rounded-r-lg hover:bg-accent-hover transition-colors flex items-center gap-2 whitespace-nowrap',
+          'bg-accent text-dark font-bold border-2 border-border border-l-0 rounded-r-lg hover:bg-accent-hover transition-colors flex items-center gap-2 whitespace-nowrap',
           {
             'px-3 py-2 text-sm': size === 'sm',
             'px-5 py-3 text-base': size === 'md',

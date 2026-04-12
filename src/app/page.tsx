@@ -56,46 +56,47 @@ export default async function HomePage() {
   return (
     <div className="bg-white">
       {/* HERO */}
-      <section className="relative overflow-hidden flex items-center" style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #1A56DB 100%)', minHeight: '520px' }}>
+      <section className="relative overflow-hidden bg-white flex items-center" style={{ minHeight: '520px' }}>
+        {/* Subtle dot texture */}
         <div
           className="absolute inset-0"
-          style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px)', backgroundSize: '30px 30px' }}
+          style={{ backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.045) 1px, transparent 1px)', backgroundSize: '24px 24px' }}
         />
+        {/* Saffron accent strip at top */}
+        <div className="absolute top-0 left-0 right-0 h-1 bg-accent" />
         <div className="relative z-10 max-w-site mx-auto px-4 py-14 w-full">
           <div className="grid grid-cols-1 md:grid-cols-[3fr_2fr] gap-8 items-center">
             {/* Text column */}
             <div className="text-center md:text-left">
-              <div className="inline-flex items-center gap-2 bg-accent text-dark rounded-full px-4 py-1.5 mb-4 border-2 border-amber-600">
+              <div className="inline-flex items-center gap-2 bg-primary text-white rounded-full px-4 py-1.5 mb-4">
                 <span className="text-sm font-bold">India&apos;s #1 LEGO Price Comparison</span>
               </div>
-              <h1 className="font-heading text-white leading-none mb-4" style={{ fontSize: 'clamp(2.8rem, 7vw, 5.5rem)' }}>
+              <h1 className="font-heading text-dark leading-none mb-4" style={{ fontSize: 'clamp(2.8rem, 7vw, 5.5rem)' }}>
                 MORE BRICKS.<br />
-                <span className="text-accent">LESS NONSENSE.</span>
+                <span className="text-primary">LESS NONSENSE.</span>
               </h1>
-              <p className="text-white/80 text-lg md:text-xl mb-8 max-w-xl mx-auto md:mx-0 font-body">
+              <p className="text-dark/65 text-lg md:text-xl mb-8 max-w-xl mx-auto md:mx-0 font-body">
                 India&apos;s Honest Guide to LEGO — Prices, Reviews &amp; Where to Buy.
                 Updated every 6 hours because your wallet deserves the truth.
               </p>
               <div className="max-w-xl mx-auto md:mx-0">
                 <SearchBar size="lg" />
-                <p className="text-white/60 text-sm mt-2 text-center md:text-left">
+                <p className="text-dark/45 text-sm mt-2 text-center md:text-left">
                   Search 50,000+ LEGO sets. Compare prices across 8 Indian stores.
                 </p>
               </div>
             </div>
             {/* Image column */}
             <div className="flex items-center justify-center">
-              <div className="relative w-full" style={{ maxHeight: '420px' }}>
-                <Image
-                  src={MASCOTS.both.hero}
-                  alt="Bricks of India mascots"
-                  width={420}
-                  height={420}
-                  className="object-contain drop-shadow-2xl mx-auto"
-                  style={{ maxHeight: '420px', width: 'auto' }}
-                  priority
-                />
-              </div>
+              <Image
+                src={MASCOTS.both.hero}
+                alt="Bricks of India mascots"
+                width={420}
+                height={420}
+                className="object-contain drop-shadow-xl mx-auto"
+                style={{ maxHeight: '420px', width: 'auto' }}
+                priority
+              />
             </div>
           </div>
         </div>

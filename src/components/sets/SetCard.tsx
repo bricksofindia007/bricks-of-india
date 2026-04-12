@@ -1,7 +1,7 @@
 import Link from 'next/link';
-import Image from 'next/image';
 import { formatPrice, slugify } from '@/lib/utils';
 import { Badge, BestPriceBadge } from '@/components/ui/Badge';
+import { SetImage } from '@/components/sets/SetImage';
 import type { LegoSet, Price } from '@/lib/supabase';
 
 interface SetCardProps {
@@ -13,32 +13,17 @@ interface SetCardProps {
 export function SetCard({ set, bestPrice, priceCount }: SetCardProps) {
   const slug = `${set.set_number}-${slugify(set.name)}`;
 
-  // Prefer stored image_url, then Rebrickable CDN using the full rebrickable_id
-  // (which preserves the -1 suffix the CDN requires), never use set_number alone.
-  const imgSrc =
-    set.image_url ??
-    (set.rebrickable_id
-      ? `https://cdn.rebrickable.com/media/sets/${set.rebrickable_id}.jpg`
-      : null);
-
   return (
-    <Link href={`/sets/${slug}`} className="group block bg-white rounded-xl border border-border hover:border-primary transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
+    <Link
+      href={`/sets/${slug}`}
+      className="group block bg-white rounded-xl border border-border hover:border-primary transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden"
+    >
       {/* Image */}
       <div className="relative bg-surface aspect-square overflow-hidden">
-        {imgSrc ? (
-          <Image
-            src={imgSrc}
-            alt={set.name}
-            fill
-            className="object-contain p-3 group-hover:scale-105 transition-transform duration-300"
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            unoptimized
-          />
-        ) : (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <span className="text-5xl">🧱</span>
-          </div>
-        )}
+        <SetImage
+          set={set}
+          className="object-contain p-3 group-hover:scale-105 transition-transform duration-300"
+        />
         {/* Theme badge overlay */}
         <div className="absolute top-2 left-2">
           <Badge variant="grey">{set.theme || 'LEGO'}</Badge>
@@ -74,13 +59,13 @@ export function SetCard({ set, bestPrice, priceCount }: SetCardProps) {
                 MRP: {formatPrice(set.lego_mrp_inr)}
               </span>
             ) : (
-              <span className="text-xs text-gray-400">Check price →</span>
+              <span className="text-xs text-gray-400">Check price</span>
             )}
             {priceCount && priceCount > 1 && (
               <p className="text-xs text-gray-400 mt-0.5">{priceCount} stores</p>
             )}
           </div>
-          <span className="text-xs font-bold text-primary group-hover:underline">Compare →</span>
+          <span className="text-xs font-bold text-primary group-hover:underline shrink-0">Compare →</span>
         </div>
       </div>
     </Link>

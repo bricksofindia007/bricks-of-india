@@ -8,3 +8,40 @@
 [[plugins]]
   package = "@netlify/plugin-nextjs"
 
+# ─────────────────────────────────────────────────────────────────────────────
+# SCHEDULED DAILY BUILD — Setup instructions
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# Netlify scheduled builds (native) require a paid plan.
+# The free approach: create a Build Hook in Netlify, then ping it daily via
+# a free cron service (cron-job.org). Zero cost, same result.
+#
+# Step 1 — Create the Build Hook in Netlify:
+#   1. Go to: Site → Site configuration → Build & deploy → Build hooks
+#   2. Click "Add build hook"
+#   3. Name it "Daily scheduled build"
+#   4. Branch: main
+#   5. Copy the generated URL — looks like:
+#      https://api.netlify.com/build_hooks/xxxxxxxxxxxxxxxxxxxxxxxx
+#
+# Step 2 — Set up the daily cron on cron-job.org (free):
+#   1. Register at https://cron-job.org (free account)
+#   2. Create a new cronjob:
+#      - Title: "Bricks of India daily build"
+#      - URL: paste your build hook URL from Step 1
+#      - Schedule: Custom — 18:30 UTC  (= midnight IST, which is UTC+5:30)
+#      - Request method: POST
+#      - Request body: (leave empty — Netlify only needs the POST)
+#      - Notifications: enable on failure
+#   3. Save and enable the job.
+#
+# Step 3 — Test it:
+#   On cron-job.org, click "Run now" on your job and confirm a new build
+#   appears in Netlify's deploy log within ~30 seconds.
+#
+# Why 18:30 UTC?
+#   India is UTC+5:30. Midnight IST = 18:30 UTC the previous day.
+#   Netlify deploys take a few minutes, so sets updated at midnight
+#   will be live by ~00:05 IST.
+#
+# ─────────────────────────────────────────────────────────────────────────────

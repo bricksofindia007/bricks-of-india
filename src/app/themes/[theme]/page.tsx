@@ -33,7 +33,7 @@ export default async function ThemePage({ params }: Props) {
     .select('*, prices(*)')
     .ilike('theme', `%${theme.name}%`)
     .order('year', { ascending: false })
-    .limit(96);
+    .limit(200);
 
   const setCount = sets?.length ?? 0;
 

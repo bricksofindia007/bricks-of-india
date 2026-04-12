@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { SearchBar } from '@/components/ui/SearchBar';
-import { BRAND, THEMES } from '@/lib/brand';
+import { THEMES } from '@/lib/brand';
 
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -14,18 +14,18 @@ export function Navbar() {
   function navClass(href: string) {
     const active = pathname === href || (href !== '/' && pathname.startsWith(href));
     return active
-      ? 'px-3 py-2 text-sm font-bold text-accent bg-white/10 rounded-lg transition-colors'
-      : 'px-3 py-2 text-sm font-bold text-white hover:text-accent hover:bg-white/10 rounded-lg transition-colors';
+      ? 'px-3 py-2 text-sm font-bold text-primary underline decoration-accent decoration-2 underline-offset-4 rounded-lg transition-colors'
+      : 'px-3 py-2 text-sm font-bold text-dark/75 hover:text-primary rounded-lg transition-colors';
   }
 
   return (
-    <header className="bg-primary-dark sticky top-0 z-50 shadow-lg">
+    <header className="bg-white border-b border-border sticky top-0 z-50 shadow-sm">
       <div className="max-w-site mx-auto px-4">
         {/* Main nav row */}
         <div className="flex items-center gap-4 py-3">
           {/* Logo */}
           <Link href="/" className="shrink-0 flex items-center gap-2">
-            <div className="bg-accent px-3 py-1.5 rounded-lg border-2 border-amber-600">
+            <div className="bg-accent px-3 py-1.5 rounded-lg border-2 border-yellow-400">
               <span className="font-heading text-dark text-xl leading-none tracking-wide">BRICKS OF INDIA</span>
             </div>
           </Link>
@@ -55,19 +55,19 @@ export function Navbar() {
 
             {/* Themes dropdown */}
             <div className="relative" onMouseEnter={() => setThemesOpen(true)} onMouseLeave={() => setThemesOpen(false)}>
-              <button className="px-3 py-2 text-sm font-bold text-white hover:text-accent hover:bg-white/10 rounded-lg transition-colors flex items-center gap-1">
+              <button className="px-3 py-2 text-sm font-bold text-dark/75 hover:text-primary rounded-lg transition-colors flex items-center gap-1">
                 Themes
                 <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                 </svg>
               </button>
               {themesOpen && (
-                <div className="absolute top-full right-0 bg-white border border-border rounded-lg shadow-xl min-w-[360px] grid grid-cols-3 gap-1 p-3">
+                <div className="absolute top-full right-0 bg-white border border-border rounded-xl shadow-xl min-w-[360px] grid grid-cols-3 gap-1 p-3">
                   {THEMES.map((theme) => (
                     <Link
                       key={theme.slug}
                       href={`/themes/${theme.slug}`}
-                      className="flex items-center gap-2 px-2 py-1.5 text-sm font-bold text-dark hover:bg-primary-light rounded-lg transition-colors"
+                      className="flex items-center gap-2 px-2 py-1.5 text-sm font-bold text-dark hover:bg-surface hover:text-primary rounded-lg transition-colors"
                     >
                       <span>{theme.emoji}</span>
                       <span>{theme.name}</span>
@@ -84,7 +84,7 @@ export function Navbar() {
 
           {/* Mobile hamburger */}
           <button
-            className="ml-auto lg:hidden p-2 rounded-lg hover:bg-white/10 text-white"
+            className="ml-auto lg:hidden p-2 rounded-lg hover:bg-surface text-dark"
             onClick={() => setMobileOpen(!mobileOpen)}
             aria-label="Menu"
           >
@@ -105,34 +105,34 @@ export function Navbar() {
 
       {/* Mobile menu */}
       {mobileOpen && (
-        <div className="lg:hidden border-t border-white/20 bg-primary-dark">
+        <div className="lg:hidden border-t border-border bg-white">
           <nav className="max-w-site mx-auto px-4 py-4 flex flex-col gap-1">
             {[
               { href: '/compare', label: 'Price Comparison' },
               { href: '/reviews', label: 'Reviews' },
               { href: '/news', label: 'News' },
               { href: '/blog', label: 'Blog' },
-              { href: '/deals', label: '🔥 Deals' },
+              { href: '/deals', label: 'Deals 🔥' },
               { href: '/calendar', label: 'Release Calendar' },
               { href: '/about', label: 'About' },
             ].map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}
-                className="px-4 py-3 font-bold text-white hover:bg-white/10 rounded-lg transition-colors"
+                className="px-4 py-3 font-bold text-dark hover:bg-surface hover:text-primary rounded-lg transition-colors"
                 onClick={() => setMobileOpen(false)}
               >
                 {label}
               </Link>
             ))}
-            <div className="border-t border-white/20 mt-2 pt-2">
-              <p className="px-4 py-1 text-xs font-bold text-white/50 uppercase tracking-wider">Themes</p>
+            <div className="border-t border-border mt-2 pt-2">
+              <p className="px-4 py-1 text-xs font-bold text-text-secondary uppercase tracking-wider">Themes</p>
               <div className="grid grid-cols-3 gap-1 mt-1">
                 {THEMES.map((theme) => (
                   <Link
                     key={theme.slug}
                     href={`/themes/${theme.slug}`}
-                    className="px-3 py-2 font-bold text-sm text-white hover:bg-white/10 rounded-lg transition-colors flex items-center gap-2"
+                    className="px-3 py-2 font-bold text-sm text-dark hover:bg-surface hover:text-primary rounded-lg transition-colors flex items-center gap-2"
                     onClick={() => setMobileOpen(false)}
                   >
                     {theme.emoji} {theme.name}
