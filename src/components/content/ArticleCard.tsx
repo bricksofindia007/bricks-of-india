@@ -50,19 +50,34 @@ export function ArticleCard({ article, type }: ArticleCardProps) {
   );
 }
 
+interface ReviewSetData {
+  name: string;
+  image_url?: string | null;
+  rebrickable_id?: string | null;
+  set_number?: string;
+  theme?: string;
+}
+
 interface ReviewCardProps {
-  review: Review & { set?: { name: string; image_url?: string; theme?: string } };
+  review: Review & { set?: ReviewSetData };
 }
 
 export function ReviewCard({ review }: ReviewCardProps) {
   const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
 
+  // Prefer stored image_url, then CDN using rebrickable_id (which has the -1 suffix the CDN needs)
+  const imgSrc =
+    review.set?.image_url ??
+    (review.set?.rebrickable_id
+      ? `https://cdn.rebrickable.com/media/sets/${review.set.rebrickable_id}.jpg`
+      : null);
+
   return (
     <Link href={`/reviews/${review.slug}`} className="group block bg-white rounded-xl border-2 border-border hover:border-primary transition-all duration-200 hover:shadow-lg overflow-hidden">
       <div className="relative bg-light-grey h-48 overflow-hidden">
-        {review.set?.image_url ? (
+        {imgSrc ? (
           <Image
-            src={review.set.image_url}
+            src={imgSrc}
             alt={review.title}
             fill
             className="object-contain p-4 group-hover:scale-105 transition-transform duration-300"

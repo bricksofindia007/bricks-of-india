@@ -1,7 +1,6 @@
 'use client';
 
 import Link from 'next/link';
-import Image from 'next/image';
 import { useState } from 'react';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { BRAND, THEMES } from '@/lib/brand';

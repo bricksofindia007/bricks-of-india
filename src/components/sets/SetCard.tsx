@@ -12,23 +12,36 @@ interface SetCardProps {
 
 export function SetCard({ set, bestPrice, priceCount }: SetCardProps) {
   const slug = `${set.set_number}-${slugify(set.name)}`;
-  const imgSrc = set.image_url || `https://cdn.rebrickable.com/media/sets/${set.set_number}.jpg`;
+
+  // Prefer stored image_url, then Rebrickable CDN using the full rebrickable_id
+  // (which preserves the -1 suffix the CDN requires), never use set_number alone.
+  const imgSrc =
+    set.image_url ??
+    (set.rebrickable_id
+      ? `https://cdn.rebrickable.com/media/sets/${set.rebrickable_id}.jpg`
+      : null);
 
   return (
     <Link href={`/sets/${slug}`} className="group block bg-white rounded-xl border-2 border-border hover:border-primary transition-all duration-200 hover:shadow-lg overflow-hidden">
       {/* Image */}
       <div className="relative bg-light-grey aspect-square overflow-hidden">
-        <Image
-          src={imgSrc}
-          alt={set.name}
-          fill
-          className="object-contain p-3 group-hover:scale-105 transition-transform duration-300"
-          sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-          unoptimized
-        />
+        {imgSrc ? (
+          <Image
+            src={imgSrc}
+            alt={set.name}
+            fill
+            className="object-contain p-3 group-hover:scale-105 transition-transform duration-300"
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            unoptimized
+          />
+        ) : (
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-5xl">🧱</span>
+          </div>
+        )}
         {/* Theme badge overlay */}
         <div className="absolute top-2 left-2">
-          <Badge variant="grey">{set.theme}</Badge>
+          <Badge variant="grey">{set.theme || 'LEGO®'}</Badge>
         </div>
       </div>
 

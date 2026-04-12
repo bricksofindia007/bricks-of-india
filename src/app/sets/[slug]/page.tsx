@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { getSet } from '@/lib/rebrickable';
 import { formatPrice, slugify, timeAgo, whatsappShareUrl } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
 import { BestPriceBadge, Badge, OutOfStockBadge } from '@/components/ui/Badge';
@@ -15,12 +16,40 @@ interface Props {
 
 async function getSetData(slug: string) {
   const setNumber = slug.split('-')[0];
+
+  // Try Supabase first — this is the normal path once the DB is populated
   const { data: set } = await supabase
     .from('sets')
     .select('*, prices(*), reviews(*)')
     .eq('set_number', setNumber)
     .single();
-  return set;
+
+  if (set) return set;
+
+  // Not in Supabase yet — fall back to Rebrickable API directly.
+  // Most sets use the -1 suffix; this covers the vast majority of cases.
+  const rbSet = await getSet(`${setNumber}-1`);
+  if (!rbSet) return null;
+
+  return {
+    id: rbSet.set_num,
+    set_number: setNumber,
+    rebrickable_id: rbSet.set_num,
+    name: rbSet.name,
+    year: rbSet.year,
+    theme: '',
+    subtheme: null,
+    pieces: rbSet.num_parts,
+    minifigs: null,
+    image_url: rbSet.set_img_url,
+    description: null,
+    age_range: null,
+    lego_mrp_inr: null,
+    created_at: '',
+    updated_at: '',
+    prices: [],
+    reviews: [],
+  };
 }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -54,17 +83,28 @@ export default async function SetPage({ params }: Props) {
     : null;
   const hasToycra = sortedPrices.some((p) => p.store_name?.toLowerCase().includes('toycra'));
 
-  // Fetch related sets
-  const { data: relatedSets } = await supabase
-    .from('sets')
-    .select('*, prices(*)')
-    .eq('theme', set.theme)
-    .neq('id', set.id)
-    .limit(4);
+  // Fetch related sets only when we have a theme to match on
+  let relatedSets = null;
+  if (set.theme) {
+    const { data } = await supabase
+      .from('sets')
+      .select('*, prices(*)')
+      .eq('theme', set.theme)
+      .neq('set_number', set.set_number)
+      .limit(4);
+    relatedSets = data;
+  }
 
   const review = set.reviews?.[0] || null;
   const shareUrl = `https://bricksofindia.com/sets/${params.slug}`;
   const waText = `Check out ${set.name} price comparison on Bricks of India — use code ABHINAV12 for 12% off at Toycra!`;
+
+  // Correct image URL: prefer stored image_url, then CDN using rebrickable_id (which has the -1 suffix)
+  const setImageSrc =
+    set.image_url ??
+    (set.rebrickable_id
+      ? `https://cdn.rebrickable.com/media/sets/${set.rebrickable_id}.jpg`
+      : '/mascots/blue-fig-confused.png');
 
   const schemaProduct = {
     "@context": "https://schema.org",
@@ -96,8 +136,12 @@ export default async function SetPage({ params }: Props) {
           <span>/</span>
           <Link href="/compare" className="hover:text-accent-blue">Sets</Link>
           <span>/</span>
-          <Link href={`/themes/${slugify(set.theme)}`} className="hover:text-accent-blue">{set.theme}</Link>
-          <span>/</span>
+          {set.theme && (
+            <>
+              <Link href={`/themes/${slugify(set.theme)}`} className="hover:text-accent-blue">{set.theme}</Link>
+              <span>/</span>
+            </>
+          )}
           <span className="text-dark font-bold truncate">{set.name}</span>
         </nav>
       </div>
@@ -109,7 +153,7 @@ export default async function SetPage({ params }: Props) {
             <div className="sticky top-20">
               <div className="bg-light-grey rounded-2xl p-6 border-2 border-border">
                 <Image
-                  src={set.image_url || `https://cdn.rebrickable.com/media/sets/${set.set_number}.jpg`}
+                  src={setImageSrc}
                   alt={set.name}
                   width={500}
                   height={500}
@@ -138,7 +182,7 @@ export default async function SetPage({ params }: Props) {
           <div className="lg:col-span-3">
             {/* Title */}
             <div className="flex flex-wrap gap-2 mb-3">
-              <Badge variant="grey">{set.theme}</Badge>
+              {set.theme && <Badge variant="grey">{set.theme}</Badge>}
               {set.year && <Badge variant="grey">{set.year}</Badge>}
               {set.age_range && <Badge variant="grey">Ages {set.age_range}</Badge>}
               {set.pieces && <Badge variant="grey">{set.pieces.toLocaleString()} pcs</Badge>}

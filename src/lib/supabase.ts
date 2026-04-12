@@ -1,13 +1,21 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
+
+if (!supabaseUrl || !supabaseAnonKey) {
+  console.error(
+    'Missing Supabase env vars: NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_ANON_KEY must be set',
+  );
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
-// Server-side client (for API routes)
+// Server-side client — prefers service role key so it can bypass RLS for writes
 export function createServerClient() {
-  return createClient(supabaseUrl, supabaseAnonKey);
+  const key =
+    process.env.SUPABASE_SERVICE_ROLE_KEY ?? supabaseAnonKey;
+  return createClient(supabaseUrl, key);
 }
 
 // Types matching our schema

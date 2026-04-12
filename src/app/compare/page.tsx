@@ -7,7 +7,6 @@ import { SetCard } from '@/components/sets/SetCard';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { MASCOTS, THEMES, PRICE_RANGES } from '@/lib/brand';
-import { supabase } from '@/lib/supabase';
 
 const PAGE_SIZE = 24;
 
@@ -25,33 +24,26 @@ function ComparePageInner() {
 
   const fetchSets = useCallback(async () => {
     setLoading(true);
-    const from = (page - 1) * PAGE_SIZE;
-    const to = from + PAGE_SIZE - 1;
-
-    let query = supabase
-      .from('sets')
-      .select('*, prices(*)', { count: 'exact' })
-      .order('year', { ascending: false })
-      .range(from, to);
-
-    if (q) {
-      query = query.or(`name.ilike.%${q}%,set_number.ilike.%${q}%`);
-    }
-    if (themeFilter) {
-      query = query.ilike('theme', `%${themeFilter}%`);
-    }
-    if (priceFilter) {
-      const range = PRICE_RANGES.find((r) => r.label === priceFilter);
-      if (range) {
-        query = query.gte('lego_mrp_inr', range.min);
-        if (range.max !== Infinity) query = query.lte('lego_mrp_inr', range.max);
+    try {
+      const params = new URLSearchParams({ page: String(page) });
+      if (q) params.set('q', q);
+      if (themeFilter) params.set('theme', themeFilter);
+      if (priceFilter) {
+        const range = PRICE_RANGES.find((r) => r.label === priceFilter);
+        if (range) {
+          params.set('price_min', String(range.min));
+          if (range.max !== Infinity) params.set('price_max', String(range.max));
+        }
       }
-    }
-
-    const { data, count, error } = await query;
-    if (!error) {
-      setSets(data || []);
-      setTotal(count || 0);
+      const res = await fetch(`/api/sets/search?${params}`);
+      if (!res.ok) throw new Error(`Search request failed: ${res.status}`);
+      const data = await res.json();
+      setSets(data.sets ?? []);
+      setTotal(data.total ?? 0);
+    } catch (err) {
+      console.error('Search failed:', err);
+      setSets([]);
+      setTotal(0);
     }
     setLoading(false);
   }, [q, themeFilter, priceFilter, page]);

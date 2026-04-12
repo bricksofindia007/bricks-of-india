@@ -10,11 +10,23 @@ const { createClient } = require('@supabase/supabase-js');
 const axios = require('axios');
 const cheerio = require('cheerio');
 
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
+const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!SUPABASE_URL) {
+  console.error('ERROR: NEXT_PUBLIC_SUPABASE_URL is not set');
+  process.exit(1);
+}
+if (!SERVICE_ROLE_KEY) {
+  console.error(
+    'ERROR: SUPABASE_SERVICE_ROLE_KEY is not set\n' +
+    'Get it from: Supabase dashboard → Settings → API → service_role secret key',
+  );
+  process.exit(1);
+}
+
 // Service role key bypasses RLS — required for price upserts
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-);
+const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
 // Store configs
 const STORES = [

@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default async function ReviewsPage() {
   const { data: reviews } = await supabase
     .from('reviews')
-    .select('*, sets(name, image_url, theme)')
+    .select('*, sets(name, image_url, rebrickable_id, set_number, theme)')
     .order('published_at', { ascending: false });
 
   return (

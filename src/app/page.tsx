@@ -26,7 +26,7 @@ async function getHomepageData() {
       .limit(8),
     supabase
       .from('reviews')
-      .select('*, sets(name, image_url, theme)')
+      .select('*, sets(name, image_url, rebrickable_id, set_number, theme)')
       .order('published_at', { ascending: false })
       .limit(3),
     supabase

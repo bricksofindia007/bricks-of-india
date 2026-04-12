@@ -113,9 +113,19 @@ export default async function ReviewPage({ params }: Props) {
             {set && (
               <div className="sticky top-20">
                 <div className="bg-light-grey rounded-2xl p-4 border-2 border-border mb-6">
-                  {set.image_url && (
-                    <Image src={set.image_url} alt={set.name} width={300} height={300} className="w-full object-contain mb-3" unoptimized />
-                  )}
+                  <Image
+                    src={
+                      set.image_url ??
+                      (set.rebrickable_id
+                        ? `https://cdn.rebrickable.com/media/sets/${set.rebrickable_id}.jpg`
+                        : '/mascots/blue-fig-confused.png')
+                    }
+                    alt={set.name}
+                    width={300}
+                    height={300}
+                    className="w-full object-contain mb-3"
+                    unoptimized
+                  />
                   <h3 className="font-heading text-dark text-xl mb-1">{set.name}</h3>
                   <p className="font-price text-gray-400 text-sm mb-3">Set #{set.set_number}</p>
                   <Link href={`/sets/${set.set_number}-${set.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
