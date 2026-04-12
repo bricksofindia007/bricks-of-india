@@ -9,6 +9,29 @@
   package = "@netlify/plugin-nextjs"
 
 # ─────────────────────────────────────────────────────────────────────────────
+# REQUIRED ENVIRONMENT VARIABLES — must be set in Netlify UI
+# ─────────────────────────────────────────────────────────────────────────────
+#
+# These are NOT in netlify.toml (they are secrets). Set them at:
+#   Site → Site configuration → Environment variables → Add variable
+#
+#   REBRICKABLE_API_KEY        — server-only, used at build time to fetch set
+#                                data and images for theme pages. Without this,
+#                                theme pages fall back to Supabase-only (~12 sets
+#                                per theme instead of the full catalogue).
+#                                Get key: https://rebrickable.com/api/
+#
+#   BRICKSET_API_KEY           — used for Brickset image fallback chain in
+#                                SetImage and ImageWithFallback components.
+#                                Get key: https://brickset.com/tools/webservices/requestkey
+#
+#   NEXT_PUBLIC_SUPABASE_URL   — Supabase project URL (public)
+#   NEXT_PUBLIC_SUPABASE_ANON_KEY — Supabase anon key (public)
+#   SUPABASE_SERVICE_ROLE_KEY  — Supabase service role key (secret, server-only)
+#   NEXT_PUBLIC_GA_MEASUREMENT_ID — Google Analytics measurement ID
+#   NEXT_PUBLIC_SITE_URL       — https://bricksofindia.com
+#
+# ─────────────────────────────────────────────────────────────────────────────
 # SCHEDULED DAILY BUILD — Setup instructions
 # ─────────────────────────────────────────────────────────────────────────────
 #

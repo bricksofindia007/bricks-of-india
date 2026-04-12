@@ -220,25 +220,25 @@ export const THEME_IDS: Record<string, number[]> = {
   'harry-potter':    [246],
   'speed-champions': [684],
   'creator':         [22, 626],
-  'icons':           [493],
+  'icons':           [721],        // was 493 (400 error) — correct ID confirmed via API
   'botanical':       [737],
   'minecraft':       [577],
   'friends':         [216],
   'ninjago':         [435],
   'marvel':          [671],
-  'dc':              [49],
+  'dc':              [695],        // was 49 (400 error) — DC Super Heroes top-level
   'ideas':           [598],
   'architecture':    [252],
   'disney':          [494],
   'brickheadz':      [765],
-  'jurassic-world':  [307],
-  'super-mario':     [624],
-  'duplo':           [5],
+  'jurassic-world':  [602],        // was 307 (returned 1996 sets) — Jurassic World top-level
+  'super-mario':     [690],        // was 624 (400 error) — correct ID confirmed via API
+  'duplo':           [504],        // was 5 (400 error) — Duplo top-level
   'art':             [784],
-  'dots':            [756],
-  'dreamzzz':        [808],
+  'dots':            [688],        // was 756 (returned 1971 sets) — DOTS correct ID
+  'dreamzzz':        [749],        // was 808 (400 error) — correct ID confirmed via API
   'classic':         [186],
-  'seasonal':        [248],
+  'seasonal':        [738],        // was 248 (400 error) — Seasonal with Christmas sets
 };
 
 // ─── Image URL helper ─────────────────────────────────────────────────────────
