@@ -1,20 +1,28 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { Poppins } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
 import { BRAND, ASSETS } from "@/lib/brand";
+
+const poppins = Poppins({
+  subsets: ["latin"],
+  weight: ["400", "600", "700", "800"],
+  variable: "--font-poppins",
+  display: "swap",
+});
 
 const GA_ID = process.env.NEXT_PUBLIC_GA_MEASUREMENT_ID;
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://bricksofindia.com"),
   title: {
-    default: "Bricks of India — LEGO® Price Comparison & Reviews in India 2026",
+    default: "Bricks of India — LEGO Price Comparison & Reviews in India 2026",
     template: "%s | Bricks of India",
   },
   description:
-    "Compare LEGO® prices across India's top stores. Updated every 6 hours. Plus honest reviews and guides. More Bricks. Less Nonsense.",
+    "Compare LEGO prices across India's top stores. Updated every 6 hours. Plus honest reviews and guides. More Bricks. Less Nonsense.",
   keywords: [
     "LEGO India",
     "LEGO price comparison India",
@@ -30,9 +38,9 @@ export const metadata: Metadata = {
     locale: "en_IN",
     url: "https://bricksofindia.com",
     siteName: "Bricks of India",
-    title: "Bricks of India — LEGO® Price Comparison & Reviews in India 2026",
+    title: "Bricks of India — LEGO Price Comparison & Reviews in India 2026",
     description:
-      "Compare LEGO® prices across India's top stores. Updated every 6 hours. More Bricks. Less Nonsense.",
+      "Compare LEGO prices across India's top stores. Updated every 6 hours. More Bricks. Less Nonsense.",
     images: [
       {
         url: "/assets/og-image.jpg",
@@ -44,8 +52,8 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "Bricks of India — LEGO® Price Comparison India",
-    description: "Compare LEGO® prices across India's top stores. More Bricks. Less Nonsense.",
+    title: "Bricks of India — LEGO Price Comparison India",
+    description: "Compare LEGO prices across India's top stores. More Bricks. Less Nonsense.",
     images: ["/assets/og-image.jpg"],
   },
   robots: {
@@ -65,11 +73,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en-IN">
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-      </head>
+    <html lang="en-IN" className={poppins.variable}>
       <body className="bg-white text-dark font-body antialiased">
         {/* Google Analytics */}
         {GA_ID && (

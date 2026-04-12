@@ -9,19 +9,25 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        primary: "#FFD700",
+        primary: "#1A56DB",
+        "primary-dark": "#1e3a8a",
+        "primary-light": "#EFF6FF",
+        accent: "#F59E0B",
+        "accent-hover": "#D97706",
         secondary: "#CC0000",
-        dark: "#1A1A1A",
-        "light-grey": "#F5F5F5",
-        border: "#E8E8E8",
-        "accent-blue": "#006CB7",
+        dark: "#111827",
+        "light-grey": "#F9FAFB",
+        surface: "#F9FAFB",
+        border: "#E5E7EB",
+        "accent-blue": "#1A56DB",
         "deal-green": "#00A650",
         "warning-orange": "#FF6B00",
+        "text-secondary": "#6B7280",
       },
       fontFamily: {
-        heading: ["Bebas Neue", "sans-serif"],
-        body: ["Nunito", "sans-serif"],
-        price: ["Space Mono", "monospace"],
+        heading: ["var(--font-poppins)", "sans-serif"],
+        body: ["var(--font-poppins)", "sans-serif"],
+        price: ["var(--font-poppins)", "sans-serif"],
       },
       screens: {
         xs: "375px",

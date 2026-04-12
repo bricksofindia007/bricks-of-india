@@ -23,7 +23,7 @@ export default function ContactPage() {
           <div className="flex-1">
             <h1 className="font-heading text-dark text-6xl mb-2">GET IN TOUCH</h1>
             <p className="text-gray-500 font-body text-lg">
-              We&apos;ll get back to you. Probably. Response time: faster than LEGO® India restocking popular sets.
+              We&apos;ll get back to you. Probably. Response time: faster than LEGO India restocking popular sets.
             </p>
           </div>
           <Image src={MASCOTS.blue.welcome} alt="Contact us" width={160} height={160} className="object-contain shrink-0 hidden md:block" />
@@ -36,7 +36,7 @@ export default function ContactPage() {
             <div className="text-center py-16">
               <Image src={MASCOTS.blue.thumbsUp} alt="Message sent" width={150} height={150} className="mx-auto mb-4 object-contain" />
               <h2 className="font-heading text-dark text-4xl mb-3">MESSAGE SENT!</h2>
-              <p className="text-gray-500 font-body">We&apos;ve received your message. We&apos;ll get back to you. Probably before your next LEGO® order arrives.</p>
+              <p className="text-gray-500 font-body">We&apos;ve received your message. We&apos;ll get back to you. Probably before your next LEGO order arrives.</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="space-y-5">

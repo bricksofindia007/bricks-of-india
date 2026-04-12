@@ -44,7 +44,7 @@ export function NewsletterSignup() {
           {/* Content */}
           <div className="flex-1 text-center md:text-left">
             <h2 className="font-heading text-primary text-4xl md:text-5xl mb-3">
-              GET INDIA'S BEST LEGO® DEALS
+              GET INDIA'S BEST LEGO DEALS
             </h2>
             <p className="text-gray-300 text-lg mb-6 font-body">
               Delivered before your wallet finds out. No spam. Unsubscribe anytime.

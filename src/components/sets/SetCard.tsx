@@ -22,9 +22,9 @@ export function SetCard({ set, bestPrice, priceCount }: SetCardProps) {
       : null);
 
   return (
-    <Link href={`/sets/${slug}`} className="group block bg-white rounded-xl border-2 border-border hover:border-primary transition-all duration-200 hover:shadow-lg overflow-hidden">
+    <Link href={`/sets/${slug}`} className="group block bg-white rounded-xl border border-border hover:border-primary transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden">
       {/* Image */}
-      <div className="relative bg-light-grey aspect-square overflow-hidden">
+      <div className="relative bg-surface aspect-square overflow-hidden">
         {imgSrc ? (
           <Image
             src={imgSrc}
@@ -41,14 +41,14 @@ export function SetCard({ set, bestPrice, priceCount }: SetCardProps) {
         )}
         {/* Theme badge overlay */}
         <div className="absolute top-2 left-2">
-          <Badge variant="grey">{set.theme || 'LEGO®'}</Badge>
+          <Badge variant="grey">{set.theme || 'LEGO'}</Badge>
         </div>
       </div>
 
       {/* Info */}
       <div className="p-3">
         <p className="text-xs text-gray-400 font-price mb-1">{set.set_number}</p>
-        <h3 className="font-bold text-dark text-sm leading-tight line-clamp-2 group-hover:text-accent-blue transition-colors mb-2">
+        <h3 className="font-bold text-dark text-sm leading-tight line-clamp-2 group-hover:text-primary transition-colors mb-2">
           {set.name}
         </h3>
 
@@ -80,7 +80,7 @@ export function SetCard({ set, bestPrice, priceCount }: SetCardProps) {
               <p className="text-xs text-gray-400 mt-0.5">{priceCount} stores</p>
             )}
           </div>
-          <span className="text-xs font-bold text-accent-blue group-hover:underline">Compare →</span>
+          <span className="text-xs font-bold text-primary group-hover:underline">Compare →</span>
         </div>
       </div>
     </Link>

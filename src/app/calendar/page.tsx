@@ -3,15 +3,15 @@ import type { Metadata } from 'next';
 import { MASCOTS } from '@/lib/brand';
 
 export const metadata: Metadata = {
-  title: 'LEGO® India Release Calendar 2026 — New Sets & Launch Dates | Bricks of India',
-  description: 'When are new LEGO® sets coming to India? Release dates, expected prices, and pre-order info for 2026 launches.',
+  title: 'LEGO India Release Calendar 2026 — New Sets & Launch Dates | Bricks of India',
+  description: 'When are new LEGO sets coming to India? Release dates, expected prices, and pre-order info for 2026 launches.',
   alternates: { canonical: 'https://bricksofindia.com/calendar' },
 };
 
 const UPCOMING_SETS = [
-  { month: 'April 2026', sets: ['LEGO® Technic Bugatti Chiron', 'LEGO® Icons Eiffel Tower', 'LEGO® Star Wars AT-AT'] },
-  { month: 'May 2026', sets: ['LEGO® Speed Champions F1 2026', 'LEGO® Harry Potter Hogwarts Express', 'LEGO® Botanical Bouquet'] },
-  { month: 'June 2026', sets: ['LEGO® City Police Station', 'LEGO® Creator Expert Ferris Wheel', 'LEGO® Minecraft The Stronghold'] },
+  { month: 'April 2026', sets: ['LEGO Technic Bugatti Chiron', 'LEGO Icons Eiffel Tower', 'LEGO Star Wars AT-AT'] },
+  { month: 'May 2026', sets: ['LEGO Speed Champions F1 2026', 'LEGO Harry Potter Hogwarts Express', 'LEGO Botanical Bouquet'] },
+  { month: 'June 2026', sets: ['LEGO City Police Station', 'LEGO Creator Expert Ferris Wheel', 'LEGO Minecraft The Stronghold'] },
 ];
 
 export default function CalendarPage() {
@@ -22,7 +22,7 @@ export default function CalendarPage() {
           <div className="flex-1">
             <h1 className="font-heading text-primary text-6xl mb-2">INDIA RELEASE CALENDAR</h1>
             <p className="text-gray-300 font-body text-lg">
-              When are new LEGO® sets arriving in India? Expected launch dates, prices, and pre-order info.
+              When are new LEGO sets arriving in India? Expected launch dates, prices, and pre-order info.
               Plan your spending. Or don&apos;t. Your wallet, your problem.
             </p>
           </div>

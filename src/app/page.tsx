@@ -4,15 +4,16 @@ import type { Metadata } from 'next';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { NewsletterSignup } from '@/components/ui/NewsletterSignup';
+import { YouTubeSection } from '@/components/ui/YouTubeSection';
 import { SetCard } from '@/components/sets/SetCard';
 import { ArticleCard, ReviewCard } from '@/components/content/ArticleCard';
 import { BRAND, MASCOTS, THEMES } from '@/lib/brand';
 import { supabase } from '@/lib/supabase';
 
 export const metadata: Metadata = {
-  title: 'Bricks of India — LEGO® Price Comparison & Reviews in India 2026',
+  title: 'Bricks of India — LEGO Price Comparison & Reviews in India 2026',
   description:
-    "Compare LEGO® prices across India's top stores. Updated every 6 hours. Plus honest reviews and guides. More Bricks. Less Nonsense.",
+    "Compare LEGO prices across India's top stores. Updated every 6 hours. Plus honest reviews and guides. More Bricks. Less Nonsense.",
   alternates: { canonical: 'https://bricksofindia.com' },
 };
 
@@ -55,42 +56,46 @@ export default async function HomePage() {
   return (
     <div className="bg-white">
       {/* HERO */}
-      <section className="relative bg-dark overflow-hidden min-h-[500px] flex items-center">
-        <div className="absolute inset-0 bg-gradient-to-br from-dark via-gray-900 to-dark" />
+      <section className="relative overflow-hidden flex items-center" style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #1A56DB 100%)', minHeight: '520px' }}>
         <div
-          className="absolute inset-0 opacity-10"
-          style={{ backgroundImage: 'radial-gradient(circle, #FFD700 1px, transparent 1px)', backgroundSize: '30px 30px' }}
+          className="absolute inset-0"
+          style={{ backgroundImage: 'radial-gradient(circle, rgba(255,255,255,0.08) 1px, transparent 1px)', backgroundSize: '30px 30px' }}
         />
-        <div className="relative z-10 max-w-site mx-auto px-4 py-16 w-full">
-          <div className="flex flex-col lg:flex-row items-center gap-8">
-            <div className="flex-1 text-center lg:text-left">
-              <div className="inline-flex items-center gap-2 bg-primary/20 border border-primary rounded-full px-4 py-1.5 mb-4">
-                <span className="text-primary text-sm font-bold">India&apos;s #1 LEGO® Price Comparison</span>
+        <div className="relative z-10 max-w-site mx-auto px-4 py-14 w-full">
+          <div className="grid grid-cols-1 md:grid-cols-[3fr_2fr] gap-8 items-center">
+            {/* Text column */}
+            <div className="text-center md:text-left">
+              <div className="inline-flex items-center gap-2 bg-accent text-dark rounded-full px-4 py-1.5 mb-4 border-2 border-amber-600">
+                <span className="text-sm font-bold">India&apos;s #1 LEGO Price Comparison</span>
               </div>
-              <h1 className="font-heading text-white text-6xl md:text-7xl lg:text-8xl leading-none mb-4">
+              <h1 className="font-heading text-white leading-none mb-4" style={{ fontSize: 'clamp(2.8rem, 7vw, 5.5rem)' }}>
                 MORE BRICKS.<br />
-                <span className="text-primary">LESS NONSENSE.</span>
+                <span className="text-accent">LESS NONSENSE.</span>
               </h1>
-              <p className="text-gray-300 text-lg md:text-xl mb-8 max-w-xl font-body">
-                India&apos;s Honest Guide to LEGO® — Prices, Reviews &amp; Where to Buy.
+              <p className="text-white/80 text-lg md:text-xl mb-8 max-w-xl mx-auto md:mx-0 font-body">
+                India&apos;s Honest Guide to LEGO — Prices, Reviews &amp; Where to Buy.
                 Updated every 6 hours because your wallet deserves the truth.
               </p>
-              <div className="max-w-xl">
+              <div className="max-w-xl mx-auto md:mx-0">
                 <SearchBar size="lg" />
-                <p className="text-gray-400 text-sm mt-2 text-center lg:text-left">
-                  Search 50,000+ LEGO® sets. Compare prices across 8 Indian stores.
+                <p className="text-white/60 text-sm mt-2 text-center md:text-left">
+                  Search 50,000+ LEGO sets. Compare prices across 8 Indian stores.
                 </p>
               </div>
             </div>
-            <div className="shrink-0 lg:w-80">
-              <Image
-                src={MASCOTS.both.hero}
-                alt="Bricks of India mascots"
-                width={320}
-                height={320}
-                className="object-contain drop-shadow-2xl"
-                priority
-              />
+            {/* Image column */}
+            <div className="flex items-center justify-center">
+              <div className="relative w-full" style={{ maxHeight: '420px' }}>
+                <Image
+                  src={MASCOTS.both.hero}
+                  alt="Bricks of India mascots"
+                  width={420}
+                  height={420}
+                  className="object-contain drop-shadow-2xl mx-auto"
+                  style={{ maxHeight: '420px', width: 'auto' }}
+                  priority
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -100,12 +105,12 @@ export default async function HomePage() {
       <ToycraDiscountBanner variant="full" />
 
       {/* PRICE COMPARISON SEARCH */}
-      <section className="py-12 px-4 bg-light-grey">
+      <section className="py-12 px-4 bg-primary-light">
         <div className="max-w-site mx-auto">
           <div className="flex flex-col md:flex-row items-center gap-8">
             <div className="flex-1 text-center md:text-left">
               <h2 className="font-heading text-dark text-5xl mb-3">FIND THE CHEAPEST PRICE IN INDIA</h2>
-              <p className="text-gray-500 mb-6 font-body">
+              <p className="text-text-secondary mb-6 font-body">
                 Type a set name or number. We&apos;ll find it across Toycra, MyBrickHouse, Hamleys,
                 and more. Updated every 6 hours. We never sleep. Unlike your wallet.
               </p>
@@ -135,7 +140,7 @@ export default async function HomePage() {
           <div className="max-w-site mx-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-heading text-dark text-4xl">LATEST DEALS</h2>
-              <Link href="/deals" className="text-accent-blue font-bold hover:underline text-sm">
+              <Link href="/deals" className="text-primary font-bold hover:underline text-sm">
                 See all deals →
               </Link>
             </div>
@@ -159,19 +164,39 @@ export default async function HomePage() {
       )}
 
       {/* BROWSE BY THEME */}
-      <section className="py-12 px-4 bg-light-grey">
+      <section className="py-12 px-4 bg-surface">
         <div className="max-w-site mx-auto">
           <h2 className="font-heading text-dark text-4xl mb-2">BROWSE BY THEME</h2>
-          <p className="text-gray-500 mb-6">From Technic to Botanical — whatever destroys your wallet, we&apos;ve got it.</p>
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+          <p className="text-text-secondary mb-6">From Technic to Botanical — whatever destroys your wallet, we&apos;ve got it.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
             {THEMES.map((theme) => (
               <Link
                 key={theme.slug}
                 href={`/themes/${theme.slug}`}
-                className="flex flex-col items-center gap-2 bg-white rounded-xl border-2 border-border hover:border-primary hover:shadow-md transition-all p-4 text-center group"
+                className="group block bg-white rounded-xl border border-border overflow-hidden hover:shadow-lg transition-all duration-200"
+                style={{ '--theme-accent': theme.accentColor } as React.CSSProperties}
               >
-                <span className="text-4xl">{theme.emoji}</span>
-                <span className="font-bold text-dark group-hover:text-accent-blue text-sm">{theme.name}</span>
+                {/* Cover image */}
+                <div className="relative overflow-hidden" style={{ aspectRatio: '4/3' }}>
+                  <Image
+                    src={theme.image}
+                    alt={theme.name}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                    sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
+                    unoptimized
+                  />
+                  <div
+                    className="absolute inset-x-0 bottom-0 h-1"
+                    style={{ backgroundColor: theme.accentColor }}
+                  />
+                </div>
+                {/* Label */}
+                <div className="px-3 py-2.5">
+                  <span className="font-bold text-dark group-hover:text-primary text-sm transition-colors block truncate">
+                    {theme.name}
+                  </span>
+                </div>
               </Link>
             ))}
           </div>
@@ -185,9 +210,9 @@ export default async function HomePage() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="font-heading text-dark text-4xl">LATEST REVIEWS</h2>
-                <p className="text-gray-500 text-sm mt-1">Honest. Opinionated. Wallet-aware.</p>
+                <p className="text-text-secondary text-sm mt-1">Honest. Opinionated. Wallet-aware.</p>
               </div>
-              <Link href="/reviews" className="text-accent-blue font-bold hover:underline text-sm">
+              <Link href="/reviews" className="text-primary font-bold hover:underline text-sm">
                 All reviews →
               </Link>
             </div>
@@ -202,11 +227,11 @@ export default async function HomePage() {
 
       {/* LATEST NEWS */}
       {news.length > 0 && (
-        <section className="py-12 px-4 bg-light-grey">
+        <section className="py-12 px-4 bg-primary-light">
           <div className="max-w-site mx-auto">
             <div className="flex items-center justify-between mb-6">
               <h2 className="font-heading text-dark text-4xl">LATEST NEWS</h2>
-              <Link href="/news" className="text-accent-blue font-bold hover:underline text-sm">
+              <Link href="/news" className="text-primary font-bold hover:underline text-sm">
                 All news →
               </Link>
             </div>
@@ -226,9 +251,9 @@ export default async function HomePage() {
             <div className="flex items-center justify-between mb-6">
               <div>
                 <h2 className="font-heading text-dark text-4xl">GUIDES &amp; OPINION</h2>
-                <p className="text-gray-500 text-sm mt-1">Buying guides, hot takes, and LEGO® wisdom.</p>
+                <p className="text-text-secondary text-sm mt-1">Buying guides, hot takes, and LEGO wisdom.</p>
               </div>
-              <Link href="/blog" className="text-accent-blue font-bold hover:underline text-sm">
+              <Link href="/blog" className="text-primary font-bold hover:underline text-sm">
                 All posts →
               </Link>
             </div>
@@ -242,33 +267,14 @@ export default async function HomePage() {
       )}
 
       {/* YOUTUBE */}
-      <section className="py-12 px-4 bg-dark">
-        <div className="max-w-site mx-auto text-center">
-          <h2 className="font-heading text-primary text-5xl mb-3">WATCH ON YOUTUBE</h2>
-          <p className="text-gray-300 mb-8 max-w-xl mx-auto font-body">
-            Set reviews, unboxings, and the occasional breakdown about LEGO® pricing in India.
-            Subscribe if you haven&apos;t. Your algorithm will thank you.
-          </p>
-          <a
-            href={BRAND.youtube}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-3 bg-secondary text-white font-bold px-8 py-4 rounded-xl hover:bg-red-700 transition-colors text-lg"
-          >
-            <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M23.5 6.2c-.3-1-1-1.8-2-2.1C19.7 3.7 12 3.7 12 3.7s-7.7 0-9.5.4c-1 .3-1.7 1.1-2 2.1C0 8 0 12 0 12s0 4 .5 5.8c.3 1 1 1.8 2 2.1C4.3 20.3 12 20.3 12 20.3s7.7 0 9.5-.4c1-.3 1.7-1.1 2-2.1C24 16 24 12 24 12s0-4-.5-5.8zM9.7 15.5V8.5l6.3 3.5-6.3 3.5z"/>
-            </svg>
-            Subscribe to @BricksofIndia
-          </a>
-        </div>
-      </section>
+      <YouTubeSection />
 
       {/* INSTAGRAM */}
-      <section className="py-10 px-4 bg-light-grey">
+      <section className="py-10 px-4 bg-surface">
         <div className="max-w-site mx-auto flex flex-col sm:flex-row items-center justify-between gap-6">
           <div>
             <h2 className="font-heading text-dark text-4xl mb-2">FOLLOW ON INSTAGRAM</h2>
-            <p className="text-gray-500 font-body">Set photos, building updates, and unhinged LEGO® opinions at 2am.</p>
+            <p className="text-text-secondary font-body">Set photos, building updates, and unhinged LEGO opinions at 2am.</p>
           </div>
           <a
             href={BRAND.instagram}

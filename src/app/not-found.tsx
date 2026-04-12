@@ -15,7 +15,7 @@ export default function NotFound() {
         />
         <h1 className="font-heading text-dark text-6xl md:text-7xl mb-4">WELL. THIS IS AWKWARD.</h1>
         <p className="text-gray-500 font-body text-lg mb-8">
-          Even LEGO® can&apos;t build what you&apos;re looking for.
+          Even LEGO can&apos;t build what you&apos;re looking for.
           The page you want either doesn&apos;t exist or has wandered off somewhere.
           Let&apos;s get you back on track.
         </p>

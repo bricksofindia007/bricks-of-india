@@ -14,7 +14,7 @@ interface SearchBarProps {
 export function SearchBar({
   className,
   size = 'md',
-  placeholder = "Find any LEGO® set... go on then.",
+  placeholder = "Find any LEGO set... go on then.",
   initialValue = '',
 }: SearchBarProps) {
   const [query, setQuery] = useState(initialValue);
@@ -37,7 +37,7 @@ export function SearchBar({
         onChange={(e) => setQuery(e.target.value)}
         placeholder={placeholder}
         className={cn(
-          'w-full border-2 border-dark bg-white text-dark placeholder-gray-400 font-body focus:outline-none focus:border-primary transition-colors rounded-l-lg',
+          'w-full border-2 border-border bg-white text-dark placeholder-gray-400 font-body focus:outline-none focus:border-primary transition-colors rounded-l-lg',
           {
             'px-3 py-2 text-sm': size === 'sm',
             'px-4 py-3 text-base': size === 'md',
@@ -48,7 +48,7 @@ export function SearchBar({
       <button
         type="submit"
         className={cn(
-          'bg-primary text-dark font-bold border-2 border-dark border-l-0 rounded-r-lg hover:bg-yellow-400 transition-colors flex items-center gap-2 whitespace-nowrap',
+          'bg-accent text-dark font-bold border-2 border-amber-600 border-l-0 rounded-r-lg hover:bg-accent-hover transition-colors flex items-center gap-2 whitespace-nowrap',
           {
             'px-3 py-2 text-sm': size === 'sm',
             'px-5 py-3 text-base': size === 'md',

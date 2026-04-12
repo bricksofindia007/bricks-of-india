@@ -5,8 +5,8 @@ import { ReviewCard } from '@/components/content/ArticleCard';
 import { MASCOTS } from '@/lib/brand';
 
 export const metadata: Metadata = {
-  title: 'LEGO® Reviews India — Honest Verdicts | Bricks of India',
-  description: 'Honest, opinionated LEGO® set reviews for Indian buyers. We tell you exactly what to buy and what to skip. No corporate speak. No fence-sitting.',
+  title: 'LEGO Reviews India — Honest Verdicts | Bricks of India',
+  description: 'Honest, opinionated LEGO set reviews for Indian buyers. We tell you exactly what to buy and what to skip. No corporate speak. No fence-sitting.',
   alternates: { canonical: 'https://bricksofindia.com/reviews' },
 };
 
@@ -21,7 +21,7 @@ export default async function ReviewsPage() {
       <div className="bg-dark py-12 px-4">
         <div className="max-w-site mx-auto flex items-center gap-6">
           <div className="flex-1">
-            <h1 className="font-heading text-primary text-6xl mb-2">LEGO® REVIEWS</h1>
+            <h1 className="font-heading text-primary text-6xl mb-2">LEGO REVIEWS</h1>
             <p className="text-gray-300 font-body text-lg">
               Honest. Opinionated. Wallet-aware. We tell you exactly what&apos;s worth buying in India — and what isn&apos;t.
               No corporate speak. No fence-sitting. On that note, let&apos;s begin.

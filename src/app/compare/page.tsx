@@ -69,9 +69,9 @@ function ComparePageInner() {
         <div className="max-w-site mx-auto">
           <div className="flex flex-col md:flex-row items-center gap-6">
             <div className="flex-1">
-              <h1 className="font-heading text-primary text-5xl md:text-6xl mb-2">COMPARE LEGO® PRICES IN INDIA</h1>
+              <h1 className="font-heading text-primary text-5xl md:text-6xl mb-2">COMPARE LEGO PRICES IN INDIA</h1>
               <p className="text-gray-300 font-body">
-                {total > 0 ? `${total.toLocaleString()} sets. Updated every 6 hours. Cheapest first.` : 'Search 50,000+ LEGO® sets across 8 Indian stores.'}
+                {total > 0 ? `${total.toLocaleString()} sets. Updated every 6 hours. Cheapest first.` : 'Search 50,000+ LEGO sets across 8 Indian stores.'}
               </p>
             </div>
             <Image src={MASCOTS.blue.pointing} alt="Find best price" width={150} height={150} className="object-contain" />
@@ -136,7 +136,7 @@ function ComparePageInner() {
           <div className="text-center py-20">
             <Image src={MASCOTS.blue.confused} alt="No results" width={150} height={150} className="mx-auto mb-4 object-contain" />
             <h2 className="font-heading text-dark text-3xl mb-2">NOTHING FOUND</h2>
-            <p className="text-gray-400 font-body">Even LEGO® can&apos;t build that. Try a different search.</p>
+            <p className="text-gray-400 font-body">Even LEGO can&apos;t build that. Try a different search.</p>
           </div>
         ) : (
           <>

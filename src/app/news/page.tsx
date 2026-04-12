@@ -6,8 +6,8 @@ import { Badge } from '@/components/ui/Badge';
 import { MASCOTS } from '@/lib/brand';
 
 export const metadata: Metadata = {
-  title: 'LEGO® News India 2026 — New Sets, Deals & Launches | Bricks of India',
-  description: 'Latest LEGO® news for Indian buyers. New set releases, India price updates, deals, and everything happening in the LEGO world in 2026.',
+  title: 'LEGO News India 2026 — New Sets, Deals & Launches | Bricks of India',
+  description: 'Latest LEGO news for Indian buyers. New set releases, India price updates, deals, and everything happening in the LEGO world in 2026.',
   alternates: { canonical: 'https://bricksofindia.com/news' },
 };
 
@@ -24,9 +24,9 @@ export default async function NewsPage({ searchParams }: { searchParams: { categ
       <div className="bg-dark py-12 px-4">
         <div className="max-w-site mx-auto flex items-center gap-6">
           <div className="flex-1">
-            <h1 className="font-heading text-primary text-6xl mb-2">LEGO® NEWS</h1>
+            <h1 className="font-heading text-primary text-6xl mb-2">LEGO NEWS</h1>
             <p className="text-gray-300 font-body text-lg">
-              New sets, India launches, deals, and everything happening in the LEGO® world.
+              New sets, India launches, deals, and everything happening in the LEGO world.
               Filtered for what actually matters to Indian buyers.
             </p>
           </div>
@@ -58,7 +58,7 @@ export default async function NewsPage({ searchParams }: { searchParams: { categ
           <div className="text-center py-20">
             <Image src={MASCOTS.blue.confused} alt="No articles" width={150} height={150} className="mx-auto mb-4 object-contain" />
             <h2 className="font-heading text-dark text-3xl mb-2">NEWS LOADING</h2>
-            <p className="text-gray-400 font-body">Articles are on their way. Faster than LEGO® shipping, hopefully.</p>
+            <p className="text-gray-400 font-body">Articles are on their way. Faster than LEGO shipping, hopefully.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

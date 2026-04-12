@@ -13,8 +13,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { data: review } = await supabase.from('reviews').select('*, sets(name)').eq('slug', params.slug).single();
   if (!review) return { title: 'Review Not Found' };
   return {
-    title: `LEGO® ${review.sets?.name || review.title} Review — Is It Worth Buying in India?`,
-    description: `Our honest verdict on the LEGO® ${review.sets?.name}. ${review.rating}/5 stars. Read the full review including price comparison and buying advice for India.`,
+    title: `LEGO ${review.sets?.name || review.title} Review — Is It Worth Buying in India?`,
+    description: `Our honest verdict on the LEGO ${review.sets?.name}. ${review.rating}/5 stars. Read the full review including price comparison and buying advice for India.`,
     alternates: { canonical: `https://bricksofindia.com/reviews/${params.slug}` },
   };
 }
@@ -31,7 +31,7 @@ export default async function ReviewPage({ params }: Props) {
   const set = review.sets;
   const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
   const shareUrl = `https://bricksofindia.com/reviews/${params.slug}`;
-  const waText = `Just read this LEGO® review on Bricks of India — use ABHINAV12 for 12% off at Toycra!`;
+  const waText = `Just read this LEGO review on Bricks of India — use ABHINAV12 for 12% off at Toycra!`;
 
   return (
     <div className="bg-white min-h-screen">
@@ -145,9 +145,9 @@ export default async function ReviewPage({ params }: Props) {
             {[
               { q: `Is ${set?.name || 'this set'} worth buying in India in 2026?`, a: `${review.verdict} Our rating: ${review.rating}/5. ${review.rating >= 4 ? 'Yes, we think it\'s a solid purchase.' : 'We\'d recommend waiting for a better deal or considering alternatives.'}` },
               { q: `Where can I buy ${set?.name || 'this set'} cheapest in India?`, a: `Use our price comparison tool to find the current best price. Also use code ABHINAV12 at Toycra for an exclusive 12% off.` },
-              { q: `What is the price of ${set?.name || 'this set'} in India?`, a: set?.lego_mrp_inr ? `The official LEGO® India MRP is ₹${set.lego_mrp_inr.toLocaleString('en-IN')}. Some stores may sell at a discount. Compare prices above.` : 'Check our price comparison tool for current prices across Indian stores.' },
+              { q: `What is the price of ${set?.name || 'this set'} in India?`, a: set?.lego_mrp_inr ? `The official LEGO India MRP is ₹${set.lego_mrp_inr.toLocaleString('en-IN')}. Some stores may sell at a discount. Compare prices above.` : 'Check our price comparison tool for current prices across Indian stores.' },
               { q: `How many pieces does ${set?.name || 'this set'} have?`, a: set?.pieces ? `${set.name} has ${set.pieces.toLocaleString()} pieces. ${set.pieces > 1000 ? 'That\'s a serious build — budget at least a weekend.' : 'A manageable build for most experience levels.'}` : 'Check the product listing for piece count details.' },
-              { q: `Is ${set?.name || 'this set'} suitable for adults?`, a: `${set?.age_range ? `The official age range is ${set.age_range}, but` : ''} LEGO® is genuinely for all ages. We think adults arguably enjoy it more — no one judges you for reading the instructions.` },
+              { q: `Is ${set?.name || 'this set'} suitable for adults?`, a: `${set?.age_range ? `The official age range is ${set.age_range}, but` : ''} LEGO is genuinely for all ages. We think adults arguably enjoy it more — no one judges you for reading the instructions.` },
             ].map((faq, i) => (
               <details key={i} className="border-2 border-border rounded-xl overflow-hidden">
                 <summary className="px-4 py-3 font-bold text-dark cursor-pointer hover:bg-light-grey transition-colors">{faq.q}</summary>

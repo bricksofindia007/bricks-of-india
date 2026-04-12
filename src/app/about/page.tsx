@@ -4,8 +4,8 @@ import type { Metadata } from 'next';
 import { BRAND, MASCOTS } from '@/lib/brand';
 
 export const metadata: Metadata = {
-  title: 'About Bricks of India — India\'s Honest LEGO® Guide',
-  description: 'Bricks of India is India\'s premier personality-led LEGO® media brand. Honest reviews, price comparisons, and guides for Indian buyers.',
+  title: 'About Bricks of India — India\'s Honest LEGO Guide',
+  description: 'Bricks of India is India\'s premier personality-led LEGO media brand. Honest reviews, price comparisons, and guides for Indian buyers.',
   alternates: { canonical: 'https://bricksofindia.com/about' },
 };
 
@@ -43,17 +43,17 @@ export default function AboutPage() {
             <div className="space-y-4 text-gray-600 font-body leading-relaxed text-lg">
               <p>
                 Bricks of India started the way most good things do — with a genuine frustration.
-                Buying LEGO® in India is, to put it diplomatically, a minefield. Prices vary wildly
+                Buying LEGO in India is, to put it diplomatically, a minefield. Prices vary wildly
                 between stores. Import costs are opaque. And half the time you can't tell if that
                 ₹3,000 set on Amazon is genuine or a convincing plastic imposter.
               </p>
               <p>
                 So I built the website I wished existed. One that compared prices honestly,
-                reviewed sets without corporate filter, and talked to Indian LEGO® fans like
+                reviewed sets without corporate filter, and talked to Indian LEGO fans like
                 they were adults with functioning wallets and reasonable expectations.
               </p>
               <p>
-                Bricks of India is India's honest guide to LEGO®. We compare prices across
+                Bricks of India is India's honest guide to LEGO. We compare prices across
                 every major Indian retailer. We review sets in plain, occasionally unhinged
                 English. We tell you what's worth buying — and more importantly, what isn't.
               </p>
@@ -64,11 +64,11 @@ export default function AboutPage() {
           <section className="mb-12 bg-primary rounded-2xl p-8">
             <h2 className="font-heading text-dark text-4xl mb-4">THE MISSION</h2>
             <div className="space-y-3 font-body text-dark text-lg">
-              <p>✅ Compare LEGO® prices across all major Indian stores, updated every 6 hours</p>
+              <p>✅ Compare LEGO prices across all major Indian stores, updated every 6 hours</p>
               <p>✅ Review sets honestly — good and bad, with actual opinions</p>
-              <p>✅ Save Indian LEGO® fans money with exclusive deals (hello, ABHINAV12)</p>
+              <p>✅ Save Indian LEGO fans money with exclusive deals (hello, ABHINAV12)</p>
               <p>✅ Be genuinely useful, not just another content farm</p>
-              <p>✅ Make LEGO® less confusing to buy in India</p>
+              <p>✅ Make LEGO less confusing to buy in India</p>
               <p>✅ Entertain along the way. Life's too short for boring buying guides.</p>
             </div>
           </section>
@@ -97,7 +97,7 @@ export default function AboutPage() {
             <h2 className="font-heading text-dark text-4xl mb-4">THE YOUTUBE CHANNEL</h2>
             <p className="text-gray-600 font-body mb-6 text-lg">
               Every set review is also a video. Subscribe to <strong>@BricksofIndia</strong> for unboxings,
-              build reviews, and the occasional dramatic reaction to LEGO® pricing decisions.
+              build reviews, and the occasional dramatic reaction to LEGO pricing decisions.
             </p>
             <a
               href={BRAND.youtube}
@@ -117,7 +117,7 @@ export default function AboutPage() {
             <h2 className="font-heading text-primary text-4xl mb-3">EXCLUSIVE DEAL FOR YOU</h2>
             <p className="text-gray-300 font-body mb-4">
               Use code <strong className="font-price text-primary text-xl bg-gray-800 px-3 py-1 rounded mx-1">ABHINAV12</strong> at Toycra
-              for 12% off any LEGO® set. Minimum purchase ₹500. No limits. Go on.
+              for 12% off any LEGO set. Minimum purchase ₹500. No limits. Go on.
             </p>
             <a
               href="https://www.toycra.com"

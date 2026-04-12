@@ -7,6 +7,7 @@ const nextConfig = {
       { protocol: 'https', hostname: 'images.brickset.com' },
       { protocol: 'https', hostname: 'm.media-amazon.com' },
       { protocol: 'https', hostname: '*.supabase.co' },
+      { protocol: 'https', hostname: 'img.youtube.com' },
     ],
   },
   async headers() {

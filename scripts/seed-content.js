@@ -28,6 +28,7 @@ const BLOG_POSTS = [
   {
     title: "Where to Buy LEGO® in India Without Getting Ripped Off — 2026 Guide",
     slug: "where-to-buy-lego-india-2026",
+    hero_image: "https://cdn.rebrickable.com/media/sets/60404-1/60404-1.jpg",
     category: "Buying Guides",
     excerpt: "India has more ways to buy LEGO® than ever — and more ways to get spectacularly overcharged. Here's the honest guide.",
     published_at: "2026-04-01T10:00:00Z",
@@ -80,6 +81,7 @@ A: Generally yes from established sellers, but always check seller ratings, the 
   {
     title: "Best LEGO® Sets Under ₹2,000 in India (2026)",
     slug: "best-lego-sets-under-2000-india-2026",
+    hero_image: "https://cdn.rebrickable.com/media/sets/31150-1/31150-1.jpg",
     category: "Buying Guides",
     excerpt: "Proof that you don't need to remortgage anything to enjoy LEGO®. The best small sets for Indian buyers in 2026.",
     published_at: "2026-04-02T10:00:00Z",
@@ -124,6 +126,7 @@ A: The Creator 3-in-1 small sets are consistently our top gift recommendation at
   {
     title: "Best LEGO® Sets Under ₹5,000 in India (2026)",
     slug: "best-lego-sets-under-5000-india-2026",
+    hero_image: "https://cdn.rebrickable.com/media/sets/76916-1/76916-1.jpg",
     category: "Buying Guides",
     excerpt: "The sweet spot. ₹5,000 buys you a genuinely impressive LEGO® set in India. Here's what we'd buy.",
     published_at: "2026-04-03T10:00:00Z",
@@ -168,6 +171,7 @@ A: Use Toycra with code ABHINAV12. The 12% discount is the most consistent savin
   {
     title: "Best LEGO® Technic Sets Available in India Right Now (2026)",
     slug: "best-lego-technic-sets-india-2026",
+    hero_image: "https://cdn.rebrickable.com/media/sets/42171-1/42171-1.jpg",
     category: "Buying Guides",
     excerpt: "Gears. Pistons. Working suspension. And an absolutely catastrophic effect on your wallet. LEGO® Technic — India's complete guide.",
     published_at: "2026-04-04T10:00:00Z",
@@ -209,6 +213,7 @@ A: The large sets (3000+ pieces) take 15-25 hours of building time. The Bugatti 
   {
     title: "Is LEGO® Worth the Price in India? An Honest 2026 Answer",
     slug: "is-lego-worth-price-india-2026",
+    hero_image: "https://cdn.rebrickable.com/media/sets/10350-1/10350-1.jpg",
     category: "Opinion",
     excerpt: "Yes. No. It depends. An actually honest answer to the question every Indian LEGO® buyer asks before spending ₹15,000 on a plastic aircraft carrier.",
     published_at: "2026-04-05T10:00:00Z",
@@ -263,6 +268,7 @@ A: Yes, if you're buying complete sets from trustworthy sellers. OLX and local L
   {
     title: "LEGO® vs Fake LEGO® — How to Spot a Knockoff in India",
     slug: "lego-vs-fake-lego-how-to-spot-knockoff-india",
+    hero_image: "https://cdn.rebrickable.com/media/sets/75192-1/75192-1.jpg",
     category: "Buying Guides",
     excerpt: "India has a lot of LEGO® alternatives. Some are fine. Some are bricks that barely connect. Here's how to tell the difference before your money disappears.",
     published_at: "2026-04-06T10:00:00Z",
@@ -929,6 +935,7 @@ const NEWS_ARTICLES = [
   {
     title: "Every LEGO® Set Releasing in India — 2026 Complete Guide",
     slug: "every-lego-set-india-2026",
+    hero_image: "https://cdn.rebrickable.com/media/sets/10350-1/10350-1.jpg",
     category: "India Launches",
     excerpt: "The definitive list of every LEGO® set confirmed for India in 2026. Dates, prices, and availability — all in one place.",
     published_at: "2026-04-01T09:00:00Z",
@@ -971,6 +978,7 @@ A: Historically yes — festival season (October-November) consistently brings t
   {
     title: "LEGO® Speed Champions 2026 — Full India Lineup",
     slug: "lego-speed-champions-2026-india",
+    hero_image: "https://cdn.rebrickable.com/media/sets/76916-1/76916-1.jpg",
     category: "New Sets",
     excerpt: "The 2026 Speed Champions lineup is here. New cars, new collaborations, and the same excellent value that makes this the best LEGO® range to collect in India.",
     published_at: "2026-04-02T09:00:00Z",
@@ -1006,6 +1014,7 @@ A: ₹3,000-₹5,500 for most 2026 sets. The F1 double packs are at the higher e
   {
     title: "LEGO® Technic 2026 — All New Sets Revealed",
     slug: "lego-technic-2026-india-all-sets",
+    hero_image: "https://cdn.rebrickable.com/media/sets/42171-1/42171-1.jpg",
     category: "New Sets",
     excerpt: "The 2026 Technic lineup has been revealed. There are things in here that will make engineers weep and accountants despair simultaneously.",
     published_at: "2026-04-03T09:00:00Z",
@@ -1047,6 +1056,7 @@ A: Flagship sets are 18+. Most mid-range sets are 10-12+. The smaller introducto
   {
     title: "Best LEGO® Deals in India Right Now — April 2026",
     slug: "best-lego-deals-india-april-2026",
+    hero_image: "https://cdn.rebrickable.com/media/sets/21251-1/21251-1.jpg",
     category: "Deals",
     excerpt: "The best LEGO® prices available in India right now. Updated for April 2026. These are the deals worth acting on today.",
     published_at: "2026-04-04T09:00:00Z",
@@ -1092,6 +1102,7 @@ A: Diwali and Republic Day sales sometimes offer 15-20% off at major retailers, 
   {
     title: "LEGO® Star Wars 2026 — What's Coming to India",
     slug: "lego-star-wars-2026-india",
+    hero_image: "https://cdn.rebrickable.com/media/sets/75398-1/75398-1.jpg",
     category: "New Sets",
     excerpt: "The 2026 Star Wars LEGO® lineup. New UCS sets, new battle packs, and the continuing conversation between LEGO® and your credit limit.",
     published_at: "2026-04-05T09:00:00Z",
@@ -1131,6 +1142,7 @@ A: Toycra with code ABHINAV12 for 12% off is our consistent recommendation.`,
   {
     title: "LEGO® Harry Potter 2026 — New Sets Announced",
     slug: "lego-harry-potter-2026-india",
+    hero_image: "https://cdn.rebrickable.com/media/sets/76440-1/76440-1.jpg",
     category: "New Sets",
     excerpt: "New Harry Potter sets for 2026 have been announced. The Castle grows larger. Your wallet grows correspondingly smaller.",
     published_at: "2026-04-06T09:00:00Z",

@@ -7,8 +7,8 @@ import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { MASCOTS } from '@/lib/brand';
 
 export const metadata: Metadata = {
-  title: 'Best LEGO® Deals in India Right Now | Bricks of India',
-  description: 'Current best LEGO® prices across all Indian stores. Price drops, exclusive codes, and the sets worth buying right now.',
+  title: 'Best LEGO Deals in India Right Now | Bricks of India',
+  description: 'Current best LEGO prices across all Indian stores. Price drops, exclusive codes, and the sets worth buying right now.',
   alternates: { canonical: 'https://bricksofindia.com/deals' },
 };
 
@@ -30,11 +30,11 @@ export default async function DealsPage() {
   return (
     <div className="bg-white min-h-screen">
       {/* Header */}
-      <div className="bg-dark py-12 px-4">
+      <div className="bg-primary-dark py-12 px-4">
         <div className="max-w-site mx-auto flex items-center gap-6">
           <div className="flex-1">
-            <h1 className="font-heading text-primary text-6xl mb-2">BEST LEGO® DEALS IN INDIA</h1>
-            <p className="text-gray-300 font-body text-lg">
+            <h1 className="font-heading text-white text-6xl mb-2">BEST LEGO DEALS IN INDIA</h1>
+            <p className="text-white/70 font-body text-lg">
               Updated every 6 hours. These are the best prices right now across all Indian stores.
               Your wallet is about to have a very complicated day.
             </p>
@@ -48,24 +48,25 @@ export default async function DealsPage() {
 
       <div className="max-w-site mx-auto px-4 py-10">
         {/* ABHINAV12 spotlight */}
-        <div className="bg-primary rounded-2xl p-6 mb-10 flex flex-col md:flex-row items-center gap-6">
+        <div className="bg-accent rounded-2xl p-6 mb-10 flex flex-col md:flex-row items-center gap-6 border-2 border-amber-600">
           <div className="flex-1">
-            <h2 className="font-heading text-dark text-3xl mb-2">🎉 EXCLUSIVE: 12% OFF AT TOYCRA</h2>
-            <p className="text-dark font-body mb-3">
-              Use code <strong className="font-price text-xl bg-dark text-primary px-3 py-1 rounded mx-1">ABHINAV12</strong>
-              at Toycra for 12% off any LEGO® set. Min. purchase ₹500. No usage limits.
-              It&apos;s basically free money. Go on.
+            <p className="text-dark/70 text-xs font-bold uppercase tracking-widest mb-1">Exclusive Discount Code</p>
+            <h2 className="font-heading text-dark text-3xl mb-2">12% OFF AT TOYCRA</h2>
+            <p className="text-dark/80 font-body mb-4">
+              Use code{' '}
+              <span className="inline-block font-heading text-2xl bg-dark text-accent px-4 py-1 rounded-lg mx-1 leading-tight">ABHINAV12</span>
+              {' '}at Toycra for 12% off any LEGO set. Min. ₹500. No usage limits. It&apos;s basically free money. Go on.
             </p>
             <a
               href="https://www.toycra.com"
               target="_blank"
               rel="noopener noreferrer sponsored"
-              className="inline-block bg-dark text-primary font-bold px-6 py-2 rounded-lg hover:bg-gray-800 transition-colors"
+              className="inline-block bg-dark text-white font-bold px-6 py-2.5 rounded-xl hover:bg-gray-800 transition-colors text-sm"
             >
               Shop Toycra Now →
             </a>
           </div>
-          <Image src={MASCOTS.red.trophy} alt="Best deal" width={120} height={120} className="object-contain shrink-0" />
+          <Image src={MASCOTS.red.trophy} alt="Best deal" width={130} height={130} className="object-contain shrink-0" />
         </div>
 
         {sets.length === 0 ? (

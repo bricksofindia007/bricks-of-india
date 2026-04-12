@@ -110,7 +110,7 @@ export default async function SetPage({ params }: Props) {
     "@context": "https://schema.org",
     "@type": "Product",
     "name": set.name,
-    "description": set.description || `LEGO® ${set.name} — Compare prices in India`,
+    "description": set.description || `LEGO ${set.name} — Compare prices in India`,
     "image": set.image_url,
     "sku": set.set_number,
     "brand": { "@type": "Brand", "name": "LEGO" },
@@ -194,7 +194,7 @@ export default async function SetPage({ params }: Props) {
             {set.lego_mrp_inr && (
               <div className="bg-light-grey rounded-xl p-4 mb-6 flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide font-bold">Official LEGO® India MRP</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide font-bold">Official LEGO India MRP</p>
                   <p className="font-price text-2xl font-bold text-dark">{formatPrice(set.lego_mrp_inr)}</p>
                 </div>
                 <span className="text-3xl">🏷️</span>
@@ -347,13 +347,13 @@ export default async function SetPage({ params }: Props) {
                   {
                     q: `What is the official MRP of ${set.name} in India?`,
                     a: set.lego_mrp_inr
-                      ? `The official LEGO® India MRP for ${set.name} is ${formatPrice(set.lego_mrp_inr)}. Some stores may sell at or below this price.`
+                      ? `The official LEGO India MRP for ${set.name} is ${formatPrice(set.lego_mrp_inr)}. Some stores may sell at or below this price.`
                       : `The official India MRP for ${set.name} hasn't been confirmed. Check lego.com/en-in for the latest official pricing.`,
                   },
                   {
                     q: `Is ${set.name} worth buying?`,
                     a: review
-                      ? `Our verdict: ${review.verdict} (${review.rating}/5 stars). ${review.rating >= 4 ? "We'd say yes — it's a solid LEGO® set." : "It's not our top pick, but it has its merits."} Read our full review for the complete breakdown.`
+                      ? `Our verdict: ${review.verdict} (${review.rating}/5 stars). ${review.rating >= 4 ? "We'd say yes — it's a solid LEGO set." : "It's not our top pick, but it has its merits."} Read our full review for the complete breakdown.`
                       : `We haven't reviewed ${set.name} yet, but you can find it ${set.pieces ? `with ${set.pieces} pieces` : ''} across Indian stores above. Compare prices to find the best deal.`,
                   },
                   {
