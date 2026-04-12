@@ -4,26 +4,20 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { BRAND } from '@/lib/brand';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// UPDATE THESE: Replace with 3 recent video IDs from @BricksofIndia
-// Find IDs from: https://www.youtube.com/@BricksofIndia
-// Example URL: https://www.youtube.com/watch?v=ABC123XYZ  →  ID is "ABC123XYZ"
-// ─────────────────────────────────────────────────────────────────────────────
+// Replace video IDs as needed. Find ID from: https://www.youtube.com/@BricksofIndia
+// URL: https://www.youtube.com/watch?v=ABC123XYZ  ->  ID is "ABC123XYZ"
 const VIDEOS = [
   {
-    id: 'V2RuwgOANPA&t=76s', // REPLACE with real video ID
-    title: '
-BRAD PITT in LEGO?! The RAREST Speed Champions F1 Set Review 77252 APXGP Race car Hollywood F1 Lego,
+    id: 'V2RuwgOANPA',
+    title: 'BRAD PITT in LEGO?! The RAREST Speed Champions F1 Set Review 77252',
   },
   {
-    id: 'KVj4n5CQqmQ�, // REPLACE with real video ID
-    title: 'Mission LEGO Impossible: My Craziest LEGO Hunt Ever for Retired LEGOS!
-',
+    id: 'KVj4n5CQqmQ',
+    title: 'Mission LEGO Impossible: My Craziest LEGO Hunt Ever for Retired Sets!',
   },
   {
-    id: '72_6dwxsd3o', // REPLACE with real video ID
-    title: '
-This Tiny LEGO Car Is a Trap�F1 Academy Mini Car Speed Champions�#30734,
+    id: '72_6dwxsd3o',
+    title: 'This Tiny LEGO Car Is a Trap — F1 Academy Mini Car Speed Champions #30734',
   },
 ];
 
@@ -54,7 +48,6 @@ function VideoCard({ video, onPlay }: VideoCardProps) {
       onClick={() => onPlay(video.id)}
       className="group w-full text-left bg-white/5 rounded-xl overflow-hidden border border-white/10 hover:border-white/30 transition-all duration-200 hover:shadow-2xl hover:-translate-y-1"
     >
-      {/* Thumbnail */}
       <div className="relative overflow-hidden" style={{ aspectRatio: '16/9' }}>
         <Image
           src={`https://img.youtube.com/vi/${video.id}/maxresdefault.jpg`}
@@ -63,16 +56,13 @@ function VideoCard({ video, onPlay }: VideoCardProps) {
           className="object-cover group-hover:scale-105 transition-transform duration-300"
           unoptimized
         />
-        {/* Dark overlay */}
         <div className="absolute inset-0 bg-black/30 group-hover:bg-black/20 transition-colors" />
-        {/* Play button */}
         <div className="absolute inset-0 flex items-center justify-center">
           <div className="w-14 h-14 rounded-full bg-[#FF0000] flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform duration-200">
             <PlayIcon />
           </div>
         </div>
       </div>
-      {/* Title */}
       <div className="p-4">
         <p className="text-white font-bold text-sm leading-snug line-clamp-2 group-hover:text-accent transition-colors">
           {video.title}
@@ -97,14 +87,12 @@ function VideoModal({ videoId, onClose }: ModalProps) {
         className="relative w-full max-w-3xl"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Close button */}
         <button
           onClick={onClose}
           className="absolute -top-10 right-0 text-white/70 hover:text-white font-bold text-sm flex items-center gap-1 transition-colors"
         >
-          <span>✕ Close</span>
+          <span>x Close</span>
         </button>
-        {/* Embed */}
         <div className="relative rounded-xl overflow-hidden shadow-2xl" style={{ aspectRatio: '16/9' }}>
           <iframe
             src={`https://www.youtube.com/embed/${videoId}?autoplay=1`}
@@ -126,23 +114,19 @@ export function YouTubeSection() {
     <>
       <section className="py-16 px-4 bg-primary-dark">
         <div className="max-w-site mx-auto">
-          {/* Heading */}
           <div className="text-center mb-10">
             <h2 className="font-heading text-accent text-5xl mb-3">WATCH BEFORE YOU BUY</h2>
             <p className="text-white/70 max-w-2xl mx-auto font-body text-lg">
-              Set reviews, unboxings, and honest opinions on LEGO in India.
-              No fluff. Just bricks.
+              Set reviews, unboxings, and honest opinions on LEGO in India. No fluff. Just bricks.
             </p>
           </div>
 
-          {/* Video cards */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-10">
             {VIDEOS.map((video) => (
               <VideoCard key={video.id + video.title} video={video} onPlay={setActiveVideo} />
             ))}
           </div>
 
-          {/* Subscribe CTA */}
           <div className="text-center">
             <a
               href={BRAND.youtube}
@@ -151,17 +135,15 @@ export function YouTubeSection() {
               className="inline-flex items-center gap-3 bg-[#FF0000] text-white font-bold px-8 py-4 rounded-xl hover:bg-red-700 transition-colors text-base"
             >
               <YouTubeIcon />
-              Subscribe on YouTube →
+              Subscribe on YouTube
             </a>
           </div>
         </div>
       </section>
 
-      {/* Modal */}
       {activeVideo && (
         <VideoModal videoId={activeVideo} onClose={() => setActiveVideo(null)} />
       )}
     </>
   );
 }
-
