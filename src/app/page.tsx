@@ -7,6 +7,7 @@ import { NewsletterSignup } from '@/components/ui/NewsletterSignup';
 import { YouTubeSection } from '@/components/ui/YouTubeSection';
 import { SetCard } from '@/components/sets/SetCard';
 import { ArticleCard, ReviewCard } from '@/components/content/ArticleCard';
+import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { BRAND, MASCOTS, THEMES } from '@/lib/brand';
 import { supabase } from '@/lib/supabase';
 
@@ -73,7 +74,7 @@ export default async function HomePage() {
               </div>
               <h1 className="font-heading text-dark leading-none mb-4" style={{ fontSize: 'clamp(2.8rem, 7vw, 5.5rem)' }}>
                 MORE BRICKS.<br />
-                <span className="text-primary">LESS NONSENSE.</span>
+                <span className="text-accent">LESS NONSENSE.</span>
               </h1>
               <p className="text-dark/65 text-lg md:text-xl mb-8 max-w-xl mx-auto md:mx-0 font-body">
                 India&apos;s Honest Guide to LEGO — Prices, Reviews &amp; Where to Buy.
@@ -179,13 +180,16 @@ export default async function HomePage() {
               >
                 {/* Cover image */}
                 <div className="relative overflow-hidden" style={{ aspectRatio: '4/3' }}>
-                  <Image
-                    src={theme.image}
+                  <ImageWithFallback
+                    srcs={[
+                      theme.image,
+                      `https://images.brickset.com/sets/images/${theme.slug}-1.jpg`,
+                      '/images/lego-placeholder.svg',
+                    ]}
                     alt={theme.name}
                     fill
                     className="object-cover group-hover:scale-105 transition-transform duration-300"
                     sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 20vw"
-                    unoptimized
                   />
                   <div
                     className="absolute inset-x-0 bottom-0 h-1"

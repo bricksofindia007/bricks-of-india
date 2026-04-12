@@ -25,7 +25,7 @@ export function Navbar() {
         <div className="flex items-center gap-4 py-3">
           {/* Logo */}
           <Link href="/" className="shrink-0 flex items-center gap-2">
-            <div className="bg-accent px-3 py-1.5 rounded-lg border-2 border-yellow-400">
+            <div className="bg-accent px-3 py-1.5 rounded-lg border-2 border-[#E09500]">
               <span className="font-heading text-dark text-xl leading-none tracking-wide">BRICKS OF INDIA</span>
             </div>
           </Link>

@@ -26,7 +26,7 @@ export function Footer() {
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6 mb-10">
           <div>
             <Link href="/" className="inline-block mb-3">
-              <div className="bg-accent px-3 py-1.5 rounded-lg border-2 border-amber-600 inline-block">
+              <div className="bg-accent px-3 py-1.5 rounded-lg border-2 border-[#E09500] inline-block">
                 <span className="font-heading text-dark text-xl leading-none tracking-wide">BRICKS OF INDIA</span>
               </div>
             </Link>
