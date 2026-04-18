@@ -1,0 +1,63 @@
+name: Scrape Store Prices
+
+on:
+  schedule:
+    # Every 6 hours: 00:00, 06:00, 12:00, 18:00 UTC
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (print stats but skip Supabase writes)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  scrape:
+    name: Shopify → Supabase
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Shopify scraper
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          # REBRICKABLE_API_KEY only needed if you extend the scraper to
+          # fetch sets not yet in Supabase. Not required for price-only scraping.
+          REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
+        run: node scripts/scrape-now.mjs
+
+      - name: Report store_prices row count
+        if: always()
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node -e "
+          const { createClient } = require('@supabase/supabase-js');
+          const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+          async function report() {
+            const { count: spCount } = await sb.from('store_prices').select('*', { count: 'exact', head: true });
+            const { count: phCount } = await sb.from('price_history').select('*', { count: 'exact', head: true });
+            console.log('store_prices rows:', spCount);
+            console.log('price_history rows:', phCount);
+            const { data } = await sb.from('store_prices').select('store_id').order('store_id');
+            const byStore = {};
+            for (const r of data ?? []) byStore[r.store_id] = (byStore[r.store_id] ?? 0) + 1;
+            console.log('By store:', JSON.stringify(byStore));
+          }
+          report().catch(e => { console.error(e); process.exit(1); });
+          "
