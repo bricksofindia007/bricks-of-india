@@ -1,11 +1,10 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { ThemeGrid } from '@/components/sets/ThemeGrid';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { THEMES } from '@/lib/brand';
-import { THEME_IDS, getAllSetsForTheme, type RebrickableSet } from '@/lib/rebrickable';
 
 interface Props {
   params: { theme: string };
@@ -25,90 +24,51 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-/**
- * Strips the Rebrickable suffix (e.g. "75192-1" → "75192").
- * Some sets use "-2", "-3" variants; we always strip the last -N group.
- */
-function stripSuffix(setNum: string): string {
-  return setNum.replace(/-\d+$/, '');
-}
-
 export default async function ThemePage({ params }: Props) {
   const theme = THEMES.find((t) => t.slug === params.theme);
   if (!theme) notFound();
 
-  const themeIds = THEME_IDS[params.theme] ?? [];
-  let sets: any[] = [];
+  // Build-time: Supabase only — no Rebrickable calls during next build.
+  // Rebrickable is queried offline (GitHub Actions) and data is stored in Supabase.
+  const supabase = createServerClient();
 
-  // ── Strategy 1: Rebrickable API with full pagination ──────────────────────
-  // Only used when we have a known Rebrickable theme ID.
-  // Each fetch is cached for 24 h by Next.js; no extra cost on repeated builds.
-  if (themeIds.length > 0) {
-    try {
-      // Fetch all pages for every relevant theme ID, then deduplicate
-      const rawResults = await Promise.all(themeIds.map((id) => getAllSetsForTheme(id)));
-      const seen = new Set<string>();
-      const rbSets: RebrickableSet[] = rawResults.flat().filter((s) => {
-        if (seen.has(s.set_num)) return false;
-        seen.add(s.set_num);
-        return true;
-      });
+  const { data: rawSets } = await supabase
+    .from('sets')
+    .select('*')
+    .ilike('theme', `%${theme.name}%`)
+    .order('year', { ascending: false })
+    .limit(200);
 
-      if (rbSets.length > 0) {
-        // Strip suffixes so we can match against Supabase set_number
-        const setNumbers = rbSets.map((s) => stripSuffix(s.set_num));
+  const setsArr = rawSets ?? [];
 
-        // Batch-fetch matching Supabase rows for prices + India-specific data.
-        // Supabase IN() with a large array is fine via PostgREST.
-        const { data: supabaseSets } = await supabase
-          .from('sets')
-          .select('id, set_number, lego_mrp_inr, age_range, theme, subtheme, minifigs, prices(*)')
-          .in('set_number', setNumbers);
+  // Fetch current prices from store_prices (new pipeline).
+  // Gracefully skip if the table doesn't exist yet (pre-migration).
+  const storePricesBySet = new Map<string, any[]>();
+  if (setsArr.length > 0) {
+    const setNums = setsArr.map((s) => s.set_number);
+    const { data: storePrices, error: spErr } = await supabase
+      .from('store_prices')
+      .select('id, set_id, store_id, price_inr, in_stock, product_url')
+      .in('set_id', setNums);
 
-        const supabaseMap = new Map<string, any>(
-          (supabaseSets ?? []).map((s) => [s.set_number, s]),
-        );
-
-        // Merge Rebrickable set data with Supabase price/MRP data
-        sets = rbSets.map((rb) => {
-          const sn = stripSuffix(rb.set_num);
-          const sup = supabaseMap.get(sn);
-          return {
-            id:            sup?.id ?? rb.set_num,
-            set_number:    sn,
-            rebrickable_id: rb.set_num,
-            name:          rb.name,
-            year:          rb.year,
-            pieces:        rb.num_parts ?? null,
-            image_url:     rb.set_img_url || null,
-            theme:         sup?.theme ?? theme.name,
-            subtheme:      sup?.subtheme ?? null,
-            minifigs:      sup?.minifigs ?? null,
-            description:   null,
-            age_range:     sup?.age_range ?? null,
-            lego_mrp_inr:  sup?.lego_mrp_inr ?? null,
-            created_at:    '',
-            updated_at:    '',
-            prices:        sup?.prices ?? [],
-          };
+    if (!spErr && storePrices) {
+      for (const sp of storePrices) {
+        if (!storePricesBySet.has(sp.set_id)) storePricesBySet.set(sp.set_id, []);
+        storePricesBySet.get(sp.set_id)!.push({
+          id: sp.id,
+          price_inr: sp.price_inr,
+          is_active: sp.price_inr !== null,
+          store_name: sp.store_id,
+          buy_url: sp.product_url,
         });
       }
-    } catch (err) {
-      console.error(`Theme page Rebrickable fetch failed for "${params.theme}":`, err);
-      // Fall through to Strategy 2
     }
   }
 
-  // ── Strategy 2: Supabase only (fallback / no theme ID) ────────────────────
-  if (sets.length === 0) {
-    const { data } = await supabase
-      .from('sets')
-      .select('*, prices(*)')
-      .ilike('theme', `%${theme.name}%`)
-      .order('year', { ascending: false })
-      .limit(200);
-    sets = data ?? [];
-  }
+  const sets = setsArr.map((s) => ({
+    ...s,
+    prices: storePricesBySet.get(s.set_number) ?? [],
+  }));
 
   const setCount = sets.length;
 
@@ -164,7 +124,7 @@ export default async function ThemePage({ params }: Props) {
                 className="object-cover"
               />
             </div>
-            <h2 className="font-heading text-dark text-3xl mb-2">{theme.name} Sets Loading</h2>
+            <h2 className="font-heading text-dark text-3xl mb-2">No {theme.name} Sets Found</h2>
             <p className="text-text-secondary font-body">We&apos;re syncing the set database. Check back shortly.</p>
           </div>
         ) : (
