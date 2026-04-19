@@ -8,6 +8,7 @@ import { YouTubeSection } from '@/components/ui/YouTubeSection';
 import { SetCard } from '@/components/sets/SetCard';
 import { ArticleCard, ReviewCard } from '@/components/content/ArticleCard';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
+import { TricolourStripe } from '@/components/ui/TricolourStripe';
 import { BRAND, MASCOTS, THEMES } from '@/lib/brand';
 import { supabase } from '@/lib/supabase';
 
@@ -56,49 +57,142 @@ export default async function HomePage() {
 
   return (
     <div className="bg-white">
-      {/* HERO */}
-      <section className="relative overflow-hidden bg-white flex items-center" style={{ minHeight: '520px' }}>
-        {/* Subtle dot texture */}
+      {/* ── HERO ─────────────────────────────────────────────────────────────── */}
+      <section
+        className="relative overflow-hidden"
+        style={{
+          background: 'linear-gradient(180deg, var(--boi-sky) 0%, var(--boi-sky-light) 100%)',
+          minHeight: 'clamp(380px, 45vw, 480px)',
+        }}
+      >
+        {/* Banner image — object-fit cover, centred so minifigures always in frame */}
+        <div className="absolute inset-0">
+          <Image
+            src="/brand/hero-banner.png"
+            alt="Bricks of India — LEGO price comparison India"
+            fill
+            priority
+            sizes="100vw"
+            className="object-cover"
+            style={{ objectPosition: '50% 40%' }}
+          />
+        </div>
+
+        {/* Bottom-fade overlay so navy text stays readable */}
         <div
-          className="absolute inset-0"
-          style={{ backgroundImage: 'radial-gradient(circle, rgba(0,0,0,0.045) 1px, transparent 1px)', backgroundSize: '24px 24px' }}
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background:
+              'linear-gradient(to top, rgba(168,216,237,0.92) 0%, rgba(168,216,237,0.55) 45%, transparent 75%)',
+          }}
         />
-        {/* Saffron accent strip at top */}
-        <div className="absolute top-0 left-0 right-0 h-1 bg-accent" />
-        <div className="relative z-10 max-w-site mx-auto px-4 py-14 w-full">
-          <div className="grid grid-cols-1 md:grid-cols-[3fr_2fr] gap-8 items-center">
-            {/* Text column */}
-            <div className="text-center md:text-left">
-              <div className="inline-flex items-center gap-2 bg-primary text-white rounded-full px-4 py-1.5 mb-4">
-                <span className="text-sm font-bold">India&apos;s #1 LEGO Price Comparison</span>
+
+        {/* Text + CTAs — anchored to bottom of section */}
+        <div
+          className="relative z-10 flex flex-col items-center justify-end px-4 pb-12 text-center w-full"
+          style={{ minHeight: 'clamp(380px, 45vw, 480px)' }}
+        >
+          <h1
+            className="mb-2 leading-tight"
+            style={{
+              fontFamily: 'var(--font-fredoka)',
+              fontWeight: 700,
+              fontSize: 'clamp(1.75rem, 5vw, 3rem)',
+              color: 'var(--boi-navy)',
+            }}
+          >
+            India&apos;s first LEGO® price comparison
+          </h1>
+          <p
+            className="mb-6 font-body"
+            style={{
+              fontSize: 'clamp(1rem, 2.5vw, 1.25rem)',
+              color: 'var(--boi-navy)',
+              opacity: 0.85,
+            }}
+          >
+            Every set. Every store. Updated daily.
+          </p>
+
+          {/* CTAs */}
+          <div className="flex flex-col xs:flex-row gap-3 justify-center">
+            <Link
+              href="/compare"
+              style={{
+                background: 'var(--boi-red)',
+                color: '#fff',
+                boxShadow: '0 3px 0 var(--boi-red-dark)',
+                fontFamily: 'var(--font-fredoka)',
+                fontWeight: 700,
+                fontSize: '1rem',
+              }}
+              className="px-7 py-3 rounded-xl transition-opacity hover:opacity-90 whitespace-nowrap"
+            >
+              Find cheapest price →
+            </Link>
+            <Link
+              href="/compare"
+              style={{
+                background: '#fff',
+                color: 'var(--boi-navy)',
+                border: '2px solid var(--boi-navy)',
+                boxShadow: '0 3px 0 var(--boi-navy)',
+                fontFamily: 'var(--font-fredoka)',
+                fontWeight: 700,
+                fontSize: '1rem',
+              }}
+              className="px-7 py-3 rounded-xl transition-opacity hover:opacity-90 whitespace-nowrap"
+            >
+              Browse 2026 sets
+            </Link>
+          </div>
+        </div>
+
+        {/* Tricolour stripe — bottom edge of hero */}
+        <TricolourStripe height={12} className="absolute bottom-0 left-0 right-0" />
+      </section>
+
+      {/* ── STATS BAND ───────────────────────────────────────────────────────── */}
+      <section className="py-6 px-4 bg-white border-b border-border">
+        <div className="max-w-site mx-auto">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {[
+              { stat: '10,000+', label: 'Sets tracked',         border: '#FFC72C', bg: 'rgba(255,199,44,0.12)'  },
+              { stat: '3',       label: 'Indian stores live',   border: '#E30613', bg: 'rgba(227,6,19,0.10)'    },
+              { stat: 'Daily',   label: 'Price refresh',        border: '#138808', bg: 'rgba(19,136,8,0.10)'    },
+              { stat: '₹₹₹',    label: 'Wallet saved',         border: '#1a2332', bg: 'rgba(26,35,50,0.10)'    },
+            ].map(({ stat, label, border, bg }) => (
+              <div
+                key={label}
+                className="rounded-xl px-4 py-4 text-center"
+                style={{ border: `2px solid ${border}`, background: bg }}
+              >
+                <div
+                  style={{
+                    fontSize: '22px',
+                    fontWeight: 800,
+                    color: 'var(--boi-navy)',
+                    fontFamily: 'var(--font-fredoka)',
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {stat}
+                </div>
+                <div
+                  style={{
+                    fontSize: '11px',
+                    fontWeight: 600,
+                    color: '#666',
+                    fontFamily: 'var(--font-inter)',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.05em',
+                    marginTop: '2px',
+                  }}
+                >
+                  {label}
+                </div>
               </div>
-              <h1 className="font-heading text-dark leading-none mb-4" style={{ fontSize: 'clamp(2.8rem, 7vw, 5.5rem)' }}>
-                MORE BRICKS.<br />
-                <span className="text-accent">LESS NONSENSE.</span>
-              </h1>
-              <p className="text-dark/65 text-lg md:text-xl mb-8 max-w-xl mx-auto md:mx-0 font-body">
-                India&apos;s Honest Guide to LEGO — Prices, Reviews &amp; Where to Buy.
-                Updated every 6 hours because your wallet deserves the truth.
-              </p>
-              <div className="max-w-xl mx-auto md:mx-0">
-                <SearchBar size="lg" />
-                <p className="text-dark/45 text-sm mt-2 text-center md:text-left">
-                  Search 50,000+ LEGO sets. Compare prices across 8 Indian stores.
-                </p>
-              </div>
-            </div>
-            {/* Image column */}
-            <div className="flex items-center justify-center">
-              <Image
-                src={MASCOTS.both.hero}
-                alt="Bricks of India mascots"
-                width={420}
-                height={420}
-                className="object-contain drop-shadow-xl mx-auto"
-                style={{ maxHeight: '420px', width: 'auto' }}
-                priority
-              />
-            </div>
+            ))}
           </div>
         </div>
       </section>
