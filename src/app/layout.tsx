@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Poppins } from "next/font/google";
+import { Poppins, Fredoka, Inter } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -10,6 +10,20 @@ const poppins = Poppins({
   subsets: ["latin"],
   weight: ["400", "600", "700", "800"],
   variable: "--font-poppins",
+  display: "swap",
+});
+
+const fredoka = Fredoka({
+  subsets: ["latin"],
+  weight: ["400", "600", "700"],
+  variable: "--font-fredoka",
+  display: "swap",
+});
+
+const inter = Inter({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-inter",
   display: "swap",
 });
 
@@ -73,7 +87,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en-IN" className={poppins.variable}>
+    <html lang="en-IN" className={`${poppins.variable} ${fredoka.variable} ${inter.variable}`}>
       <body className="bg-white text-dark font-body antialiased">
         {/* Google Analytics */}
         {GA_ID && (

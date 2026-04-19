@@ -17,6 +17,17 @@
   --color-text-secondary: #666666;
   --color-deal-green:     #16A34A;
   --color-warning-orange: #FF6B00;
+
+  /* ── Brand design system ──────────────────────────────────────────────────── */
+  --boi-yellow:     #FFC72C;
+  --boi-red:        #E30613;
+  --boi-red-dark:   #8B0309;
+  --boi-sky:        #7EC4E8;
+  --boi-sky-light:  #A8D8ED;
+  --boi-navy:       #1a2332;
+  --boi-saffron:    #FF9933;
+  --boi-green:      #138808;
+  --boi-white:      #FFFFFF;
 }
 
 * {
@@ -30,30 +41,40 @@ html {
 body {
   background-color: #FFFFFF;
   color: #333333;
-  font-family: var(--font-poppins), sans-serif;
+  font-family: var(--font-inter), var(--font-poppins), sans-serif;
   font-weight: 400;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-h1, h2, h3, h4, h5, h6 {
-  font-family: var(--font-poppins), sans-serif;
+h1, h2, h3 {
+  font-family: var(--font-fredoka), var(--font-poppins), sans-serif;
   font-weight: 700;
   color: #1A1A1A;
 }
 
+h4, h5, h6 {
+  font-family: var(--font-inter), var(--font-poppins), sans-serif;
+  font-weight: 600;
+  color: #1A1A1A;
+}
+
+button {
+  font-family: var(--font-fredoka), var(--font-poppins), sans-serif;
+}
+
 .font-price {
-  font-family: var(--font-poppins), sans-serif;
+  font-family: var(--font-inter), var(--font-poppins), sans-serif;
   font-weight: 600;
 }
 
 .font-heading {
-  font-family: var(--font-poppins), sans-serif;
-  font-weight: 800;
+  font-family: var(--font-fredoka), var(--font-poppins), sans-serif;
+  font-weight: 700;
 }
 
 .font-body {
-  font-family: var(--font-poppins), sans-serif;
+  font-family: var(--font-inter), var(--font-poppins), sans-serif;
   font-weight: 400;
 }
 
