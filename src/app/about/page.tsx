@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import { SchemaLD } from '@/components/SchemaLD';
-import { BRAND } from '@/lib/brand';
+import { BRAND, MASCOTS } from '@/lib/brand';
 
 export const metadata: Metadata = {
   title: 'About Abhinav Bhargav — Founder, Bricks of India',
@@ -65,30 +66,24 @@ export default function AboutPage() {
         }}
       >
         <div className="max-w-site mx-auto flex flex-col md:flex-row items-center gap-10">
-          {/* Photo placeholder */}
+          {/* Mascot image */}
           <div
-            className="shrink-0 rounded-2xl flex items-center justify-center border-4"
+            className="shrink-0 rounded-2xl overflow-hidden border-4"
             style={{
               width: '240px',
               height: '240px',
               minWidth: '240px',
               borderColor: 'var(--boi-navy)',
-              background: 'rgba(26,35,50,0.08)',
             }}
           >
-            <div
-              className="text-center"
-              style={{
-                fontFamily: 'var(--font-inter)',
-                color: 'var(--boi-navy)',
-                opacity: 0.45,
-              }}
-            >
-              <div style={{ fontSize: '52px', lineHeight: 1 }}>🧱</div>
-              <div style={{ fontSize: '11px', marginTop: '6px', fontWeight: 500 }}>
-                photo placeholder
-              </div>
-            </div>
+            <Image
+              src={MASCOTS.both.about}
+              alt="Bricks of India mascots"
+              width={240}
+              height={240}
+              className="w-full h-full object-cover"
+              priority
+            />
           </div>
 
           {/* Name + title */}
@@ -121,21 +116,23 @@ export default function AboutPage() {
                 href={BRAND.youtube}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl transition-opacity hover:opacity-80"
+                className="inline-flex items-center gap-2 font-semibold px-5 py-2.5 rounded-xl transition-opacity hover:opacity-80"
                 style={{
-                  background: 'var(--boi-red)',
+                  background: '#FF0000',
                   color: '#fff',
-                  fontFamily: 'var(--font-inter)',
+                  fontFamily: 'var(--font-fredoka)',
+                  fontSize: '1rem',
+                  fontWeight: 700,
                 }}
               >
                 <YouTubeIcon />
-                YouTube
+                Subscribe on YouTube
               </a>
               <a
                 href={BRAND.instagram}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2 rounded-xl transition-opacity hover:opacity-80"
+                className="inline-flex items-center gap-2 text-sm font-semibold px-4 py-2.5 rounded-xl transition-opacity hover:opacity-80"
                 style={{
                   background: 'var(--boi-navy)',
                   color: '#fff',
@@ -184,6 +181,12 @@ export default function AboutPage() {
                 at better — honest prices from Indian stores, reviews without PR spin, news written
                 by someone who knows what ₹6,499 actually feels like when your EMI is also due
                 that week.
+              </p>
+              <p>
+                In August 2025, I started Bricks of India — first as a YouTube channel (and Instagram
+                page) about LEGO, India, and the financial decisions one makes at 2am with a credit
+                card in hand — and then this website, because apparently one outlet for obsession
+                is never enough.
               </p>
               <p>
                 Welcome in. Try not to empty your wallet. I&apos;m told that&apos;s part of the fun.
@@ -268,15 +271,16 @@ export default function AboutPage() {
                 href={BRAND.youtube}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-3 text-sm font-semibold px-5 py-3 rounded-xl transition-opacity hover:opacity-80 max-w-xs"
+                className="inline-flex items-center gap-3 font-bold px-6 py-4 rounded-xl transition-opacity hover:opacity-80 max-w-xs"
                 style={{
                   background: '#FF0000',
                   color: '#fff',
-                  fontFamily: 'var(--font-inter)',
+                  fontFamily: 'var(--font-fredoka)',
+                  fontSize: '1.1rem',
                 }}
               >
                 <YouTubeIcon />
-                @BricksofIndia on YouTube
+                Subscribe — @BricksofIndia
               </a>
               <a
                 href={BRAND.instagram}

@@ -20,7 +20,7 @@ export const metadata: Metadata = {
 };
 
 async function getHomepageData() {
-  const [setsRes, reviewsRes, newsRes, blogRes] = await Promise.allSettled([
+  const [setsRes, reviewsRes, newsRes, blogRes, setsCountRes, newsCountRes, reviewsCountRes] = await Promise.allSettled([
     supabase
       .from('sets')
       .select('*, prices(*)')
@@ -42,18 +42,28 @@ async function getHomepageData() {
       .select('*')
       .order('published_at', { ascending: false })
       .limit(3),
+    supabase.from('sets').select('*', { count: 'exact', head: true }),
+    supabase.from('news_articles').select('*', { count: 'exact', head: true }),
+    supabase.from('reviews').select('*', { count: 'exact', head: true }),
   ]);
+
+  const setsCount = setsCountRes.status === 'fulfilled' ? (setsCountRes.value.count ?? 0) : 0;
+  const newsCount = newsCountRes.status === 'fulfilled' ? (newsCountRes.value.count ?? 0) : 0;
+  const reviewsCount = reviewsCountRes.status === 'fulfilled' ? (reviewsCountRes.value.count ?? 0) : 0;
 
   return {
     sets: setsRes.status === 'fulfilled' ? (setsRes.value.data || []) : [],
     reviews: reviewsRes.status === 'fulfilled' ? (reviewsRes.value.data || []) : [],
     news: newsRes.status === 'fulfilled' ? (newsRes.value.data || []) : [],
     blog: blogRes.status === 'fulfilled' ? (blogRes.value.data || []) : [],
+    setsCount,
+    newsCount,
+    reviewsCount,
   };
 }
 
 export default async function HomePage() {
-  const { sets, reviews, news, blog } = await getHomepageData();
+  const { sets, reviews, news, blog, setsCount, newsCount, reviewsCount } = await getHomepageData();
 
   return (
     <div className="bg-white">
@@ -62,10 +72,10 @@ export default async function HomePage() {
         className="relative overflow-hidden"
         style={{
           background: 'linear-gradient(180deg, var(--boi-sky) 0%, var(--boi-sky-light) 100%)',
-          minHeight: 'clamp(380px, 45vw, 480px)',
+          minHeight: 'clamp(420px, 50vw, 560px)',
         }}
       >
-        {/* Banner image — object-fit cover, centred so minifigures always in frame */}
+        {/* Banner image — object-fit cover, anchored to top so logo text is always visible */}
         <div className="absolute inset-0">
           <Image
             src="/brand/hero-banner.png"
@@ -74,7 +84,7 @@ export default async function HomePage() {
             priority
             sizes="100vw"
             className="object-cover"
-            style={{ objectPosition: '50% 40%' }}
+            style={{ objectPosition: '50% 0%' }}
           />
         </div>
 
@@ -90,7 +100,7 @@ export default async function HomePage() {
         {/* Text + CTAs — anchored to bottom of section */}
         <div
           className="relative z-10 flex flex-col items-center justify-end px-4 pb-12 text-center w-full"
-          style={{ minHeight: 'clamp(380px, 45vw, 480px)' }}
+          style={{ minHeight: 'clamp(420px, 50vw, 560px)' }}
         >
           <h1
             className="mb-2 leading-tight"
@@ -156,43 +166,60 @@ export default async function HomePage() {
       <section className="py-6 px-4 bg-white border-b border-border">
         <div className="max-w-site mx-auto">
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {[
-              { stat: '10,000+', label: 'Sets tracked',         border: '#FFC72C', bg: 'rgba(255,199,44,0.12)'  },
-              { stat: '3',       label: 'Indian stores live',   border: '#E30613', bg: 'rgba(227,6,19,0.10)'    },
-              { stat: 'Daily',   label: 'Price refresh',        border: '#138808', bg: 'rgba(19,136,8,0.10)'    },
-              { stat: '₹₹₹',    label: 'Wallet saved',         border: '#1a2332', bg: 'rgba(26,35,50,0.10)'    },
-            ].map(({ stat, label, border, bg }) => (
-              <div
-                key={label}
-                className="rounded-xl px-4 py-4 text-center"
-                style={{ border: `2px solid ${border}`, background: bg }}
-              >
-                <div
-                  style={{
-                    fontSize: '22px',
-                    fontWeight: 800,
-                    color: 'var(--boi-navy)',
-                    fontFamily: 'var(--font-fredoka)',
-                    lineHeight: 1.2,
-                  }}
-                >
-                  {stat}
-                </div>
-                <div
-                  style={{
-                    fontSize: '11px',
-                    fontWeight: 600,
-                    color: '#666',
-                    fontFamily: 'var(--font-inter)',
-                    textTransform: 'uppercase',
-                    letterSpacing: '0.05em',
-                    marginTop: '2px',
-                  }}
-                >
-                  {label}
-                </div>
+            {/* Live set count */}
+            <Link
+              href="/compare"
+              className="rounded-xl px-4 py-4 text-center transition-opacity hover:opacity-80"
+              style={{ border: '2px solid #FFC72C', background: 'rgba(255,199,44,0.12)' }}
+            >
+              <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--boi-navy)', fontFamily: 'var(--font-fredoka)', lineHeight: 1.2 }}>
+                {setsCount > 0 ? setsCount.toLocaleString('en-IN') : '—'}
               </div>
-            ))}
+              <div style={{ fontSize: '11px', fontWeight: 600, color: '#666', fontFamily: 'var(--font-inter)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>
+                Sets tracked
+              </div>
+            </Link>
+
+            {/* Stores count — static */}
+            <div
+              className="rounded-xl px-4 py-4 text-center"
+              style={{ border: '2px solid #E30613', background: 'rgba(227,6,19,0.10)' }}
+            >
+              <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--boi-navy)', fontFamily: 'var(--font-fredoka)', lineHeight: 1.2 }}>
+                3
+              </div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: '#666', fontFamily: 'var(--font-inter)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>
+                Indian stores live
+              </div>
+            </div>
+
+            {/* News — clickable */}
+            <Link
+              href="/news"
+              className="rounded-xl px-4 py-4 text-center transition-opacity hover:opacity-80"
+              style={{ border: '2px solid #138808', background: 'rgba(19,136,8,0.10)' }}
+            >
+              <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--boi-navy)', fontFamily: 'var(--font-fredoka)', lineHeight: 1.2 }}>
+                {newsCount > 0 ? newsCount : 'News'}
+              </div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: '#666', fontFamily: 'var(--font-inter)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>
+                {newsCount > 0 ? 'News articles' : 'Latest news'}
+              </div>
+            </Link>
+
+            {/* Reviews — clickable */}
+            <Link
+              href="/reviews"
+              className="rounded-xl px-4 py-4 text-center transition-opacity hover:opacity-80"
+              style={{ border: '2px solid #1a2332', background: 'rgba(26,35,50,0.10)' }}
+            >
+              <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--boi-navy)', fontFamily: 'var(--font-fredoka)', lineHeight: 1.2 }}>
+                {reviewsCount > 0 ? reviewsCount : 'Reviews'}
+              </div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: '#666', fontFamily: 'var(--font-inter)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>
+                {reviewsCount > 0 ? 'Set reviews' : 'Read reviews'}
+              </div>
+            </Link>
           </div>
         </div>
       </section>

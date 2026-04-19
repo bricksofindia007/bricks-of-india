@@ -56,9 +56,6 @@ export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const pathname = usePathname();
 
-  // Homepage has its own full hero — suppress this header there
-  if (pathname === '/') return null;
-
   return (
     <header
       className="sticky top-0 z-50 shadow-sm"
