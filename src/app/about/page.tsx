@@ -1,35 +1,112 @@
-import Image from 'next/image';
-import Link from 'next/link';
 import type { Metadata } from 'next';
-import { BRAND, MASCOTS } from '@/lib/brand';
+import Link from 'next/link';
+import { Youtube, Instagram, Mail } from 'lucide-react';
+import { SchemaLD } from '@/components/SchemaLD';
+import { BRAND } from '@/lib/brand';
 
 export const metadata: Metadata = {
-  title: 'About Bricks of India — India\'s Honest LEGO Guide',
-  description: 'Bricks of India is India\'s premier personality-led LEGO media brand. Honest reviews, price comparisons, and guides for Indian buyers.',
+  title: 'About Abhinav Bhargav — Founder, Bricks of India',
+  description:
+    'Abhinav Bhargav is the founder of Bricks of India, India\'s first LEGO® price comparison site. 17+ years in Sales, Marketing and Account Management. Cornell University Talent Management program.',
   alternates: { canonical: 'https://bricksofindia.com/about' },
+};
+
+const personSchema = {
+  '@context': 'https://schema.org',
+  '@type': 'Person',
+  name: 'Abhinav Bhargav',
+  jobTitle: 'Founder, Bricks of India',
+  email: 'abhinav@bricksofindia.com',
+  url: 'https://www.bricksofindia.com/about',
+  sameAs: [
+    'https://www.youtube.com/@BricksofIndia',
+    'https://www.instagram.com/bricksofindia/',
+  ],
+  alumniOf: {
+    '@type': 'EducationalOrganization',
+    name: 'Cornell University',
+  },
+  worksFor: {
+    '@type': 'Organization',
+    name: 'Bricks of India',
+  },
 };
 
 export default function AboutPage() {
   return (
     <div className="bg-white min-h-screen">
-      {/* Hero */}
-      <section className="bg-dark py-16 px-4">
+      <SchemaLD data={personSchema} />
+
+      {/* ── Hero ────────────────────────────────────────────────────────────── */}
+      <section
+        className="py-14 px-4"
+        style={{ background: 'linear-gradient(180deg, var(--boi-sky) 0%, var(--boi-sky-light) 100%)' }}
+      >
         <div className="max-w-site mx-auto flex flex-col md:flex-row items-center gap-10">
-          <div className="flex-1 text-center md:text-left">
-            <h1 className="font-heading text-primary text-6xl md:text-7xl mb-4">ABOUT BRICKS OF INDIA</h1>
-            <p className="text-white text-xl md:text-2xl font-body italic leading-relaxed">
-              "Hi, I'm Abhinav. I spend an unreasonable amount of money on small plastic bricks
-              and I've decided this is your problem now."
-            </p>
+          {/* Photo placeholder */}
+          <div
+            className="shrink-0 rounded-2xl overflow-hidden border-4 flex items-center justify-center"
+            style={{
+              width: '200px',
+              height: '200px',
+              borderColor: 'var(--boi-navy)',
+              background: 'rgba(26,35,50,0.1)',
+            }}
+          >
+            <div
+              className="text-center"
+              style={{ fontFamily: 'var(--font-fredoka)', color: 'var(--boi-navy)', opacity: 0.5 }}
+            >
+              <div style={{ fontSize: '48px', lineHeight: 1 }}>🧱</div>
+              <div style={{ fontSize: '11px', marginTop: '4px' }}>Photo coming soon</div>
+            </div>
           </div>
-          <div className="shrink-0">
-            <Image
-              src={MASCOTS.both.about}
-              alt="Bricks of India team"
-              width={350}
-              height={350}
-              className="object-contain drop-shadow-2xl"
-            />
+
+          {/* Name + title */}
+          <div>
+            <h1
+              style={{
+                fontFamily: 'var(--font-fredoka)',
+                fontWeight: 700,
+                fontSize: 'clamp(2rem, 5vw, 3.5rem)',
+                color: 'var(--boi-navy)',
+                lineHeight: 1.1,
+              }}
+            >
+              Abhinav Bhargav
+            </h1>
+            <p
+              style={{
+                fontFamily: 'var(--font-inter)',
+                fontWeight: 600,
+                fontSize: '18px',
+                color: 'var(--boi-navy)',
+                opacity: 0.75,
+                marginTop: '4px',
+              }}
+            >
+              Founder, Bricks of India
+            </p>
+            <div className="flex flex-wrap gap-3 mt-5">
+              <a
+                href={BRAND.youtube}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 font-semibold text-sm px-4 py-2 rounded-xl transition-opacity hover:opacity-80"
+                style={{ background: 'var(--boi-red)', color: '#fff', fontFamily: 'var(--font-inter)' }}
+              >
+                <Youtube className="w-4 h-4" /> YouTube
+              </a>
+              <a
+                href={BRAND.instagram}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-2 font-semibold text-sm px-4 py-2 rounded-xl transition-opacity hover:opacity-80"
+                style={{ background: 'var(--boi-navy)', color: '#fff', fontFamily: 'var(--font-inter)' }}
+              >
+                <Instagram className="w-4 h-4" /> Instagram
+              </a>
+            </div>
           </div>
         </div>
       </section>
@@ -37,95 +114,132 @@ export default function AboutPage() {
       <div className="max-w-site mx-auto px-4 py-12">
         <div className="max-w-3xl">
 
-          {/* Origin */}
+          {/* ── Bio ────────────────────────────────────────────────────────── */}
           <section className="mb-12">
-            <h2 className="font-heading text-dark text-4xl mb-4">THE STORY</h2>
-            <div className="space-y-4 text-gray-600 font-body leading-relaxed text-lg">
+            <h2 className="font-heading mb-4" style={{ color: 'var(--boi-navy)', fontSize: '2rem' }}>
+              About
+            </h2>
+            <div
+              className="space-y-4 leading-relaxed"
+              style={{ fontFamily: 'var(--font-inter)', fontSize: '1.05rem', color: '#444', lineHeight: 1.75 }}
+            >
               <p>
-                Bricks of India started the way most good things do — with a genuine frustration.
-                Buying LEGO in India is, to put it diplomatically, a minefield. Prices vary wildly
-                between stores. Import costs are opaque. And half the time you can't tell if that
-                ₹3,000 set on Amazon is genuine or a convincing plastic imposter.
+                Hi, I&apos;m Abhinav. I&apos;ve spent 17+ years working in Sales, Marketing, and Account
+                Management across B2B and consumer categories. In 2025 I moved into full-time
+                freelancing, and alongside that work I run Bricks of India — India&apos;s first
+                honest LEGO® price comparison and review site.
               </p>
               <p>
-                So I built the website I wished existed. One that compared prices honestly,
-                reviewed sets without corporate filter, and talked to Indian LEGO fans like
-                they were adults with functioning wallets and reasonable expectations.
+                I completed the Talent Management program at Cornell University, which gave me a
+                solid grounding in how people learn, communicate, and make decisions. That&apos;s
+                informed a lot of how I write about LEGO: plainly, with an opinion, and with
+                the Indian buyer&apos;s wallet in mind.
               </p>
               <p>
-                Bricks of India is India's honest guide to LEGO. We compare prices across
-                every major Indian retailer. We review sets in plain, occasionally unhinged
-                English. We tell you what's worth buying — and more importantly, what isn't.
+                I launched the Bricks of India YouTube channel and website in 2024 because I was
+                frustrated by the lack of India-specific LEGO content. Prices vary wildly between
+                stores. Import duties are opaque. Reviews are almost always written from a US or UK
+                perspective and don&apos;t account for what Indian buyers actually pay.
+                Bricks of India exists to fix that.
               </p>
             </div>
           </section>
 
-          {/* Mission */}
-          <section className="mb-12 bg-primary rounded-2xl p-8">
-            <h2 className="font-heading text-dark text-4xl mb-4">THE MISSION</h2>
-            <div className="space-y-3 font-body text-dark text-lg">
-              <p>✅ Compare LEGO prices across all major Indian stores, updated every 6 hours</p>
-              <p>✅ Review sets honestly — good and bad, with actual opinions</p>
-              <p>✅ Save Indian LEGO fans money with exclusive deals (hello, ABHINAV12)</p>
-              <p>✅ Be genuinely useful, not just another content farm</p>
-              <p>✅ Make LEGO less confusing to buy in India</p>
-              <p>✅ Entertain along the way. Life's too short for boring buying guides.</p>
-            </div>
-          </section>
-
-          {/* What makes BOI different */}
+          {/* ── Credentials ────────────────────────────────────────────────── */}
           <section className="mb-12">
-            <h2 className="font-heading text-dark text-4xl mb-4">WHAT MAKES US DIFFERENT</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <h2 className="font-heading mb-6" style={{ color: 'var(--boi-navy)', fontSize: '2rem' }}>
+              Credentials
+            </h2>
+            <div className="space-y-4">
               {[
-                { icon: '🏆', title: 'Honest Verdicts', desc: 'We tell you to skip sets. We say when something is overpriced. We have opinions and we share them.' },
-                { icon: '💰', title: 'Price Transparency', desc: 'Real prices from real Indian stores, updated every 6 hours. Not yesterday\'s prices. Not estimates.' },
-                { icon: '🇮🇳', title: 'India-First', desc: 'Everything is in ₹. We know Indian stores, Indian shipping, and Indian wallet realities.' },
-                { icon: '🎬', title: 'YouTube + Website', desc: 'Video reviews AND written guides. Watch or read. We cover it both ways because you deserve options.' },
-              ].map((item) => (
-                <div key={item.title} className="bg-light-grey rounded-xl p-5 border-2 border-border">
-                  <span className="text-3xl mb-3 block">{item.icon}</span>
-                  <h3 className="font-heading text-dark text-xl mb-2">{item.title}</h3>
-                  <p className="text-gray-500 font-body text-sm">{item.desc}</p>
+                {
+                  icon: '🎓',
+                  title: 'Cornell University',
+                  detail: 'Talent Management program',
+                },
+                {
+                  icon: '💼',
+                  title: '17+ years experience',
+                  detail: 'Enterprise Sales, Marketing, and Account Management',
+                },
+                {
+                  icon: '🎬',
+                  title: 'LEGO content creator since 2024',
+                  detail: 'YouTube + Instagram — reviews, price comparisons, India LEGO news',
+                },
+              ].map(({ icon, title, detail }) => (
+                <div
+                  key={title}
+                  className="flex items-start gap-4 p-4 rounded-xl"
+                  style={{ background: 'rgba(126,196,232,0.1)', border: '1.5px solid rgba(126,196,232,0.4)' }}
+                >
+                  <span className="text-2xl shrink-0 mt-0.5">{icon}</span>
+                  <div>
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-fredoka)',
+                        fontWeight: 700,
+                        fontSize: '16px',
+                        color: 'var(--boi-navy)',
+                      }}
+                    >
+                      {title}
+                    </div>
+                    <div
+                      style={{
+                        fontFamily: 'var(--font-inter)',
+                        fontSize: '14px',
+                        color: '#666',
+                        marginTop: '2px',
+                      }}
+                    >
+                      {detail}
+                    </div>
+                  </div>
                 </div>
               ))}
             </div>
           </section>
 
-          {/* YouTube */}
-          <section className="mb-12">
-            <h2 className="font-heading text-dark text-4xl mb-4">THE YOUTUBE CHANNEL</h2>
-            <p className="text-gray-600 font-body mb-6 text-lg">
-              Every set review is also a video. Subscribe to <strong>@BricksofIndia</strong> for unboxings,
-              build reviews, and the occasional dramatic reaction to LEGO pricing decisions.
-            </p>
-            <a
-              href={BRAND.youtube}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-3 bg-secondary text-white font-bold px-6 py-3 rounded-xl hover:bg-red-700 transition-colors"
+          {/* ── Mission ──────────────────────────────────────────────────────── */}
+          <section
+            className="mb-12 rounded-2xl p-8"
+            style={{ background: 'var(--boi-navy)' }}
+          >
+            <h2
+              className="font-heading mb-4"
+              style={{ color: 'var(--boi-yellow)', fontSize: '2rem' }}
             >
-              <svg className="w-6 h-6" fill="currentColor" viewBox="0 0 24 24">
-                <path d="M23.5 6.2c-.3-1-1-1.8-2-2.1C19.7 3.7 12 3.7 12 3.7s-7.7 0-9.5.4c-1 .3-1.7 1.1-2 2.1C0 8 0 12 0 12s0 4 .5 5.8c.3 1 1 1.8 2 2.1C4.3 20.3 12 20.3 12 20.3s7.7 0 9.5-.4c1-.3 1.7-1.1 2-2.1C24 16 24 12 24 12s0-4-.5-5.8zM9.7 15.5V8.5l6.3 3.5-6.3 3.5z"/>
-              </svg>
-              Subscribe to @BricksofIndia
-            </a>
+              What Bricks of India does
+            </h2>
+            <div
+              className="space-y-2.5"
+              style={{ fontFamily: 'var(--font-inter)', fontSize: '15px', color: 'rgba(255,255,255,0.85)', lineHeight: 1.6 }}
+            >
+              <p>✅ Compare LEGO prices across all major Indian stores — updated every 6 hours</p>
+              <p>✅ Review sets honestly, with actual opinions and India price context</p>
+              <p>✅ Deliver LEGO news written from an India perspective</p>
+              <p>✅ Save Indian LEGO fans money with exclusive deals (use code ABHINAV12 at Toycra)</p>
+              <p>✅ Be genuinely useful, not just another content farm</p>
+            </div>
           </section>
 
-          {/* Toycra Code */}
-          <section className="mb-12 bg-dark rounded-2xl p-8 text-center">
-            <h2 className="font-heading text-primary text-4xl mb-3">EXCLUSIVE DEAL FOR YOU</h2>
-            <p className="text-gray-300 font-body mb-4">
-              Use code <strong className="font-price text-primary text-xl bg-gray-800 px-3 py-1 rounded mx-1">ABHINAV12</strong> at Toycra
-              for 12% off any LEGO set. Minimum purchase ₹500. No limits. Go on.
-            </p>
+          {/* ── Contact ──────────────────────────────────────────────────────── */}
+          <section className="mb-8">
+            <h2 className="font-heading mb-4" style={{ color: 'var(--boi-navy)', fontSize: '2rem' }}>
+              Get in touch
+            </h2>
             <a
-              href="https://www.toycra.com"
-              target="_blank"
-              rel="noopener noreferrer sponsored"
-              className="inline-block bg-primary text-dark font-bold px-8 py-3 rounded-xl hover:bg-yellow-400 transition-colors"
+              href="mailto:abhinav@bricksofindia.com"
+              className="inline-flex items-center gap-3 font-semibold text-base px-6 py-3 rounded-xl transition-opacity hover:opacity-80"
+              style={{
+                background: 'var(--boi-navy)',
+                color: '#fff',
+                fontFamily: 'var(--font-inter)',
+              }}
             >
-              Shop at Toycra →
+              <Mail className="w-5 h-5" />
+              abhinav@bricksofindia.com
             </a>
           </section>
 

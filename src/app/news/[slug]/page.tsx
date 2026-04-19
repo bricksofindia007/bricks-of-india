@@ -7,6 +7,7 @@ import { formatDate, whatsappShareUrl, twitterShareUrl } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { ArticleCard } from '@/components/content/ArticleCard';
+import { Byline } from '@/components/content/Byline';
 
 interface Props { params: { slug: string } }
 
@@ -79,7 +80,8 @@ export default async function NewsArticlePage({ params }: Props) {
           <span className="text-gray-400 text-sm">{formatDate(article.published_at)}</span>
         </div>
 
-        <h1 className="font-heading text-dark text-5xl md:text-6xl mb-4">{article.title}</h1>
+        <h1 className="font-heading text-dark text-5xl md:text-6xl mb-3">{article.title}</h1>
+        <Byline publishedAt={article.published_at} updatedAt={article.updated_at} />
         <p className="text-gray-500 text-lg mb-6 font-body">{article.excerpt}</p>
 
         <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 whitespace-pre-wrap mb-8">

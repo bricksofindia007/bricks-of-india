@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { formatDate, whatsappShareUrl, twitterShareUrl } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
+import { Byline } from '@/components/content/Byline';
 
 interface Props { params: { slug: string } }
 
@@ -82,7 +83,7 @@ export default async function ReviewPage({ params }: Props) {
             </span>
           </div>
           <h1 className="font-heading text-white text-5xl md:text-6xl mb-2">{review.title}</h1>
-          <p className="text-gray-400 text-sm">{formatDate(review.published_at)} · Bricks of India Review</p>
+          <Byline publishedAt={review.published_at} updatedAt={review.updated_at} />
         </div>
       </div>
 
