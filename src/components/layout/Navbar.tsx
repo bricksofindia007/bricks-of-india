@@ -3,143 +3,158 @@
 import Link from 'next/link';
 import { useState } from 'react';
 import { usePathname } from 'next/navigation';
-import { SearchBar } from '@/components/ui/SearchBar';
-import { THEMES } from '@/lib/brand';
+import { Menu, X, Search } from 'lucide-react';
+import { TricolourStripe } from '@/components/ui/TricolourStripe';
+
+const NAV_LINKS = [
+  { href: '/compare',  label: 'Sets'     },
+  { href: '/themes',   label: 'Themes'   },
+  { href: '/deals',    label: 'Deals'    },
+  { href: '/reviews',  label: 'Reviews'  },
+  { href: '/news',     label: 'News'     },
+  { href: '/about',    label: 'About'    },
+];
+
+/** Wordmark lockup — shared by desktop header and mobile drawer */
+function Wordmark({ size = 'md' }: { size?: 'sm' | 'md' }) {
+  const bricksSize  = size === 'sm' ? '18px' : '22px';
+  const indiaSize   = size === 'sm' ? '13px' : '16px';
+  const outlineShadow =
+    '2px 2px 0 var(--boi-navy), -1px -1px 0 var(--boi-navy), 1px -1px 0 var(--boi-navy), -1px 1px 0 var(--boi-navy)';
+
+  return (
+    <Link href="/" className="shrink-0 block" style={{ lineHeight: 0.9 }}>
+      <div
+        style={{
+          fontFamily: 'var(--font-fredoka)',
+          fontWeight: 700,
+          fontSize: bricksSize,
+          color: 'var(--boi-yellow)',
+          textShadow: outlineShadow,
+          lineHeight: 1,
+        }}
+      >
+        BRICKS
+      </div>
+      <div
+        style={{
+          fontFamily: 'var(--font-fredoka)',
+          fontWeight: 700,
+          fontSize: indiaSize,
+          color: '#fff',
+          textShadow: outlineShadow,
+          lineHeight: 1,
+        }}
+      >
+        OF INDIA
+      </div>
+    </Link>
+  );
+}
 
 export function Navbar() {
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [themesOpen, setThemesOpen] = useState(false);
   const pathname = usePathname();
 
-  function navClass(href: string) {
-    const active = pathname === href || (href !== '/' && pathname.startsWith(href));
-    return active
-      ? 'px-3 py-2 text-sm font-bold text-primary underline decoration-accent decoration-2 underline-offset-4 rounded-lg transition-colors'
-      : 'px-3 py-2 text-sm font-bold text-dark/75 hover:text-primary rounded-lg transition-colors';
-  }
+  // Homepage has its own full hero — suppress this header there
+  if (pathname === '/') return null;
 
   return (
-    <header className="bg-white border-b border-border sticky top-0 z-50 shadow-sm">
+    <header
+      className="sticky top-0 z-50 shadow-sm"
+      style={{ background: 'linear-gradient(90deg, var(--boi-sky), var(--boi-sky-light))' }}
+    >
+      {/* Main nav row — ~60px desktop */}
       <div className="max-w-site mx-auto px-4">
-        {/* Main nav row */}
-        <div className="flex items-center gap-4 py-3">
-          {/* Logo */}
-          <Link href="/" className="shrink-0 flex items-center gap-2">
-            <div className="bg-accent px-3 py-1.5 rounded-lg border-2 border-[#E09500]">
-              <span className="font-heading text-dark text-xl leading-none tracking-wide">BRICKS OF INDIA</span>
-            </div>
-          </Link>
+        <div className="flex items-center gap-4" style={{ height: '60px' }}>
+          {/* Left — wordmark */}
+          <Wordmark size="md" />
 
-          {/* Search bar — hidden on mobile */}
-          <div className="hidden md:flex flex-1 max-w-xl">
-            <SearchBar size="sm" />
-          </div>
-
-          {/* Desktop nav links */}
-          <nav className="hidden lg:flex items-center gap-1 ml-auto">
-            <Link href="/compare" className={navClass('/compare')}>
-              Price Comparison
-            </Link>
-            <Link href="/reviews" className={navClass('/reviews')}>
-              Reviews
-            </Link>
-            <Link href="/news" className={navClass('/news')}>
-              News
-            </Link>
-            <Link href="/blog" className={navClass('/blog')}>
-              Blog
-            </Link>
-            <Link href="/deals" className={navClass('/deals')}>
-              Deals 🔥
-            </Link>
-
-            {/* Themes dropdown */}
-            <div className="relative" onMouseEnter={() => setThemesOpen(true)} onMouseLeave={() => setThemesOpen(false)}>
-              <button className="px-3 py-2 text-sm font-bold text-dark/75 hover:text-primary rounded-lg transition-colors flex items-center gap-1">
-                Themes
-                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              {themesOpen && (
-                <div className="absolute top-full right-0 bg-white border border-border rounded-xl shadow-xl min-w-[360px] grid grid-cols-3 gap-1 p-3">
-                  {THEMES.map((theme) => (
-                    <Link
-                      key={theme.slug}
-                      href={`/themes/${theme.slug}`}
-                      className="flex items-center gap-2 px-2 py-1.5 text-sm font-bold text-dark hover:bg-surface hover:text-primary rounded-lg transition-colors"
-                    >
-                      <span>{theme.emoji}</span>
-                      <span>{theme.name}</span>
-                    </Link>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <Link href="/about" className={navClass('/about')}>
-              About
-            </Link>
+          {/* Centre — horizontal nav (desktop only) */}
+          <nav className="hidden md:flex items-center gap-1 flex-1 justify-center">
+            {NAV_LINKS.map(({ href, label }) => {
+              const active = pathname === href || (href !== '/' && pathname.startsWith(href));
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  style={{
+                    fontFamily: 'var(--font-inter)',
+                    fontWeight: 600,
+                    fontSize: '14px',
+                    color: 'var(--boi-navy)',
+                    textDecoration: active ? `underline 2px ${active ? 'var(--boi-red)' : 'transparent'}` : 'none',
+                    textUnderlineOffset: '3px',
+                  }}
+                  className="px-3 py-1.5 rounded-lg transition-all hover:underline hover:decoration-[var(--boi-red)] hover:decoration-2 hover:underline-offset-4"
+                >
+                  {label}
+                </Link>
+              );
+            })}
           </nav>
 
-          {/* Mobile hamburger */}
-          <button
-            className="ml-auto lg:hidden p-2 rounded-lg hover:bg-surface text-dark"
-            onClick={() => setMobileOpen(!mobileOpen)}
-            aria-label="Menu"
-          >
-            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              {mobileOpen
-                ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-              }
-            </svg>
-          </button>
-        </div>
+          {/* Right — CTA (desktop: text button, mobile: magnifying glass icon) */}
+          <div className="ml-auto flex items-center gap-2">
+            {/* Desktop CTA */}
+            <Link
+              href="/search"
+              className="hidden md:inline-flex items-center gap-1.5 text-white font-bold text-sm px-4 py-2 rounded-xl transition-opacity hover:opacity-90"
+              style={{
+                background: 'var(--boi-red)',
+                boxShadow: '0 2px 0 var(--boi-red-dark)',
+                fontFamily: 'var(--font-fredoka)',
+                fontWeight: 700,
+              }}
+            >
+              Search sets →
+            </Link>
 
-        {/* Mobile search */}
-        <div className="md:hidden pb-3">
-          <SearchBar size="sm" />
+            {/* Mobile: search icon CTA */}
+            <Link
+              href="/search"
+              aria-label="Search sets"
+              className="md:hidden p-2 rounded-lg"
+              style={{ color: 'var(--boi-navy)' }}
+            >
+              <Search className="w-5 h-5" />
+            </Link>
+
+            {/* Mobile: hamburger */}
+            <button
+              className="md:hidden p-2 rounded-lg"
+              style={{ color: 'var(--boi-navy)' }}
+              onClick={() => setMobileOpen(!mobileOpen)}
+              aria-label={mobileOpen ? 'Close menu' : 'Open menu'}
+            >
+              {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+            </button>
+          </div>
         </div>
       </div>
 
-      {/* Mobile menu */}
+      {/* TricolourStripe — 4px on inner pages */}
+      <TricolourStripe height={4} />
+
+      {/* Mobile menu drawer */}
       {mobileOpen && (
-        <div className="lg:hidden border-t border-border bg-white">
+        <div className="md:hidden bg-white border-t border-border shadow-lg">
           <nav className="max-w-site mx-auto px-4 py-4 flex flex-col gap-1">
-            {[
-              { href: '/compare', label: 'Price Comparison' },
-              { href: '/reviews', label: 'Reviews' },
-              { href: '/news', label: 'News' },
-              { href: '/blog', label: 'Blog' },
-              { href: '/deals', label: 'Deals 🔥' },
-              { href: '/calendar', label: 'Release Calendar' },
-              { href: '/about', label: 'About' },
-            ].map(({ href, label }) => (
+            {NAV_LINKS.map(({ href, label }) => (
               <Link
                 key={href}
                 href={href}
-                className="px-4 py-3 font-bold text-dark hover:bg-surface hover:text-primary rounded-lg transition-colors"
                 onClick={() => setMobileOpen(false)}
+                style={{
+                  fontFamily: 'var(--font-inter)',
+                  fontWeight: 600,
+                  color: 'var(--boi-navy)',
+                }}
+                className="px-4 py-3 rounded-lg hover:bg-surface transition-colors text-sm"
               >
                 {label}
               </Link>
             ))}
-            <div className="border-t border-border mt-2 pt-2">
-              <p className="px-4 py-1 text-xs font-bold text-text-secondary uppercase tracking-wider">Themes</p>
-              <div className="grid grid-cols-3 gap-1 mt-1">
-                {THEMES.map((theme) => (
-                  <Link
-                    key={theme.slug}
-                    href={`/themes/${theme.slug}`}
-                    className="px-3 py-2 font-bold text-sm text-dark hover:bg-surface hover:text-primary rounded-lg transition-colors flex items-center gap-2"
-                    onClick={() => setMobileOpen(false)}
-                  >
-                    {theme.emoji} {theme.name}
-                  </Link>
-                ))}
-              </div>
-            </div>
           </nav>
         </div>
       )}
