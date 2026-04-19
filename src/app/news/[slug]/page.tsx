@@ -31,13 +31,26 @@ export default async function NewsArticlePage({ params }: Props) {
   const waText = `${article.title} — via Bricks of India. Use code ABHINAV12 for 12% off at Toycra!`;
 
   const articleSchema = {
-    "@context": "https://schema.org",
-    "@type": "NewsArticle",
-    "headline": article.title,
-    "description": article.excerpt,
-    "datePublished": article.published_at,
-    "author": { "@type": "Organization", "name": "Bricks of India" },
-    "publisher": { "@type": "Organization", "name": "Bricks of India", "url": "https://bricksofindia.com" },
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: article.title,
+    description: article.excerpt,
+    datePublished: article.published_at,
+    dateModified: article.updated_at || article.published_at,
+    author: {
+      '@type': 'Person',
+      name: 'Abhinav Bhargav',
+      jobTitle: 'Founder, Bricks of India',
+      url: 'https://www.bricksofindia.com/about',
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Bricks of India',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://www.bricksofindia.com/brand/hero-banner.png',
+      },
+    },
   };
 
   return (

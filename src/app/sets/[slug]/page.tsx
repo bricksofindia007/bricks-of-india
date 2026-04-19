@@ -140,20 +140,51 @@ export default async function SetPage({ params }: Props) {
       ? `https://cdn.rebrickable.com/media/sets/${set.rebrickable_id}.jpg`
       : '/mascots/blue-fig-confused.png');
 
+  const STORE_NAMES: Record<string, string> = {
+    toycra:       'Toycra',
+    mybrickhouse: 'MyBrickHouse',
+    jaiman:       'Jaiman Toys',
+  };
+
   const schemaProduct = {
     '@context': 'https://schema.org',
     '@type': 'Product',
     name: set.name,
-    description: set.description || `LEGO ${set.name} — Compare prices in India`,
-    image: set.image_url,
     sku: set.set_number,
+    image: set.image_url ?? undefined,
+    description:
+      set.description ||
+      `LEGO ${set.theme ? set.theme + ' ' : ''}set ${set.set_number}${set.pieces ? ', ' + set.pieces + ' pieces' : ''}, compare prices across Indian stores`,
     brand: { '@type': 'Brand', name: 'LEGO' },
-    offers: hasPrices ? {
-      '@type': 'AggregateOffer',
-      priceCurrency: 'INR',
-      lowPrice: bestStorePrice?.price_inr,
-      offerCount: activePrices.length,
-    } : undefined,
+    ...(hasPrices && {
+      offers: {
+        '@type': 'AggregateOffer',
+        priceCurrency: 'INR',
+        lowPrice: activePrices.reduce(
+          (min: number, sp: any) => (sp.price_inr < min ? sp.price_inr : min),
+          activePrices[0]?.price_inr,
+        ),
+        highPrice: activePrices.reduce(
+          (max: number, sp: any) => (sp.price_inr > max ? sp.price_inr : max),
+          activePrices[0]?.price_inr,
+        ),
+        offerCount: activePrices.length,
+        availability: 'https://schema.org/InStock',
+        offers: activePrices.map((sp: any) => ({
+          '@type': 'Offer',
+          price: sp.price_inr,
+          priceCurrency: 'INR',
+          url: sp.product_url || `https://bricksofindia.com/sets/${params.slug}`,
+          availability: sp.in_stock
+            ? 'https://schema.org/InStock'
+            : 'https://schema.org/OutOfStock',
+          seller: {
+            '@type': 'Organization',
+            name: STORE_NAMES[sp.store_id] ?? sp.store_id,
+          },
+        })),
+      },
+    }),
   };
 
   return (

@@ -33,8 +33,37 @@ export default async function ReviewPage({ params }: Props) {
   const shareUrl = `https://bricksofindia.com/reviews/${params.slug}`;
   const waText = `Just read this LEGO review on Bricks of India — use ABHINAV12 for 12% off at Toycra!`;
 
+  const reviewSchema = {
+    '@context': 'https://schema.org',
+    '@type': 'Review',
+    datePublished: review.published_at,
+    author: {
+      '@type': 'Person',
+      name: 'Abhinav Bhargav',
+      jobTitle: 'Founder, Bricks of India',
+      url: 'https://www.bricksofindia.com/about',
+    },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Bricks of India',
+      url: 'https://www.bricksofindia.com',
+    },
+    reviewRating: {
+      '@type': 'Rating',
+      ratingValue: String(review.rating),
+      bestRating: '5',
+    },
+    itemReviewed: {
+      '@type': 'Product',
+      name: set?.name || review.title,
+      sku: set?.set_number,
+      brand: { '@type': 'Brand', name: 'LEGO' },
+    },
+  };
+
   return (
     <div className="bg-white min-h-screen">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(reviewSchema) }} />
       {/* Hero */}
       <div className="bg-dark py-12 px-4">
         <div className="max-w-site mx-auto">

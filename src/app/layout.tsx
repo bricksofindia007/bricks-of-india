@@ -4,6 +4,8 @@ import { Poppins, Fredoka, Inter } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
+import { SchemaLD, organizationSchema, websiteSchema } from "@/components/SchemaLD";
+import { BreadcrumbSchema } from "@/components/BreadcrumbSchema";
 import { BRAND, ASSETS } from "@/lib/brand";
 
 const poppins = Poppins({
@@ -109,6 +111,8 @@ export default function RootLayout({
           </>
         )}
 
+        <SchemaLD data={[organizationSchema, websiteSchema]} />
+        <BreadcrumbSchema />
         <Navbar />
         <main>{children}</main>
         <Footer />
