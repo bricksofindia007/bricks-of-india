@@ -50,9 +50,8 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
 // ── Store config ─────────────────────────────────────────────────────────────
-// Toycra has a dedicated LEGO collection — use it to avoid paging through
-// thousands of non-LEGO toys. MyBrickHouse and Jaiman are LEGO-heavy,
-// so the general products.json is fine.
+// Toycra has a dedicated LEGO collection — avoids paging through thousands
+// of non-LEGO toys. MyBrickHouse and Jaiman are LEGO-heavy so general path works.
 const STORES = [
   {
     id:     'toycra',
@@ -104,7 +103,7 @@ async function fetchAllProducts(domain, path) {
         headers: { 'User-Agent': 'BricksOfIndia/1.0 (+https://bricksofindia.com)', Accept: 'application/json' },
         signal: AbortSignal.timeout(30_000),
       });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
       return res.json();
     });
 
@@ -120,24 +119,35 @@ async function fetchAllProducts(domain, path) {
 }
 
 /**
- * Extract a LEGO set number (4–6 digits) from product title + handle.
- * Tries title numbers first (more reliable), then handle.
- * Returns null if nothing plausible found.
+ * Extract a LEGO set number (4–6 digits) from product handle then title.
+ *
+ * Handles are more structured than titles and checked first.
+ * Supported title formats:
+ *   "LEGO Icons 10497 Galaxy Explorer"
+ *   "LEGO 10497 - Galaxy Explorer"
+ *   "Galaxy Explorer (10497)"
+ *   "10497 Galaxy Explorer"
+ *   "LEGO® 10497 Galaxy Explorer"
+ *
+ * Returns null if no plausible set number found.
  */
 function extractSetNumber(title, handle) {
-  // Match standalone 4-6 digit sequences
+  // Match standalone 4-6 digit sequences (not preceded/followed by another digit)
   const RE = /(?<!\d)(\d{4,6})(?!\d)/g;
-  const fromTitle  = [...title.matchAll(RE)].map((m) => m[1]);
-  const fromHandle = [...handle.matchAll(RE)].map((m) => m[1]);
-  const candidates = [...new Set([...fromTitle, ...fromHandle])];
-  // Prefer numbers that look like set numbers (not prices like 9999)
+
+  // Check handle FIRST — more structured and less likely to contain noise numbers
+  const fromHandle = [...(handle ?? '').matchAll(RE)].map((m) => m[1]);
+  const fromTitle  = [...(title  ?? '').matchAll(RE)].map((m) => m[1]);
+
+  // Merge handle-first, deduplicated, return first candidate
+  const candidates = [...new Set([...fromHandle, ...fromTitle])];
   return candidates[0] ?? null;
 }
 
 /** Parse a Shopify product into our internal format. Returns null to skip. */
 function parseProduct(product, storeId, domain) {
-  const titleLower  = product.title.toLowerCase();
-  const handleLower = product.handle.toLowerCase();
+  const titleLower  = (product.title  ?? '').toLowerCase();
+  const handleLower = (product.handle ?? '').toLowerCase();
 
   // Skip products that don't appear to be LEGO sets
   if (!titleLower.includes('lego') && !handleLower.includes('lego')) return null;
@@ -145,7 +155,7 @@ function parseProduct(product, storeId, domain) {
   const setNumber = extractSetNumber(product.title, product.handle);
   if (!setNumber) return null;
 
-  const variant    = product.variants?.[0];
+  const variant  = product.variants?.[0];
   if (!variant) return null;
 
   const priceInr   = variant.price ? Math.round(parseFloat(variant.price)) : null;
@@ -196,7 +206,7 @@ async function main() {
       console.log(`  Fetched ${allProducts.length} products total`);
     } catch (err) {
       console.error(`  FAILED to fetch: ${err.message}`);
-      summary.push({ store: store.name, fetched: 0, parsed: 0, matched: 0, error: err.message });
+      summary.push({ store: store.name, fetched: 0, parsed: 0, matched: 0, upserted: 0, error: err.message });
       continue;
     }
 
@@ -205,15 +215,52 @@ async function main() {
     console.log(`  Parsed ${parsed.length} LEGO products`);
 
     // Match against known inventory
-    const matched = parsed.filter((p) => knownSets.has(p.setNumber));
-    console.log(`  Matched ${matched.length} to Supabase inventory`);
+    const allMatched = parsed.filter((p) => knownSets.has(p.setNumber));
+    const unmatched  = parsed.filter((p) => !knownSets.has(p.setNumber));
+    console.log(`  Matched ${allMatched.length} to Supabase inventory`);
 
-    if (matched.length === 0) {
-      summary.push({ store: store.name, fetched: allProducts.length, parsed: parsed.length, matched: 0 });
+    // Warn about unmatched LEGO products (set number not in our DB)
+    if (unmatched.length > 0) {
+      console.warn(`  WARN: ${unmatched.length} LEGO products have no DB match (new sets? older sets?)`);
+      for (const p of unmatched.slice(0, 5)) {
+        console.warn(`    [${p.setNumber}] ${p.storeId}`);
+      }
+    }
+
+    if (allMatched.length === 0) {
+      summary.push({ store: store.name, fetched: allProducts.length, parsed: parsed.length, matched: 0, upserted: 0 });
       continue;
     }
 
-    // Upsert into store_prices (one row per set/store, update on conflict)
+    // ── DEDUPLICATE by set_id ───────────────────────────────────────────────
+    // A store may list the same LEGO set multiple times (different pack sizes,
+    // box-damage editions, etc.). PostgreSQL's ON CONFLICT DO UPDATE throws
+    // "command cannot affect row a second time" if a single INSERT batch
+    // contains duplicate conflict keys — aborting the entire batch.
+    //
+    // Fix: keep one row per set_id, preferring the lowest available price.
+    const deduped = new Map();
+    for (const p of allMatched) {
+      const existing = deduped.get(p.setNumber);
+      if (!existing) {
+        deduped.set(p.setNumber, p);
+      } else {
+        // Prefer in-stock over out-of-stock; then prefer lower price
+        const existingBetter =
+          (existing.inStock && !p.inStock) ||
+          (existing.inStock === p.inStock &&
+            existing.priceInr !== null &&
+            (p.priceInr === null || existing.priceInr <= p.priceInr));
+        if (!existingBetter) deduped.set(p.setNumber, p);
+      }
+    }
+    const matched = [...deduped.values()];
+    const dupesRemoved = allMatched.length - matched.length;
+    if (dupesRemoved > 0) {
+      console.log(`  Deduped: removed ${dupesRemoved} duplicate set_id(s), ${matched.length} unique rows to upsert`);
+    }
+
+    // ── Upsert into store_prices ────────────────────────────────────────────
     const storePricesRows = matched.map((p) => ({
       set_id:      p.setNumber,
       store_id:    p.storeId,
@@ -223,18 +270,30 @@ async function main() {
       scraped_at:  now,
     }));
 
-    // Batch upserts (Supabase handles up to ~500 rows per request)
     const BATCH = 400;
+    let upsertedCount = 0;
+    let upsertErrors  = 0;
     for (let i = 0; i < storePricesRows.length; i += BATCH) {
       const batch = storePricesRows.slice(i, i + BATCH);
       const { error: upsertErr } = await supabase
         .from('store_prices')
         .upsert(batch, { onConflict: 'set_id,store_id' });
-      if (upsertErr) console.error(`  Upsert error (batch ${i}): ${upsertErr.message}`);
+      if (upsertErr) {
+        console.error(`  ERROR upsert batch ${i}–${i + batch.length}: ${upsertErr.message} (code=${upsertErr.code})`);
+        upsertErrors++;
+      } else {
+        upsertedCount += batch.length;
+      }
     }
-    console.log(`  Upserted ${storePricesRows.length} rows to store_prices`);
+    if (upsertErrors > 0) {
+      console.error(`  ${upsertErrors} batch(es) failed — store_prices may be incomplete for ${store.name}`);
+    } else {
+      console.log(`  Upserted ${upsertedCount} rows to store_prices`);
+    }
 
-    // Append to price_history (only rows with a real price)
+    // ── Append to price_history ─────────────────────────────────────────────
+    // All matched+deduped products with a real price get a history row.
+    // This is append-only — used for deal calculations and trend analysis.
     const historyRows = matched
       .filter((p) => p.priceInr !== null)
       .map((p) => ({
@@ -248,30 +307,36 @@ async function main() {
       for (let i = 0; i < historyRows.length; i += BATCH) {
         const batch = historyRows.slice(i, i + BATCH);
         const { error: histErr } = await supabase.from('price_history').insert(batch);
-        if (histErr) console.error(`  History insert error (batch ${i}): ${histErr.message}`);
+        if (histErr) console.error(`  History insert error batch ${i}: ${histErr.message}`);
       }
       console.log(`  Recorded ${historyRows.length} price history rows`);
     }
 
     summary.push({
-      store:   store.name,
-      fetched: allProducts.length,
-      parsed:  parsed.length,
-      matched: matched.length,
+      store:     store.name,
+      fetched:   allProducts.length,
+      parsed:    parsed.length,
+      matched:   allMatched.length,
+      dupes:     dupesRemoved,
+      upserted:  upsertedCount,
+      unmatched: unmatched.length,
     });
     console.log('');
   }
 
-  // Summary
+  // ── Summary ─────────────────────────────────────────────────────────────────
   console.log('═══════════════════════════════');
   console.log('  SCRAPE COMPLETE');
   console.log('═══════════════════════════════');
   for (const s of summary) {
-    const status = s.error ? `ERROR: ${s.error}` : `${s.fetched} fetched → ${s.parsed} LEGO → ${s.matched} matched`;
-    console.log(`  ${s.store}: ${status}`);
+    if (s.error) {
+      console.log(`  ${s.store}: ERROR — ${s.error}`);
+    } else {
+      console.log(`  ${s.store}: ${s.fetched} fetched → ${s.parsed} LEGO → ${s.matched} matched (${s.dupes ?? 0} dupes removed) → ${s.upserted} upserted`);
+    }
   }
-  const totalMatched = summary.reduce((n, s) => n + (s.matched ?? 0), 0);
-  console.log(`\n  Total matched: ${totalMatched}`);
+  const totalUpserted = summary.reduce((n, s) => n + (s.upserted ?? 0), 0);
+  console.log(`\n  Total upserted: ${totalUpserted}`);
   console.log(`  Started:  ${startedAt}`);
   console.log(`  Finished: ${new Date().toISOString()}`);
   console.log('═══════════════════════════════\n');
