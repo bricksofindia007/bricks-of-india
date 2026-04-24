@@ -8,6 +8,7 @@ import { Badge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { ArticleCard } from '@/components/content/ArticleCard';
 import { Byline } from '@/components/content/Byline';
+import { CopyLinkButton } from '@/components/ui/CopyLinkButton';
 
 interface Props { params: { slug: string } }
 
@@ -94,8 +95,7 @@ export default async function NewsArticlePage({ params }: Props) {
             className="flex items-center gap-2 bg-[#25D366] text-white font-bold px-4 py-2 rounded-lg text-sm">📱 WhatsApp</a>
           <a href={twitterShareUrl(article.title, shareUrl)} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-2 bg-dark text-white font-bold px-4 py-2 rounded-lg text-sm">🐦 Twitter</a>
-          <button onClick={() => navigator.clipboard.writeText(shareUrl)}
-            className="flex items-center gap-2 border-2 border-dark text-dark font-bold px-4 py-2 rounded-lg text-sm hover:bg-dark hover:text-white transition-colors">🔗 Copy Link</button>
+          <CopyLinkButton url={shareUrl} />
         </div>
 
         <ToycraDiscountBanner variant="compact" />
