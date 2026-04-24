@@ -1,5 +1,14 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  async redirects() {
+    return [
+      {
+        source: '/search',
+        destination: '/compare',
+        permanent: true,
+      },
+    ];
+  },
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'cdn.rebrickable.com' },
