@@ -41,6 +41,7 @@
 | GEO/AI readiness (llms.txt, sitemap, JSON-LD) | ✅ Live | All 200, schemas present |
 | Supabase (store_prices, price_history) | ✅ Healthy | 492 current rows, 9,142 historical |
 | Site integrity | 🟡 One known 404 | `/sets` needs fix |
+| Catalogue sync (sets table) | ✅ Scheduled | `sync-catalogue.yml` weekly Sun 02:00 UTC. ~26k Rebrickable entries → ~10k unique rows after dedup (`set_num.replace(/-\d+$/, '')` collapses variants + minifigure series). Assertion threshold: ≥ 8,000 rows. |
 
 ---
 

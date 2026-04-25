@@ -2,7 +2,7 @@
 
 > **Purpose:** Authoritative record of what data powers bricksofindia.com, where it comes from, how it refreshes, and what breaks if a source goes down.
 >
-> **Last updated:** 2026-04-25 (CATALOG-FIX-01 v2)
+> **Last updated:** 2026-04-25 (CATALOG-FIX-01 v2 + DIAGNOSE-02 dedup clarification)
 
 ---
 
@@ -30,7 +30,10 @@
 **Auth:** `REBRICKABLE_API_KEY` (GitHub secret)
 **Ingest script:** `scripts/sync-rebrickable.js`
 **Refresh cadence:** Weekly — every Sunday 02:00 UTC (07:30 IST) via `.github/workflows/sync-catalogue.yml`
-**Coverage:** Full Rebrickable catalogue (no year filter, no page cap). Expected: 15,000–30,000 rows.
+**Coverage:** Full Rebrickable catalogue (no year filter, no page cap, `page_size=1000`).
+
+**Dedup behaviour:** `set_num.replace(/-\d+$/, '')` strips the Rebrickable variant suffix before upsert, so `75192-1` and `75192-2` both map to `set_number = "75192"`. This collapses inventory variants and minifigure-series individual entries (e.g. 12–16 entries per series → 1 row) into a single canonical row. This is intentional, not data loss. Rebrickable's ~26,000 entries deduplicate to approximately **~10,000 unique rows** in the `sets` table. The post-write assertion requires ≥ 8,000 rows.
+
 **On failure:** GHA opens a GitHub issue labelled `catalogue-sync-failed`
 **Manual trigger:** Actions → Sync LEGO Catalogue → Run workflow
 
@@ -49,13 +52,13 @@
 **Fields NOT populated by sync (must come from other sources):**
 | Column | Status |
 |--------|--------|
-| `usd_msrp` | Column does not exist yet. TODO: add column + ingest from Brickset (`BRICKSET_API_KEY` in secrets) or lego.com/en-us. |
+| `usd_msrp` | Column does not exist yet. TODO: add column + ingest from Brickset (`BRICKSET_API_KEY` in secrets). Brickset field: `LEGOCom.US.retailPrice`. |
 | `description` | NULL for all rows. TODO: source from Brickset or LEGO website. |
 | `age_range` | NULL for all rows. TODO: source from Brickset. |
 | `minifigs` | NULL for all rows. TODO: source from Rebrickable `/lego/sets/{id}/minifigs/`. |
 | `subtheme` | NULL for all rows. TODO: source from Rebrickable. |
 
-**Assertion:** Sync script exits non-zero if post-sync row count < 5,000.
+**Assertion:** Sync script exits non-zero if post-sync row count < 8,000.
 
 ---
 
@@ -93,8 +96,8 @@
 **Blocker:** `usd_msrp` column does not exist in `sets` table. No MSRP ingest source is wired.
 **To fix:**
 1. Add `usd_msrp NUMERIC` column to `sets` table (schema migration)
-2. Ingest USD MSRP from Brickset API (key: `BRICKSET_API_KEY` in GH secrets — TODO: confirm API endpoint and field name with Abhinav)
-3. Re-run `sync-rebrickable.js` — the derivation step will populate `lego_mrp_inr` automatically
+2. Ingest USD MSRP from Brickset API (key: `BRICKSET_API_KEY` in GH secrets). Field: `LEGOCom.US.retailPrice`.
+3. Re-run `sync-rebrickable.js` — the derivation step will populate `lego_mrp_inr` automatically.
 
 ---
 
@@ -116,7 +119,7 @@ Stored as `sets.image_url` during catalogue sync. No separate image pipeline.
 
 **Fallback chain (set detail page):** `sets.image_url` → `https://cdn.rebrickable.com/media/sets/{rebrickable_id}.jpg` → `/mascots/blue-fig-confused.png`
 
-**Brickset images:** `BRICKSET_API_KEY` is present in GitHub secrets. TODO: confirm with Abhinav whether Brickset is used as a fallback for images not in Rebrickable CDN, or if this key is reserved for future MSRP ingest.
+**Brickset images:** `BRICKSET_API_KEY` is present in GitHub secrets. TODO: confirm with Abhinav whether Brickset is used as a fallback for images not in Rebrickable CDN, or if this key is reserved for MSRP ingest only.
 
 ---
 
@@ -127,19 +130,11 @@ Stored as `sets.image_url` during catalogue sync. No separate image pipeline.
 **Format:** Markdown (stored as plain text — rendered server-side via `react-markdown`)
 **Refresh:** On demand — no automated pipeline
 
-**Article pipeline (planned, not yet built):**
-- WEB-01: Claude Code script → article draft in BOI voice
-- WEB-02: Auto-PR + auto-merge on passing lint
-- WEB-03: 4-gate linter (word count, India Paragraph, verdict, image HTTP 200)
-- Blocked on Voice Codex (Phase 1, not started)
-
 ---
 
 ## 7. Videos
 
-TODO: confirm with Abhinav.
-
-Known planned: YouTube channel RSS feeds as data source (Phase 3 of Content OS — Topical Radar). Not yet implemented.
+TODO: confirm with Abhinav. Planned: YouTube channel RSS feeds (Phase 3, Content OS — not yet built).
 
 ---
 
@@ -148,7 +143,7 @@ Known planned: YouTube channel RSS feeds as data source (Phase 3 of Content OS �
 **Workflow:** `.github/workflows/catalogue-audit.yml`
 **Schedule:** Every Monday 03:30 UTC (09:00 IST)
 **Checks:**
-- `sets` row count ≥ 5,000
+- `sets` row count ≥ 8,000 (note: ~26k Rebrickable entries → ~10k unique rows after dedup)
 - ≥ 50% of sets have `lego_mrp_inr`
 - ≥ 80% of sets have `image_url`
 - Each scraper's last run ≤ 8 days ago
@@ -164,7 +159,7 @@ Known planned: YouTube channel RSS feeds as data source (Phase 3 of Content OS �
 | # | Gap | Owner |
 |---|-----|-------|
 | 1 | `usd_msrp` column missing — INR derivation can't run | TODO: confirm MSRP source with Abhinav |
-| 2 | Brickset API key present in secrets — confirm if it's used and for what | TODO: confirm with Abhinav |
+| 2 | Brickset API key present in secrets — confirm if it's used and for what | TODO: confirm with Abhinav. Known: `LEGOCom.US.retailPrice` is the MSRP field. |
 | 3 | `store_prices` ↔ `prices` table disconnect (DATA-01) — scraper data not in compare page | See BOI_WEB_TRACKER.md DATA-01 |
 | 4 | `minifigs`, `age_range`, `description`, `subtheme` all NULL — sets metadata incomplete | Source from Rebrickable minifigs endpoint + Brickset |
 | 5 | Video data source — no pipeline exists | TODO: confirm with Abhinav (YouTube RSS feeds planned) |
