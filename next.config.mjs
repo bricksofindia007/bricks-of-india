@@ -7,6 +7,11 @@ const nextConfig = {
         destination: '/compare',
         permanent: true,
       },
+      {
+        source: '/sets/page/1',
+        destination: '/sets',
+        permanent: true,
+      },
     ];
   },
   images: {
