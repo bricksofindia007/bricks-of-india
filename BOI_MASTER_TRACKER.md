@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-04-24 (post-audit)
+> **Last updated:** 2026-04-26 (CATALOG-FIX-01 v2 closed)
 > **Audit log:** `audit-block1.log`
 
 ---
@@ -40,16 +40,25 @@
 | Scraper workflow on GitHub Actions | ✅ Running | `scrape-prices.yml` + 492 rows scraped today |
 | GEO/AI readiness (llms.txt, sitemap, JSON-LD) | ✅ Live | All 200, schemas present |
 | Supabase (store_prices, price_history) | ✅ Healthy | 492 current rows, 9,142 historical |
-| Site integrity | 🟡 One known 404 | `/sets` needs fix |
-| Catalogue sync (sets table) | ✅ Scheduled | `sync-catalogue.yml` weekly Sun 02:00 UTC. ~26k Rebrickable entries → ~10k unique rows after dedup (`set_num.replace(/-\d+$/, '')` collapses variants + minifigure series). Assertion threshold: ≥ 8,000 rows. |
+| Site integrity | ✅ All 200 | `/sets` fixed (SETS-01, commit `20474c2`). All core pages healthy. |
+| Catalogue sync (sets table) | ✅ Scheduled | `sync-catalogue.yml` weekly Sun 02:00 UTC. ~26k Rebrickable entries → ~10k unique rows after dedup. 16,888 rows, 99.4% image coverage. Assertion threshold: ≥ 8,000 rows. |
+| CATALOG-FIX-01 v2 | ✅ Done 2026-04-26 | PR `fix/catalog-search`, merge commit `d19625d`. Restores Rebrickable-first search, theme ilike fix, audit + sync crons, DATA_SOURCES.md. Verified live: Concorde search ✓, Star Wars browse ✓, price filter ✓. |
 
 ---
 
 ## Current blockers (top 3)
 
 1. **Voice Codex not started** — blocks WEB-01→04 lint gate pipeline, blocks Phase 2 Claude Project workbench, blocks all content automation.
-2. **`/sets` route returns 404** — live site bug, needs fix.
-3. **Review + Product JSON-LD missing** on `/reviews` and `/sets` — GEO regression from Deploy 2.
+2. **Review + Product JSON-LD missing** on `/reviews` and `/sets` — GEO regression from Deploy 2.
+3. **DATA-01 open** — `store_prices` (scraper writes) ↔ `prices` (frontend reads) disconnected; live scraper data not reaching `/compare`.
+
+## Carry-overs
+
+| ID | Task | Status | Notes |
+|----|------|--------|-------|
+| CATALOG-04 v2 | USD MSRP ingest from Brickset + INR derivation | 🔴 Not fired | Brief at `briefs/CATALOG-04-v2.md`. Next in queue after this tracker update. |
+| CATALOG-05 | Theme backfill — older sets missing from theme pages | 🔴 Not started | Depends on full sync completing all 27 pages (Rebrickable daily quota currently limits one-shot runs). |
+| DATA-01 | Reconcile `store_prices` (scraper) ↔ `prices` (frontend) | 🔴 Not started | Tracked in `BOI_WEB_TRACKER.md` Section H. 2–3 hours. Schedule after CATALOG-04. |
 
 ---
 
@@ -68,6 +77,7 @@
 
 | Deploy | Date | Commit | Contents |
 |--------|------|--------|----------|
+| CATALOG-FIX-01 v2 | 2026-04-26 | `d19625d` (merge) | Rebrickable-first search, theme filter fix, audit cron, DATA_SOURCES.md |
 | P0 batch 2 | 2026-04 | `d2b7339` | CopyLinkButton → Client Component (news fix root cause) |
 | P0 batch 1 | 2026-04 | `70a9eb0` | /search redirect, /themes hub, SetCard price count |
 | GHA canary | 2026-04 | `7be1205` | Verify GHA auto-deploy pipeline |
