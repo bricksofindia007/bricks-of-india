@@ -59,7 +59,7 @@ export function SetCard({ set, bestPrice, priceCount }: SetCardProps) {
                 MRP: {formatPrice(set.lego_mrp_inr)}
               </span>
             ) : (
-              <span className="text-xs text-gray-400">Check price</span>
+              <span className="text-xs text-gray-400 italic">Price TBD</span>
             )}
             {(priceCount ?? 0) > 1 && (
               <p className="text-xs text-gray-400 mt-0.5">{priceCount} stores</p>
