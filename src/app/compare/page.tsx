@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
+import { searchSets } from '@/lib/rebrickable';
 import { SetCard } from '@/components/sets/SetCard';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
@@ -16,7 +17,7 @@ export const metadata: Metadata = {
 const PAGE_SIZE = 24;
 
 interface Props {
-  searchParams: { q?: string; theme?: string; price?: string; page?: string };
+  searchParams: { q?: string; theme?: string; price?: string; page?: string; noPrice?: string };
 }
 
 /** Build a /compare URL, merging overrides into the current params. */
@@ -26,42 +27,118 @@ function buildUrl(
 ): string {
   const params = new URLSearchParams();
   const merged = { ...current, ...overrides };
-  if (merged.q)     params.set('q',     merged.q);
-  if (merged.theme) params.set('theme', merged.theme);
-  if (merged.price) params.set('price', merged.price);
-  if (merged.page && merged.page !== '1') params.set('page', merged.page);
+  if (merged.q)                           params.set('q',       merged.q);
+  if (merged.theme)                       params.set('theme',   merged.theme);
+  if (merged.price)                       params.set('price',   merged.price);
+  if (merged.noPrice === '1')             params.set('noPrice', '1');
+  if (merged.page && merged.page !== '1') params.set('page',    merged.page);
   const qs = params.toString();
   return qs ? `/compare?${qs}` : '/compare';
 }
 
+/** Strip Rebrickable variant suffix: "75192-1" → "75192" */
+function stripSuffix(setNum: string): string {
+  return setNum.replace(/-\d+$/, '');
+}
+
 export default async function ComparePage({ searchParams }: Props) {
-  const q           = (searchParams.q ?? '').trim();
-  const themeFilter = searchParams.theme ?? '';
-  const priceFilter = searchParams.price ?? '';
-  const page        = Math.max(1, parseInt(searchParams.page ?? '1'));
+  const q             = (searchParams.q ?? '').trim();
+  const themeFilter   = searchParams.theme ?? '';
+  const priceFilter   = searchParams.price ?? '';
+  const includeNoPrice = searchParams.noPrice === '1';
+  const page          = Math.max(1, parseInt(searchParams.page ?? '1'));
   const from        = (page - 1) * PAGE_SIZE;
   const to          = from + PAGE_SIZE - 1;
 
-  const supabase = createServerClient();
+  let sets: any[]  = [];
+  let total        = 0;
+  let usedRebrickable = false;
 
-  let query = supabase
-    .from('sets')
-    .select('*, prices(*)', { count: 'exact' })
-    .order('year', { ascending: false })
-    .range(from, to);
+  // ── Rebrickable-first for plain-text search (no theme/price filter) ──────────
+  // Gives access to the full 170k+ Rebrickable catalogue instead of our ~756-row
+  // Supabase cache. Hydrates Indian prices from Supabase for matched sets.
+  const useRebrickable = !!q && !themeFilter && !priceFilter;
 
-  if (q)           query = query.or(`name.ilike.%${q}%,set_number.ilike.%${q}%`);
-  if (themeFilter) query = query.ilike('theme', `%${themeFilter}%`);
-  if (priceFilter) {
-    const range = PRICE_RANGES.find((r) => r.label === priceFilter);
-    if (range) {
-      query = query.gte('lego_mrp_inr', range.min);
-      if (range.max !== Infinity) query = query.lte('lego_mrp_inr', range.max);
+  if (useRebrickable) {
+    try {
+      const rbResult = await searchSets(q, page, PAGE_SIZE);
+      if (rbResult.results.length > 0) {
+        const setNumbers = rbResult.results.map((s) => stripSuffix(s.set_num));
+        const supabase   = createServerClient();
+        const { data: supabaseSets } = await supabase
+          .from('sets')
+          .select('id, set_number, lego_mrp_inr, age_range, theme, subtheme, minifigs, prices(*)')
+          .in('set_number', setNumbers);
+
+        const supabaseMap = new Map<string, any>(
+          (supabaseSets ?? []).map((s) => [s.set_number, s]),
+        );
+
+        sets = rbResult.results.map((rb) => {
+          const sn  = stripSuffix(rb.set_num);
+          const sup = supabaseMap.get(sn);
+          return {
+            id:             sup?.id ?? rb.set_num,
+            set_number:     sn,
+            rebrickable_id: rb.set_num,
+            name:           rb.name,
+            year:           rb.year,
+            theme:          sup?.theme ?? '',
+            subtheme:       sup?.subtheme ?? null,
+            pieces:         rb.num_parts ?? null,
+            minifigs:       sup?.minifigs ?? null,
+            image_url:      rb.set_img_url ?? null,
+            description:    null,
+            age_range:      sup?.age_range ?? null,
+            lego_mrp_inr:   sup?.lego_mrp_inr ?? null,
+            created_at:     '',
+            updated_at:     '',
+            prices:         sup?.prices ?? [],
+          };
+        });
+        total           = rbResult.count;
+        usedRebrickable = true;
+      }
+    } catch (err) {
+      console.error('[Compare] Rebrickable search error — falling back to Supabase:', err);
     }
   }
 
-  const { data: sets, count } = await query;
-  const total      = count ?? 0;
+  // ── Supabase path ────────────────────────────────────────────────────────────
+  // Used when: theme/price filter active, Rebrickable errored, or RB returned 0.
+  // Text search covers name, theme, AND set_number — fixes "q=Technic" returning
+  // nothing because most Technic sets don't have "Technic" in their name.
+  if (!usedRebrickable) {
+    const supabase = createServerClient();
+    let query = supabase
+      .from('sets')
+      .select('*, prices(*)', { count: 'exact' })
+      .order('year', { ascending: false })
+      .range(from, to);
+
+    if (q) query = query.or(`name.ilike.%${q}%,theme.ilike.%${q}%,set_number.ilike.%${q}%`);
+    if (themeFilter) query = query.ilike('theme', `%${themeFilter}%`);
+    if (priceFilter) {
+      const range = PRICE_RANGES.find((r) => r.label === priceFilter);
+      if (range) {
+        if (includeNoPrice) {
+          // Include sets with no listed price alongside the filtered range
+          const maxClause = range.max !== Infinity
+            ? `,and(lego_mrp_inr.gte.${range.min},lego_mrp_inr.lte.${range.max})`
+            : `,lego_mrp_inr.gte.${range.min}`;
+          query = query.or(`lego_mrp_inr.is.null${maxClause}`);
+        } else {
+          query = query.gte('lego_mrp_inr', range.min);
+          if (range.max !== Infinity) query = query.lte('lego_mrp_inr', range.max);
+        }
+      }
+    }
+
+    const { data, count } = await query;
+    sets  = data ?? [];
+    total = count ?? 0;
+  }
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
@@ -153,6 +230,21 @@ export default async function ComparePage({ searchParams }: Props) {
               {r.label}
             </Link>
           ))}
+          {priceFilter && (
+            <Link
+              href={buildUrl(searchParams, {
+                noPrice: includeNoPrice ? undefined : '1',
+                page: undefined,
+              })}
+              className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-colors ${
+                includeNoPrice
+                  ? 'bg-dark text-white border-dark'
+                  : 'bg-white text-dark border-border hover:border-dark'
+              }`}
+            >
+              {includeNoPrice ? '+ unpriced' : 'Include unpriced'}
+            </Link>
+          )}
         </div>
 
         {/* ── Results ───────────────────────────────────────────────────── */}

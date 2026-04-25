@@ -80,7 +80,7 @@
 | `product_url` | Direct buy link |
 | `scraped_at` | Timestamp of last successful scrape |
 
-**⚠️ Known disconnect (DATA-01):** `store_prices.set_id` is a plain string set_number. The `prices` table (2,000 rows) uses UUID foreign keys to `sets.id`. The two tables are **not currently joined**. Theme pages and set detail pages query `store_prices` directly; `/compare` queries the `prices` table. Fix tracked as DATA-01 in `BOI_WEB_TRACKER.md`.
+**⚠️ Known disconnect (DATA-01):** `store_prices.set_id` is a plain string set_number. The `prices` table (2,000 rows) uses UUID foreign keys to `sets.id`. The two tables are **not currently joined**. Theme pages and set detail pages query `store_prices` directly; `/compare` queries the `prices` table. This means live scraper prices don't feed into the compare page. Fix tracked as DATA-01 in `BOI_WEB_TRACKER.md`.
 
 ---
 

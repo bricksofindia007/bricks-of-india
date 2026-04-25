@@ -2,7 +2,7 @@
 
 > Infra, site integrity, scrapers, GEO/AI readiness, deploys, article pipeline, LEGO Search Pulse.
 >
-> **Last updated:** 2026-04-24 (post-audit)
+> **Last updated:** 2026-04-25 (CATALOG-FIX-01 v2)
 
 ---
 
@@ -14,8 +14,10 @@
 | INFRA-02 | Set up GitHub Actions build pipeline | ✅ Done | `.github/workflows/deploy.yml` |
 | INFRA-03 | Migrate production build to GHA | ✅ Done | Commit `8992aef`, canary `7be1205` |
 | INFRA-04 | Migrate scraper cron to GHA | ✅ Done | `.github/workflows/scrape-prices.yml` firing |
-| INFRA-05 | Verify GHA scraper cron cadence (daily?) | 🟡 To check | 492 rows scraped 2026-04-24; confirm daily trigger, not one-off |
+| INFRA-05 | Verify GHA scraper cron cadence (daily?) | ✅ Done | Verified 2026-04-25 — firing 3×/day, 100% success rate |
 | INFRA-06 | Clean up stray `scripts/test-env.mjs` | ⚠️ Pending | Untracked file from audit run |
+| INFRA-07 | Weekly catalogue sync | ✅ Done | `.github/workflows/sync-catalogue.yml` — Sunday 02:00 UTC, CATALOG-FIX-01 |
+| INFRA-08 | Weekly catalogue health audit | ✅ Done | `.github/workflows/catalogue-audit.yml` — Monday 03:30 UTC, CATALOG-FIX-01 |
 
 ---
 
@@ -28,7 +30,7 @@
 | `/` | ✅ 200 | — |
 | `/news` | ✅ 200 | 20 articles live |
 | `/reviews` | ✅ 200 | See B.2 for schema gap |
-| `/sets` | ⚠️ **404** | **FIX REQUIRED — see Block 2 below** |
+| `/sets` | ✅ 200 | SETS-01 shipped commit `20474c2`, verified live 2026-04-25 |
 | `/themes` | ✅ 200 | — |
 | `/about` | ✅ 200 | — |
 | `/llms.txt` | ✅ 200 | — |
@@ -198,6 +200,23 @@ gh run list --workflow=scrape-prices.yml --limit 10
 ```
 
 Expected: one run per day for the last several days. If not, inspect `.github/workflows/scrape-prices.yml` cron schedule.
+
+---
+
+## Section G — Sets catalog
+
+| ID | Task | Status | Notes |
+|----|------|--------|-------|
+| SETS-01 | Pass 1 MVP — listing + pagination, full catalog browse | ✅ Done | Commit `20474c2`. Live: 48 Products + 1 ItemList per page. |
+| SETS-02 | Filters: theme, price, pieces, age, in-stock toggle | 🔴 Queued | Pass 2. Wait for traffic data. |
+| SETS-03 | Sort controls (price asc/desc, newest, piece count) | 🔴 Queued | Pass 2. |
+| SETS-04 | Per-set detail page enhancements | 🔴 Queued | Detail page exists; this is enrichment. |
+| SETS-05 | aggregateRating on Product schema | 🔴 Queued | Depends on review data structure. |
+| SETS-06 | URL canonicalisation — /sets/10318-wrong-name → canonical slug | 🔴 Queued | Minor SEO; duplicate-content risk. |
+| CATALOG-01 | Backfill sets table — remove 10-page cap + min_year filter | ✅ Done | `sync-rebrickable.js` updated, commit `6bd5cd1`, full sync running. |
+| CATALOG-02 | Restore Rebrickable-first search in /compare | 🟡 PR open | `fix/catalog-search` branch — needs review + merge. |
+| CATALOG-03 | Fix price filter — add theme to ilike + noPrice toggle | 🟡 PR open | `fix/catalog-search` branch. |
+| CATALOG-04 | usd_msrp column + MSRP ingest | 🔴 Blocked | Schema migration required. Confirm Brickset API with Abhinav. |
 
 ---
 
