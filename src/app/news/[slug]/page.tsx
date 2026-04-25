@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import ReactMarkdown from 'react-markdown';
 import { supabase } from '@/lib/supabase';
 import { formatDate, whatsappShareUrl, twitterShareUrl } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
@@ -85,8 +86,8 @@ export default async function NewsArticlePage({ params }: Props) {
         <Byline publishedAt={article.published_at} updatedAt={article.updated_at} />
         <p className="text-gray-500 text-lg mb-6 font-body">{article.excerpt}</p>
 
-        <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 whitespace-pre-wrap mb-8">
-          {article.content}
+        <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8">
+          <ReactMarkdown>{article.content}</ReactMarkdown>
         </div>
 
         {/* Share */}
