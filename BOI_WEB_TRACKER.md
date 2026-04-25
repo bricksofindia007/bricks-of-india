@@ -201,6 +201,16 @@ Expected: one run per day for the last several days. If not, inspect `.github/wo
 
 ---
 
+## Section H — Data layer debt
+
+| ID | Task | Status | Notes |
+|----|------|--------|-------|
+| DATA-01 | Reconcile store_prices (scraper writes) with prices (frontend reads). Currently disconnected — scraper output not reaching users. | 🔴 Not started | 2–3 hours; schedule after SETS-01. |
+| DATA-02 | Audit sets table coverage. 756 rows vs expected 1,500–2,000 with 3yr retired cutoff. Backfill from Rebrickable if gap is material. | 🔴 Not started | Depends on DATA-01 decision. |
+| WEB-TYPES-01 | Audit TypeScript types in src/lib/supabase.ts against actual Supabase schema. Price type describes prices correctly but Price is the only type we verified. | 🟡 Partial | Low priority. |
+
+---
+
 ## Legend
 
 - ✅ Done
