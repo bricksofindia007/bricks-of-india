@@ -5,8 +5,12 @@
  * Fetches the full Rebrickable catalogue (no year filter, no page cap).
  * After sync, derives lego_mrp_inr for sets where usd_msrp is populated.
  *
- * Expected row count after a full sync: 15,000–30,000.
- * Assertion fails loudly if < 5,000 rows are present after sync.
+ * Dedup note: set_num.replace(/-\d+$/, '') strips the variant suffix so
+ * 75192-1 and 75192-2 both map to set_number "75192" — intentional, keeps one
+ * row per base set. Rebrickable's ~26k entries dedup to ~10k unique set_numbers.
+ *
+ * Expected row count after a full sync: ~10,000 (post-dedup).
+ * Assertion fails loudly if < 8,000 rows are present after sync.
  */
 
 require('dotenv').config({ path: '.env.local' });
@@ -82,27 +86,49 @@ async function getThemeName(themeId) {
   return themeCache[themeId];
 }
 
-// ── Set upsert ────────────────────────────────────────────────────────────────
+// ── Batch upsert for one page ─────────────────────────────────────────────────
 
-async function upsertSet(set, themeName) {
-  const { error } = await supabase.from('sets').upsert(
-    {
-      set_number:    set.set_num.replace(/-\d+$/, ''),
-      name:          set.name,
-      theme:         themeName,
-      year:          set.year,
-      pieces:        set.num_parts,
-      image_url:     set.set_img_url,
-      rebrickable_id: set.set_num,
-      updated_at:    new Date().toISOString(),
-    },
-    { onConflict: 'set_number' },
+async function upsertPage(results) {
+  // Warm theme cache for uncached IDs — sequential to respect Rebrickable rate limits
+  const uncachedIds = [...new Set(results.map((s) => s.theme_id))].filter(
+    (id) => !(id in themeCache),
   );
-  if (error) {
-    console.error(`  ✗ Upsert failed for ${set.set_num}: ${error.message}`);
-    return false;
+  for (const id of uncachedIds) {
+    await getThemeName(id);
   }
-  return true;
+
+  // Deduplicate within this page (keep first occurrence per set_number).
+  // Necessary because multiple Rebrickable variants (e.g. 75192-1, 75192-2)
+  // map to the same set_number and PostgreSQL rejects duplicate conflict keys
+  // in a single INSERT ... ON CONFLICT statement.
+  const seen = new Set();
+  const rows = [];
+  for (const set of results) {
+    const setNumber = set.set_num.replace(/-\d+$/, '');
+    if (seen.has(setNumber)) continue;
+    seen.add(setNumber);
+    rows.push({
+      set_number:     setNumber,
+      name:           set.name,
+      theme:          themeCache[set.theme_id] ?? 'Unknown',
+      year:           set.year,
+      pieces:         set.num_parts,
+      image_url:      set.set_img_url,
+      rebrickable_id: set.set_num,
+      updated_at:     new Date().toISOString(),
+    });
+  }
+
+  // One Supabase call for the whole page (replaces N individual upserts)
+  const { error } = await supabase
+    .from('sets')
+    .upsert(rows, { onConflict: 'set_number' });
+
+  if (error) {
+    console.error(`  ✗ Batch upsert failed: ${error.message}`);
+    return { synced: 0, failed: results.length, deduped: results.length - rows.length };
+  }
+  return { synced: rows.length, failed: 0, deduped: results.length - rows.length };
 }
 
 // ── USD/INR exchange rate ─────────────────────────────────────────────────────
@@ -176,8 +202,9 @@ async function run() {
 
   let synced = 0;
   let failed = 0;
+  let deduped = 0;
   let pageNum = 1;
-  let nextUrl = `${BASE_URL}/sets/?page_size=100&ordering=-year`;
+  let nextUrl = `${BASE_URL}/sets/?page_size=1000&ordering=-year`;
 
   while (nextUrl) {
     let data;
@@ -195,17 +222,16 @@ async function run() {
     const results = data?.results ?? [];
     if (results.length === 0) break;
 
-    // Process sets on this page
-    for (const set of results) {
-      const themeName = await getThemeName(set.theme_id);
-      const ok = await upsertSet(set, themeName);
-      if (ok) synced++;
-      else failed++;
-    }
+    // Batch upsert entire page in one Supabase call
+    const result = await upsertPage(results);
+    synced  += result.synced;
+    failed  += result.failed;
+    deduped += result.deduped;
 
     const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
     console.log(
-      `  Page ${pageNum}: ${results.length} sets — running total: ${synced} synced, ${failed} failed (${elapsed}s elapsed)`,
+      `  Page ${pageNum}: ${results.length} entries, ${result.synced} unique — ` +
+      `running total: ${synced} synced, ${deduped} deduped, ${failed} failed (${elapsed}s elapsed)`,
     );
 
     nextUrl = data.next ?? null;
@@ -215,7 +241,7 @@ async function run() {
   }
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
-  console.log(`\n[SYNC] Complete — ${synced} upserted, ${failed} failed in ${elapsed}s`);
+  console.log(`\n[SYNC] Complete — ${synced} unique rows upserted, ${deduped} deduped, ${failed} failed in ${elapsed}s`);
   if (failed > 0) console.error(`[SYNC] ⚠️  ${failed} sets failed — check errors above`);
 
   // ── Post-write assertion ──────────────────────────────────────────────────
@@ -230,12 +256,13 @@ async function run() {
   }
 
   console.log(`[ASSERT] sets table row count: ${totalRows}`);
-  if (totalRows < 5000) {
-    console.error(`[ASSERT] FAIL — expected ≥ 5,000 rows after full sync, got ${totalRows}`);
+  if (totalRows < 8000) {
+    console.error(`[ASSERT] FAIL — expected ≥ 8,000 rows after full sync, got ${totalRows}`);
+    console.error('[ASSERT] Note: ~26k Rebrickable entries dedup to ~10k unique set_numbers (see script header).');
     console.error('[ASSERT] Possible causes: Rebrickable API key expired, sync aborted early, or partial fetch.');
     process.exit(1);
   }
-  console.log('[ASSERT] PASS — row count ≥ 5,000 ✓');
+  console.log('[ASSERT] PASS — row count ≥ 8,000 ✓');
 
   // ── INR derivation ────────────────────────────────────────────────────────
 

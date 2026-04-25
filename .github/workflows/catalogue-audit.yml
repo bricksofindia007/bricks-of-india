@@ -1,0 +1,135 @@
+name: Catalogue Health Audit
+
+on:
+  schedule:
+    # Every Monday 03:30 UTC (09:00 IST) — first thing Monday morning
+    - cron: '30 3 * * 1'
+  workflow_dispatch:
+
+jobs:
+  audit:
+    name: Catalogue health checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run catalogue audit
+        id: audit
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          node -e "
+          const { createClient } = require('@supabase/supabase-js');
+          const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
+
+          async function audit() {
+            const failures = [];
+
+            // 1. Total row count (threshold 8,000 — ~26k Rebrickable entries dedup to ~10k unique set_numbers)
+            const { count: totalRows } = await sb.from('sets').select('*', { count: 'exact', head: true });
+            console.log('sets total rows:', totalRows);
+            if (!totalRows || totalRows < 8000) failures.push('sets row count ' + totalRows + ' < 8,000');
+
+            // 2. Rows with lego_mrp_inr
+            const { count: pricedRows } = await sb.from('sets').select('*', { count: 'exact', head: true }).not('lego_mrp_inr', 'is', null);
+            const pricePct = totalRows ? Math.round(pricedRows / totalRows * 100) : 0;
+            console.log('sets with lego_mrp_inr:', pricedRows, '(' + pricePct + '%)');
+            if (pricePct < 50) failures.push('only ' + pricePct + '% of sets have lego_mrp_inr (threshold: 50%)');
+
+            // 3. Rows with image_url
+            const { count: imageRows } = await sb.from('sets').select('*', { count: 'exact', head: true }).not('image_url', 'is', null);
+            const imgPct = totalRows ? Math.round(imageRows / totalRows * 100) : 0;
+            console.log('sets with image_url:', imageRows, '(' + imgPct + '%)');
+            if (imgPct < 80) failures.push('only ' + imgPct + '% of sets have image_url (threshold: 80%)');
+
+            // 4. Scraper staleness: each store in store_prices
+            const { data: prices } = await sb.from('store_prices').select('store_id, scraped_at').order('scraped_at', { ascending: false });
+            const byStore = {};
+            for (const p of (prices || [])) {
+              if (!byStore[p.store_id]) byStore[p.store_id] = p.scraped_at;
+            }
+            for (const [store, latest] of Object.entries(byStore)) {
+              const days = (Date.now() - new Date(latest)) / 86400000;
+              console.log('store_prices', store, 'last scraped:', latest, '(' + days.toFixed(1) + 'd ago)');
+              if (days > 8) failures.push('scraper stale: ' + store + ' last ran ' + days.toFixed(1) + 'd ago (threshold: 8d)');
+            }
+
+            if (failures.length > 0) {
+              console.error('FAILURES:', failures.join('; '));
+              process.exit(1);
+            }
+            console.log('All DB checks passed.');
+          }
+
+          audit().catch(e => { console.error(e); process.exit(1); });
+          "
+
+      - name: Check live search endpoint
+        run: |
+          RESULT=$(curl -s "https://bricksofindia.com/api/sets/search?q=Concorde")
+          COUNT=$(echo "$RESULT" | node -e "let d=''; process.stdin.on('data',c=>d+=c).on('end',()=>{ try { const j=JSON.parse(d); console.log(j.total??0); } catch(e) { console.log(0); } })")
+          echo "Search for Concorde: $COUNT results"
+          if [ "$COUNT" -eq "0" ]; then
+            echo "FAIL: /api/sets/search?q=Concorde returned 0 results"
+            exit 1
+          fi
+
+      - name: Check /compare page renders sets (no 'Nothing found')
+        run: |
+          HTML=$(curl -s "https://bricksofindia.com/compare?q=Technic")
+          if echo "$HTML" | grep -qi "NOTHING FOUND\|NO SETS TRACKED"; then
+            echo "FAIL: /compare?q=Technic shows empty state"
+            exit 1
+          fi
+          echo "PASS: /compare?q=Technic renders sets"
+
+      - name: Check Star Wars theme page (>=20 sets)
+        run: |
+          HTML=$(curl -s "https://bricksofindia.com/themes/star-wars")
+          COUNT=$(echo "$HTML" | grep -oE "[0-9]+ sets found" | grep -oE "[0-9]+" | head -1)
+          echo "Star Wars theme page: ${COUNT:-unknown} sets"
+          if [ -z "$COUNT" ] || [ "$COUNT" -lt "20" ]; then
+            echo "FAIL: Star Wars theme page shows fewer than 20 sets (got: ${COUNT:-0})"
+            exit 1
+          fi
+
+      - name: Open issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[catalogue-audit-failed] Health check failed on ${new Date().toISOString().slice(0, 10)}`,
+              body: [
+                '## Catalogue audit failed',
+                '',
+                `**Workflow run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                '',
+                '**Checks run:**',
+                '- sets row count ≥ 8,000 (note: ~26k Rebrickable entries dedup to ~10k unique set_numbers)',
+                '- ≥ 50% of sets have lego_mrp_inr',
+                '- ≥ 80% of sets have image_url',
+                '- Each scraper last ran ≤ 8 days ago',
+                '- /api/sets/search?q=Concorde returns > 0 results',
+                '- /compare?q=Technic does not show empty state',
+                '- /themes/star-wars shows ≥ 20 sets',
+                '',
+                'Check the run log for the specific failing check.',
+              ].join('\n'),
+              labels: ['catalogue-audit-failed'],
+            });
