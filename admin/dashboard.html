@@ -1,0 +1,1139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOI Mission Control</title>
+<style>
+  :root {
+    --boi-saffron: #F7A800;
+    --boi-blue: #006CB7;
+    --boi-green: #16A34A;
+    --boi-navy: #0F2D6B;
+    --bg: #F7F8FA;
+    --surface: #FFFFFF;
+    --border: #E4E7EB;
+    --border-strong: #CBD2D9;
+    --text: #1F2937;
+    --text-muted: #6B7280;
+    --text-faint: #9CA3AF;
+    --p0: #DC2626;
+    --p1: #EA580C;
+    --p2: #F7A800;
+    --p3: #006CB7;
+    --p4: #6B7280;
+    --status-open: #DC2626;
+    --status-progress: #F7A800;
+    --status-blocked: #7C2D12;
+    --status-done: #16A34A;
+    --status-scheduled: #006CB7;
+    --radius: 8px;
+    --radius-lg: 12px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .header {
+    background: var(--boi-navy);
+    color: #fff;
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .header h1 {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .header h1::before {
+    content: "";
+    display: inline-block;
+    width: 10px; height: 10px;
+    background: var(--boi-saffron);
+    border-radius: 2px;
+  }
+  .header .meta { font-size: 12px; color: rgba(255,255,255,0.75); }
+  .header .meta strong { color: #fff; font-weight: 500; }
+
+  .tabs {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 0 24px;
+    display: flex;
+    overflow-x: auto;
+    gap: 4px;
+  }
+  .tab {
+    padding: 12px 16px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-muted);
+    border-bottom: 2px solid transparent;
+    white-space: nowrap;
+    font-family: inherit;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active {
+    color: var(--boi-blue);
+    border-bottom-color: var(--boi-blue);
+  }
+  .tab .count {
+    display: inline-block;
+    margin-left: 6px;
+    padding: 1px 7px;
+    background: var(--bg);
+    border-radius: 10px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .tab.active .count {
+    background: rgba(0,108,183,0.1);
+    color: var(--boi-blue);
+  }
+
+  .container { padding: 20px 24px 60px; max-width: 1400px; margin: 0 auto; }
+  .panel { display: none; }
+  .panel.active { display: block; }
+
+  /* ---------- Overview ---------- */
+  .kpi-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-bottom: 20px;
+  }
+  .kpi {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+    position: relative;
+  }
+  .kpi-label {
+    font-size: 11px;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    font-weight: 600;
+  }
+  .kpi-value {
+    font-size: 24px;
+    font-weight: 600;
+    margin-top: 6px;
+    color: var(--text);
+  }
+  .kpi-sub {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 2px;
+  }
+  .kpi.alert .kpi-value { color: var(--p0); }
+  .kpi.warn .kpi-value { color: var(--p1); }
+  .kpi.good .kpi-value { color: var(--status-done); }
+  .kpi-bar {
+    margin-top: 8px;
+    height: 4px;
+    background: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .kpi-bar-fill { height: 100%; background: var(--boi-blue); }
+  .kpi.alert .kpi-bar-fill { background: var(--p0); }
+  .kpi.warn .kpi-bar-fill { background: var(--p1); }
+  .kpi.good .kpi-bar-fill { background: var(--status-done); }
+
+  .section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 24px 0 10px;
+  }
+
+  .alert-banner {
+    background: #FFF7ED;
+    border: 1px solid #FED7AA;
+    border-left: 4px solid var(--p1);
+    border-radius: var(--radius);
+    padding: 12px 14px;
+    margin-bottom: 16px;
+    font-size: 13px;
+  }
+  .alert-banner strong { color: var(--p1); }
+  .alert-banner.danger {
+    background: #FEF2F2;
+    border-color: #FECACA;
+    border-left-color: var(--p0);
+  }
+  .alert-banner.danger strong { color: var(--p0); }
+
+  /* ---------- Tables ---------- */
+  .table-wrap {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    overflow: hidden;
+    overflow-x: auto;
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th {
+    text-align: left;
+    padding: 10px 14px;
+    background: #F9FAFB;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    white-space: nowrap;
+  }
+  td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: #FAFBFC; }
+  td .id-tag {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 11px;
+    background: #EFF6FF;
+    color: var(--boi-blue);
+    padding: 2px 6px;
+    border-radius: 4px;
+    font-weight: 500;
+  }
+
+  .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    white-space: nowrap;
+  }
+  .badge.p0 { background: #FEE2E2; color: #991B1B; }
+  .badge.p1 { background: #FFEDD5; color: #9A3412; }
+  .badge.p2 { background: #FEF3C7; color: #92400E; }
+  .badge.p3 { background: #DBEAFE; color: #1E40AF; }
+  .badge.p4 { background: #F3F4F6; color: #4B5563; }
+  .badge.open { background: #FEE2E2; color: #991B1B; }
+  .badge.in-progress { background: #FEF3C7; color: #92400E; }
+  .badge.blocked { background: #F3E8FF; color: #6B21A8; }
+  .badge.done, .badge.closed { background: #DCFCE7; color: #166534; }
+  .badge.scheduled { background: #DBEAFE; color: #1E40AF; }
+  .badge.pending { background: #F3F4F6; color: #4B5563; }
+  .badge.live { background: #DCFCE7; color: #166534; }
+  .badge.testing { background: #FEF3C7; color: #92400E; }
+  .badge.critical { background: #FEE2E2; color: #991B1B; }
+  .badge.high { background: #FFEDD5; color: #9A3412; }
+  .badge.medium { background: #FEF3C7; color: #92400E; }
+  .badge.low { background: #F3F4F6; color: #4B5563; }
+  .badge.auto { background: #DCFCE7; color: #166534; }
+  .badge.manual { background: #DBEAFE; color: #1E40AF; }
+  .badge.hybrid { background: #F3E8FF; color: #6B21A8; }
+
+  .filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 14px;
+    align-items: center;
+  }
+  .filter-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--border-strong);
+    background: var(--surface);
+    border-radius: 16px;
+    font-size: 12px;
+    cursor: pointer;
+    color: var(--text-muted);
+    font-family: inherit;
+    font-weight: 500;
+  }
+  .filter-btn:hover { border-color: var(--boi-blue); color: var(--boi-blue); }
+  .filter-btn.active {
+    background: var(--boi-blue);
+    color: #fff;
+    border-color: var(--boi-blue);
+  }
+  .filter-search {
+    flex: 1;
+    min-width: 200px;
+    padding: 7px 12px;
+    border: 1px solid var(--border-strong);
+    border-radius: var(--radius);
+    font-size: 13px;
+    font-family: inherit;
+  }
+  .filter-search:focus { outline: none; border-color: var(--boi-blue); }
+
+  /* ---------- Kanban ---------- */
+  .kanban {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(220px, 1fr));
+    gap: 12px;
+    overflow-x: auto;
+  }
+  @media (max-width: 1100px) {
+    .kanban { grid-template-columns: repeat(2, 1fr); }
+  }
+  @media (max-width: 600px) {
+    .kanban { grid-template-columns: 1fr; }
+  }
+  .kanban-col {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 12px;
+    min-height: 200px;
+  }
+  .kanban-col h3 {
+    margin: 0 0 12px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .kanban-col h3::before {
+    content: "";
+    display: inline-block;
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    margin-right: 8px;
+  }
+  .kanban-col[data-col="done"] h3::before { background: var(--status-done); }
+  .kanban-col[data-col="in-progress"] h3::before { background: var(--status-progress); }
+  .kanban-col[data-col="pending"] h3::before { background: var(--text-faint); }
+  .kanban-col[data-col="scheduled"] h3::before { background: var(--status-scheduled); }
+  .kanban-col[data-col="blocked"] h3::before { background: var(--status-blocked); }
+  .col-count {
+    background: var(--bg);
+    color: var(--text-muted);
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+  }
+  .card {
+    background: #FAFBFC;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 12px;
+    margin-bottom: 8px;
+    cursor: default;
+  }
+  .card-id {
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    font-size: 11px;
+    color: var(--boi-blue);
+    font-weight: 600;
+  }
+  .card-title {
+    font-size: 13px;
+    font-weight: 500;
+    margin: 4px 0 6px;
+    line-height: 1.35;
+  }
+  .card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    font-size: 11px;
+  }
+  .card-deps {
+    margin-top: 6px;
+    font-size: 11px;
+    color: var(--text-muted);
+  }
+  .card-deps strong { color: var(--p1); font-weight: 600; }
+
+  /* ---------- Health & audits ---------- */
+  .audit-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+    margin-bottom: 20px;
+  }
+  @media (max-width: 800px) { .audit-grid { grid-template-columns: 1fr; } }
+  .audit-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 16px;
+  }
+  .audit-card h3 {
+    margin: 0 0 4px;
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .audit-card .audit-date {
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+  }
+  .checklist-group {
+    margin-bottom: 16px;
+  }
+  .checklist-group h4 {
+    margin: 0 0 8px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-muted);
+  }
+  .checklist-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 6px;
+    background: var(--surface);
+    font-size: 13px;
+  }
+  .checklist-item .check-icon {
+    flex-shrink: 0;
+    width: 16px; height: 16px;
+    border-radius: 4px;
+    margin-top: 1px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 700;
+  }
+  .checklist-item.pass .check-icon { background: #DCFCE7; color: #166534; }
+  .checklist-item.fail .check-icon { background: #FEE2E2; color: #991B1B; }
+  .checklist-item.warn .check-icon { background: #FEF3C7; color: #92400E; }
+  .checklist-item.unknown .check-icon { background: #F3F4F6; color: #6B7280; }
+  .checklist-item .check-body { flex: 1; }
+  .checklist-item .check-name { font-weight: 500; }
+  .checklist-item .check-detail { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+  .health-score {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 16px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    margin-bottom: 16px;
+  }
+  .health-circle {
+    width: 80px; height: 80px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; font-weight: 700;
+    color: #fff;
+    flex-shrink: 0;
+  }
+  .health-circle.good { background: var(--status-done); }
+  .health-circle.warn { background: var(--p1); }
+  .health-circle.bad { background: var(--p0); }
+  .health-info h3 { margin: 0 0 4px; font-size: 16px; }
+  .health-info p { margin: 0; font-size: 13px; color: var(--text-muted); }
+
+  /* ---------- Stack ---------- */
+  .stack-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 12px;
+  }
+  .stack-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius-lg);
+    padding: 14px 16px;
+  }
+  .stack-card-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 8px;
+  }
+  .stack-card-name {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .stack-card-purpose {
+    font-size: 13px;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+    line-height: 1.45;
+  }
+  .stack-meta {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: 4px 10px;
+    font-size: 12px;
+  }
+  .stack-meta dt { color: var(--text-muted); }
+  .stack-meta dd { margin: 0; font-family: ui-monospace, SFMono-Regular, monospace; font-size: 11px; }
+
+  /* ---------- Cadence ---------- */
+  .cadence-section { margin-bottom: 24px; }
+
+  .footer-note {
+    margin-top: 30px;
+    padding: 12px 14px;
+    background: #EFF6FF;
+    border: 1px solid #BFDBFE;
+    border-radius: var(--radius);
+    font-size: 12px;
+    color: #1E40AF;
+    line-height: 1.5;
+  }
+  .footer-note code {
+    background: rgba(0,0,0,0.05);
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-size: 11px;
+  }
+
+  details.expandable {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    margin-bottom: 6px;
+  }
+  details.expandable summary {
+    padding: 10px 14px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    list-style: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  details.expandable summary::-webkit-details-marker { display: none; }
+  details.expandable summary::before {
+    content: "›";
+    font-size: 16px;
+    color: var(--text-muted);
+    transition: transform 0.15s;
+    display: inline-block;
+  }
+  details.expandable[open] summary::before { transform: rotate(90deg); }
+  details.expandable .details-body {
+    padding: 0 14px 14px 30px;
+    font-size: 13px;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+</style>
+</head>
+<body>
+
+<!-- =================================================================== -->
+<!--  DATA — edit this block to update the dashboard                      -->
+<!-- =================================================================== -->
+<script id="boi-data" type="application/json">
+{
+  "meta": {
+    "lastUpdated": "2026-04-26",
+    "trackerVersion": "v1.3",
+    "currentSprint": "LAB workstream + CATALOG-04 v2"
+  },
+  "kpis": {
+    "healthScore": 55,
+    "healthScoreNote": "BUG-013 (JSON-LD client-side rendering) escalated to P0 — entire GEO/AI investment invisible to non-JS crawlers until GEO-01 ships",
+    "openP0": 2,
+    "openP1": 4,
+    "netlifyMinutesLeft": 9999,
+    "netlifyResetDate": "2026-05-11",
+    "daysSinceLastDeploy": 0,
+    "lastDeployDate": "2026-04-26",
+    "lastDeployCommit": "3536e1c · feat(lab): biryani index calculator",
+    "voiceTestStatus": "Pending",
+    "geoScore": 26,
+    "geoScoreTarget": 75,
+    "lastAuditDate": null,
+    "nextAuditDate": "2026-05-03"
+  },
+  "issues": [
+    { "id": "BUG-015", "issue": "Tracker stated DNS on Netlify nsone.net; reality is Cloudflare authoritative", "rootCause": "DNS migration to Cloudflare not back-propagated to BOI_MASTER_TRACKER.md", "solution": "Verified via nslookup -type=NS — confirmed kira.ns.cloudflare.com + yadiel.ns.cloudflare.com. Tracker updated; Cloudflare added to stack[].", "deployedOn": "2026-04-26", "status": "closed", "priority": "P3", "affects": "Documentation accuracy, incident response (knowing which dashboard to check)" },
+    { "id": "BUG-014", "issue": "Netlify build minutes critically low", "rootCause": "Scrapers running inside Netlify build pipeline", "solution": "Resolved by INFRA-03 (deploy.yml live). Scrapers no longer consume Netlify build minutes.", "deployedOn": "2026-04-26", "status": "closed", "priority": "P0", "affects": "Build availability until May 11" },
+    { "id": "BUG-013", "issue": "JSON-LD schemas invisible to AI crawlers and non-JS search engines", "rootCause": "Schemas rendered client-side via SchemaLD.tsx component — invisible to non-JS-executing crawlers (most AI crawlers, partial Google coverage)", "solution": "Move JSON-LD generation server-side: emit in app/layout.tsx or per-route generateMetadata so schemas appear in initial HTML response | Alternative fix path: Cloudflare Workers can inject JSON-LD into HTML response at the edge before delivery — runtime fix without touching the Next.js codebase. Trade-off: Worker script maintenance vs. cleaner server-rendered Next.js metadata migration. Default plan is still server-side migration (GEO-01); Cloudflare Workers as Plan B if migration proves complex.", "deployedOn": null, "status": "open", "priority": "P0", "affects": "Entire GEO/AI visibility investment — all JSON-LD schemas currently invisible to non-JS crawlers" },
+    { "id": "BUG-012", "issue": "Silent batch aborts in scraper pipeline", "rootCause": "Postgres unique constraint conflicts dropping entire batches", "solution": "Switched to ON CONFLICT DO UPDATE deduplication on (source, sku)", "deployedOn": "2026-04-22", "status": "closed", "priority": "P1", "affects": "Toycra, MyBrickHouse, Jaiman scrapers" },
+    { "id": "BUG-011", "issue": "Rebrickable API returning 429 on long pulls", "rootCause": "No retry logic + no inter-page delay on pagination", "solution": "Added exponential backoff retry + 1.5s delay between pages", "deployedOn": "2026-04-21", "status": "closed", "priority": "P1", "affects": "Set search results completeness" },
+    { "id": "BUG-010", "issue": "Search returning Supabase-only results, missing global sets", "rootCause": "Search priority ordered Supabase → Rebrickable", "solution": "Flipped priority: Rebrickable first, Supabase used only for INR price hydration on Indian-stocked sets", "deployedOn": "2026-04-20", "status": "closed", "priority": "P1", "affects": "Search relevance globally" },
+    { "id": "BUG-009", "issue": "Email forwarding not arriving at Gmail", "rootCause": "MX records pointed at Cloudflare, but DNS was still hosted at Netlify (nsone.net) at time of issue — pre-Cloudflare migration", "solution": "Reconfigured ImprovMX MX records; abhinav@bricksofindia.com → bricksofindia007@gmail.com. DNS subsequently migrated to Cloudflare.", "deployedOn": "2026-04-18", "status": "closed", "priority": "P2", "affects": "Inbound contact email" },
+    { "id": "BUG-008", "issue": "Hero banner low engagement signal", "rootCause": "Generic stock banner with no India context", "solution": "Replaced with custom minifigure + Indian monuments hero in BOI palette", "deployedOn": "2026-04-15", "status": "closed", "priority": "P2", "affects": "Homepage" },
+    { "id": "BUG-007", "issue": "GEO/AI readiness baseline of 26/F", "rootCause": "Missing llms.txt, no JSON-LD, no E-E-A-T author bylines", "solution": "Shipped llms.txt + JSON-LD product/article schemas + author bylines (schemas currently client-side — see BUG-013 P0)", "deployedOn": "2026-04-14", "status": "closed", "priority": "P1", "affects": "AI search visibility" },
+    { "id": "BUG-006", "issue": "No brand identity on website", "rootCause": "Default theme, no palette or typography lock", "solution": "Locked BOI palette (saffron #F7A800, blue #006CB7, green #16A34A, navy #0F2D6B) + Fredoka/Inter typography", "deployedOn": "2026-04-10", "status": "closed", "priority": "P2", "affects": "Brand recognition" }
+  ],
+  "pipeline": [
+    { "id": "GEO-01", "title": "Migrate JSON-LD from client-side SchemaLD.tsx to server-rendered", "category": "Infrastructure", "status": "in-progress", "priority": "P0", "depsBlock": [], "blocks": ["RLFM-01"], "notes": "BUG-013 P0: schemas currently invisible to non-JS crawlers. Emit in generateMetadata or layout.tsx so schemas appear in initial HTML. Cloudflare Workers edge injection is Plan B if Next.js migration proves complex." },
+    { "id": "INFRA-03", "title": "GitHub Actions deploy workflow (deploy.yml)", "category": "Infrastructure", "status": "done", "priority": "P0", "depsBlock": [], "blocks": ["Phase 8 globe", "RADAR-01 cron"], "notes": "Deployed 2026-04-24 (commit 8992aef). Build now runs on GitHub Actions; Netlify still hosts but no longer runs the build. Netlify build minute concern resolved." },
+    { "id": "RADAR-01", "title": "Topical Radar daily cron @ 23:00 IST", "category": "Content OS", "status": "pending", "priority": "P1", "depsBlock": ["INFRA-03"], "blocks": ["Phase 8 globe"], "notes": "Scrapes Brickset, TBB, New Elementary, BrickNerd, r/lego >500 upvotes, Rebrickable, LEGO.com/new, YouTube RSS" },
+    { "id": "WEB-01", "title": "Article auto-publish pipeline with 4 lint gates", "category": "Website", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["Phase 8 globe"], "notes": "Specced (4 lint gates: word count, India Paragraph, verdict enum, image 200s) but not yet implemented in CI" },
+    { "id": "VOICE-01", "title": "ElevenLabs free-tier voice clone test", "category": "Audio", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["Shorts/Reels production model"], "notes": "Outcome decides hybrid clone vs full self-record" },
+    { "id": "INFRA-04", "title": "View Source verification of JSON-LD schemas", "category": "Infrastructure", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["GEO re-audit"], "notes": "Superseded by BUG-013 P0 finding — curl confirms schemas not in initial HTML. GEO-01 is the fix." },
+    { "id": "PHASE-08", "title": "LEGO Search Pulse — Three.js globe + D3 choropleth", "category": "Feature", "status": "blocked", "priority": "P2", "depsBlock": ["RADAR-01", "WEB-01"], "blocks": [], "notes": "Specced; deferred until infra stable. INFRA-03 dep removed (done)." },
+    { "id": "WEB-02", "title": "Image fetch + attribution block automation", "category": "Website", "status": "in-progress", "priority": "P2", "depsBlock": [], "blocks": [], "notes": "Tier 1 APIs only (Brickset, Rebrickable); Tier 2 manual click-save into /raw-assets/" },
+    { "id": "WEB-03", "title": "PR auto-merge on lint pass", "category": "Website", "status": "pending", "priority": "P2", "depsBlock": ["WEB-01"], "blocks": [], "notes": "Failed lint = PR stays open + email alert" },
+    { "id": "WEB-04", "title": "RSS feed for /news and /reviews", "category": "Website", "status": "pending", "priority": "P3", "depsBlock": ["WEB-01"], "blocks": [], "notes": "Required for Topical Radar feed-loop and aggregator pickup" },
+    { "id": "CONTENT-01", "title": "Voice Codex spec (8–12 pages)", "category": "Content OS", "status": "in-progress", "priority": "P2", "depsBlock": [], "blocks": ["CONTENT-02"], "notes": "Derived from 25 existing scripts" },
+    { "id": "CONTENT-02", "title": "Claude Project workbench setup", "category": "Content OS", "status": "scheduled", "priority": "P2", "depsBlock": ["CONTENT-01"], "blocks": [], "notes": "Codex loaded as project knowledge" },
+    { "id": "CONTENT-03", "title": "DaVinci Resolve template for news Shorts", "category": "Content OS", "status": "pending", "priority": "P3", "depsBlock": ["VOICE-01"], "blocks": [], "notes": "CapCut banned in India; Descript and OpusClip deferred" },
+    { "id": "CONTENT-04", "title": "Instagram 7-slide Canva carousel template", "category": "Content OS", "status": "pending", "priority": "P3", "depsBlock": [], "blocks": [], "notes": "Target cadence 3x/week" },
+    { "id": "MONETIZE-01", "title": "MyBrickHouse coupon-code arrangement", "category": "Monetization", "status": "scheduled", "priority": "P2", "depsBlock": [], "blocks": [], "notes": "Most actionable near-term affiliate path" },
+    { "id": "MONETIZE-02", "title": "Jaiman Toys coupon-code arrangement", "category": "Monetization", "status": "scheduled", "priority": "P2", "depsBlock": [], "blocks": [], "notes": "Parallel to MONETIZE-01" },
+    { "id": "MONETIZE-03", "title": "Amazon affiliate reapplication", "category": "Monetization", "status": "scheduled", "priority": "P3", "depsBlock": [], "blocks": [], "notes": "Eligible Oct/Nov 2026" },
+    { "id": "INSIDERS-01", "title": "LEGO Insiders points reconciliation", "category": "Brand", "status": "pending", "priority": "P3", "depsBlock": [], "blocks": ["RLFM application"], "notes": "Member #811205769 — zero points despite purchase history; founder credibility issue" },
+    { "id": "RLFM-01", "title": "LAN RLFM application draft", "category": "Brand", "status": "scheduled", "priority": "P3", "depsBlock": [], "blocks": [], "notes": "Apply at one-year mark with live stats" },
+    { "id": "PERF-01", "title": "Evaluate Cloudflare edge caching for article pages", "category": "Infrastructure", "status": "scheduled", "priority": "P3", "depsBlock": [], "blocks": [], "notes": "Currently cf-cache-status: DYNAMIC — Cloudflare is proxy-only, not caching. Article pages could be cached at edge to reduce ~775ms origin latency to ~10ms. Interacts with Next.js ISR; needs careful TTL tuning to avoid stale article content. Defer until after RADAR-01 and WEB-01 ship." }
+  ],
+  "auditChecklist": [
+    {
+      "group": "Uptime & availability",
+      "items": [
+        { "name": "Site responds at https://www.bricksofindia.com (200 OK)", "status": "unknown", "detail": "Run from Pingdom or UptimeRobot" },
+        { "name": "TLS certificate valid > 30 days", "status": "unknown", "detail": "Auto-renewed by Netlify; verify expiry" },
+        { "name": "DNS records intact (A, MX, TXT)", "status": "unknown", "detail": "Cloudflare authoritative DNS (kira.ns + yadiel.ns.cloudflare.com); Netlify origin; ImprovMX for email MX" },
+        { "name": "Email routing alive (test send to abhinav@bricksofindia.com)", "status": "unknown", "detail": "ImprovMX → bricksofindia007@gmail.com" },
+        { "name": "Cloudflare edge serving from BOM (Mumbai) for India traffic", "status": "pass", "detail": "Verified via CF-RAY suffix 2026-04-26 — header: 9f23ae1b3f7b428a-BOM" },
+        { "name": "HSTS active (max-age >= 1 year)", "status": "pass", "detail": "strict-transport-security: max-age=31536000 — verified 2026-04-26" }
+      ]
+    },
+    {
+      "group": "Functional CTAs & links",
+      "items": [
+        { "name": "Every nav link returns 200", "status": "unknown", "detail": "Header, footer, breadcrumb" },
+        { "name": "Every affiliate link resolves to merchant", "status": "unknown", "detail": "Toycra ABHINAV12 code present" },
+        { "name": "Every CTA button triggers expected action", "status": "unknown", "detail": "Search, subscribe, share" },
+        { "name": "Internal links between articles intact", "status": "unknown", "detail": "Catch broken links from drafts" },
+        { "name": "External outbound links return 200", "status": "unknown", "detail": "Brickset, Rebrickable, source attributions" }
+      ]
+    },
+    {
+      "group": "Content integrity",
+      "items": [
+        { "name": "All images return HTTP 200", "status": "unknown", "detail": "Lint gate already enforces on PR; spot-check older articles" },
+        { "name": "Image attribution block present on every article", "status": "unknown", "detail": "Auto-added by WEB-02; verify" },
+        { "name": "India Paragraph present in every review/news post", "status": "unknown", "detail": "Lint gate enforces; spot-check" },
+        { "name": "Verdict matches locked enum", "status": "unknown", "detail": "Buy now / Wait / Import only / Avoid" },
+        { "name": "Word count within range (News 300–400, Reviews 500–700, Opinion 400–500)", "status": "unknown", "detail": "Lint gate enforces; spot-check" }
+      ]
+    },
+    {
+      "group": "GEO & AI readiness",
+      "items": [
+        { "name": "llms.txt present and parses", "status": "warn", "detail": "Shipped 2026-04-14 — re-verify contents match site" },
+        { "name": "JSON-LD schemas validate (Product, Article, Organization, Person)", "status": "fail", "detail": "BUG-013 P0: schemas rendered client-side via SchemaLD.tsx — invisible to non-JS crawlers. GEO-01 tracks the server-side migration fix." },
+        { "name": "E-E-A-T author bylines on every post", "status": "unknown", "detail": "Verify author entity has linked Person schema" },
+        { "name": "robots.txt allows AI crawlers (GPTBot, ClaudeBot, etc.)", "status": "unknown", "detail": "Confirm explicit allow, not just default" },
+        { "name": "Sitemap.xml present and current", "status": "unknown", "detail": "Should auto-generate per build" }
+      ]
+    },
+    {
+      "group": "Pipeline & data",
+      "items": [
+        { "name": "Toycra scraper last run successful", "status": "pass", "detail": "Verified 2026-04-25 — scrape-prices.yml firing every 6h on GHA, 100% success rate" },
+        { "name": "MyBrickHouse scraper last run successful", "status": "pass", "detail": "Verified 2026-04-25 — scrape-prices.yml firing every 6h on GHA, 100% success rate" },
+        { "name": "Jaiman Toys scraper last run successful", "status": "pass", "detail": "Verified 2026-04-25 — scrape-prices.yml firing every 6h on GHA, 100% success rate" },
+        { "name": "Rebrickable hydration completing without 429s", "status": "pass", "detail": "BUG-011 fixed 2026-04-21" },
+        { "name": "Postgres dedup not silently aborting batches", "status": "pass", "detail": "BUG-012 fixed 2026-04-22" },
+        { "name": "Topical Radar cron firing at 23:00 IST", "status": "fail", "detail": "Not yet deployed — RADAR-01 pending" }
+      ]
+    },
+    {
+      "group": "Performance & SEO",
+      "items": [
+        { "name": "Lighthouse score (Mobile) ≥ 80", "status": "unknown", "detail": "Run from PageSpeed Insights" },
+        { "name": "Core Web Vitals — LCP, CLS, INP — all green", "status": "unknown", "detail": "Field data from Search Console" },
+        { "name": "Search Console — no manual actions / coverage drops", "status": "unknown", "detail": "Weekly check" },
+        { "name": "GEO score trend vs 26 baseline", "status": "warn", "detail": "Target 70s — blocked until BUG-013 / GEO-01 resolved (schemas currently invisible)" }
+      ]
+    },
+    {
+      "group": "Security & access",
+      "items": [
+        { "name": "API keys in .env.local + Netlify env (not committed)", "status": "pass", "detail": "REBRICKABLE_API_KEY, BRICKSET_API_KEY" },
+        { "name": "GitHub repo access reviewed", "status": "unknown", "detail": "Quarterly review" },
+        { "name": "Netlify team membership reviewed", "status": "unknown", "detail": "Quarterly review" },
+        { "name": "No exposed admin routes", "status": "unknown", "detail": "admin/dashboard.html placed in repo, disallowed in robots.ts — not yet auth-gated. Confirm /admin/* requires auth before linking publicly." },
+        { "name": "Cloudflare 2FA enabled on account", "status": "unknown", "detail": "Verify in Cloudflare → My Profile → Authentication" },
+        { "name": "Cloudflare SSL/TLS mode is Full (strict), not Flexible", "status": "unknown", "detail": "Cloudflare → SSL/TLS → Overview. Flexible causes redirect loops with Netlify origin." },
+        { "name": "Cloudflare API tokens reviewed (none exposed in repo)", "status": "unknown", "detail": "Quarterly review alongside other API key/access audits" }
+      ]
+    }
+  ],
+  "stack": [
+    { "name": "Cloudflare", "purpose": "DNS authority + CDN proxy + DDoS protection in front of Netlify origin. Mumbai edge node serves Indian audience with ~10ms edge latency.", "auth": "Account login (email + password + 2FA)", "credLocation": "Cloudflare dashboard", "criticality": "critical", "category": "Hosting" },
+    { "name": "Netlify", "purpose": "Origin server — Next.js build, hosting, deploy pipeline. Sits behind Cloudflare proxy. No longer authoritative for DNS.", "auth": "GitHub OAuth", "credLocation": "Netlify dashboard", "criticality": "critical", "category": "Hosting" },
+    { "name": "GitHub Actions", "purpose": "Build + deploy cron (deploy.yml) + price scraper cron (scrape-prices.yml) + catalogue sync (sync-catalogue.yml) + catalogue audit (catalogue-audit.yml)", "auth": "GitHub repo", "credLocation": "Repo secrets", "criticality": "critical", "category": "CI/CD" },
+    { "name": "Supabase (Postgres)", "purpose": "Indian store inventory + price database", "auth": "Service role key", "credLocation": ".env.local + Netlify env", "criticality": "critical", "category": "Database" },
+    { "name": "Rebrickable API", "purpose": "Global LEGO set catalog, primary search source", "auth": "API key", "credLocation": "REBRICKABLE_API_KEY", "criticality": "critical", "category": "Data API" },
+    { "name": "Brickset API", "purpose": "Set metadata, retirement status, image URLs", "auth": "API key", "credLocation": "BRICKSET_API_KEY", "criticality": "high", "category": "Data API" },
+    { "name": "Toycra (products.json)", "purpose": "Indian inventory + INR pricing scraper", "auth": "Public Shopify endpoint", "credLocation": "—", "criticality": "high", "category": "Scraper" },
+    { "name": "MyBrickHouse (products.json)", "purpose": "Indian inventory + INR pricing scraper", "auth": "Public Shopify endpoint", "credLocation": "—", "criticality": "high", "category": "Scraper" },
+    { "name": "Jaiman Toys (products.json)", "purpose": "Indian inventory + INR pricing scraper", "auth": "Public Shopify endpoint", "credLocation": "—", "criticality": "medium", "category": "Scraper" },
+    { "name": "ImprovMX", "purpose": "Email forwarding to Gmail", "auth": "Account login", "credLocation": "ImprovMX dashboard", "criticality": "medium", "category": "Email" },
+    { "name": "Claude API", "purpose": "Topical Radar drafts in BOI voice (RADAR-01)", "auth": "API key", "credLocation": "Repo secrets (post-RADAR-01)", "criticality": "high", "category": "AI" },
+    { "name": "ElevenLabs", "purpose": "Voice clone for video narration (testing)", "auth": "API key", "credLocation": "Pending VOICE-01 outcome", "criticality": "medium", "category": "AI" },
+    { "name": "Brickset RSS", "purpose": "Topical Radar source feed", "auth": "Public", "credLocation": "—", "criticality": "medium", "category": "RSS source" },
+    { "name": "The Brothers Brick RSS", "purpose": "Topical Radar source feed", "auth": "Public", "credLocation": "—", "criticality": "medium", "category": "RSS source" },
+    { "name": "New Elementary RSS", "purpose": "Topical Radar source feed", "auth": "Public", "credLocation": "—", "criticality": "medium", "category": "RSS source" },
+    { "name": "BrickNerd RSS", "purpose": "Topical Radar source feed", "auth": "Public", "credLocation": "—", "criticality": "medium", "category": "RSS source" },
+    { "name": "Reddit r/lego JSON", "purpose": "Topical Radar — posts >500 upvotes", "auth": "Public", "credLocation": "—", "criticality": "low", "category": "RSS source" },
+    { "name": "YouTube RSS (selected channels)", "purpose": "Topical Radar source feed", "auth": "Public", "credLocation": "—", "criticality": "low", "category": "RSS source" },
+    { "name": "Toycra affiliate (code ABHINAV12)", "purpose": "Affiliate revenue, currently untracked", "auth": "Affiliate program", "credLocation": "—", "criticality": "medium", "category": "Monetization" }
+  ],
+  "cadence": [
+    { "feature": "GitHub Actions build + deploy to Netlify", "frequency": "Per push to main", "mode": "auto", "owner": "GitHub Actions → netlify-cli deploy", "notes": "INFRA-03 done 2026-04-24. Build runs on GHA, artifact deployed to Netlify CDN via netlify-cli." },
+    { "feature": "Toycra scraper", "frequency": "Every 6h (00:00, 06:00, 12:00, 18:00 UTC)", "mode": "auto", "owner": "GitHub Actions — scrape-prices.yml", "notes": "Live since INFRA-03. All 3 stores run in single combined cron." },
+    { "feature": "MyBrickHouse scraper", "frequency": "Every 6h (00:00, 06:00, 12:00, 18:00 UTC)", "mode": "auto", "owner": "GitHub Actions — scrape-prices.yml", "notes": "Live since INFRA-03. All 3 stores run in single combined cron." },
+    { "feature": "Jaiman Toys scraper", "frequency": "Every 6h (00:00, 06:00, 12:00, 18:00 UTC)", "mode": "auto", "owner": "GitHub Actions — scrape-prices.yml", "notes": "Live since INFRA-03. All 3 stores run in single combined cron." },
+    { "feature": "Rebrickable catalogue sync", "frequency": "Weekly Sunday 02:00 UTC (07:30 IST)", "mode": "auto", "owner": "GitHub Actions cron 0 2 * * 0 — sync-catalogue.yml", "notes": "~26k Rebrickable entries → ~10k unique sets after dedup. Row assertion ≥ 8,000. Opens GitHub issue on failure." },
+    { "feature": "Catalogue health audit", "frequency": "Weekly Monday 03:30 UTC (09:00 IST)", "mode": "auto", "owner": "GitHub Actions cron 30 3 * * 1 — catalogue-audit.yml", "notes": "Checks row count, image coverage, scraper staleness, live search + theme pages. Opens GitHub issue on failure." },
+    { "feature": "Topical Radar (RADAR-01)", "frequency": "Daily 23:00 IST", "mode": "auto", "owner": "GitHub Actions cron 30 17 * * *", "notes": "Pending deploy" },
+    { "feature": "Morning brief email", "frequency": "Daily 08:00 IST", "mode": "auto", "owner": "RADAR-01 follow-on", "notes": "Pending deploy" },
+    { "feature": "Cloudflare cache purge on deploy", "frequency": "Per deploy (no-op currently — cf-cache-status DYNAMIC)", "mode": "auto", "owner": "Becomes relevant only after PERF-01", "notes": "Will need GitHub Actions step calling Cloudflare API after Netlify deploy completes" },
+    { "feature": "Article publish (news)", "frequency": "2x per week", "mode": "hybrid", "owner": "Abhinav drafts → auto-publish on lint pass", "notes": "WEB-01 pipeline" },
+    { "feature": "Article publish (reviews)", "frequency": "1x per week", "mode": "hybrid", "owner": "Abhinav drafts → auto-publish on lint pass", "notes": "WEB-01 pipeline" },
+    { "feature": "Long-form YouTube video", "frequency": "1x per week", "mode": "manual", "owner": "Abhinav", "notes": "DaVinci Resolve" },
+    { "feature": "News videos (Shorts)", "frequency": "2x per week", "mode": "manual", "owner": "Abhinav", "notes": "DaVinci Resolve" },
+    { "feature": "Shorts/Reels", "frequency": "3x per week", "mode": "manual", "owner": "Abhinav", "notes": "Pending VOICE-01 outcome" },
+    { "feature": "Instagram carousels", "frequency": "3x per week", "mode": "manual", "owner": "Abhinav", "notes": "Canva 7-slide template" },
+    { "feature": "Image attribution check", "frequency": "Per PR", "mode": "auto", "owner": "Lint gate", "notes": "Image URLs return 200" },
+    { "feature": "Light health check", "frequency": "Weekly (Sunday)", "mode": "manual", "owner": "Abhinav (proposed)", "notes": "Run audit checklist groups: Uptime, Functional CTAs, Pipeline" },
+    { "feature": "Deep audit", "frequency": "Monthly", "mode": "manual", "owner": "Abhinav (proposed)", "notes": "Full checklist incl. GEO, performance, security" },
+    { "feature": "GEO score re-baseline", "frequency": "Quarterly", "mode": "manual", "owner": "Abhinav (proposed)", "notes": "Independent re-run of original GEO audit" },
+    { "feature": "Affiliate link integrity sweep", "frequency": "Weekly (proposed)", "mode": "manual", "owner": "Abhinav", "notes": "Confirm Toycra code resolves and merchant URLs alive" },
+    { "feature": "API key + access review", "frequency": "Quarterly", "mode": "manual", "owner": "Abhinav", "notes": "Repo, Netlify, Cloudflare, Supabase, Rebrickable, Brickset" },
+    { "feature": "Cloudflare 2FA + access review", "frequency": "Quarterly", "mode": "manual", "owner": "Abhinav", "notes": "Same review pass as other API key/access audits" }
+  ]
+}
+</script>
+
+<!-- =================================================================== -->
+<!--  HEADER                                                              -->
+<!-- =================================================================== -->
+<div class="header">
+  <h1>BOI Mission Control</h1>
+  <div class="meta">
+    Tracker <strong id="meta-version"></strong> · Last updated <strong id="meta-updated"></strong> · Sprint: <strong id="meta-sprint"></strong>
+  </div>
+</div>
+
+<!-- =================================================================== -->
+<!--  TABS                                                                -->
+<!-- =================================================================== -->
+<div class="tabs" id="tabs">
+  <button class="tab active" data-tab="overview">Overview</button>
+  <button class="tab" data-tab="issues">Issues &amp; fixes <span class="count" id="count-issues"></span></button>
+  <button class="tab" data-tab="pipeline">Pipeline <span class="count" id="count-pipeline"></span></button>
+  <button class="tab" data-tab="health">Health &amp; audits</button>
+  <button class="tab" data-tab="stack">Stack &amp; APIs <span class="count" id="count-stack"></span></button>
+  <button class="tab" data-tab="cadence">Cadence <span class="count" id="count-cadence"></span></button>
+</div>
+
+<div class="container">
+
+  <!-- ============ OVERVIEW ============ -->
+  <div class="panel active" data-panel="overview">
+    <div id="alert-area"></div>
+    <div class="kpi-grid" id="kpi-grid"></div>
+
+    <div class="section-title">Top open priorities</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Item</th><th>Priority</th><th>Status</th><th>Blocks</th></tr></thead>
+        <tbody id="top-priorities"></tbody>
+      </table>
+    </div>
+
+    <div class="section-title">Recently closed (last 30 days)</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Issue</th><th>Solution</th><th>Deployed</th></tr></thead>
+        <tbody id="recently-closed"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============ ISSUES ============ -->
+  <div class="panel" data-panel="issues">
+    <div class="filters">
+      <button class="filter-btn active" data-status-filter="all">All</button>
+      <button class="filter-btn" data-status-filter="open">Open</button>
+      <button class="filter-btn" data-status-filter="in-progress">In progress</button>
+      <button class="filter-btn" data-status-filter="closed">Closed</button>
+      <input type="text" class="filter-search" id="issue-search" placeholder="Search issues...">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Issue</th>
+            <th>Solution</th>
+            <th>Deployed</th>
+            <th>Status</th>
+            <th>Priority</th>
+            <th>Affects</th>
+          </tr>
+        </thead>
+        <tbody id="issues-body"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ============ PIPELINE ============ -->
+  <div class="panel" data-panel="pipeline">
+    <div class="filters">
+      <button class="filter-btn active" data-cat-filter="all">All categories</button>
+      <button class="filter-btn" data-cat-filter="Infrastructure">Infrastructure</button>
+      <button class="filter-btn" data-cat-filter="Website">Website</button>
+      <button class="filter-btn" data-cat-filter="Content OS">Content OS</button>
+      <button class="filter-btn" data-cat-filter="Audio">Audio</button>
+      <button class="filter-btn" data-cat-filter="Feature">Feature</button>
+      <button class="filter-btn" data-cat-filter="Monetization">Monetization</button>
+      <button class="filter-btn" data-cat-filter="Brand">Brand</button>
+    </div>
+    <div class="kanban" id="kanban">
+      <div class="kanban-col" data-col="in-progress"><h3>In progress <span class="col-count" id="col-in-progress"></span></h3><div class="kanban-cards" data-cards-for="in-progress"></div></div>
+      <div class="kanban-col" data-col="pending"><h3>Pending <span class="col-count" id="col-pending"></span></h3><div class="kanban-cards" data-cards-for="pending"></div></div>
+      <div class="kanban-col" data-col="scheduled"><h3>Scheduled <span class="col-count" id="col-scheduled"></span></h3><div class="kanban-cards" data-cards-for="scheduled"></div></div>
+      <div class="kanban-col" data-col="blocked"><h3>Blocked <span class="col-count" id="col-blocked"></span></h3><div class="kanban-cards" data-cards-for="blocked"></div></div>
+      <div class="kanban-col" data-col="done"><h3>Done <span class="col-count" id="col-done"></span></h3><div class="kanban-cards" data-cards-for="done"></div></div>
+    </div>
+  </div>
+
+  <!-- ============ HEALTH & AUDITS ============ -->
+  <div class="panel" data-panel="health">
+    <div class="health-score" id="health-score-card"></div>
+
+    <div class="audit-grid">
+      <div class="audit-card">
+        <h3>Last audit</h3>
+        <div class="audit-date" id="last-audit-date"></div>
+        <div style="font-size: 13px; color: var(--text-muted);">Run the checklist below, mark each row, save the date.</div>
+      </div>
+      <div class="audit-card">
+        <h3>Next scheduled audit</h3>
+        <div class="audit-date" id="next-audit-date"></div>
+        <div style="font-size: 13px; color: var(--text-muted);">Proposed cadence: light weekly (Sunday) + deep monthly + GEO quarterly.</div>
+      </div>
+    </div>
+
+    <div class="section-title">Full audit checklist</div>
+    <div id="audit-checklist"></div>
+
+    <div class="footer-note">
+      <strong>Status legend:</strong> ✓ pass · ! warn · ✗ fail · ? unknown (not yet checked).
+      Update statuses by editing the <code>auditChecklist</code> block in the data section at the top of this file. After each audit, also bump <code>kpis.lastAuditDate</code> and <code>kpis.nextAuditDate</code>.
+    </div>
+  </div>
+
+  <!-- ============ STACK ============ -->
+  <div class="panel" data-panel="stack">
+    <div class="filters">
+      <button class="filter-btn active" data-stack-filter="all">All</button>
+      <button class="filter-btn" data-stack-filter="Hosting">Hosting</button>
+      <button class="filter-btn" data-stack-filter="CI/CD">CI/CD</button>
+      <button class="filter-btn" data-stack-filter="Database">Database</button>
+      <button class="filter-btn" data-stack-filter="Data API">Data APIs</button>
+      <button class="filter-btn" data-stack-filter="Scraper">Scrapers</button>
+      <button class="filter-btn" data-stack-filter="RSS source">RSS sources</button>
+      <button class="filter-btn" data-stack-filter="AI">AI</button>
+      <button class="filter-btn" data-stack-filter="Email">Email</button>
+      <button class="filter-btn" data-stack-filter="Monetization">Monetization</button>
+    </div>
+    <div class="stack-grid" id="stack-grid"></div>
+  </div>
+
+  <!-- ============ CADENCE ============ -->
+  <div class="panel" data-panel="cadence">
+    <div class="cadence-section">
+      <div class="section-title">Auto — runs without you</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Feature</th><th>Frequency</th><th>Owner / mechanism</th><th>Notes</th></tr></thead>
+          <tbody id="cadence-auto"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="cadence-section">
+      <div class="section-title">Hybrid — you draft, system enforces</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Feature</th><th>Frequency</th><th>Owner / mechanism</th><th>Notes</th></tr></thead>
+          <tbody id="cadence-hybrid"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="cadence-section">
+      <div class="section-title">Manual — fully on you</div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Feature</th><th>Frequency</th><th>Owner / mechanism</th><th>Notes</th></tr></thead>
+          <tbody id="cadence-manual"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer-note">
+    <strong>How to update this dashboard:</strong> open <code>dashboard.html</code> in any text editor, find the
+    <code>&lt;script id="boi-data" type="application/json"&gt;</code> block at the top, edit the JSON, save, refresh.
+    Same file works locally and when deployed to <code>/admin/dashboard</code> on Netlify.
+    Tell Claude Code: <em>"update dashboard.html — close BUG-XXX, deployed today, solution: ..."</em> and it will edit the JSON in-place.
+  </div>
+</div>
+
+<script>
+// =====================================================================
+// Render logic — reads from #boi-data, paints all panels
+// =====================================================================
+const DATA = JSON.parse(document.getElementById('boi-data').textContent);
+const $ = (s, root=document) => root.querySelector(s);
+const $$ = (s, root=document) => Array.from(root.querySelectorAll(s));
+const fmtDate = d => d ? new Date(d).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const daysBetween = (a, b) => Math.round((new Date(b) - new Date(a)) / 86400000);
+
+// ----- header meta -----
+$('#meta-version').textContent = DATA.meta.trackerVersion;
+$('#meta-updated').textContent = fmtDate(DATA.meta.lastUpdated);
+$('#meta-sprint').textContent = DATA.meta.currentSprint;
+
+// ----- tab counts -----
+$('#count-issues').textContent = DATA.issues.filter(i => i.status !== 'closed').length;
+$('#count-pipeline').textContent = DATA.pipeline.filter(p => p.status !== 'done').length;
+$('#count-stack').textContent = DATA.stack.length;
+$('#count-cadence').textContent = DATA.cadence.length;
+
+// ----- alerts -----
+const alertArea = $('#alert-area');
+const today = new Date(DATA.meta.lastUpdated);
+const netlifyResetIn = daysBetween(today, DATA.kpis.netlifyResetDate);
+if (DATA.kpis.netlifyMinutesLeft < 100) {
+  alertArea.innerHTML += `<div class="alert-banner danger"><strong>Netlify build minutes critical.</strong> ${DATA.kpis.netlifyMinutesLeft} minutes left. Reset in ${netlifyResetIn} days (${fmtDate(DATA.kpis.netlifyResetDate)}). Ship INFRA-03 before reset.</div>`;
+}
+if (DATA.kpis.voiceTestStatus === 'Pending') {
+  alertArea.innerHTML += `<div class="alert-banner"><strong>ElevenLabs voice test pending.</strong> Outcome decides hybrid clone vs full self-record for all video output. Blocks Shorts production model.</div>`;
+}
+
+// ----- KPIs -----
+const k = DATA.kpis;
+const kpis = [
+  { label: 'Health score', value: `${k.healthScore}/100`, sub: k.healthScoreNote, tone: k.healthScore >= 80 ? 'good' : k.healthScore >= 60 ? 'warn' : 'alert', bar: k.healthScore },
+  { label: 'Open P0', value: k.openP0, sub: k.openP0 > 0 ? 'Drop everything else' : 'Clear', tone: k.openP0 > 0 ? 'alert' : 'good' },
+  { label: 'Open P1', value: k.openP1, sub: 'This sprint', tone: k.openP1 > 2 ? 'warn' : '' },
+  { label: 'Netlify minutes', value: k.netlifyMinutesLeft, sub: `Reset ${fmtDate(k.netlifyResetDate)}`, tone: k.netlifyMinutesLeft < 100 ? 'alert' : k.netlifyMinutesLeft < 300 ? 'warn' : 'good', bar: Math.min(100, (k.netlifyMinutesLeft/300)*100) },
+  { label: 'Last deploy', value: `${k.daysSinceLastDeploy}d ago`, sub: fmtDate(k.lastDeployDate), tone: '' },
+  { label: 'GEO score', value: `${k.geoScore}/100`, sub: `Target ${k.geoScoreTarget}`, tone: k.geoScore < 50 ? 'alert' : k.geoScore < 70 ? 'warn' : 'good', bar: k.geoScore },
+  { label: 'Voice test', value: k.voiceTestStatus, sub: 'ElevenLabs free tier', tone: k.voiceTestStatus === 'Pending' ? 'warn' : 'good' },
+  { label: 'Next audit', value: fmtDate(k.nextAuditDate), sub: k.lastAuditDate ? `Last: ${fmtDate(k.lastAuditDate)}` : 'No prior audit', tone: !k.lastAuditDate ? 'warn' : '' }
+];
+$('#kpi-grid').innerHTML = kpis.map(kp => `
+  <div class="kpi ${kp.tone || ''}">
+    <div class="kpi-label">${kp.label}</div>
+    <div class="kpi-value">${kp.value}</div>
+    <div class="kpi-sub">${kp.sub || ''}</div>
+    ${kp.bar !== undefined ? `<div class="kpi-bar"><div class="kpi-bar-fill" style="width: ${kp.bar}%"></div></div>` : ''}
+  </div>
+`).join('');
+
+// ----- Top priorities (overview) -----
+const topPri = [...DATA.pipeline, ...DATA.issues.filter(i => i.status !== 'closed').map(i => ({
+  id: i.id, title: i.issue, priority: i.priority, status: i.status, blocks: []
+}))]
+  .filter(x => x.status !== 'done' && x.status !== 'closed')
+  .sort((a, b) => (a.priority || 'P5').localeCompare(b.priority || 'P5'))
+  .slice(0, 8);
+$('#top-priorities').innerHTML = topPri.map(t => `
+  <tr>
+    <td><span class="id-tag">${t.id}</span></td>
+    <td>${t.title}</td>
+    <td><span class="badge ${(t.priority||'').toLowerCase()}">${t.priority || ''}</span></td>
+    <td><span class="badge ${t.status}">${t.status.replace('-', ' ')}</span></td>
+    <td style="font-size: 12px; color: var(--text-muted);">${(t.blocks && t.blocks.length) ? t.blocks.join(', ') : '—'}</td>
+  </tr>
+`).join('');
+
+// ----- Recently closed -----
+const closed = DATA.issues.filter(i => i.status === 'closed' && i.deployedOn)
+  .sort((a, b) => new Date(b.deployedOn) - new Date(a.deployedOn))
+  .slice(0, 6);
+$('#recently-closed').innerHTML = closed.map(c => `
+  <tr>
+    <td><span class="id-tag">${c.id}</span></td>
+    <td>${c.issue}</td>
+    <td style="font-size: 12px; color: var(--text-muted);">${c.solution}</td>
+    <td>${fmtDate(c.deployedOn)}</td>
+  </tr>
+`).join('');
+
+// ----- Issues table -----
+function renderIssues(filter='all', search='') {
+  const s = search.toLowerCase();
+  const rows = DATA.issues.filter(i => {
+    if (filter !== 'all' && i.status !== filter) return false;
+    if (s && !(i.issue + i.solution + i.id).toLowerCase().includes(s)) return false;
+    return true;
+  });
+  $('#issues-body').innerHTML = rows.map(i => `
+    <tr>
+      <td><span class="id-tag">${i.id}</span></td>
+      <td>${i.issue}<div style="font-size: 11px; color: var(--text-faint); margin-top: 2px;">Root cause: ${i.rootCause}</div></td>
+      <td style="font-size: 12px; color: var(--text-muted);">${i.solution}</td>
+      <td>${fmtDate(i.deployedOn)}</td>
+      <td><span class="badge ${i.status}">${i.status.replace('-', ' ')}</span></td>
+      <td><span class="badge ${i.priority.toLowerCase()}">${i.priority}</span></td>
+      <td style="font-size: 12px; color: var(--text-muted);">${i.affects}</td>
+    </tr>
+  `).join('') || '<tr><td colspan="7" style="text-align:center; color: var(--text-muted); padding: 30px;">No issues match.</td></tr>';
+}
+renderIssues();
+$$('[data-status-filter]').forEach(b => b.addEventListener('click', () => {
+  $$('[data-status-filter]').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  renderIssues(b.dataset.statusFilter, $('#issue-search').value);
+}));
+$('#issue-search').addEventListener('input', e => {
+  const active = $('[data-status-filter].active').dataset.statusFilter;
+  renderIssues(active, e.target.value);
+});
+
+// ----- Pipeline kanban -----
+function renderPipeline(catFilter='all') {
+  const cols = ['in-progress', 'pending', 'scheduled', 'blocked', 'done'];
+  cols.forEach(c => $(`[data-cards-for="${c}"]`).innerHTML = '');
+  const items = DATA.pipeline.filter(p => catFilter === 'all' || p.category === catFilter);
+  items.sort((a, b) => (a.priority||'P5').localeCompare(b.priority||'P5'));
+  items.forEach(p => {
+    const card = `
+      <div class="card">
+        <div class="card-id">${p.id}</div>
+        <div class="card-title">${p.title}</div>
+        <div class="card-meta">
+          <span class="badge ${p.priority.toLowerCase()}">${p.priority}</span>
+          <span class="badge" style="background: var(--bg); color: var(--text-muted);">${p.category}</span>
+        </div>
+        ${p.depsBlock && p.depsBlock.length ? `<div class="card-deps">⛔ Waits on: <strong>${p.depsBlock.join(', ')}</strong></div>` : ''}
+        ${p.blocks && p.blocks.length ? `<div class="card-deps">↓ Blocks: ${p.blocks.join(', ')}</div>` : ''}
+        ${p.notes ? `<div class="card-deps" style="color: var(--text-faint); margin-top: 4px;">${p.notes}</div>` : ''}
+      </div>`;
+    const target = $(`[data-cards-for="${p.status}"]`);
+    if (target) target.innerHTML += card;
+  });
+  cols.forEach(c => {
+    const count = items.filter(p => p.status === c).length;
+    $(`#col-${c}`).textContent = count;
+  });
+}
+renderPipeline();
+$$('[data-cat-filter]').forEach(b => b.addEventListener('click', () => {
+  $$('[data-cat-filter]').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  renderPipeline(b.dataset.catFilter);
+}));
+
+// ----- Health & audits -----
+const score = k.healthScore;
+const hClass = score >= 80 ? 'good' : score >= 60 ? 'warn' : 'bad';
+const hLabel = score >= 80 ? 'Healthy' : score >= 60 ? 'Watch' : 'Action needed';
+$('#health-score-card').innerHTML = `
+  <div class="health-circle ${hClass}">${score}</div>
+  <div class="health-info">
+    <h3>${hLabel}</h3>
+    <p>${k.healthScoreNote}</p>
+  </div>
+`;
+$('#last-audit-date').textContent = k.lastAuditDate ? fmtDate(k.lastAuditDate) : 'No audit run yet — set baseline ASAP';
+$('#next-audit-date').textContent = fmtDate(k.nextAuditDate);
+
+const iconFor = { pass: '✓', fail: '✗', warn: '!', unknown: '?' };
+$('#audit-checklist').innerHTML = DATA.auditChecklist.map(g => `
+  <div class="checklist-group">
+    <h4>${g.group}</h4>
+    ${g.items.map(it => `
+      <div class="checklist-item ${it.status}">
+        <div class="check-icon">${iconFor[it.status] || '?'}</div>
+        <div class="check-body">
+          <div class="check-name">${it.name}</div>
+          <div class="check-detail">${it.detail || ''}</div>
+        </div>
+      </div>
+    `).join('')}
+  </div>
+`).join('');
+
+// ----- Stack -----
+function renderStack(filter='all') {
+  const items = DATA.stack.filter(s => filter === 'all' || s.category === filter);
+  $('#stack-grid').innerHTML = items.map(s => `
+    <div class="stack-card">
+      <div class="stack-card-head">
+        <div class="stack-card-name">${s.name}</div>
+        <span class="badge ${s.criticality}">${s.criticality}</span>
+      </div>
+      <div class="stack-card-purpose">${s.purpose}</div>
+      <dl class="stack-meta">
+        <dt>Category</dt><dd>${s.category}</dd>
+        <dt>Auth</dt><dd>${s.auth}</dd>
+        <dt>Creds</dt><dd>${s.credLocation}</dd>
+      </dl>
+    </div>
+  `).join('');
+}
+renderStack();
+$$('[data-stack-filter]').forEach(b => b.addEventListener('click', () => {
+  $$('[data-stack-filter]').forEach(x => x.classList.remove('active'));
+  b.classList.add('active');
+  renderStack(b.dataset.stackFilter);
+}));
+
+// ----- Cadence -----
+function fillCadence(target, mode) {
+  const rows = DATA.cadence.filter(c => c.mode === mode);
+  $(target).innerHTML = rows.map(c => `
+    <tr>
+      <td><strong>${c.feature}</strong></td>
+      <td>${c.frequency}</td>
+      <td style="font-size: 12px; color: var(--text-muted);">${c.owner}</td>
+      <td style="font-size: 12px; color: var(--text-muted);">${c.notes}</td>
+    </tr>
+  `).join('');
+}
+fillCadence('#cadence-auto', 'auto');
+fillCadence('#cadence-hybrid', 'hybrid');
+fillCadence('#cadence-manual', 'manual');
+
+// ----- Tab switching -----
+$$('.tab').forEach(t => t.addEventListener('click', () => {
+  $$('.tab').forEach(x => x.classList.remove('active'));
+  $$('.panel').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  $(`[data-panel="${t.dataset.tab}"]`).classList.add('active');
+}));
+</script>
+</body>
+</html>
