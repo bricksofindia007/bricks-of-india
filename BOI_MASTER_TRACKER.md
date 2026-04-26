@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-04-26 (CATALOG-FIX-01 v2 closed)
+> **Last updated:** 2026-04-26 (CATALOG-FIX-01 v2 closed, LAB workstream opened)
 > **Audit log:** `audit-block1.log`
 
 ---
@@ -59,6 +59,27 @@
 | CATALOG-04 v2 | USD MSRP ingest from Brickset + INR derivation | 🔴 Not fired | Brief at `briefs/CATALOG-04-v2.md`. Next in queue after this tracker update. |
 | CATALOG-05 | Theme backfill — older sets missing from theme pages | 🔴 Not started | Depends on full sync completing all 27 pages (Rebrickable daily quota currently limits one-shot runs). |
 | DATA-01 | Reconcile `store_prices` (scraper) ↔ `prices` (frontend) | 🔴 Not started | Tracked in `BOI_WEB_TRACKER.md` Section H. 2–3 hours. Schedule after CATALOG-04. |
+
+---
+
+## THE LAB
+
+Experimental features. Each ships as a standalone page under `/lab/`. Brief files live in `briefs/`.
+
+| ID | Name | Status | Depends on | Brief |
+|----|------|--------|------------|-------|
+| LAB-01 | Biryani Index | 🔴 Not fired | — | `briefs/LAB-01-biryani-index.md` |
+| LAB-02 | Which Set Are You? (quiz) | 🔴 Not fired | LAB-01 | `briefs/LAB-02-which-set-quiz.md` |
+| LAB-03 | Daily price snapshot cron | 🔴 Not fired | — | `briefs/LAB-03-price-snapshot-cron.md` |
+| LAB-04 | Lab homepage strip + nav + /lab directory | 🔴 Not fired | LAB-01, ideally LAB-02 | `briefs/LAB-04-homepage-strip.md` |
+| LAB-05 | Price Drop Board | 🔴 Deferred | LAB-03 + 30 days of snapshot data | — |
+| LAB-06 | Retirement Radar | 🔴 Deferred | CATALOG-04 v2 (Brickset cron) | — |
+| LAB-07 | LEGO Heat Map | 🔴 Deferred | Google Trends API integration | — |
+| LAB-08 | Brick Portfolio | 🔴 Deferred indefinitely | Auth strategy decision | — |
+
+**Decisions made:**
+
+- **User accounts — DEFERRED.** 5 of 6 Lab tools require no auth. Only Portfolio (LAB-08) needs it. Email capture also deferred — DPDP Act compliance overhead not justified without proven editorial cadence for a list. Revisit when LAB-08 is being scoped.
 
 ---
 
