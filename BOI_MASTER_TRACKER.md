@@ -7,6 +7,60 @@
 
 ---
 
+## Auto-update protocol
+
+**Source of truth hierarchy:** `BOI_MASTER_TRACKER.md` is the canonical source of truth.
+`admin/dashboard.html` is a rendered view of the tracker. If the two ever conflict,
+the tracker wins and the dashboard must be reconciled to match.
+
+**Atomic update rule:** Any change to project state — bug closed, fix deployed, pipeline
+status moved, audit run, KPI changed, new tool added, cadence modified — MUST update
+both files in the same commit. Never one without the other.
+
+**Triggering events that require dashboard update:**
+1. A bug is closed (update `issues[].status` → `closed`, set `deployedOn`)
+2. A new bug is filed (add to `issues[]` with next BUG-NNN ID)
+3. A pipeline item changes status (update `pipeline[].status`)
+4. A new pipeline item is created (add to `pipeline[]`)
+5. A dependency is satisfied (update `pipeline[].depsBlock` and re-evaluate `blocked` items)
+6. A deploy happens (update `kpis.lastDeployDate`, recompute `daysSinceLastDeploy`)
+7. Netlify minutes change materially (update `kpis.netlifyMinutesLeft`)
+8. An audit is run (update `kpis.lastAuditDate`, `kpis.nextAuditDate`, and relevant
+   `auditChecklist[].items[].status`)
+9. A new tool/API is integrated (add to `stack[]`)
+10. A cron schedule is added or changed (update `cadence[]`)
+11. The GEO score is re-measured (update `kpis.geoScore`)
+12. The voice test resolves (update `kpis.voiceTestStatus`)
+
+**Workflow at task end:**
+Before declaring any task complete, run this checklist:
+- [ ] Did this task close a bug? → update `issues[]` in dashboard
+- [ ] Did this task move a pipeline item? → update `pipeline[]` in dashboard
+- [ ] Did this task deploy code? → update `kpis.lastDeployDate`
+- [ ] Did this task change anything in the tracker's "Top of mind" section? → reconcile
+- [ ] Run JSON validation on the dashboard
+- [ ] Stage both files together: `git add BOI_MASTER_TRACKER.md admin/dashboard.html`
+- [ ] Commit with a message that names what changed
+
+**Health score recomputation:**
+After any update, recompute `kpis.healthScore` (0–100) using this rough formula:
+- Start at 100
+- Subtract 20 per open P0 issue
+- Subtract 10 per open P1 issue
+- Subtract 5 if Netlify minutes < 100
+- Subtract 5 if last audit > 30 days ago or never run
+- Subtract 5 if voice test still pending after 14 days
+- Subtract 5 if GEO score < 50
+- Subtract 5 if any blocked pipeline item is P0 or P1
+- Floor at 0, ceiling at 100
+Then update `kpis.healthScoreNote` to a one-line summary of the dominant factor.
+
+**Session start:**
+At the start of every session, after reading the tracker, also verify the dashboard
+JSON parses. If it doesn't, fix before doing anything else.
+
+---
+
 ## Sub-trackers
 
 | Tracker | Scope | File |
@@ -36,6 +90,7 @@
 
 | Item | Status | Evidence |
 |------|--------|----------|
+| DNS authority | ✅ Confirmed | Cloudflare (kira.ns.cloudflare.com, yadiel.ns.cloudflare.com). Origin: Netlify. Email MX: ImprovMX (unchanged). |
 | Netlify → GitHub Actions migration | ✅ Done | Commit `8992aef` + `.github/workflows/deploy.yml` |
 | Scraper workflow on GitHub Actions | ✅ Running | `scrape-prices.yml` + 492 rows scraped today |
 | GEO/AI readiness (llms.txt, sitemap, JSON-LD) | ✅ Live | All 200, schemas present |
