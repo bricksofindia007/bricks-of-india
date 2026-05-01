@@ -1,0 +1,150 @@
+
+############################################################
+# 1.1  LIVE SITE
+############################################################
+
+--- HTTP status on core pages ---
+200  https://bricksofindia.com/
+200  https://bricksofindia.com/news
+200  https://bricksofindia.com/reviews
+404  https://bricksofindia.com/sets
+200  https://bricksofindia.com/themes
+200  https://bricksofindia.com/about
+200  https://bricksofindia.com/llms.txt
+200  https://bricksofindia.com/robots.txt
+200  https://bricksofindia.com/sitemap.xml
+200  https://bricksofindia.com/favicon.ico
+
+--- JSON-LD schema types per page ---
+/:
+    "@type":"Organization"
+    "@type":"Person"
+    "@type":"SearchAction"
+    "@type":"WebSite"
+/news:
+    "@type":"BreadcrumbList"
+    "@type":"ListItem"
+    "@type":"Organization"
+    "@type":"Person"
+    "@type":"SearchAction"
+    "@type":"WebSite"
+/reviews:
+    "@type":"BreadcrumbList"
+    "@type":"ListItem"
+    "@type":"Organization"
+    "@type":"Person"
+    "@type":"SearchAction"
+    "@type":"WebSite"
+/sets:
+    "@type":"BreadcrumbList"
+    "@type":"ListItem"
+    "@type":"Organization"
+    "@type":"Person"
+    "@type":"SearchAction"
+    "@type":"WebSite"
+/about:
+    "@type":"BreadcrumbList"
+    "@type":"EducationalOrganization"
+    "@type":"ListItem"
+    "@type":"Organization"
+    "@type":"Person"
+    "@type":"SearchAction"
+    "@type":"WebSite"
+
+--- News articles visibility ---
+Article links on /news:
+    href="/news/best-lego-deals-india-april-2026"
+    href="/news/best-new-lego-sets-2026-so-far"
+    href="/news/every-lego-set-india-2026"
+    href="/news/lego-botanical-collection-2026-india"
+    href="/news/lego-city-2026-india"
+    href="/news/lego-creator-2026-india"
+    href="/news/lego-f1-collection-2026-india"
+    href="/news/lego-harry-potter-2026-india"
+    href="/news/lego-icons-2026-india"
+    href="/news/lego-ideas-2026-india"
+    href="/news/lego-lord-rings-2026-india"
+    href="/news/lego-minecraft-2026-india"
+    href="/news/lego-minifigures-series-2026-india"
+    href="/news/lego-price-changes-india-2026"
+    href="/news/lego-retiring-sets-2026-india"
+    href="/news/lego-speed-champions-2026-india"
+    href="/news/lego-star-wars-2026-india"
+    href="/news/lego-technic-2026-india-all-sets"
+    href="/news/mybrickhouse-arrivals-april-2026"
+    href="/news/new-lego-sets-toycra-april-2026"
+Total unique article links: 20
+
+--- Homepage Pulse prototype check ---
+Three.js / D3 / map signals on homepage:
+(Empty = PULSE-01 not mounted yet on homepage, which is expected)
+
+############################################################
+# 1.2  DATA HEALTH
+############################################################
+◇ injected env (9) from .env.local // tip: ⌘ multiple files { path: ['.env.local', '.env'] }
+--- Scraper freshness per store ---
+Error querying store_prices: column store_prices.store_name does not exist
+
+price_history rows: 9142
+
+--- Netlify build minutes ---
+Team: Bricks of India
+  Used:      n/a
+  Included:  n/a
+  Remaining: 0 ⚠️  CRITICAL
+
+############################################################
+# 1.3  LOCAL STATE
+############################################################
+
+--- Last 15 commits ---
+d2b7339 fix: extract CopyLinkButton to Client Component (P0.3/P0.4 root cause)
+70a9eb0 fix: batch 1 P0 fixes — /search redirect, /themes hub, SetCard price count
+7be1205 chore: canary test for GHA auto-deploy pipeline
+8992aef infra: migrate production build to GitHub Actions (INFRA-03)
+b5c8d61 Fix 6 post-launch issues: nav, hero crop, stat cards, about page
+c089898 feat: reference favicons in root layout
+d996088 feat: generate favicon set and webmanifest from brand mark
+8470375 chore: add blue minifigure favicon source
+24e3b21 feat: complete /about page with bio and Person schema
+896d8ba feat: E-E-A-T signals, author attribution, and /about redesign
+9476d03 feat: llms.txt and JSON-LD schemas for AI search visibility
+d8646c7 feat: site-wide header and footer with wordmark lockup
+8fde610 feat: homepage hero redesign with banner and tricolour brand system
+2f8d691 chore: add brand assets and design system CSS variables
+3d96b87 fix: dedupe per-store listings before upsert to prevent batch aborts
+
+--- Working tree ---
+?? audit-block1.log
+?? scripts/test-env.mjs
+(empty = clean)
+
+--- Branch + remote ---
+main
+origin	https://github.com/bricksofindia007/bricks-of-india.git (fetch)
+origin	https://github.com/bricksofindia007/bricks-of-india.git (push)
+
+--- Infra files ---
+.env.local (511 bytes)
+netlify.toml (3936 bytes)
+next.config.mjs (974 bytes)
+package.json (1069 bytes)
+
+--- GitHub Actions workflows (INFRA-01 target) ---
+deploy.yml
+scrape-prices.yml
+
+--- Scrapers ---
+fetch-theme-images.mjs
+scrape-now.mjs
+
+--- Map / Pulse component (PULSE-01 scaffold) ---
+No Pulse component in codebase yet
+
+--- Trackers + Voice Codex ---
+No trackers / codex files at root
+
+############################################################
+# AUDIT COMPLETE
+############################################################
