@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-01 (LAB-01 shipped to production)
+> **Last updated:** 2026-05-01 (LAB-01 shipped; CONTENT-01 closed — Voice Codex committed)
 > **Audit log:** `audit-block1.log`
 
 ---
@@ -77,8 +77,8 @@ JSON parses. If it doesn't, fix before doing anything else.
 | Phase | Name | Status | Tracker |
 |-------|------|--------|---------|
 | Phase 0 | Launch + post-launch P0 fixes | ✅ Done | WEB |
-| Phase 1 | Voice Codex | 🔴 Not started | CONTENT |
-| Phase 2 | Claude Project workbench | 🔴 Blocked on Phase 1 | CONTENT |
+| Phase 1 | Voice Codex | ✅ Done — `docs/codex/BOI_Codex_v2.docx` committed 2026-05-01 | CONTENT |
+| Phase 2 | Claude Project workbench | 🟡 Unblocked — pending setup | CONTENT |
 | Phase 3 | Topical Radar (RSS ingestion) | 🔴 Not started | CONTENT |
 | Phase 4 | Shorts / Reels workflow (DaVinci + ElevenLabs) | 🔴 Not started | VIDEO |
 | Phase 5 | Instagram carousel engine | 🔴 Not started | SOCIAL |
@@ -97,13 +97,14 @@ JSON parses. If it doesn't, fix before doing anything else.
 | Supabase (store_prices, price_history) | ✅ Healthy | 492 current rows, 9,142 historical |
 | Site integrity | ✅ All 200 | `/sets` fixed (SETS-01, commit `20474c2`). All core pages healthy. |
 | Catalogue sync (sets table) | ✅ Scheduled | `sync-catalogue.yml` weekly Sun 02:00 UTC. ~26k Rebrickable entries → ~10k unique rows after dedup. 16,888 rows, 99.4% image coverage. Assertion threshold: ≥ 8,000 rows. |
+| Voice Codex | ✅ Done 2026-05-01 | `docs/codex/BOI_Codex_v2.docx` (commit `3190596`). 21 pages, Section 1 + 2. India Paragraph spec Page 12, verdict enum Page 13, lint gate spec Page 20. Unblocks CONTENT-02, RADAR-01, WEB-01. |
 | CATALOG-FIX-01 v2 | ✅ Done 2026-04-26 | PR `fix/catalog-search`, merge commit `d19625d`. Restores Rebrickable-first search, theme ilike fix, audit + sync crons, DATA_SOURCES.md. Verified live: Concorde search ✓, Star Wars browse ✓, price filter ✓. |
 
 ---
 
 ## Current blockers (top 3)
 
-1. **Voice Codex not started** — blocks WEB-01→04 lint gate pipeline, blocks Phase 2 Claude Project workbench, blocks all content automation.
+1. **BUG-013 / GEO-01 (P0)** — JSON-LD schemas still client-side; entire GEO/AI investment invisible to non-JS crawlers. Unblocks RLFM-01.
 2. **Review + Product JSON-LD missing** on `/reviews` and `/sets` — GEO regression from Deploy 2.
 3. **DATA-01 open** — `store_prices` (scraper writes) ↔ `prices` (frontend reads) disconnected; live scraper data not reaching `/compare`.
 
@@ -153,6 +154,7 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 | Deploy | Date | Commit | Contents |
 |--------|------|--------|----------|
+| CONTENT-01 Voice Codex | 2026-05-01 | `3190596` | `docs/codex/BOI_Codex_v2.docx` committed — closes CONTENT-01, unblocks CONTENT-02 / RADAR-01 / WEB-01 |
 | LAB-01 Biryani Index | 2026-05-01 | `be8f134` (merge) | `/lab/biryani-index` live — LEGO price → biryani/chai/petrol converter |
 | CATALOG-FIX-01 v2 | 2026-04-26 | `d19625d` (merge) | Rebrickable-first search, theme filter fix, audit cron, DATA_SOURCES.md |
 | P0 batch 2 | 2026-04 | `d2b7339` | CopyLinkButton → Client Component (news fix root cause) |
