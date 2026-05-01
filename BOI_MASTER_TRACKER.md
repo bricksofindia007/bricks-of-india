@@ -235,8 +235,11 @@ Shipped:
   uncovered by GEO-01. Fixed to NextResponse.next({ request: { headers } }).
 
 Followup (deferred):
-- /reviews/[slug] JSON-LD unverified in prod — reviews table empty.
-  Verify schema on first review publish (gated by CONTENT-02 output).
+- GEO-01-FU1: Verify /reviews/[slug] JSON-LD on first review publish.
+  Gated by CONTENT-02 (Claude Project workbench must produce a review first).
+- GEO-01-FU2: Test BreadcrumbSchema on a route deeper than 2 levels.
+  Middleware x-pathname works on flat URLs; nested verification deferred
+  until such a route exists in the site.
 
 Health score: 64 → 67 (+3) — XSS scrub (+1), JsonLd consolidation (+1),
   middleware bug fix (+1). BUG-013 closure = 0 (no fix shipped).
