@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-04-26 (CATALOG-FIX-01 v2 closed, LAB workstream opened)
+> **Last updated:** 2026-05-01 (LAB-01 shipped to production)
 > **Audit log:** `audit-block1.log`
 
 ---
@@ -117,13 +117,13 @@ JSON parses. If it doesn't, fix before doing anything else.
 
 ---
 
-## THE LAB
+## THE LAB — 1 of 6 live
 
 Experimental features. Each ships as a standalone page under `/lab/`. Brief files live in `briefs/`.
 
 | ID | Name | Status | Depends on | Brief |
 |----|------|--------|------------|-------|
-| LAB-01 | Biryani Index | 🔴 Not fired | — | `briefs/LAB-01-biryani-index.md` |
+| LAB-01 | Biryani Index | ✅ Live | — | `briefs/LAB-01-biryani-index.md` |
 | LAB-02 | Which Set Are You? (quiz) | 🔴 Not fired | LAB-01 | `briefs/LAB-02-which-set-quiz.md` |
 | LAB-03 | Daily price snapshot cron | 🔴 Not fired | — | `briefs/LAB-03-price-snapshot-cron.md` |
 | LAB-04 | Lab homepage strip + nav + /lab directory | 🔴 Not fired | LAB-01, ideally LAB-02 | `briefs/LAB-04-homepage-strip.md` |
@@ -153,6 +153,7 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 | Deploy | Date | Commit | Contents |
 |--------|------|--------|----------|
+| LAB-01 Biryani Index | 2026-05-01 | `be8f134` (merge) | `/lab/biryani-index` live — LEGO price → biryani/chai/petrol converter |
 | CATALOG-FIX-01 v2 | 2026-04-26 | `d19625d` (merge) | Rebrickable-first search, theme filter fix, audit cron, DATA_SOURCES.md |
 | P0 batch 2 | 2026-04 | `d2b7339` | CopyLinkButton → Client Component (news fix root cause) |
 | P0 batch 1 | 2026-04 | `70a9eb0` | /search redirect, /themes hub, SetCard price count |

@@ -555,25 +555,25 @@
 <script id="boi-data" type="application/json">
 {
   "meta": {
-    "lastUpdated": "2026-04-26",
+    "lastUpdated": "2026-05-01",
     "trackerVersion": "v1.3",
     "currentSprint": "LAB workstream + CATALOG-04 v2"
   },
   "kpis": {
-    "healthScore": 55,
-    "healthScoreNote": "BUG-013 (JSON-LD client-side rendering) escalated to P0 — entire GEO/AI investment invisible to non-JS crawlers until GEO-01 ships",
+    "healthScore": 58,
+    "healthScoreNote": "BUG-013 (JSON-LD client-side rendering) P0 open — GEO/AI investment still dark. LAB-01 shipped; STATUS-CHECK-01 audit run 2026-05-01.",
     "openP0": 2,
     "openP1": 4,
     "netlifyMinutesLeft": 9999,
     "netlifyResetDate": "2026-05-11",
     "daysSinceLastDeploy": 0,
-    "lastDeployDate": "2026-04-26",
-    "lastDeployCommit": "3536e1c · feat(lab): biryani index calculator",
+    "lastDeployDate": "2026-05-01",
+    "lastDeployCommit": "be8f134 · feat(lab): merge biryani index (LAB-01)",
     "voiceTestStatus": "Pending",
     "geoScore": 26,
     "geoScoreTarget": 75,
-    "lastAuditDate": null,
-    "nextAuditDate": "2026-05-03"
+    "lastAuditDate": "2026-05-01",
+    "nextAuditDate": "2026-05-08"
   },
   "issues": [
     { "id": "BUG-015", "issue": "Tracker stated DNS on Netlify nsone.net; reality is Cloudflare authoritative", "rootCause": "DNS migration to Cloudflare not back-propagated to BOI_MASTER_TRACKER.md", "solution": "Verified via nslookup -type=NS — confirmed kira.ns.cloudflare.com + yadiel.ns.cloudflare.com. Tracker updated; Cloudflare added to stack[].", "deployedOn": "2026-04-26", "status": "closed", "priority": "P3", "affects": "Documentation accuracy, incident response (knowing which dashboard to check)" },
@@ -589,6 +589,7 @@
   ],
   "pipeline": [
     { "id": "GEO-01", "title": "Migrate JSON-LD from client-side SchemaLD.tsx to server-rendered", "category": "Infrastructure", "status": "in-progress", "priority": "P0", "depsBlock": [], "blocks": ["RLFM-01"], "notes": "BUG-013 P0: schemas currently invisible to non-JS crawlers. Emit in generateMetadata or layout.tsx so schemas appear in initial HTML. Cloudflare Workers edge injection is Plan B if Next.js migration proves complex." },
+    { "id": "LAB-01", "title": "Biryani Index calculator at /lab/biryani-index", "category": "Lab", "status": "done", "priority": "P2", "depsBlock": [], "blocks": ["LAB-04"], "notes": "Shipped 2026-05-01 (merge commit be8f134). Converts any LEGO set price into biryani/chai/petrol/PVR equivalents. Reference prices last refreshed 2026-04-26 — refresh quarterly." },
     { "id": "INFRA-03", "title": "GitHub Actions deploy workflow (deploy.yml)", "category": "Infrastructure", "status": "done", "priority": "P0", "depsBlock": [], "blocks": ["Phase 8 globe", "RADAR-01 cron"], "notes": "Deployed 2026-04-24 (commit 8992aef). Build now runs on GitHub Actions; Netlify still hosts but no longer runs the build. Netlify build minute concern resolved." },
     { "id": "RADAR-01", "title": "Topical Radar daily cron @ 23:00 IST", "category": "Content OS", "status": "pending", "priority": "P1", "depsBlock": ["INFRA-03"], "blocks": ["Phase 8 globe"], "notes": "Scrapes Brickset, TBB, New Elementary, BrickNerd, r/lego >500 upvotes, Rebrickable, LEGO.com/new, YouTube RSS" },
     { "id": "WEB-01", "title": "Article auto-publish pipeline with 4 lint gates", "category": "Website", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["Phase 8 globe"], "notes": "Specced (4 lint gates: word count, India Paragraph, verdict enum, image 200s) but not yet implemented in CI" },
