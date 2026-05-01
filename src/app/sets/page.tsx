@@ -4,6 +4,8 @@ import Image from 'next/image';
 import { createServerClient } from '@/lib/supabase';
 import { SetCard } from '@/components/sets/SetCard';
 import { MASCOTS } from '@/lib/brand';
+import { JsonLd } from '@/components/JsonLd';
+import { buildItemListSchema } from '@/lib/schemas';
 
 export const metadata: Metadata = {
   title: 'All LEGO Sets in India | Bricks of India',
@@ -32,40 +34,15 @@ export default async function SetsPage() {
   const total = count ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
-  const schemaData = {
-    '@context': 'https://schema.org',
-    '@type': 'ItemList',
-    name: 'LEGO Sets — Bricks of India',
-    numberOfItems: total,
-    itemListElement: (sets ?? []).map((set: any, i: number) => {
-      const activePrices = (set.prices ?? []).filter((p: any) => p.is_active && p.price_inr);
-      const bestPrice = activePrices.sort((a: any, b: any) => a.price_inr - b.price_inr)[0] ?? null;
-      const product: Record<string, unknown> = {
-        '@type': 'Product',
-        name: set.name,
-        productID: set.set_number,
-        brand: { '@type': 'Brand', name: 'LEGO' },
-      };
-      if (set.image_url) product.image = set.image_url;
-      if (bestPrice) {
-        product.offers = {
-          '@type': 'Offer',
-          price: bestPrice.price_inr,
-          priceCurrency: 'INR',
-          url: bestPrice.buy_url,
-          availability: 'https://schema.org/InStock',
-        };
-      }
-      return { '@type': 'ListItem', position: i + 1, item: product };
-    }),
-  };
+  const listItems = (sets ?? []).map((set: any) => {
+    const activePrices = (set.prices ?? []).filter((p: any) => p.is_active && p.price_inr);
+    const bestPrice = activePrices.sort((a: any, b: any) => a.price_inr - b.price_inr)[0] ?? null;
+    return { name: set.name, set_number: set.set_number, image_url: set.image_url, bestPrice };
+  });
 
   return (
     <div className="bg-white min-h-screen">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaData) }}
-      />
+      <JsonLd data={buildItemListSchema('LEGO Sets — Bricks of India', total, listItems)} />
 
       <div className="bg-dark py-10 px-4">
         <div className="max-w-site mx-auto flex flex-col md:flex-row items-center gap-6">
