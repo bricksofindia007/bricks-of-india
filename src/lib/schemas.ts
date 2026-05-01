@@ -140,6 +140,41 @@ export function buildArticleSchema(article: ArticleData) {
   };
 }
 
+type ReviewData = {
+  published_at: string;
+  rating: number;
+};
+
+type ReviewedSet = {
+  name?: string | null;
+  set_number?: string | null;
+} | null;
+
+export function buildReviewSchema(review: ReviewData, title: string, set: ReviewedSet) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Review',
+    datePublished: review.published_at,
+    author: authorSchema,
+    publisher: {
+      '@type': 'Organization',
+      name: 'Bricks of India',
+      url: 'https://www.bricksofindia.com',
+    },
+    reviewRating: {
+      '@type': 'Rating',
+      ratingValue: String(review.rating),
+      bestRating: '5',
+    },
+    itemReviewed: {
+      '@type': 'Product',
+      name: set?.name || title,
+      sku: set?.set_number,
+      brand: { '@type': 'Brand', name: 'LEGO' },
+    },
+  };
+}
+
 export function buildProductSchema(
   set: SetData,
   activePrices: StorePrice[],
