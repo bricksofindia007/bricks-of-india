@@ -10,6 +10,8 @@ import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { ArticleCard } from '@/components/content/ArticleCard';
 import { Byline } from '@/components/content/Byline';
 import { CopyLinkButton } from '@/components/ui/CopyLinkButton';
+import { JsonLd } from '@/components/JsonLd';
+import { buildArticleSchema } from '@/lib/schemas';
 
 interface Props { params: { slug: string } }
 
@@ -33,32 +35,9 @@ export default async function NewsArticlePage({ params }: Props) {
   const shareUrl = `https://bricksofindia.com/news/${params.slug}`;
   const waText = `${article.title} — via Bricks of India. Use code ABHINAV12 for 12% off at Toycra!`;
 
-  const articleSchema = {
-    '@context': 'https://schema.org',
-    '@type': 'Article',
-    headline: article.title,
-    description: article.excerpt,
-    datePublished: article.published_at,
-    dateModified: article.updated_at || article.published_at,
-    author: {
-      '@type': 'Person',
-      name: 'Abhinav Bhargav',
-      jobTitle: 'Founder, Bricks of India',
-      url: 'https://www.bricksofindia.com/about',
-    },
-    publisher: {
-      '@type': 'Organization',
-      name: 'Bricks of India',
-      logo: {
-        '@type': 'ImageObject',
-        url: 'https://www.bricksofindia.com/brand/hero-banner.png',
-      },
-    },
-  };
-
   return (
     <div className="bg-white min-h-screen">
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(articleSchema) }} />
+      <JsonLd data={buildArticleSchema(article)} />
 
       <div className="max-w-site mx-auto px-4 py-6">
         <nav className="text-sm text-gray-400 flex items-center gap-2 mb-4">

@@ -120,6 +120,26 @@ type SetData = {
   pieces?: number | null;
 };
 
+type ArticleData = {
+  title: string;
+  excerpt?: string | null;
+  published_at: string;
+  updated_at?: string | null;
+};
+
+export function buildArticleSchema(article: ArticleData) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: article.title,
+    description: article.excerpt,
+    datePublished: article.published_at,
+    dateModified: article.updated_at || article.published_at,
+    author: authorSchema,
+    publisher: publisherSchema,
+  };
+}
+
 export function buildProductSchema(
   set: SetData,
   activePrices: StorePrice[],
