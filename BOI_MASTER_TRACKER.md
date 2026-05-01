@@ -145,8 +145,8 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 | Date | Item | Status |
 |------|------|--------|
 | ~~Pre-May 11, 2026~~ | ~~Netlify quota exhaustion~~ | ✅ Neutralised — off Netlify builds |
-| TBD | Voice Codex v1 | Not scheduled |
-| TBD | Article pipeline (WEB-01→04) v1 | Blocked on Codex |
+| ~~2026-05-01~~ | ~~Voice Codex v1~~ | ✅ Done — `docs/codex/BOI_Codex_v2.docx` |
+| TBD | Article pipeline (WEB-01→04) v1 | Spec-ready — WEB-01 pending build |
 | TBD | PULSE-01 data layer | Not scheduled |
 
 ---
@@ -165,6 +165,74 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 | INFRA-03 | 2026-04 | `8992aef` | Production build migrated to GitHub Actions |
 | Deploy 2 | 2026-04 | `9476d03`, `896d8ba`, `24e3b21` | GEO/AI readiness, E-E-A-T, /about |
 | Visual overhaul | 2026-04 | `8fde610`, `d8646c7` | Tricolour brand, header/footer, hero |
+
+---
+
+## Sprint changelog
+
+### Day 1 — 2026-05-01
+
+Shipped:
+- LAB-01 (Biryani Index) live at /lab/biryani-index
+- CONTENT-01 — Voice Codex committed at docs/codex/BOI_Codex_v2.docx,
+  with markdown export at .md and Node.js regeneration script at
+  scripts/export-codex-md.js
+- GEO-02 (manual) — Cloudflare AI Crawler per-crawler allow/block
+  policy live at WAF; allows OAI-SearchBot, PerplexityBot,
+  Claude-SearchBot, ChatGPT-User, Perplexity-User, Claude-User,
+  MistralAI-User, DuckAssistBot, Manus Bot, Meta-ExternalFetcher,
+  Applebot, BingBot, Googlebot, archive.org_bot, Cloudflare Crawler,
+  Terracotta Bot; blocks GPTBot, ClaudeBot, CCBot, Bytespider,
+  TikTok Spider, Meta-ExternalAgent, FacebookBot, Google-CloudVertexBot,
+  Amazonbot, PetalBot, Novellum AI Crawl, ProRataInc, Timpibot,
+  Anchor Browser
+- ROBOTS-01 — app/robots.ts updated to match Cloudflare WAF policy;
+  production robots.txt verified at bricksofindia.com/robots.txt
+- Cloudflare 2FA enabled with recovery codes saved
+- Cloudflare Leaked Credentials Mitigation activated
+- Stale branches cleaned: feat/lab-biryani-index, fix/p0-batch-1,
+  fix/catalog-search
+
+Unblocked:
+- CONTENT-02 (Claude Project workbench) — Codex now committed
+- RADAR-01 (Topical Radar daily cron) — Codex now committed
+- WEB-01 (4 lint gates) — spec sourced from Codex Page 20
+
+Closed tickets:
+- BLOG-RECON-01 — closed by Brief decision (news = curated, blog =
+  long-form, reviews = set reviews)
+
+Health score: 55 → 64 (+9)
+
+Commits (7):
+- be8f134 LAB-01 merge
+- a9f94d5 LAB-01 tracker update
+- 3190596 Codex commit (CONTENT-01)
+- 28a1a4d CONTENT-01 tracker update
+- e1054e1 ROBOTS-01 robots.ts update
+- 77ff3d9 Codex export script
+- 4dc5975 ROBOTS-01 tracker update
+
+### Day 2 plan — 2026-05-02
+
+Critical path (P0):
+- GEO-01 — server-side JSON-LD migration (BUG-013 fix). Migrate
+  SchemaLD.tsx from client-rendered to server-emitted via
+  generateMetadata() or layout-level injection. Deploy. Verify
+  schemas in initial HTML response via curl.
+
+Day 2 secondary (P1):
+- CF-CACHE-01 — diagnose 2.31% Cloudflare cache rate. Likely
+  causes: missing Cache Rules, Cache-Control headers from Next.js
+  preventing edge caching. Add Cache Rule for /_next/static/*,
+  /images/*, fonts. Target: cache rate >40% within 24 hours.
+- LAB-03 — start daily price snapshot cron. Silent accumulation
+  begins; LAB-05 launch eligibility = day 2 + 30 = 2026-06-01.
+
+Day 2 stretch (only if P0+P1 land before EOD):
+- CONTENT-02 brief — write Claude Project workbench spec
+- WEB-01 lint gate scaffold — start the 4 gates (word count,
+  India Paragraph, verdict enum, image 200s)
 
 ---
 

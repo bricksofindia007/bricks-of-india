@@ -557,7 +557,7 @@
   "meta": {
     "lastUpdated": "2026-05-01",
     "trackerVersion": "v1.3",
-    "currentSprint": "LAB workstream + CATALOG-04 v2"
+    "currentSprint": "Day 2 — GEO-01 (P0) + CF-CACHE-01 + LAB-03"
   },
   "kpis": {
     "healthScore": 64,
@@ -573,7 +573,15 @@
     "geoScore": 26,
     "geoScoreTarget": 75,
     "lastAuditDate": "2026-05-01",
-    "nextAuditDate": "2026-05-08"
+    "nextAuditDate": "2026-05-08",
+    "nextActions": [
+      "Day 2 P0: GEO-01 server-side schema migration",
+      "Day 2 P1: CF-CACHE-01 diagnose and fix 2.3% cache rate",
+      "Day 2 P1: LAB-03 daily price snapshot cron (silent accumulation)"
+    ],
+    "openManualChecks": [
+      "Cloudflare billing — Free plan 'Processing' status, monitor for any charges (currently informational, no action needed unless a charge appears)"
+    ]
   },
   "issues": [
     { "id": "BUG-015", "issue": "Tracker stated DNS on Netlify nsone.net; reality is Cloudflare authoritative", "rootCause": "DNS migration to Cloudflare not back-propagated to BOI_MASTER_TRACKER.md", "solution": "Verified via nslookup -type=NS — confirmed kira.ns.cloudflare.com + yadiel.ns.cloudflare.com. Tracker updated; Cloudflare added to stack[].", "deployedOn": "2026-04-26", "status": "closed", "priority": "P3", "affects": "Documentation accuracy, incident response (knowing which dashboard to check)" },
@@ -592,6 +600,10 @@
     { "id": "GEO-02", "title": "Cloudflare AI Crawl Control — per-crawler WAF allow/block", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-01 (manual, by founder in Cloudflare dashboard). 9 search/assistant bots allowed; 13 training-only bots blocked at WAF. Declared policy aligned via ROBOTS-01 (commit e1054e1)." },
     { "id": "ROBOTS-01", "title": "Align app/robots.ts with Cloudflare AI Crawl Control policy", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": ["GEO-02"], "blocks": [], "notes": "Done 2026-05-01 (commit e1054e1). src/app/robots.ts now declares same allow/block list as Cloudflare WAF. Verified live: GPTBot Disallow:/, PerplexityBot Allow:/, Sitemap present." },
     { "id": "LAB-01", "title": "Biryani Index calculator at /lab/biryani-index", "category": "Lab", "status": "done", "priority": "P2", "depsBlock": [], "blocks": ["LAB-04"], "notes": "Shipped 2026-05-01 (merge commit be8f134). Converts any LEGO set price into biryani/chai/petrol/PVR equivalents. Reference prices last refreshed 2026-04-26 — refresh quarterly." },
+    { "id": "LAB-02", "title": "Which Set Are You? (quiz)", "category": "Lab", "status": "pending", "priority": "P2", "depsBlock": ["LAB-01"], "blocks": ["LAB-04"], "notes": "Personality quiz mapping LEGO set themes to user archetypes. Brief at briefs/LAB-02-which-set-quiz.md." },
+    { "id": "LAB-03", "title": "Daily price snapshot cron", "category": "Lab", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["LAB-05"], "notes": "Day 2 priority. Silent accumulation begins day 1; LAB-05 (Price Drop Board) eligible 30 days after first snapshot. Brief at briefs/LAB-03-price-snapshot-cron.md." },
+    { "id": "LAB-04", "title": "Lab homepage strip + nav + /lab directory", "category": "Lab", "status": "pending", "priority": "P2", "depsBlock": ["LAB-01"], "blocks": [], "notes": "Landing page for all Lab tools. Requires LAB-01 and ideally LAB-02 to have enough content. Brief at briefs/LAB-04-homepage-strip.md." },
+    { "id": "CF-CACHE-01", "title": "Diagnose and fix 2.31% Cloudflare cache rate", "category": "Infrastructure", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Day 2 priority. Likely causes: missing Cache Rules, Cache-Control headers from Next.js preventing edge caching. Add Cache Rule for /_next/static/*, /images/*, fonts. Target: >40% cache rate within 24h." },
     { "id": "INFRA-03", "title": "GitHub Actions deploy workflow (deploy.yml)", "category": "Infrastructure", "status": "done", "priority": "P0", "depsBlock": [], "blocks": ["Phase 8 globe", "RADAR-01 cron"], "notes": "Deployed 2026-04-24 (commit 8992aef). Build now runs on GitHub Actions; Netlify still hosts but no longer runs the build. Netlify build minute concern resolved." },
     { "id": "RADAR-01", "title": "Topical Radar daily cron @ 23:00 IST", "category": "Content OS", "status": "unblocked", "priority": "P1", "depsBlock": [], "blocks": ["Phase 8 globe"], "notes": "Unblocked by CONTENT-01 (Codex committed 2026-05-01). Scrapes Brickset, TBB, New Elementary, BrickNerd, r/lego >500 upvotes, Rebrickable, LEGO.com/new, YouTube RSS." },
     { "id": "WEB-01", "title": "Article auto-publish pipeline with 4 lint gates", "category": "Website", "status": "spec-ready", "priority": "P1", "depsBlock": [], "blocks": ["Phase 8 globe"], "notes": "Lint gate spec at docs/codex/BOI_Codex_v2.md Page 20. Gates: word count, India Paragraph marker, verdict enum (BUY/WAIT FOR SALE/IMPORT ONLY/SKIP), image 200s. Implementation pending." },
