@@ -217,7 +217,7 @@ Commits (7):
 - 77ff3d9 Codex export script
 - 4dc5975 ROBOTS-01 tracker update
 
-### Day 2 — 2026-05-02
+### Day 2 — 2026-05-02 — Closed
 
 Shipped:
 - GEO-01 hardening — XSS scrub across all 8 schema emission sites,
@@ -256,10 +256,10 @@ Commits (10):
 - 26ee104 Phase 5: delete SchemaLD.tsx
 - e9e1680 chore: remove accidentally staged diagnostic files
 
-Day 3 plan:
-- CF-CACHE-01 — diagnose and fix 2.3% Cloudflare cache rate
-- LAB-03 — daily price snapshot cron (silent accumulation → LAB-05 eligible 2026-06-01)
-- Stretch: CONTENT-02 brief, WEB-01 lint gate scaffold
+Commits: 12 (236fa7d → a3dea42)
+
+Day 3 entry point: pick CF-CACHE-01 (diagnostic) vs LAB-03 (cron build).
+Decision deferred to Day 3 open.
 
 ---
 
