@@ -9,6 +9,8 @@ import { MASCOTS } from '@/lib/brand';
 import { Badge, BestPriceBadge, OutOfStockBadge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { SetCard } from '@/components/sets/SetCard';
+import { JsonLd } from '@/components/JsonLd';
+import { buildProductSchema } from '@/lib/schemas';
 
 interface Props {
   params: { slug: string };
@@ -146,53 +148,9 @@ export default async function SetPage({ params }: Props) {
     jaiman:       'Jaiman Toys',
   };
 
-  const schemaProduct = {
-    '@context': 'https://schema.org',
-    '@type': 'Product',
-    name: set.name,
-    sku: set.set_number,
-    image: set.image_url ?? undefined,
-    description:
-      set.description ||
-      `LEGO ${set.theme ? set.theme + ' ' : ''}set ${set.set_number}${set.pieces ? ', ' + set.pieces + ' pieces' : ''}, compare prices across Indian stores`,
-    brand: { '@type': 'Brand', name: 'LEGO' },
-    ...(hasPrices && {
-      offers: {
-        '@type': 'AggregateOffer',
-        priceCurrency: 'INR',
-        lowPrice: activePrices.reduce(
-          (min: number, sp: any) => (sp.price_inr < min ? sp.price_inr : min),
-          activePrices[0]?.price_inr,
-        ),
-        highPrice: activePrices.reduce(
-          (max: number, sp: any) => (sp.price_inr > max ? sp.price_inr : max),
-          activePrices[0]?.price_inr,
-        ),
-        offerCount: activePrices.length,
-        availability: 'https://schema.org/InStock',
-        offers: activePrices.map((sp: any) => ({
-          '@type': 'Offer',
-          price: sp.price_inr,
-          priceCurrency: 'INR',
-          url: sp.product_url || `https://bricksofindia.com/sets/${params.slug}`,
-          availability: sp.in_stock
-            ? 'https://schema.org/InStock'
-            : 'https://schema.org/OutOfStock',
-          seller: {
-            '@type': 'Organization',
-            name: STORE_NAMES[sp.store_id] ?? sp.store_id,
-          },
-        })),
-      },
-    }),
-  };
-
   return (
     <div className="bg-white min-h-screen">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemaProduct) }}
-      />
+      <JsonLd data={buildProductSchema(set, activePrices, params.slug, STORE_NAMES)} />
 
       {/* Breadcrumb */}
       <div className="max-w-site mx-auto px-4 py-3">
