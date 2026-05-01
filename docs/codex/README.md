@@ -15,7 +15,10 @@ and content length system.
 1. Edit `BOI_Codex_v2.docx` in Word
 2. Regenerate the markdown export:
 
-       pandoc docs/codex/BOI_Codex_v2.docx -o docs/codex/BOI_Codex_v2.md
+       # Pandoc preferred (if installed):
+       #   pandoc docs/codex/BOI_Codex_v2.docx -o docs/codex/BOI_Codex_v2.md
+       # Otherwise, use the bundled Node.js script:
+       node scripts/export-codex-md.js
 
 3. Commit both files in the same commit
 4. Update `BOI_MASTER_TRACKER.md` "Codex version" field if making
