@@ -555,29 +555,29 @@
 <script id="boi-data" type="application/json">
 {
   "meta": {
-    "lastUpdated": "2026-05-01",
+    "lastUpdated": "2026-05-02",
     "trackerVersion": "v1.3",
-    "currentSprint": "Day 2 — GEO-01 (P0) + CF-CACHE-01 + LAB-03"
+    "currentSprint": "Day 3 — CF-CACHE-01 + LAB-03"
   },
   "kpis": {
-    "healthScore": 64,
-    "healthScoreNote": "BUG-013 (JSON-LD client-side rendering) P0 open — GEO/AI investment still dark. ROBOTS-01 + GEO-02 aligned 2026-05-01; crawler policy now declared and enforced.",
-    "openP0": 2,
+    "healthScore": 67,
+    "healthScoreNote": "GEO-01 hardening done 2026-05-02 — XSS scrub, JsonLd consolidation, middleware bug fixed (+3). BUG-013 closed as mis-diagnosed. Top blocker now DATA-01 + CF-CACHE-01.",
+    "openP0": 0,
     "openP1": 4,
     "netlifyMinutesLeft": 9999,
     "netlifyResetDate": "2026-05-11",
     "daysSinceLastDeploy": 0,
-    "lastDeployDate": "2026-05-01",
-    "lastDeployCommit": "e1054e1 · feat(seo): align robots.txt with AI crawler policy (ROBOTS-01)",
+    "lastDeployDate": "2026-05-02",
+    "lastDeployCommit": "e9e1680 · chore(geo): GEO-01 hardening + BUG-013 closed",
     "voiceTestStatus": "Pending",
     "geoScore": 26,
     "geoScoreTarget": 75,
     "lastAuditDate": "2026-05-01",
     "nextAuditDate": "2026-05-08",
     "nextActions": [
-      "Day 2 P0: GEO-01 server-side schema migration",
-      "Day 2 P1: CF-CACHE-01 diagnose and fix 2.3% cache rate",
-      "Day 2 P1: LAB-03 daily price snapshot cron (silent accumulation)"
+      "Day 3 P1: CF-CACHE-01 diagnose and fix 2.3% Cloudflare cache rate",
+      "Day 3 P1: LAB-03 daily price snapshot cron (silent accumulation → LAB-05 eligible 2026-06-01)",
+      "Day 3 stretch: CONTENT-02 brief, WEB-01 lint gate scaffold"
     ],
     "openManualChecks": [
       "Cloudflare billing — Free plan 'Processing' status, monitor for any charges (currently informational, no action needed unless a charge appears)"
@@ -586,7 +586,7 @@
   "issues": [
     { "id": "BUG-015", "issue": "Tracker stated DNS on Netlify nsone.net; reality is Cloudflare authoritative", "rootCause": "DNS migration to Cloudflare not back-propagated to BOI_MASTER_TRACKER.md", "solution": "Verified via nslookup -type=NS — confirmed kira.ns.cloudflare.com + yadiel.ns.cloudflare.com. Tracker updated; Cloudflare added to stack[].", "deployedOn": "2026-04-26", "status": "closed", "priority": "P3", "affects": "Documentation accuracy, incident response (knowing which dashboard to check)" },
     { "id": "BUG-014", "issue": "Netlify build minutes critically low", "rootCause": "Scrapers running inside Netlify build pipeline", "solution": "Resolved by INFRA-03 (deploy.yml live). Scrapers no longer consume Netlify build minutes.", "deployedOn": "2026-04-26", "status": "closed", "priority": "P0", "affects": "Build availability until May 11" },
-    { "id": "BUG-013", "issue": "JSON-LD schemas invisible to AI crawlers and non-JS search engines", "rootCause": "Schemas rendered client-side via SchemaLD.tsx component — invisible to non-JS-executing crawlers (most AI crawlers, partial Google coverage)", "solution": "Move JSON-LD generation server-side: emit in app/layout.tsx or per-route generateMetadata so schemas appear in initial HTML response | Alternative fix path: Cloudflare Workers can inject JSON-LD into HTML response at the edge before delivery — runtime fix without touching the Next.js codebase. Trade-off: Worker script maintenance vs. cleaner server-rendered Next.js metadata migration. Default plan is still server-side migration (GEO-01); Cloudflare Workers as Plan B if migration proves complex.", "deployedOn": null, "status": "open", "priority": "P0", "affects": "Entire GEO/AI visibility investment — all JSON-LD schemas currently invisible to non-JS crawlers" },
+    { "id": "BUG-013", "issue": "JSON-LD schemas invisible to AI crawlers and non-JS search engines", "rootCause": "MIS-DIAGNOSED. Discovery 2026-05-02 confirmed schemas have been server-rendered into initial HTML all along. Original April 26 diagnosis confused 'use client' on BreadcrumbSchema with the entire schema layer being client-rendered. SchemaLD.tsx never had 'use client'; it was always a Server Component. BreadcrumbSchema did have 'use client' but Next.js SSR renders client components into initial HTML regardless.", "solution": "No fix required — schemas were already in initial HTML. GEO-01 shipped a hardening pass (XSS scrub, consolidation, middleware bug fix) as housekeeping. See GEO-01 pipeline item.", "deployedOn": "2026-05-02", "status": "closed", "priority": "P0", "affects": "No active impact — closed as mis-diagnosed" },
     { "id": "BUG-012", "issue": "Silent batch aborts in scraper pipeline", "rootCause": "Postgres unique constraint conflicts dropping entire batches", "solution": "Switched to ON CONFLICT DO UPDATE deduplication on (source, sku)", "deployedOn": "2026-04-22", "status": "closed", "priority": "P1", "affects": "Toycra, MyBrickHouse, Jaiman scrapers" },
     { "id": "BUG-011", "issue": "Rebrickable API returning 429 on long pulls", "rootCause": "No retry logic + no inter-page delay on pagination", "solution": "Added exponential backoff retry + 1.5s delay between pages", "deployedOn": "2026-04-21", "status": "closed", "priority": "P1", "affects": "Set search results completeness" },
     { "id": "BUG-010", "issue": "Search returning Supabase-only results, missing global sets", "rootCause": "Search priority ordered Supabase → Rebrickable", "solution": "Flipped priority: Rebrickable first, Supabase used only for INR price hydration on Indian-stocked sets", "deployedOn": "2026-04-20", "status": "closed", "priority": "P1", "affects": "Search relevance globally" },
@@ -596,7 +596,7 @@
     { "id": "BUG-006", "issue": "No brand identity on website", "rootCause": "Default theme, no palette or typography lock", "solution": "Locked BOI palette (saffron #F7A800, blue #006CB7, green #16A34A, navy #0F2D6B) + Fredoka/Inter typography", "deployedOn": "2026-04-10", "status": "closed", "priority": "P2", "affects": "Brand recognition" }
   ],
   "pipeline": [
-    { "id": "GEO-01", "title": "Migrate JSON-LD from client-side SchemaLD.tsx to server-rendered", "category": "Infrastructure", "status": "in-progress", "priority": "P0", "depsBlock": [], "blocks": ["RLFM-01"], "notes": "BUG-013 P0: schemas currently invisible to non-JS crawlers. Emit in generateMetadata or layout.tsx so schemas appear in initial HTML. Cloudflare Workers edge injection is Plan B if Next.js migration proves complex." },
+    { "id": "GEO-01", "title": "JSON-LD hardening — XSS scrub, JsonLd primitive, SchemaLD removal", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-02 (commits 236fa7d–e9e1680). Hardening pass: XSS scrub across 8 emission sites, JsonLd Server Component primitive, BreadcrumbSchema converted from client to server, lib/schemas.ts created, SchemaLD.tsx removed. Middleware bug fixed (5f4abef): was setting response not request headers. BUG-013 closed as mis-diagnosed — schemas were server-rendered all along. Followup: verify /reviews/[slug] schema on first review publish." },
     { "id": "GEO-02", "title": "Cloudflare AI Crawl Control — per-crawler WAF allow/block", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-01 (manual, by founder in Cloudflare dashboard). 9 search/assistant bots allowed; 13 training-only bots blocked at WAF. Declared policy aligned via ROBOTS-01 (commit e1054e1)." },
     { "id": "ROBOTS-01", "title": "Align app/robots.ts with Cloudflare AI Crawl Control policy", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": ["GEO-02"], "blocks": [], "notes": "Done 2026-05-01 (commit e1054e1). src/app/robots.ts now declares same allow/block list as Cloudflare WAF. Verified live: GPTBot Disallow:/, PerplexityBot Allow:/, Sitemap present." },
     { "id": "LAB-01", "title": "Biryani Index calculator at /lab/biryani-index", "category": "Lab", "status": "done", "priority": "P2", "depsBlock": [], "blocks": ["LAB-04"], "notes": "Shipped 2026-05-01 (merge commit be8f134). Converts any LEGO set price into biryani/chai/petrol/PVR equivalents. Reference prices last refreshed 2026-04-26 — refresh quarterly." },

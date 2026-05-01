@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-01 (LAB-01 live; CONTENT-01 closed; ROBOTS-01 done — GEO-02 + robots.txt aligned)
+> **Last updated:** 2026-05-02 (GEO-01 hardening done; BUG-013 closed as mis-diagnosed; middleware bug fixed)
 > **Audit log:** `audit-block1.log`
 
 ---
@@ -98,6 +98,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 | Supabase (store_prices, price_history) | ✅ Healthy | 492 current rows, 9,142 historical |
 | Site integrity | ✅ All 200 | `/sets` fixed (SETS-01, commit `20474c2`). All core pages healthy. |
 | Catalogue sync (sets table) | ✅ Scheduled | `sync-catalogue.yml` weekly Sun 02:00 UTC. ~26k Rebrickable entries → ~10k unique rows after dedup. 16,888 rows, 99.4% image coverage. Assertion threshold: ≥ 8,000 rows. |
+| GEO-01 JSON-LD hardening | ✅ Done 2026-05-02 | XSS scrub, JsonLd Server Component primitive, BreadcrumbSchema → Server Component, lib/schemas.ts, SchemaLD.tsx removed. Middleware bug fixed (5f4abef). BUG-013 closed as mis-diagnosed — schemas were server-rendered all along. |
 | Voice Codex | ✅ Done 2026-05-01 | `docs/codex/BOI_Codex_v2.docx` (commit `3190596`). 21 pages, Section 1 + 2. India Paragraph spec Page 12, verdict enum Page 13, lint gate spec Page 20. Unblocks CONTENT-02, RADAR-01, WEB-01. |
 | CATALOG-FIX-01 v2 | ✅ Done 2026-04-26 | PR `fix/catalog-search`, merge commit `d19625d`. Restores Rebrickable-first search, theme ilike fix, audit + sync crons, DATA_SOURCES.md. Verified live: Concorde search ✓, Star Wars browse ✓, price filter ✓. |
 
@@ -105,9 +106,11 @@ JSON parses. If it doesn't, fix before doing anything else.
 
 ## Current blockers (top 3)
 
-1. **BUG-013 / GEO-01 (P0)** — JSON-LD schemas still client-side; entire GEO/AI investment invisible to non-JS crawlers. Unblocks RLFM-01.
-2. **Review + Product JSON-LD missing** on `/reviews` and `/sets` — GEO regression from Deploy 2.
-3. **DATA-01 open** — `store_prices` (scraper writes) ↔ `prices` (frontend reads) disconnected; live scraper data not reaching `/compare`.
+1. **DATA-01 open** — `store_prices` (scraper writes) ↔ `prices` (frontend reads) disconnected; live scraper data not reaching `/compare`.
+2. **CF-CACHE-01** — Cloudflare cache rate at ~2.3%, well below target of >40%. Cache Rules not set for static assets.
+3. **CONTENT-02 not started** — Claude Project workbench setup pending. Blocks consistent content production velocity.
+
+> BUG-013 closed 2026-05-02 as mis-diagnosed. GEO-01 hardening shipped. See Sprint changelog Day 2 for details.
 
 ## Carry-overs
 
@@ -155,6 +158,7 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 | Deploy | Date | Commit | Contents |
 |--------|------|--------|----------|
+| GEO-01 JSON-LD hardening | 2026-05-02 | `236fa7d`–`e9e1680` (10 commits) | JsonLd primitive, lib/schemas.ts, BreadcrumbSchema → Server Component, XSS scrub, SchemaLD.tsx removed. Middleware bug fixed (5f4abef). |
 | ROBOTS-01 AI crawler policy | 2026-05-01 | `e1054e1` | `src/app/robots.ts` aligned with Cloudflare AI Crawl Control WAF — 9 allowed, 13 blocked |
 | CONTENT-01 Voice Codex | 2026-05-01 | `3190596` | `docs/codex/BOI_Codex_v2.docx` committed — closes CONTENT-01, unblocks CONTENT-02 / RADAR-01 / WEB-01 |
 | LAB-01 Biryani Index | 2026-05-01 | `be8f134` (merge) | `/lab/biryani-index` live — LEGO price → biryani/chai/petrol converter |
@@ -213,26 +217,46 @@ Commits (7):
 - 77ff3d9 Codex export script
 - 4dc5975 ROBOTS-01 tracker update
 
-### Day 2 plan — 2026-05-02
+### Day 2 — 2026-05-02
 
-Critical path (P0):
-- GEO-01 — server-side JSON-LD migration (BUG-013 fix). Migrate
-  SchemaLD.tsx from client-rendered to server-emitted via
-  generateMetadata() or layout-level injection. Deploy. Verify
-  schemas in initial HTML response via curl.
+Shipped:
+- GEO-01 hardening — XSS scrub across all 8 schema emission sites,
+  JsonLd Server Component primitive (src/components/JsonLd.tsx),
+  centralised builders in src/lib/schemas.ts, BreadcrumbSchema
+  converted from client to server component, SchemaLD.tsx deleted.
+  10 commits (236fa7d → e9e1680).
+- BUG-013 CLOSED as mis-diagnosed. Discovery (2026-05-02) confirmed
+  schemas have been server-rendered into initial HTML all along.
+  Original April 26 diagnosis confused 'use client' on BreadcrumbSchema
+  with the entire schema layer being client-rendered. Closing as no-fix.
+- MIDDLEWARE BUG FIXED (commit 5f4abef): middleware was setting response
+  headers instead of request headers, making x-pathname invisible to
+  Server Components via headers(). The only real production bug
+  uncovered by GEO-01. Fixed to NextResponse.next({ request: { headers } }).
 
-Day 2 secondary (P1):
-- CF-CACHE-01 — diagnose 2.31% Cloudflare cache rate. Likely
-  causes: missing Cache Rules, Cache-Control headers from Next.js
-  preventing edge caching. Add Cache Rule for /_next/static/*,
-  /images/*, fonts. Target: cache rate >40% within 24 hours.
-- LAB-03 — start daily price snapshot cron. Silent accumulation
-  begins; LAB-05 launch eligibility = day 2 + 30 = 2026-06-01.
+Followup (deferred):
+- /reviews/[slug] JSON-LD unverified in prod — reviews table empty.
+  Verify schema on first review publish (gated by CONTENT-02 output).
 
-Day 2 stretch (only if P0+P1 land before EOD):
-- CONTENT-02 brief — write Claude Project workbench spec
-- WEB-01 lint gate scaffold — start the 4 gates (word count,
-  India Paragraph, verdict enum, image 200s)
+Health score: 64 → 67 (+3) — XSS scrub (+1), JsonLd consolidation (+1),
+  middleware bug fix (+1). BUG-013 closure = 0 (no fix shipped).
+
+Commits (10):
+- 236fa7d Phase 1–3: JsonLd primitive + middleware + BreadcrumbSchema + layout/about
+- 1613abb 4a: sets/[slug] → JsonLd
+- 5f4abef fix: middleware request headers bug
+- 9962885 4b: sets/page → JsonLd
+- 5172c51 4c: sets/page/[page] → JsonLd
+- 769fa5f 4d: news/[slug] → JsonLd
+- d4ebf7f 4e: blog/[slug] → JsonLd
+- 1441256 4f: reviews/[slug] → JsonLd
+- 26ee104 Phase 5: delete SchemaLD.tsx
+- e9e1680 chore: remove accidentally staged diagnostic files
+
+Day 3 plan:
+- CF-CACHE-01 — diagnose and fix 2.3% Cloudflare cache rate
+- LAB-03 — daily price snapshot cron (silent accumulation → LAB-05 eligible 2026-06-01)
+- Stretch: CONTENT-02 brief, WEB-01 lint gate scaffold
 
 ---
 

@@ -37,3 +37,8 @@ next-env.d.ts
 
 # Local Netlify folder
 .netlify
+
+# Local diagnostic / session files (committed accidentally in 26ee104, removed in e9e1680)
+audit-block1.log
+diagnostics/
+scripts/test-env.mjs
