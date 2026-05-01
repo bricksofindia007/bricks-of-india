@@ -1,6 +1,4 @@
-'use client';
-
-import { usePathname } from 'next/navigation';
+import { headers } from 'next/headers';
 
 const LABELS: Record<string, string> = {
   compare:  'Compare Prices',
@@ -17,7 +15,6 @@ const LABELS: Record<string, string> = {
 };
 
 function segmentLabel(seg: string): string {
-  // Known segment → friendly label; otherwise title-case the slug
   if (LABELS[seg]) return LABELS[seg];
   return seg
     .split('-')
@@ -25,13 +22,8 @@ function segmentLabel(seg: string): string {
     .join(' ');
 }
 
-/**
- * Renders a BreadcrumbList JSON-LD <script> tag on every non-homepage page.
- * Uses usePathname() so it's always in sync with the current URL — no SSR
- * mismatch risk since it's a client component that only emits a <script> tag.
- */
 export function BreadcrumbSchema() {
-  const pathname = usePathname();
+  const pathname = headers().get('x-pathname') ?? '/';
   if (!pathname || pathname === '/') return null;
 
   const segments = pathname.split('/').filter(Boolean);
@@ -57,10 +49,12 @@ export function BreadcrumbSchema() {
     itemListElement: items,
   };
 
+  const json = JSON.stringify(schema).replace(/</g, '\\u003c');
+
   return (
     <script
       type="application/ld+json"
-      dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }}
+      dangerouslySetInnerHTML={{ __html: json }}
     />
   );
 }

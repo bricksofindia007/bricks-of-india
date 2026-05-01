@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
-import { SchemaLD } from '@/components/SchemaLD';
+import { JsonLd } from '@/components/JsonLd';
+import { personSchema } from '@/lib/schemas';
 import { BRAND, MASCOTS } from '@/lib/brand';
 
 export const metadata: Metadata = {
@@ -10,23 +11,6 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://bricksofindia.com/about' },
 };
 
-const personSchema = {
-  '@context': 'https://schema.org',
-  '@type': 'Person',
-  name: 'Abhinav Bhargav',
-  jobTitle: 'Founder, Bricks of India',
-  email: 'abhinav@bricksofindia.com',
-  url: 'https://www.bricksofindia.com/about',
-  description:
-    '20+ years in enterprise sales, marketing, and account management. Cornell University. Founder of Bricks of India.',
-  sameAs: [
-    'https://www.youtube.com/@BricksofIndia',
-    'https://www.instagram.com/bricksofindia/',
-    'https://www.linkedin.com/in/abhinavbhargav/',
-  ],
-  alumniOf: { '@type': 'EducationalOrganization', name: 'Cornell University' },
-  worksFor: { '@type': 'Organization', name: 'Bricks of India' },
-};
 
 function YouTubeIcon() {
   return (
@@ -55,7 +39,7 @@ function MailIcon() {
 export default function AboutPage() {
   return (
     <div className="bg-white min-h-screen">
-      <SchemaLD data={personSchema} />
+      <JsonLd data={personSchema} />
 
       {/* ── Hero ────────────────────────────────────────────────────────────── */}
       <section

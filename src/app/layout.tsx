@@ -4,9 +4,9 @@ import { Poppins, Fredoka, Inter } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
-import { SchemaLD, organizationSchema, websiteSchema } from "@/components/SchemaLD";
+import { JsonLd } from "@/components/JsonLd";
 import { BreadcrumbSchema } from "@/components/BreadcrumbSchema";
-import { BRAND, ASSETS } from "@/lib/brand";
+import { organizationSchema, websiteSchema } from "@/lib/schemas";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -116,7 +116,7 @@ export default function RootLayout({
           </>
         )}
 
-        <SchemaLD data={[organizationSchema, websiteSchema]} />
+        <JsonLd data={[organizationSchema, websiteSchema]} />
         <BreadcrumbSchema />
         <Navbar />
         <main>{children}</main>
