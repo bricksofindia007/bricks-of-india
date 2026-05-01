@@ -560,15 +560,15 @@
     "currentSprint": "LAB workstream + CATALOG-04 v2"
   },
   "kpis": {
-    "healthScore": 63,
-    "healthScoreNote": "BUG-013 (JSON-LD client-side rendering) P0 open — GEO/AI investment still dark. CONTENT-01 closed 2026-05-01; Codex unblocks CONTENT-02, RADAR-01, WEB-01.",
+    "healthScore": 64,
+    "healthScoreNote": "BUG-013 (JSON-LD client-side rendering) P0 open — GEO/AI investment still dark. ROBOTS-01 + GEO-02 aligned 2026-05-01; crawler policy now declared and enforced.",
     "openP0": 2,
     "openP1": 4,
     "netlifyMinutesLeft": 9999,
     "netlifyResetDate": "2026-05-11",
     "daysSinceLastDeploy": 0,
     "lastDeployDate": "2026-05-01",
-    "lastDeployCommit": "3190596 · feat(codex): commit Voice Codex v2 (CONTENT-01)",
+    "lastDeployCommit": "e1054e1 · feat(seo): align robots.txt with AI crawler policy (ROBOTS-01)",
     "voiceTestStatus": "Pending",
     "geoScore": 26,
     "geoScoreTarget": 75,
@@ -589,6 +589,8 @@
   ],
   "pipeline": [
     { "id": "GEO-01", "title": "Migrate JSON-LD from client-side SchemaLD.tsx to server-rendered", "category": "Infrastructure", "status": "in-progress", "priority": "P0", "depsBlock": [], "blocks": ["RLFM-01"], "notes": "BUG-013 P0: schemas currently invisible to non-JS crawlers. Emit in generateMetadata or layout.tsx so schemas appear in initial HTML. Cloudflare Workers edge injection is Plan B if Next.js migration proves complex." },
+    { "id": "GEO-02", "title": "Cloudflare AI Crawl Control — per-crawler WAF allow/block", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-01 (manual, by founder in Cloudflare dashboard). 9 search/assistant bots allowed; 13 training-only bots blocked at WAF. Declared policy aligned via ROBOTS-01 (commit e1054e1)." },
+    { "id": "ROBOTS-01", "title": "Align app/robots.ts with Cloudflare AI Crawl Control policy", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": ["GEO-02"], "blocks": [], "notes": "Done 2026-05-01 (commit e1054e1). src/app/robots.ts now declares same allow/block list as Cloudflare WAF. Verified live: GPTBot Disallow:/, PerplexityBot Allow:/, Sitemap present." },
     { "id": "LAB-01", "title": "Biryani Index calculator at /lab/biryani-index", "category": "Lab", "status": "done", "priority": "P2", "depsBlock": [], "blocks": ["LAB-04"], "notes": "Shipped 2026-05-01 (merge commit be8f134). Converts any LEGO set price into biryani/chai/petrol/PVR equivalents. Reference prices last refreshed 2026-04-26 — refresh quarterly." },
     { "id": "INFRA-03", "title": "GitHub Actions deploy workflow (deploy.yml)", "category": "Infrastructure", "status": "done", "priority": "P0", "depsBlock": [], "blocks": ["Phase 8 globe", "RADAR-01 cron"], "notes": "Deployed 2026-04-24 (commit 8992aef). Build now runs on GitHub Actions; Netlify still hosts but no longer runs the build. Netlify build minute concern resolved." },
     { "id": "RADAR-01", "title": "Topical Radar daily cron @ 23:00 IST", "category": "Content OS", "status": "unblocked", "priority": "P1", "depsBlock": [], "blocks": ["Phase 8 globe"], "notes": "Unblocked by CONTENT-01 (Codex committed 2026-05-01). Scrapes Brickset, TBB, New Elementary, BrickNerd, r/lego >500 upvotes, Rebrickable, LEGO.com/new, YouTube RSS." },
