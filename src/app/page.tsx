@@ -9,6 +9,7 @@ import { SetCard } from '@/components/sets/SetCard';
 import { ArticleCard, ReviewCard } from '@/components/content/ArticleCard';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { TricolourStripe } from '@/components/ui/TricolourStripe';
+import { LabStrip } from '@/components/ui/LabStrip';
 import { BRAND, MASCOTS, THEMES } from '@/lib/brand';
 import { supabase } from '@/lib/supabase';
 
@@ -161,6 +162,9 @@ export default async function HomePage() {
         {/* Tricolour stripe — bottom edge of hero */}
         <TricolourStripe height={12} className="absolute bottom-0 left-0 right-0" />
       </section>
+
+      {/* ── THE LAB STRIP ────────────────────────────────────────────────────── */}
+      <LabStrip />
 
       {/* ── STATS BAND ───────────────────────────────────────────────────────── */}
       <section className="py-6 px-4 bg-white border-b border-border">

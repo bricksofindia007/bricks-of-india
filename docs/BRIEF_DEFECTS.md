@@ -49,6 +49,68 @@ Briefs that include workflow YAML templates should reference one of the existing
 
 ---
 
+## DEFECT-002 — LAB-04 branch name inconsistency
+
+| Field | Value |
+|---|---|
+| Brief | `briefs/LAB-04-homepage-strip.md` |
+| Found during | LAB-04 execution, 2026-05-02 |
+| Found by | Claude Code (terminal), pre-flight audit before writing any code |
+| Phase | Phase 5 (commit/push block) and summary block |
+| Severity | Low — wrong branch name in brief's git commands and summary template; implementation unaffected |
+| Patch commit | `19de92427cb3173f64059c81c1379475a49e6ba0` |
+
+**What was wrong:**
+Phase 5 git commands and the "When done" summary block both said:
+```
+git push origin feat/lab-homepage-strip
+Branch: feat/lab-homepage-strip
+```
+The correct branch name per operator instruction and LAB-ID convention is `feat/lab-04-homepage-strip`.
+
+**Failure mode if unpatched:**
+Anyone using the brief's `git push` command verbatim would push to the wrong remote branch name.
+
+**What was patched:**
+- Phase 5 git block updated to `feat/lab-04-homepage-strip`
+- Summary block `Branch:` line updated to match
+- Git add paths in Phase 5 also corrected (see DEFECT-003)
+
+---
+
+## DEFECT-003 — LAB-04 LabStrip file path wrong
+
+| Field | Value |
+|---|---|
+| Brief | `briefs/LAB-04-homepage-strip.md` |
+| Found during | LAB-04 execution, 2026-05-02 |
+| Found by | Claude Code (terminal), pre-flight audit of project structure |
+| Phase | Phase 2 (strip component location) and Phase 5 (git add command) |
+| Severity | Medium — following the brief literally would create a component in a non-existent directory |
+| Patch commit | `19de92427cb3173f64059c81c1379475a49e6ba0` |
+
+**What was wrong:**
+Phase 2 specified the strip component path as:
+```
+app/components/LabStrip.tsx
+```
+Phase 5 git add used `app/components/LabStrip.tsx` and `app/lab/page.tsx` (missing `src/` prefix throughout).
+
+In this project all source lives under `src/`. The `app/components/` directory does not exist — the project convention is `src/components/{ui,layout,sets,content}/`. Following the brief literally would create `src/app/components/LabStrip.tsx`, an anomalous location not matching any existing pattern.
+
+Additionally, the brief did not account for the `LAB_TOOLS` constant needing its own shared module (the brief showed it inline in the component). Since both the strip, the lab page, and the nav dropdown all consume it, a `src/lib/lab-tools.ts` module was created as the single source of truth (consistent with the brief's hard rule: "Do not duplicate the list in two places").
+
+**Failure mode if unpatched:**
+File created at wrong path; TypeScript path alias `@/` would not resolve it correctly; build fails or component is inaccessible.
+
+**What was patched:**
+- Phase 2 path changed to `src/components/ui/LabStrip.tsx`
+- Phase 5 git add corrected to full `src/`-prefixed paths, with `src/lib/lab-tools.ts` added
+- Summary block component path updated
+- `LAB_TOOLS` extracted to `src/lib/lab-tools.ts`; both phase descriptions implicitly updated
+
+---
+
 ## How to add a new entry
 
 When a defect is found:
@@ -68,3 +130,5 @@ Defects found but **not** yet patched should still be logged immediately, with t
 | ID | Brief | Severity | Status |
 |---|---|---|---|
 | DEFECT-001 | LAB-03 Phase 4 secret name | High | Patched |
+| DEFECT-002 | LAB-04 branch name inconsistency | Low | Patched |
+| DEFECT-003 | LAB-04 LabStrip file path wrong | Medium | Patched |

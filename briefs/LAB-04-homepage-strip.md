@@ -180,10 +180,10 @@ Directly below the hero, above whatever currently sits in that position (latest 
 ### Section structure
 
 ```
-app/components/LabStrip.tsx
+src/components/ui/LabStrip.tsx
 ```
 
-Imported into `app/page.tsx` and rendered in the homepage layout.
+Imported into `src/app/page.tsx` and rendered in the homepage layout.
 
 ### Visual layout
 
@@ -302,10 +302,12 @@ Report each check.
 ## Phase 5 — Commit and PR
 
 ```
-git add app/lab/page.tsx app/components/LabStrip.tsx app/page.tsx <nav files>
+git add src/app/lab/page.tsx src/components/ui/LabStrip.tsx src/lib/lab-tools.ts src/app/page.tsx src/components/layout/Navbar.tsx
 git commit -m "feat(lab): homepage strip + /lab directory + nav dropdown"
-git push origin feat/lab-homepage-strip
+git push origin feat/lab-04-homepage-strip
 ```
+<!-- DEFECT-002 patch: branch renamed feat/lab-homepage-strip → feat/lab-04-homepage-strip -->
+<!-- DEFECT-003 patch: paths corrected to src/ layout; LabStrip moved to src/components/ui/; LAB_TOOLS extracted to src/lib/lab-tools.ts -->
 
 PR title: `feat(lab): The Lab — homepage strip, directory, nav`
 
@@ -336,12 +338,13 @@ PR body:
 ```
 LAB-04 LAB STRIP + DIRECTORY + NAV — DONE
 
-Branch: feat/lab-homepage-strip
+Branch: feat/lab-04-homepage-strip
 PR URL: <url>
 Routes added:
   - /lab (directory)
 Components added:
-  - app/components/LabStrip.tsx (homepage strip)
+  - src/components/ui/LabStrip.tsx (homepage strip)
+  - src/lib/lab-tools.ts (LAB_TOOLS single source of truth)
 Nav dropdown: added "The Lab" between <X> and <Y>
 
 Tools rendered:
