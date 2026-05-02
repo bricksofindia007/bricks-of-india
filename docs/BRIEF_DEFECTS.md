@@ -111,6 +111,37 @@ File created at wrong path; TypeScript path alias `@/` would not resolve it corr
 
 ---
 
+## DEFECT-004 — LAB-03 marked Done before first scheduled run
+
+| Field | Value |
+|---|---|
+| Brief | `briefs/LAB-03-price-snapshot-cron.md`, `docs/runbooks/LAB-03-price-snapshot.md` |
+| Found during | Post-LAB-03 operations, 2026-05-02 |
+| Found by | Operator, via GitHub Actions UI (0 scheduled runs shown) |
+| Phase | Post-deployment operations |
+| Severity | Low — process gap only; no data loss, no code defect |
+| Patch commit | `c923ba205039aef8411bc18a95f5f47dabc9df6b` |
+
+**What was wrong:**
+The 2026-05-02 session marked LAB-03 ✅ Done in `BOI_MASTER_TRACKER.md` after Phase 5 verification confirmed:
+- Manual `workflow_dispatch` run wrote 724 snapshots
+- UPSERT idempotency held
+- Empty-source guard read-verified
+- YAML `schedule:` block present
+
+But: the workflow file landed on main at 2026-05-02 11:34 UTC, 8.5 hours after the day's 03:00 UTC scheduled tick. The first *scheduled* run could not fire until 2026-05-03 03:00 UTC. Tracker was marked Done while no scheduled execution had ever occurred — only the manual dispatch test had run.
+
+**Failure mode:**
+"Marked done" implies the recurring behaviour is verified live. For cron work, "live" requires at least one *scheduled* run to fire successfully. A manual dispatch proves the script and the workflow YAML compile; only a scheduled tick proves GitHub's cron parser, the runner queue, and the `schedule:` block are jointly wired.
+
+**What was patched:**
+Nothing in code. Process patch only.
+
+**Lesson:**
+For any cron-based ✅ Done flip, the verification checklist must include "≥1 scheduled run completed green" as a distinct gate, separate from "manual dispatch proved script works." When a workflow file lands on main after the day's scheduled tick, ✅ Done waits until the next tick fires.
+
+---
+
 ## How to add a new entry
 
 When a defect is found:
@@ -132,3 +163,4 @@ Defects found but **not** yet patched should still be logged immediately, with t
 | DEFECT-001 | LAB-03 Phase 4 secret name | High | Patched |
 | DEFECT-002 | LAB-04 branch name inconsistency | Low | Patched |
 | DEFECT-003 | LAB-04 LabStrip file path wrong | Medium | Patched |
+| DEFECT-004 | LAB-03 marked Done before first scheduled run | Low | Patched |
