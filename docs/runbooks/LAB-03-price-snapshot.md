@@ -108,3 +108,9 @@ FROM price_snapshots;
 ```
 
 This query is your ongoing progress check. LAB-05 is eligible when `days_accumulated >= 30`.
+
+---
+
+## Cron stacking note
+
+Snapshot-prices runs at 08:30 IST daily. Catalogue-audit runs at 09:00 IST on Mondays only. The 30-minute Monday gap is intentional and non-blocking — both workflows are independent, and snapshot runtime is ~200s (well under timeout). If either job's runtime approaches 25+ minutes in future, reschedule one of them to widen the gap.
