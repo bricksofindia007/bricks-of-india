@@ -1,5 +1,12 @@
 # LAB-03 — Daily Price Snapshot Cron
 
+> **Patched 2026-05-02 (DEFECT-001):** Phase 4 originally specified
+> `secrets.SUPABASE_URL`. The repo uses `NEXT_PUBLIC_SUPABASE_URL` everywhere
+> (matching the runtime env reads in `sync-rebrickable.js` and the workflow
+> conventions in `catalogue-audit.yml` / `sync-catalogue.yml`). If you read
+> this brief from a pre-2026-05-02 copy, replace `SUPABASE_URL` with
+> `NEXT_PUBLIC_SUPABASE_URL` throughout.
+
 **Owner:** Abhinav
 **Status:** Ready to fire
 **Estimated time:** 2–3 days
@@ -160,7 +167,7 @@ jobs:
       - run: npm ci
       - name: Run snapshot
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: node scripts/snapshot-prices.js
       - name: Alert on failure
