@@ -1,0 +1,55 @@
+name: Daily price snapshot
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 03:00 UTC daily = 08:30 IST
+  workflow_dispatch:
+
+jobs:
+  snapshot:
+    name: Write daily price snapshots
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run snapshot
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node scripts/snapshot-prices.js
+
+      - name: Open issue on failure
+        if: failure()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.issues.create({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              title: `[snapshot-prices-failed] Daily snapshot failed on ${new Date().toISOString().slice(0, 10)}`,
+              body: [
+                '## Daily price snapshot failed',
+                '',
+                `**Workflow run:** ${context.serverUrl}/${context.repo.owner}/${context.repo.repo}/actions/runs/${context.runId}`,
+                '',
+                '**Common causes:**',
+                '- Supabase connection issue (check NEXT_PUBLIC_SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY secrets)',
+                '- store_prices table empty — upstream scraper (scrape-prices.yml) may have failed',
+                '- price_snapshots table not yet created — apply db/migrations/001_price_snapshots.sql in Supabase dashboard',
+                '',
+                'Check the run log for the specific error. Re-run via Actions → Daily price snapshot → Run workflow.',
+              ].join('\n'),
+              labels: ['snapshot-prices-failed'],
+            });
