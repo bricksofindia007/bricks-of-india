@@ -2,7 +2,11 @@
 
 > YouTube long-form, Shorts / Reels, DaVinci Resolve workflow, ElevenLabs voice clone, script-to-video pipeline.
 >
-> **Last updated:** 2026-04-24
+> **Last updated:** 2026-05-02
+
+---
+
+> **Note (2026-05-02):** This tracker has been refreshed with current state. The Voice Codex v2 (CONTENT-01) shipped on 2026-05-01 and applies to video scripts as well as written content. All future scripts must follow Codex Section 2 verdict vocabulary and India Paragraph rules.
 
 ---
 
@@ -21,13 +25,13 @@
 
 **Why this matters:** Outcome of free-tier test determines the entire video workflow — hybrid (AI narration + self-record inserts) vs full self-record. Do this first.
 
-| ID | Task | Status |
-|----|------|--------|
-| EL-01 | Create ElevenLabs free-tier account | 🔴 |
-| EL-02 | Record 3-min voice sample for cloning | 🔴 |
-| EL-03 | Generate 1 test news script in cloned voice | 🔴 |
-| EL-04 | A/B test — cloned voice vs self-record on same script | 🔴 |
-| EL-05 | Decision: hybrid vs self-record | 🔴 |
+| ID | Task | Status | Notes |
+|----|------|--------|-------|
+| EL-01 | Create ElevenLabs free-tier account | 🔴 | — |
+| EL-02 | Record 3-min voice sample for cloning | 🔴 | — |
+| EL-03 | Generate 1 test news script in cloned voice | 🔴 | — |
+| EL-04 | A/B test — cloned voice vs self-record on same script | 🔴 | — |
+| EL-05 | Decision: hybrid vs self-record | 🔴 Not started | Decision still open — free-tier test pending to assess whether clone preserves Clarkson dry-sarcastic delivery. CapCut confirmed banned in India; DaVinci Resolve (free) confirmed as editor. |
 
 ---
 

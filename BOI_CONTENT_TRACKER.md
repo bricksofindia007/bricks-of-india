@@ -2,13 +2,13 @@
 
 > Voice Codex, RSS ingestion, article publishing operations, morning brief.
 >
-> **Last updated:** 2026-04-24
+> **Last updated:** 2026-05-02
 
 ---
 
 ## Section A — Voice Codex (Phase 1)
 
-**Status:** 🔴 Not started. This is the critical blocker for content automation.
+**Status:** ✅ Done 2026-05-01 — `docs/codex/BOI_Codex_v2.md` and `docs/codex/BOI_Codex_v2.docx`, 21 pages, Sections 1+2. Verdict vocabulary locked: BUY / WAIT FOR SALE / IMPORT ONLY / SKIP. India Paragraph spec written. Length rules: news 300–400, reviews 500–700, opinion 400–500, weekly digest 350–400.
 
 **Why it matters:** Without the Codex, WEB-01→04 article lint gates can't validate "India Paragraph present" or verdict format. Every article still needs manual voice-checking. Once the Codex exists, Claude Project (Phase 2) and article pipeline (WEB-01→04) unlock.
 
@@ -46,6 +46,8 @@
 ---
 
 ## Section B — Claude Project workbench (Phase 2)
+
+**CONTENT-02: 🔴 Not started — Claude Project workbench setup (manual, ~30 min). Unblocked as of 2026-05-01 (Voice Codex shipped).**
 
 | ID | Task | Status | Depends on |
 |----|------|--------|------------|
@@ -107,6 +109,36 @@
 | Shorts / Reels | 3 | — | See Video tracker |
 | IG carousels | 3 | — | See Social tracker |
 | Website news posts | 2–3 | 10hr weekend | 🟡 Manual, pre-pipeline |
+
+### D.3 — Priority tasks
+
+| ID | Task | Status | Notes |
+|----|------|--------|-------|
+| REVIEWS-FIRST-3 | Write first 3 set reviews | 🔴 Not started | Unblocks GEO-01-FU1 (JSON-LD verification on /reviews/[slug]) and RLFM application |
+
+---
+
+## Content Rendering
+
+| ID | Task | Status | Notes |
+|----|------|--------|-------|
+| CONTENT-RENDER-01 | Markdown rendering fix on /news/[slug] | ✅ Done | react-markdown applied. Asterisks no longer render as literal **text**. |
+| CONTENT-RENDER-02 | Apply markdown fix to /blog | 🔴 Not started | — |
+| CONTENT-RENDER-03 | ArticleCard excerpt markdown leakage | 🔴 Not started | — |
+
+---
+
+## Content Inventory (as of 2026-05-02)
+
+| Type | Published | Source |
+|---|---|---|
+| News articles | 20 | news_articles table |
+| Blog posts | 19 | blog_posts table |
+| Reviews | 0 | reviews table — **empty, blocks GEO-01-FU1 and RLFM** |
+| Voice Codex | 1 (v2) | docs/codex/ |
+
+Content is 100% database-driven. No markdown-on-disk publishing workflow.
+GA4 wired in src/app/layout.tsx via gtag (NEXT_PUBLIC_GA_MEASUREMENT_ID).
 
 ---
 

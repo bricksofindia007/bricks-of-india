@@ -2,8 +2,9 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-02 (GEO-01 hardening done; BUG-013 closed as mis-diagnosed; middleware bug fixed)
+> **Last updated:** 2026-05-02 (post-hygiene pass)
 > **Audit log:** `audit-block1.log`
+> Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
 ---
 
@@ -116,9 +117,8 @@ JSON parses. If it doesn't, fix before doing anything else.
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| CATALOG-04 v2 | USD MSRP ingest from Brickset + INR derivation | 🔴 Not fired | Brief at `briefs/CATALOG-04-v2.md`. Next in queue after this tracker update. |
 | CATALOG-05 | Theme backfill — older sets missing from theme pages | 🔴 Not started | Depends on full sync completing all 27 pages (Rebrickable daily quota currently limits one-shot runs). |
-| DATA-01 | Reconcile `store_prices` (scraper) ↔ `prices` (frontend) | 🔴 Not started | Tracked in `BOI_WEB_TRACKER.md` Section H. 2–3 hours. Schedule after CATALOG-04. |
+| DATA-01 | Reconcile `store_prices` (scraper) ↔ `prices` (frontend) | 🔴 Not started | Tracked in `BOI_WEB_TRACKER.md` Section H. 2–3 hours. Open carry-over. Not yet scheduled. No upstream dependency. |
 
 ---
 

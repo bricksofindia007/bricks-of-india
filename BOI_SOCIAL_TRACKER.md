@@ -2,7 +2,11 @@
 
 > Instagram carousel engine, cross-posting, LAN RLFM runway, community.
 >
-> **Last updated:** 2026-04-24
+> **Last updated:** 2026-05-02
+
+---
+
+> **Note (2026-05-02):** This tracker has been refreshed. Voice Codex v2 (2026-05-01) applies to social posts. Instagram and YouTube community posts must use Codex-locked sign-offs ("On that bombshell…" for opinion, "Bubyee" for YouTube) and the locked opener "lets gooooo".
 
 ---
 

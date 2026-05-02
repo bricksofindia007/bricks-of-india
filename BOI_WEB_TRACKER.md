@@ -2,7 +2,37 @@
 
 > Infra, site integrity, scrapers, GEO/AI readiness, deploys, article pipeline, LEGO Search Pulse.
 >
-> **Last updated:** 2026-04-25 (CATALOG-FIX-01 v2)
+> **Last updated:** 2026-05-02
+
+---
+
+## Active Sprint State (as of 2026-05-02)
+
+This sub-tracker is a detail view. The canonical state lives in `BOI_MASTER_TRACKER.md`.
+
+**Shipped this sprint:**
+- ✅ GEO-01 server-side JSON-LD (verification pending — see GEO-01-FU1 below)
+- ✅ ROBOTS-01 (verification pending)
+- ✅ CATALOG-02, CATALOG-03 (merged 2026-04-26, d19625d)
+- ✅ INFRA-03 GitHub Actions deploy (3×/day scrapers, 100% success)
+- ✅ Voice Codex v2 → see Content tracker
+- ✅ LAB-01 Biryani Index → see Content tracker
+- ✅ Markdown rendering fixes on /news/[slug] (CONTENT-RENDER-01)
+
+**Open carry-overs:**
+- 🔴 CF-CACHE-01 (P1, Day 3) — root cause: no Cache-Control headers in next.config.mjs
+- 🔴 WEB-01 4 lint gates (spec at Codex Page 20)
+- 🔴 GEO-01-FU1 (blocked by reviews=0)
+- 🔴 CONTENT-RENDER-02 (markdown fix to /blog)
+- 🔴 CONTENT-RENDER-03 (ArticleCard excerpt markdown leakage)
+- 🔴 BLOG-RECON-01 (audit /blog vs /news redundancy)
+- 🟡 PULSE prototypes — file existence uncertain
+- 🟡 CATALOG-04 v2 — referenced brief `briefs/CATALOG-04-v2.md` is missing from repo
+
+**No Cache-Control fix details:**
+- next.config.mjs `headers()` currently sets only X-Content-Type-Options, X-Frame-Options, X-XSS-Protection
+- ISR `revalidate` exists in deals/page.tsx + rebrickable.ts (Next.js data cache, not HTTP cache)
+- Required: add `Cache-Control: public, s-maxage=...` per route type
 
 ---
 
@@ -15,7 +45,7 @@
 | INFRA-03 | Migrate production build to GHA | ✅ Done | Commit `8992aef`, canary `7be1205` |
 | INFRA-04 | Migrate scraper cron to GHA | ✅ Done | `.github/workflows/scrape-prices.yml` firing |
 | INFRA-05 | Verify GHA scraper cron cadence (daily?) | ✅ Done | Verified 2026-04-25 — firing 3×/day, 100% success rate |
-| INFRA-06 | Clean up stray `scripts/test-env.mjs` | ⚠️ Pending | Untracked file from audit run |
+| INFRA-06 | Clean up stray `scripts/test-env.mjs` | ✅ Resolved — gitignored 2026-04-26 | See also Block 2 FIX-03, which tracks the same file from a different angle; both reference the same gitignored scripts/test-env.mjs. |
 | INFRA-07 | Weekly catalogue sync | ✅ Done | `.github/workflows/sync-catalogue.yml` — Sunday 02:00 UTC, CATALOG-FIX-01 |
 | INFRA-08 | Weekly catalogue health audit | ✅ Done | `.github/workflows/catalogue-audit.yml` — Monday 03:30 UTC, CATALOG-FIX-01 |
 
@@ -102,8 +132,8 @@
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| PULSE-01 | UI prototype — 3D globe variant | ✅ Done | `bricks-globe-preview.html` |
-| PULSE-02 | UI prototype — India flat map variant | ✅ Done | `lego-search-pulse.html` |
+| PULSE-01 | UI prototype — 3D globe variant | 🟡 Status uncertain — files not in working tree as of 2026-05-02 audit. Confirm with Abhinav whether files exist locally. | `bricks-globe-preview.html` |
+| PULSE-02 | UI prototype — India flat map variant | 🟡 Status uncertain — files not in working tree as of 2026-05-02 audit. Confirm with Abhinav whether files exist locally. | `lego-search-pulse.html` |
 | PULSE-03 | Decide globe vs flat map vs both | 🔴 Not decided | Probably flat map on homepage module, globe on dedicated page |
 | PULSE-04 | Google Trends ingestion layer | 🔴 Not started | Daily/weekly cron → cached JSON |
 | PULSE-05 | Store search-interest data in Supabase | 🔴 Not started | New table: `search_pulse` |
@@ -214,8 +244,8 @@ Expected: one run per day for the last several days. If not, inspect `.github/wo
 | SETS-05 | aggregateRating on Product schema | 🔴 Queued | Depends on review data structure. |
 | SETS-06 | URL canonicalisation — /sets/10318-wrong-name → canonical slug | 🔴 Queued | Minor SEO; duplicate-content risk. |
 | CATALOG-01 | Backfill sets table — remove 10-page cap + min_year filter | ✅ Done | `sync-rebrickable.js` updated, commit `6bd5cd1`, full sync running. |
-| CATALOG-02 | Restore Rebrickable-first search in /compare | 🟡 PR open | `fix/catalog-search` branch — needs review + merge. |
-| CATALOG-03 | Fix price filter — add theme to ilike + noPrice toggle | 🟡 PR open | `fix/catalog-search` branch. |
+| CATALOG-02 | Restore Rebrickable-first search in /compare | ✅ Done — merged 2026-04-26 (d19625d) | `fix/catalog-search` branch merged. Catalogue: 16,888 rows, 99.4% image coverage. Sync time 6.5 min (was 3+ hours). |
+| CATALOG-03 | Fix price filter — add theme to ilike + noPrice toggle | ✅ Done — merged 2026-04-26 (d19625d) | `fix/catalog-search` branch merged. |
 | CATALOG-04 | usd_msrp column + MSRP ingest | 🔴 Blocked | Schema migration required. Confirm Brickset API with Abhinav. |
 
 ---
@@ -224,7 +254,7 @@ Expected: one run per day for the last several days. If not, inspect `.github/wo
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| DATA-01 | Reconcile store_prices (scraper writes) with prices (frontend reads). Currently disconnected — scraper output not reaching users. | 🔴 Not started | 2–3 hours; schedule after SETS-01. |
+| DATA-01 | Reconcile store_prices (scraper writes) with prices (frontend reads). Currently disconnected — scraper output not reaching users. | 🔴 Not started | 2–3 hours. SETS-01 dependency cleared 2026-04-21 (20474c2). Carried over to 2026-05 sprint. Not yet scheduled. No upstream dependency. |
 | DATA-02 | Audit sets table coverage. 756 rows vs expected 1,500–2,000 with 3yr retired cutoff. Backfill from Rebrickable if gap is material. | 🔴 Not started | Depends on DATA-01 decision. |
 | WEB-TYPES-01 | Audit TypeScript types in src/lib/supabase.ts against actual Supabase schema. Price type describes prices correctly but Price is the only type we verified. | 🟡 Partial | Low priority. |
 
