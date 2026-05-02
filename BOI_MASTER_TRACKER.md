@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-02 (LAB-03 marked done)
+> **Last updated:** 2026-05-02 (LAB-04 marked done)
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -131,7 +131,7 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 | LAB-01 | Biryani Index | ✅ Live | — | `briefs/LAB-01-biryani-index.md` |
 | LAB-02 | Which Set Are You? (quiz) | 🔴 Not fired | LAB-01 | `briefs/LAB-02-which-set-quiz.md` |
 | LAB-03 | Daily price snapshot cron | ✅ Done — 2026-05-02. 724 snapshots/day, 08:30 IST cron. Verified Phase 5 by operator. | — | `briefs/LAB-03-price-snapshot-cron.md` |
-| LAB-04 | Lab homepage strip + nav + /lab directory | 🔴 Not fired | LAB-01, ideally LAB-02 | `briefs/LAB-04-homepage-strip.md` |
+| LAB-04 | Lab homepage strip + nav + /lab directory | ✅ Done — 2026-05-02. /lab directory live, homepage strip + nav dropdown shipped. Fixes 2026-05-02 audit /lab 404. LAB-02 staged as coming_soon in src/lib/lab-tools.ts (single-edit unlock). | LAB-01, ideally LAB-02 | `briefs/LAB-04-homepage-strip.md` |
 | LAB-05 | Price Drop Board | 🔴 Deferred | LAB-03 + 30 days of snapshot data | — |
 | LAB-06 | Retirement Radar | 🔴 Deferred | CATALOG-04 v2 (Brickset cron) | — |
 | LAB-07 | LEGO Heat Map | 🔴 Deferred | Google Trends API integration | — |
