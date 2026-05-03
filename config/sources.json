@@ -47,33 +47,33 @@
   "tier_4_youtube": [
     {
       "name": "BrickClicker",
-      "channel_id": "TBD-OPERATOR",
-      "url": "TBD-OPERATOR"
+      "channel_id": "UCA89O6CpgZYeiwIB040Cf3Q",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCA89O6CpgZYeiwIB040Cf3Q"
     },
     {
-      "name": "Jangbricks",
-      "channel_id": "TBD-OPERATOR",
-      "url": "TBD-OPERATOR"
-    },
-    {
-      "name": "Held Plastic",
-      "channel_id": "TBD-OPERATOR",
-      "url": "TBD-OPERATOR"
+      "name": "JANGBRiCKS",
+      "channel_id": "UCH09uL3dLqsVsOh0XmapzLQ",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCH09uL3dLqsVsOh0XmapzLQ"
     },
     {
       "name": "Brick Vault",
-      "channel_id": "TBD-OPERATOR",
-      "url": "TBD-OPERATOR"
+      "channel_id": "UCrhb3SP2lZBgguLHIWWuHOQ",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCrhb3SP2lZBgguLHIWWuHOQ"
     },
     {
-      "name": "Tiago",
-      "channel_id": "TBD-OPERATOR",
-      "url": "TBD-OPERATOR"
+      "name": "Tiago Catarino",
+      "channel_id": "UCqLbTAc5Mn2cJDu1-FZ2W3g",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCqLbTAc5Mn2cJDu1-FZ2W3g"
     },
     {
       "name": "Brick Finds & Flips",
-      "channel_id": "TBD-OPERATOR",
-      "url": "TBD-OPERATOR"
+      "channel_id": "UCNnd1e-0DDIriu4CLWEULeA",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UCNnd1e-0DDIriu4CLWEULeA"
+    },
+    {
+      "name": "JB Spielwaren (EN)",
+      "channel_id": "UC8QjKlRISdrtG21RfCKetAA",
+      "url": "https://www.youtube.com/feeds/videos.xml?channel_id=UC8QjKlRISdrtG21RfCKetAA"
     }
   ],
   "tier_5_topic_only": [
