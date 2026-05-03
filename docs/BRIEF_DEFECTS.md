@@ -146,7 +146,7 @@ For any cron-based ✅ Done flip, the verification checklist must include "≥1 
 
 **Logged:** 2026-05-03
 **Severity:** P1 — blocks RADAR-04 production use; does not block Day 2 commit
-**Status:** 🔴 Open — Day 3 is a focused prompt-iteration loop to resolve
+**Status:** 🟡 Partial — structural findings resolved, voice ceiling acknowledged, Day 3.5 deferred
 
 **Context:**
 Day 2 smoke test of scripts/radar/draft-articles.js produced one draft from the pinned Brickset RSS fixture (test row id 39dd6b67-ee8b-42e7-b4c0-b0e14275aa73 in pending_drafts, kept as known-bad reference for Day 3 before/after comparison). Gemini 2.5 Flash-Lite call succeeded (5876ms). Voice register (Clarkson + wallet anxiety) came through correctly — proving the model is capable. But the output is a YouTube script, not a news article, with seven specific structural violations.
@@ -177,6 +177,15 @@ Day 2 smoke test of scripts/radar/draft-articles.js produced one draft from the 
 - Re-run smoke test against same fixture (39dd6b67-ee8b-42e7-b4c0-b0e14275aa73) — keep both rows in pending_drafts as before/after reference
 - Iterate until output passes manual voice check before any RADAR-01 plumbing work begins
 
+**Day 3 conclusion (2026-05-03):**
+- Canonical Day 3 output: pending_drafts row `bbffd48c-fc7e-4d40-b44e-2ae04a2c7a3b`, iteration_label=`day3-v3-final-postfix`
+- All 7 findings addressed structurally; voice register is acceptable for ship-and-iterate
+- Code-level verdict-in-body backstop added — every future draft will have verdict in body, either Gemini-native (reported `gemini-native`) or template-injected (reported `template-injected`)
+- Source-framing leak (Finding 4) is probabilistic, not deterministic — will leak occasionally despite the anti-pattern list. Manual editor pass at /admin/pending will catch it; not worth a further prompt iteration at this stage
+- Day 3.5 deferred — three architectural options on the table: (A) few-shot exemplars from existing BOI articles loaded into system prompt, (B) two-stage drafting (classify then draft as separate Gemini calls), (C) test a stronger model. Decision pending operator's call after first batch of real RADAR-01 drafts in production
+- Iteration history: `baseline-v1-day2` → `day3-v2-attempt-1` → `day3-v2-attempt-2` → `day3-v3-final` → `day3-v3-final-postfix`
+- Day 4 (RADAR-01 + RADAR-02 plumbing) is now UNBLOCKED
+
 **Test fixture:** scripts/radar/test-fixture.xml (Brickset RSS pulled 2026-05-03)
 **Reference draft (known-bad):** pending_drafts row 39dd6b67-ee8b-42e7-b4c0-b0e14275aa73, status='draft' (intentionally not rejected — kept as Day 3 baseline)
 
@@ -204,4 +213,4 @@ Defects found but **not** yet patched should still be logged immediately, with t
 | DEFECT-002 | LAB-04 branch name inconsistency | Low | Patched |
 | DEFECT-003 | LAB-04 LabStrip file path wrong | Medium | Patched |
 | DEFECT-004 | LAB-03 marked Done before first scheduled run | Low | Patched |
-| DEFECT-005 | RADAR-04 drafter: format/structure violations despite correct voice register | P1 | 🔴 Open |
+| DEFECT-005 | RADAR-04 drafter: format/structure violations despite correct voice register | P1 | 🟡 Partial |
