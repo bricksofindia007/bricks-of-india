@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.0",
     "@sparticuz/chromium": "^147.0.0",
     "@supabase/ssr": "^0.10.2",
     "@supabase/supabase-js": "^2.103.0",
@@ -27,6 +28,7 @@
     "react-dom": "^18",
     "react-hot-toast": "^2.6.0",
     "react-markdown": "^10.1.0",
+    "rss-parser": "^3.13.0",
     "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {

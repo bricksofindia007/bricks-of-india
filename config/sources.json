@@ -1,0 +1,105 @@
+{
+  "tier_1_editorial": [
+    {
+      "name": "The Brothers Brick",
+      "url": "https://www.brothers-brick.com/feed/",
+      "country": "USA"
+    },
+    {
+      "name": "New Elementary",
+      "url": "https://www.newelementary.com/feeds/posts/default?alt=rss",
+      "country": "UK"
+    },
+    {
+      "name": "BrickNerd",
+      "url": "https://bricknerd.com/home?format=rss",
+      "country": "USA"
+    }
+  ],
+  "tier_2_official": [
+    {
+      "name": "Brickset",
+      "url": "https://brickset.com/article/rss",
+      "method": "rss"
+    },
+    {
+      "name": "Rebrickable Recent Sets",
+      "url": "https://rebrickable.com/api/v3/lego/sets/?ordering=-year&page_size=50",
+      "method": "api"
+    },
+    {
+      "name": "LEGO New Sets",
+      "url": "https://www.lego.com/en-in/categories/new-sets-and-products",
+      "method": "scrape"
+    }
+  ],
+  "tier_3_community": [
+    {
+      "name": "r/lego",
+      "url": "https://www.reddit.com/r/lego.json",
+      "method": "json",
+      "filters": {
+        "min_upvotes": 500,
+        "exclude_flairs": ["MOC", "Question", "Help"]
+      }
+    }
+  ],
+  "tier_4_youtube": [
+    {
+      "name": "BrickClicker",
+      "channel_id": "TBD-OPERATOR",
+      "url": "TBD-OPERATOR"
+    },
+    {
+      "name": "Jangbricks",
+      "channel_id": "TBD-OPERATOR",
+      "url": "TBD-OPERATOR"
+    },
+    {
+      "name": "Held Plastic",
+      "channel_id": "TBD-OPERATOR",
+      "url": "TBD-OPERATOR"
+    },
+    {
+      "name": "Brick Vault",
+      "channel_id": "TBD-OPERATOR",
+      "url": "TBD-OPERATOR"
+    },
+    {
+      "name": "Tiago",
+      "channel_id": "TBD-OPERATOR",
+      "url": "TBD-OPERATOR"
+    },
+    {
+      "name": "Brick Finds & Flips",
+      "channel_id": "TBD-OPERATOR",
+      "url": "TBD-OPERATOR"
+    }
+  ],
+  "tier_5_topic_only": [
+    {
+      "name": "Blocks Magazine",
+      "url": "https://www.blocksmag.com/news",
+      "method": "scrape",
+      "constraint": "headline_url_only"
+    },
+    {
+      "name": "LEGO Ideas Blog",
+      "url": "https://ideas.lego.com/blogs/a4ae09b6-17e9-4c0e-8997-9e4b007e98f0",
+      "method": "scrape",
+      "constraint": "headline_url_only"
+    },
+    {
+      "name": "Brick Fanatics",
+      "url": "https://www.brickfanatics.com/feed/",
+      "method": "rss",
+      "constraint": "headline_url_only"
+    },
+    {
+      "name": "Eurobricks News",
+      "url": "https://www.eurobricks.com/forum/index.php?/forums/forum/56-news-discussion/",
+      "method": "scrape",
+      "constraint": "headline_url_only"
+    }
+  ]
+}
