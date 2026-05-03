@@ -8,7 +8,8 @@
     {
       "name": "New Elementary",
       "url": "https://www.newelementary.com/feeds/posts/default?alt=rss",
-      "country": "UK"
+      "country": "UK",
+      "enabled": false
     },
     {
       "name": "BrickNerd",
@@ -20,7 +21,8 @@
     {
       "name": "Brickset",
       "url": "https://brickset.com/article/rss",
-      "method": "rss"
+      "method": "rss",
+      "enabled": false
     },
     {
       "name": "Rebrickable Recent Sets",
@@ -30,7 +32,8 @@
     {
       "name": "LEGO New Sets",
       "url": "https://www.lego.com/en-in/categories/new-sets-and-products",
-      "method": "scrape"
+      "method": "scrape",
+      "enabled": false
     }
   ],
   "tier_3_community": [
@@ -81,13 +84,15 @@
       "name": "Blocks Magazine",
       "url": "https://www.blocksmag.com/news",
       "method": "scrape",
-      "constraint": "headline_url_only"
+      "constraint": "headline_url_only",
+      "enabled": false
     },
     {
       "name": "LEGO Ideas Blog",
       "url": "https://ideas.lego.com/blogs/a4ae09b6-17e9-4c0e-8997-9e4b007e98f0",
       "method": "scrape",
-      "constraint": "headline_url_only"
+      "constraint": "headline_url_only",
+      "enabled": false
     },
     {
       "name": "Brick Fanatics",
@@ -99,7 +104,8 @@
       "name": "Eurobricks News",
       "url": "https://www.eurobricks.com/forum/index.php?/forums/forum/56-news-discussion/",
       "method": "scrape",
-      "constraint": "headline_url_only"
+      "constraint": "headline_url_only",
+      "enabled": false
     }
   ]
 }
