@@ -87,6 +87,24 @@ JSON parses. If it doesn't, fix before doing anything else.
 
 ---
 
+## RADAR source decisions
+
+**Date:** 2026-05-03
+**Decision:** Tier 1 editorial = 3 sources (The Brothers Brick, New Elementary, BrickNerd). Locked Day 1.
+
+**Context:** Earlier architectural notes referenced a 12-source Tier 1 list (Brickset, Brick Fan, Jay's Brick Blog, Toys N Bricks, Brick Fanatics, Bricks Fanz, LEGO Car Blog, Rambling Brick, True North Bricks, plus the 3 retained). When config/sources.json was created in commit 4a39ca5, only the 3 highest-signal editorial voices were adopted. The other 9 were not carried forward.
+
+**Reasoning:** Tier 1 must be high-signal-only. 12 mixed-quality blogs would dilute the editorial bar and add noise to RADAR's input.
+
+**Disposition of the 9:**
+- Brickset → moved to Tier 2 (official-adjacent, structured release data)
+- Brick Fanatics → moved to Tier 5 (headline + URL only, no body)
+- Brick Fan, Jay's Brick Blog, Toys N Bricks, Bricks Fanz, LEGO Car Blog, Rambling Brick, True North Bricks → not adopted at any tier
+
+**Re-litigation rule:** Adding any of the 9 back requires a tracker entry with reason. Don't quietly expand Tier 1.
+
+---
+
 ## Infrastructure status
 
 | Item | Status | Evidence |
