@@ -142,6 +142,55 @@ For any cron-based ✅ Done flip, the verification checklist must include "≥1 
 
 ---
 
+## DEFECT-005 — RADAR-04 drafter: format/structure violations despite correct voice register
+
+**Logged:** 2026-05-03
+**Severity:** P1 — blocks RADAR-04 production use; does not block Day 2 commit
+**Status:** 🟡 Partial — structural findings resolved, voice ceiling acknowledged, Day 3.5 deferred
+
+**Context:**
+Day 2 smoke test of scripts/radar/draft-articles.js produced one draft from the pinned Brickset RSS fixture (test row id 39dd6b67-ee8b-42e7-b4c0-b0e14275aa73 in pending_drafts, kept as known-bad reference for Day 3 before/after comparison). Gemini 2.5 Flash-Lite call succeeded (5876ms). Voice register (Clarkson + wallet anxiety) came through correctly — proving the model is capable. But the output is a YouTube script, not a news article, with seven specific structural violations.
+
+**Diagnosis:** Codex prompt structure is the problem, not the model. The Codex contains both YouTube script and article formats and Flash-Lite is not disambiguating. Fix is in the prompt scaffolding (system prompt construction in draft-articles.js + format-aware Codex sections), not in the model.
+
+**Findings:**
+
+1. **Output is a YouTube script, not a news article.** Opens with "Hello Brickfans, I'm Abhinav and I once again warmly welcome you all to Bricks of India, the only channel where LEGO meets jugaad" — that's a video opener. News articles open on something Indian and pivot to LEGO in 2 sentences, no host introduction. Gemini is bleeding YouTube conventions into article format because the Codex contains both and Flash-Lite isn't disambiguating between them.
+
+2. **"Bubyee" sign-off is YouTube-only.** Per locked voice spec: "On that bombshell…" for opinion, "Bubyee" for YouTube. Draft uses both, which is wrong. News articles end on "On that bombshell" or similar — never "Bubyee" or "I'll see you on the next one."
+
+3. **India Paragraph is malformed.** Spec calls for INR price + stores + 4-6 week India lag + relatable comparison + EMI references for expensive sets, all consolidated as one block. Draft has "₹100,000 in India. Available only via import from BrickLink or eBay – and good luck with customs" — components scattered across paragraphs (the wedding comparison appears two paragraphs later), no Indian retailer check, no lag note. WEB-02 lint gate as currently spec'd will likely FAIL this — it looks for the marker <!-- INDIA_PARAGRAPH --> and 4 components in proximity.
+
+4. **"Today's random set" reveals prompt scaffolding leaking source framing.** The Brickset RSS item was the daily "Random Set of the Day" feature, and the draft says "today's random set" — preserving Brickset's framing instead of writing native BOI content. BOI doesn't have a "random set of the day" segment. Flash-Lite copied source framing instead of repurposing the topic.
+
+5. **"This was part of the legendary Adventurers line" — unverified factual claim.** Could be true, could be hallucinated. Gemini Flash-Lite has no grounding. RADAR-04 needs to either pull facts from Rebrickable API (set lookup by set_num) and inject them into the user prompt as ground truth, OR instruct the prompt to avoid factual claims about set lineage / theme / piece counts when not supplied.
+
+6. **Title format wrong.** Spec: news titles always include set number + "India". Draft title: "Amazon Ancient Ruins: A 1999 Relic That Costs More Than Your Rent" — no set number, no India, no INR. Correct would be something like "LEGO 5986 Amazon Ancient Ruins in India: Worth ₹100,000 in 2026?"
+
+7. **No format classification before drafting.** This article is closer to opinion than news (commenting on aftermarket pricing, not reporting a release). Drafter wrote a generic enthusiast post instead of picking a format. Spec: news 300-400 words, reviews 500-700, opinion 400-500 — each with different title formula and structure. RADAR-04 needs to classify the source signal as news/review/opinion *before* drafting, and apply format-specific prompts.
+
+**Day 3 action plan (not in scope for Day 2):**
+- Restructure draft-articles.js prompt: classify format first (news/review/opinion), then use format-specific system prompt section
+- Add explicit anti-pattern list to system prompt (no YouTube openers, no "Bubyee," no host introduction, no preserving source framing)
+- Add Rebrickable API lookup in script before Gemini call — inject set facts as ground truth in user prompt
+- Tighten India Paragraph format: explicit template with all 4 components in one block, marker comment included
+- Re-run smoke test against same fixture (39dd6b67-ee8b-42e7-b4c0-b0e14275aa73) — keep both rows in pending_drafts as before/after reference
+- Iterate until output passes manual voice check before any RADAR-01 plumbing work begins
+
+**Day 3 conclusion (2026-05-03):**
+- Canonical Day 3 output: pending_drafts row `bbffd48c-fc7e-4d40-b44e-2ae04a2c7a3b`, iteration_label=`day3-v3-final-postfix`
+- All 7 findings addressed structurally; voice register is acceptable for ship-and-iterate
+- Code-level verdict-in-body backstop added — every future draft will have verdict in body, either Gemini-native (reported `gemini-native`) or template-injected (reported `template-injected`)
+- Source-framing leak (Finding 4) is probabilistic, not deterministic — will leak occasionally despite the anti-pattern list. Manual editor pass at /admin/pending will catch it; not worth a further prompt iteration at this stage
+- Day 3.5 deferred — three architectural options on the table: (A) few-shot exemplars from existing BOI articles loaded into system prompt, (B) two-stage drafting (classify then draft as separate Gemini calls), (C) test a stronger model. Decision pending operator's call after first batch of real RADAR-01 drafts in production
+- Iteration history: `baseline-v1-day2` → `day3-v2-attempt-1` → `day3-v2-attempt-2` → `day3-v3-final` → `day3-v3-final-postfix`
+- Day 4 (RADAR-01 + RADAR-02 plumbing) is now UNBLOCKED
+
+**Test fixture:** scripts/radar/test-fixture.xml (Brickset RSS pulled 2026-05-03)
+**Reference draft (known-bad):** pending_drafts row 39dd6b67-ee8b-42e7-b4c0-b0e14275aa73, status='draft' (intentionally not rejected — kept as Day 3 baseline)
+
+---
+
 ## How to add a new entry
 
 When a defect is found:
@@ -164,3 +213,4 @@ Defects found but **not** yet patched should still be logged immediately, with t
 | DEFECT-002 | LAB-04 branch name inconsistency | Low | Patched |
 | DEFECT-003 | LAB-04 LabStrip file path wrong | Medium | Patched |
 | DEFECT-004 | LAB-03 marked Done before first scheduled run | Low | Patched |
+| DEFECT-005 | RADAR-04 drafter: format/structure violations despite correct voice register | P1 | 🟡 Partial |

@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-02 (CF-CACHE-01 marked done)
+> **Last updated:** 2026-05-03 (TRACKER-RECON-01: CODEX sub-tasks, Cloudflare 2FA/SSL, ADMIN-CLEANUP-01, Day 1 foundation deploy noted)
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -87,6 +87,24 @@ JSON parses. If it doesn't, fix before doing anything else.
 
 ---
 
+## RADAR source decisions
+
+**Date:** 2026-05-03
+**Decision:** Tier 1 editorial = 3 sources (The Brothers Brick, New Elementary, BrickNerd). Locked Day 1.
+
+**Context:** Earlier architectural notes referenced a 12-source Tier 1 list (Brickset, Brick Fan, Jay's Brick Blog, Toys N Bricks, Brick Fanatics, Bricks Fanz, LEGO Car Blog, Rambling Brick, True North Bricks, plus the 3 retained). When config/sources.json was created in commit 4a39ca5, only the 3 highest-signal editorial voices were adopted. The other 9 were not carried forward.
+
+**Reasoning:** Tier 1 must be high-signal-only. 12 mixed-quality blogs would dilute the editorial bar and add noise to RADAR's input.
+
+**Disposition of the 9:**
+- Brickset → moved to Tier 2 (official-adjacent, structured release data)
+- Brick Fanatics → moved to Tier 5 (headline + URL only, no body)
+- Brick Fan, Jay's Brick Blog, Toys N Bricks, Bricks Fanz, LEGO Car Blog, Rambling Brick, True North Bricks → not adopted at any tier
+
+**Re-litigation rule:** Adding any of the 9 back requires a tracker entry with reason. Don't quietly expand Tier 1.
+
+---
+
 ## Infrastructure status
 
 | Item | Status | Evidence |
@@ -119,6 +137,10 @@ JSON parses. If it doesn't, fix before doing anything else.
 |----|------|--------|-------|
 | CATALOG-05 | Theme backfill — older sets missing from theme pages | 🔴 Not started | Depends on full sync completing all 27 pages (Rebrickable daily quota currently limits one-shot runs). |
 | DATA-01 | Reconcile `store_prices` (scraper) ↔ `prices` (frontend) | 🔴 Not started | Tracked in `BOI_WEB_TRACKER.md` Section H. 2–3 hours. Open carry-over. Not yet scheduled. No upstream dependency. |
+| ADMIN-CLEANUP-01 | Remove Netlify legacy secrets from GitHub Secrets (NETLIFY_AUTH_TOKEN, NETLIFY_SITE_ID) | 🟡 Deferred | Noted "LEGACY — pending removal in ADMIN-CLEANUP-01" in `.env.example` (commit 4a39ca5). Netlify is still the origin host so removing now is low-risk but not urgent. |
+| SCRAPE-01 | Tier 5 + Tier 2 scrape selector hardening — Blocks Magazine, LEGO Ideas Blog, Eurobricks News (Tier 5), LEGO New Sets (Tier 2) | 🟡 Deferred | Opened 2026-05-03. RADAR-01 Day 4 dry-run showed all four scrape selectors returning nav chrome (Skip to content, Sign In, Submit Product Idea) instead of articles. Each site needs HTML inspection + custom selector. Sources marked `enabled:false` in config/sources.json. Re-enable after per-source selector work. Priority P2 — Tier 5 is headline-only low-signal; LEGO New Sets duplicates Rebrickable coverage. |
+| PARSER-01 | rss-parser cannot handle malformed feeds — New Elementary (Tier 1), Brickset (Tier 2) | 🟡 Deferred | Opened 2026-05-03. rss-parser uses sax in strict mode and throws "Attribute without value" on feeds with HTML fragments in description elements. Disabling strict mode breaks all parsing (sax non-strict uppercases tag names, rss-parser tag matching is case-sensitive). Regex XML sanitization is fragile and out of scope. Fix: swap rss-parser for feedparser or @extractus/feed-extractor — both handle malformed feeds tolerantly by design. Both sources marked `enabled:false`. Re-enable after parser swap. Priority P2 — Brothers Brick + BrickNerd cover Tier 1 editorial; Rebrickable covers Tier 2 official. Brickset is highest-priority re-enable. |
+| YT-FEED-NOISE-01 | YouTube channel RSS feeds include non-upload content — all 6 Tier 4 channels | 🟡 Accepted noise | Opened 2026-05-03. YouTube's videos.xml channel feeds include playlist additions and engagement, not just the channel's uploads. Documented YouTube behavior, not a fetcher bug. Verified via isolated fetch bypass that each URL returns the same content with or without our code. Accepted as noise for v1 — RADAR-02 dedupe handles cross-source overlap; future "stale items >14 days" filter drops most playlist additions. Fix paths: (a) YouTube Data API v3 playlistItems.list against UU... uploads playlists (requires API key + daily quota); (b) filter entries by <author><uri> match against feed owner. Priority P3 — cosmetic noise, not a correctness issue. |
 
 ---
 
@@ -158,6 +180,7 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 | Deploy | Date | Commit | Contents |
 |--------|------|--------|----------|
+| Content Pipeline Day 1 | 2026-05-03 | `4a39ca5` | `.env.example`, `config/sources.json` (Tier 1–5 sources), `docs/runbooks/CONTENT-PIPELINE-SETUP.md`, `@google/generative-ai@0.24.1` + `rss-parser@3.13.0`. GEMINI_API_KEY, GMAIL_APP_PASSWORD, ADMIN_PASSWORD all confirmed live in GitHub Secrets. Branch: `feat/content-pipeline-foundation`. |
 | CF-CACHE-01 | 2026-05-02 | `6229d99` | Cache-Control headers across /sets, /lab, /news, /blog, /reviews, /sitemap.xml, /admin. Fixes 2.3% Cloudflare cache rate. |
 | GEO-01 JSON-LD hardening | 2026-05-02 | `236fa7d`–`e9e1680` (10 commits) | JsonLd primitive, lib/schemas.ts, BreadcrumbSchema → Server Component, XSS scrub, SchemaLD.tsx removed. Middleware bug fixed (5f4abef). |
 | ROBOTS-01 AI crawler policy | 2026-05-01 | `e1054e1` | `src/app/robots.ts` aligned with Cloudflare AI Crawl Control WAF — 9 allowed, 13 blocked |
