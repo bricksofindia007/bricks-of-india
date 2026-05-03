@@ -19,13 +19,15 @@ This sub-tracker is a detail view. The canonical state lives in `BOI_MASTER_TRAC
 - ✅ LAB-01 Biryani Index → see Content tracker
 - ✅ Markdown rendering fixes on /news/[slug] (CONTENT-RENDER-01)
 
+**Shipped this sprint (additions):**
+- ✅ CF-CACHE-01 — done 2026-05-02 (commit `6229d99`). Cache-Control headers added across all route types in `next.config.mjs`.
+- ✅ BLOG-RECON-01 — closed 2026-05-01 by Brief decision (news = curated, blog = long-form, reviews = set reviews). No code change required.
+
 **Open carry-overs:**
-- 🔴 CF-CACHE-01 (P1, Day 3) — root cause: no Cache-Control headers in next.config.mjs
 - 🔴 WEB-01 4 lint gates (spec at Codex Page 20)
 - 🔴 GEO-01-FU1 (blocked by reviews=0)
-- 🔴 CONTENT-RENDER-02 (markdown fix to /blog)
-- 🔴 CONTENT-RENDER-03 (ArticleCard excerpt markdown leakage)
-- 🔴 BLOG-RECON-01 (audit /blog vs /news redundancy)
+- 🔴 CONTENT-RENDER-02 — markdown fix to /blog not applied. Code-verified 2026-05-03: `src/app/blog/[slug]/page.tsx` line 69 renders `{post.content}` as raw text (no `ReactMarkdown`). Fix is one import + one wrapper, same pattern as `/news/[slug]`.
+- 🔴 CONTENT-RENDER-03 — ArticleCard excerpt still leaking markdown literals. Code-verified 2026-05-03: `src/components/content/ArticleCard.tsx` line 52 renders `{article.excerpt}` as raw text (no stripping). Needs a plain-text excerpting helper on the excerpt field.
 - 🟡 PULSE prototypes — file existence uncertain
 - 🟡 CATALOG-04 v2 — referenced brief `briefs/CATALOG-04-v2.md` is missing from repo
 

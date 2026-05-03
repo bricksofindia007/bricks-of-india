@@ -22,32 +22,32 @@
 
 | Section | Content | Status |
 |---------|---------|--------|
-| CODEX-01 | Voice one-liner — "Jeremy Clarkson meets Indian wallet anxiety" | 🔴 |
-| CODEX-02 | Sentence rhythm rules — long sentence followed by short. For impact. | 🔴 |
-| CODEX-03 | Vocabulary whitelist (EMI, chai, traffic, wallet, etc.) | 🔴 |
-| CODEX-04 | Vocabulary blacklist (press-release words: "thrilled to announce", "unveils", "stunning new") | 🔴 |
-| CODEX-05 | Per-format templates — news 300–400w, review 500–700w, opinion 400–500w, digest 350–400w | 🔴 |
-| CODEX-06 | **India Paragraph spec** — INR price (MSRP × 1.35 × USD/INR), stores, 4–6 week lag, verdict, relatable comparison | 🔴 |
-| CODEX-07 | Hook library — opens with Indian context (chai/traffic/EMI), pivots to LEGO in 2 sentences | 🔴 |
-| CODEX-08 | Sign-off library — "On that bombshell..." (opinion), "Bubyee" (YouTube) | 🔴 |
-| CODEX-09 | Title conventions — news = set# + "India", review = "Worth ₹X in India?" | 🔴 |
-| CODEX-10 | Verdict vocabulary — Buy now / Wait / Import only / Avoid (no hedging) | 🔴 |
-| CODEX-11 | Precise hyperbole examples — "₹6,499 = 11kg mangoes or 4 months Spotify Premium" | 🔴 |
-| CODEX-12 | Never explain the joke — failure modes + example rewrites | 🔴 |
+| CODEX-01 | Voice one-liner — "Jeremy Clarkson meets Indian wallet anxiety" | ✅ Done 2026-05-01 |
+| CODEX-02 | Sentence rhythm rules — long sentence followed by short. For impact. | ✅ Done 2026-05-01 |
+| CODEX-03 | Vocabulary whitelist (EMI, chai, traffic, wallet, etc.) | ✅ Done 2026-05-01 |
+| CODEX-04 | Vocabulary blacklist (press-release words: "thrilled to announce", "unveils", "stunning new") | ✅ Done 2026-05-01 |
+| CODEX-05 | Per-format templates — news 300–400w, review 500–700w, opinion 400–500w, digest 350–400w | ✅ Done 2026-05-01 |
+| CODEX-06 | **India Paragraph spec** — INR price (MSRP × 1.35 × USD/INR), stores, 4–6 week lag, verdict, relatable comparison | ✅ Done 2026-05-01 |
+| CODEX-07 | Hook library — opens with Indian context (chai/traffic/EMI), pivots to LEGO in 2 sentences | ✅ Done 2026-05-01 |
+| CODEX-08 | Sign-off library — "On that bombshell..." (opinion), "Bubyee" (YouTube) | ✅ Done 2026-05-01 |
+| CODEX-09 | Title conventions — news = set# + "India", review = "Worth ₹X in India?" | ✅ Done 2026-05-01 |
+| CODEX-10 | Verdict vocabulary — Buy now / Wait / Import only / Avoid (no hedging) | ✅ Done 2026-05-01 |
+| CODEX-11 | Precise hyperbole examples — "₹6,499 = 11kg mangoes or 4 months Spotify Premium" | ✅ Done 2026-05-01 |
+| CODEX-12 | Never explain the joke — failure modes + example rewrites | ✅ Done 2026-05-01 |
 
 ### A.3 — Delivery
 
 | ID | Task | Status |
 |----|------|--------|
-| CODEX-DOC-01 | Write Codex as `VOICE_CODEX.md` at project root | 🔴 |
-| CODEX-DOC-02 | Load into Claude Project knowledge (Phase 2) | 🔴 |
-| CODEX-DOC-03 | Convert rules to machine-checkable lint regexes where possible | 🔴 |
+| CODEX-DOC-01 | Write Codex as `VOICE_CODEX.md` at project root | ✅ Done 2026-05-01 — shipped as `docs/codex/BOI_Codex_v2.md` (path differs from original spec; file is canonical) |
+| CODEX-DOC-02 | Load into Claude Project knowledge (Phase 2) | 🔴 — manual task, pending |
+| CODEX-DOC-03 | Convert rules to machine-checkable lint regexes where possible | 🔴 — blocked on WEB-01 |
 
 ---
 
 ## Section B — Claude Project workbench (Phase 2)
 
-**CONTENT-02: 🔴 Not started — Claude Project workbench setup (manual, ~30 min). Unblocked as of 2026-05-01 (Voice Codex shipped).**
+**CONTENT-02: 🟡 Unblocked — Claude Project workbench setup (manual, ~30 min). Unblocked as of 2026-05-01 (Voice Codex shipped). Pending manual setup in Claude.ai.**
 
 | ID | Task | Status | Depends on |
 |----|------|--------|------------|
