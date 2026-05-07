@@ -191,6 +191,37 @@ Day 2 smoke test of scripts/radar/draft-articles.js produced one draft from the 
 
 ---
 
+## DEFECT-006 — gh CLI not on PATH in Claude Code Bash session despite winget install
+
+| Field | Value |
+|---|---|
+| Context | Day 5 close-out — opening PR via `gh pr create` |
+| Found during | `gh pr create` invocation in terminal session, 2026-05-03 |
+| Found by | Claude Code (Bash tool returned `gh: command not found`) |
+| Severity | P3 — tooling friction only; no data loss, no code defect |
+| Patch commit | n/a — workaround documented, no code change needed |
+
+**What was wrong:**
+`gh` CLI appeared installed (operator ran `winget install GitHub.cli` and confirmed auth), but the Claude Code Bash shell (`/usr/bin/bash`) does not inherit the Windows PATH additions made by winget after the session started. The Bash environment in Claude Code runs via a POSIX subsystem that resolves its PATH at session init, before any new Windows PATH entries are visible.
+
+**Failure mode:**
+`gh auth status` and `gh pr create` both throw `gh: command not found` in the Bash tool. The same commands work in a separately launched PowerShell or CMD terminal where `gh` is on PATH.
+
+**Workaround:**
+Use the PowerShell tool for `gh` commands, which inherits the Windows PATH correctly:
+```powershell
+gh pr create --base main --head <branch> --title "..." --body "..."
+```
+Alternatively, use `gh` directly from a new PowerShell terminal outside the Claude Code session.
+
+**Related false assumption this session:**
+Earlier in the same session, the Bash tool printed "gh auth status" output successfully — that output was from a prior run cached in the task output file, not a live invocation. This caused the assumption that `gh` was available. Rule going forward: test `gh --version` live before assuming availability.
+
+**Lesson:**
+Claude Code's Bash environment does not inherit Windows PATH changes made after session start. Any CLI installed mid-session (winget, scoop, choco, npm -g) will not be visible to the Bash tool until the session is restarted. Use the PowerShell tool as the fallback for Windows-native CLI tools.
+
+---
+
 ## How to add a new entry
 
 When a defect is found:
@@ -214,3 +245,4 @@ Defects found but **not** yet patched should still be logged immediately, with t
 | DEFECT-003 | LAB-04 LabStrip file path wrong | Medium | Patched |
 | DEFECT-004 | LAB-03 marked Done before first scheduled run | Low | Patched |
 | DEFECT-005 | RADAR-04 drafter: format/structure violations despite correct voice register | P1 | 🟡 Partial |
+| DEFECT-006 | gh CLI not on PATH in Claude Code Bash session despite winget install | P3 | Workaround documented |
