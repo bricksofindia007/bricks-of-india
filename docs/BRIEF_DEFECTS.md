@@ -247,7 +247,8 @@ Defects found but **not** yet patched should still be logged immediately, with t
 | DEFECT-005 | RADAR-04 drafter: format/structure violations despite correct voice register | P1 | 🟡 Partial |
 | DEFECT-006 | gh CLI not on PATH in Claude Code Bash session despite winget install | P3 | Workaround documented |
 | DEFECT-007 | RLS disabled on price_snapshots and pending_drafts | Critical | Patched (DB-level) |
-| DEFECT-008 | catalogue-audit.yml missing permissions block (403 on issue creation) | Low | Open |
+| DEFECT-008 | catalogue-audit.yml missing permissions block (403 on issue creation) | Low | Patched (commit e5b71b1, 2026-05-09) |
+| DEFECT-009 | /sets and /compare listing pages reading prices table instead of store_prices (DATA-01) | Medium | Patched (commit 9ced905, 2026-05-09) |
 
 ---
 
@@ -300,4 +301,32 @@ permissions:
   issues: write
 ```
 
-**Status:** Open. Bundle into next maintenance commit.
+**Status:** Patched 2026-05-09 — `permissions: issues: write` added at job level (commit `775de46`, squashed into `e5b71b1` via PR #2 merge).
+
+---
+
+## DEFECT-009 — /sets and /compare listing pages reading old prices table instead of store_prices
+
+| Field | Value |
+|---|---|
+| Found during | Day 7 code audit, 2026-05-09 |
+| Found by | grep across src/ — store_prices referenced in sets/[slug] and deals but not in listing pages |
+| Severity | Medium — live scraper prices invisible on /sets, /sets/page/[page], /compare |
+| Patch commit | `9ced905` |
+
+**What was wrong:**
+`src/app/sets/page.tsx`, `src/app/sets/page/[page]/page.tsx`, and `src/app/compare/page.tsx` all fetched prices via `prices(*)` — a PostgREST join on the old `prices` table (schema: `store_name`, `availability`, `is_active`, `buy_url`). The scraper pipeline writes to `store_prices` (schema: `store_id`, `in_stock`, `product_url`). These are different tables with different schemas. The scraper has been running since INFRA-03 (2026-04-24) but its output was never visible on any listing page.
+
+The only pages reading `store_prices` correctly were `sets/[slug]/page.tsx` (detail page) and `deals/page.tsx` (with a fallback to `prices`).
+
+**Impact:**
+- All set cards on /sets and /compare showed no live price ("Price TBD" or MRP fallback)
+- Price filter on /compare queried `lego_mrp_inr` (0% populated) — filter was effectively a no-op
+
+**Fix applied:**
+- `sets/page.tsx` + `sets/page/[page]/page.tsx`: removed `prices(*)` join; added secondary `store_prices` query scoped to the page's set numbers; built `priceMap` (set_number → cheapest row); passed to `SetCard`
+- `compare/page.tsx`: same `store_prices` wiring; price filter moved to client-side against `priceMap` so it operates on live store prices rather than `lego_mrp_inr`
+- `SetCard.tsx`: narrowed `bestPrice` prop type from `Price` (8 required fields) to `{ price_inr: number | null }` — the only field the component reads
+
+**Lesson:**
+When adding a new scraper table, audit all listing pages that display prices — not just detail pages. The `prices(*)` join pattern was copy-pasted across 3 pages without being updated when `store_prices` was introduced.
