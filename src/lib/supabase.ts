@@ -9,12 +9,15 @@ if (!supabaseUrl || !supabaseAnonKey) {
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// Only initialise the anon client if the URL is present.
+// createClient('', ...) throws synchronously and crashes the module.
+export const supabase = supabaseUrl
+  ? createClient(supabaseUrl, supabaseAnonKey)
+  : (null as any);
 
-// Server-side client — prefers service role key so it can bypass RLS for writes
 export function createServerClient() {
-  const key =
-    process.env.SUPABASE_SERVICE_ROLE_KEY ?? supabaseAnonKey;
+  if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set — check Netlify environment variables');
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? supabaseAnonKey;
   return createClient(supabaseUrl, key);
 }
 
