@@ -249,8 +249,82 @@ Defects found but **not** yet patched should still be logged immediately, with t
 | DEFECT-007 | RLS disabled on price_snapshots and pending_drafts | Critical | Patched (DB-level) |
 | DEFECT-008 | catalogue-audit.yml missing permissions block (403 on issue creation) | Low | Patched (commit e5b71b1, 2026-05-09) |
 | DEFECT-009 | /sets and /compare listing pages reading prices table instead of store_prices (DATA-01) | Medium | Patched (commit 9ced905, 2026-05-09) |
+| DEFECT-010 | GitHub Actions using Node.js 20 (deprecated) — actions/checkout@v4 + setup-node@v4 | Medium | Open — deadline 2026-06-02 |
+| DEFECT-011 | fetchFullBody overly broad CSS selector `[class*="sidebar"]` removed JBB article content | Medium | Patched (commit 68aa474, 2026-05-09) |
+| DEFECT-012 | RADAR-04 auto-ran on all approved drafts via cron — Gemini quota burned without operator intent | P1 | Patched (commit 57cd130, 2026-05-09) |
 
 ---
+
+## DEFECT-010 — GitHub Actions deprecated Node.js 20
+
+| Field | Value |
+|---|---|
+| Found during | Day 9, 2026-05-09 — annotation on every GitHub Actions run |
+| Found by | GitHub Actions runner deprecation warning in run logs |
+| Severity | Medium — Node.js 20 forced to Node.js 24 from 2026-06-02; removed 2026-09-16 |
+| Status | Open — bump actions/checkout and actions/setup-node to versions that support Node.js 24 |
+
+**What was wrong:**
+All workflow files use `actions/checkout@v4` and `actions/setup-node@v4` which run on Node.js 20. GitHub is deprecating Node.js 20 runners: forced switch to Node.js 24 on 2026-06-02, Node.js 20 removed on 2026-09-16. Every run currently logs: `Node.js 20 actions are deprecated`.
+
+**Failure mode if unpatched:**
+After 2026-06-02, actions will be forced to Node.js 24. If the action versions used are incompatible with Node.js 24, workflows may break. In practice, v4 of both actions likely still works in forced Node.js 24 mode — but the warning will escalate to a hard error.
+
+**Fix:**
+Check if `actions/checkout@v4` and `actions/setup-node@v4` have Node.js 24-compatible releases, or set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` in workflow env to opt in early. Affects: deploy.yml, scrape-prices.yml, radar.yml, catalogue-audit.yml, sync-catalogue.yml.
+
+---
+
+## DEFECT-011 — fetchFullBody overly broad CSS selector zeroed JBB content
+
+| Field | Value |
+|---|---|
+| Brief | `scripts/radar/generate-drafts.js` |
+| Found during | Day 9 dry-run, 2026-05-09 — JBB returned fetched_full_body=false with body_length=0 |
+| Found by | Claude Code (terminal) — inspecting JBB HTML structure revealed culprit selector |
+| Severity | Medium — Tier 1 editorial source (Jay's Brick Blog) was always falling back to 500-char excerpt |
+| Patch commit | `68aa474` |
+
+**What was wrong:**
+`fetchFullBody()` noise-stripping used `[class*="sidebar"]` — a CSS substring selector that matched any element whose class attribute contains "sidebar". Jay's Brick Blog's layout uses `layout-grid-**sidebar**` as the outer wrapper containing **both** the content column and the actual sidebar. Removing `[class*="sidebar"]` removed the wrapper and all 3,549 chars of article content with it. `[class*="ad-"]` had a similar ancestor-match problem.
+
+**Result:** All JBB articles reported `fetched_full_body=false`, Gemini received only the 500-char stored excerpt.
+
+**What was patched:**
+Replaced broad substring selectors with targeted class/id selectors:
+- `[class*="sidebar"]` → `.sidebar, .widget-area, #sidebar`
+- `[class*="ad-"]` → `.advertisement, .ads`  
+- `[class*="comment"]` → `[class*="comment-"], [class*="-comments"], .commentlist`
+- `[class*="share"]` → `[class*="share-"], [class*="-share"]`
+Added `.layout-grid-content` to selector chain for JBB specifically.
+
+**Verified post-fix:** JBB 1607 chars ✅, Brothers Brick 986 chars ✅, Brickset 4000 chars ✅.
+
+---
+
+## DEFECT-012 — RADAR-04 auto-generation consumed Gemini quota without operator intent
+
+| Field | Value |
+|---|---|
+| Brief | `scripts/radar/generate-drafts.js`, `.github/workflows/radar.yml` |
+| Found during | Day 9 session, 2026-05-09 — operator observed Gemini running on all approved drafts automatically |
+| Found by | Operator — "Signal arrives → you review title+excerpt → Approve signal → Gemini runs only on those" |
+| Severity | P1 — design defect: Gemini burned quota on every approved signal regardless of editorial merit |
+| Patch commit | `57cd130` |
+
+**What was wrong:**
+RADAR-04 (`generate-drafts.js`) was wired into `radar.yml` with `--limit 10`, running nightly. It processed all `status='approved' AND draft_body IS NULL` rows automatically — meaning every signal the operator approved would get a Gemini article generated on the next cron tick, whether or not the operator had decided they wanted an article from that signal.
+
+This wastes Gemini quota on Rebrickable set-listing signals, community round-ups, and other low-signal items that were approved just to keep the queue clean.
+
+**What was patched:**
+- RADAR-04 step removed from `radar.yml` entirely
+- `generateArticle()` Server Action added to `/admin/pending` — single-draft Gemini call, triggered by operator clicking amber "Generate Article" button
+- Operator workflow: Approve signal → decides to generate → clicks button → Gemini runs for that one draft only
+- `generate-drafts.js` kept for manual bulk use only (not in cron)
+
+**Lesson:**
+Any action that consumes external API quota (Gemini, OpenAI, etc.) should be operator-initiated unless there is an explicit business reason to run automatically. "Auto-process all approved items" is a footgun when the approval step is a lightweight signal filter, not an explicit "generate this" decision.
 
 ## DEFECT-007 — RLS disabled on price_snapshots and pending_drafts
 

@@ -232,7 +232,17 @@ Shipped:
   New Elementary (SAX strict mode incompatibility). Parser swap required.
 - Full pipeline run: 14 sources, 322 signals, 50 new pending_drafts added.
 
-Key commits: `772624d` (admin), `784adb6` (sources), `1f82da0` (nav/sitemap), `cbb4ac9` (PARSER-01 docs)
+- RADAR-05 publish step: `publishDraft()` Server Action, `publish-drafts.js` (commit `9baf37d`).
+  Inserts approved+bodied drafts into news_articles/blog_posts. Publish button live.
+- RADAR-04-FULLTEXT: full article body fetched before Gemini (commit `0fad972`).
+  JBB 1607 chars, Brickset 4000 chars, Brothers Brick 986 chars. DEFECT-011 fixed (68aa474).
+- RADAR-04 redesigned to on-demand: removed from nightly cron (commit `57cd130`).
+  "Generate Article" amber button in /admin/pending triggers single-draft Gemini call.
+  Nightly cron = RADAR-01 → 02 → 03 only. DEFECT-012 logged and patched.
+- /admin/pending 4-state UI: signal review, article review, generate, publish (commit `57cd130`).
+- DEFECT-010/011/012 logged in docs/BRIEF_DEFECTS.md.
+
+Key commits: `772624d` (admin), `784adb6` (sources), `1f82da0` (nav/sitemap), `9baf37d` (publish), `0fad972` (fulltext), `68aa474` (JBB fix), `57cd130` (on-demand generation)
 
 ---
 

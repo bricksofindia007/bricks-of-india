@@ -32,6 +32,10 @@ This sub-tracker is a detail view. The canonical state lives in `BOI_MASTER_TRAC
 - ✅ Blog added to NAV_LINKS after News (commit `1f82da0`).
 - ✅ Sitemap: `/compare` → `/sets`; `/calendar` removed (route doesn't exist) (commit `1f82da0`).
 - ✅ Netlify plugin v5 pinned in package.json — fixes Server Actions support (commit `772624d`, lock file `7fb5b6d`).
+- ✅ /admin/pending 4-state card UI: (1) signal review → Approve/Reject, (2) article review → Approve/Reject, (3) approved+no-body → Generate Article button (Gemini on-demand), (4) approved+body → Publish button (commit `57cd130`).
+- ✅ DEFECT-011 fixed: fetchFullBody CSS selector `[class*="sidebar"]` was removing JBB content — narrowed to targeted selectors (commit `68aa474`).
+- ✅ DEFECT-012 fixed: RADAR-04 removed from cron — generation is now operator-initiated only (commit `57cd130`).
+- ✅ RADAR-05 publish step: Publish button inserts approved+bodied drafts into news_articles/blog_posts (commit `9baf37d`).
 
 **Open carry-overs:**
 - 🔴 WEB-01 4 lint gates (spec at Codex Page 20)

@@ -1,4 +1,9 @@
-# Day 9 Ground Truth FINAL — Bricks of India
+> **DEPRECATED — superseded by `Day_9_Ground_Truth_FINAL_v2.md`**
+> This file reflects session 2 state before on-demand generation redesign, RADAR-05 publish step, DEFECT-011/012, and JBB selector fix. Read `Day_9_Ground_Truth_FINAL_v2.md` instead.
+
+---
+
+# Day 9 Ground Truth FINAL — Bricks of India (DEPRECATED)
 
 **Date written:** 2026-05-09, end of session (two-part day)
 **Supersedes:** Day_9_Ground_Truth.md, all prior Day 9 drafts

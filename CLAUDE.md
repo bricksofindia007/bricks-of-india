@@ -71,6 +71,10 @@ When adding price display to any new page, always use `store_prices`, never `pri
 
 ## RADAR pipeline rules
 
+**RADAR-04 is on-demand only — NOT in the nightly cron.** The `generateArticle()` Server Action in `/admin/pending` runs Gemini for one draft at a time when the operator clicks the amber "Generate Article" button. `generate-drafts.js` exists for manual bulk use only. Never re-add RADAR-04 to `radar.yml` without explicit operator instruction — auto-generation burns Gemini quota on every approved signal indiscriminately (DEFECT-012).
+
+**Nightly cron (radar.yml) = RADAR-01 → RADAR-02 → RADAR-03 only.** Signals are fetched, deduped, and classified automatically. Generation and publishing are always operator-initiated.
+
 **Pipeline order:** RADAR-01 (fetch) → RADAR-02 (dedupe) → RADAR-03 (classify → pending_drafts) → RADAR-04 (generate bodies for approved rows) → /admin/pending (manual operator review) → publish.
 
 **Nothing auto-publishes.** Every draft requires explicit operator approval at `/admin/pending` before any article goes live.
