@@ -80,11 +80,13 @@ async function fetchFullBody(url) {
     const html = await res.text();
     const $    = cheerio.load(html);
 
-    // Strip noise
-    $('nav, header, footer, aside, script, style, iframe, figure, ' +
-      '[class*="nav"], [class*="menu"], [class*="sidebar"], [id*="nav"], ' +
-      '[class*="ad-"], [class*="share"], [class*="social"], [class*="comment"], ' +
-      '[class*="related"], [class*="widget"]').remove();
+    // Strip noise — use targeted selectors, not broad [class*="x"] substrings
+    // which can accidentally match layout wrappers (e.g. layout-grid-sidebar,
+    // layout-grid-ad-something) and remove the entire content column.
+    $('nav, header, footer, aside, script, style, iframe, figure').remove();
+    $('.sidebar, .widget-area, .widget, #sidebar, .advertisement, .ads').remove();
+    $('[class*="share-"], [class*="-share"], [class*="social-"], [class*="related-"], ' +
+      '[class*="comment-"], [class*="-comments"], .commentlist, .sharedaddy').remove();
 
     // Try content selectors in order, collect paragraph text
     const SELECTORS = [
@@ -92,6 +94,7 @@ async function fetchFullBody(url) {
       '.post-content',
       '.entry-content',
       '.article-body',
+      '.layout-grid-content',   // Jay's Brick Blog
       'main p',
     ];
 
