@@ -62,7 +62,7 @@ const STORES = [
   {
     id:     'mybrickhouse',
     name:   'MyBrickHouse',
-    domain: 'mybrickhouse.com',
+    domain: 'lego.mybrickhouse.com',
     path:   '/products.json',
   },
   {
@@ -155,11 +155,16 @@ function parseProduct(product, storeId, domain) {
   const setNumber = extractSetNumber(product.title, product.handle);
   if (!setNumber) return null;
 
-  const variant  = product.variants?.[0];
-  if (!variant) return null;
+  if (!product.variants?.length) return null;
 
-  const priceInr   = variant.price ? Math.round(parseFloat(variant.price)) : null;
-  const inStock    = variant.available ?? false;
+  // Use cheapest in-stock variant; fall back to cheapest overall
+  const inStockVariants = product.variants.filter((v) => v.available);
+  const variant = inStockVariants.length
+    ? inStockVariants.sort((a, b) => parseFloat(a.price) - parseFloat(b.price))[0]
+    : product.variants.sort((a, b) => parseFloat(a.price) - parseFloat(b.price))[0];
+
+  const priceInr = variant.price ? Math.round(parseFloat(variant.price)) : null;
+  const inStock  = inStockVariants.length > 0;
   const productUrl = `https://${domain}/products/${product.handle}`;
 
   return { setNumber, storeId, priceInr, inStock, productUrl };
