@@ -1,74 +1,48 @@
 #!/usr/bin/env node
-// One-time diagnostic — tests GMAIL_USER + GMAIL_APP_PASSWORD against live SMTP.
+// One-time diagnostic — tests RESEND_API_KEY against the Resend API.
 // Usage: node scripts/test-email.js
 
 require('dotenv').config({ path: '.env.local' });
-const nodemailer = require('nodemailer');
+const { Resend } = require('resend');
 
-const user = process.env.GMAIL_USER;
-const pass = process.env.GMAIL_APP_PASSWORD;
+const apiKey = process.env.RESEND_API_KEY;
 
-if (!user || !pass) {
-  console.error('ERROR: GMAIL_USER or GMAIL_APP_PASSWORD not found in .env.local');
-  console.error('  GMAIL_USER      :', user  || '(missing)');
-  console.error('  GMAIL_APP_PASSWORD:', pass ? `${pass.slice(0,4)}****` : '(missing)');
+if (!apiKey) {
+  console.error('ERROR: RESEND_API_KEY not found in .env.local');
   process.exit(1);
 }
 
-console.log('GMAIL_USER        :', user);
-console.log('GMAIL_APP_PASSWORD:', `${pass.slice(0,4)}${'*'.repeat(pass.length - 4)} (${pass.length} chars)`);
+console.log('RESEND_API_KEY:', `${apiKey.slice(0, 8)}${'*'.repeat(apiKey.length - 8)}`);
 console.log('');
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: { user, pass },
-});
+const resend = new Resend(apiKey);
 
 async function run() {
-  // 1. Verify the credentials against Gmail SMTP without sending
-  console.log('--- Step 1: verifying credentials (SMTP EHLO + AUTH) ---');
+  console.log('--- Sending test email to abhinav@bricksofindia.com ---');
   try {
-    await transporter.verify();
-    console.log('✓ Credentials accepted by Gmail SMTP');
-  } catch (err) {
-    console.error('✗ Credential verification FAILED');
-    console.error('  message    :', err.message);
-    console.error('  code       :', err.code);
-    console.error('  responseCode:', err.responseCode);
-    console.error('  response   :', err.response);
-    console.error('');
-    console.error('Common causes:');
-    console.error('  EAUTH 535 — wrong App Password, or 2FA not enabled on the Gmail account');
-    console.error('  EAUTH 534 — "Less secure app access" required (legacy accounts only)');
-    console.error('  ECONNECTION — network / firewall blocking port 465/587');
-    console.error('');
-    console.error('Fix: go to https://myaccount.google.com/apppasswords and regenerate the App Password.');
-    console.error('     The account MUST have 2-Step Verification enabled first.');
-    process.exit(1);
-  }
-
-  // 2. Send a real test email
-  console.log('');
-  console.log('--- Step 2: sending test email to abhinav@bricksofindia.com ---');
-  try {
-    const info = await transporter.sendMail({
-      from: `"BOI Email Test" <${user}>`,
-      replyTo: user,
+    const { data, error } = await resend.emails.send({
+      from: 'Bricks of India <abhinav@bricksofindia.com>',
+      replyTo: 'abhinav@bricksofindia.com',
       to: 'abhinav@bricksofindia.com',
-      subject: '[BOI test] SMTP working — ' + new Date().toISOString(),
-      text: 'If you received this, GMAIL_USER and GMAIL_APP_PASSWORD are correct and SMTP is working.',
+      subject: '[BOI test] Resend working — ' + new Date().toISOString(),
+      text: 'If you received this, RESEND_API_KEY is correct and Resend is working.',
     });
+
+    if (error) {
+      console.error('✗ Send FAILED');
+      console.error('  name   :', error.name);
+      console.error('  message:', error.message);
+      console.error('');
+      console.error('Common causes:');
+      console.error('  ValidationError  — from address domain not verified in Resend dashboard');
+      console.error('  invalid_api_key  — wrong RESEND_API_KEY');
+      process.exit(1);
+    }
+
     console.log('✓ Email sent successfully');
-    console.log('  messageId  :', info.messageId);
-    console.log('  accepted   :', info.accepted);
-    console.log('  rejected   :', info.rejected);
-    console.log('  response   :', info.response);
+    console.log('  id:', data?.id);
   } catch (err) {
-    console.error('✗ Send FAILED');
-    console.error('  message    :', err.message);
-    console.error('  code       :', err.code);
-    console.error('  responseCode:', err.responseCode);
-    console.error('  response   :', err.response);
+    console.error('✗ Send threw exception:', err.message);
     process.exit(1);
   }
 }

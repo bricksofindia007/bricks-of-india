@@ -1,17 +1,7 @@
 'use server';
 
 import { createServerClient } from '@/lib/supabase';
-import nodemailer from 'nodemailer';
-
-function makeTransporter() {
-  const user = process.env.GMAIL_USER;
-  const pass = process.env.GMAIL_APP_PASSWORD;
-  if (!user || !pass) throw new Error('GMAIL_USER or GMAIL_APP_PASSWORD env vars not set');
-  return nodemailer.createTransport({
-    service: 'gmail',
-    auth: { user, pass },
-  });
-}
+import { Resend } from 'resend';
 
 export async function subscribeNewsletter(email: string): Promise<{ ok: boolean; duplicate?: boolean }> {
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
@@ -29,10 +19,10 @@ export async function subscribeNewsletter(email: string): Promise<{ ok: boolean;
   // Send confirmation only on new subscribers (not duplicates)
   if (!duplicate) {
     try {
-      const transporter = makeTransporter();
+      const resend = new Resend(process.env.RESEND_API_KEY);
       console.log('[newsletter] sending confirmation to:', email);
-      await transporter.sendMail({
-        from: `"Bricks of India" <${process.env.GMAIL_USER}>`,
+      const { error: mailErr } = await resend.emails.send({
+        from: 'Bricks of India <abhinav@bricksofindia.com>',
         replyTo: 'abhinav@bricksofindia.com',
         to: email,
         subject: "You're in. Your wallet has been warned. 🧱",
@@ -85,14 +75,18 @@ export async function subscribeNewsletter(email: string): Promise<{ ok: boolean;
 </body>
 </html>`,
       });
-      console.log('[newsletter] confirmation sent ok to:', email);
+      if (mailErr) {
+        console.error('[newsletter] confirmation email FAILED — to:', email,
+          '| name:', mailErr.name,
+          '| message:', mailErr.message,
+        );
+      } else {
+        console.log('[newsletter] confirmation sent ok to:', email);
+      }
     } catch (mailErr: any) {
       // Log but don't fail the subscription — user is already in the DB
-      console.error('[newsletter] confirmation email FAILED — to:', email,
+      console.error('[newsletter] confirmation email FAILED (thrown) — to:', email,
         '| message:', mailErr?.message,
-        '| code:', mailErr?.code,
-        '| responseCode:', mailErr?.responseCode,
-        '| response:', mailErr?.response,
       );
     }
   }
