@@ -1,0 +1,36 @@
+name: radar-pipeline
+
+on:
+  schedule:
+    # Daily 17:30 UTC = 23:00 IST
+    - cron: '30 17 * * *'
+  workflow_dispatch: {}
+
+jobs:
+  radar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
+      GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: RADAR-01 — fetch signals
+        run: node scripts/radar/fetch-rss.js
+
+      - name: RADAR-02 — dedupe signals
+        run: node scripts/radar/dedupe-signals.js

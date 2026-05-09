@@ -555,15 +555,15 @@
 <script id="boi-data" type="application/json">
 {
   "meta": {
-    "lastUpdated": "2026-05-02",
+    "lastUpdated": "2026-05-03",
     "trackerVersion": "v1.3",
-    "currentSprint": "Day 3 — CF-CACHE-01 + LAB-03"
+    "currentSprint": "Day 2 — RADAR-04 drafter + tracker recon"
   },
   "kpis": {
     "healthScore": 67,
     "healthScoreNote": "GEO-01 hardening done 2026-05-02 — XSS scrub, JsonLd consolidation, middleware bug fixed (+3). BUG-013 closed as mis-diagnosed. Top blocker now DATA-01 + CF-CACHE-01.",
     "openP0": 0,
-    "openP1": 4,
+    "openP1": 3,
     "netlifyMinutesLeft": 9999,
     "netlifyResetDate": "2026-05-11",
     "daysSinceLastDeploy": 0,
@@ -575,9 +575,9 @@
     "lastAuditDate": "2026-05-01",
     "nextAuditDate": "2026-05-08",
     "nextActions": [
-      "Day 3 P1: CF-CACHE-01 diagnose and fix 2.3% Cloudflare cache rate",
-      "Day 3 P1: LAB-03 daily price snapshot cron (silent accumulation → LAB-05 eligible 2026-06-01)",
-      "Day 3 stretch: CONTENT-02 brief, WEB-01 lint gate scaffold"
+      "Day 2 active: RADAR-04 drafter — Gemini 2.5 Flash-Lite + pending_drafts table + smoke test",
+      "Day 2 active: TRACKER-RECON-01 — reconcile CODEX sub-tasks, Cloudflare 2FA/SSL, ADMIN-CLEANUP-01",
+      "Day 3: RADAR-01/02/03 fetch + dedup + classify (after RADAR-04 smoke test approved)"
     ],
     "openManualChecks": [
       "Cloudflare billing — Free plan 'Processing' status, monitor for any charges (currently informational, no action needed unless a charge appears)"
@@ -601,11 +601,11 @@
     { "id": "ROBOTS-01", "title": "Align app/robots.ts with Cloudflare AI Crawl Control policy", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": ["GEO-02"], "blocks": [], "notes": "Done 2026-05-01 (commit e1054e1). src/app/robots.ts now declares same allow/block list as Cloudflare WAF. Verified live: GPTBot Disallow:/, PerplexityBot Allow:/, Sitemap present." },
     { "id": "LAB-01", "title": "Biryani Index calculator at /lab/biryani-index", "category": "Lab", "status": "done", "priority": "P2", "depsBlock": [], "blocks": ["LAB-04"], "notes": "Shipped 2026-05-01 (merge commit be8f134). Converts any LEGO set price into biryani/chai/petrol/PVR equivalents. Reference prices last refreshed 2026-04-26 — refresh quarterly." },
     { "id": "LAB-02", "title": "Which Set Are You? (quiz)", "category": "Lab", "status": "pending", "priority": "P2", "depsBlock": ["LAB-01"], "blocks": ["LAB-04"], "notes": "Personality quiz mapping LEGO set themes to user archetypes. Brief at briefs/LAB-02-which-set-quiz.md." },
-    { "id": "LAB-03", "title": "Daily price snapshot cron", "category": "Lab", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["LAB-05"], "notes": "Day 2 priority. Silent accumulation begins day 1; LAB-05 (Price Drop Board) eligible 30 days after first snapshot. Brief at briefs/LAB-03-price-snapshot-cron.md." },
-    { "id": "LAB-04", "title": "Lab homepage strip + nav + /lab directory", "category": "Lab", "status": "pending", "priority": "P2", "depsBlock": ["LAB-01"], "blocks": [], "notes": "Landing page for all Lab tools. Requires LAB-01 and ideally LAB-02 to have enough content. Brief at briefs/LAB-04-homepage-strip.md." },
-    { "id": "CF-CACHE-01", "title": "Diagnose and fix 2.31% Cloudflare cache rate", "category": "Infrastructure", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Day 2 priority. Likely causes: missing Cache Rules, Cache-Control headers from Next.js preventing edge caching. Add Cache Rule for /_next/static/*, /images/*, fonts. Target: >40% cache rate within 24h." },
+    { "id": "LAB-03", "title": "Daily price snapshot cron", "category": "Lab", "status": "done", "priority": "P1", "depsBlock": [], "blocks": ["LAB-05"], "notes": "Done 2026-05-02. 724 snapshots/day, 08:30 IST cron. Phase 5 verified by operator. LAB-05 eligible 2026-06-01 (30 days runway). Brief at briefs/LAB-03-price-snapshot-cron.md." },
+    { "id": "LAB-04", "title": "Lab homepage strip + nav + /lab directory", "category": "Lab", "status": "done", "priority": "P2", "depsBlock": ["LAB-01"], "blocks": [], "notes": "Done 2026-05-02. /lab directory live, homepage strip + nav dropdown shipped. Fixes /lab 404. LAB-02 staged as coming_soon in src/lib/lab-tools.ts. Brief at briefs/LAB-04-homepage-strip.md." },
+    { "id": "CF-CACHE-01", "title": "Diagnose and fix 2.31% Cloudflare cache rate", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-02 (commit 6229d99). Cache-Control headers added per route type in next.config.mjs: /sets/* long (3600), /news+/blog+/reviews short (300), /admin no-store, /sitemap.xml medium. Target: 2.3% → 40%+ hit rate — verify in Cloudflare analytics 24h post-deploy." },
     { "id": "INFRA-03", "title": "GitHub Actions deploy workflow (deploy.yml)", "category": "Infrastructure", "status": "done", "priority": "P0", "depsBlock": [], "blocks": ["Phase 8 globe", "RADAR-01 cron"], "notes": "Deployed 2026-04-24 (commit 8992aef). Build now runs on GitHub Actions; Netlify still hosts but no longer runs the build. Netlify build minute concern resolved." },
-    { "id": "RADAR-01", "title": "Topical Radar daily cron @ 23:00 IST", "category": "Content OS", "status": "unblocked", "priority": "P1", "depsBlock": [], "blocks": ["Phase 8 globe"], "notes": "Unblocked by CONTENT-01 (Codex committed 2026-05-01). Scrapes Brickset, TBB, New Elementary, BrickNerd, r/lego >500 upvotes, Rebrickable, LEGO.com/new, YouTube RSS." },
+    { "id": "RADAR-01", "title": "Topical Radar daily cron @ 23:00 IST", "category": "Content OS", "status": "unblocked", "priority": "P1", "depsBlock": [], "blocks": ["Phase 8 globe"], "notes": "Unblocked by CONTENT-01 (Codex committed 2026-05-01). Day 1 pipeline foundation committed 2026-05-03 (4a39ca5): config/sources.json Tier 1–5, @google/generative-ai + rss-parser deps, GEMINI_API_KEY live. RADAR-04 drafter in progress Day 2. Scrapes Brickset, TBB, New Elementary, BrickNerd, r/lego >500 upvotes, Rebrickable, LEGO.com/new, YouTube RSS." },
     { "id": "WEB-01", "title": "Article auto-publish pipeline with 4 lint gates", "category": "Website", "status": "spec-ready", "priority": "P1", "depsBlock": [], "blocks": ["Phase 8 globe"], "notes": "Lint gate spec at docs/codex/BOI_Codex_v2.md Page 20. Gates: word count, India Paragraph marker, verdict enum (BUY/WAIT FOR SALE/IMPORT ONLY/SKIP), image 200s. Implementation pending." },
     { "id": "VOICE-01", "title": "ElevenLabs free-tier voice clone test", "category": "Audio", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["Shorts/Reels production model"], "notes": "Outcome decides hybrid clone vs full self-record" },
     { "id": "INFRA-04", "title": "View Source verification of JSON-LD schemas", "category": "Infrastructure", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["GEO re-audit"], "notes": "Superseded by BUG-013 P0 finding — curl confirms schemas not in initial HTML. GEO-01 is the fix." },
@@ -660,7 +660,7 @@
       "group": "GEO & AI readiness",
       "items": [
         { "name": "llms.txt present and parses", "status": "warn", "detail": "Shipped 2026-04-14 — re-verify contents match site" },
-        { "name": "JSON-LD schemas validate (Product, Article, Organization, Person)", "status": "fail", "detail": "BUG-013 P0: schemas rendered client-side via SchemaLD.tsx — invisible to non-JS crawlers. GEO-01 tracks the server-side migration fix." },
+        { "name": "JSON-LD schemas validate (Product, Article, Organization, Person)", "status": "pass", "detail": "GEO-01 hardening done 2026-05-02 (commits 236fa7d–e9e1680). XSS scrub, JsonLd primitive, lib/schemas.ts, BreadcrumbSchema server-rendered, SchemaLD.tsx removed. BUG-013 closed as mis-diagnosed — schemas were server-rendered all along." },
         { "name": "E-E-A-T author bylines on every post", "status": "unknown", "detail": "Verify author entity has linked Person schema" },
         { "name": "robots.txt allows AI crawlers (GPTBot, ClaudeBot, etc.)", "status": "unknown", "detail": "Confirm explicit allow, not just default" },
         { "name": "Sitemap.xml present and current", "status": "unknown", "detail": "Should auto-generate per build" }
@@ -693,8 +693,8 @@
         { "name": "GitHub repo access reviewed", "status": "unknown", "detail": "Quarterly review" },
         { "name": "Netlify team membership reviewed", "status": "unknown", "detail": "Quarterly review" },
         { "name": "No exposed admin routes", "status": "unknown", "detail": "admin/dashboard.html placed in repo, disallowed in robots.ts — not yet auth-gated. Confirm /admin/* requires auth before linking publicly." },
-        { "name": "Cloudflare 2FA enabled on account", "status": "unknown", "detail": "Verify in Cloudflare → My Profile → Authentication" },
-        { "name": "Cloudflare SSL/TLS mode is Full (strict), not Flexible", "status": "unknown", "detail": "Cloudflare → SSL/TLS → Overview. Flexible causes redirect loops with Netlify origin." },
+        { "name": "Cloudflare 2FA enabled on account", "status": "pass", "detail": "Verified manually by operator 2026-05-02. Recovery codes saved." },
+        { "name": "Cloudflare SSL/TLS mode is Full (strict), not Flexible", "status": "pass", "detail": "Full Strict confirmed manually by operator 2026-05-02." },
         { "name": "Cloudflare API tokens reviewed (none exposed in repo)", "status": "unknown", "detail": "Quarterly review alongside other API key/access audits" }
       ]
     }
@@ -710,7 +710,8 @@
     { "name": "MyBrickHouse (products.json)", "purpose": "Indian inventory + INR pricing scraper", "auth": "Public Shopify endpoint", "credLocation": "—", "criticality": "high", "category": "Scraper" },
     { "name": "Jaiman Toys (products.json)", "purpose": "Indian inventory + INR pricing scraper", "auth": "Public Shopify endpoint", "credLocation": "—", "criticality": "medium", "category": "Scraper" },
     { "name": "ImprovMX", "purpose": "Email forwarding to Gmail", "auth": "Account login", "credLocation": "ImprovMX dashboard", "criticality": "medium", "category": "Email" },
-    { "name": "Claude API", "purpose": "Topical Radar drafts in BOI voice (RADAR-01)", "auth": "API key", "credLocation": "Repo secrets (post-RADAR-01)", "criticality": "high", "category": "AI" },
+    { "name": "Claude API (Anthropic)", "purpose": "Strategic planning, brief generation, code review (this chat layer).", "auth": "API key", "credLocation": "Claude.ai / Anthropic console", "criticality": "high", "category": "AI" },
+    { "name": "Google Gemini 2.5 Flash-Lite", "purpose": "Topical Radar drafter (RADAR-04) — BOI-voice article drafts from RSS items. Free tier: 1,000 RPD.", "auth": "API key", "credLocation": "GEMINI_API_KEY (GitHub Secrets + .env.local)", "criticality": "high", "category": "AI" },
     { "name": "ElevenLabs", "purpose": "Voice clone for video narration (testing)", "auth": "API key", "credLocation": "Pending VOICE-01 outcome", "criticality": "medium", "category": "AI" },
     { "name": "Brickset RSS", "purpose": "Topical Radar source feed", "auth": "Public", "credLocation": "—", "criticality": "medium", "category": "RSS source" },
     { "name": "The Brothers Brick RSS", "purpose": "Topical Radar source feed", "auth": "Public", "credLocation": "—", "criticality": "medium", "category": "RSS source" },

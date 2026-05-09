@@ -2,7 +2,7 @@
 
 > Voice Codex, RSS ingestion, article publishing operations, morning brief.
 >
-> **Last updated:** 2026-05-02
+> **Last updated:** 2026-05-03 (Day 5: RADAR-01, RADAR-02 done; RADAR-07 cron scaffolded; PR #2 open)
 
 ---
 
@@ -22,32 +22,32 @@
 
 | Section | Content | Status |
 |---------|---------|--------|
-| CODEX-01 | Voice one-liner — "Jeremy Clarkson meets Indian wallet anxiety" | 🔴 |
-| CODEX-02 | Sentence rhythm rules — long sentence followed by short. For impact. | 🔴 |
-| CODEX-03 | Vocabulary whitelist (EMI, chai, traffic, wallet, etc.) | 🔴 |
-| CODEX-04 | Vocabulary blacklist (press-release words: "thrilled to announce", "unveils", "stunning new") | 🔴 |
-| CODEX-05 | Per-format templates — news 300–400w, review 500–700w, opinion 400–500w, digest 350–400w | 🔴 |
-| CODEX-06 | **India Paragraph spec** — INR price (MSRP × 1.35 × USD/INR), stores, 4–6 week lag, verdict, relatable comparison | 🔴 |
-| CODEX-07 | Hook library — opens with Indian context (chai/traffic/EMI), pivots to LEGO in 2 sentences | 🔴 |
-| CODEX-08 | Sign-off library — "On that bombshell..." (opinion), "Bubyee" (YouTube) | 🔴 |
-| CODEX-09 | Title conventions — news = set# + "India", review = "Worth ₹X in India?" | 🔴 |
-| CODEX-10 | Verdict vocabulary — Buy now / Wait / Import only / Avoid (no hedging) | 🔴 |
-| CODEX-11 | Precise hyperbole examples — "₹6,499 = 11kg mangoes or 4 months Spotify Premium" | 🔴 |
-| CODEX-12 | Never explain the joke — failure modes + example rewrites | 🔴 |
+| CODEX-01 | Voice one-liner — "Jeremy Clarkson meets Indian wallet anxiety" | ✅ Done 2026-05-01 |
+| CODEX-02 | Sentence rhythm rules — long sentence followed by short. For impact. | ✅ Done 2026-05-01 |
+| CODEX-03 | Vocabulary whitelist (EMI, chai, traffic, wallet, etc.) | ✅ Done 2026-05-01 |
+| CODEX-04 | Vocabulary blacklist (press-release words: "thrilled to announce", "unveils", "stunning new") | ✅ Done 2026-05-01 |
+| CODEX-05 | Per-format templates — news 300–400w, review 500–700w, opinion 400–500w, digest 350–400w | ✅ Done 2026-05-01 |
+| CODEX-06 | **India Paragraph spec** — INR price (MSRP × 1.35 × USD/INR), stores, 4–6 week lag, verdict, relatable comparison | ✅ Done 2026-05-01 |
+| CODEX-07 | Hook library — opens with Indian context (chai/traffic/EMI), pivots to LEGO in 2 sentences | ✅ Done 2026-05-01 |
+| CODEX-08 | Sign-off library — "On that bombshell..." (opinion), "Bubyee" (YouTube) | ✅ Done 2026-05-01 |
+| CODEX-09 | Title conventions — news = set# + "India", review = "Worth ₹X in India?" | ✅ Done 2026-05-01 |
+| CODEX-10 | Verdict vocabulary — Buy now / Wait / Import only / Avoid (no hedging) | ✅ Done 2026-05-01 |
+| CODEX-11 | Precise hyperbole examples — "₹6,499 = 11kg mangoes or 4 months Spotify Premium" | ✅ Done 2026-05-01 |
+| CODEX-12 | Never explain the joke — failure modes + example rewrites | ✅ Done 2026-05-01 |
 
 ### A.3 — Delivery
 
 | ID | Task | Status |
 |----|------|--------|
-| CODEX-DOC-01 | Write Codex as `VOICE_CODEX.md` at project root | 🔴 |
-| CODEX-DOC-02 | Load into Claude Project knowledge (Phase 2) | 🔴 |
-| CODEX-DOC-03 | Convert rules to machine-checkable lint regexes where possible | 🔴 |
+| CODEX-DOC-01 | Write Codex as `VOICE_CODEX.md` at project root | ✅ Done 2026-05-01 — shipped as `docs/codex/BOI_Codex_v2.md` (path differs from original spec; file is canonical) |
+| CODEX-DOC-02 | Load into Claude Project knowledge (Phase 2) | 🔴 — manual task, pending |
+| CODEX-DOC-03 | Convert rules to machine-checkable lint regexes where possible | 🔴 — blocked on WEB-01 |
 
 ---
 
 ## Section B — Claude Project workbench (Phase 2)
 
-**CONTENT-02: 🔴 Not started — Claude Project workbench setup (manual, ~30 min). Unblocked as of 2026-05-01 (Voice Codex shipped).**
+**CONTENT-02: 🟡 Unblocked — Claude Project workbench setup (manual, ~30 min). Unblocked as of 2026-05-01 (Voice Codex shipped). Pending manual setup in Claude.ai.**
 
 | ID | Task | Status | Depends on |
 |----|------|--------|------------|
@@ -78,13 +78,13 @@
 
 | ID | Task | Status | Depends on |
 |----|------|--------|------------|
-| RADAR-01 | GitHub Action: hourly RSS fetch from all sources | 🔴 | — |
-| RADAR-02 | De-dup across sources (same story, multiple outlets) | 🔴 | RADAR-01 |
-| RADAR-03 | Classify: news / review / opinion / set-release / community | 🔴 | RADAR-02 |
-| RADAR-04 | Claude API call to draft in BOI voice | 🔴 | WORKBENCH-05 |
+| RADAR-01 | RSS/API/scrape/reddit/youtube fetcher — 11 sources active, 5 deferred (PARSER-01/SCRAPE-01/YT-FEED-NOISE-01) | ✅ Done 2026-05-03 — `scripts/radar/fetch-rss.js`, commit `feae8aa`. 53 rows in `raw_signals`. | — |
+| RADAR-02 | De-dup across sources (same story, multiple outlets) | ✅ Done 2026-05-03 — `scripts/radar/dedupe-signals.js`, commit `55616bb`. 4-pass design (exact URL → exact title → Jaccard ≥0.75 → unique). First run: 53 unique, 0 grouped, top pairwise 0.333 (validated correct). | RADAR-01 |
+| RADAR-03 | Classify: news / review / opinion / set-release / community | 🔴 Day 6 | RADAR-02 |
+| RADAR-04 | Gemini 2.5 Flash-Lite drafter in BOI voice | 🟡 v3 prompt scaffolded — DEFECT-005 partially resolved. Integration into cron deferred to Day 6+. | WORKBENCH-05 |
 | RADAR-05 | Write drafts to `/admin/pending` (not published) | 🔴 | RADAR-04 |
 | RADAR-06 | Email morning brief at 08:00 IST | 🔴 | RADAR-05 |
-| RADAR-07 | Lock full radar run to 23:00 IST daily | 🔴 | All above |
+| RADAR-07 | Lock full radar run to 23:00 IST daily | 🟡 Partial — `.github/workflows/radar.yml` cron at 17:30 UTC (23:00 IST) chains RADAR-01 → RADAR-02 only. Full pipeline (RADAR-03→06) deferred. PR #2 open, awaiting merge before first scheduled tick. commit `4900811`. | All above |
 
 **Nothing in this pipeline auto-publishes.** Drafts land in `/admin/pending` and require manual approve-and-merge.
 
