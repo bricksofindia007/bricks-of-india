@@ -122,14 +122,19 @@ async function fetchExistingUrls() {
 }
 
 async function writeDrafts(drafts) {
+  // Plain insert — pre-filtering via fetchExistingUrls handles idempotency.
+  // 23505 unique_violation is caught as a soft warning (race condition guard only).
   const BATCH = 100;
   for (let i = 0; i < drafts.length; i += BATCH) {
     const chunk = drafts.slice(i, i + BATCH);
-    // ignoreDuplicates: source_url unique index is the idempotency guard
-    const { error } = await sb
-      .from('pending_drafts')
-      .upsert(chunk, { onConflict: 'source_url', ignoreDuplicates: true });
-    if (error) throw error;
+    const { error } = await sb.from('pending_drafts').insert(chunk);
+    if (error) {
+      if (error.code === '23505') {
+        console.warn(`  WARN: duplicate source_url in batch ${i}–${i + chunk.length} (skipped)`);
+      } else {
+        throw error;
+      }
+    }
   }
 }
 
