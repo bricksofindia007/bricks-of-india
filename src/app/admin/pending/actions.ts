@@ -147,7 +147,8 @@ FORMAT RULES — OPINION PIECE:
 const INDIA_PARAGRAPH_SPEC = `
 ---
 INDIA PARAGRAPH — MANDATORY (single consolidated block):
-Place <!-- INDIA_PARAGRAPH --> on the line before it. Must contain:
+Write it as a normal paragraph — NO HTML comments, NO placeholder markers.
+Must contain:
 (a) INR price: USD MSRP × 1.35 × current USD/INR rate. Show working.
 (b) Availability: which stores (Toycra, MyBrickHouse, Jaiman) or "import only".
 (c) India lag: 4–6 week delay or "no official India launch".
@@ -334,11 +335,14 @@ export async function publishDraft(formData: FormData) {
   const heroImage = await fetchOgImage(draft.source_url);
   console.log(`[publish] source_url=${draft.source_url} og_image_found=${!!heroImage} image_url=${heroImage?.slice(0, 80) ?? 'none'}`);
 
-  const excerpt = (draft.draft_body).replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 160);
+  // Strip HTML comment marker — belt-and-suspenders for any draft that still has it
+  const cleanBody = draft.draft_body.replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '');
+
+  const excerpt = cleanBody.replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 160);
   const now = new Date().toISOString();
 
   const { error: insertErr } = await supabase.from(table).insert({
-    title, slug, content: draft.draft_body, category, excerpt,
+    title, slug, content: cleanBody, category, excerpt,
     published_at: now, seo_title: title, seo_description: excerpt,
     ...(heroImage ? { hero_image: heroImage } : {}),
   });

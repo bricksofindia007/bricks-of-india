@@ -17,11 +17,17 @@ const nextConfig = {
   images: {
     remotePatterns: [
       { protocol: 'https', hostname: 'cdn.rebrickable.com' },
+      { protocol: 'https', hostname: 'rebrickable.com' },
       { protocol: 'https', hostname: 'www.lego.com' },
       { protocol: 'https', hostname: 'images.brickset.com' },
+      { protocol: 'https', hostname: 'brickset.com' },
       { protocol: 'https', hostname: 'm.media-amazon.com' },
       { protocol: 'https', hostname: '*.supabase.co' },
       { protocol: 'https', hostname: 'img.youtube.com' },
+      { protocol: 'https', hostname: 'jaysbrickblog.com' },
+      { protocol: 'https', hostname: 'bricknerd.com' },
+      { protocol: 'https', hostname: 'www.brothers-brick.com' },
+      { protocol: 'https', hostname: 'newelementary.com' },
     ],
   },
   async headers() {
