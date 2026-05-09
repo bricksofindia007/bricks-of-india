@@ -126,8 +126,8 @@ JSON parses. If it doesn't, fix before doing anything else.
 
 ## Current blockers (top 3)
 
-1. **DATA-01 open** — `store_prices` (scraper writes) ↔ `prices` (frontend reads) disconnected; live scraper data not reaching `/compare`.
-2. **CONTENT-02 not started** — Claude Project workbench setup pending. Blocks consistent content production velocity.
+1. **CONTENT-02 not started** — Claude Project workbench setup pending. Blocks consistent content production velocity.
+2. **PRICE-PIPELINE-01 open** — `lego_mrp_inr` on `sets` table is 0% populated. Catalogue audit fails its ≥50% gate until this ships. Price filter on /compare is live but returns few results without MRP data.
 
 > BUG-013 closed 2026-05-02 as mis-diagnosed. GEO-01 hardening shipped. See Sprint changelog Day 2 for details.
 
@@ -136,7 +136,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
 | CATALOG-05 | Theme backfill — older sets missing from theme pages | 🔴 Not started | Depends on full sync completing all 27 pages (Rebrickable daily quota currently limits one-shot runs). |
-| DATA-01 | Reconcile `store_prices` (scraper) ↔ `prices` (frontend) | 🔴 Not started | Tracked in `BOI_WEB_TRACKER.md` Section H. 2–3 hours. Open carry-over. Not yet scheduled. No upstream dependency. |
+| DATA-01 | Reconcile `store_prices` (scraper) ↔ `prices` (frontend) | ✅ Done 2026-05-09 | commit `9ced905`. /sets, /sets/page/[page], /compare all now read store_prices. Price filter on /compare operates on live store prices. DEFECT-009 logged. |
 | ADMIN-CLEANUP-01 | Remove Netlify legacy secrets from GitHub Secrets (NETLIFY_AUTH_TOKEN, NETLIFY_SITE_ID) | 🟡 Deferred | Noted "LEGACY — pending removal in ADMIN-CLEANUP-01" in `.env.example` (commit 4a39ca5). Netlify is still the origin host so removing now is low-risk but not urgent. |
 | SCRAPE-01 | Tier 5 + Tier 2 scrape selector hardening — Blocks Magazine, LEGO Ideas Blog, Eurobricks News (Tier 5), LEGO New Sets (Tier 2) | 🟡 Deferred | Opened 2026-05-03. RADAR-01 Day 4 dry-run showed all four scrape selectors returning nav chrome (Skip to content, Sign In, Submit Product Idea) instead of articles. Each site needs HTML inspection + custom selector. Sources marked `enabled:false` in config/sources.json. Re-enable after per-source selector work. Priority P2 — Tier 5 is headline-only low-signal; LEGO New Sets duplicates Rebrickable coverage. |
 | PARSER-01 | rss-parser cannot handle malformed feeds — New Elementary (Tier 1), Brickset (Tier 2) | 🟡 Deferred | Opened 2026-05-03. rss-parser uses sax in strict mode and throws "Attribute without value" on feeds with HTML fragments in description elements. Disabling strict mode breaks all parsing (sax non-strict uppercases tag names, rss-parser tag matching is case-sensitive). Regex XML sanitization is fragile and out of scope. Fix: swap rss-parser for feedparser or @extractus/feed-extractor — both handle malformed feeds tolerantly by design. Both sources marked `enabled:false`. Re-enable after parser swap. Priority P2 — Brothers Brick + BrickNerd cover Tier 1 editorial; Rebrickable covers Tier 2 official. Brickset is highest-priority re-enable. |
