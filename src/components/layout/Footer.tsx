@@ -100,7 +100,13 @@ export function Footer() {
             </h3>
             <ul className="space-y-2.5">
               {[
-                { href: '/about',        label: 'About'   },
+                { href: '/sets',          label: 'Sets'    },
+                { href: '/themes',        label: 'Themes'  },
+                { href: '/deals',         label: 'Deals'   },
+                { href: '/reviews',       label: 'Reviews' },
+                { href: '/news',          label: 'News'    },
+                { href: '/blog',          label: 'Blog'    },
+                { href: '/about',         label: 'About'   },
                 { href: '/legal/privacy', label: 'Privacy' },
                 { href: '/legal/terms',   label: 'Terms'   },
                 { href: '/contact',       label: 'Contact' },
