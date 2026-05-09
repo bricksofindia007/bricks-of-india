@@ -288,6 +288,22 @@ function resolveTarget(format: string): { table: string; path: string; category:
   return                           { table: 'news_articles', path: '/news', category: 'News'    };
 }
 
+async function fetchOgImage(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': UA },
+      signal: AbortSignal.timeout(5000),
+    });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const { load } = await import('cheerio');
+    const $ = load(html);
+    const og = $('meta[property="og:image"]').attr('content') ||
+               $('meta[property="twitter:image"]').attr('content');
+    return (og && og.startsWith('http')) ? og : null;
+  } catch { return null; }
+}
+
 export async function publishDraft(formData: FormData) {
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
@@ -314,11 +330,17 @@ export async function publishDraft(formData: FormData) {
     slug = `${baseSlug.slice(0, 57)}-${attempt++}`;
   }
 
+  // Fetch OG image from source — 5s timeout, fall back to null gracefully
+  const heroImage = await fetchOgImage(draft.source_url);
+  console.log(`[publish] source_url=${draft.source_url} og_image_found=${!!heroImage} image_url=${heroImage?.slice(0, 80) ?? 'none'}`);
+
   const excerpt = (draft.draft_body).replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 160);
   const now = new Date().toISOString();
 
   const { error: insertErr } = await supabase.from(table).insert({
-    title, slug, content: draft.draft_body, category, excerpt, published_at: now, seo_title: title, seo_description: excerpt,
+    title, slug, content: draft.draft_body, category, excerpt,
+    published_at: now, seo_title: title, seo_description: excerpt,
+    ...(heroImage ? { hero_image: heroImage } : {}),
   });
   if (insertErr) throw new Error(`Publish failed (${table}): ${insertErr.message}`);
 
