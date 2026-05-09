@@ -12,12 +12,14 @@ function formatDate(iso: string | null): string {
 export async function YoutubeStrip() {
   const supabase = createServerClient();
 
-  // Fetch more than needed — deduplicate by external_id in JS since PostgREST
-  // lacks DISTINCT ON and the same video appears once per RADAR-01 run.
+  // Only show BOI's own channel videos — source_name must be 'Bricks of India'.
+  // If the channel is not yet in config/sources.json (< 500 subs threshold),
+  // this returns 0 rows and the strip is hidden entirely.
   const { data: rows } = await supabase
     .from('raw_signals')
     .select('id, external_id, url, title, source_name, published_at')
     .eq('source_type', 'youtube')
+    .eq('source_name', 'Bricks of India')
     .not('external_id', 'is', null)
     .order('published_at', { ascending: false })
     .limit(50);
@@ -39,7 +41,7 @@ export async function YoutubeStrip() {
     <section className="py-12 px-4 bg-white border-t border-border">
       <div className="max-w-site mx-auto">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="font-heading text-dark text-4xl">LATEST FROM THE COMMUNITY</h2>
+          <h2 className="font-heading text-dark text-4xl">LATEST VIDEOS</h2>
           <a
             href={YOUTUBE_CHANNEL}
             target="_blank"
