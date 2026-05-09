@@ -8,7 +8,7 @@ import { TricolourStripe } from '@/components/ui/TricolourStripe';
 import { LAB_TOOLS } from '@/lib/lab-tools';
 
 const NAV_LINKS = [
-  { href: '/compare',  label: 'Sets'     },
+  { href: '/sets',     label: 'Sets'     },
   { href: '/themes',   label: 'Themes'   },
   { href: '/deals',    label: 'Deals'    },
   { href: '/reviews',  label: 'Reviews'  },

@@ -128,7 +128,7 @@ export default async function HomePage() {
           {/* CTAs */}
           <div className="flex flex-col xs:flex-row gap-3 justify-center">
             <Link
-              href="/compare"
+              href="/sets"
               style={{
                 background: 'var(--boi-red)',
                 color: '#fff',
@@ -142,7 +142,7 @@ export default async function HomePage() {
               Find cheapest price →
             </Link>
             <Link
-              href="/compare"
+              href="/sets"
               style={{
                 background: '#fff',
                 color: 'var(--boi-navy)',
@@ -172,7 +172,7 @@ export default async function HomePage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
             {/* Live set count */}
             <Link
-              href="/compare"
+              href="/sets"
               className="rounded-xl px-4 py-4 text-center transition-opacity hover:opacity-80"
               style={{ border: '2px solid #FFC72C', background: 'rgba(255,199,44,0.12)' }}
             >
