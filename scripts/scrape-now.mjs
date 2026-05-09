@@ -190,7 +190,7 @@ async function main() {
   const { data: setsData, error: setsError } = await supabase
     .from('sets')
     .select('set_number')
-    .limit(50000);
+    .range(0, 49999);
 
   if (setsError) {
     console.error('Failed to load sets:', setsError.message);
