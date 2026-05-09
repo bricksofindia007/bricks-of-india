@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@/lib/supabase';
-import { login, logout, approveDraft, rejectDraft, approveAll } from './actions';
+import { login, logout, approveDraft, rejectDraft, approveAll, publishDraft } from './actions';
 
 export const metadata: Metadata = {
   title: 'Pending Drafts | BOI Admin',
@@ -150,6 +150,17 @@ function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filter
             </button>
           </form>
         </div>
+      )}
+
+      {/* Publish — only for approved drafts that have a generated body */}
+      {draft.status === 'approved' && draft.draft_body && (
+        <form action={publishDraft} style={{ margin: 0 }}>
+          <input type="hidden" name="id" value={draft.id} />
+          <input type="hidden" name="redirectTo" value={redirectTo} />
+          <button type="submit" style={{ padding: '7px 18px', background: '#006CB7', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            ↑ Publish
+          </button>
+        </form>
       )}
     </div>
   );
