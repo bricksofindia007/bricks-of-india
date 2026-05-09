@@ -97,20 +97,74 @@ export default async function ComparePage({ searchParams }: Props) {
     }
   }
 
+  // priceMap hoisted so price-filter path can seed it before the secondary query
+  const priceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
+
   // ── Supabase path ────────────────────────────────────────────────────────────
   if (!usedRebrickable) {
-    let query = supabase
-      .from('sets')
-      .select('*', { count: 'exact' })
-      .order('year', { ascending: false })
-      .range(from, to);
+    if (priceFilter) {
+      // When price filter is active: drive from store_prices, not sets
+      const range = PRICE_RANGES.find((r) => r.label === priceFilter);
+      if (range) {
+        let spQuery = supabase
+          .from('store_prices')
+          .select('set_id, store_id, price_inr, in_stock, product_url')
+          .gte('price_inr', range.min);
+        if (range.max !== Infinity) spQuery = spQuery.lte('price_inr', range.max);
 
-    if (q)           query = query.or(`name.ilike.%${q}%,theme.ilike.%${q}%,set_number.ilike.%${q}%`);
-    if (themeFilter) query = query.ilike('theme', `%${themeFilter}%`);
+        const { data: matchingPrices } = await spQuery;
 
-    const { data, count } = await query;
-    sets  = data ?? [];
-    total = count ?? 0;
+        // Build tempMap from in-range results
+        const tempMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
+        for (const row of matchingPrices ?? []) {
+          const existing = tempMap[row.set_id];
+          if (!existing || row.price_inr < existing.price_inr) {
+            tempMap[row.set_id] = {
+              price_inr: row.price_inr,
+              store_name: row.store_id,
+              buy_url: row.product_url ?? null,
+            };
+          }
+        }
+
+        const matchingSetIds = Object.keys(tempMap);
+        if (matchingSetIds.length > 0) {
+          let setsQuery = supabase
+            .from('sets')
+            .select('*', { count: 'exact' })
+            .in('set_number', matchingSetIds)
+            .order('year', { ascending: false })
+            .range(from, to);
+
+          if (q)           setsQuery = setsQuery.or(`name.ilike.%${q}%,theme.ilike.%${q}%,set_number.ilike.%${q}%`);
+          if (themeFilter) setsQuery = setsQuery.ilike('theme', `%${themeFilter}%`);
+
+          const { data, count } = await setsQuery;
+          sets  = data ?? [];
+          total = count ?? 0;
+
+          // Seed priceMap with in-range prices; secondary query below may update with cheaper rows
+          Object.assign(priceMap, tempMap);
+        } else {
+          sets  = [];
+          total = 0;
+        }
+      }
+    } else {
+      // No price filter — standard path
+      let query = supabase
+        .from('sets')
+        .select('*', { count: 'exact' })
+        .order('year', { ascending: false })
+        .range(from, to);
+
+      if (q)           query = query.or(`name.ilike.%${q}%,theme.ilike.%${q}%,set_number.ilike.%${q}%`);
+      if (themeFilter) query = query.ilike('theme', `%${themeFilter}%`);
+
+      const { data, count } = await query;
+      sets  = data ?? [];
+      total = count ?? 0;
+    }
   }
 
   // ── Live store prices for the resolved set list ───────────────────────────
@@ -122,8 +176,7 @@ export default async function ComparePage({ searchParams }: Props) {
         .in('set_id', setNumbers)
     : { data: [] };
 
-  // set_number → cheapest price row
-  const priceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
+  // Merge secondary query into priceMap (cheapest price wins across all stores)
   for (const row of storePrices ?? []) {
     const existing = priceMap[row.set_id];
     if (!existing || row.price_inr < existing.price_inr) {
@@ -135,19 +188,7 @@ export default async function ComparePage({ searchParams }: Props) {
     }
   }
 
-  // ── Client-side price filter against live store_prices ────────────────────
-  const priceRange = priceFilter ? PRICE_RANGES.find((r) => r.label === priceFilter) : null;
-  const filteredSets = priceRange
-    ? sets.filter((set: any) => {
-        const best = priceMap[set.set_number];
-        if (!best) return includeNoPrice;
-        return best.price_inr >= priceRange.min &&
-          (priceRange.max === Infinity || best.price_inr <= priceRange.max);
-      })
-    : sets;
-
-  const filteredTotal = priceRange ? filteredSets.length : total;
-  const totalPages    = Math.ceil((priceRange ? filteredTotal : total) / PAGE_SIZE);
+  const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
     <div className="bg-white min-h-screen">
@@ -256,7 +297,7 @@ export default async function ComparePage({ searchParams }: Props) {
         </div>
 
         {/* ── Results ───────────────────────────────────────────────────── */}
-        {filteredSets.length === 0 ? (
+        {sets.length === 0 ? (
           <div className="text-center py-20">
             <Image
               src={MASCOTS.blue.confused}
@@ -278,12 +319,11 @@ export default async function ComparePage({ searchParams }: Props) {
           <>
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-gray-500">
-                Showing {from + 1}–{Math.min(to + 1, filteredTotal)} of {filteredTotal.toLocaleString()} sets
-                {priceFilter && <span className="ml-1 text-xs text-gray-400">(filtered by live store prices)</span>}
+                Showing {from + 1}–{Math.min(to + 1, total)} of {total.toLocaleString()} sets
               </p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {filteredSets.map((set: any) => {
+              {sets.map((set: any) => {
                 const bestPrice = priceMap[set.set_number] ?? null;
                 return (
                   <SetCard key={set.id} set={set} bestPrice={bestPrice} priceCount={bestPrice ? 1 : 0} />
