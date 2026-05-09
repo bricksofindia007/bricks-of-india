@@ -246,3 +246,58 @@ Defects found but **not** yet patched should still be logged immediately, with t
 | DEFECT-004 | LAB-03 marked Done before first scheduled run | Low | Patched |
 | DEFECT-005 | RADAR-04 drafter: format/structure violations despite correct voice register | P1 | 🟡 Partial |
 | DEFECT-006 | gh CLI not on PATH in Claude Code Bash session despite winget install | P3 | Workaround documented |
+| DEFECT-007 | RLS disabled on price_snapshots and pending_drafts | Critical | Patched (DB-level) |
+| DEFECT-008 | catalogue-audit.yml missing permissions block (403 on issue creation) | Low | Open |
+
+---
+
+## DEFECT-007 — RLS disabled on price_snapshots and pending_drafts
+
+| Field | Value |
+|---|---|
+| Found during | Day 6 strategic session, 2026-05-06 ~22:30 IST |
+| Found by | Supabase Database Advisor email (dated 2026-05-03), acknowledged in session |
+| Severity | Critical — 3-day data exposure window |
+| Patched | 2026-05-06 ~23:20 IST via Supabase SQL Editor (DB-level only, no code commit) |
+
+**What was wrong:**
+`public.price_snapshots` and `public.pending_drafts` were created via migrations without `ENABLE ROW LEVEL SECURITY`. Default Supabase project setting is RLS off. Anonymous users with the project URL had full read/write access to both tables for ~3 days.
+
+**Impact:**
+- `price_snapshots`: scraped competitive pricing intelligence exposed publicly
+- `pending_drafts`: AI-drafted articles exposed (content theft + injection risk for future /admin/pending publication path)
+- No evidence of exploitation observed
+
+**Fix applied:**
+- `price_snapshots`: ENABLE RLS + policy `price_snapshots_anon_select` (anon SELECT, USING true) — preserves /lab public read
+- `pending_drafts`: ENABLE RLS, no anon policy (service role only)
+- Verified: /lab renders correctly post-fix; all 11 public tables now show `rowsecurity = true`
+
+**Followup:**
+- PROCESS-RLS-01 (P1): All future migrations must include ENABLE RLS + explicit policies. Add as CLAUDE.md rule.
+- PROCESS-RLS-02 (P3): Audit policies on the 9 pre-existing public tables for appropriate restrictiveness.
+
+---
+
+## DEFECT-008 — catalogue-audit.yml missing permissions block (403 on issue creation)
+
+| Field | Value |
+|---|---|
+| Found during | Day 6 strategic session, 2026-05-06 |
+| Found by | Workflow run analysis — audit failure step that opens a GitHub issue returns 403 |
+| Severity | Low — audit correctly detects and reports the gap; only the auto-issue-creation fails |
+| Status | Open — fix is 2 lines of YAML |
+
+**What was wrong:**
+`catalogue-audit.yml` has no `permissions:` block. The on-failure step that calls `gh issue create` requires `permissions: issues: write`. Without it, the GitHub Actions token is read-only and the step returns 403.
+
+**Root cause of audit failure itself:** Separate issue. Audit asserts ≥50% of sets have `lego_mrp_inr` populated. Actual: 0%. Correctly reporting a real data gap (PRICE-PIPELINE-01). Will continue failing until that pipeline ships.
+
+**Fix:**
+Add to `catalogue-audit.yml`:
+```yaml
+permissions:
+  issues: write
+```
+
+**Status:** Open. Bundle into next maintenance commit.

@@ -11,6 +11,8 @@ jobs:
     name: Catalogue health checks
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    permissions:
+      issues: write
 
     steps:
       - name: Checkout
