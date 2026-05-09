@@ -95,9 +95,27 @@ When adding price display to any new page, always use `store_prices`, never `pri
 
 ---
 
+## Email rules
+
+**Transactional email provider: Resend SDK** — `resend@6.12.3` installed. Server Action at `src/app/actions/newsletter.ts`. Do NOT use nodemailer for newsletter confirmation; use `new Resend(process.env.RESEND_API_KEY)`.
+
+**Resend from address:** always `'Bricks of India <abhinav@bricksofindia.com>'` — domain verified in Resend dashboard.
+
+**RESEND_API_KEY** is set in all three env stores: `.env.local`, Netlify Environment Variables (runtime scope), GitHub Secrets. Do not add it to any committed file.
+
+**ImprovMX is receive-only.** `bricksofindia.com` MX records point to ImprovMX for email forwarding. ImprovMX free plan has no SMTP sending capability — confirmed 2026-05-10. Do not attempt to use ImprovMX SMTP credentials for outbound mail.
+
+**`newsletter_subscribers` RLS:** table has `ENABLE ROW LEVEL SECURITY` with a single `anon INSERT` policy (migration `20260510000000`). No SELECT/UPDATE/DELETE for anon. Service role can read all rows. The insert from the Server Action uses `createServerClient()` (service role), which bypasses RLS — this is correct.
+
+**`scripts/test-email.js`** — diagnostic script that sends a test email to `abhinav@bricksofindia.com` via Resend. Loads `RESEND_API_KEY` from `.env.local`. Run with `node scripts/test-email.js`.
+
+---
+
 ## Sources config
 
-**Active sources as of Day 9:** 14 sources across 5 tiers. Tier 1: Brothers Brick, Jay's Brick Blog, BrickNerd (New Elementary disabled — PARSER-01). Tier 2: Brickset (`/feed`, not `/article/rss`), Rebrickable API (LEGO New Sets disabled — SPA). Tier 3: r/lego. Tier 4: 6 YouTube channels. Tier 5: Blocks Magazine (`blocksmag.com/news/`, no www), Brick Fanatics (others disabled — SCRAPE-01).
+**Active sources as of Day 9 (session 3):** 15 sources across 5 tiers. Tier 1: Brothers Brick, Jay's Brick Blog, BrickNerd (New Elementary disabled — PARSER-01). Tier 2: Brickset (`/feed`, not `/article/rss`), Rebrickable API (LEGO New Sets disabled — SPA). Tier 3: r/lego. Tier 4: **7 YouTube channels** — BrickClicker, JANGBRiCKS, Brick Vault, Tiago Catarino, Brick Finds & Flips, JB Spielwaren, **Bricks of India** (channel_id: `UC1CCrLlp4XnOoxVzAftFwfQ`, added 2026-05-10). Tier 5: Blocks Magazine (`blocksmag.com/news/`, no www), Brick Fanatics (others disabled — SCRAPE-01).
+
+**YoutubeStrip homepage component** (`src/components/content/YoutubeStrip.tsx`) filters to `source_name = 'Bricks of India'` only — shows BOI's own channel. Returns `null` (hidden) if no rows match. Heading: "LATEST VIDEOS".
 
 **Brickset correct URL:** `https://brickset.com/feed` — the old `/article/rss` endpoint returns an HTML page, not RSS.
 

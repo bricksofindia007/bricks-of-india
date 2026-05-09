@@ -249,9 +249,9 @@ Defects found but **not** yet patched should still be logged immediately, with t
 | DEFECT-007 | RLS disabled on price_snapshots and pending_drafts | Critical | Patched (DB-level) |
 | DEFECT-008 | catalogue-audit.yml missing permissions block (403 on issue creation) | Low | Patched (commit e5b71b1, 2026-05-09) |
 | DEFECT-009 | /sets and /compare listing pages reading prices table instead of store_prices (DATA-01) | Medium | Patched (commit 9ced905, 2026-05-09) |
-| DEFECT-010 | GitHub Actions using Node.js 20 (deprecated) — actions/checkout@v4 + setup-node@v4 | Medium | Open — deadline 2026-06-02 |
-| DEFECT-011 | fetchFullBody overly broad CSS selector `[class*="sidebar"]` removed JBB article content | Medium | Patched (commit 68aa474, 2026-05-09) |
-| DEFECT-012 | RADAR-04 auto-ran on all approved drafts via cron — Gemini quota burned without operator intent | P1 | Patched (commit 57cd130, 2026-05-09) |
+| DEFECT-010 | GitHub Actions using Node.js 20 (deprecated) — actions/checkout@v4 + setup-node@v4 | Medium | ✅ Closed — FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true added to all 6 workflows (commit 41856ed, 2026-05-10) |
+| DEFECT-011 | fetchFullBody overly broad CSS selector `[class*="sidebar"]` removed JBB article content | Medium | ✅ Closed — Patched (commit 68aa474, 2026-05-09) |
+| DEFECT-012 | RADAR-04 auto-ran on all approved drafts via cron — Gemini quota burned without operator intent | P1 | ✅ Closed — Patched (commit 57cd130, 2026-05-09) |
 
 ---
 
@@ -262,16 +262,16 @@ Defects found but **not** yet patched should still be logged immediately, with t
 | Found during | Day 9, 2026-05-09 — annotation on every GitHub Actions run |
 | Found by | GitHub Actions runner deprecation warning in run logs |
 | Severity | Medium — Node.js 20 forced to Node.js 24 from 2026-06-02; removed 2026-09-16 |
-| Status | Open — bump actions/checkout and actions/setup-node to versions that support Node.js 24 |
+| Status | ✅ Closed 2026-05-10 — commit `41856ed` |
+| Patch commit | `41856ed` |
 
 **What was wrong:**
-All workflow files use `actions/checkout@v4` and `actions/setup-node@v4` which run on Node.js 20. GitHub is deprecating Node.js 20 runners: forced switch to Node.js 24 on 2026-06-02, Node.js 20 removed on 2026-09-16. Every run currently logs: `Node.js 20 actions are deprecated`.
+All workflow files use `actions/checkout@v4` and `actions/setup-node@v4` which run on Node.js 20 as their internal action runtime. GitHub is deprecating Node.js 20 runners: forced switch to Node.js 24 on 2026-06-02, Node.js 20 removed on 2026-09-16. Every run was logging: `Node.js 20 actions are deprecated`.
 
-**Failure mode if unpatched:**
-After 2026-06-02, actions will be forced to Node.js 24. If the action versions used are incompatible with Node.js 24, workflows may break. In practice, v4 of both actions likely still works in forced Node.js 24 mode — but the warning will escalate to a hard error.
+**Root cause clarification:** The `@v4` action tags were already correct — no version bump was needed. The issue was the Node.js runtime used internally by those actions.
 
-**Fix:**
-Check if `actions/checkout@v4` and `actions/setup-node@v4` have Node.js 24-compatible releases, or set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` in workflow env to opt in early. Affects: deploy.yml, scrape-prices.yml, radar.yml, catalogue-audit.yml, sync-catalogue.yml.
+**Fix applied:**
+Added `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` to the job-level `env:` block in all 6 workflow files: `deploy.yml`, `scrape-prices.yml`, `radar.yml`, `catalogue-audit.yml`, `sync-catalogue.yml`, `snapshot-prices.yml`. Opts each job into Node.js 24 immediately, before the forced migration on 2026-06-02.
 
 ---
 

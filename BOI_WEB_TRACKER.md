@@ -37,6 +37,16 @@ This sub-tracker is a detail view. The canonical state lives in `BOI_MASTER_TRAC
 - ✅ DEFECT-012 fixed: RADAR-04 removed from cron — generation is now operator-initiated only (commit `57cd130`).
 - ✅ RADAR-05 publish step: Publish button inserts approved+bodied drafts into news_articles/blog_posts (commit `9baf37d`).
 
+**Shipped Day 9 session 3 (2026-05-10):**
+- ✅ YoutubeStrip component live — shows BOI channel videos only (source_name filter), heading "LATEST VIDEOS", returns null if no BOI videos in raw_signals. Commits `afdd09a`, `76d063d`.
+- ✅ BOI YouTube channel (UC1CCrLlp4XnOoxVzAftFwfQ) added to config/sources.json Tier 4. 15 videos ingested. Commit `04114ee`.
+- ✅ Newsletter Server Action — Resend SDK, sends from `abhinav@bricksofindia.com`, RESEND_API_KEY in all env stores. Duplicate subscribers handled. Commits `6e5cb1a`, `c56df21`.
+- ✅ newsletter_subscribers RLS migration `20260510000000` — anon INSERT-only explicitly enforced.
+- ✅ Sitemap sets query paginated — range() loop replaces `.limit(10000)` (was PostgREST-capped at 1000). Ordered by year DESC. Switched to createServerClient(). Commit `7142b43`.
+- ✅ Footer 4-column redesign — Pages column (Sets/Themes/Deals/Reviews/News/Blog/The Lab) + Company column (About/Contact/Privacy/Terms). BRAND.youtube confirmed correct. Commits `c5d3400`, `fb42975`.
+- ✅ DEFECT-010 closed — FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true in all 6 workflow env blocks. Commit `41856ed`.
+- ✅ DEFECT-011 closed (CSS selector fix, 68aa474). ✅ DEFECT-012 closed (on-demand gen, 57cd130).
+
 **Open carry-overs:**
 - 🔴 WEB-01 4 lint gates (spec at Codex Page 20)
 - 🔴 GEO-01-FU1 (blocked by reviews=0)

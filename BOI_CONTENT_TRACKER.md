@@ -2,7 +2,7 @@
 
 > Voice Codex, RSS ingestion, article publishing operations, morning brief.
 >
-> **Last updated:** 2026-05-09 (Day 9 session 2: RADAR-01/02/03/04 done, 14 sources, 349 pending_drafts, /admin/pending live)
+> **Last updated:** 2026-05-10 (Day 9 session 3: pipeline fully operational end-to-end, 4 articles published via pipeline, 15 sources, newsletter Resend confirmed, BRIEF-02 resolved)
 
 ---
 
@@ -132,7 +132,7 @@
 
 | Type | Published | Source |
 |---|---|---|
-| News articles | 20 | news_articles table |
+| News articles | 24+ | news_articles table — 4 published via RADAR pipeline (Road Bike, Friends Summer 2026, NYC Architecture, Road Bike 11380). All have hero_image populated. |
 | Blog posts | 19 | blog_posts table |
 | Reviews | 0 | reviews table — **empty, blocks GEO-01-FU1 and RLFM** |
 | Voice Codex | 1 (v2) | docs/codex/ |
@@ -147,7 +147,7 @@ GA4 wired in src/app/layout.tsx via gtag (NEXT_PUBLIC_GA_MEASUREMENT_ID).
 | ID | Task | Status |
 |----|------|--------|
 | BRIEF-01 | Email template — top stories, classifier buckets, suggested angles | 🔴 |
-| BRIEF-02 | Sender infrastructure (SMTP / Resend / similar) | 🔴 |
+| BRIEF-02 | Sender infrastructure (SMTP / Resend / similar) | ✅ Done 2026-05-10 — Resend SDK (`resend@6.12.3`), from `abhinav@bricksofindia.com`, RESEND_API_KEY in all env stores. Newsletter confirmation live. See `src/app/actions/newsletter.ts`. |
 | BRIEF-03 | Unsubscribe / delivery compliance | 🔴 (only needed if list expands) |
 
 ---

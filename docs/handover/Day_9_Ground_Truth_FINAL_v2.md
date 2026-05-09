@@ -1,3 +1,8 @@
+> **DEPRECATED — superseded by `Day_9_Ground_Truth_FINAL_v3.md`**
+> This file reflects session 2 state (commit 57cd130). It does not include: YoutubeStrip (BOI channel filter), newsletter Resend switch, footer 4-column redesign, sitemap pagination fix, DEFECT-010 closure, or BOI YouTube channel in Tier 4 sources. Read `Day_9_Ground_Truth_FINAL_v3.md` instead.
+
+---
+
 # Day 9 Ground Truth FINAL v2 — Bricks of India
 
 **Date written:** 2026-05-09, end of full session
