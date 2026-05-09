@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { MASCOTS } from '@/lib/brand';
-import { supabase } from '@/lib/supabase';
+import { subscribeNewsletter } from '@/app/actions/newsletter';
 
 export function NewsletterSignup() {
   const [email, setEmail] = useState('');
@@ -15,10 +15,10 @@ export function NewsletterSignup() {
     if (!email.trim()) return;
     setStatus('loading');
     try {
-      const { error } = await supabase.from('newsletter_subscribers').insert({ email });
-      if (error && error.code !== '23505') throw error;
+      const result = await subscribeNewsletter(email.trim());
+      if (!result.ok) throw new Error('subscribe failed');
       setStatus('success');
-      setMessage("You're in. Your wallet has been warned.");
+      setMessage(result.duplicate ? "Already subscribed — you're ahead of the curve." : "You're in. Your wallet has been warned.");
       setEmail('');
     } catch {
       setStatus('error');
