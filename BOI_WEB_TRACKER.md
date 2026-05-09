@@ -26,6 +26,13 @@ This sub-tracker is a detail view. The canonical state lives in `BOI_MASTER_TRAC
 **Shipped Day 7 (2026-05-09):**
 - ✅ DEFECT-008 fix — `catalogue-audit.yml` `permissions: issues: write` added (commit `e5b71b1`). Closes 403 on auto-issue-creation step.
 
+**Shipped Day 9 session 2 (2026-05-09):**
+- ✅ /admin/pending — password-gated review UI, status/format/domain filters, bulk approve, Server Actions with redirect() (commits `6e2e47b`, `772624d`). Live on production.
+- ✅ supabase.ts defensive guard — createClient('','') no longer throws opaque Digest crash (commit `8d178c6`).
+- ✅ Blog added to NAV_LINKS after News (commit `1f82da0`).
+- ✅ Sitemap: `/compare` → `/sets`; `/calendar` removed (route doesn't exist) (commit `1f82da0`).
+- ✅ Netlify plugin v5 pinned in package.json — fixes Server Actions support (commit `772624d`, lock file `7fb5b6d`).
+
 **Open carry-overs:**
 - 🔴 WEB-01 4 lint gates (spec at Codex Page 20)
 - 🔴 GEO-01-FU1 (blocked by reviews=0)

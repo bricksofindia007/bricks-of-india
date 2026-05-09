@@ -1,4 +1,9 @@
-# Day 9 Ground Truth — Bricks of India
+> **DEPRECATED — superseded by `Day_9_Ground_Truth_FINAL.md`**
+> This file reflects session 1 state only (before /admin/pending, source fixes, Server Actions fix). Do not use as reference. Read `Day_9_Ground_Truth_FINAL.md` instead.
+
+---
+
+# Day 9 Ground Truth — Bricks of India (SESSION 1 — DEPRECATED)
 
 **Date written:** 2026-05-09, end of session (IST)
 **Session duration:** ~3 hours

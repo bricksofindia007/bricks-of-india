@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-09 (Day 7: PR #2 squash-merged, RADAR-01/02/CRON live, 163 signals, DEFECT-007/008 closed)
+> **Last updated:** 2026-05-09 (Day 9 session 2: /admin/pending live on production, Server Actions fixed, Jay's Brick Blog + Brickset + Blocks Magazine re-enabled, pipeline 14 sources, 349 pending_drafts)
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -80,7 +80,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 | Phase 0 | Launch + post-launch P0 fixes | ✅ Done | WEB |
 | Phase 1 | Voice Codex | ✅ Done — `docs/codex/BOI_Codex_v2.docx` committed 2026-05-01 | CONTENT |
 | Phase 2 | Claude Project workbench | 🟡 Unblocked — pending setup | CONTENT |
-| Phase 3 | Topical Radar (RSS ingestion) | 🟡 In progress — RADAR-01/02/03/CRON ✅ Done. /admin/pending ✅ Done. 298 drafts queued. RADAR-04 drafter integration next. | CONTENT |
+| Phase 3 | Topical Radar (RSS ingestion) | 🟡 In progress — RADAR-01/02/03/04/CRON ✅ Done. /admin/pending ✅ Live on production. 349 pending_drafts. 14 active sources. RADAR-05 (publish) next. | CONTENT |
 | Phase 4 | Shorts / Reels workflow (DaVinci + ElevenLabs) | 🔴 Not started | VIDEO |
 | Phase 5 | Instagram carousel engine | 🔴 Not started | SOCIAL |
 | Phase 8 | LEGO Search Pulse | 🟡 Prototypes done, integration pending | WEB (PULSE-01→N) |
@@ -97,11 +97,14 @@ JSON parses. If it doesn't, fix before doing anything else.
 **Reasoning:** Tier 1 must be high-signal-only. 12 mixed-quality blogs would dilute the editorial bar and add noise to RADAR's input.
 
 **Disposition of the 9:**
-- Brickset → moved to Tier 2 (official-adjacent, structured release data)
+- Brickset → moved to Tier 2 (official-adjacent, structured release data). ✅ Re-enabled 2026-05-09 — correct URL is `/feed`, old `/article/rss` returned HTML.
 - Brick Fanatics → moved to Tier 5 (headline + URL only, no body)
-- Brick Fan, Jay's Brick Blog, Toys N Bricks, Bricks Fanz, LEGO Car Blog, Rambling Brick, True North Bricks → not adopted at any tier
+- Brick Fan, Toys N Bricks, Bricks Fanz, LEGO Car Blog, Rambling Brick, True North Bricks → not adopted at any tier
+- Jay's Brick Blog → ✅ Added 2026-05-09 as Tier 1 editorial (jaysbrickblog.com/feed/). Confirmed working: 11 items, parses cleanly.
 
-**Re-litigation rule:** Adding any of the 9 back requires a tracker entry with reason. Don't quietly expand Tier 1.
+**Active Tier 1 sources (as of 2026-05-09):** The Brothers Brick, Jay's Brick Blog, BrickNerd. New Elementary disabled (PARSER-01 — 3 cascading XML violations, parser swap needed).
+
+**Re-litigation rule:** Adding any source requires a tracker entry with reason. Don't quietly expand tiers.
 
 ---
 
@@ -207,6 +210,31 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### Day 9 (session 2) — 2026-05-09 — Pipeline + Admin UI + Source Fixes
+
+Shipped:
+- RADAR-03 classifier wired (`classify-signals.js`, commit `db1dd2d`). 349 pending_drafts.
+- RADAR-04 pipeline drafter wired (`generate-drafts.js`, commit `2a157e6`). Reads
+  `status='approved' AND draft_body IS NULL`, generates via Gemini, resets to `draft`.
+- `/admin/pending` live on production — password-gated, cookie auth, Server Actions,
+  status/format/source-domain filter chips, bulk approve (commit `772624d`).
+- Server Actions bug fixed — `redirect()` not `revalidatePath()` (Netlify ISR issue).
+- `@netlify/plugin-nextjs: ^5.0.0` pinned in package.json for Server Action support.
+- `supabase.ts` defensive guard — `createClient('',...)` no longer throws opaque
+  Digest crash; throws readable error instead (commit `8d178c6`).
+- Blog added to nav (commit `1f82da0`). Sitemap: /compare→/sets, /calendar removed.
+- Jay's Brick Blog added as Tier 1 editorial (11 signals/run, commit `784adb6`).
+- Brickset re-enabled at correct URL (`/feed` not `/article/rss`, 40 signals/run).
+- Blocks Magazine re-enabled at post-redirect URL (`blocksmag.com/news/`, 86 links/run).
+- `sanitizeXml()` added to `fetch-rss.js` — strips bare HTML attributes + escapes `&`.
+- PARSER-01 definitively investigated: `xmlParseOptions`/`xml2jsOptions` cannot fix
+  New Elementary (SAX strict mode incompatibility). Parser swap required.
+- Full pipeline run: 14 sources, 322 signals, 50 new pending_drafts added.
+
+Key commits: `772624d` (admin), `784adb6` (sources), `1f82da0` (nav/sitemap), `cbb4ac9` (PARSER-01 docs)
+
+---
 
 ### Day 7 — 2026-05-09 — Merge + Verify
 

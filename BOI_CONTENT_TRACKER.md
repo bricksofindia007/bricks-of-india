@@ -2,7 +2,7 @@
 
 > Voice Codex, RSS ingestion, article publishing operations, morning brief.
 >
-> **Last updated:** 2026-05-09 (Day 7: PR #2 merged, RADAR-01/02/CRON live, 163 signals; RADAR-03 next)
+> **Last updated:** 2026-05-09 (Day 9 session 2: RADAR-01/02/03/04 done, 14 sources, 349 pending_drafts, /admin/pending live)
 
 ---
 
@@ -78,13 +78,13 @@
 
 | ID | Task | Status | Depends on |
 |----|------|--------|------------|
-| RADAR-01 | RSS/API/scrape/reddit/youtube fetcher — 11 sources active, 5 deferred (PARSER-01/SCRAPE-01/YT-FEED-NOISE-01) | ✅ Done 2026-05-03 — `scripts/radar/fetch-rss.js`, commit `feae8aa`. 53 rows in `raw_signals`. | — |
-| RADAR-02 | De-dup across sources (same story, multiple outlets) | ✅ Done 2026-05-03 — `scripts/radar/dedupe-signals.js`, commit `55616bb`. 4-pass design (exact URL → exact title → Jaccard ≥0.75 → unique). First run: 53 unique, 0 grouped, top pairwise 0.333 (validated correct). | RADAR-01 |
-| RADAR-03 | Classify: news / review / opinion / set-release / community | 🟡 Next — Day 7 target | RADAR-02 |
-| RADAR-04 | Gemini 2.5 Flash-Lite drafter in BOI voice | 🟡 v3 prompt scaffolded — DEFECT-005 partially resolved. Integration into cron deferred to Day 6+. | WORKBENCH-05 |
-| RADAR-05 | Write drafts to `/admin/pending` (not published) | 🔴 | RADAR-04 |
+| RADAR-01 | RSS/API/scrape/reddit/youtube fetcher | ✅ Done — 14 sources active (up from 11). Jay's Brick Blog added Tier 1, Brickset re-enabled at correct URL, Blocks Magazine re-enabled. sanitizeXml() added. Last run: 322 signals fetched. `scripts/radar/fetch-rss.js`. | — |
+| RADAR-02 | De-dup across sources | ✅ Done — 4-pass design. Last run: 322 in, 280 unique. `scripts/radar/dedupe-signals.js`. | RADAR-01 |
+| RADAR-03 | Classify signals → pending_drafts | ✅ Done 2026-05-09 — `scripts/radar/classify-signals.js` (commit `db1dd2d`). Threshold score ≥4. Last run: 997 candidates, 50 queued. 349 total pending_drafts. | RADAR-02 |
+| RADAR-04 | Gemini 2.5 Flash-Lite article generation | ✅ Done 2026-05-09 — `scripts/radar/generate-drafts.js` wired into radar.yml (commit `2a157e6`). Reads `status='approved' AND draft_body IS NULL`, generates, resets to `draft`. Rate-limited at 7s/call. | RADAR-03 |
+| RADAR-05 | /admin/pending review interface | ✅ Done 2026-05-09 — `src/app/admin/pending/` (commit `6e2e47b`, fixes `772624d`). Cookie auth, status/format/domain filters, bulk approve, Server Actions with redirect(). Live on production. | RADAR-04 |
 | RADAR-06 | Email morning brief at 08:00 IST | 🔴 | RADAR-05 |
-| RADAR-07 | Lock full radar run to 23:00 IST daily | ✅ Done 2026-05-09 — `.github/workflows/radar.yml` cron at 17:30 UTC (23:00 IST) chains RADAR-01 → RADAR-02. PR #2 merged (`e5b71b1`). workflow_dispatch verified green (37s, run 25593692037). First scheduled tick: 2026-05-09 17:30 UTC. Full pipeline (RADAR-03→06) chains in as each stage ships. | All above |
+| RADAR-07 | Lock full radar run to 23:00 IST daily | ✅ Done — radar.yml chains RADAR-01 → RADAR-02 → RADAR-03 → RADAR-04 daily 17:30 UTC. | All above |
 
 **Nothing in this pipeline auto-publishes.** Drafts land in `/admin/pending` and require manual approve-and-merge.
 
