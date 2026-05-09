@@ -81,10 +81,10 @@
 | RADAR-01 | RSS/API/scrape/reddit/youtube fetcher | ✅ Done — 14 sources active (up from 11). Jay's Brick Blog added Tier 1, Brickset re-enabled at correct URL, Blocks Magazine re-enabled. sanitizeXml() added. Last run: 322 signals fetched. `scripts/radar/fetch-rss.js`. | — |
 | RADAR-02 | De-dup across sources | ✅ Done — 4-pass design. Last run: 322 in, 280 unique. `scripts/radar/dedupe-signals.js`. | RADAR-01 |
 | RADAR-03 | Classify signals → pending_drafts | ✅ Done 2026-05-09 — `scripts/radar/classify-signals.js` (commit `db1dd2d`). Threshold score ≥4. Last run: 997 candidates, 50 queued. 349 total pending_drafts. | RADAR-02 |
-| RADAR-04 | Gemini 2.5 Flash-Lite article generation | ✅ Done 2026-05-09 — `scripts/radar/generate-drafts.js` wired into radar.yml (commit `2a157e6`). Reads `status='approved' AND draft_body IS NULL`, generates, resets to `draft`. Rate-limited at 7s/call. | RADAR-03 |
-| RADAR-05 | /admin/pending review interface | ✅ Done 2026-05-09 — `src/app/admin/pending/` (commit `6e2e47b`, fixes `772624d`). Cookie auth, status/format/domain filters, bulk approve, Server Actions with redirect(). Live on production. | RADAR-04 |
+| RADAR-04 | Gemini 2.5 Flash-Lite article generation — on-demand only | ✅ Done 2026-05-09 — **removed from cron**. `generate-drafts.js` kept for manual bulk use. `generateArticle()` Server Action in /admin/pending triggers per-draft on operator click. Full-text fetch live (JBB 1607 chars, Brickset 4000 chars). Zero Gemini waste. | RADAR-03 |
+| RADAR-05 | /admin/pending — four-state review+publish UI | ✅ Done 2026-05-09 — (1) draft+no-body → Approve signal/Reject, (2) draft+body → Approve article/Reject, (3) approved+no-body → Generate Article button, (4) approved+body → Publish button. Publish inserts to news_articles/blog_posts. | RADAR-04 |
 | RADAR-06 | Email morning brief at 08:00 IST | 🔴 | RADAR-05 |
-| RADAR-07 | Lock full radar run to 23:00 IST daily | ✅ Done — radar.yml chains RADAR-01 → RADAR-02 → RADAR-03 → RADAR-04 daily 17:30 UTC. | All above |
+| RADAR-07 | Lock full radar cron (RADAR-01→02→03) | ✅ Done — radar.yml chains RADAR-01 → RADAR-02 → RADAR-03 daily 17:30 UTC. RADAR-04 removed from cron — on-demand only. | All above |
 
 **Nothing in this pipeline auto-publishes.** Drafts land in `/admin/pending` and require manual approve-and-merge.
 

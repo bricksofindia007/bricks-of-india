@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@/lib/supabase';
-import { login, logout, approveDraft, rejectDraft, approveAll, publishDraft } from './actions';
+import { login, logout, approveDraft, rejectDraft, approveAll, generateArticle, publishDraft } from './actions';
 
 export const metadata: Metadata = {
   title: 'Pending Drafts | BOI Admin',
@@ -148,13 +148,14 @@ function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filter
         </p>
       ) : null}
 
-      {isDraft && (
+      {/* STATE: draft + no body → signal review (Approve / Reject only) */}
+      {isDraft && !draft.draft_body && (
         <div style={{ display: 'flex', gap: 8 }}>
           <form action={approveDraft} style={{ margin: 0 }}>
             <input type="hidden" name="id" value={draft.id} />
             <input type="hidden" name="redirectTo" value={redirectTo} />
             <button type="submit" style={{ padding: '7px 18px', background: '#16A34A', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-              ✓ Approve
+              ✓ Approve signal
             </button>
           </form>
           <form action={rejectDraft} style={{ margin: 0 }}>
@@ -167,7 +168,38 @@ function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filter
         </div>
       )}
 
-      {/* Publish — only for approved drafts that have a generated body */}
+      {/* STATE: draft + body → article review (Approve / Reject with body visible) */}
+      {isDraft && draft.draft_body && (
+        <div style={{ display: 'flex', gap: 8 }}>
+          <form action={approveDraft} style={{ margin: 0 }}>
+            <input type="hidden" name="id" value={draft.id} />
+            <input type="hidden" name="redirectTo" value={redirectTo} />
+            <button type="submit" style={{ padding: '7px 18px', background: '#16A34A', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              ✓ Approve article
+            </button>
+          </form>
+          <form action={rejectDraft} style={{ margin: 0 }}>
+            <input type="hidden" name="id" value={draft.id} />
+            <input type="hidden" name="redirectTo" value={redirectTo} />
+            <button type="submit" style={{ padding: '7px 18px', background: '#fff', color: '#DC2626', border: '2px solid #DC2626', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+              ✗ Reject
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* STATE: approved + no body → Generate Article */}
+      {draft.status === 'approved' && !draft.draft_body && (
+        <form action={generateArticle} style={{ margin: 0 }}>
+          <input type="hidden" name="id" value={draft.id} />
+          <input type="hidden" name="redirectTo" value={redirectTo} />
+          <button type="submit" style={{ padding: '7px 18px', background: '#F7A800', color: '#0F2D6B', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+            ✦ Generate Article
+          </button>
+        </form>
+      )}
+
+      {/* STATE: approved + body → Publish */}
       {draft.status === 'approved' && draft.draft_body && (
         <form action={publishDraft} style={{ margin: 0 }}>
           <input type="hidden" name="id" value={draft.id} />
