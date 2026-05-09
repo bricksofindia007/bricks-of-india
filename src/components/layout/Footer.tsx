@@ -63,11 +63,11 @@ export function Footer() {
   return (
     <footer style={{ background: 'var(--boi-navy)', color: '#fff' }}>
       <div className="max-w-site mx-auto" style={{ padding: '48px 32px' }}>
-        {/* 3-column grid desktop, stacked mobile */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-10 mb-10">
+        {/* 4-column grid desktop, 2-column tablet, stacked mobile */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-10">
 
           {/* Column 1 — wordmark + tagline */}
-          <div>
+          <div className="col-span-2 md:col-span-1">
             <Link href="/" className="inline-block mb-4">
               <FooterWordmark />
             </Link>
@@ -83,7 +83,7 @@ export function Footer() {
             </p>
           </div>
 
-          {/* Column 2 — quick links */}
+          {/* Column 2 — pages */}
           <div>
             <h3
               style={{
@@ -96,29 +96,22 @@ export function Footer() {
                 marginBottom: '16px',
               }}
             >
-              Quick Links
+              Pages
             </h3>
             <ul className="space-y-2.5">
               {[
-                { href: '/sets',          label: 'Sets'    },
-                { href: '/themes',        label: 'Themes'  },
-                { href: '/deals',         label: 'Deals'   },
-                { href: '/reviews',       label: 'Reviews' },
-                { href: '/news',          label: 'News'    },
-                { href: '/blog',          label: 'Blog'    },
-                { href: '/about',         label: 'About'   },
-                { href: '/legal/privacy', label: 'Privacy' },
-                { href: '/legal/terms',   label: 'Terms'   },
-                { href: '/contact',       label: 'Contact' },
+                { href: '/sets',    label: 'Sets'     },
+                { href: '/themes',  label: 'Themes'   },
+                { href: '/deals',   label: 'Deals'    },
+                { href: '/reviews', label: 'Reviews'  },
+                { href: '/news',    label: 'News'     },
+                { href: '/blog',    label: 'Blog'     },
+                { href: '/lab',     label: 'The Lab'  },
               ].map(({ href, label }) => (
                 <li key={href}>
                   <Link
                     href={href}
-                    style={{
-                      fontFamily: 'var(--font-inter)',
-                      fontSize: '14px',
-                      color: 'rgba(255,255,255,0.65)',
-                    }}
+                    style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(255,255,255,0.65)' }}
                     className="hover:text-white transition-colors"
                   >
                     {label}
@@ -128,7 +121,42 @@ export function Footer() {
             </ul>
           </div>
 
-          {/* Column 3 — social + contact */}
+          {/* Column 3 — company */}
+          <div>
+            <h3
+              style={{
+                fontFamily: 'var(--font-fredoka)',
+                fontWeight: 700,
+                fontSize: '13px',
+                color: 'var(--boi-yellow)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                marginBottom: '16px',
+              }}
+            >
+              Company
+            </h3>
+            <ul className="space-y-2.5">
+              {[
+                { href: '/about',         label: 'About'   },
+                { href: '/contact',       label: 'Contact' },
+                { href: '/legal/privacy', label: 'Privacy' },
+                { href: '/legal/terms',   label: 'Terms'   },
+              ].map(({ href, label }) => (
+                <li key={href}>
+                  <Link
+                    href={href}
+                    style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(255,255,255,0.65)' }}
+                    className="hover:text-white transition-colors"
+                  >
+                    {label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+
+          {/* Column 4 — connect */}
           <div>
             <h3
               style={{
