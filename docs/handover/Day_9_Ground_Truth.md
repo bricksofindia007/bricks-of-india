@@ -3,7 +3,7 @@
 **Date written:** 2026-05-09, end of session (IST)
 **Session duration:** ~3 hours
 **Branch:** main
-**Last commit:** 4651696 — fix(nav): Sets link and hero CTAs point to /sets not /compare
+**Last commit:** 12b26a6 — docs: commit orphaned Day 5 session handover
 
 This document supersedes Day 8 Ground Truth on all points of conflict.
 
@@ -15,10 +15,14 @@ This document supersedes Day 8 Ground Truth on all points of conflict.
 ```bash
 cd "C:\Users\bharg\Documents\BricksofIndia\website" && git status && git log --oneline -5 && git branch --show-current
 ```
-Expected: branch `main`, clean, last commit `4651696`.
+Expected: branch `main`, clean, last commit `12b26a6`.
 
-**Day 9 commit trail:**
+**Day 9 commit trail (selected):**
 ```
+12b26a6  docs: commit orphaned Day 5 session handover
+6e2e47b  feat(admin): /admin/pending — password-gated draft review page
+9106d2c  fix(radar-03): use plain insert instead of upsert
+db1dd2d  feat(radar): RADAR-03 classifier — score/filter raw_signals, write to pending_drafts
 4651696  fix(nav): Sets link and hero CTAs point to /sets not /compare
 3a683f9  fix(scraper): paginate sets load to bypass PostgREST 1000-row cap
 ```
@@ -53,6 +57,8 @@ Expected: branch `main`, clean, last commit `4651696`.
 |---|---|---|
 | BUG-04 | DK books / non-LEGO ISBNs appearing as set cards on /compare | Low |
 | DEFECT-010 | actions/checkout + setup-node deprecated Node 20, deadline 2026-06-02 | Medium |
+| RADAR-03-TUNE | Classifier over-indexes on Rebrickable as NEWS; BrickNerd digest/contest round-ups not caught by community regex | P2 |
+| NETLIFY-CREDITS | Production deploys paused — free-tier build minutes exhausted. Billing resets 2026-05-22. /admin/pending + RADAR-03 + scraper fixes not live on production until then. | P1 |
 
 ---
 
