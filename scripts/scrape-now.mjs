@@ -189,7 +189,8 @@ async function main() {
   console.log('Loading set inventory from Supabase...');
   const { data: setsData, error: setsError } = await supabase
     .from('sets')
-    .select('set_number');
+    .select('set_number')
+    .limit(50000);
 
   if (setsError) {
     console.error('Failed to load sets:', setsError.message);
