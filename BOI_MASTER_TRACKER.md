@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-03 (Day 5 close-out: RADAR-02 deduper + RADAR-CRON shipped, PR #2 open awaiting merge)
+> **Last updated:** 2026-05-09 (Day 7: PR #2 squash-merged, RADAR-01/02/CRON live, 163 signals, DEFECT-007/008 closed)
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -80,7 +80,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 | Phase 0 | Launch + post-launch P0 fixes | ✅ Done | WEB |
 | Phase 1 | Voice Codex | ✅ Done — `docs/codex/BOI_Codex_v2.docx` committed 2026-05-01 | CONTENT |
 | Phase 2 | Claude Project workbench | 🟡 Unblocked — pending setup | CONTENT |
-| Phase 3 | Topical Radar (RSS ingestion) | 🟡 In progress — RADAR-01 + RADAR-02 + RADAR-CRON shipped (Days 4–5). PR #2 open. RADAR-03 classifier next. | CONTENT |
+| Phase 3 | Topical Radar (RSS ingestion) | 🟡 In progress — RADAR-01 + RADAR-02 + RADAR-CRON ✅ Done (PR #2 merged 2026-05-09, e5b71b1). 163 signals live. RADAR-03 classifier next (Day 7). | CONTENT |
 | Phase 4 | Shorts / Reels workflow (DaVinci + ElevenLabs) | 🔴 Not started | VIDEO |
 | Phase 5 | Instagram carousel engine | 🔴 Not started | SOCIAL |
 | Phase 8 | LEGO Search Pulse | 🟡 Prototypes done, integration pending | WEB (PULSE-01→N) |
@@ -180,7 +180,8 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 | Deploy | Date | Commit | Contents |
 |--------|------|--------|----------|
-| RADAR-CRON | 2026-05-03 | `4900811` | `.github/workflows/radar.yml` — daily 17:30 UTC (23:00 IST). Chains RADAR-01 (fetch-rss.js) → RADAR-02 (dedupe-signals.js). workflow_dispatch enabled. In PR #2 (https://github.com/bricksofindia007/bricks-of-india/pull/2) — awaiting operator merge before first scheduled run. |
+| PR #2 merge + DEFECT-008 | 2026-05-09 | `e5b71b1` | Squash-merged feat/content-pipeline-foundation. RADAR-01, RADAR-02, RADAR-CRON live on main. catalogue-audit.yml `permissions: issues: write` added (DEFECT-008). DEFECT-007/008 logged in docs/BRIEF_DEFECTS.md. |
+| RADAR-CRON | 2026-05-03 | `4900811` | `.github/workflows/radar.yml` — daily 17:30 UTC (23:00 IST). Chains RADAR-01 (fetch-rss.js) → RADAR-02 (dedupe-signals.js). workflow_dispatch enabled. Merged in PR #2 (2026-05-09). First scheduled tick: 2026-05-09 17:30 UTC. |
 | RADAR-02 | 2026-05-03 | `55616bb` | `scripts/radar/dedupe-signals.js` — 4-pass deduper (exact URL → exact title → cross-source Jaccard ≥0.75 → unique). First live run: 53 signals, 53 unique, 0 grouped. Top pairwise Jaccard 0.333. |
 | RADAR-01 | 2026-05-03 | `feae8aa` | `scripts/radar/fetch-rss.js` — 11 active sources across 5 tiers. 53 rows written to `raw_signals`. 5 sources deferred (PARSER-01, SCRAPE-01, YT-FEED-NOISE-01). |
 | Content Pipeline Day 1 | 2026-05-03 | `4a39ca5` | `.env.example`, `config/sources.json` (Tier 1–5 sources), `docs/runbooks/CONTENT-PIPELINE-SETUP.md`, `@google/generative-ai@0.24.1` + `rss-parser@3.13.0`. GEMINI_API_KEY, GMAIL_APP_PASSWORD, ADMIN_PASSWORD all confirmed live in GitHub Secrets. Branch: `feat/content-pipeline-foundation`. |
@@ -200,6 +201,26 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### Day 7 — 2026-05-09 — Merge + Verify
+
+Shipped:
+- PR #2 squash-merged to main (`e5b71b1`): RADAR-01 fetcher, RADAR-02 deduper,
+  RADAR-CRON (radar.yml daily 17:30 UTC), schema migrations, runbooks,
+  .env.example, config/sources.json.
+- DEFECT-008 fix: `catalogue-audit.yml` missing `permissions: issues: write`
+  added at job level (`775de46`, squashed into `e5b71b1`).
+- DEFECT-007 + DEFECT-008 logged in `docs/BRIEF_DEFECTS.md`.
+
+Verified live:
+- `radar.yml` workflow_dispatch run completed green in 37s (run 25593692037).
+- `raw_signals`: 163 rows, latest fetch 2026-05-09T06:07:09 UTC.
+- Netlify build + deploy: green in 2m23s post-merge.
+
+Next: RADAR-03 classifier — classify `raw_signals` rows as
+news / review / opinion / set-release / community.
+
+---
 
 ### Day 5 — 2026-05-03 — Pipeline
 

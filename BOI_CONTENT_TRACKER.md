@@ -2,7 +2,7 @@
 
 > Voice Codex, RSS ingestion, article publishing operations, morning brief.
 >
-> **Last updated:** 2026-05-03 (Day 5: RADAR-01, RADAR-02 done; RADAR-07 cron scaffolded; PR #2 open)
+> **Last updated:** 2026-05-09 (Day 7: PR #2 merged, RADAR-01/02/CRON live, 163 signals; RADAR-03 next)
 
 ---
 
@@ -80,11 +80,11 @@
 |----|------|--------|------------|
 | RADAR-01 | RSS/API/scrape/reddit/youtube fetcher — 11 sources active, 5 deferred (PARSER-01/SCRAPE-01/YT-FEED-NOISE-01) | ✅ Done 2026-05-03 — `scripts/radar/fetch-rss.js`, commit `feae8aa`. 53 rows in `raw_signals`. | — |
 | RADAR-02 | De-dup across sources (same story, multiple outlets) | ✅ Done 2026-05-03 — `scripts/radar/dedupe-signals.js`, commit `55616bb`. 4-pass design (exact URL → exact title → Jaccard ≥0.75 → unique). First run: 53 unique, 0 grouped, top pairwise 0.333 (validated correct). | RADAR-01 |
-| RADAR-03 | Classify: news / review / opinion / set-release / community | 🔴 Day 6 | RADAR-02 |
+| RADAR-03 | Classify: news / review / opinion / set-release / community | 🟡 Next — Day 7 target | RADAR-02 |
 | RADAR-04 | Gemini 2.5 Flash-Lite drafter in BOI voice | 🟡 v3 prompt scaffolded — DEFECT-005 partially resolved. Integration into cron deferred to Day 6+. | WORKBENCH-05 |
 | RADAR-05 | Write drafts to `/admin/pending` (not published) | 🔴 | RADAR-04 |
 | RADAR-06 | Email morning brief at 08:00 IST | 🔴 | RADAR-05 |
-| RADAR-07 | Lock full radar run to 23:00 IST daily | 🟡 Partial — `.github/workflows/radar.yml` cron at 17:30 UTC (23:00 IST) chains RADAR-01 → RADAR-02 only. Full pipeline (RADAR-03→06) deferred. PR #2 open, awaiting merge before first scheduled tick. commit `4900811`. | All above |
+| RADAR-07 | Lock full radar run to 23:00 IST daily | ✅ Done 2026-05-09 — `.github/workflows/radar.yml` cron at 17:30 UTC (23:00 IST) chains RADAR-01 → RADAR-02. PR #2 merged (`e5b71b1`). workflow_dispatch verified green (37s, run 25593692037). First scheduled tick: 2026-05-09 17:30 UTC. Full pipeline (RADAR-03→06) chains in as each stage ships. | All above |
 
 **Nothing in this pipeline auto-publishes.** Drafts land in `/admin/pending` and require manual approve-and-merge.
 

@@ -2,7 +2,7 @@
 
 > Infra, site integrity, scrapers, GEO/AI readiness, deploys, article pipeline, LEGO Search Pulse.
 >
-> **Last updated:** 2026-05-02
+> **Last updated:** 2026-05-09
 
 ---
 
@@ -22,6 +22,9 @@ This sub-tracker is a detail view. The canonical state lives in `BOI_MASTER_TRAC
 **Shipped this sprint (additions):**
 - ✅ CF-CACHE-01 — done 2026-05-02 (commit `6229d99`). Cache-Control headers added across all route types in `next.config.mjs`.
 - ✅ BLOG-RECON-01 — closed 2026-05-01 by Brief decision (news = curated, blog = long-form, reviews = set reviews). No code change required.
+
+**Shipped Day 7 (2026-05-09):**
+- ✅ DEFECT-008 fix — `catalogue-audit.yml` `permissions: issues: write` added (commit `e5b71b1`). Closes 403 on auto-issue-creation step.
 
 **Open carry-overs:**
 - 🔴 WEB-01 4 lint gates (spec at Codex Page 20)
@@ -248,7 +251,7 @@ Expected: one run per day for the last several days. If not, inspect `.github/wo
 | CATALOG-01 | Backfill sets table — remove 10-page cap + min_year filter | ✅ Done | `sync-rebrickable.js` updated, commit `6bd5cd1`, full sync running. |
 | CATALOG-02 | Restore Rebrickable-first search in /compare | ✅ Done — merged 2026-04-26 (d19625d) | `fix/catalog-search` branch merged. Catalogue: 16,888 rows, 99.4% image coverage. Sync time 6.5 min (was 3+ hours). |
 | CATALOG-03 | Fix price filter — add theme to ilike + noPrice toggle | ✅ Done — merged 2026-04-26 (d19625d) | `fix/catalog-search` branch merged. |
-| CATALOG-04 | usd_msrp column + MSRP ingest | 🔴 Blocked | Schema migration required. Confirm Brickset API with Abhinav. |
+| CATALOG-04 | set_prices table + v_set_current_price view + MSRP ingest | 🔴 Not started | Schema (set_prices, v_set_current_price) was never created — code does not exist. Full schema + ingest design required before any implementation. |
 
 ---
 

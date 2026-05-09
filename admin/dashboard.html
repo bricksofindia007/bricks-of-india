@@ -555,9 +555,9 @@
 <script id="boi-data" type="application/json">
 {
   "meta": {
-    "lastUpdated": "2026-05-03",
+    "lastUpdated": "2026-05-09",
     "trackerVersion": "v1.3",
-    "currentSprint": "Day 2 — RADAR-04 drafter + tracker recon"
+    "currentSprint": "Day 7 — RADAR-03 classifier"
   },
   "kpis": {
     "healthScore": 67,
@@ -567,17 +567,17 @@
     "netlifyMinutesLeft": 9999,
     "netlifyResetDate": "2026-05-11",
     "daysSinceLastDeploy": 0,
-    "lastDeployDate": "2026-05-02",
-    "lastDeployCommit": "e9e1680 · chore(geo): GEO-01 hardening + BUG-013 closed",
+    "lastDeployDate": "2026-05-09",
+    "lastDeployCommit": "e5b71b1 · PR #2 merge: RADAR-01/02/CRON + DEFECT-008 fix (catalogue-audit permissions)",
     "voiceTestStatus": "Pending",
     "geoScore": 26,
     "geoScoreTarget": 75,
     "lastAuditDate": "2026-05-01",
     "nextAuditDate": "2026-05-08",
     "nextActions": [
-      "Day 2 active: RADAR-04 drafter — Gemini 2.5 Flash-Lite + pending_drafts table + smoke test",
-      "Day 2 active: TRACKER-RECON-01 — reconcile CODEX sub-tasks, Cloudflare 2FA/SSL, ADMIN-CLEANUP-01",
-      "Day 3: RADAR-01/02/03 fetch + dedup + classify (after RADAR-04 smoke test approved)"
+      "Day 7: RADAR-03 classifier — classify raw_signals rows as news/review/opinion/set-release/community",
+      "Day 7: Verify first scheduled radar.yml tick fires green at 17:30 UTC (2026-05-09)",
+      "Carry-over: DATA-01 — reconcile store_prices (scraper) with prices (frontend, currently disconnected)"
     ],
     "openManualChecks": [
       "Cloudflare billing — Free plan 'Processing' status, monitor for any charges (currently informational, no action needed unless a charge appears)"
@@ -605,7 +605,7 @@
     { "id": "LAB-04", "title": "Lab homepage strip + nav + /lab directory", "category": "Lab", "status": "done", "priority": "P2", "depsBlock": ["LAB-01"], "blocks": [], "notes": "Done 2026-05-02. /lab directory live, homepage strip + nav dropdown shipped. Fixes /lab 404. LAB-02 staged as coming_soon in src/lib/lab-tools.ts. Brief at briefs/LAB-04-homepage-strip.md." },
     { "id": "CF-CACHE-01", "title": "Diagnose and fix 2.31% Cloudflare cache rate", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-02 (commit 6229d99). Cache-Control headers added per route type in next.config.mjs: /sets/* long (3600), /news+/blog+/reviews short (300), /admin no-store, /sitemap.xml medium. Target: 2.3% → 40%+ hit rate — verify in Cloudflare analytics 24h post-deploy." },
     { "id": "INFRA-03", "title": "GitHub Actions deploy workflow (deploy.yml)", "category": "Infrastructure", "status": "done", "priority": "P0", "depsBlock": [], "blocks": ["Phase 8 globe", "RADAR-01 cron"], "notes": "Deployed 2026-04-24 (commit 8992aef). Build now runs on GitHub Actions; Netlify still hosts but no longer runs the build. Netlify build minute concern resolved." },
-    { "id": "RADAR-01", "title": "Topical Radar daily cron @ 23:00 IST", "category": "Content OS", "status": "unblocked", "priority": "P1", "depsBlock": [], "blocks": ["Phase 8 globe"], "notes": "Unblocked by CONTENT-01 (Codex committed 2026-05-01). Day 1 pipeline foundation committed 2026-05-03 (4a39ca5): config/sources.json Tier 1–5, @google/generative-ai + rss-parser deps, GEMINI_API_KEY live. RADAR-04 drafter in progress Day 2. Scrapes Brickset, TBB, New Elementary, BrickNerd, r/lego >500 upvotes, Rebrickable, LEGO.com/new, YouTube RSS." },
+    { "id": "RADAR-01", "title": "Topical Radar daily cron @ 23:00 IST", "category": "Content OS", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-09 — PR #2 merged (e5b71b1). fetch-rss.js live, 11 active sources (5 deferred: PARSER-01/SCRAPE-01/YT-FEED-NOISE-01). 163 signals in raw_signals as of 2026-05-09T06:07 UTC. workflow_dispatch verified green (run 25593692037, 37s). First scheduled tick: 2026-05-09 17:30 UTC." },
     { "id": "WEB-01", "title": "Article auto-publish pipeline with 4 lint gates", "category": "Website", "status": "spec-ready", "priority": "P1", "depsBlock": [], "blocks": ["Phase 8 globe"], "notes": "Lint gate spec at docs/codex/BOI_Codex_v2.md Page 20. Gates: word count, India Paragraph marker, verdict enum (BUY/WAIT FOR SALE/IMPORT ONLY/SKIP), image 200s. Implementation pending." },
     { "id": "VOICE-01", "title": "ElevenLabs free-tier voice clone test", "category": "Audio", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["Shorts/Reels production model"], "notes": "Outcome decides hybrid clone vs full self-record" },
     { "id": "INFRA-04", "title": "View Source verification of JSON-LD schemas", "category": "Infrastructure", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["GEO re-audit"], "notes": "Superseded by BUG-013 P0 finding — curl confirms schemas not in initial HTML. GEO-01 is the fix." },
@@ -674,7 +674,7 @@
         { "name": "Jaiman Toys scraper last run successful", "status": "pass", "detail": "Verified 2026-04-25 — scrape-prices.yml firing every 6h on GHA, 100% success rate" },
         { "name": "Rebrickable hydration completing without 429s", "status": "pass", "detail": "BUG-011 fixed 2026-04-21" },
         { "name": "Postgres dedup not silently aborting batches", "status": "pass", "detail": "BUG-012 fixed 2026-04-22" },
-        { "name": "Topical Radar cron firing at 23:00 IST", "status": "fail", "detail": "Not yet deployed — RADAR-01 pending" }
+        { "name": "Topical Radar cron firing at 23:00 IST", "status": "pass", "detail": "radar.yml live — PR #2 merged 2026-05-09. workflow_dispatch run 25593692037 green (37s). First scheduled tick: 2026-05-09 17:30 UTC." }
       ]
     },
     {
@@ -728,7 +728,7 @@
     { "feature": "Jaiman Toys scraper", "frequency": "Every 6h (00:00, 06:00, 12:00, 18:00 UTC)", "mode": "auto", "owner": "GitHub Actions — scrape-prices.yml", "notes": "Live since INFRA-03. All 3 stores run in single combined cron." },
     { "feature": "Rebrickable catalogue sync", "frequency": "Weekly Sunday 02:00 UTC (07:30 IST)", "mode": "auto", "owner": "GitHub Actions cron 0 2 * * 0 — sync-catalogue.yml", "notes": "~26k Rebrickable entries → ~10k unique sets after dedup. Row assertion ≥ 8,000. Opens GitHub issue on failure." },
     { "feature": "Catalogue health audit", "frequency": "Weekly Monday 03:30 UTC (09:00 IST)", "mode": "auto", "owner": "GitHub Actions cron 30 3 * * 1 — catalogue-audit.yml", "notes": "Checks row count, image coverage, scraper staleness, live search + theme pages. Opens GitHub issue on failure." },
-    { "feature": "Topical Radar (RADAR-01)", "frequency": "Daily 23:00 IST", "mode": "auto", "owner": "GitHub Actions cron 30 17 * * *", "notes": "Pending deploy" },
+    { "feature": "Topical Radar (RADAR-01 + RADAR-02)", "frequency": "Daily 23:00 IST (17:30 UTC)", "mode": "auto", "owner": "GitHub Actions — radar.yml", "notes": "Live — PR #2 merged 2026-05-09. Chains fetch-rss.js → dedupe-signals.js. 163 signals as of 2026-05-09T06:07 UTC." },
     { "feature": "Morning brief email", "frequency": "Daily 08:00 IST", "mode": "auto", "owner": "RADAR-01 follow-on", "notes": "Pending deploy" },
     { "feature": "Cloudflare cache purge on deploy", "frequency": "Per deploy (no-op currently — cf-cache-status DYNAMIC)", "mode": "auto", "owner": "Becomes relevant only after PERF-01", "notes": "Will need GitHub Actions step calling Cloudflare API after Netlify deploy completes" },
     { "feature": "Article publish (news)", "frequency": "2x per week", "mode": "hybrid", "owner": "Abhinav drafts → auto-publish on lint pass", "notes": "WEB-01 pipeline" },
