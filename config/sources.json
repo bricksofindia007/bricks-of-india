@@ -6,8 +6,13 @@
       "country": "USA"
     },
     {
+      "name": "Jay's Brick Blog",
+      "url": "https://jaysbrickblog.com/feed/",
+      "country": "UK"
+    },
+    {
       "name": "New Elementary",
-      "url": "https://www.newelementary.com/feeds/posts/default?alt=rss",
+      "url": "https://newelementary.com/feeds/posts/default",
       "country": "UK",
       "enabled": false
     },
@@ -20,9 +25,8 @@
   "tier_2_official": [
     {
       "name": "Brickset",
-      "url": "https://brickset.com/article/rss",
-      "method": "rss",
-      "enabled": false
+      "url": "https://brickset.com/feed",
+      "method": "rss"
     },
     {
       "name": "Rebrickable Recent Sets",
@@ -82,10 +86,9 @@
   "tier_5_topic_only": [
     {
       "name": "Blocks Magazine",
-      "url": "https://www.blocksmag.com/news",
+      "url": "https://blocksmag.com/news/",
       "method": "scrape",
-      "constraint": "headline_url_only",
-      "enabled": false
+      "constraint": "headline_url_only"
     },
     {
       "name": "LEGO Ideas Blog",

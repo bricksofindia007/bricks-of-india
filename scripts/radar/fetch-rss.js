@@ -125,6 +125,20 @@ function logSignal(signal) {
   );
 }
 
+// ── XML sanitizer (PARSER-01 fix) ────────────────────────────────────────────
+// Removes bare boolean HTML attributes (e.g. `crossorigin`, `async`) that are
+// valid in HTML5 but illegal in XML strict mode, causing sax to throw
+// "Attribute without value". Targets only known boolean attribute names so
+// legitimate RSS content is never touched.
+const BARE_ATTRS_RE = /\s(crossorigin|async|defer|disabled|checked|readonly|required|autofocus|autoplay|controls|loop|muted|open|default|ismap|multiple|novalidate|reversed|seamless|allowfullscreen|frameborder)(?=[\s\/>])/gi;
+
+function sanitizeXml(xml) {
+  return xml
+    .replace(BARE_ATTRS_RE, '')
+    // Fix unescaped & not already part of a valid XML entity (&amp; &lt; &#123; etc.)
+    .replace(/&(?!(?:[a-zA-Z][a-zA-Z0-9]*|#[0-9]+|#x[0-9a-fA-F]+);)/g, '&amp;');
+}
+
 // ── Handlers ──────────────────────────────────────────────────────────────────
 
 // Tier 1 RSS + Tier 2 Brickset: full body kept
@@ -134,7 +148,7 @@ async function handleRss(source, tier) {
     signal : AbortSignal.timeout(15000),
   });
   if (!res.ok) throw new Error(`HTTP ${res.status} from ${source.url}`);
-  const xml  = await res.text();
+  const xml  = sanitizeXml(await res.text());
   const feed = await rssParser.parseString(xml);
   const items   = feed.items.slice(0, LIMIT);
   const signals = items.map(item => buildSignal({
