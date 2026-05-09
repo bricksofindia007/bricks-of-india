@@ -7,11 +7,14 @@ import { NewsletterSignup } from '@/components/ui/NewsletterSignup';
 import { YouTubeSection } from '@/components/ui/YouTubeSection';
 import { SetCard } from '@/components/sets/SetCard';
 import { ArticleCard, ReviewCard } from '@/components/content/ArticleCard';
+import { YoutubeStrip } from '@/components/content/YoutubeStrip';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { TricolourStripe } from '@/components/ui/TricolourStripe';
 import { LabStrip } from '@/components/ui/LabStrip';
 import { BRAND, MASCOTS, THEMES } from '@/lib/brand';
 import { supabase } from '@/lib/supabase';
+
+export const revalidate = 3600; // re-fetch from Supabase at most every hour
 
 export const metadata: Metadata = {
   title: 'Bricks of India — LEGO Price Comparison & Reviews in India 2026',
@@ -395,6 +398,9 @@ export default async function HomePage() {
           </div>
         </section>
       )}
+
+      {/* YOUTUBE STRIP — live videos from RADAR-monitored channels */}
+      <YoutubeStrip />
 
       {/* YOUTUBE */}
       <YouTubeSection />
