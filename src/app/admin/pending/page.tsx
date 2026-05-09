@@ -226,36 +226,42 @@ export default async function AdminPendingPage({ searchParams }: Props) {
         <div style={{ background: '#fff', border: '1px solid #E4E7EB', borderRadius: 12, padding: '14px 16px', marginBottom: 20 }}>
 
           {/* Status */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: 4 }}>Status</span>
-            {['draft', 'approved', 'rejected'].map(s => (
-              <Chip key={s} href={buildUrl(filters, { status: s, format: formatFilter || undefined, domain: domainFilter || undefined })} active={statusFilter === s}>
-                {s}
-              </Chip>
-            ))}
+          <div style={{ marginBottom: 10 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Status</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              {['draft', 'approved', 'rejected'].map(s => (
+                <Chip key={s} href={buildUrl(filters, { status: s, format: formatFilter || undefined, domain: domainFilter || undefined })} active={statusFilter === s}>
+                  {s}
+                </Chip>
+              ))}
+            </div>
           </div>
 
           {/* Format */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: domains.length > 0 ? 10 : 0, flexWrap: 'wrap' }}>
-            <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: 4 }}>Format</span>
-            <Chip href={buildUrl(filters, { format: undefined })} active={!formatFilter}>All</Chip>
-            {['news', 'review', 'opinion'].map(f => (
-              <Chip key={f} href={buildUrl(filters, { format: formatFilter === f ? undefined : f })} active={formatFilter === f}>
-                {f}
-              </Chip>
-            ))}
+          <div style={{ marginBottom: domains.length > 0 ? 10 : 0 }}>
+            <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Format</div>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+              <Chip href={buildUrl(filters, { format: undefined })} active={!formatFilter}>All</Chip>
+              {['news', 'review', 'opinion'].map(f => (
+                <Chip key={f} href={buildUrl(filters, { format: formatFilter === f ? undefined : f })} active={formatFilter === f}>
+                  {f}
+                </Chip>
+              ))}
+            </div>
           </div>
 
           {/* Domain */}
           {domains.length > 0 && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginRight: 4 }}>Source</span>
-              <Chip href={buildUrl(filters, { domain: undefined })} active={!domainFilter}>All</Chip>
-              {domains.map(d => (
-                <Chip key={d} href={buildUrl(filters, { domain: domainFilter === d ? undefined : d })} active={domainFilter === d}>
-                  {d}
-                </Chip>
-              ))}
+            <div>
+              <div style={{ fontSize: 11, fontWeight: 700, color: '#9CA3AF', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 6 }}>Source</div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                <Chip href={buildUrl(filters, { domain: undefined })} active={!domainFilter}>All</Chip>
+                {domains.map(d => (
+                  <Chip key={d} href={buildUrl(filters, { domain: domainFilter === d ? undefined : d })} active={domainFilter === d}>
+                    {d}
+                  </Chip>
+                ))}
+              </div>
             </div>
           )}
         </div>
