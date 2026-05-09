@@ -37,3 +37,6 @@ jobs:
 
       - name: RADAR-03 — classify + queue to pending_drafts
         run: node scripts/radar/classify-signals.js
+
+      - name: RADAR-04 — generate article bodies for approved drafts
+        run: node scripts/radar/generate-drafts.js --limit 10
