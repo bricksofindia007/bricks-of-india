@@ -1,10 +1,11 @@
 import { MetadataRoute } from 'next';
-import { supabase } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { THEMES } from '@/lib/brand';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = 'https://bricksofindia.com';
+  const supabase = createServerClient();
 
   const staticPages = [
     { url: base, priority: 1.0 },
@@ -27,9 +28,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: p.priority,
   }));
 
-  // Dynamic set pages
-  const { data: sets } = await supabase.from('sets').select('set_number, name, updated_at').limit(10000);
-  const setPages = (sets || []).map((s: any) => ({
+  // Dynamic set pages — paginate to bypass PostgREST 1000-row cap
+  const PAGE = 1000;
+  const allSets: { set_number: string; name: string; updated_at: string }[] = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data } = await supabase
+      .from('sets')
+      .select('set_number, name, updated_at')
+      .order('year', { ascending: false })
+      .order('set_number', { ascending: true })
+      .range(offset, offset + PAGE - 1);
+    if (!data || data.length === 0) break;
+    allSets.push(...data);
+    if (data.length < PAGE) break;
+  }
+  const setPages = allSets.map((s) => ({
     url: `${base}/sets/${s.set_number}-${slugify(s.name)}`,
     lastModified: new Date(s.updated_at),
     changeFrequency: 'daily' as const,

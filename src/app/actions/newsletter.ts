@@ -30,6 +30,7 @@ export async function subscribeNewsletter(email: string): Promise<{ ok: boolean;
   if (!duplicate) {
     try {
       const transporter = makeTransporter();
+      console.log('[newsletter] sending confirmation to:', email);
       await transporter.sendMail({
         from: `"Bricks of India" <${process.env.GMAIL_USER}>`,
         replyTo: 'abhinav@bricksofindia.com',
@@ -84,9 +85,15 @@ export async function subscribeNewsletter(email: string): Promise<{ ok: boolean;
 </body>
 </html>`,
       });
-    } catch (mailErr) {
+      console.log('[newsletter] confirmation sent ok to:', email);
+    } catch (mailErr: any) {
       // Log but don't fail the subscription — user is already in the DB
-      console.error('[newsletter] confirmation email failed:', mailErr);
+      console.error('[newsletter] confirmation email FAILED — to:', email,
+        '| message:', mailErr?.message,
+        '| code:', mailErr?.code,
+        '| responseCode:', mailErr?.responseCode,
+        '| response:', mailErr?.response,
+      );
     }
   }
 
