@@ -185,19 +185,22 @@ async function main() {
     process.exit(1);
   }
 
-  // Load known set numbers from Supabase for matching
+  // Load known set numbers from Supabase for matching (paginate to bypass 1000-row PostgREST cap)
   console.log('Loading set inventory from Supabase...');
-  const { data: setsData, error: setsError } = await supabase
-    .from('sets')
-    .select('set_number')
-    .range(0, 49999);
-
-  if (setsError) {
-    console.error('Failed to load sets:', setsError.message);
-    process.exit(1);
+  const knownSets = new Set();
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const { data: page, error: pageError } = await supabase
+      .from('sets')
+      .select('set_number')
+      .range(offset, offset + PAGE - 1);
+    if (pageError) {
+      console.error('Failed to load sets:', pageError.message);
+      process.exit(1);
+    }
+    for (const s of page ?? []) knownSets.add(s.set_number);
+    if ((page ?? []).length < PAGE) break;
   }
-
-  const knownSets = new Set(setsData.map((s) => s.set_number));
   console.log(`Loaded ${knownSets.size} known sets from Supabase.\n`);
 
   const now = new Date().toISOString();
