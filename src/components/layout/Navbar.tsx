@@ -13,6 +13,7 @@ const NAV_LINKS = [
   { href: '/deals',    label: 'Deals'    },
   { href: '/reviews',  label: 'Reviews'  },
   { href: '/news',     label: 'News'     },
+  { href: '/blog',     label: 'Blog'     },
 ];
 
 /** Wordmark lockup — shared by desktop header and mobile drawer */

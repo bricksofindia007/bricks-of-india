@@ -8,12 +8,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   const staticPages = [
     { url: base, priority: 1.0 },
-    { url: `${base}/compare`, priority: 0.9 },
+    { url: `${base}/sets`, priority: 0.9 },
     { url: `${base}/deals`, priority: 0.9 },
     { url: `${base}/reviews`, priority: 0.8 },
     { url: `${base}/news`, priority: 0.8 },
     { url: `${base}/blog`, priority: 0.8 },
-    { url: `${base}/calendar`, priority: 0.7 },
     { url: `${base}/about`, priority: 0.6 },
     { url: `${base}/contact`, priority: 0.5 },
     { url: `${base}/legal/disclaimer`, priority: 0.3 },

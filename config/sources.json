@@ -37,7 +37,8 @@
       "name": "LEGO New Sets",
       "url": "https://www.lego.com/en-in/categories/new-sets-and-products",
       "method": "scrape",
-      "enabled": false
+      "enabled": false,
+      "disabled_reason": "lego.com is a Next.js SPA — product listings are client-side rendered, bare fetch() gets the SSR shell only (0 product links). Requires Playwright. Not worth the complexity at this stage."
     }
   ],
   "tier_3_community": [
