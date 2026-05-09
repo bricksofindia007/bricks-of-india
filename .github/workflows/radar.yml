@@ -34,3 +34,6 @@ jobs:
 
       - name: RADAR-02 — dedupe signals
         run: node scripts/radar/dedupe-signals.js
+
+      - name: RADAR-03 — classify + queue to pending_drafts
+        run: node scripts/radar/classify-signals.js
