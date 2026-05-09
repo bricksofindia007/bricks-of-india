@@ -23,8 +23,7 @@ export default async function SetsPage() {
     .from('sets')
     .select(
       `id, set_number, name, theme, year, pieces, minifigs,
-       image_url, age_range, lego_mrp_inr,
-       prices(id, price_inr, store_name, availability, buy_url, is_active)`,
+       image_url, age_range, lego_mrp_inr`,
       { count: 'exact' },
     )
     .order('year', { ascending: false })
@@ -34,10 +33,31 @@ export default async function SetsPage() {
   const total = count ?? 0;
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
+  // Fetch live store prices for this page's sets
+  const setNumbers = (sets ?? []).map((s: any) => s.set_number);
+  const { data: storePrices } = setNumbers.length
+    ? await supabase
+        .from('store_prices')
+        .select('set_id, store_id, price_inr, in_stock, product_url')
+        .in('set_id', setNumbers)
+    : { data: [] };
+
+  // Build map: set_number → cheapest in-stock price row
+  const priceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
+  for (const row of storePrices ?? []) {
+    const existing = priceMap[row.set_id];
+    if (!existing || row.price_inr < existing.price_inr) {
+      priceMap[row.set_id] = {
+        price_inr: row.price_inr,
+        store_name: row.store_id,
+        buy_url: row.product_url ?? null,
+      };
+    }
+  }
+
   const listItems = (sets ?? []).map((set: any) => {
-    const activePrices = (set.prices ?? []).filter((p: any) => p.is_active && p.price_inr);
-    const bestPrice = activePrices.sort((a: any, b: any) => a.price_inr - b.price_inr)[0] ?? null;
-    return { name: set.name, set_number: set.set_number, image_url: set.image_url, bestPrice };
+    const best = priceMap[set.set_number] ?? null;
+    return { name: set.name, set_number: set.set_number, image_url: set.image_url, bestPrice: best };
   });
 
   return (
@@ -77,17 +97,13 @@ export default async function SetsPage() {
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {sets.map((set: any) => {
-                const activePrices = (set.prices ?? []).filter(
-                  (p: any) => p.is_active && p.price_inr,
-                );
-                const bestPrice =
-                  activePrices.sort((a: any, b: any) => a.price_inr - b.price_inr)[0] ?? null;
+                const bestPrice = priceMap[set.set_number] ?? null;
                 return (
                   <SetCard
                     key={set.id}
                     set={set}
                     bestPrice={bestPrice}
-                    priceCount={activePrices.length}
+                    priceCount={bestPrice ? 1 : 0}
                   />
                 );
               })}

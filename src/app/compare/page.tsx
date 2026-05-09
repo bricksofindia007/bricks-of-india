@@ -20,11 +20,7 @@ interface Props {
   searchParams: { q?: string; theme?: string; price?: string; page?: string; noPrice?: string };
 }
 
-/** Build a /compare URL, merging overrides into the current params. */
-function buildUrl(
-  current: Props['searchParams'],
-  overrides: Partial<Props['searchParams']>,
-): string {
+function buildUrl(current: Props['searchParams'], overrides: Partial<Props['searchParams']>): string {
   const params = new URLSearchParams();
   const merged = { ...current, ...overrides };
   if (merged.q)                           params.set('q',       merged.q);
@@ -36,27 +32,26 @@ function buildUrl(
   return qs ? `/compare?${qs}` : '/compare';
 }
 
-/** Strip Rebrickable variant suffix: "75192-1" → "75192" */
 function stripSuffix(setNum: string): string {
   return setNum.replace(/-\d+$/, '');
 }
 
 export default async function ComparePage({ searchParams }: Props) {
-  const q             = (searchParams.q ?? '').trim();
-  const themeFilter   = searchParams.theme ?? '';
-  const priceFilter   = searchParams.price ?? '';
+  const q              = (searchParams.q ?? '').trim();
+  const themeFilter    = searchParams.theme ?? '';
+  const priceFilter    = searchParams.price ?? '';
   const includeNoPrice = searchParams.noPrice === '1';
-  const page          = Math.max(1, parseInt(searchParams.page ?? '1'));
-  const from        = (page - 1) * PAGE_SIZE;
-  const to          = from + PAGE_SIZE - 1;
+  const page           = Math.max(1, parseInt(searchParams.page ?? '1'));
+  const from           = (page - 1) * PAGE_SIZE;
+  const to             = from + PAGE_SIZE - 1;
 
-  let sets: any[]  = [];
-  let total        = 0;
-  let usedRebrickable = false;
+  let sets: any[]      = [];
+  let total            = 0;
+  let usedRebrickable  = false;
+
+  const supabase = createServerClient();
 
   // ── Rebrickable-first for plain-text search (no theme/price filter) ──────────
-  // Gives access to the full 170k+ Rebrickable catalogue instead of our ~756-row
-  // Supabase cache. Hydrates Indian prices from Supabase for matched sets.
   const useRebrickable = !!q && !themeFilter && !priceFilter;
 
   if (useRebrickable) {
@@ -64,10 +59,9 @@ export default async function ComparePage({ searchParams }: Props) {
       const rbResult = await searchSets(q, page, PAGE_SIZE);
       if (rbResult.results.length > 0) {
         const setNumbers = rbResult.results.map((s) => stripSuffix(s.set_num));
-        const supabase   = createServerClient();
         const { data: supabaseSets } = await supabase
           .from('sets')
-          .select('id, set_number, lego_mrp_inr, age_range, theme, subtheme, minifigs, prices(*)')
+          .select('id, set_number, lego_mrp_inr, age_range, theme, subtheme, minifigs')
           .in('set_number', setNumbers);
 
         const supabaseMap = new Map<string, any>(
@@ -93,7 +87,6 @@ export default async function ComparePage({ searchParams }: Props) {
             lego_mrp_inr:   sup?.lego_mrp_inr ?? null,
             created_at:     '',
             updated_at:     '',
-            prices:         sup?.prices ?? [],
           };
         });
         total           = rbResult.count;
@@ -105,41 +98,56 @@ export default async function ComparePage({ searchParams }: Props) {
   }
 
   // ── Supabase path ────────────────────────────────────────────────────────────
-  // Used when: theme/price filter active, Rebrickable errored, or RB returned 0.
-  // Text search covers name, theme, AND set_number — fixes "q=Technic" returning
-  // nothing because most Technic sets don't have "Technic" in their name.
   if (!usedRebrickable) {
-    const supabase = createServerClient();
     let query = supabase
       .from('sets')
-      .select('*, prices(*)', { count: 'exact' })
+      .select('*', { count: 'exact' })
       .order('year', { ascending: false })
       .range(from, to);
 
-    if (q) query = query.or(`name.ilike.%${q}%,theme.ilike.%${q}%,set_number.ilike.%${q}%`);
+    if (q)           query = query.or(`name.ilike.%${q}%,theme.ilike.%${q}%,set_number.ilike.%${q}%`);
     if (themeFilter) query = query.ilike('theme', `%${themeFilter}%`);
-    if (priceFilter) {
-      const range = PRICE_RANGES.find((r) => r.label === priceFilter);
-      if (range) {
-        if (includeNoPrice) {
-          // Include sets with no listed price alongside the filtered range
-          const maxClause = range.max !== Infinity
-            ? `,and(lego_mrp_inr.gte.${range.min},lego_mrp_inr.lte.${range.max})`
-            : `,lego_mrp_inr.gte.${range.min}`;
-          query = query.or(`lego_mrp_inr.is.null${maxClause}`);
-        } else {
-          query = query.gte('lego_mrp_inr', range.min);
-          if (range.max !== Infinity) query = query.lte('lego_mrp_inr', range.max);
-        }
-      }
-    }
 
     const { data, count } = await query;
     sets  = data ?? [];
     total = count ?? 0;
   }
 
-  const totalPages = Math.ceil(total / PAGE_SIZE);
+  // ── Live store prices for the resolved set list ───────────────────────────
+  const setNumbers = sets.map((s: any) => s.set_number);
+  const { data: storePrices } = setNumbers.length
+    ? await supabase
+        .from('store_prices')
+        .select('set_id, store_id, price_inr, in_stock, product_url')
+        .in('set_id', setNumbers)
+    : { data: [] };
+
+  // set_number → cheapest price row
+  const priceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
+  for (const row of storePrices ?? []) {
+    const existing = priceMap[row.set_id];
+    if (!existing || row.price_inr < existing.price_inr) {
+      priceMap[row.set_id] = {
+        price_inr: row.price_inr,
+        store_name: row.store_id,
+        buy_url: row.product_url ?? null,
+      };
+    }
+  }
+
+  // ── Client-side price filter against live store_prices ────────────────────
+  const priceRange = priceFilter ? PRICE_RANGES.find((r) => r.label === priceFilter) : null;
+  const filteredSets = priceRange
+    ? sets.filter((set: any) => {
+        const best = priceMap[set.set_number];
+        if (!best) return includeNoPrice;
+        return best.price_inr >= priceRange.min &&
+          (priceRange.max === Infinity || best.price_inr <= priceRange.max);
+      })
+    : sets;
+
+  const filteredTotal = priceRange ? filteredSets.length : total;
+  const totalPages    = Math.ceil((priceRange ? filteredTotal : total) / PAGE_SIZE);
 
   return (
     <div className="bg-white min-h-screen">
@@ -207,7 +215,7 @@ export default async function ComparePage({ searchParams }: Props) {
         <div className="flex flex-wrap gap-2 items-center mb-8">
           <span className="text-sm font-bold text-dark">Price:</span>
           <Link
-            href={buildUrl(searchParams, { price: undefined, page: undefined })}
+            href={buildUrl(searchParams, { price: undefined, noPrice: undefined, page: undefined })}
             className={`px-3 py-1.5 rounded-full text-xs font-bold border-2 transition-colors ${
               !priceFilter ? 'bg-dark text-white border-dark' : 'bg-white text-dark border-border hover:border-dark'
             }`}
@@ -248,7 +256,7 @@ export default async function ComparePage({ searchParams }: Props) {
         </div>
 
         {/* ── Results ───────────────────────────────────────────────────── */}
-        {!sets || sets.length === 0 ? (
+        {filteredSets.length === 0 ? (
           <div className="text-center py-20">
             <Image
               src={MASCOTS.blue.confused}
@@ -270,20 +278,19 @@ export default async function ComparePage({ searchParams }: Props) {
           <>
             <div className="flex items-center justify-between mb-4">
               <p className="text-sm text-gray-500">
-                Showing {from + 1}–{Math.min(to + 1, total)} of {total.toLocaleString()} sets
+                Showing {from + 1}–{Math.min(to + 1, filteredTotal)} of {filteredTotal.toLocaleString()} sets
+                {priceFilter && <span className="ml-1 text-xs text-gray-400">(filtered by live store prices)</span>}
               </p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {(sets ?? []).map((set: any) => {
-                const prices = (set.prices || []).filter((p: any) => p.is_active && p.price_inr);
-                const bestPrice = prices.sort((a: any, b: any) => a.price_inr - b.price_inr)[0] || null;
+              {filteredSets.map((set: any) => {
+                const bestPrice = priceMap[set.set_number] ?? null;
                 return (
-                  <SetCard key={set.id} set={set} bestPrice={bestPrice} priceCount={prices.length} />
+                  <SetCard key={set.id} set={set} bestPrice={bestPrice} priceCount={bestPrice ? 1 : 0} />
                 );
               })}
             </div>
 
-            {/* Pagination */}
             {totalPages > 1 && (
               <div className="flex justify-center gap-2 mt-10 flex-wrap">
                 {page > 1 && (

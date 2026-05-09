@@ -2,11 +2,11 @@ import Link from 'next/link';
 import { formatPrice, slugify } from '@/lib/utils';
 import { Badge, BestPriceBadge } from '@/components/ui/Badge';
 import { SetImage } from '@/components/sets/SetImage';
-import type { LegoSet, Price } from '@/lib/supabase';
+import type { LegoSet } from '@/lib/supabase';
 
 interface SetCardProps {
   set: LegoSet;
-  bestPrice?: Price | null;
+  bestPrice?: { price_inr: number | null } | null;
   priceCount?: number;
 }
 
