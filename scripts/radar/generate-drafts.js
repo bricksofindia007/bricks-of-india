@@ -18,8 +18,9 @@
 
 require('dotenv').config({ path: '.env.local' });
 
-const fs   = require('fs');
-const path = require('path');
+const fs      = require('fs');
+const path    = require('path');
+const cheerio = require('cheerio');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { createClient }       = require('@supabase/supabase-js');
 
@@ -49,6 +50,73 @@ if (!fs.existsSync(CODEX_PATH)) {
 // ── Constants ─────────────────────────────────────────────────────────────────
 const MODEL_NAME       = 'gemini-2.5-flash-lite';
 const RATE_LIMIT_MS    = 7000; // 7s between calls ≈ 8 RPM (free-tier ceiling: 10 RPM)
+const UA               = 'BricksOfIndia-RadarBot/1.0 (+https://bricksofindia.com)';
+
+// Domains where full-text fetch makes no sense — use stored excerpt only
+const SKIP_FETCH_DOMAINS = new Set([
+  'rebrickable.com',
+  'youtube.com',
+  'reddit.com',
+  'i.redd.it',
+]);
+
+// ── Full-text fetcher ─────────────────────────────────────────────────────────
+
+async function fetchFullBody(url) {
+  let hostname;
+  try { hostname = new URL(url).hostname.replace(/^www\./, ''); }
+  catch { return { text: null, reason: 'invalid URL' }; }
+
+  if (SKIP_FETCH_DOMAINS.has(hostname)) {
+    return { text: null, reason: `skip-list (${hostname})` };
+  }
+
+  try {
+    const res = await fetch(url, {
+      headers: { 'User-Agent': UA, 'Accept': 'text/html' },
+      signal : AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) return { text: null, reason: `HTTP ${res.status}` };
+    const html = await res.text();
+    const $    = cheerio.load(html);
+
+    // Strip noise
+    $('nav, header, footer, aside, script, style, iframe, figure, ' +
+      '[class*="nav"], [class*="menu"], [class*="sidebar"], [id*="nav"], ' +
+      '[class*="ad-"], [class*="share"], [class*="social"], [class*="comment"], ' +
+      '[class*="related"], [class*="widget"]').remove();
+
+    // Try content selectors in order, collect paragraph text
+    const SELECTORS = [
+      'article',
+      '.post-content',
+      '.entry-content',
+      '.article-body',
+      'main p',
+    ];
+
+    for (const sel of SELECTORS) {
+      let text;
+      if (sel === 'main p') {
+        // Join all <p> inside <main>
+        const parts = [];
+        $('main p').each((_, el) => { const t = $(el).text().trim(); if (t) parts.push(t); });
+        text = parts.join('\n\n');
+      } else {
+        text = $(sel).first().text();
+      }
+      text = text.replace(/\s+/g, ' ').trim();
+      if (text.length >= 300) {
+        return { text: text.slice(0, 4000), reason: null }; // cap at 4000 chars
+      }
+    }
+
+    return { text: null, reason: 'no selector matched >= 300 chars' };
+
+  } catch (err) {
+    return { text: null, reason: err.name === 'TimeoutError' ? 'timeout (10s)' : `fetch error: ${err.message}` };
+  }
+}
 
 // ── Clients ───────────────────────────────────────────────────────────────────
 const genai    = new GoogleGenerativeAI(GEMINI_API_KEY);
@@ -142,12 +210,13 @@ function extractSetNumber(url) {
   return m ? m[1] : null;
 }
 
-function buildUserPrompt(draft, format, setNumber) {
-  const wordTarget = { news: '300–400', review: '500–700', opinion: '400–500' }[format] || '300–400';
-  const setLine    = setNumber
+function buildUserPrompt(draft, format, setNumber, fullBody) {
+  const wordTarget    = { news: '300–400', review: '500–700', opinion: '400–500' }[format] || '300–400';
+  const setLine       = setNumber
     ? `Set number : ${setNumber} (extracted from URL — include in title per format rules)`
     : `Set number : NOT FOUND in URL — title should reference India context instead`;
-  const excerpt    = draft.source_excerpt || draft.source_title || '(no excerpt available)';
+  const contentLabel  = fullBody ? 'Full article body' : 'Excerpt (full body unavailable)';
+  const contentText   = fullBody || draft.source_excerpt || draft.source_title || '(no content available)';
 
   return `Write a BOI-voice ${format} article on the topic below. Target: ${wordTarget} words in the body.
 
@@ -156,7 +225,7 @@ Title     : ${draft.source_title}
 URL       : ${draft.source_url}
 Published : ${draft.source_published_at || 'unknown'}
 ${setLine}
-Excerpt   : ${excerpt}
+${contentLabel}: ${contentText}
 
 Output your response using EXACTLY this structure. Nothing outside these markers.
 
@@ -290,6 +359,17 @@ async function updateDraft(id, patch) {
       console.log(`  url    : ${draft.source_url}`);
     }
 
+    // ── Full-text fetch ───────────────────────────────────────────────────────
+    const { text: fullBody, reason: fetchReason } = await fetchFullBody(draft.source_url);
+    const fetchedFullBody = !!fullBody;
+    const bodyLength      = fullBody ? fullBody.length : (draft.source_excerpt || '').length;
+    console.log(
+      `  source_url=${draft.source_url.slice(0, 70)}` +
+      ` fetched_full_body=${fetchedFullBody}` +
+      ` body_length=${bodyLength}` +
+      (fetchReason ? ` fallback_reason="${fetchReason}"` : '')
+    );
+
     if (DRY_RUN) {
       console.log(`  [DRY-RUN] would call Gemini for format=${format}`);
       succeeded++;
@@ -297,7 +377,7 @@ async function updateDraft(id, patch) {
     }
 
     const systemPrompt = buildSystemPrompt(format);
-    const userPrompt   = buildUserPrompt(draft, format, setNum);
+    const userPrompt   = buildUserPrompt(draft, format, setNum, fullBody);
 
     let parsed;
     try {
