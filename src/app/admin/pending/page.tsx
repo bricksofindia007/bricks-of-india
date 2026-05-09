@@ -96,8 +96,13 @@ function FormatBadge({ format }: { format: string | null }) {
 // ── Draft card ────────────────────────────────────────────────────────────────
 
 function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filters; redirectTo: string }) {
-  const title   = draft.draft_title || draft.source_title || '(no title)';
-  const preview = (draft.draft_body || draft.source_excerpt || '').slice(0, 300);
+  const title             = draft.draft_title || draft.source_title || '(no title)';
+  const awaitingGeneration = draft.status === 'approved' && !draft.draft_body;
+  const preview           = draft.draft_body
+    ? draft.draft_body.slice(0, 300)
+    : draft.source_excerpt
+    ? draft.source_excerpt.slice(0, 300)
+    : null;
   const pubDate = draft.source_published_at
     ? new Date(draft.source_published_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
     : null;
@@ -117,21 +122,31 @@ function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filter
                 {draft.status}
               </span>
             )}
+            {awaitingGeneration && (
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 12, background: '#FEF9C3', color: '#854D0E', textTransform: 'uppercase' }}>
+                Awaiting Generation
+              </span>
+            )}
           </div>
           <h2 style={{ fontSize: 16, fontWeight: 700, color: '#1F2937', margin: 0, lineHeight: 1.4 }}>{title}</h2>
         </div>
       </div>
 
       <a href={draft.source_url} target="_blank" rel="noopener noreferrer"
-        style={{ fontSize: 12, color: '#006CB7', wordBreak: 'break-all', display: 'block', marginBottom: preview ? 10 : 0 }}>
+        style={{ fontSize: 12, color: '#006CB7', wordBreak: 'break-all', display: 'block', marginBottom: 10 }}>
         {draft.source_url}
       </a>
 
-      {preview && (
-        <p style={{ fontSize: 13, color: '#4B5563', lineHeight: 1.6, margin: '0 0 16px', background: '#F9FAFB', padding: '10px 12px', borderRadius: 8, borderLeft: '3px solid #E4E7EB' }}>
+      {awaitingGeneration ? (
+        <p style={{ fontSize: 13, color: '#92400E', margin: '0 0 16px', background: '#FFFBEB', padding: '10px 12px', borderRadius: 8, borderLeft: '3px solid #FCD34D' }}>
+          Body not yet generated — run RADAR-04 (generate-drafts.js) or wait for the next nightly cron tick.
+        </p>
+      ) : preview ? (
+        <p style={{ fontSize: 13, color: '#4B5563', lineHeight: 1.6, margin: '0 0 16px', background: '#F9FAFB', padding: '10px 12px', borderRadius: 8, borderLeft: `3px solid ${draft.draft_body ? '#006CB7' : '#E4E7EB'}` }}>
+          {draft.draft_body && <span style={{ fontSize: 10, color: '#006CB7', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Generated body</span>}
           {preview}{preview.length >= 300 && ' …'}
         </p>
-      )}
+      ) : null}
 
       {isDraft && (
         <div style={{ display: 'flex', gap: 8 }}>
