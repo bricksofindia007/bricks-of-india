@@ -34,7 +34,7 @@ export default async function NewsPage({ searchParams }: { searchParams: { categ
         </div>
       </div>
 
-      <div className="max-w-site mx-auto px-4 py-8">
+      <div className="max-w-site mx-auto px-4 py-10">
         {/* Category filter */}
         <div className="flex flex-wrap gap-2 mb-8">
           <a

@@ -167,7 +167,7 @@ export default function AboutPage() {
                 that week.
               </p>
               <p>
-                In August 2025, I started Bricks of India — first as a YouTube channel (and Instagram
+                In April 2026, I launched Bricks of India — first as a YouTube channel (and Instagram
                 page) about LEGO, India, and the financial decisions one makes at 2am with a credit
                 card in hand — and then this website, because apparently one outlet for obsession
                 is never enough.

@@ -154,11 +154,12 @@ export default function HeatMapPage() {
 
   const stateMap = new Map(STATE_DATA.map(s => [s.name, s]));
 
-  const renderMap = useCallback(async () => {
+  const renderMap = useCallback(async (cancelled: { v: boolean }) => {
     setLoading(true);
     try {
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js');
       await loadScript('https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js');
+      if (cancelled.v) return;
 
       const d3        = (window as any).d3;
       const topojson  = (window as any).topojson;
@@ -181,6 +182,7 @@ export default function HeatMapPage() {
       // ── World view ──
       if (view === 'world') {
         const world = await d3.json('https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json');
+        if (cancelled.v) return;
         const projection = d3.geoNaturalEarth1().scale(W / 6.3).translate([W / 2, H / 2]);
         const path       = d3.geoPath().projection(projection);
         const countries  = topojson.feature(world, world.objects.countries);
@@ -267,6 +269,7 @@ export default function HeatMapPage() {
       // ── India choropleth ──
       } else {
         const indiaGeo = await d3.json('https://raw.githubusercontent.com/markmarkoh/datamaps/master/src/js/data/ind.json');
+        if (cancelled.v) return;
         const features = indiaGeo.features.filter((f: any) => f.properties.gadm_level === 1);
         const projection = d3.geoMercator().fitSize([W, H - 10], { type: 'FeatureCollection', features });
         const path = d3.geoPath().projection(projection);
@@ -297,15 +300,18 @@ export default function HeatMapPage() {
             const s      = stateMap.get(mapped);
             if (!s) return;
             setSelectedState(s);
-            if (CITY_DATA[s.name]) setDrill(s.name);
           });
       }
     } finally {
-      setLoading(false);
+      if (!cancelled.v) setLoading(false);
     }
   }, [view, drill]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  useEffect(() => { renderMap(); }, [renderMap]);
+  useEffect(() => {
+    const cancelled = { v: false };
+    renderMap(cancelled);
+    return () => { cancelled.v = true; };
+  }, [renderMap]);
 
   const rankList = view === 'world'
     ? [...WORLD_DATA].sort((a, b) => b.score - a.score)
@@ -319,7 +325,7 @@ export default function HeatMapPage() {
         <div>
           <Link href="/lab" style={{ color: '#006CB7', fontSize: '0.78rem', fontWeight: 600, textDecoration: 'none' }}>← The Lab</Link>
           <h1 style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '1.7rem', color: '#1A1A1A', margin: '4px 0 2px' }}>LEGO Search Pulse</h1>
-          <p style={{ color: '#4A5568', fontSize: '0.8rem', margin: 0 }}>Google Trends Search Interest · Relative Index 0–100 · Q1 2025</p>
+          <p style={{ color: '#4A5568', fontSize: '0.8rem', margin: 0 }}>Google Trends Search Interest · Relative Index 0–100 · Q1 2026</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingRight: 8 }}>
           <div style={{ display: 'flex', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 8, overflow: 'hidden' }}>
@@ -354,13 +360,13 @@ export default function HeatMapPage() {
       <div style={{ display: 'flex', flex: 1, gap: 16, padding: '16px 24px 0', minHeight: 0 }}>
 
         {/* Map */}
-        <div ref={containerRef} style={{ flex: 1, position: 'relative', borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)', overflow: 'hidden', background: '#FAFAFA', minHeight: 400 }}>
+        <div ref={containerRef} style={{ flex: 1, position: 'relative', borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)', overflow: 'hidden', background: '#FAFAFA', minHeight: 400, height: 0 }}>
           {loading && (
             <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4A5568', fontSize: '0.88rem' }}>
               Loading map…
             </div>
           )}
-          <svg ref={svgRef} style={{ width: '100%', height: '100%', display: 'block' }} />
+          <svg ref={svgRef} style={{ width: '100%', display: 'block' }} />
 
           {tooltip && (
             <div style={{ position: 'absolute', left: tooltip.x + 14, top: Math.max(8, tooltip.y - 10), background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '10px 14px', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', pointerEvents: 'none', maxWidth: 210, zIndex: 20 }}>
