@@ -141,7 +141,7 @@ export default function AboutPage() {
               style={{
                 fontFamily: 'var(--font-inter)',
                 fontSize: '1.05rem',
-                color: '#3a3a3a',
+                color: 'var(--boi-text)',
                 lineHeight: 1.8,
               }}
             >
@@ -184,10 +184,10 @@ export default function AboutPage() {
                 style={{ width: '100%', objectFit: 'cover', display: 'block' }}
               />
             </div>
-            <p className="mt-2 mb-8 text-sm text-center" style={{ color: '#4A5568', fontStyle: 'italic', fontFamily: 'var(--font-inter)' }}>
+            <p className="mt-2 mb-8 text-sm text-center" style={{ color: 'var(--boi-text-secondary)', fontStyle: 'italic', fontFamily: 'var(--font-inter)' }}>
               The car that started all of this. No doors. No regrets.
             </p>
-            <div className="space-y-5 leading-relaxed" style={{ fontFamily: 'var(--font-inter)', fontSize: '1.05rem', color: '#3a3a3a', lineHeight: 1.8 }}>
+            <div className="space-y-5 leading-relaxed" style={{ fontFamily: 'var(--font-inter)', fontSize: '1.05rem', color: 'var(--boi-text)', lineHeight: 1.8 }}>
               <p>
                 Somewhere around 35 years ago, a tiny LEGO car rolled into my life. And quietly took over everything.
               </p>
@@ -269,7 +269,7 @@ export default function AboutPage() {
                         style={{
                           fontFamily: 'var(--font-inter)',
                           fontSize: '14px',
-                          color: '#666',
+                          color: 'var(--boi-text-secondary)',
                           marginTop: '2px',
                         }}
                       >

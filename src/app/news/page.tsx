@@ -21,11 +21,11 @@ export default async function NewsPage({ searchParams }: { searchParams: { categ
 
   return (
     <div className="bg-white min-h-screen">
-      <div className="bg-dark py-12 px-4">
+      <div className="py-12 px-4" style={{ background: "var(--boi-sky)" }}>
         <div className="max-w-site mx-auto flex items-center gap-6">
           <div className="flex-1">
-            <h1 className="font-heading text-primary text-6xl mb-2">LEGO NEWS</h1>
-            <p className="text-gray-300 font-body text-lg">
+            <h1 className="font-heading text-6xl mb-2" style={{ color: "var(--boi-navy)" }}>LEGO NEWS</h1>
+            <p className="font-body text-lg" style={{ color: "var(--boi-navy)", opacity: 0.75 }}>
               New sets, India launches, deals, and everything happening in the LEGO world.
               Filtered for what actually matters to Indian buyers.
             </p>

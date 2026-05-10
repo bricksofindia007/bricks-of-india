@@ -58,27 +58,26 @@ function LabTileCard({ tool }: { tool: LabTool }) {
 export default function LabPage() {
   return (
     <div className="bg-white min-h-screen">
-      <div className="max-w-site mx-auto px-4 py-12">
-        <div className="mb-10">
-          <h1
-            className="font-heading mb-3"
-            style={{ fontSize: 'clamp(2.5rem, 6vw, 3.5rem)', color: 'var(--boi-navy)' }}
-          >
-            The Lab
-          </h1>
-          <p
-            className="text-xl font-body mb-4"
-            style={{ color: 'var(--boi-navy)', opacity: 0.8 }}
-          >
-            Where we overthink LEGO so you don&apos;t have to.
-          </p>
-          <p className="font-body text-text-secondary max-w-2xl">
-            A growing collection of small tools that help you justify, postpone, or accelerate
-            your next LEGO purchase. None of them are price comparison. We have a whole site for
-            that. These are the side experiments.
-          </p>
+      <section className="py-12 px-4" style={{ background: "var(--boi-sky)" }}>
+        <div className="max-w-site mx-auto flex items-center justify-between">
+          <div>
+            <span
+              className="inline-block text-xs font-bold tracking-widest mb-3 px-3 py-1 rounded-full"
+              style={{ background: "var(--boi-green)", color: "#fff", letterSpacing: "0.1em" }}
+            >
+              THE LAB
+            </span>
+            <h1 className="font-heading text-6xl mb-2" style={{ color: "var(--boi-navy)" }}>
+              The Lab
+            </h1>
+            <p className="font-body text-lg" style={{ color: "var(--boi-navy)", opacity: 0.75 }}>
+              Where we overthink LEGO so you don&apos;t have to.
+            </p>
+          </div>
         </div>
+      </section>
 
+      <div className="max-w-site mx-auto px-4 py-10">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {LAB_TOOLS.map((tool) => (
             <LabTileCard key={tool.id} tool={tool} />
