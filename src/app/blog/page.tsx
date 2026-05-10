@@ -20,11 +20,11 @@ export default async function BlogPage({ searchParams }: { searchParams: { categ
 
   return (
     <div className="bg-white min-h-screen">
-      <div className="bg-light-grey py-12 px-4 border-b-2 border-dark">
+      <div className="bg-dark py-12 px-4">
         <div className="max-w-site mx-auto flex items-center gap-6">
           <div className="flex-1">
-            <h1 className="font-heading text-dark text-6xl mb-2">GUIDES &amp; OPINION</h1>
-            <p className="text-gray-500 font-body text-lg">
+            <h1 className="font-heading text-primary text-6xl mb-2">GUIDES &amp; OPINION</h1>
+            <p className="text-gray-300 font-body text-lg">
               Buying guides, hot takes, and LEGO wisdom for the Indian market.
               We&apos;ve spent the money so you can decide whether to spend yours.
             </p>
