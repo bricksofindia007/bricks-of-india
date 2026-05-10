@@ -21,8 +21,8 @@ export const LAB_TOOLS: LabTool[] = [
     name: "Which Set Are You?",
     emoji: "🎯",
     tagline: "A short quiz that judges your taste and recommends a set.",
-    href: null,           // LAB-02 not yet merged — change to "/lab/which-set-are-you" when it ships
-    status: "coming_soon",
+    href: "/lab/which-set",
+    status: "live",
   },
   {
     id: "price-drops",
@@ -45,8 +45,8 @@ export const LAB_TOOLS: LabTool[] = [
     name: "LEGO Heat Map",
     emoji: "🗺️",
     tagline: "Which Indian city searches for LEGO most. We have opinions.",
-    href: null,
-    status: "coming_soon",
+    href: "/lab/heat-map",
+    status: "live",
   },
   {
     id: "portfolio",
