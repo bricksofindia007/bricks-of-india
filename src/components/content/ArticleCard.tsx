@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { Badge } from '@/components/ui/Badge';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
-import { formatDate, readingTime } from '@/lib/utils';
+import { formatDate, readingTime, stripMarkdown } from '@/lib/utils';
 import type { BlogPost, NewsArticle, Review } from '@/lib/supabase';
 
 const PLACEHOLDER = '/images/lego-placeholder.svg';
@@ -49,7 +49,7 @@ export function ArticleCard({ article, type }: ArticleCardProps) {
         <h3 className="font-bold text-dark text-base leading-tight line-clamp-2 group-hover:text-primary transition-colors mb-2">
           {article.title}
         </h3>
-        <p className="text-text-secondary text-sm line-clamp-2 mb-3 font-body">{article.excerpt}</p>
+        <p className="text-text-secondary text-sm line-clamp-2 mb-3 font-body">{stripMarkdown(article.excerpt)}</p>
         <div className="flex items-center justify-between text-xs text-text-secondary">
           <span>{formatDate(article.published_at)}</span>
           <span>{readingTime(article.content)}</span>

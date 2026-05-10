@@ -48,6 +48,19 @@ export function twitterShareUrl(text: string, url: string): string {
   return `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
 }
 
+export function stripMarkdown(text: string): string {
+  return text
+    .replace(/!\[.*?\]\(.*?\)/g, '')   // images
+    .replace(/\[([^\]]+)\]\(.*?\)/g, '$1') // links → label
+    .replace(/#{1,6}\s/g, '')           // headings
+    .replace(/[*_]{1,3}([^*_]+)[*_]{1,3}/g, '$1') // bold/italic
+    .replace(/`{1,3}[^`]*`{1,3}/g, '') // inline code / fenced
+    .replace(/^\s*[-*+]\s/gm, '')       // list bullets
+    .replace(/^\s*\d+\.\s/gm, '')       // ordered list
+    .replace(/\n+/g, ' ')               // collapse newlines
+    .trim();
+}
+
 export function readingTime(content: string): string {
   const words = content.trim().split(/\s+/).length;
   const minutes = Math.ceil(words / 200);
