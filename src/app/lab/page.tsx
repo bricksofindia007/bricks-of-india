@@ -1,8 +1,6 @@
 import type { Metadata } from 'next';
-import Image from 'next/image';
 import Link from 'next/link';
 import { LAB_TOOLS, type LabTool } from '@/lib/lab-tools';
-import { MASCOTS } from '@/lib/brand';
 
 export const metadata: Metadata = {
   title: 'The Lab | Bricks of India',
@@ -60,21 +58,27 @@ function LabTileCard({ tool }: { tool: LabTool }) {
 export default function LabPage() {
   return (
     <div className="bg-white min-h-screen">
-      <div className="bg-dark py-12 px-4">
-        <div className="max-w-site mx-auto flex items-center gap-6">
-          <div className="flex-1">
-            <h1 className="font-heading text-primary text-6xl mb-2">THE LAB</h1>
-            <p className="text-gray-300 font-body text-lg">
-              Where we overthink LEGO so you don&apos;t have to. Side experiments, tools,
-              and questionable ideas — none of them are price comparison. We have a whole site for that.
-            </p>
-          </div>
-          <Image src={MASCOTS.red.trophy} alt="The Lab" width={160} height={160}
-            className="object-contain shrink-0 hidden md:block" />
+      <div className="max-w-site mx-auto px-4 py-12">
+        <div className="mb-10">
+          <h1
+            className="font-heading mb-3"
+            style={{ fontSize: 'clamp(2.5rem, 6vw, 3.5rem)', color: 'var(--boi-navy)' }}
+          >
+            The Lab
+          </h1>
+          <p
+            className="text-xl font-body mb-4"
+            style={{ color: 'var(--boi-navy)', opacity: 0.8 }}
+          >
+            Where we overthink LEGO so you don&apos;t have to.
+          </p>
+          <p className="font-body text-text-secondary max-w-2xl">
+            A growing collection of small tools that help you justify, postpone, or accelerate
+            your next LEGO purchase. None of them are price comparison. We have a whole site for
+            that. These are the side experiments.
+          </p>
         </div>
-      </div>
 
-      <div className="max-w-site mx-auto px-4 py-10">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {LAB_TOOLS.map((tool) => (
             <LabTileCard key={tool.id} tool={tool} />
