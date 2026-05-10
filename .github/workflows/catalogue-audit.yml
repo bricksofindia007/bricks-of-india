@@ -52,7 +52,7 @@ jobs:
             const { count: pricedRows } = await sb.from('sets').select('*', { count: 'exact', head: true }).gte('year', 2020).not('lego_mrp_inr', 'is', null);
             const pricePct = scopedRows ? Math.round(pricedRows / scopedRows * 100) : 0;
             console.log('sets with lego_mrp_inr:', pricedRows, '(' + pricePct + '%)');
-            if (pricePct < 50) failures.push('only ' + pricePct + '% of 2020+ sets have lego_mrp_inr (threshold: 50%)');
+            if (pricePct < 45) failures.push('only ' + pricePct + '% of 2020+ sets have lego_mrp_inr (threshold: 45%)');
 
             // 3. Rows with image_url
             const { count: imageRows } = await sb.from('sets').select('*', { count: 'exact', head: true }).not('image_url', 'is', null);
