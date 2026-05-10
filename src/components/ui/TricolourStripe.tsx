@@ -16,7 +16,7 @@ export function TricolourStripe({ height = 12, className = '' }: Props) {
         height: `${height}px`,
         flexShrink: 0,
         background:
-          'repeating-linear-gradient(90deg, #FFC72C 0 40px, #E30613 40px 80px, #FFFFFF 80px 120px, #138808 120px 160px)',
+          'repeating-linear-gradient(90deg, #F7A800 0 40px, #FFFFFF 40px 80px, #FFFFFF 80px 120px, #138808 120px 160px)',
       }}
     />
   );

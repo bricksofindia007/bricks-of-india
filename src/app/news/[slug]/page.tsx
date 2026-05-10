@@ -63,8 +63,6 @@ export default async function NewsArticlePage({ params }: Props) {
 
         <h1 className="font-heading text-dark text-5xl md:text-6xl mb-3">{article.title}</h1>
         <Byline publishedAt={article.published_at} updatedAt={article.updated_at} />
-        <p className="text-gray-500 text-lg mb-6 font-body italic">{article.excerpt}</p>
-
         <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8">
           <ReactMarkdown>{article.content}</ReactMarkdown>
         </div>
