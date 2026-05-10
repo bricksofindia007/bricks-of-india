@@ -27,18 +27,27 @@ const END_YEAR   = 2027;
 const PAGE_SIZE  = 500;
 const CALL_DELAY = 1000; // ms between Brickset API calls
 
-// LEGO India MRP ≈ USD × 90, rounded to nearest ₹100.
-// Empirically verified against lego.com/en-in pricing; rate-independent.
-// sync-rebrickable.js used × 1.35 × live_rate which was calibrated for USD/INR ~74 and overshoots at current rates.
-const USD_TO_INR = 90;
+const USD_TO_INR_FALLBACK = 90;
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-function usdToInr(usd) {
-  return Math.round(usd * USD_TO_INR / 100) * 100;
+async function fetchUsdInrRate() {
+  try {
+    const r = await fetch('https://open.er-api.com/v6/latest/USD');
+    const d = await r.json();
+    const rate = d?.rates?.INR;
+    if (rate && rate > 80 && rate < 120) { console.log(`Live USD/INR: ${rate}`); return rate; }
+  } catch (e) { /* fall through */ }
+  console.log(`USD/INR fetch failed — using fallback ${USD_TO_INR_FALLBACK}`);
+  return USD_TO_INR_FALLBACK;
 }
 
-async function fetchBricksetYear(year) {
+function usdToInr(usd, rate) {
+  // LEGO India MRP ≈ USD × live INR rate, rounded to nearest ₹100
+  return Math.round(usd * rate / 100) * 100;
+}
+
+async function fetchBricksetYear(year, rate) {
   const prices = {}; // set_number → inr_price
   let page = 1;
   let total = null;
@@ -59,7 +68,7 @@ async function fetchBricksetYear(year) {
 
     for (const set of (json.sets || [])) {
       const usd = set.LEGOCom?.US?.retailPrice;
-      if (usd && usd > 0) prices[set.number] = usdToInr(usd);
+      if (usd && usd > 0) prices[set.number] = usdToInr(usd, rate);
     }
 
     const fetched = (page - 1) * PAGE_SIZE + (json.sets?.length ?? 0);
@@ -95,11 +104,13 @@ async function loadDbSets() {
 async function run() {
   console.log(`populate-mrp.js  dry-run=${DRY_RUN}  scope=year>=${START_YEAR}`);
 
+  const rate = await fetchUsdInrRate();
+
   // Phase 1 — fetch all Brickset prices by year
   const bricksetPrices = {};
   for (let year = START_YEAR; year <= END_YEAR; year++) {
     console.log(`\nFetching Brickset year ${year}...`);
-    const yp = await fetchBricksetYear(year);
+    const yp = await fetchBricksetYear(year, rate);
     Object.assign(bricksetPrices, yp);
     await sleep(CALL_DELAY);
   }
