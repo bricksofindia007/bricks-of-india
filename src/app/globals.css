@@ -19,15 +19,20 @@
   --color-warning-orange: #FF6B00;
 
   /* ── Brand design system ──────────────────────────────────────────────────── */
-  --boi-yellow:     #FFC72C;
-  --boi-red:        #E30613;
-  --boi-red-dark:   #8B0309;
-  --boi-sky:        #7EC4E8;
-  --boi-sky-light:  #A8D8ED;
-  --boi-navy:       #1a2332;
-  --boi-saffron:    #FF9933;
-  --boi-green:      #138808;
-  --boi-white:      #FFFFFF;
+  --boi-yellow:          #FFC72C;
+  --boi-saffron:         #F7A800;
+  --boi-red:             #E3000B;
+  --boi-red-dark:        #8B0309;
+  --boi-green:           #138808;
+  --boi-blue:            #006CB7;
+  --boi-sky:             #7EC4E8;
+  --boi-sky-light:       #A8D8ED;
+  --boi-navy:            #1a2332;
+  --boi-white:           #FFFFFF;
+  --boi-bg:              #FFFFFF;
+  --boi-text:            #1A1A1A;
+  --boi-text-secondary:  #4A5568;
+  --boi-border:          rgba(0, 0, 0, 0.08);
 }
 
 * {
