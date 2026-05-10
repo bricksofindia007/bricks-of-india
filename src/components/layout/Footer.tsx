@@ -25,8 +25,7 @@ function MailIcon() {
   );
 }
 
-const outlineShadow =
-  '2px 2px 0 var(--boi-navy), -1px -1px 0 var(--boi-navy), 1px -1px 0 var(--boi-navy), -1px 1px 0 var(--boi-navy)';
+const outlineShadow = 'none';
 
 function FooterWordmark() {
   return (
@@ -36,7 +35,7 @@ function FooterWordmark() {
           fontFamily: 'var(--font-fredoka)',
           fontWeight: 700,
           fontSize: '18px',
-          color: 'var(--boi-yellow)',
+          color: 'var(--boi-navy)',
           textShadow: outlineShadow,
           lineHeight: 1,
         }}
@@ -48,7 +47,7 @@ function FooterWordmark() {
           fontFamily: 'var(--font-fredoka)',
           fontWeight: 700,
           fontSize: '13px',
-          color: '#fff',
+          color: 'var(--boi-navy)',
           textShadow: outlineShadow,
           lineHeight: 1,
         }}
@@ -61,7 +60,7 @@ function FooterWordmark() {
 
 export function Footer() {
   return (
-    <footer style={{ background: 'var(--boi-navy)', color: '#fff' }}>
+    <footer style={{ background: '#F7A800', color: 'var(--boi-navy)' }}>
       <div className="max-w-site mx-auto" style={{ padding: '48px 32px' }}>
         {/* 4-column grid desktop, 2-column tablet, stacked mobile */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-10">
@@ -75,7 +74,7 @@ export function Footer() {
               style={{
                 fontFamily: 'var(--font-inter)',
                 fontSize: '14px',
-                color: 'rgba(255,255,255,0.65)',
+                color: 'rgba(26,35,50,0.7)',
                 lineHeight: 1.5,
               }}
             >
@@ -90,7 +89,7 @@ export function Footer() {
                 fontFamily: 'var(--font-fredoka)',
                 fontWeight: 700,
                 fontSize: '13px',
-                color: 'var(--boi-yellow)',
+                color: 'var(--boi-navy)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.08em',
                 marginBottom: '16px',
@@ -111,8 +110,8 @@ export function Footer() {
                 <li key={href}>
                   <Link
                     href={href}
-                    style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(255,255,255,0.65)' }}
-                    className="hover:text-white transition-colors"
+                    style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(26,35,50,0.7)' }}
+                    className="hover:underline transition-colors"
                   >
                     {label}
                   </Link>
@@ -128,7 +127,7 @@ export function Footer() {
                 fontFamily: 'var(--font-fredoka)',
                 fontWeight: 700,
                 fontSize: '13px',
-                color: 'var(--boi-yellow)',
+                color: 'var(--boi-navy)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.08em',
                 marginBottom: '16px',
@@ -146,8 +145,8 @@ export function Footer() {
                 <li key={href}>
                   <Link
                     href={href}
-                    style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(255,255,255,0.65)' }}
-                    className="hover:text-white transition-colors"
+                    style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(26,35,50,0.7)' }}
+                    className="hover:underline transition-colors"
                   >
                     {label}
                   </Link>
@@ -163,7 +162,7 @@ export function Footer() {
                 fontFamily: 'var(--font-fredoka)',
                 fontWeight: 700,
                 fontSize: '13px',
-                color: 'var(--boi-yellow)',
+                color: 'var(--boi-navy)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.08em',
                 marginBottom: '16px',
@@ -177,7 +176,7 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 hover:text-white transition-colors"
-                style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(255,255,255,0.65)' }}
+                style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(26,35,50,0.7)' }}
               >
                 <YouTubeIcon />
                 @BricksofIndia
@@ -187,7 +186,7 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 hover:text-white transition-colors"
-                style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(255,255,255,0.65)' }}
+                style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(26,35,50,0.7)' }}
               >
                 <InstagramIcon />
                 @bricksofindia
@@ -195,7 +194,7 @@ export function Footer() {
               <a
                 href="mailto:abhinav@bricksofindia.com"
                 className="inline-flex items-center gap-2 hover:text-white transition-colors"
-                style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(255,255,255,0.65)' }}
+                style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(26,35,50,0.7)' }}
               >
                 <MailIcon />
                 abhinav@bricksofindia.com
@@ -207,13 +206,13 @@ export function Footer() {
         {/* Bottom strip */}
         <div
           className="border-t pt-6 text-center"
-          style={{ borderColor: 'rgba(255,255,255,0.12)' }}
+          style={{ borderColor: 'rgba(26,35,50,0.15)' }}
         >
           <p
             style={{
               fontFamily: 'var(--font-inter)',
               fontSize: '12px',
-              color: 'rgba(255,255,255,0.45)',
+              color: 'rgba(26,35,50,0.55)',
               marginBottom: '4px',
             }}
           >
@@ -223,7 +222,7 @@ export function Footer() {
             style={{
               fontFamily: 'var(--font-inter)',
               fontSize: '12px',
-              color: 'rgba(255,255,255,0.30)',
+              color: 'rgba(26,35,50,0.4)',
             }}
           >
             LEGO® is a trademark of the LEGO Group. This site is not affiliated with or endorsed by the LEGO Group.

@@ -177,17 +177,19 @@ export default function AboutPage() {
 
           {/* ── LEGO Origin Story ── */}
           <section className="mb-12">
-            <div className="rounded-2xl overflow-hidden mb-6" style={{ border: '2px solid rgba(0,0,0,0.08)' }}>
-              <img
-                src="/images/lego-car-build.jpg"
-                alt="Abhinav holding his LEGO car build"
-                style={{ width: '100%', objectFit: 'cover', display: 'block' }}
-              />
-            </div>
-            <p className="mt-2 mb-8 text-sm text-center" style={{ color: 'var(--boi-text-secondary)', fontStyle: 'italic', fontFamily: 'var(--font-inter)' }}>
-              The car that started all of this. No doors. No regrets.
-            </p>
             <div className="space-y-5 leading-relaxed" style={{ fontFamily: 'var(--font-inter)', fontSize: '1.05rem', color: 'var(--boi-text)', lineHeight: 1.8 }}>
+              <figure style={{ float: 'right', margin: '0 0 20px 28px', width: '280px', flexShrink: 0 }}>
+                <div className="rounded-xl overflow-hidden" style={{ border: '2px solid rgba(0,0,0,0.08)' }}>
+                  <img
+                    src="/images/lego-car-build.jpg"
+                    alt="Abhinav holding his LEGO car build"
+                    style={{ width: '100%', display: 'block' }}
+                  />
+                </div>
+                <figcaption style={{ marginTop: '8px', fontSize: '0.78rem', color: 'var(--boi-text-secondary)', fontStyle: 'italic', textAlign: 'center', fontFamily: 'var(--font-inter)' }}>
+                  The car that started all of this. No doors. No regrets.
+                </figcaption>
+              </figure>
               <p>
                 Somewhere around 35 years ago, a tiny LEGO car rolled into my life. And quietly took over everything.
               </p>
@@ -215,6 +217,7 @@ export default function AboutPage() {
               <p>
                 Welcome in. Try not to empty your wallet. I&apos;m told that&apos;s part of the fun.
               </p>
+              <div style={{ clear: 'both' }} />
             </div>
           </section>
 

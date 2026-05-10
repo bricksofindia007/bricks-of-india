@@ -71,7 +71,7 @@ export function Navbar() {
   return (
     <header
       className="sticky top-0 z-50 shadow-sm"
-      style={{ background: 'linear-gradient(90deg, var(--boi-sky), var(--boi-sky-light))' }}
+      style={{ background: '#fff' }}
     >
       {/* Main nav row — ~60px desktop */}
       <div className="max-w-site mx-auto px-4">
