@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import ReactMarkdown from 'react-markdown';
 import { formatDate, readingTime, whatsappShareUrl, twitterShareUrl } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
@@ -65,8 +66,8 @@ export default async function BlogPostPage({ params }: Props) {
         <Byline publishedAt={post.published_at} updatedAt={post.updated_at} />
         <p className="text-gray-500 text-lg mb-6 font-body italic">{post.excerpt}</p>
 
-        <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 whitespace-pre-wrap mb-8">
-          {post.content}
+        <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8">
+          <ReactMarkdown>{post.content}</ReactMarkdown>
         </div>
 
         {/* Share */}
