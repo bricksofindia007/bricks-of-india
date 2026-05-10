@@ -172,6 +172,46 @@ export default function AboutPage() {
                 card in hand — and then this website, because apparently one outlet for obsession
                 is never enough.
               </p>
+            </div>
+          </section>
+
+          {/* ── LEGO Origin Story ── */}
+          <section className="mb-12">
+            <div className="rounded-2xl overflow-hidden mb-6" style={{ border: '2px solid rgba(0,0,0,0.08)' }}>
+              <img
+                src="/images/lego-car-build.jpg"
+                alt="Abhinav holding his LEGO car build"
+                style={{ width: '100%', objectFit: 'cover', display: 'block' }}
+              />
+            </div>
+            <p className="mt-2 mb-8 text-sm text-center" style={{ color: '#4A5568', fontStyle: 'italic', fontFamily: 'var(--font-inter)' }}>
+              The car that started all of this. No doors. No regrets.
+            </p>
+            <div className="space-y-5 leading-relaxed" style={{ fontFamily: 'var(--font-inter)', fontSize: '1.05rem', color: '#3a3a3a', lineHeight: 1.8 }}>
+              <p>
+                Somewhere around 35 years ago, a tiny LEGO car rolled into my life. And quietly took over everything.
+              </p>
+              <p>
+                No instructions. No YouTube. Just imagination, a few bricks, and what I now realise was probably my first questionable automotive design decision.
+              </p>
+              <p>
+                Looking at it today, I can&apos;t help but feel this may have accidentally inspired the Tesla Cybertruck. You&apos;re welcome, Elon.
+              </p>
+              <p>
+                What started as a small, slightly wobbly car turned into a lifelong obsession &mdash; building, collecting, rebuilding&hellip; and occasionally pretending I&apos;m buying sets for my daughter.
+              </p>
+              <p>
+                LEGO wasn&apos;t just a toy. It was the beginning of how I think, solve, and create.
+              </p>
+              <p>
+                And clearly, my genius was visible even then. A man who could look at a pile of random bricks and see a vehicle &mdash; not just any vehicle, but one so aerodynamically unconventional it was decades ahead of its time &mdash; is not a normal man. That is vision. That is engineering intuition. That is the kind of raw, creative intelligence that most people only read about in biographies of people considerably more famous than me, but give it time.
+              </p>
+              <p>
+                I have since channelled this gift into building India&apos;s first LEGO price comparison website, producing YouTube content watched by people in at least seven continents, and convincing myself &mdash; repeatedly, successfully, without a shred of regret &mdash; that every new LEGO set is technically an investment.
+              </p>
+              <p>
+                The car still doesn&apos;t have doors. Some design choices are timeless and apparently, so is my brilliance.
+              </p>
               <p>
                 Welcome in. Try not to empty your wallet. I&apos;m told that&apos;s part of the fun.
               </p>
@@ -200,7 +240,7 @@ export default function AboutPage() {
                 },
                 {
                   icon: '🎬',
-                  title: 'LEGO content creator on YouTube and Instagram since 2024',
+                  title: 'LEGO content creator on YouTube and Instagram since 2025',
                   detail: null,
                 },
               ].map(({ icon, title, detail }) => (
