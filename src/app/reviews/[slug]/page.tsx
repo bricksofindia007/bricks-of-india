@@ -2,6 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
+import ReactMarkdown from 'react-markdown';
 import { supabase } from '@/lib/supabase';
 import { formatDate, whatsappShareUrl, twitterShareUrl } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
@@ -78,8 +79,8 @@ export default async function ReviewPage({ params }: Props) {
             )}
 
             {/* Review content */}
-            <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 whitespace-pre-wrap mb-8">
-              {review.content}
+            <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8">
+              <ReactMarkdown>{review.content}</ReactMarkdown>
             </div>
 
             {/* Verdict */}
