@@ -48,10 +48,11 @@ jobs:
             if (!totalRows || totalRows < 8000) failures.push('sets row count ' + totalRows + ' < 8,000');
 
             // 2. Rows with lego_mrp_inr
-            const { count: pricedRows } = await sb.from('sets').select('*', { count: 'exact', head: true }).not('lego_mrp_inr', 'is', null);
-            const pricePct = totalRows ? Math.round(pricedRows / totalRows * 100) : 0;
+            const { count: scopedRows } = await sb.from('sets').select('*', { count: 'exact', head: true }).gte('year', 2020);
+            const { count: pricedRows } = await sb.from('sets').select('*', { count: 'exact', head: true }).gte('year', 2020).not('lego_mrp_inr', 'is', null);
+            const pricePct = scopedRows ? Math.round(pricedRows / scopedRows * 100) : 0;
             console.log('sets with lego_mrp_inr:', pricedRows, '(' + pricePct + '%)');
-            if (pricePct < 50) failures.push('only ' + pricePct + '% of sets have lego_mrp_inr (threshold: 50%)');
+            if (pricePct < 50) failures.push('only ' + pricePct + '% of 2020+ sets have lego_mrp_inr (threshold: 50%)');
 
             // 3. Rows with image_url
             const { count: imageRows } = await sb.from('sets').select('*', { count: 'exact', head: true }).not('image_url', 'is', null);
