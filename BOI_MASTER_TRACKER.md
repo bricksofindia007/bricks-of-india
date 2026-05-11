@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-10 (Day 10: CONTENT-RENDER-02/03 closed, PRICE-PIPELINE-01 closed — 3,370 sets populated, REVIEWS-FIRST-3 + GEO-01-FU1 closed, LAB-02 + LAB-07 live, BOI brand CSS variables added)
+> **Last updated:** 2026-05-11 (Day 11: design polish sprint — sky blue heroes sitewide, white navbar, BOI-blue footer with saffron text, tricolour stripe saffron/white/green, heat-map fixes, review card image fix, duplicate excerpt removed, about origin story + photo)
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -83,7 +83,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 | Phase 3 | Topical Radar (RSS ingestion) | 🟡 In progress — RADAR-01/02/03/04/CRON ✅ Done. /admin/pending ✅ Live on production. 349 pending_drafts. 14 active sources. RADAR-05 (publish) next. | CONTENT |
 | Phase 4 | Shorts / Reels workflow (DaVinci + ElevenLabs) | 🔴 Not started | VIDEO |
 | Phase 5 | Instagram carousel engine | 🔴 Not started | SOCIAL |
-| Phase 8 | LEGO Search Pulse | 🟡 Prototypes done, integration pending | WEB (PULSE-01→N) |
+| Phase 8 | LEGO Search Pulse | ✅ Live — LAB-07 /lab/heat-map shipped 2026-05-10. D3 choropleth India + world view, 23 states, city drill-down. | WEB (PULSE-01→N) |
 
 ---
 
@@ -130,7 +130,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 ## Current blockers (top 3)
 
 1. **CONTENT-02 not started** — Claude Project workbench setup pending. Blocks consistent content production velocity.
-2. **PRICE-PIPELINE-01 open** — `lego_mrp_inr` on `sets` table is 0% populated. Catalogue audit fails its ≥50% gate until this ships. Price filter on /compare is live but returns few results without MRP data.
+2. **PARSER-01 open** — New Elementary (Tier 1 source) disabled. Needs `@extractus/feed-extractor` swap to fix malformed XML. 30-min job.
 
 > BUG-013 closed 2026-05-02 as mis-diagnosed. GEO-01 hardening shipped. See Sprint changelog Day 2 for details.
 
@@ -148,8 +148,8 @@ JSON parses. If it doesn't, fix before doing anything else.
 | RADAR-03-TUNE | RADAR-03 classifier over-indexes on Rebrickable as NEWS; misses community/contest articles from editorial sources | 🔴 Open | All Rebrickable API signals classified as `news` unconditionally. BrickNerd digest/contest round-ups not caught by community regex (titles like "LEGO Contest Round-Up", "Community Headlines" pass the filter). Fix: add digest/round-up/headline patterns to COMMUNITY_RE; add source-aware override for Rebrickable (classify as `set-release` sub-type or filter to Tier 2 only). Priority P2. |
 | NETLIFY-CREDITS | Production deploys paused — Netlify billing cycle resets 2026-05-22 | 🔴 Open | /admin/pending, RADAR-03, scraper fixes, DATA-01 all committed to main but not yet live on bricksofindia.com. Netlify free-tier build minutes exhausted. Resets 2026-05-22. No action needed until then. |
 | RADAR-04-FULLTEXT | RADAR-04 full-text fetch before Gemini generation | ✅ Done 2026-05-09 — promoted P3→P1, shipped same session. `generate-drafts.js` now attempts full-body fetch via native fetch + cheerio before every Gemini call. Skip-list: rebrickable.com, youtube.com, reddit.com, i.redd.it. Selectors: article, .post-content, .entry-content, .article-body, main p. Min 300 chars to use fetched body; fallback to stored excerpt otherwise. Dry-run verified: Brothers Brick fetched 773 chars ✅, JBB fallback (no selector match) ✅, Rebrickable skip-list ✅. |
-| LAB-05 | Which Set Are You — quiz that recommends a set | 🟡 P3 deferred | Currently scaffolded as `coming_soon` in `src/lib/lab-tools.ts` (id: `which-set-are-you`). UI entry point exists on /lab. Deferred until RADAR-04 and first reviews are live. |
-| LAB-06 | Price Drop Board — today's steepest price falls | 🟡 P3 deferred | Currently scaffolded as `coming_soon` in `src/lib/lab-tools.ts` (id: `price-drops`). UI entry point exists on /lab. Needs LAB-03 snapshot data history (30+ days) to surface meaningful drops. Deferred until RADAR-04 and first reviews are live. |
+| LAB-05 | Price Drop Board — today's steepest price falls | 🟡 P3 deferred | Scaffolded as `coming_soon` in `src/lib/lab-tools.ts` (id: `price-drops`). Needs LAB-03 snapshot data history (30+ days). LAB-03 cron running since 2026-05-02 — eligible ~2026-06-01. |
+| LAB-06 | Retirement Radar | 🟡 P3 deferred | Scaffolded as `coming_soon` in `src/lib/lab-tools.ts` (id: `retirement-radar`). Needs CATALOG-04 v2 (Brickset cron for exit dates). |
 
 ---
 
@@ -189,6 +189,7 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 | Deploy | Date | Commit | Contents |
 |--------|------|--------|----------|
+| Day 11 design sprint | 2026-05-11 | `2c34f75` | Sky blue hero banners (news/blog/reviews/lab). White navbar. BOI-blue (#006CB7) footer with saffron text. Tricolour stripe → saffron/white/green. Heat-map: SVG height fix, cancellation flag, auto-drill removed, Q1 2026 label. Review card image fix (set:sets alias). Duplicate excerpt removed from news+blog slug pages. About page: origin story + float-right photo, credential year 2025, CSS variable colours. |
 | Day 10 close | 2026-05-10 | `d5d1641` | CONTENT-RENDER-02/03 closed (ReactMarkdown on blog+reviews, excerpt strip). PRICE-PIPELINE-01: 3,370 sets lego_mrp_inr via Brickset API, audit gate 45% year>=2020. REVIEWS-FIRST-3: 3 reviews seeded (42161, 31120, 10317). GEO-01-FU1 verified live. LAB-02 Which Set Are You + LAB-07 Search Pulse shipped. Brand CSS variables aligned. |
 | Day 9 session 3 close | 2026-05-10 | `fb42975` | YouTube strip live (BOI channel only), newsletter → Resend SDK (abhinav@bricksofindia.com), footer 4-column + The Lab, sitemap paginated, DEFECT-010/011/012 closed, 15 RADAR sources. |
 | PR #2 merge + DEFECT-008 | 2026-05-09 | `e5b71b1` | Squash-merged feat/content-pipeline-foundation. RADAR-01, RADAR-02, RADAR-CRON live on main. catalogue-audit.yml `permissions: issues: write` added (DEFECT-008). DEFECT-007/008 logged in docs/BRIEF_DEFECTS.md. |
@@ -212,6 +213,25 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### Day 11 — 2026-05-11 — Design polish sprint
+
+Shipped:
+- **Sky blue hero banners** — news, blog, reviews, lab all unified: `var(--boi-sky)` bg, `var(--boi-navy)` h1 + p at 75% opacity. Lab gets green "THE LAB" pill badge. Commits `10ce445`.
+- **White Navbar** — removed sky-to-sky-light gradient, replaced with `#fff` + `shadow-sm`. Clean separation from hero on all pages. Commit `145a9b6`.
+- **BOI-blue footer** — background `#006CB7`, saffron `#F7A800` text/headers/wordmark, warm cream links `rgba(255,247,220,0.85)`. Commit `145a9b6` + `2c34f75`.
+- **Tricolour stripe** — colours updated to saffron `#F7A800` / white / white / green `#138808` — effective saffron/white/green Indian flag tricolour. Commit `2c34f75`.
+- **Heat-map fixes** (LAB-07) — SVG `height: 100%` collapse fixed (container now uses `height: 0` + `minHeight`), async cancellation flag added, auto-drill on map click removed (only "View Cities →" button drills), stale "Q1 2025" label updated to Q1 2026. Commit `8392b42`.
+- **Review card images** — Supabase join alias fixed: `sets(...)` → `set:sets(...)` so `review.set` resolves and Rebrickable CDN images load. Commit `2c34f75`.
+- **Duplicate excerpt removed** — standalone italic excerpt `<p>` removed from `news/[slug]` and `blog/[slug]` pages. Excerpt remains in metadata only. Commits `8392b42` + `2c34f75`.
+- **About page origin story** — LEGO car photo float-right (280px, `<figure>`) alongside text paragraphs. 8-paragraph origin story inserted between bio and credentials. Credential year corrected to 2025. Hardcoded `#3a3a3a`/`#4A5568`/`#666` replaced with CSS variables. `lego-car-build.jpg` committed to `public/images/`. Commits `7bd7862`, `29d0104`.
+- **Spacing consistency** — news/blog content areas `py-8` → `py-10` (matches reviews). News article excerpt `italic` added. Commit `10ce445`.
+
+Key commits: `8392b42` (heat-map + spacing), `7bd7862` (about origin story), `29d0104` (photo), `10ce445` (sky heroes + spacing), `145a9b6` (navbar + footer + about photo layout), `2c34f75` (tricolour + footer blue + review fix + excerpt)
+
+**Last commit this session:** `2c34f75`
+
+---
 
 ### Day 10 — 2026-05-10 — Content rendering, MRP pipeline, Reviews, Lab tools, Design system
 
