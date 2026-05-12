@@ -14,7 +14,7 @@
       "name": "New Elementary",
       "url": "https://newelementary.com/feeds/posts/default",
       "country": "UK",
-      "enabled": false
+      "tolerant": true
     },
     {
       "name": "BrickNerd",

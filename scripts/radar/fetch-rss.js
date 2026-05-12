@@ -50,9 +50,9 @@ const SOURCE_FILTER = (() => {
 const supabase  = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 // rss-parser: set UA + extract yt:videoId from YouTube Atom feeds.
-// xml2js left at defaults (strict mode). New Elementary and Brickset are
-// disabled in config (enabled:false) pending PARSER-01 (parser swap to
-// feedparser or @extractus/feed-extractor for malformed-feed tolerance).
+// xml2js left at defaults (strict mode). Sources with malformed XML use
+// handleRssWithFallback (source.tolerant=true) which retries with
+// @extractus/feed-extractor on parse failure (PARSER-01).
 const rssParser = new RSSParser({
   headers      : { 'User-Agent': UA },
   customFields : { item: ['yt:videoId'] },
@@ -163,6 +163,31 @@ async function handleRss(source, tier) {
     rawPayload  : item,
   }));
   return { fetched: items.length, signals };
+}
+
+// Tier 1 fallback handler for sources with malformed XML (e.g. New Elementary — PARSER-01).
+// Tries rss-parser first; on parse failure falls back to @extractus/feed-extractor which
+// uses a tolerant HTML parser and handles cascading XML violations that break rss-parser.
+async function handleRssWithFallback(source, tier) {
+  try {
+    return await handleRss(source, tier);
+  } catch (parseErr) {
+    const { extract } = await import('@extractus/feed-extractor');
+    const feed = await extract(source.url, { useISODateFormat: true });
+    const items = (feed.entries || []).slice(0, LIMIT);
+    const signals = items.map(item => buildSignal({
+      sourceName  : source.name,
+      sourceTier  : tier,
+      sourceType  : 'rss',
+      externalId  : item.id || null,
+      url         : item.link || '',
+      title       : (item.title || '').trim(),
+      body        : item.description || null,
+      publishedAt : item.published || null,
+      rawPayload  : item,
+    }));
+    return { fetched: items.length, signals };
+  }
 }
 
 // Tier 2 Rebrickable API
@@ -380,7 +405,8 @@ async function processSource(source, tier) {
 
   try {
     let result;
-    if      (tier === 1)                            result = await handleRss(source, 1);
+    if      (tier === 1 && source.tolerant)          result = await handleRssWithFallback(source, 1);
+    else if (tier === 1)                             result = await handleRss(source, 1);
     else if (tier === 2 && source.method === 'rss') result = await handleRss(source, 2);
     else if (tier === 2 && source.method === 'api') result = await handleRebrickable(source);
     else if (tier === 2 && source.method === 'scrape') result = await handleLEGONewSets(source);

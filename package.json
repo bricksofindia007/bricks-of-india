@@ -9,6 +9,7 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@extractus/feed-extractor": "^7.2.1",
     "@google/generative-ai": "^0.24.0",
     "@sparticuz/chromium": "^147.0.0",
     "@supabase/ssr": "^0.10.2",
