@@ -178,7 +178,7 @@ const INDIA_PARAGRAPH_SPEC = `
 ---
 INDIA PARAGRAPH — MANDATORY RULES:
 Every article MUST contain exactly one India Paragraph as a single consolidated block.
-Write it as a normal paragraph — NO HTML comments, NO placeholder markers.
+Place <!-- INDIA_PARAGRAPH --> on its own line immediately before this block. Write the block as normal prose.
 The block MUST contain ALL FOUR components in order:
   (a) INR price: USD MSRP × 1.35 × current USD/INR rate. Show working. Estimate if unknown.
   (b) Indian availability: name stores (Toycra, MyBrickHouse, Jaiman Toys) or "import only".
@@ -238,7 +238,7 @@ TITLE: <your title>
 VERDICT: <BUY | WAIT FOR SALE | IMPORT ONLY | SKIP | NONE>
 
 BODY:
-<article body — include India Paragraph inline as a plain paragraph, no HTML comments>
+<article body — place <!-- INDIA_PARAGRAPH --> on its own line before the India Paragraph block>
 --- BOI_DRAFT_END ---`;
 }
 

@@ -147,7 +147,7 @@ FORMAT RULES — OPINION PIECE:
 const INDIA_PARAGRAPH_SPEC = `
 ---
 INDIA PARAGRAPH — MANDATORY (single consolidated block):
-Write it as a normal paragraph — NO HTML comments, NO placeholder markers.
+Place <!-- INDIA_PARAGRAPH --> on its own line immediately before this block. Write the block as normal prose.
 Must contain:
 (a) INR price: USD MSRP × 1.35 × current USD/INR rate. Show working.
 (b) Availability: which stores (Toycra, MyBrickHouse, Jaiman) or "import only".
@@ -332,10 +332,13 @@ function lintDraft(draft: {
     );
   }
 
-  // Gate 2 — India Paragraph: INR price must appear in the body.
-  // The <!-- INDIA_PARAGRAPH --> marker is preferred but not hard-required here because
-  // INDIA_PARAGRAPH_SPEC in the system prompt says "NO HTML comments" while the user
-  // prompt says to place the marker — Gemini resolves this inconsistently.
+  // Gate 2 — India Paragraph: marker + INR price.
+  // Both Gemini code paths (actions.ts + generate-drafts.js) now instruct Gemini to
+  // place <!-- INDIA_PARAGRAPH --> before the block. Marker absence = warn not fail
+  // (backward-compat for drafts generated before the prompt fix). Missing ₹ = hard fail.
+  if (!body.includes('<!-- INDIA_PARAGRAPH -->')) {
+    console.warn(`[Gate 2 WARN] <!-- INDIA_PARAGRAPH --> marker absent in draft — India Paragraph may be missing`);
+  }
   if (!/₹[\d,]+/.test(body)) {
     throw new Error(
       '[Gate 2] No INR price (₹NNN) found in draft body. India Paragraph is missing or incomplete.'
@@ -388,7 +391,7 @@ export async function publishDraft(formData: FormData) {
   const heroImage = await fetchOgImage(draft.source_url);
   console.log(`[publish] source_url=${draft.source_url} og_image_found=${!!heroImage} image_url=${heroImage?.slice(0, 80) ?? 'none'}`);
 
-  // Strip HTML comment marker — belt-and-suspenders for any draft that still has it
+  // Strip <!-- INDIA_PARAGRAPH --> structural marker — present in new drafts, no-op on old ones
   const cleanBody = draft.draft_body.replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '');
 
   const excerpt = cleanBody.replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 160);
