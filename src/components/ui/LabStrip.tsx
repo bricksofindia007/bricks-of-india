@@ -64,7 +64,7 @@ export function LabStrip() {
         <div className="mb-6 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span
             className="text-sm font-bold tracking-widest uppercase"
-            style={{ fontFamily: 'var(--font-fredoka)', color: '#F7A800' }}
+            style={{ fontFamily: 'var(--font-fredoka)', color: 'var(--boi-saffron)' }}
           >
             THE LAB
           </span>

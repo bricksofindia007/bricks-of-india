@@ -35,7 +35,7 @@ function FooterWordmark() {
           fontFamily: 'var(--font-fredoka)',
           fontWeight: 700,
           fontSize: '18px',
-          color: '#F7A800',
+          color: 'var(--boi-saffron)',
           textShadow: outlineShadow,
           lineHeight: 1,
         }}
@@ -47,7 +47,7 @@ function FooterWordmark() {
           fontFamily: 'var(--font-fredoka)',
           fontWeight: 700,
           fontSize: '13px',
-          color: '#F7A800',
+          color: 'var(--boi-saffron)',
           textShadow: outlineShadow,
           lineHeight: 1,
         }}
@@ -60,7 +60,7 @@ function FooterWordmark() {
 
 export function Footer() {
   return (
-    <footer style={{ background: '#006CB7', color: '#F7A800' }}>
+    <footer style={{ background: 'var(--boi-blue)', color: 'var(--boi-saffron)' }}>
       <div className="max-w-site mx-auto" style={{ padding: '48px 32px' }}>
         {/* 4-column grid desktop, 2-column tablet, stacked mobile */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-10">
@@ -89,7 +89,7 @@ export function Footer() {
                 fontFamily: 'var(--font-fredoka)',
                 fontWeight: 700,
                 fontSize: '13px',
-                color: '#F7A800',
+                color: 'var(--boi-saffron)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.08em',
                 marginBottom: '16px',
@@ -127,7 +127,7 @@ export function Footer() {
                 fontFamily: 'var(--font-fredoka)',
                 fontWeight: 700,
                 fontSize: '13px',
-                color: '#F7A800',
+                color: 'var(--boi-saffron)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.08em',
                 marginBottom: '16px',
@@ -162,7 +162,7 @@ export function Footer() {
                 fontFamily: 'var(--font-fredoka)',
                 fontWeight: 700,
                 fontSize: '13px',
-                color: '#F7A800',
+                color: 'var(--boi-saffron)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.08em',
                 marginBottom: '16px',

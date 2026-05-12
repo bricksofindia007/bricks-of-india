@@ -90,7 +90,7 @@ button {
   background: #F5F5F5;
 }
 ::-webkit-scrollbar-thumb {
-  background: #F7A800;
+  background: var(--boi-saffron);
   border-radius: 3px;
 }
 
@@ -104,7 +104,7 @@ button {
 }
 
 .highlight-yellow {
-  background: linear-gradient(180deg, transparent 60%, #F7A800 60%);
+  background: linear-gradient(180deg, transparent 60%, var(--boi-saffron) 60%);
 }
 
 .line-clamp-2 {
