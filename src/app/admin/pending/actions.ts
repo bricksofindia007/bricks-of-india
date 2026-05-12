@@ -305,6 +305,56 @@ async function fetchOgImage(url: string): Promise<string | null> {
   } catch { return null; }
 }
 
+// ── WEB-01 lint gates ────────────────────────────────────────────────────────
+
+const WORD_COUNT_TARGETS: Record<string, [number, number]> = {
+  news    : [270, 440],  // 300–400 ± 10%
+  review  : [450, 770],  // 500–700 ± 10%
+  opinion : [360, 550],  // 400–500 ± 10%
+};
+const VALID_VERDICTS = new Set(['BUY', 'WAIT FOR SALE', 'IMPORT ONLY', 'SKIP']);
+
+function lintDraft(draft: {
+  draft_body: string | null;
+  draft_verdict: string | null;
+  draft_format: string | null;
+  word_count: number | null;
+}): void {
+  const body      = draft.draft_body || '';
+  const format    = draft.draft_format || 'news';
+  const wordCount = draft.word_count ?? body.split(/\s+/).filter(Boolean).length;
+
+  // Gate 1 — Word count within format target ± 10%
+  const [min, max] = WORD_COUNT_TARGETS[format] ?? WORD_COUNT_TARGETS.news;
+  if (wordCount < min || wordCount > max) {
+    throw new Error(
+      `[Gate 1] Word count ${wordCount} is outside target ${min}–${max} for '${format}'. Edit the draft body before publishing.`
+    );
+  }
+
+  // Gate 2 — India Paragraph: INR price must appear in the body.
+  // The <!-- INDIA_PARAGRAPH --> marker is preferred but not hard-required here because
+  // INDIA_PARAGRAPH_SPEC in the system prompt says "NO HTML comments" while the user
+  // prompt says to place the marker — Gemini resolves this inconsistently.
+  if (!/₹[\d,]+/.test(body)) {
+    throw new Error(
+      '[Gate 2] No INR price (₹NNN) found in draft body. India Paragraph is missing or incomplete.'
+    );
+  }
+
+  // Gate 3 — Verdict enum (enforced for reviews; news/opinion may legitimately use NONE)
+  if (format === 'review') {
+    const v = (draft.draft_verdict || '').trim().toUpperCase();
+    if (!VALID_VERDICTS.has(v)) {
+      throw new Error(
+        `[Gate 3] Verdict '${draft.draft_verdict}' is not in [BUY, WAIT FOR SALE, IMPORT ONLY, SKIP]. Set a valid verdict before publishing.`
+      );
+    }
+  }
+  // Gate 4 — image URLs: auto-drafted content has no inline images; the OG hero image
+  // is fetched by fetchOgImage() with graceful null fallback — no additional check needed.
+}
+
 export async function publishDraft(formData: FormData) {
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
@@ -312,12 +362,15 @@ export async function publishDraft(formData: FormData) {
 
   const { data: draft, error: fetchErr } = await supabase
     .from('pending_drafts')
-    .select('id, draft_title, draft_body, draft_verdict, draft_format, source_url, source_title')
+    .select('id, draft_title, draft_body, draft_verdict, draft_format, word_count, source_url, source_title')
     .eq('id', id)
     .single();
 
   if (fetchErr || !draft) throw new Error(`Draft not found: ${fetchErr?.message}`);
   if (!draft.draft_body)  throw new Error('Draft has no generated body — click Generate Article first');
+
+  // WEB-01: run lint gates before publishing — throws on any FAIL
+  lintDraft(draft);
 
   const format   = draft.draft_format || 'news';
   const { table, path, category } = resolveTarget(format);
