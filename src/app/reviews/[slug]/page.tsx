@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function ReviewPage({ params }: Props) {
   const { data: review } = await supabase
     .from('reviews')
-    .select('*, sets(*, prices(*))')
+    .select('*, sets(*)')
     .eq('slug', params.slug)
     .single();
 
