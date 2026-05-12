@@ -19,7 +19,7 @@
  *   review     → draft_format: 'review'
  *   opinion    → draft_format: 'opinion'
  *   set-release / default → draft_format: 'news'
- *   Rebrickable API signals (source_type='api') → 'news' unconditionally
+ *   Rebrickable API signals (source_type='api') → null (skip drafting — catalogue data, not editorial)
  *
  * Idempotent: pending_drafts has UNIQUE INDEX on source_url.
  * Re-running classify-signals never duplicates rows.
@@ -72,15 +72,15 @@ function scoreSignal(signal) {
 // ── Classification ────────────────────────────────────────────────────────────
 
 // community signals: MOC posts, weekly threads, help/advice — not draftable
-const COMMUNITY_RE  = /\b(moc|ama|weekly|thread|discussion|question|help|advice|tips?|haul|showcase|share)\b/i;
+const COMMUNITY_RE  = /\b(moc|ama|weekly|thread|discussion|question|help|advice|tips?|haul|showcase|share|digest|round.?up|headline|contest)\b/i;
 // review signals: hands-on, verdict, rating
 const REVIEW_RE     = /\b(review|verdict|worth it|hands.?on|unboxing|rating|tested|first.?impression|in.?depth)\b/i;
 // opinion signals: editorials, comparisons, rankings
 const OPINION_RE    = /\b(opinion|editorial|why|should you|is it worth|best|worst|top \d|ranked|ranking|vs\.?|versus|compar(ed?|ing)|argument)\b/i;
 
 function classifyFormat(signal) {
-  // Rebrickable API = structured set-release data → always news
-  if (signal.source_type === 'api') return 'news';
+  // Rebrickable API = structured catalogue data — skip drafting (not editorial)
+  if (signal.source_type === 'api') return null;
 
   const t = (signal.title || '').toLowerCase();
 
