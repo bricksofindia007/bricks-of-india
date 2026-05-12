@@ -50,9 +50,10 @@ const SOURCE_FILTER = (() => {
 const supabase  = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY);
 
 // rss-parser: set UA + extract yt:videoId from YouTube Atom feeds.
-// xml2js left at defaults (strict mode). Sources with malformed XML use
-// handleRssWithFallback (source.tolerant=true) which retries with
-// @extractus/feed-extractor on parse failure (PARSER-01).
+// xml2js left at defaults (strict mode). Routing per source:
+//   source.format === 'blogger-json' → handleBloggerJson (bypasses XML entirely)
+//   source.tolerant === true         → handleRssWithFallback (@extractus fallback)
+//   default                          → handleRss
 const rssParser = new RSSParser({
   headers      : { 'User-Agent': UA },
   customFields : { item: ['yt:videoId'] },
@@ -188,6 +189,42 @@ async function handleRssWithFallback(source, tier) {
     }));
     return { fetched: items.length, signals };
   }
+}
+
+// Blogger JSON feed handler — bypasses XML entirely (source.format === 'blogger-json').
+// Blogger's ?alt=json endpoint returns stable JSON regardless of Atom XML violations.
+// cheerio strips HTML tags from content.$t for a clean body snippet.
+async function handleBloggerJson(source, tier) {
+  const res = await fetch(source.url, {
+    headers: { 'User-Agent': UA },
+    signal  : AbortSignal.timeout(15000),
+  });
+  if (!res.ok) throw new Error(`HTTP ${res.status} from ${source.url}`);
+
+  const data    = await res.json();
+  const entries = (data.feed?.entry || []).slice(0, LIMIT);
+
+  const signals = entries.map(entry => {
+    const link    = (entry.link || []).find(l => l.rel === 'alternate')?.href || '';
+    const rawBody = entry.content?.$t || entry.summary?.$t || null;
+    const body    = rawBody
+      ? cheerio.load(rawBody).text().replace(/\s+/g, ' ').trim().slice(0, 1000)
+      : null;
+
+    return buildSignal({
+      sourceName  : source.name,
+      sourceTier  : tier,
+      sourceType  : 'rss',
+      externalId  : entry.id?.$t || null,
+      url         : link,
+      title       : (entry.title?.$t || '').trim(),
+      body,
+      publishedAt : entry.published?.$t || null,
+      rawPayload  : entry,
+    });
+  });
+
+  return { fetched: entries.length, signals };
 }
 
 // Tier 2 Rebrickable API
@@ -405,8 +442,9 @@ async function processSource(source, tier) {
 
   try {
     let result;
-    if      (tier === 1 && source.tolerant)          result = await handleRssWithFallback(source, 1);
-    else if (tier === 1)                             result = await handleRss(source, 1);
+    if      (tier === 1 && source.format === 'blogger-json') result = await handleBloggerJson(source, 1);
+    else if (tier === 1 && source.tolerant)                  result = await handleRssWithFallback(source, 1);
+    else if (tier === 1)                                     result = await handleRss(source, 1);
     else if (tier === 2 && source.method === 'rss') result = await handleRss(source, 2);
     else if (tier === 2 && source.method === 'api') result = await handleRebrickable(source);
     else if (tier === 2 && source.method === 'scrape') result = await handleLEGONewSets(source);

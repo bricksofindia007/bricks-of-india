@@ -12,9 +12,9 @@
     },
     {
       "name": "New Elementary",
-      "url": "https://newelementary.com/feeds/posts/default",
+      "url": "https://www.newelementary.com/feeds/posts/default?alt=json&max-results=20",
       "country": "UK",
-      "tolerant": true
+      "format": "blogger-json"
     },
     {
       "name": "BrickNerd",
