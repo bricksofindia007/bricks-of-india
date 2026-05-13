@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-11 (Day 11: design polish sprint — sky blue heroes sitewide, white navbar, BOI-blue footer with saffron text, tricolour stripe saffron/white/green, heat-map fixes, review card image fix, duplicate excerpt removed, about origin story + photo)
+> **Last updated:** 2026-05-13 (Day 12: DESIGN-CSS-01 done, PARSER-01/PARSER-01b done, RADAR-03-TUNE done, WEB-01 done, INDIA_PARAGRAPH fix done; Day 13 open: local repo synced from origin — was 9 commits behind)
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -80,7 +80,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 | Phase 0 | Launch + post-launch P0 fixes | ✅ Done | WEB |
 | Phase 1 | Voice Codex | ✅ Done — `docs/codex/BOI_Codex_v2.docx` committed 2026-05-01 | CONTENT |
 | Phase 2 | Claude Project workbench | 🟡 Unblocked — pending setup | CONTENT |
-| Phase 3 | Topical Radar (RSS ingestion) | 🟡 In progress — RADAR-01/02/03/04/CRON ✅ Done. /admin/pending ✅ Live on production. 349 pending_drafts. 14 active sources. RADAR-05 (publish) next. | CONTENT |
+| Phase 3 | Topical Radar (RSS ingestion) | 🟡 In progress — RADAR-01/02/03/04/05/CRON ✅ Done. /admin/pending ✅ Live. WEB-01 lint gates ✅ Done (c313795). 16 active sources (New Elementary restored via Blogger JSON). 242 pending_drafts (229 draft, 5 approved). DEFECT-005 voice register open. | CONTENT |
 | Phase 4 | Shorts / Reels workflow (DaVinci + ElevenLabs) | 🔴 Not started | VIDEO |
 | Phase 5 | Instagram carousel engine | 🔴 Not started | SOCIAL |
 | Phase 8 | LEGO Search Pulse | ✅ Live — LAB-07 /lab/heat-map shipped 2026-05-10. D3 choropleth India + world view, 23 states, city drill-down. | WEB (PULSE-01→N) |
@@ -102,7 +102,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 - Brick Fan, Toys N Bricks, Bricks Fanz, LEGO Car Blog, Rambling Brick, True North Bricks → not adopted at any tier
 - Jay's Brick Blog → ✅ Added 2026-05-09 as Tier 1 editorial (jaysbrickblog.com/feed/). Confirmed working: 11 items, parses cleanly.
 
-**Active Tier 1 sources (as of 2026-05-09):** The Brothers Brick, Jay's Brick Blog, BrickNerd. New Elementary disabled (PARSER-01 — 3 cascading XML violations, parser swap needed).
+**Active Tier 1 sources (as of 2026-05-12):** The Brothers Brick, Jay's Brick Blog, BrickNerd, New Elementary. New Elementary re-enabled via Blogger JSON endpoint (`?alt=json&max-results=20`) — bypasses XML violations entirely (commits 700b561 + a311fc6). PARSER-01 closed. Total active sources: 16.
 
 **Re-litigation rule:** Adding any source requires a tracker entry with reason. Don't quietly expand tiers.
 
@@ -130,8 +130,10 @@ JSON parses. If it doesn't, fix before doing anything else.
 ## Current blockers (top 3)
 
 1. **CONTENT-02 not started** — Claude Project workbench setup pending. Blocks consistent content production velocity.
-2. **PARSER-01 open** — New Elementary (Tier 1 source) disabled. Needs `@extractus/feed-extractor` swap to fix malformed XML. 30-min job.
+2. **REVIEW-PRICE-01 open** — Review pages show no live price. `reviews/[slug]/page.tsx:29` queries `sets(*)` only — no `store_prices` join. Sidebar shows set image + "Compare Prices →" but no price.
+3. **DEFECT-005 open** — RADAR-04 generated voice is flat, not BOI Codex register. Prompt engineering needed in `src/app/admin/pending/actions.ts` FORMAT_ADDENDUM/INDIA_PARAGRAPH_SPEC.
 
+> PARSER-01 closed 2026-05-12 — New Elementary re-enabled via Blogger JSON (commits 700b561 + a311fc6).
 > BUG-013 closed 2026-05-02 as mis-diagnosed. GEO-01 hardening shipped. See Sprint changelog Day 2 for details.
 
 ## Carry-overs
@@ -142,13 +144,15 @@ JSON parses. If it doesn't, fix before doing anything else.
 | DATA-01 | Reconcile `store_prices` (scraper) ↔ `prices` (frontend) | ✅ Done 2026-05-09 | commit `9ced905`. /sets, /sets/page/[page], /compare all now read store_prices. Price filter on /compare operates on live store prices. DEFECT-009 logged. |
 | ADMIN-CLEANUP-01 | Remove Netlify legacy secrets from GitHub Secrets (NETLIFY_AUTH_TOKEN, NETLIFY_SITE_ID) | 🟡 Deferred | Noted "LEGACY — pending removal in ADMIN-CLEANUP-01" in `.env.example` (commit 4a39ca5). Netlify is still the origin host so removing now is low-risk but not urgent. |
 | SCRAPE-01 | Tier 5 + Tier 2 scrape selector hardening | 🟡 Partial | LEGO New Sets (Tier 2): ✅ Closed — lego.com is a Next.js SPA, product links client-rendered. Requires Playwright. Not worth complexity. Disabled permanently with comment in config. Blocks Magazine: ✅ Fixed 2026-05-09 — URL updated to post-redirect hostname (blocksmag.com/news/), now fetches 86 links. LEGO Ideas Blog, Eurobricks News: still disabled (SCRAPE-01 open for these). |
-| PARSER-01 | rss-parser malformed feeds — New Elementary (Tier 1) | 🟡 Open P2 | Brickset: ✅ Fixed — wrong URL was root cause, `/feed` works cleanly. New Elementary: definitively unfixable with rss-parser. Investigated 2026-05-09: (1) `xmlParseOptions` is silently ignored (wrong key — library uses `xml2jsOptions`). (2) `xml2jsOptions: { strict: false }` on raw XML — SAX non-strict doesn't help with attribute errors. (3) sanitizeXml() + `strict: false` — gets past XML errors but SAX non-strict uppercases all tag names (`<ITEM>`, `<TITLE>`), breaking rss-parser's own tag matching → "Feed not recognized as RSS 1 or 2". Only viable fix: swap rss-parser for `@extractus/feed-extractor` or `feedparser` (both use tolerant parsers that handle malformed XML). New Elementary stays disabled until parser swap ships. |
+| PARSER-01 | rss-parser malformed feeds — New Elementary (Tier 1) | ✅ Done 2026-05-12 | commits 700b561 + a311fc6. Final approach: Blogger JSON endpoint (`?alt=json&max-results=20`) — bypasses XML entirely. New Elementary now enabled in config/sources.json with `"format": "blogger-json"`. Verified: fetched=20, written=20 on manual trigger. |
 | YT-FEED-NOISE-01 | YouTube channel RSS feeds include non-upload content — all 6 Tier 4 channels | 🟡 Accepted noise | Opened 2026-05-03. YouTube's videos.xml channel feeds include playlist additions and engagement, not just the channel's uploads. Documented YouTube behavior, not a fetcher bug. Verified via isolated fetch bypass that each URL returns the same content with or without our code. Accepted as noise for v1 — RADAR-02 dedupe handles cross-source overlap; future "stale items >14 days" filter drops most playlist additions. Fix paths: (a) YouTube Data API v3 playlistItems.list against UU... uploads playlists (requires API key + daily quota); (b) filter entries by <author><uri> match against feed owner. Priority P3 — cosmetic noise, not a correctness issue. |
 | RADAR-03 | RADAR-03 classifier + /admin/pending | ✅ Done 2026-05-09 | classify-signals.js (commit `db1dd2d`). 298/530 signals qualified. /admin/pending cookie-gated review route (commit `6e2e47b`). |
-| RADAR-03-TUNE | RADAR-03 classifier over-indexes on Rebrickable as NEWS; misses community/contest articles from editorial sources | 🔴 Open | All Rebrickable API signals classified as `news` unconditionally. BrickNerd digest/contest round-ups not caught by community regex (titles like "LEGO Contest Round-Up", "Community Headlines" pass the filter). Fix: add digest/round-up/headline patterns to COMMUNITY_RE; add source-aware override for Rebrickable (classify as `set-release` sub-type or filter to Tier 2 only). Priority P2. |
+| RADAR-03-TUNE | RADAR-03 classifier over-indexes on Rebrickable as NEWS; misses community/contest articles from editorial sources | ✅ Done 2026-05-12 | commit 5024470. Rebrickable API signals now skipped entirely. COMMUNITY_RE extended with digest/round-up/headline/contest patterns. skipped_community=223 confirmed on manual trigger run. |
 | NETLIFY-CREDITS | Production deploys paused — Netlify billing cycle resets 2026-05-22 | 🔴 Open | /admin/pending, RADAR-03, scraper fixes, DATA-01 all committed to main but not yet live on bricksofindia.com. Netlify free-tier build minutes exhausted. Resets 2026-05-22. No action needed until then. |
 | RADAR-04-FULLTEXT | RADAR-04 full-text fetch before Gemini generation | ✅ Done 2026-05-09 — promoted P3→P1, shipped same session. `generate-drafts.js` now attempts full-body fetch via native fetch + cheerio before every Gemini call. Skip-list: rebrickable.com, youtube.com, reddit.com, i.redd.it. Selectors: article, .post-content, .entry-content, .article-body, main p. Min 300 chars to use fetched body; fallback to stored excerpt otherwise. Dry-run verified: Brothers Brick fetched 773 chars ✅, JBB fallback (no selector match) ✅, Rebrickable skip-list ✅. |
-| LAB-05 | Price Drop Board — today's steepest price falls | 🟡 P3 deferred | Scaffolded as `coming_soon` in `src/lib/lab-tools.ts` (id: `price-drops`). Needs LAB-03 snapshot data history (30+ days). LAB-03 cron running since 2026-05-02 — eligible ~2026-06-01. |
+| REVIEW-PRICE-01 | Review pages show no live store price | 🔴 Open P1 | `src/app/reviews/[slug]/page.tsx:29` queries `sets(*)` only. Dead `prices(*)` join removed (dd4691f) but no `store_prices` replacement added. Sidebar shows set info + "Compare Prices →" but no live price. Fix: join `store_prices` by `set_id`, display cheapest in-stock price in sidebar. |
+| DEFECT-005 | RADAR-04 generated articles not in BOI Codex voice/register | 🔴 Open P1 | No Day 12 fix shipped. Voice is described as flat, not Clarkson-register. Prompt engineering target: `src/app/admin/pending/actions.ts:122–155` (FORMAT_ADDENDUM, INDIA_PARAGRAPH_SPEC, ANTI_PATTERNS constants). |
+| LAB-05 | Price Drop Board — today's steepest price falls | 🟡 P3 deferred | Scaffolded as `coming_soon` in `src/lib/lab-tools.ts` (id: `price-drops`). Needs LAB-03 snapshot data history (30+ days). LAB-03 cron running since 2026-05-02 — 11 days of data as of 2026-05-13. Eligible ~2026-06-01. |
 | LAB-06 | Retirement Radar | 🟡 P3 deferred | Scaffolded as `coming_soon` in `src/lib/lab-tools.ts` (id: `retirement-radar`). Needs CATALOG-04 v2 (Brickset cron for exit dates). |
 
 ---
@@ -189,6 +193,7 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 | Deploy | Date | Commit | Contents |
 |--------|------|--------|----------|
+| Day 12 pipeline + design | 2026-05-12 | `e17e977` | DESIGN-CSS-01: Footer, LabStrip, TricolourStripe, globals.css → CSS vars (e15b4f4). RADAR-03-TUNE: Rebrickable signals skipped, COMMUNITY_RE extended (5024470). PARSER-01: New Elementary re-enabled via Blogger JSON (700b561, a311fc6). Reviews: dead prices(*) join removed (dd4691f). WEB-01: lintDraft() 3-gate enforcement at publish (c313795). INDIA_PARAGRAPH prompt fix, Gate 2 warn+fail split (e17e977). |
 | Day 11 design sprint | 2026-05-11 | `2c34f75` | Sky blue hero banners (news/blog/reviews/lab). White navbar. BOI-blue (#006CB7) footer with saffron text. Tricolour stripe → saffron/white/green. Heat-map: SVG height fix, cancellation flag, auto-drill removed, Q1 2026 label. Review card image fix (set:sets alias). Duplicate excerpt removed from news+blog slug pages. About page: origin story + float-right photo, credential year 2025, CSS variable colours. |
 | Day 10 close | 2026-05-10 | `d5d1641` | CONTENT-RENDER-02/03 closed (ReactMarkdown on blog+reviews, excerpt strip). PRICE-PIPELINE-01: 3,370 sets lego_mrp_inr via Brickset API, audit gate 45% year>=2020. REVIEWS-FIRST-3: 3 reviews seeded (42161, 31120, 10317). GEO-01-FU1 verified live. LAB-02 Which Set Are You + LAB-07 Search Pulse shipped. Brand CSS variables aligned. |
 | Day 9 session 3 close | 2026-05-10 | `fb42975` | YouTube strip live (BOI channel only), newsletter → Resend SDK (abhinav@bricksofindia.com), footer 4-column + The Lab, sitemap paginated, DEFECT-010/011/012 closed, 15 RADAR sources. |
@@ -213,6 +218,22 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### Day 12 — 2026-05-12 — Pipeline fixes + CSS variables
+
+Shipped:
+- **DESIGN-CSS-01** — Footer.tsx, LabStrip.tsx, TricolourStripe.tsx, globals.css: hardcoded `#F7A800` → `var(--boi-saffron)`. Commit `e15b4f4`.
+- **RADAR-03-TUNE** — `classify-signals.js`: Rebrickable API signals now skipped entirely. COMMUNITY_RE extended with digest/round-up/headline/contest patterns. Verified: skipped_community=223 on manual run. Commit `5024470`.
+- **PARSER-01 + PARSER-01b** — New Elementary re-enabled. First attempt used `@extractus/feed-extractor` (700b561). Final: Blogger JSON endpoint (`?alt=json&max-results=20`) bypasses XML entirely (a311fc6). `config/sources.json` updated: `format: blogger-json`, no `enabled: false`. Verified: fetched=20, written=20.
+- **dead prices(*) join removed** — `reviews/[slug]/page.tsx` query changed from `sets(*, prices(*))` to `sets(*)`. Legacy `prices` table was never rendered in template. Commit `dd4691f`.
+- **WEB-01 — lintDraft() 3-gate enforcement** — `src/app/admin/pending/actions.ts:317–358`. Gate 1: word count ±10% by format. Gate 2: INDIA_PARAGRAPH marker warn + ₹ price hard fail. Gate 3: verdict enum check for reviews. Called from `publishDraft()` at line 376. Commit `c313795`.
+- **INDIA_PARAGRAPH prompt fix** — Both code paths (actions.ts + generate-drafts.js) now consistently instruct Gemini to place `<!-- INDIA_PARAGRAPH -->` marker. Gate 2: marker absence = console.warn (backward compat for existing drafts); ₹ price absence = hard FAIL. Commit `e17e977`.
+
+Key commits: `e15b4f4` (CSS vars), `5024470` (RADAR-03-TUNE), `700b561` + `a311fc6` (PARSER-01/b), `dd4691f` (reviews join), `c313795` (WEB-01), `e17e977` (INDIA_PARAGRAPH)
+
+**Last commit this session:** `e17e977` (code). `f74a67d` (session handover doc).
+
+---
 
 ### Day 11 — 2026-05-11 — Design polish sprint
 
