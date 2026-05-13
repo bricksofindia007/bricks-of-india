@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-13 (Day 12: DESIGN-CSS-01 done, PARSER-01/PARSER-01b done, RADAR-03-TUNE done, WEB-01 done, INDIA_PARAGRAPH fix done; Day 13 open: local repo synced from origin — was 9 commits behind)
+> **Last updated:** 2026-05-13 (Day 13: REVIEW-PRICE-01 closed — store_prices live on review pages; YT-404-WATCH cleared — all 7 channels clean)
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -130,8 +130,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 ## Current blockers (top 3)
 
 1. **CONTENT-02 not started** — Claude Project workbench setup pending. Blocks consistent content production velocity.
-2. **REVIEW-PRICE-01 open** — Review pages show no live price. `reviews/[slug]/page.tsx:29` queries `sets(*)` only — no `store_prices` join. Sidebar shows set image + "Compare Prices →" but no price.
-3. **DEFECT-005 open** — RADAR-04 generated voice is flat, not BOI Codex register. Prompt engineering needed in `src/app/admin/pending/actions.ts` FORMAT_ADDENDUM/INDIA_PARAGRAPH_SPEC.
+2. **DEFECT-005 open** — RADAR-04 generated voice is flat, not BOI Codex register. Prompt engineering needed in `src/app/admin/pending/actions.ts` FORMAT_ADDENDUM/INDIA_PARAGRAPH_SPEC.
 
 > PARSER-01 closed 2026-05-12 — New Elementary re-enabled via Blogger JSON (commits 700b561 + a311fc6).
 > BUG-013 closed 2026-05-02 as mis-diagnosed. GEO-01 hardening shipped. See Sprint changelog Day 2 for details.
@@ -150,7 +149,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 | RADAR-03-TUNE | RADAR-03 classifier over-indexes on Rebrickable as NEWS; misses community/contest articles from editorial sources | ✅ Done 2026-05-12 | commit 5024470. Rebrickable API signals now skipped entirely. COMMUNITY_RE extended with digest/round-up/headline/contest patterns. skipped_community=223 confirmed on manual trigger run. |
 | NETLIFY-CREDITS | Production deploys paused — Netlify billing cycle resets 2026-05-22 | 🔴 Open | /admin/pending, RADAR-03, scraper fixes, DATA-01 all committed to main but not yet live on bricksofindia.com. Netlify free-tier build minutes exhausted. Resets 2026-05-22. No action needed until then. |
 | RADAR-04-FULLTEXT | RADAR-04 full-text fetch before Gemini generation | ✅ Done 2026-05-09 — promoted P3→P1, shipped same session. `generate-drafts.js` now attempts full-body fetch via native fetch + cheerio before every Gemini call. Skip-list: rebrickable.com, youtube.com, reddit.com, i.redd.it. Selectors: article, .post-content, .entry-content, .article-body, main p. Min 300 chars to use fetched body; fallback to stored excerpt otherwise. Dry-run verified: Brothers Brick fetched 773 chars ✅, JBB fallback (no selector match) ✅, Rebrickable skip-list ✅. |
-| REVIEW-PRICE-01 | Review pages show no live store price | 🔴 Open P1 | `src/app/reviews/[slug]/page.tsx:29` queries `sets(*)` only. Dead `prices(*)` join removed (dd4691f) but no `store_prices` replacement added. Sidebar shows set info + "Compare Prices →" but no live price. Fix: join `store_prices` by `set_id`, display cheapest in-stock price in sidebar. |
+| REVIEW-PRICE-01 | Review pages show no live store price | ✅ Done 2026-05-13 | commit e07ddc5. Queries `store_prices` by `set.set_number` via `createServerClient()`. Sidebar now shows best in-stock price + "Buy Now →" (green, direct product URL), falls back to cheapest any-price + "Check availability", hides gracefully if no data. "Compare Prices →" link retained below. |
 | DEFECT-005 | RADAR-04 generated articles not in BOI Codex voice/register | 🔴 Open P1 | No Day 12 fix shipped. Voice is described as flat, not Clarkson-register. Prompt engineering target: `src/app/admin/pending/actions.ts:122–155` (FORMAT_ADDENDUM, INDIA_PARAGRAPH_SPEC, ANTI_PATTERNS constants). |
 | LAB-05 | Price Drop Board — today's steepest price falls | 🟡 P3 deferred | Scaffolded as `coming_soon` in `src/lib/lab-tools.ts` (id: `price-drops`). Needs LAB-03 snapshot data history (30+ days). LAB-03 cron running since 2026-05-02 — 11 days of data as of 2026-05-13. Eligible ~2026-06-01. |
 | LAB-06 | Retirement Radar | 🟡 P3 deferred | Scaffolded as `coming_soon` in `src/lib/lab-tools.ts` (id: `retirement-radar`). Needs CATALOG-04 v2 (Brickset cron for exit dates). |
@@ -218,6 +217,18 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### Day 13 — 2026-05-13 — REVIEW-PRICE-01
+
+Shipped:
+- **REVIEW-PRICE-01** — `src/app/reviews/[slug]/page.tsx`: added `store_prices` lookup via `createServerClient()`, keyed on `set.set_number`. Sidebar shows best in-stock price + green "Buy Now →" button (direct product URL), falls back to cheapest any-price + "Check availability" text, hidden if no data. `formatPrice` + `createServerClient` added to imports. Commit `e07ddc5`.
+
+Verified:
+- **YT-404-WATCH** — radar cron run 25756795926 (2026-05-12 19:18 UTC) inspected. All 7 YouTube channels: fetched=15, errors=0. BOI channel (`UC1CCrLlp4XnOoxVzAftFwfQ`) clean. Closed.
+
+**Last commit this session:** `e07ddc5`
+
+---
 
 ### Day 12 — 2026-05-12 — Pipeline fixes + CSS variables
 
