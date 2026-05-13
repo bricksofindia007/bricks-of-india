@@ -3,8 +3,8 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
-import { supabase } from '@/lib/supabase';
-import { formatDate, whatsappShareUrl, twitterShareUrl } from '@/lib/utils';
+import { createServerClient, supabase } from '@/lib/supabase';
+import { formatDate, formatPrice, whatsappShareUrl, twitterShareUrl } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { Byline } from '@/components/content/Byline';
@@ -33,6 +33,24 @@ export default async function ReviewPage({ params }: Props) {
   if (!review) notFound();
 
   const set = review.sets;
+
+  // Best live price for sidebar — mirrors sets/[slug]/page.tsx pattern
+  let bestStorePrice: { store_id: string; price_inr: number; in_stock: boolean; product_url: string } | null = null;
+  if (set?.set_number) {
+    const serverClient = createServerClient();
+    const { data: storePrices } = await serverClient
+      .from('store_prices')
+      .select('store_id, price_inr, in_stock, product_url')
+      .eq('set_id', set.set_number);
+    const inStock  = (storePrices ?? []).filter((sp: any) => sp.price_inr != null && sp.in_stock);
+    const anyPrice = (storePrices ?? []).filter((sp: any) => sp.price_inr != null);
+    bestStorePrice = inStock.sort((a: any, b: any) => a.price_inr - b.price_inr)[0]
+      ?? anyPrice.sort((a: any, b: any) => a.price_inr - b.price_inr)[0]
+      ?? null;
+  }
+  const STORE_NAMES: Record<string, string> = {
+    toycra: 'Toycra', mybrickhouse: 'MyBrickHouse', jaiman: 'Jaiman Toys',
+  };
   const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
   const shareUrl = `https://bricksofindia.com/reviews/${params.slug}`;
   const waText = `Just read this LEGO review on Bricks of India — use ABHINAV12 for 12% off at Toycra!`;
@@ -133,6 +151,28 @@ export default async function ReviewPage({ params }: Props) {
                   />
                   <h3 className="font-heading text-dark text-xl mb-1">{set.name}</h3>
                   <p className="font-price text-gray-400 text-sm mb-3">Set #{set.set_number}</p>
+                  {bestStorePrice && (
+                    <div className="border-t border-border pt-3 mb-3">
+                      <p className="text-xs text-gray-400 uppercase tracking-wide font-bold mb-1">Best price</p>
+                      <p className="font-price text-xl font-bold text-dark">
+                        {formatPrice(bestStorePrice.price_inr)}
+                      </p>
+                      <p className="text-xs text-gray-500 mb-2">
+                        at {STORE_NAMES[bestStorePrice.store_id] ?? bestStorePrice.store_id}
+                        {bestStorePrice.in_stock ? ' · In stock' : ' · Check availability'}
+                      </p>
+                      {bestStorePrice.in_stock && (
+                        <a
+                          href={bestStorePrice.product_url}
+                          target="_blank"
+                          rel="noopener noreferrer sponsored"
+                          className="block w-full text-center bg-deal-green text-white font-bold py-2 rounded-lg hover:opacity-90 transition-opacity text-sm mb-2"
+                        >
+                          Buy Now →
+                        </a>
+                      )}
+                    </div>
+                  )}
                   <Link href={`/sets/${set.set_number}-${set.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
                     className="block w-full text-center bg-primary text-dark font-bold py-2.5 rounded-lg hover:bg-yellow-400 transition-colors text-sm">
                     Compare Prices →
