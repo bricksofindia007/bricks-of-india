@@ -557,7 +557,7 @@
   "meta": {
     "lastUpdated": "2026-05-14",
     "trackerVersion": "v1.4",
-    "currentSprint": "Day 14 — DEFECT-005 + DEFECT-013 closed (voice prompt + marker hardening)"
+    "currentSprint": "Day 14 — WEB-01–04 closed (all 4 lint gates + Resend alert)"
   },
   "kpis": {
     "healthScore": 95,
@@ -568,7 +568,7 @@
     "netlifyResetDate": "2026-05-22",
     "daysSinceLastDeploy": 0,
     "lastDeployDate": "2026-05-14",
-    "lastDeployCommit": "Day 14 · DEFECT-005 VOICE_EXAMPLES fix + legacy scraper removal (d12de67, 38952cd)",
+    "lastDeployCommit": "Day 14 · WEB-01–04 lint gates hardened + Resend alert (actions.ts)",
     "voiceTestStatus": "Pending",
     "geoScore": 26,
     "geoScoreTarget": 75,
@@ -608,12 +608,12 @@
     { "id": "CF-CACHE-01", "title": "Diagnose and fix 2.31% Cloudflare cache rate", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-02 (commit 6229d99). Cache-Control headers added per route type in next.config.mjs: /sets/* long (3600), /news+/blog+/reviews short (300), /admin no-store, /sitemap.xml medium. Target: 2.3% → 40%+ hit rate — verify in Cloudflare analytics 24h post-deploy." },
     { "id": "INFRA-03", "title": "GitHub Actions deploy workflow (deploy.yml)", "category": "Infrastructure", "status": "done", "priority": "P0", "depsBlock": [], "blocks": ["Phase 8 globe", "RADAR-01 cron"], "notes": "Deployed 2026-04-24 (commit 8992aef). Build now runs on GitHub Actions; Netlify still hosts but no longer runs the build. Netlify build minute concern resolved." },
     { "id": "RADAR-01", "title": "Topical Radar daily cron @ 23:00 IST", "category": "Content OS", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-09 — PR #2 merged (e5b71b1). fetch-rss.js live, 11 active sources (5 deferred: PARSER-01/SCRAPE-01/YT-FEED-NOISE-01). 163 signals in raw_signals as of 2026-05-09T06:07 UTC. workflow_dispatch verified green (run 25593692037, 37s). First scheduled tick: 2026-05-09 17:30 UTC." },
-    { "id": "WEB-01", "title": "Article auto-publish pipeline with 4 lint gates", "category": "Website", "status": "spec-ready", "priority": "P1", "depsBlock": [], "blocks": ["Phase 8 globe"], "notes": "Lint gate spec at docs/codex/BOI_Codex_v2.md Page 20. Gates: word count, India Paragraph marker, verdict enum (BUY/WAIT FOR SALE/IMPORT ONLY/SKIP), image 200s. Implementation pending." },
+    { "id": "WEB-01", "title": "Article auto-publish pipeline with 4 lint gates", "category": "Website", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-14. Gate 1: 3-state PASS/WARN/FAIL (±10%/±25%). Gate 2: full 4-component India Paragraph (marker, ₹price, store availability, Indian comparison). Gate 3: verdict enum all formats. Gate 4: OG image HEAD-check in publishDraft(). sendLintAlert() on any FAIL via Resend." },
     { "id": "VOICE-01", "title": "ElevenLabs free-tier voice clone test", "category": "Audio", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["Shorts/Reels production model"], "notes": "Outcome decides hybrid clone vs full self-record" },
     { "id": "INFRA-04", "title": "View Source verification of JSON-LD schemas", "category": "Infrastructure", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["GEO re-audit"], "notes": "Superseded by BUG-013 P0 finding — curl confirms schemas not in initial HTML. GEO-01 is the fix." },
     { "id": "PHASE-08", "title": "LEGO Search Pulse — Three.js globe + D3 choropleth", "category": "Feature", "status": "blocked", "priority": "P2", "depsBlock": ["RADAR-01", "WEB-01"], "blocks": [], "notes": "Specced; deferred until infra stable. INFRA-03 dep removed (done)." },
     { "id": "WEB-02", "title": "Image fetch + attribution block automation", "category": "Website", "status": "in-progress", "priority": "P2", "depsBlock": [], "blocks": [], "notes": "Tier 1 APIs only (Brickset, Rebrickable); Tier 2 manual click-save into /raw-assets/" },
-    { "id": "WEB-03", "title": "PR auto-merge on lint pass", "category": "Website", "status": "pending", "priority": "P2", "depsBlock": ["WEB-01"], "blocks": [], "notes": "Failed lint = PR stays open + email alert" },
+    { "id": "WEB-03", "title": "PR auto-merge on lint pass", "category": "Website", "status": "done", "priority": "P2", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-14 (respecced). Pipeline is UI-based not PR-based. Equivalent: Publish button hard-gated by lintDraft() — all gates must pass before publishDraft() inserts to Supabase. Failed lint throws, draft stays in pending state." },
     { "id": "WEB-04", "title": "RSS feed for /news and /reviews", "category": "Website", "status": "pending", "priority": "P3", "depsBlock": ["WEB-01"], "blocks": [], "notes": "Required for Topical Radar feed-loop and aggregator pickup" },
     { "id": "CONTENT-01", "title": "Voice Codex spec (8–12 pages)", "category": "Content OS", "status": "done", "priority": "P2", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-01 (commit 3190596). 21 pages at docs/codex/BOI_Codex_v2.docx. India Paragraph Page 12, verdict enum Page 13, lint gate spec Page 20." },
     { "id": "CONTENT-02", "title": "Claude Project workbench setup", "category": "Content OS", "status": "unblocked", "priority": "P2", "depsBlock": [], "blocks": [], "notes": "Unblocked by CONTENT-01. Load docs/codex/BOI_Codex_v2.docx as project knowledge in Claude.ai." },

@@ -342,55 +342,94 @@ async function fetchOgImage(url: string): Promise<string | null> {
 
 // ── WEB-01 lint gates ────────────────────────────────────────────────────────
 
-const WORD_COUNT_TARGETS: Record<string, [number, number]> = {
-  news    : [270, 440],  // 300–400 ± 10%
-  review  : [450, 770],  // 500–700 ± 10%
-  opinion : [360, 550],  // 400–500 ± 10%
+// pass: ±10% of format target bounds — PASS zone (auto-merge eligible)
+// fail: ±25% of format target bounds — hard FAIL beyond this (WARN between pass and fail)
+const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: [number, number] }> = {
+  news    : { pass: [270, 440],  fail: [225, 500]  },  // target 300–400
+  review  : { pass: [450, 770],  fail: [375, 875]  },  // target 500–700
+  opinion : { pass: [360, 550],  fail: [300, 625]  },  // target 400–500
 };
 const VALID_VERDICTS = new Set(['BUY', 'WAIT FOR SALE', 'IMPORT ONLY', 'SKIP']);
+
+// Comparison terms drawn from INDIA_PARAGRAPH_SPEC examples — broad intentionally.
+const INDIA_COMPARISON_RE = /\b(biryani|chai|EMI|Spotify|Netflix|petrol|samosa|litre|liter|movie.?ticket|PVR|butter.?chicken|Swiggy|Zomato|iPhone|months? of|weeks? of|auto.?rickshaw)\b/i;
+const INDIA_STORE_RE      = /\b(Toycra|MyBrickHouse|Jaiman|import.?only)\b/i;
 
 function lintDraft(draft: {
   draft_body: string | null;
   draft_verdict: string | null;
   draft_format: string | null;
   word_count: number | null;
-}): void {
+}): { warnings: string[] } {
   const body      = draft.draft_body || '';
   const format    = draft.draft_format || 'news';
   const wordCount = draft.word_count ?? body.split(/\s+/).filter(Boolean).length;
+  const warnings: string[] = [];
 
-  // Gate 1 — Word count within format target ± 10%
-  const [min, max] = WORD_COUNT_TARGETS[format] ?? WORD_COUNT_TARGETS.news;
-  if (wordCount < min || wordCount > max) {
+  // Gate 1 — Word count: 3-state (PASS / WARN / FAIL)
+  const targets        = WORD_COUNT_TARGETS[format] ?? WORD_COUNT_TARGETS.news;
+  const [pMin, pMax]   = targets.pass;
+  const [fMin, fMax]   = targets.fail;
+  if (wordCount < fMin || wordCount > fMax) {
     throw new Error(
-      `[Gate 1] Word count ${wordCount} is outside target ${min}–${max} for '${format}'. Edit the draft body before publishing.`
+      `[Gate 1 FAIL] Word count ${wordCount} exceeds hard limit ${fMin}–${fMax} for '${format}'. Regenerate or heavily edit.`
+    );
+  }
+  if (wordCount < pMin || wordCount > pMax) {
+    warnings.push(`[Gate 1 WARN] Word count ${wordCount} outside target ${pMin}–${pMax} for '${format}'.`);
+  }
+
+  // Gate 2 — India Paragraph: all 4 components required in the block after the marker
+  const markerIdx = body.indexOf('<!-- INDIA_PARAGRAPH -->');
+  if (markerIdx === -1) {
+    throw new Error('[Gate 2 FAIL] <!-- INDIA_PARAGRAPH --> marker missing. Regenerate the article.');
+  }
+  const indiaSeg = body.slice(markerIdx);
+  if (!/₹[\d,]+/.test(indiaSeg)) {
+    throw new Error('[Gate 2 FAIL] No INR price (₹NNN) found in India Paragraph. Regenerate or edit.');
+  }
+  if (!INDIA_STORE_RE.test(indiaSeg)) {
+    throw new Error('[Gate 2 FAIL] No availability statement (Toycra / MyBrickHouse / Jaiman / "import only") found in India Paragraph.');
+  }
+  if (!INDIA_COMPARISON_RE.test(indiaSeg)) {
+    throw new Error('[Gate 2 FAIL] No relatable Indian comparison found in India Paragraph (expected: biryani, EMI, Spotify months, petrol, etc.).');
+  }
+
+  // Gate 3 — Verdict enum: enforced for all formats (Codex: no article publishes without a verdict)
+  const v = (draft.draft_verdict || '').trim().toUpperCase();
+  if (!VALID_VERDICTS.has(v)) {
+    throw new Error(
+      `[Gate 3 FAIL] Verdict '${draft.draft_verdict || 'none'}' is not in [BUY, WAIT FOR SALE, IMPORT ONLY, SKIP]. Set a valid verdict before publishing.`
     );
   }
 
-  // Gate 2 — India Paragraph: marker + INR price.
-  // Both Gemini code paths (actions.ts + generate-drafts.js) now instruct Gemini to
-  // place <!-- INDIA_PARAGRAPH --> before the block. Marker absence = warn not fail
-  // (backward-compat for drafts generated before the prompt fix). Missing ₹ = hard fail.
-  if (!body.includes('<!-- INDIA_PARAGRAPH -->')) {
-    console.warn(`[Gate 2 WARN] <!-- INDIA_PARAGRAPH --> marker absent in draft — India Paragraph may be missing`);
-  }
-  if (!/₹[\d,]+/.test(body)) {
-    throw new Error(
-      '[Gate 2] No INR price (₹NNN) found in draft body. India Paragraph is missing or incomplete.'
-    );
-  }
+  // Gate 4 (hero image HTTP 200) runs in publishDraft() after fetchOgImage() — see below.
 
-  // Gate 3 — Verdict enum (enforced for reviews; news/opinion may legitimately use NONE)
-  if (format === 'review') {
-    const v = (draft.draft_verdict || '').trim().toUpperCase();
-    if (!VALID_VERDICTS.has(v)) {
-      throw new Error(
-        `[Gate 3] Verdict '${draft.draft_verdict}' is not in [BUY, WAIT FOR SALE, IMPORT ONLY, SKIP]. Set a valid verdict before publishing.`
-      );
-    }
+  return { warnings };
+}
+
+// Sends a lint-failure alert to the operator. Never throws — lint error must propagate unmasked.
+async function sendLintAlert(draftTitle: string, gateMessage: string): Promise<void> {
+  try {
+    const { Resend } = await import('resend');
+    const resend = new Resend(process.env.RESEND_API_KEY);
+    await resend.emails.send({
+      from:    'Bricks of India <abhinav@bricksofindia.com>',
+      to:      'abhinav@bricksofindia.com',
+      subject: `[BOI Lint FAIL] ${draftTitle.slice(0, 60)}`,
+      text: [
+        'A draft failed lint gates and was NOT published.',
+        '',
+        `Draft:  ${draftTitle}`,
+        `Error:  ${gateMessage}`,
+        '',
+        'Fix the draft in /admin/pending and try publishing again.',
+        'https://bricksofindia.com/admin/pending',
+      ].join('\n'),
+    });
+  } catch (mailErr: any) {
+    console.error('[sendLintAlert] email failed:', mailErr?.message);
   }
-  // Gate 4 — image URLs: auto-drafted content has no inline images; the OG hero image
-  // is fetched by fetchOgImage() with graceful null fallback — no additional check needed.
 }
 
 export async function publishDraft(formData: FormData) {
@@ -407,8 +446,15 @@ export async function publishDraft(formData: FormData) {
   if (fetchErr || !draft) throw new Error(`Draft not found: ${fetchErr?.message}`);
   if (!draft.draft_body)  throw new Error('Draft has no generated body — click Generate Article first');
 
-  // WEB-01: run lint gates before publishing — throws on any FAIL
-  lintDraft(draft);
+  // WEB-01: lint gates 1–3 (sync) — throws on FAIL, returns WARN strings
+  let lintWarnings: string[] = [];
+  try {
+    ({ warnings: lintWarnings } = lintDraft(draft));
+  } catch (lintErr: any) {
+    await sendLintAlert(draft.draft_title || draft.source_title || 'Untitled', lintErr.message);
+    throw lintErr;
+  }
+  if (lintWarnings.length > 0) console.warn('[publishDraft lint]', lintWarnings.join(' | '));
 
   const format   = draft.draft_format || 'news';
   const { table, path, category } = resolveTarget(format);
@@ -425,6 +471,23 @@ export async function publishDraft(formData: FormData) {
   // Fetch OG image from source — 5s timeout, fall back to null gracefully
   const heroImage = await fetchOgImage(draft.source_url);
   console.log(`[publish] source_url=${draft.source_url} og_image_found=${!!heroImage} image_url=${heroImage?.slice(0, 80) ?? 'none'}`);
+
+  // Gate 4 — verify hero image URL returns HTTP 200 (fetchOgImage extracts the URL but does
+  // not verify the image itself). Network errors are WARN-only; a bad status is a hard FAIL.
+  if (heroImage) {
+    try {
+      const imgRes = await fetch(heroImage, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+      if (!imgRes.ok) {
+        const gate4Err = new Error(`[Gate 4 FAIL] Hero image URL returned HTTP ${imgRes.status} — source may have a broken OG image.`);
+        await sendLintAlert(draft.draft_title || draft.source_title || 'Untitled', gate4Err.message);
+        throw gate4Err;
+      }
+    } catch (err: any) {
+      if (err.message?.startsWith('[Gate 4 FAIL]')) throw err;
+      // Network error (timeout, DNS failure) — WARN only, proceed without blocking publish
+      console.warn(`[Gate 4 WARN] Could not verify hero image (${err.message}) — proceeding.`);
+    }
+  }
 
   // Strip <!-- INDIA_PARAGRAPH --> structural marker — present in new drafts, no-op on old ones
   const cleanBody = draft.draft_body.replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '');
