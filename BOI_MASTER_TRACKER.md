@@ -249,7 +249,7 @@ Shipped:
 - **GEO-01-FU1 unblocked** — pending next deploy (Netlify credits reset 2026-05-22). Verify `buildReviewSchema()` on `/reviews/lego-42172-mclaren-p1-review`.
 - **RADAR-08 logged** — automated reviews pipeline briefed; target 5+ Codex reviews/week without operator bottleneck.
 
-**Last commit this session:** TBD (Day 14 close)
+**Last commit this session:** `d7a99f5`
 
 ---
 
