@@ -180,6 +180,24 @@ ANTI-PATTERNS — DO NOT USE:
 • "my friends" / "folks" — Clarkson register is aloof, not folksy
 • Do not announce what you are about to do. Just do it.`;
 
+// OUTPUT_FORMAT is always the final item in systemPrompt — isolated from voice content
+// so the structural requirement is never buried under style guidance.
+const OUTPUT_FORMAT = `
+---
+OUTPUT FORMAT — NON-NEGOTIABLE:
+Your entire response MUST be wrapped in exactly these markers.
+No text before the opening marker. No text after the closing marker.
+If the markers are absent or malformed, the article is discarded automatically.
+
+--- BOI_DRAFT_START ---
+FORMAT: <format>
+TITLE: <your title>
+VERDICT: <BUY | WAIT FOR SALE | IMPORT ONLY | SKIP | NONE>
+
+BODY:
+<article body — place <!-- INDIA_PARAGRAPH --> on its own line immediately before the India Paragraph block>
+--- BOI_DRAFT_END ---`;
+
 export async function generateArticle(formData: FormData) {
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
@@ -209,9 +227,10 @@ export async function generateArticle(formData: FormData) {
   // Build prompts
   const codexPath   = path.join(process.cwd(), 'docs/codex/BOI_Codex_v2.md');
   const codex       = fs.existsSync(codexPath) ? fs.readFileSync(codexPath, 'utf8') : '';
-  const systemPrompt = codex + (FORMAT_ADDENDUM[format] || FORMAT_ADDENDUM.news) + INDIA_PARAGRAPH_SPEC + VOICE_EXAMPLES + ANTI_PATTERNS;
+  const systemPrompt = codex + (FORMAT_ADDENDUM[format] || FORMAT_ADDENDUM.news) + INDIA_PARAGRAPH_SPEC + VOICE_EXAMPLES + ANTI_PATTERNS + OUTPUT_FORMAT;
 
   const userPrompt = `Write a BOI-voice ${format} article. Target: ${wordTarget} words in body.
+IMPORTANT: Use the exact --- BOI_DRAFT_START --- / --- BOI_DRAFT_END --- markers. No text outside them.
 
 SOURCE:
 Title     : ${draft.source_title}
