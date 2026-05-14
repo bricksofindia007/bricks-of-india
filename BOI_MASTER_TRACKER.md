@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-13 (Day 13: REVIEW-PRICE-01 closed — store_prices live on review pages; YT-404-WATCH cleared — all 7 channels clean)
+> **Last updated:** 2026-05-14 (Day 14: Legacy Render scraper deleted — scrapers/scraper.js, scrapers/package.json, render.yaml removed)
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -217,6 +217,15 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### Day 14 — 2026-05-14 — Housekeeping
+
+Shipped:
+- **Legacy scraper removal** — `scrapers/scraper.js`, `scrapers/package.json`, `render.yaml` deleted. These files backed the old Render.com/cheerio scraper that wrote to the legacy `prices` table. Superseded by `scripts/scrape-now.mjs` + `scrape-prices.yml` (GitHub Actions, Shopify JSON API, `store_prices` table). Commit `d12de67`.
+
+**Last commit this session:** `d12de67`
+
+---
 
 ### Day 13 — 2026-05-13 — REVIEW-PRICE-01
 
