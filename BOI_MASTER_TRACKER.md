@@ -240,7 +240,7 @@ Shipped:
 - **First Codex-compliant review inserted** — McLaren P1 (42172), BUY verdict, ₹29,399 at Toycra (73% of ₹40,500 MRP). 558 words. Clarkson register. `<!-- INDIA_PARAGRAPH -->` present. All 4 lint-gate checks pass. DB id: `34d279e3-57cd-48da-95ec-c14e4648126b`. Slug: `lego-42172-mclaren-p1-review`.
 - **Reviews schema hardened** — migration `20260514000000_reviews_schema_hardening.sql` run: added `hero_image`, `excerpt`, `seo_title`, `seo_description`, `updated_at` + trigger + RLS policy. TS type `Review` in `src/lib/supabase.ts` updated to match. 3 non-Codex placeholder reviews deleted. Table: 1 row.
 
-**Last commit this session:** TBD (reviews)
+**Last commit this session:** `4398f11`
 
 ---
 
