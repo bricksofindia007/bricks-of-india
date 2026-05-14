@@ -557,7 +557,7 @@
   "meta": {
     "lastUpdated": "2026-05-14",
     "trackerVersion": "v1.4",
-    "currentSprint": "Day 14 — WEB-01–04 closed (all 4 lint gates + Resend alert)"
+    "currentSprint": "Day 14 CLOSE — REVIEWS-FIRST-3 done, GEO-01-FU1 unblocked, RADAR-08 logged"
   },
   "kpis": {
     "healthScore": 95,
@@ -568,19 +568,21 @@
     "netlifyResetDate": "2026-05-22",
     "daysSinceLastDeploy": 0,
     "lastDeployDate": "2026-05-14",
-    "lastDeployCommit": "Day 14 · WEB-01–04 lint gates hardened + Resend alert (actions.ts)",
+    "lastDeployCommit": "Day 14 · 3 Codex reviews live, REVIEWS-FIRST-3 closed, RADAR-08 logged",
     "voiceTestStatus": "Pending",
     "geoScore": 26,
     "geoScoreTarget": 75,
     "lastAuditDate": "2026-05-01",
     "nextAuditDate": "2026-06-01",
     "nextActions": [
+      "GEO-01-FU1 — verify buildReviewSchema() on /reviews/lego-42172-mclaren-p1-review after 2026-05-22 deploy",
       "CONTENT-02 — set up Claude Project workbench (load BOI_Codex_v2.docx as project knowledge)",
-      "Test DEFECT-005 fix — generate one article via /admin/pending and verify Clarkson register",
+      "RADAR-08 — scope automated reviews pipeline (reviews format in classifier, set_id UUID lookup, Rebrickable hero_image)",
       "LAB-05 Price Drop Board — eligible ~2026-06-01 (30 days of snapshot data accumulating)"
     ],
     "openManualChecks": [
-      "Verify DEFECT-005 fix quality — generate a draft in /admin/pending and read the opening paragraph"
+      "Verify /reviews page renders all 3 reviews after next deploy",
+      "Verify review JSON-LD (Review + Product schema) on /reviews/[slug] after deploy"
     ]
   },
   "issues": [
@@ -624,7 +626,8 @@
     { "id": "MONETIZE-03", "title": "Amazon affiliate reapplication", "category": "Monetization", "status": "scheduled", "priority": "P3", "depsBlock": [], "blocks": [], "notes": "Eligible Oct/Nov 2026" },
     { "id": "INSIDERS-01", "title": "LEGO Insiders points reconciliation", "category": "Brand", "status": "pending", "priority": "P3", "depsBlock": [], "blocks": ["RLFM application"], "notes": "Member #811205769 — zero points despite purchase history; founder credibility issue" },
     { "id": "RLFM-01", "title": "LAN RLFM application draft", "category": "Brand", "status": "scheduled", "priority": "P3", "depsBlock": [], "blocks": [], "notes": "Apply at one-year mark with live stats" },
-    { "id": "PERF-01", "title": "Evaluate Cloudflare edge caching for article pages", "category": "Infrastructure", "status": "scheduled", "priority": "P3", "depsBlock": [], "blocks": [], "notes": "Currently cf-cache-status: DYNAMIC — Cloudflare is proxy-only, not caching. Article pages could be cached at edge to reduce ~775ms origin latency to ~10ms. Interacts with Next.js ISR; needs careful TTL tuning to avoid stale article content. Defer until after RADAR-01 and WEB-01 ship." }
+    { "id": "PERF-01", "title": "Evaluate Cloudflare edge caching for article pages", "category": "Infrastructure", "status": "scheduled", "priority": "P3", "depsBlock": [], "blocks": [], "notes": "Currently cf-cache-status: DYNAMIC — Cloudflare is proxy-only, not caching. Article pages could be cached at edge to reduce ~775ms origin latency to ~10ms. Interacts with Next.js ISR; needs careful TTL tuning to avoid stale article content. Defer until after RADAR-01 and WEB-01 ship." },
+    { "id": "RADAR-08", "title": "Automated reviews generation pipeline", "category": "Content OS", "status": "pending", "priority": "P2", "depsBlock": [], "blocks": ["RLFM-01"], "notes": "Briefed 2026-05-14. Reduce manual dependency — target 5+ Codex-compliant reviews/week. Requires: (a) reviews format added to RADAR-03 classifier, (b) generateArticle() extended to publish to reviews table with set_id UUID lookup, (c) hero_image from Rebrickable CDN, (d) lint Gate 3 verdict enforcement already in place. Blocks RLFM at scale." }
   ],
   "auditChecklist": [
     {

@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-14 (Day 14: first Codex-compliant review live — McLaren P1 42172, BUY, ₹29,399)
+> **Last updated:** 2026-05-14 (Day 14 CLOSE — REVIEWS-FIRST-3 done, 3 Codex reviews live, GEO-01-FU1 unblocked, RADAR-08 logged)
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -80,7 +80,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 | Phase 0 | Launch + post-launch P0 fixes | ✅ Done | WEB |
 | Phase 1 | Voice Codex | ✅ Done — `docs/codex/BOI_Codex_v2.docx` committed 2026-05-01 | CONTENT |
 | Phase 2 | Claude Project workbench | 🟡 Unblocked — pending setup | CONTENT |
-| Phase 3 | Topical Radar (RSS ingestion) | 🟡 In progress — RADAR-01/02/03/04/05/CRON ✅ Done. /admin/pending ✅ Live. WEB-01–04 ✅ Done Day 14 (3-state Gate 1, full 4-component Gate 2, Gate 3 all formats, Gate 4 image HEAD-check, sendLintAlert() on any FAIL). DEFECT-005 ✅ closed (VOICE_EXAMPLES). 16 active sources. 242 pending_drafts. | CONTENT |
+| Phase 3 | Topical Radar (RSS ingestion) | 🟡 In progress — RADAR-01–05/CRON ✅ Done. WEB-01–04 ✅ Done. DEFECT-005 ✅ closed. REVIEWS-FIRST-3 ✅ Done Day 14 (3 Codex reviews: McLaren P1 BUY, Rivendell BUY, NHM WAIT FOR SALE). GEO-01-FU1 unblocked. RADAR-08 logged (automated reviews pipeline). | CONTENT |
 | Phase 4 | Shorts / Reels workflow (DaVinci + ElevenLabs) | 🔴 Not started | VIDEO |
 | Phase 5 | Instagram carousel engine | 🔴 Not started | SOCIAL |
 | Phase 8 | LEGO Search Pulse | ✅ Live — LAB-07 /lab/heat-map shipped 2026-05-10. D3 choropleth India + world view, 23 states, city drill-down. | WEB (PULSE-01→N) |
@@ -157,6 +157,9 @@ JSON parses. If it doesn't, fix before doing anything else.
 | WEB-02 | Auto-publish gate: lint pass → publish proceeds | ✅ Done 2026-05-14 | Pipeline is UI-based not PR-based. Equivalent: Publish button in `/admin/pending` is hard-gated by `lintDraft()` — all gates must pass before `publishDraft()` inserts to Supabase. |
 | WEB-03 | 4-gate linter: word count, India Paragraph, verdict, image HTTP 200 | ✅ Done 2026-05-14 | `lintDraft()` in `actions.ts`. Gate 1: 3-state PASS/WARN/FAIL (±10% / ±25%). Gate 2: all 4 Codex components (marker, ₹price, store availability, Indian comparison) checked against `body.slice(markerIdx)`. Gate 3: verdict enum enforced for all formats. Gate 4: HEAD-check on extracted OG image URL in `publishDraft()` post-`fetchOgImage()`. |
 | WEB-04 | Failed lint → publish blocked + email alert | ✅ Done 2026-05-14 | `sendLintAlert()` in `actions.ts` — dynamic Resend import, fires on any Gate 1–4 FAIL, sends to `abhinav@bricksofindia.com` with draft title + gate error. Never throws (lint error propagates unmasked). Gate 1 WARN logs to console but does not trigger email or block publish. |
+| REVIEWS-FIRST-3 | Write first 3 Codex-compliant set reviews | ✅ Done 2026-05-14 | 3 reviews inserted. (1) McLaren P1 42172 — BUY, ₹29,399 Toycra, 558w, id `34d279e3`. (2) Rivendell 10316 — BUY, ₹39,999 Toycra, 624w, id `7141242f`. (3) Natural History Museum 10326 — WAIT FOR SALE, ₹34,999 Toycra, 543w, id `70db543d`. All pass lint Gates 1–4. Schema hardened (hero_image, excerpt, seo_title, seo_description, updated_at). Unblocks GEO-01-FU1 and RLFM. |
+| GEO-01-FU1 | Verify /reviews/[slug] JSON-LD on first review publish | 🟡 Unblocked — pending next Netlify deploy (2026-05-22 credits reset). Verify `buildReviewSchema()` emits Review + Product schema on live /reviews/lego-42172-mclaren-p1-review. | Gated on reviews table having at least 1 row — now satisfied. |
+| RADAR-08 | Automated reviews generation pipeline | 🔴 Briefed, not started | Reduce manual dependency on operator-written reviews. Target: 5+ Codex-compliant reviews/week without bottleneck. Requires: (a) reviews format added to RADAR-03 classifier, (b) `generateArticle()` extended to publish to `reviews` table, (c) set_id UUID lookup by set_number wired into generation, (d) hero_image populated from Rebrickable CDN. Blocks RLFM at scale — current 3-review pace is insufficient for application velocity. |
 
 ---
 
@@ -237,10 +240,16 @@ Shipped:
   - **`sendLintAlert()`:** dynamic Resend import; sends `[BOI Lint FAIL]` email to `abhinav@bricksofindia.com` with draft title and gate error message; never throws.
 - **DRY_RUN wiring** — `scrape-prices.yml`: forwards `workflow_dispatch` `dry_run` input as `DRY_RUN` env var to the script. `scripts/scrape-now.mjs`: reads `DRY_RUN === 'true'`; gates both `store_prices` upsert and `price_history` insert; logs first 5 would-be rows instead of writing. Banner and summary line reflect dry-run state. No new deps, no schema changes.
 
-- **First Codex-compliant review inserted** — McLaren P1 (42172), BUY verdict, ₹29,399 at Toycra (73% of ₹40,500 MRP). 558 words. Clarkson register. `<!-- INDIA_PARAGRAPH -->` present. All 4 lint-gate checks pass. DB id: `34d279e3-57cd-48da-95ec-c14e4648126b`. Slug: `lego-42172-mclaren-p1-review`.
-- **Reviews schema hardened** — migration `20260514000000_reviews_schema_hardening.sql` run: added `hero_image`, `excerpt`, `seo_title`, `seo_description`, `updated_at` + trigger + RLS policy. TS type `Review` in `src/lib/supabase.ts` updated to match. 3 non-Codex placeholder reviews deleted. Table: 1 row.
+- **REVIEWS-FIRST-3 closed — 3 Codex-compliant reviews live:**
+  - McLaren P1 42172 — BUY, ₹29,399 (73% MRP), 558w. Slug: `lego-42172-mclaren-p1-review`. id `34d279e3`.
+  - Rivendell 10316 — BUY, ₹39,999 (89% MRP), 624w. Slug: `lego-10316-rivendell-review`. id `7141242f`.
+  - Natural History Museum 10326 — WAIT FOR SALE, ₹34,999 (130% MRP), 543w. Slug: `lego-10326-natural-history-museum-review`. id `70db543d`.
+  - All pass lint Gates 1–4 (word count, India Paragraph 4-component, verdict enum, image HEAD).
+- **Reviews schema hardened** — migration `20260514000000_reviews_schema_hardening.sql`: `hero_image`, `excerpt`, `seo_title`, `seo_description`, `updated_at` + trigger + RLS. TS `Review` interface updated. Commit `4398f11`.
+- **GEO-01-FU1 unblocked** — pending next deploy (Netlify credits reset 2026-05-22). Verify `buildReviewSchema()` on `/reviews/lego-42172-mclaren-p1-review`.
+- **RADAR-08 logged** — automated reviews pipeline briefed; target 5+ Codex reviews/week without operator bottleneck.
 
-**Last commit this session:** `4398f11`
+**Last commit this session:** TBD (Day 14 close)
 
 ---
 
