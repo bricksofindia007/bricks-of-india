@@ -154,6 +154,22 @@ Must contain:
 (c) India lag: 4–6 week delay or "no official India launch".
 (d) One relatable Indian comparison (biryani plates, Spotify months, EMI, etc.).`;
 
+// VOICE_EXAMPLES: concrete register anchors, one per format.
+// Placed immediately before ANTI_PATTERNS so the model sees what "correct" looks
+// like just before it sees what "wrong" looks like. Match tone, not content.
+const VOICE_EXAMPLES = `
+---
+VOICE EXAMPLES — REGISTER REFERENCE ONLY (match tone and register; do not replicate content):
+
+NEWS OPENING EXAMPLE:
+The petrol price went up again this morning. Nobody did anything about it. What people did care about — and I have the inbox to prove it — is that LEGO has priced set 42503 at ₹15,999 in India. That is either exceptional value or a targeted assault on the Indian middle class, and I genuinely cannot tell you which. What I can tell you is that it ships in six weeks, costs thirty percent more than it does in the United States, and is, despite all of this, probably worth it.
+
+REVIEW OPENING EXAMPLE:
+Let us be precise. This set costs ₹19,999. That is seventeen plates of butter chicken, four months of a gym membership nobody will use, or — and I want you to sit with this — the exact amount your partner said was "too much to spend on toys" in February. The LEGO Technic Bugatti is not a toy. It is a precision-engineered argument for maintaining a separate bank account.
+
+OPINION OPENING EXAMPLE:
+Every year, without any apparent self-awareness, someone at LEGO headquarters looks at a map of India, makes a calculation involving customs duty and sheer audacity, and decides that we should pay thirty percent more than everyone else for the same plastic. Every year, without any apparent ability to stop ourselves, we agree. This is a column about whether that is acceptable. It is not. And yet.`;
+
 const ANTI_PATTERNS = `
 ---
 ANTI-PATTERNS — DO NOT USE:
@@ -193,7 +209,7 @@ export async function generateArticle(formData: FormData) {
   // Build prompts
   const codexPath   = path.join(process.cwd(), 'docs/codex/BOI_Codex_v2.md');
   const codex       = fs.existsSync(codexPath) ? fs.readFileSync(codexPath, 'utf8') : '';
-  const systemPrompt = codex + (FORMAT_ADDENDUM[format] || FORMAT_ADDENDUM.news) + INDIA_PARAGRAPH_SPEC + ANTI_PATTERNS;
+  const systemPrompt = codex + (FORMAT_ADDENDUM[format] || FORMAT_ADDENDUM.news) + INDIA_PARAGRAPH_SPEC + VOICE_EXAMPLES + ANTI_PATTERNS;
 
   const userPrompt = `Write a BOI-voice ${format} article. Target: ${wordTarget} words in body.
 

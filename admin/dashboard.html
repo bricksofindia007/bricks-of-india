@@ -555,35 +555,36 @@
 <script id="boi-data" type="application/json">
 {
   "meta": {
-    "lastUpdated": "2026-05-09",
-    "trackerVersion": "v1.3",
-    "currentSprint": "Day 7 — RADAR-03 classifier"
+    "lastUpdated": "2026-05-14",
+    "trackerVersion": "v1.4",
+    "currentSprint": "Day 14 — DEFECT-005 closed (VOICE_EXAMPLES prompt fix)"
   },
   "kpis": {
-    "healthScore": 67,
-    "healthScoreNote": "GEO-01 hardening done 2026-05-02 — XSS scrub, JsonLd consolidation, middleware bug fixed (+3). BUG-013 closed as mis-diagnosed. Top blocker now DATA-01 + CF-CACHE-01.",
+    "healthScore": 95,
+    "healthScoreNote": "DEFECT-005 closed — no open P0s or P1s. Sole active deduction: GEO score 26 < 50 (−5). All pipelines green. Next: CONTENT-02 workbench setup.",
     "openP0": 0,
-    "openP1": 3,
+    "openP1": 0,
     "netlifyMinutesLeft": 9999,
-    "netlifyResetDate": "2026-05-11",
+    "netlifyResetDate": "2026-05-22",
     "daysSinceLastDeploy": 0,
-    "lastDeployDate": "2026-05-09",
-    "lastDeployCommit": "e5b71b1 · PR #2 merge: RADAR-01/02/CRON + DEFECT-008 fix (catalogue-audit permissions)",
+    "lastDeployDate": "2026-05-14",
+    "lastDeployCommit": "Day 14 · DEFECT-005 VOICE_EXAMPLES fix + legacy scraper removal (d12de67, 38952cd)",
     "voiceTestStatus": "Pending",
     "geoScore": 26,
     "geoScoreTarget": 75,
     "lastAuditDate": "2026-05-01",
-    "nextAuditDate": "2026-05-08",
+    "nextAuditDate": "2026-06-01",
     "nextActions": [
-      "Day 7: RADAR-03 classifier — classify raw_signals rows as news/review/opinion/set-release/community",
-      "Day 7: Verify first scheduled radar.yml tick fires green at 17:30 UTC (2026-05-09)",
-      "Carry-over: DATA-01 — reconcile store_prices (scraper) with prices (frontend, currently disconnected)"
+      "CONTENT-02 — set up Claude Project workbench (load BOI_Codex_v2.docx as project knowledge)",
+      "Test DEFECT-005 fix — generate one article via /admin/pending and verify Clarkson register",
+      "LAB-05 Price Drop Board — eligible ~2026-06-01 (30 days of snapshot data accumulating)"
     ],
     "openManualChecks": [
-      "Cloudflare billing — Free plan 'Processing' status, monitor for any charges (currently informational, no action needed unless a charge appears)"
+      "Verify DEFECT-005 fix quality — generate a draft in /admin/pending and read the opening paragraph"
     ]
   },
   "issues": [
+    { "id": "DEFECT-005", "issue": "RADAR-04 generated articles not in BOI Codex voice — flat, not Clarkson-register", "rootCause": "System prompt lacked concrete positive examples. FORMAT_ADDENDUM gave structural rules (length, structure) but no register demonstration. ANTI_PATTERNS blocked wrong patterns but provided no positive counterpart. Model defaulted to safe, neutral prose.", "solution": "Added VOICE_EXAMPLES constant to actions.ts — three exemplar openings (news/review/opinion) inserted between INDIA_PARAGRAPH_SPEC and ANTI_PATTERNS in systemPrompt chain. Positive/negative contrast anchors Clarkson register before generation.", "deployedOn": "2026-05-14", "status": "closed", "priority": "P1", "affects": "All RADAR-04 generated articles — voice quality and on-brand register" },
     { "id": "BUG-015", "issue": "Tracker stated DNS on Netlify nsone.net; reality is Cloudflare authoritative", "rootCause": "DNS migration to Cloudflare not back-propagated to BOI_MASTER_TRACKER.md", "solution": "Verified via nslookup -type=NS — confirmed kira.ns.cloudflare.com + yadiel.ns.cloudflare.com. Tracker updated; Cloudflare added to stack[].", "deployedOn": "2026-04-26", "status": "closed", "priority": "P3", "affects": "Documentation accuracy, incident response (knowing which dashboard to check)" },
     { "id": "BUG-014", "issue": "Netlify build minutes critically low", "rootCause": "Scrapers running inside Netlify build pipeline", "solution": "Resolved by INFRA-03 (deploy.yml live). Scrapers no longer consume Netlify build minutes.", "deployedOn": "2026-04-26", "status": "closed", "priority": "P0", "affects": "Build availability until May 11" },
     { "id": "BUG-013", "issue": "JSON-LD schemas invisible to AI crawlers and non-JS search engines", "rootCause": "MIS-DIAGNOSED. Discovery 2026-05-02 confirmed schemas have been server-rendered into initial HTML all along. Original April 26 diagnosis confused 'use client' on BreadcrumbSchema with the entire schema layer being client-rendered. SchemaLD.tsx never had 'use client'; it was always a Server Component. BreadcrumbSchema did have 'use client' but Next.js SSR renders client components into initial HTML regardless.", "solution": "No fix required — schemas were already in initial HTML. GEO-01 shipped a hardening pass (XSS scrub, consolidation, middleware bug fix) as housekeeping. See GEO-01 pipeline item.", "deployedOn": "2026-05-02", "status": "closed", "priority": "P0", "affects": "No active impact — closed as mis-diagnosed" },
