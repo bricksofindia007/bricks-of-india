@@ -114,7 +114,7 @@
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| REVIEWS-FIRST-3 | Write first 3 set reviews | 🔴 Not started | Unblocks GEO-01-FU1 (JSON-LD verification on /reviews/[slug]) and RLFM application |
+| REVIEWS-FIRST-3 | Write first 3 set reviews | 🟡 1 of 3 done — McLaren P1 42172 (BUY, ₹29,399, 558w, Codex-compliant, inserted 2026-05-14). 2 more needed to close. | Unblocks GEO-01-FU1 (JSON-LD verification on /reviews/[slug]) and RLFM application |
 
 ---
 
@@ -134,7 +134,7 @@
 |---|---|---|
 | News articles | 24+ | news_articles table — 4 published via RADAR pipeline (Road Bike, Friends Summer 2026, NYC Architecture, Road Bike 11380). All have hero_image populated. |
 | Blog posts | 19 | blog_posts table |
-| Reviews | 0 | reviews table — **empty, blocks GEO-01-FU1 and RLFM** |
+| Reviews | 1 | reviews table — 1 Codex-compliant row: McLaren P1 42172 (BUY, ₹29,399). Schema hardened 2026-05-14: hero_image, excerpt, seo_title, seo_description, updated_at added. |
 | Voice Codex | 1 (v2) | docs/codex/ |
 
 Content is 100% database-driven. No markdown-on-disk publishing workflow.

@@ -58,10 +58,15 @@ export interface Review {
   title: string;
   slug: string;
   content: string;
+  excerpt: string | null;
   verdict: string;
   rating: number;
   youtube_url: string | null;
+  hero_image: string | null;
+  seo_title: string | null;
+  seo_description: string | null;
   published_at: string;
+  updated_at: string;
   created_at: string;
 }
 

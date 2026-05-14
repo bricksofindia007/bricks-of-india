@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-14 (Day 14: WEB-01–04 closed — all 4 lint gates + Resend alert on FAIL)
+> **Last updated:** 2026-05-14 (Day 14: first Codex-compliant review live — McLaren P1 42172, BUY, ₹29,399)
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -237,7 +237,10 @@ Shipped:
   - **`sendLintAlert()`:** dynamic Resend import; sends `[BOI Lint FAIL]` email to `abhinav@bricksofindia.com` with draft title and gate error message; never throws.
 - **DRY_RUN wiring** — `scrape-prices.yml`: forwards `workflow_dispatch` `dry_run` input as `DRY_RUN` env var to the script. `scripts/scrape-now.mjs`: reads `DRY_RUN === 'true'`; gates both `store_prices` upsert and `price_history` insert; logs first 5 would-be rows instead of writing. Banner and summary line reflect dry-run state. No new deps, no schema changes.
 
-**Last commit this session:** `dfc5bdf`
+- **First Codex-compliant review inserted** — McLaren P1 (42172), BUY verdict, ₹29,399 at Toycra (73% of ₹40,500 MRP). 558 words. Clarkson register. `<!-- INDIA_PARAGRAPH -->` present. All 4 lint-gate checks pass. DB id: `34d279e3-57cd-48da-95ec-c14e4648126b`. Slug: `lego-42172-mclaren-p1-review`.
+- **Reviews schema hardened** — migration `20260514000000_reviews_schema_hardening.sql` run: added `hero_image`, `excerpt`, `seo_title`, `seo_description`, `updated_at` + trigger + RLS policy. TS type `Review` in `src/lib/supabase.ts` updated to match. 3 non-Codex placeholder reviews deleted. Table: 1 row.
+
+**Last commit this session:** TBD (reviews)
 
 ---
 
