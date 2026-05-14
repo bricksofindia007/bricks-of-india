@@ -557,7 +557,7 @@
   "meta": {
     "lastUpdated": "2026-05-14",
     "trackerVersion": "v1.4",
-    "currentSprint": "Day 14 — DEFECT-005 closed (VOICE_EXAMPLES prompt fix)"
+    "currentSprint": "Day 14 — DEFECT-005 + DEFECT-013 closed (voice prompt + marker hardening)"
   },
   "kpis": {
     "healthScore": 95,
@@ -584,6 +584,7 @@
     ]
   },
   "issues": [
+    { "id": "DEFECT-013", "issue": "generateArticle() throws hard runtime error when Gemini omits BOI_DRAFT markers", "rootCause": "Pre-existing. Markers were embedded only as a fill-in template in userPrompt with no explicit instruction to reproduce them. Model responding conversationally triggered si === -1 hard throw. Logging as DEFECT-013 on discovery.", "solution": "OUTPUT_FORMAT constant added as final systemPrompt segment — non-negotiable hard rule isolated from voice/style guidance so it cannot be buried. IMPORTANT: anchor also added to top of userPrompt for double reinforcement.", "deployedOn": "2026-05-14", "status": "closed", "priority": "P2", "affects": "All generateArticle() calls — any conversational Gemini response caused silent generation failure" },
     { "id": "DEFECT-005", "issue": "RADAR-04 generated articles not in BOI Codex voice — flat, not Clarkson-register", "rootCause": "System prompt lacked concrete positive examples. FORMAT_ADDENDUM gave structural rules (length, structure) but no register demonstration. ANTI_PATTERNS blocked wrong patterns but provided no positive counterpart. Model defaulted to safe, neutral prose.", "solution": "Added VOICE_EXAMPLES constant to actions.ts — three exemplar openings (news/review/opinion) inserted between INDIA_PARAGRAPH_SPEC and ANTI_PATTERNS in systemPrompt chain. Positive/negative contrast anchors Clarkson register before generation.", "deployedOn": "2026-05-14", "status": "closed", "priority": "P1", "affects": "All RADAR-04 generated articles — voice quality and on-brand register" },
     { "id": "BUG-015", "issue": "Tracker stated DNS on Netlify nsone.net; reality is Cloudflare authoritative", "rootCause": "DNS migration to Cloudflare not back-propagated to BOI_MASTER_TRACKER.md", "solution": "Verified via nslookup -type=NS — confirmed kira.ns.cloudflare.com + yadiel.ns.cloudflare.com. Tracker updated; Cloudflare added to stack[].", "deployedOn": "2026-04-26", "status": "closed", "priority": "P3", "affects": "Documentation accuracy, incident response (knowing which dashboard to check)" },
     { "id": "BUG-014", "issue": "Netlify build minutes critically low", "rootCause": "Scrapers running inside Netlify build pipeline", "solution": "Resolved by INFRA-03 (deploy.yml live). Scrapers no longer consume Netlify build minutes.", "deployedOn": "2026-04-26", "status": "closed", "priority": "P0", "affects": "Build availability until May 11" },
