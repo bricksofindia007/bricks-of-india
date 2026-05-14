@@ -49,6 +49,9 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 
+// Set via workflow_dispatch input `dry_run: true` — reads only, no Supabase writes.
+const DRY_RUN = process.env.DRY_RUN === 'true';
+
 // ── Store config ─────────────────────────────────────────────────────────────
 // Toycra has a dedicated LEGO collection — avoids paging through thousands
 // of non-LEGO toys. MyBrickHouse and Jaiman are LEGO-heavy so general path works.
@@ -174,7 +177,7 @@ function parseProduct(product, storeId, domain) {
 
 async function main() {
   const startedAt = new Date().toISOString();
-  console.log(`\nBricks of India Shopify Scraper — ${startedAt}\n`);
+  console.log(`\nBricks of India Shopify Scraper — ${startedAt}${DRY_RUN ? '  [DRY RUN — reads only, no Supabase writes]' : ''}\n`);
 
   // Verify tables exist
   const { error: tableCheck } = await supabase.from('store_prices').select('id').limit(1);
@@ -282,22 +285,30 @@ async function main() {
     const BATCH = 400;
     let upsertedCount = 0;
     let upsertErrors  = 0;
-    for (let i = 0; i < storePricesRows.length; i += BATCH) {
-      const batch = storePricesRows.slice(i, i + BATCH);
-      const { error: upsertErr } = await supabase
-        .from('store_prices')
-        .upsert(batch, { onConflict: 'set_id,store_id' });
-      if (upsertErr) {
-        console.error(`  ERROR upsert batch ${i}–${i + batch.length}: ${upsertErr.message} (code=${upsertErr.code})`);
-        upsertErrors++;
-      } else {
-        upsertedCount += batch.length;
-      }
-    }
-    if (upsertErrors > 0) {
-      console.error(`  ${upsertErrors} batch(es) failed — store_prices may be incomplete for ${store.name}`);
+    if (DRY_RUN) {
+      console.log(`  [DRY RUN] Would upsert ${storePricesRows.length} rows to store_prices:`);
+      for (const r of storePricesRows.slice(0, 5))
+        console.log(`    set=${r.set_id} store=${r.store_id} price=₹${r.price_inr} in_stock=${r.in_stock}`);
+      if (storePricesRows.length > 5) console.log(`    ... +${storePricesRows.length - 5} more`);
+      upsertedCount = storePricesRows.length;
     } else {
-      console.log(`  Upserted ${upsertedCount} rows to store_prices`);
+      for (let i = 0; i < storePricesRows.length; i += BATCH) {
+        const batch = storePricesRows.slice(i, i + BATCH);
+        const { error: upsertErr } = await supabase
+          .from('store_prices')
+          .upsert(batch, { onConflict: 'set_id,store_id' });
+        if (upsertErr) {
+          console.error(`  ERROR upsert batch ${i}–${i + batch.length}: ${upsertErr.message} (code=${upsertErr.code})`);
+          upsertErrors++;
+        } else {
+          upsertedCount += batch.length;
+        }
+      }
+      if (upsertErrors > 0) {
+        console.error(`  ${upsertErrors} batch(es) failed — store_prices may be incomplete for ${store.name}`);
+      } else {
+        console.log(`  Upserted ${upsertedCount} rows to store_prices`);
+      }
     }
 
     // ── Append to price_history ─────────────────────────────────────────────
@@ -313,12 +324,16 @@ async function main() {
       }));
 
     if (historyRows.length > 0) {
-      for (let i = 0; i < historyRows.length; i += BATCH) {
-        const batch = historyRows.slice(i, i + BATCH);
-        const { error: histErr } = await supabase.from('price_history').insert(batch);
-        if (histErr) console.error(`  History insert error batch ${i}: ${histErr.message}`);
+      if (DRY_RUN) {
+        console.log(`  [DRY RUN] Would insert ${historyRows.length} rows to price_history`);
+      } else {
+        for (let i = 0; i < historyRows.length; i += BATCH) {
+          const batch = historyRows.slice(i, i + BATCH);
+          const { error: histErr } = await supabase.from('price_history').insert(batch);
+          if (histErr) console.error(`  History insert error batch ${i}: ${histErr.message}`);
+        }
+        console.log(`  Recorded ${historyRows.length} price history rows`);
       }
-      console.log(`  Recorded ${historyRows.length} price history rows`);
     }
 
     summary.push({
@@ -335,7 +350,7 @@ async function main() {
 
   // ── Summary ─────────────────────────────────────────────────────────────────
   console.log('═══════════════════════════════');
-  console.log('  SCRAPE COMPLETE');
+  console.log(DRY_RUN ? '  DRY RUN COMPLETE — no data written' : '  SCRAPE COMPLETE');
   console.log('═══════════════════════════════');
   for (const s of summary) {
     if (s.error) {

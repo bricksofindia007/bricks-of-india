@@ -40,6 +40,7 @@ jobs:
           # REBRICKABLE_API_KEY only needed if you extend the scraper to
           # fetch sets not yet in Supabase. Not required for price-only scraping.
           REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: node scripts/scrape-now.mjs
 
       - name: Report store_prices row count
