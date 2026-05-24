@@ -38,6 +38,14 @@ next-env.d.ts
 # Local Netlify folder
 .netlify
 
+# Social automation — generated media files and local secrets
+social-automation/tmp/
+social-automation/.env
+social-automation/client_secrets.json
+social-automation/client_secret_*.json
+social-automation/youtube_token.json
+social-automation/__pycache__/
+
 # Local diagnostic / session files (committed accidentally in 26ee104, removed in e9e1680)
 audit-block1.log
 diagnostics/
