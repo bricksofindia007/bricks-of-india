@@ -35,15 +35,18 @@ def main() -> None:
     print(f'[pipeline] Proceeding with: {set_num} - {set_data["name"]}')
 
     # ── Step 2: Generate media ────────────────────────────────────────────────
-    print('[pipeline] Step 2: Processing image...')
-    image_path = media_processor.process_image(set_data)
+    print('[pipeline] Step 2: Processing carousel images (3)...')
+    image_paths = media_processor.process_carousel_images(set_data)
 
-    print('[pipeline] Step 3: Processing video...')
-    video_path = media_processor.process_video(set_data, image_path)
+    print('[pipeline] Step 3: Processing video with music...')
+    video_path = media_processor.process_video(set_data, image_paths[0])
 
     # ── Step 3: Upload to Supabase Storage ───────────────────────────────────
-    print('[pipeline] Step 4: Uploading image to storage...')
-    image_url = db.upload_to_storage(image_path, f'{set_num}_feed.jpg')
+    print('[pipeline] Step 4: Uploading carousel images to storage...')
+    image_urls = [
+        db.upload_to_storage(p, f'{set_num}_feed_{i + 1}.jpg')
+        for i, p in enumerate(image_paths)
+    ]
 
     print('[pipeline] Step 5: Uploading video to storage...')
     video_url = db.upload_to_storage(video_path, f'{set_num}_reels.mp4')
@@ -56,8 +59,8 @@ def main() -> None:
     # ── Step 5: Publish ───────────────────────────────────────────────────────
     platforms = {'ig_feed': False, 'ig_reels': False, 'yt_shorts': False}
 
-    print('[pipeline] Step 7: Posting to Instagram Feed...')
-    publisher.post_instagram_feed(image_url, caption_text)
+    print('[pipeline] Step 7: Posting to Instagram (carousel, 3 images)...')
+    publisher.post_instagram_carousel(image_urls, caption_text)
     platforms['ig_feed'] = True
 
     print('[pipeline] Step 8: Posting to Instagram Reels...')

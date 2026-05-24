@@ -39,32 +39,57 @@ def _ig_check(resp: requests.Response, context: str) -> dict:
     return data
 
 
-def post_instagram_feed(image_url: str, caption: str) -> str:
-    """Creates an IG feed post. Returns the published media ID."""
-    print('[publisher] Creating IG feed media container...')
+def post_instagram_carousel(image_urls: list, caption: str) -> str:
+    """
+    Creates an IG carousel post from a list of image URLs.
+    Each image is registered as a child container first, then a parent
+    CAROUSEL container is created and published.
+    Returns the published media ID.
+    """
+    # Step 1: create a child container for each image
+    child_ids = []
+    for i, url in enumerate(image_urls):
+        print(f'[publisher] Creating carousel child {i + 1}/{len(image_urls)}...')
+        resp = requests.post(
+            f'{GRAPH_API_BASE}/{IG_USER_ID}/media',
+            data={
+                'image_url': url,
+                'is_carousel_item': 'true',
+                'access_token': IG_ACCESS_TOKEN,
+            },
+            timeout=30,
+        )
+        child_id = _ig_check(resp, f'carousel child {i + 1} create')['id']
+        child_ids.append(child_id)
+        print(f'[publisher] Child {i + 1} container ID: {child_id}')
+
+    # Step 2: create the parent carousel container
+    print('[publisher] Creating carousel parent container...')
     resp = requests.post(
         f'{GRAPH_API_BASE}/{IG_USER_ID}/media',
         data={
-            'image_url': image_url,
+            'media_type': 'CAROUSEL',
+            'children': ','.join(child_ids),
             'caption': caption,
             'access_token': IG_ACCESS_TOKEN,
         },
         timeout=30,
     )
-    creation_id = _ig_check(resp, 'feed container create')['id']
-    print(f'[publisher] IG feed container ID: {creation_id}')
+    carousel_id = _ig_check(resp, 'carousel parent create')['id']
+    print(f'[publisher] Carousel container ID: {carousel_id}')
 
-    print('[publisher] Publishing IG feed post...')
+    # Step 3: publish
+    print('[publisher] Publishing carousel...')
     resp = requests.post(
         f'{GRAPH_API_BASE}/{IG_USER_ID}/media_publish',
         data={
-            'creation_id': creation_id,
+            'creation_id': carousel_id,
             'access_token': IG_ACCESS_TOKEN,
         },
         timeout=30,
     )
-    media_id = _ig_check(resp, 'feed publish')['id']
-    print(f'[publisher] IG feed post live. Media ID: {media_id}')
+    media_id = _ig_check(resp, 'carousel publish')['id']
+    print(f'[publisher] IG carousel post live. Media ID: {media_id}')
     return media_id
 
 
