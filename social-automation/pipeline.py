@@ -42,11 +42,10 @@ def main() -> None:
     video_path = media_processor.process_video(set_data, image_paths[0])
 
     # ── Step 3: Upload to Supabase Storage ───────────────────────────────────
-    print('[pipeline] Step 4: Uploading carousel images to storage...')
-    image_urls = [
-        db.upload_to_storage(p, f'{set_num}_feed_{i + 1}.jpg')
-        for i, p in enumerate(image_paths)
-    ]
+    print(f'[pipeline] Step 4: Uploading {len(image_paths)} carousel images to storage...')
+    image_urls = db.upload_many_to_storage(
+        [(p, f'{set_num}_feed_{i + 1}.jpg') for i, p in enumerate(image_paths)]
+    )
 
     print('[pipeline] Step 5: Uploading video to storage...')
     video_url = db.upload_to_storage(video_path, f'{set_num}_reels.mp4')

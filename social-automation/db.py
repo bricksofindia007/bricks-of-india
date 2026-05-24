@@ -84,6 +84,15 @@ def upload_to_storage(local_path: str, filename: str) -> str:
     return public_url
 
 
+def upload_many_to_storage(items: list) -> list:
+    """
+    Upload multiple files to Supabase Storage.
+    items: list of (local_path, filename) tuples.
+    Returns list of public URLs in the same order.
+    """
+    return [upload_to_storage(local_path, filename) for local_path, filename in items]
+
+
 if __name__ == '__main__':
     print('Step 1 — Testing Supabase connection + posted_sets table...')
     try:
