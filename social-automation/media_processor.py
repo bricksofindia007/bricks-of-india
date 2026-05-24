@@ -492,20 +492,6 @@ def process_reels_video(set_data: dict, all_image_paths: list = None) -> str:
                         out_suffix='_reels.mp4')
 
 
-def process_shorts_video(set_data: dict, all_image_paths: list = None) -> str:
-    """
-    45-second YouTube Shorts video.
-    Uses: gallery[0-8] + stats_card (10 slides).
-    Ken Burns 1.0->1.08. 0.5s crossfades. Music 45s at 20%.
-    """
-    if not all_image_paths:
-        all_image_paths = process_carousel_images(set_data)
-    # First 9 gallery + stats card = 10 slides
-    slides = all_image_paths[:9] + [all_image_paths[-1]]
-    return _build_video(set_data, slides,
-                        duration=45.0, trans=0.5, kb_zoom=0.08,
-                        out_suffix='_shorts.mp4')
-
 
 def process_video(set_data: dict, image_paths: list = None) -> str:
     """Backwards-compatible alias: calls process_reels_video."""

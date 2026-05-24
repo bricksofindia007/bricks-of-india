@@ -53,6 +53,30 @@ def is_already_posted(set_num: str) -> bool:
     return len(result.data) > 0
 
 
+def is_available_in_india(set_num: str) -> tuple:
+    """
+    Returns (True, price_str) if set has any store_prices row — already in Indian stores.
+    Returns (False, '') if not found.
+    Fails open (returns False) on any DB error so a check failure never blocks the pipeline.
+
+    store_prices.set_id is the bare set number (e.g. '76342'), NOT a UUID.
+    """
+    client = _client()
+    bare_num = set_num.split('-')[0]
+    try:
+        prices_r = (client.table('store_prices')
+                    .select('id')
+                    .eq('set_id', bare_num)
+                    .limit(1)
+                    .execute())
+        if prices_r.data:
+            return True, 'available in India'
+        return False, ''
+    except Exception as exc:
+        print(f'[db] India availability check error (fail open): {exc}')
+        return False, ''
+
+
 def get_all_posted_set_nums() -> set:
     """
     Returns a set of every set_num already in posted_sets.
@@ -66,7 +90,7 @@ def get_all_posted_set_nums() -> set:
 
 def mark_as_posted(set_num: str, set_name: str, platforms_dict: dict) -> None:
     """
-    platforms_dict keys: ig_feed, ig_reels, yt_shorts (all bool)
+    platforms_dict keys: ig_feed, ig_reels (bool). yt_shorts recorded if present.
     """
     client = _client()
     row = {

@@ -5,10 +5,8 @@ Dry-run mode (--dry-run): validates API credentials without posting anything.
 """
 
 import argparse
-import json
 import os
 import sys
-import tempfile
 import time
 
 import requests
@@ -20,10 +18,8 @@ load_dotenv(Path(__file__).parent.parent / '.env.local')
 
 IG_ACCESS_TOKEN = os.environ.get('IG_ACCESS_TOKEN', '')
 IG_USER_ID = os.environ.get('IG_USER_ID', '')
-YOUTUBE_CLIENT_SECRETS = os.environ.get('YOUTUBE_CLIENT_SECRETS', '')
 
 GRAPH_API_BASE = 'https://graph.facebook.com/v19.0'
-YT_SCOPES = ['https://www.googleapis.com/auth/youtube.upload']
 
 
 # ── Instagram ─────────────────────────────────────────────────────────────────
@@ -149,79 +145,6 @@ def post_instagram_reels(video_url: str, caption: str) -> str:
     return media_id
 
 
-# ── YouTube Shorts ────────────────────────────────────────────────────────────
-
-def _load_youtube_credentials():
-    """
-    Loads OAuth token from YOUTUBE_CLIENT_SECRETS env var (the token JSON,
-    not the client_secrets.json file — see README for one-time setup).
-    Returns refreshed Credentials or None if secret is not set.
-    """
-    if not YOUTUBE_CLIENT_SECRETS:
-        print('[publisher] YOUTUBE_CLIENT_SECRETS not set — YouTube upload skipped.')
-        return None
-
-    from google.oauth2.credentials import Credentials
-    from google.auth.transport.requests import Request
-
-    try:
-        token_data = json.loads(YOUTUBE_CLIENT_SECRETS)
-    except json.JSONDecodeError as exc:
-        print(f'[publisher] YOUTUBE_CLIENT_SECRETS is not valid JSON: {exc}. Skipping YouTube.')
-        return None
-
-    creds = Credentials.from_authorized_user_info(token_data, YT_SCOPES)
-    if creds.expired and creds.refresh_token:
-        print('[publisher] Refreshing YouTube token...')
-        creds.refresh(Request())
-    return creds
-
-
-def post_youtube_shorts(video_path: str, set_data: dict, caption_text: str) -> str | None:
-    """Uploads video as a YouTube Short. Returns video ID or None if skipped."""
-    from googleapiclient.discovery import build
-    from googleapiclient.http import MediaFileUpload
-
-    creds = _load_youtube_credentials()
-    if creds is None:
-        return None
-
-    youtube = build('youtube', 'v3', credentials=creds)
-
-    base = f"{set_data['name']} ({set_data['set_num']}) | #LEGO #Shorts"
-    title = base[:100]
-
-    description = (
-        f"{caption_text}\n\n"
-        f"📍 Bricks of India — India's only LEGO price tracker\n"
-        f"🔗 bricksofindia.com\n"
-        f"🛑 Please do not ask when this set releases in India. I don't know. "
-        f"LEGO doesn't know. Nobody knows. One day it will come. One day. 🤫\n\n"
-        f"#LEGO #LEGOIndia #LEGOSets #BricksofIndia #Shorts #LEGOShorts"
-    )
-
-    print(f'[publisher] Uploading YouTube Short: {set_data["set_num"]} - {set_data["name"][:50]}...')
-    request = youtube.videos().insert(
-        part='snippet,status',
-        body={
-            'snippet': {
-                'title': title,
-                'description': description,
-                'tags': ['LEGO', 'LEGOIndia', 'LEGOSets', 'BricksofIndia', 'Shorts', 'LEGOShorts'],
-                'categoryId': '24',
-            },
-            'status': {
-                'privacyStatus': 'public',
-            },
-        },
-        media_body=MediaFileUpload(video_path, mimetype='video/mp4', resumable=True),
-    )
-    response = request.execute()
-    video_id = response['id']
-    print(f'[publisher] YouTube Short live. Video ID: {video_id}')
-    return video_id
-
-
 # ── Dry-run ───────────────────────────────────────────────────────────────────
 
 def dry_run() -> None:
@@ -246,22 +169,6 @@ def dry_run() -> None:
                 print(f'  [ok] Instagram: @{data.get("username")} (ID: {data.get("id")})')
         except Exception as exc:
             errors.append(f'Instagram request failed: {exc}')
-
-    # YouTube: verify token loading
-    print('[dry-run] Checking YouTube token...')
-    if not YOUTUBE_CLIENT_SECRETS:
-        print('  [!] YOUTUBE_CLIENT_SECRETS not set - YouTube will be skipped in pipeline.')
-    else:
-        try:
-            creds = _load_youtube_credentials()
-            if creds and creds.valid:
-                print('  [ok] YouTube token valid.')
-            elif creds and creds.expired:
-                print('  [!] YouTube token expired but refresh_token present - will auto-refresh.')
-            else:
-                errors.append('YouTube token could not be loaded.')
-        except Exception as exc:
-            errors.append(f'YouTube token check failed: {exc}')
 
     print()
     if errors:

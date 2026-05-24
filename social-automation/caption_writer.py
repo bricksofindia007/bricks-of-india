@@ -24,9 +24,17 @@ The wallet is always a character.
 Output format: Instagram caption only. No preamble. No "Here is your \
 caption:". Just the caption text."""
 
+# Used when source is lego_coming_soon / lego_com — set hasn't released in India.
 DISCLAIMER = """🛑 Please do not ask when this set releases in India. \
 I don't know. LEGO doesn't know. Nobody knows. \
 One day it will come. One day. 🤫"""
+
+# Used when source is rebrickable / brickset (emergency fallback) — availability unknown.
+NEUTRAL_SIGN_OFF = "🧱 Follow Bricks of India for LEGO news, prices & deals in India. \
+Link in bio. #LEGOIndia #BricksofIndia"
+
+# Sources that come from LEGO.com coming-soon page → use DISCLAIMER.
+_LEGO_COM_SOURCES = {'lego_coming_soon', 'lego_com'}
 
 
 def _india_price(usd_price: float | None) -> int | None:
@@ -44,12 +52,26 @@ def generate_caption(set_data: dict) -> str:
 
     client = genai.Client(api_key=GEMINI_API_KEY)
 
+    source = set_data.get('source', 'lego_coming_soon')
+    is_lego_source = source in _LEGO_COM_SOURCES
+
     usd_price = set_data.get('usd_price')
     india_price = _india_price(usd_price)
     usd_str = f'{usd_price:.2f}' if usd_price else 'TBD'
     india_str = f'{india_price:,}' if india_price else 'TBD'
 
-    user_prompt = f"""Write an Instagram caption for this LEGO set announcement:
+    if is_lego_source:
+        sign_off = (
+            '🛑 Please do not ask when this set releases in India. '
+            'I don\'t know. LEGO doesn\'t know. Nobody knows. '
+            'One day it will come. One day. 🤫'
+        )
+        prompt_context = 'LEGO set announcement (not yet available in India)'
+    else:
+        sign_off = NEUTRAL_SIGN_OFF
+        prompt_context = 'LEGO set spotlight (availability in India unknown — do NOT use "coming soon" or "releasing" language)'
+
+    user_prompt = f"""Write an Instagram caption for this {prompt_context}:
 Set Name: {set_data['name']}
 Set Number: {set_data['set_num']}
 Theme: {set_data.get('theme', 'Unknown')}
@@ -59,9 +81,7 @@ Estimated India Price: ₹{india_str} (calculated at USD x 1.35 x 84)
 
 End the caption with exactly this text, no modifications:
 
-🛑 Please do not ask when this set releases in India. \
-I don't know. LEGO doesn't know. Nobody knows. \
-One day it will come. One day. 🤫"""
+{sign_off}"""
 
     # Retry up to 3 times on 503 capacity spikes (30s back-off each attempt)
     last_exc = None
@@ -88,9 +108,10 @@ One day it will come. One day. 🤫"""
     else:
         raise RuntimeError(f'Gemini unavailable after 3 attempts: {last_exc}')
 
-    # Hard safety check: ensure disclaimer is present exactly
-    if DISCLAIMER not in caption:
-        caption = caption.rstrip() + '\n\n' + DISCLAIMER
+    # Hard safety check: ensure the correct sign-off is present exactly.
+    expected = DISCLAIMER if is_lego_source else NEUTRAL_SIGN_OFF
+    if expected not in caption:
+        caption = caption.rstrip() + '\n\n' + expected
 
     return caption
 

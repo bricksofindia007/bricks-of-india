@@ -14,6 +14,7 @@ import os
 import re
 import json
 import sys
+import time
 from pathlib import Path
 from datetime import date, datetime
 import requests
@@ -40,14 +41,17 @@ _ON_SHELVES = {'Retail', 'Discontinued', 'Retail - available direct only'}
 
 def _lego_headers() -> dict:
     return {
-        'User-Agent': (
+        'User-Agent':                (
             'Mozilla/5.0 (Windows NT 10.0; Win64; x64) '
             'AppleWebKit/537.36 (KHTML, like Gecko) '
-            'Chrome/124.0.0.0 Safari/537.36'
+            'Chrome/120.0.0.0 Safari/537.36'
         ),
-        'Accept':          'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'en-US,en;q=0.9',
-        'Accept-Encoding': 'gzip, deflate, br',
+        'Accept':                    'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language':           'en-US,en;q=0.5',
+        'Accept-Encoding':           'gzip, deflate, br',
+        'Referer':                   'https://www.lego.com',
+        'Connection':                'keep-alive',
+        'Upgrade-Insecure-Requests': '1',
     }
 
 
@@ -97,68 +101,172 @@ def _is_genuinely_new(s: dict) -> bool:
 
 # ── Source 1: LEGO.com coming-soon page ────────────────────────────────────────
 
+_LEGO_COMING_SOON_URL = 'https://www.lego.com/en-us/categories/coming-soon'
+
+
 def lego_com_coming_soon() -> list[dict]:
     """
-    Scrapes https://www.lego.com/en-us/categories/coming-soon for upcoming sets.
+    Scrapes LEGO.com /categories/coming-soon for upcoming sets.
+    3 retry attempts with 2s delay between each.
     Tries __NEXT_DATA__ JSON first, then HTML product cards.
-    Returns list of partial set dicts (no gallery images yet).
+    Returns list of partial set dicts with source='lego_coming_soon'.
     """
     print('[scraper] Fetching LEGO.com coming-soon page...')
-    try:
-        resp = requests.get(
-            'https://www.lego.com/en-us/categories/coming-soon',
-            headers=_lego_headers(),
-            timeout=25,
-        )
-        resp.raise_for_status()
-        soup = BeautifulSoup(resp.text, 'html.parser')
+    resp = None
+    for attempt in range(1, 4):
+        try:
+            resp = requests.get(
+                _LEGO_COMING_SOON_URL,
+                headers=_lego_headers(),
+                timeout=25,
+            )
+            if resp.status_code == 200:
+                break
+            print(f'[scraper] LEGO.com attempt {attempt}/3: HTTP {resp.status_code}')
+        except Exception as exc:
+            print(f'[scraper] LEGO.com attempt {attempt}/3 error: {exc}')
+            resp = None
+        if attempt < 3:
+            time.sleep(2)
 
-        # Method 1: __NEXT_DATA__ (Next.js embedded JSON)
+    if resp is None or resp.status_code != 200:
+        status = resp.status_code if resp else 'no response'
+        print(f'[scraper] LEGO.com coming-soon failed after 3 attempts: {status}')
+        return []
+
+    soup = BeautifulSoup(resp.text, 'html.parser')
+
+    # Method 1: __NEXT_DATA__ embedded JSON (preferred — richest data)
+    nd_tag = soup.find('script', id='__NEXT_DATA__')
+    if nd_tag:
+        try:
+            data = json.loads(nd_tag.string)
+            sets = _parse_next_data_products(data)
+            if sets:
+                print(f'[scraper] LEGO.com coming-soon: {len(sets)} sets via __NEXT_DATA__')
+                return sets
+        except Exception as exc:
+            print(f'[scraper] __NEXT_DATA__ parse failed: {exc}')
+
+    # Method 2: HTML product-leaf cards + per-set product page scraping
+    sets = []
+    product_links = []
+    for card in soup.select('[data-test="product-leaf"]'):
+        name_el = card.select_one('[data-test="product-leaf-title"]')
+        if not name_el:
+            continue
+        link = card.select_one('a[href]')
+        href = link.get('href', '') if link else ''
+        set_num = ''
+        if href:
+            m = re.search(r'-(\d{4,6})(?:/|\?|$)', href)
+            if m:
+                set_num = m.group(1) + '-1'
+        img_el = card.select_one('img')
+        entry = {
+            'set_num':       set_num,
+            'name':          name_el.get_text(strip=True),
+            'year':          CURRENT_YEAR,
+            'theme_id':      '',
+            'theme':         '',
+            'num_parts':     0,
+            'image_url':     img_el.get('src', '') if img_el else '',
+            'usd_price':     None,
+            'us_date':       None,
+            'uk_date':       None,
+            'availability':  'Not yet available',
+            'gallery_images': [],
+            'product_url':   href if href.startswith('http') else (
+                f'https://www.lego.com{href}' if href.startswith('/') else ''
+            ),
+            'source':        'lego_coming_soon',
+        }
+        sets.append(entry)
+        if entry['product_url']:
+            product_links.append((len(sets) - 1, entry['product_url']))
+
+    print(f'[scraper] LEGO.com coming-soon: {len(sets)} sets via HTML cards')
+
+    # Enrich top sets by scraping their product pages (up to 5)
+    for idx, url in product_links[:5]:
+        time.sleep(2)
+        details = _lego_com_scrape_product_page(url)
+        if details:
+            s = sets[idx]
+            if details.get('num_parts'):
+                s['num_parts'] = details['num_parts']
+            if details.get('usd_price'):
+                s['usd_price'] = details['usd_price']
+            if details.get('theme'):
+                s['theme'] = details['theme']
+            if details.get('gallery_images'):
+                s['gallery_images'] = details['gallery_images']
+                if not s['image_url'] and details['gallery_images']:
+                    s['image_url'] = details['gallery_images'][0]
+
+    return sets
+
+
+def _lego_com_scrape_product_page(url: str) -> dict:
+    """
+    Scrapes a single LEGO.com product page for enrichment data.
+    Returns dict with: num_parts, usd_price, theme, gallery_images (list of URLs).
+    Returns empty dict on any failure.
+    """
+    try:
+        resp = requests.get(url, headers=_lego_headers(), timeout=25)
+        if resp.status_code != 200:
+            return {}
+        soup = BeautifulSoup(resp.text, 'html.parser')
+        result: dict = {}
+
+        # Try __NEXT_DATA__ first
         nd_tag = soup.find('script', id='__NEXT_DATA__')
         if nd_tag:
             try:
                 data = json.loads(nd_tag.string)
-                sets = _parse_next_data_products(data)
-                if sets:
-                    print(f'[scraper] LEGO.com coming-soon: {len(sets)} sets via __NEXT_DATA__')
-                    return sets
-            except Exception as exc:
-                print(f'[scraper] __NEXT_DATA__ parse failed: {exc}')
+                pp = data.get('props', {}).get('pageProps', {})
+                product = (pp.get('product') or pp.get('set')
+                           or _deep_find(pp, 'product') or {})
+                if product:
+                    result['num_parts'] = product.get('pieceCount') or product.get('pieces') or 0
+                    price_obj = product.get('price') or {}
+                    if isinstance(price_obj, dict):
+                        raw = price_obj.get('formattedAmount', '')
+                        m = re.search(r'[\d,.]+', raw.replace(',', ''))
+                        if m:
+                            result['usd_price'] = float(m.group())
+                    result['theme'] = product.get('theme', '')
+                    # Gallery images from product media
+                    media = product.get('images') or product.get('media') or []
+                    imgs = []
+                    for item in media:
+                        if isinstance(item, dict):
+                            u = item.get('url') or item.get('src', '')
+                            if u and _is_image_url(u):
+                                imgs.append(u)
+                        elif isinstance(item, str) and _is_image_url(item):
+                            imgs.append(item)
+                    if imgs:
+                        result['gallery_images'] = imgs
+            except Exception:
+                pass
 
-        # Method 2: HTML product-leaf cards
-        sets = []
-        for card in soup.select('[data-test="product-leaf"]'):
-            name_el = card.select_one('[data-test="product-leaf-title"]')
-            if not name_el:
-                continue
-            link = card.select_one('a[href]')
-            set_num = ''
-            if link:
-                href = link.get('href', '')
-                m = re.search(r'-(\d{4,6})(?:/|\?|$)', href)
+        # Fallback: HTML meta/og tags
+        if not result.get('usd_price'):
+            price_el = (soup.find('meta', property='product:price:amount')
+                        or soup.find('[data-test*="price"]'))
+            if price_el:
+                raw = (price_el.get('content', '')
+                       or price_el.get_text(strip=True))
+                m = re.search(r'[\d.]+', raw.replace(',', ''))
                 if m:
-                    set_num = m.group(1) + '-1'
-            img_el = card.select_one('img')
-            sets.append({
-                'set_num':       set_num,
-                'name':          name_el.get_text(strip=True),
-                'year':          CURRENT_YEAR,
-                'theme_id':      '',
-                'theme':         '',
-                'num_parts':     0,
-                'image_url':     img_el.get('src', '') if img_el else '',
-                'usd_price':     None,
-                'us_date':       None,
-                'uk_date':       None,
-                'availability':  'Not yet available',
-                'gallery_images': [],
-                'source':        'lego_com',
-            })
-        print(f'[scraper] LEGO.com coming-soon: {len(sets)} sets via HTML cards')
-        return sets
+                    result['usd_price'] = float(m.group())
+
+        return result
     except Exception as exc:
-        print(f'[scraper] LEGO.com coming-soon error: {exc}')
-        return []
+        print(f'[scraper] Product page scrape error ({url[:60]}...): {exc}')
+        return {}
 
 
 def _parse_next_data_products(data: dict) -> list[dict]:
@@ -215,7 +323,7 @@ def _parse_next_data_products(data: dict) -> list[dict]:
                 'uk_date':       None,
                 'availability':  'Not yet available',
                 'gallery_images': [],
-                'source':        'lego_com',
+                'source':        'lego_coming_soon',
             })
     except Exception as exc:
         print(f'[scraper] _parse_next_data_products error: {exc}')
@@ -570,6 +678,13 @@ def get_new_set() -> dict | None:
             # Use first gallery image as primary image_url if absent
             if not s.get('image_url'):
                 s['image_url'] = gallery[0]
+            # FIX 2: India availability check — mandatory defense layer
+            # Must run AFTER gallery check so we only pay the DB round-trip
+            # for sets that would otherwise be posted.
+            in_india, price_str = db.is_available_in_india(s['set_num'])
+            if in_india:
+                print(f'[scraper] SKIP {s["set_num"]} — already in Indian stores ({price_str})')
+                continue
             print(
                 f'[scraper] Selected: {s["set_num"]} - {s["name"]} '
                 f'({s["num_parts"]} parts, {len(gallery)} gallery images, '
