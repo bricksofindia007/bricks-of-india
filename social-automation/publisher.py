@@ -169,7 +169,7 @@ def post_youtube_shorts(video_path: str, set_data: dict, caption_text: str) -> s
         f"#LEGO #LEGOIndia #LEGOSets #BricksofIndia #Shorts #LEGOShorts"
     )
 
-    print(f'[publisher] Uploading YouTube Short: {title[:60]}...')
+    print(f'[publisher] Uploading YouTube Short: {set_data["set_num"]} - {set_data["name"][:50]}...')
     request = youtube.videos().insert(
         part='snippet,status',
         body={
@@ -194,7 +194,7 @@ def post_youtube_shorts(video_path: str, set_data: dict, caption_text: str) -> s
 # ── Dry-run ───────────────────────────────────────────────────────────────────
 
 def dry_run() -> None:
-    print('\n── Dry-run: verifying API credentials ──\n')
+    print('\n-- Dry-run: verifying API credentials --\n')
     errors = []
 
     # Instagram: verify token via /me endpoint
@@ -212,21 +212,21 @@ def dry_run() -> None:
             if 'error' in data:
                 errors.append(f'Instagram token invalid: {data["error"].get("message")}')
             else:
-                print(f'  ✓ Instagram: @{data.get("username")} (ID: {data.get("id")})')
+                print(f'  [ok] Instagram: @{data.get("username")} (ID: {data.get("id")})')
         except Exception as exc:
             errors.append(f'Instagram request failed: {exc}')
 
     # YouTube: verify token loading
     print('[dry-run] Checking YouTube token...')
     if not YOUTUBE_CLIENT_SECRETS:
-        print('  ⚠ YOUTUBE_CLIENT_SECRETS not set — YouTube will be skipped in pipeline.')
+        print('  [!] YOUTUBE_CLIENT_SECRETS not set - YouTube will be skipped in pipeline.')
     else:
         try:
             creds = _load_youtube_credentials()
             if creds and creds.valid:
-                print('  ✓ YouTube token valid.')
+                print('  [ok] YouTube token valid.')
             elif creds and creds.expired:
-                print('  ⚠ YouTube token expired but refresh_token present — will auto-refresh.')
+                print('  [!] YouTube token expired but refresh_token present - will auto-refresh.')
             else:
                 errors.append('YouTube token could not be loaded.')
         except Exception as exc:
@@ -235,11 +235,11 @@ def dry_run() -> None:
     print()
     if errors:
         for err in errors:
-            print(f'  ✗ {err}')
-        print('\nDry-run FAILED — fix the above before a live run.')
+            print(f'  [x] {err}')
+        print('\nDry-run FAILED - fix the above before a live run.')
         sys.exit(1)
     else:
-        print('Dry-run PASSED — all checked credentials are valid.')
+        print('Dry-run PASSED - all checked credentials are valid.')
 
 
 if __name__ == '__main__':

@@ -329,7 +329,7 @@ def get_new_set() -> dict | None:
 
     selected = max(new_sets, key=lambda s: s.get('num_parts') or 0)
     print(
-        f'[scraper] Selected: {selected["set_num"]} — {selected["name"]} '
+        f'[scraper] Selected: {selected["set_num"]} - {selected["name"]} '
         f'({selected["num_parts"]} parts, availability="{selected.get("availability","?")}",  '
         f'us_date={selected.get("us_date")})'
     )
@@ -344,7 +344,7 @@ if __name__ == '__main__':
 
     rb = rebrickable_get_sets()
     bs = brickset_get_sets()
-    print(f'\nRaw counts — Rebrickable: {len(rb)}, Brickset: {len(bs)}')
+    print(f'\nRaw counts - Rebrickable: {len(rb)}, Brickset: {len(bs)}')
 
     merged = _merge_and_dedup(rb, bs)
     upcoming = [s for s in merged if _is_genuinely_new(s)]

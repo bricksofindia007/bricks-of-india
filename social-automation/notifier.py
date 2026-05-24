@@ -19,7 +19,7 @@ def _send(subject: str, html_body: str) -> None:
     import resend
     resend.api_key = RESEND_API_KEY
     if not RESEND_API_KEY:
-        print(f'[notifier] RESEND_API_KEY not set — skipping email: {subject}')
+        print(f'[notifier] RESEND_API_KEY not set - skipping email: {subject}')
         return
     result = resend.Emails.send({
         'from': f'Bricks of India <{FROM_ADDRESS}>',

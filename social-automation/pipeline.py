@@ -32,7 +32,7 @@ def main() -> None:
         sys.exit(0)
 
     set_num = set_data['set_num']
-    print(f'[pipeline] Proceeding with: {set_num} — {set_data["name"]}')
+    print(f'[pipeline] Proceeding with: {set_num} - {set_data["name"]}')
 
     # ── Step 2: Generate media ────────────────────────────────────────────────
     print('[pipeline] Step 2: Processing image...')
@@ -77,9 +77,9 @@ def main() -> None:
     notifier.send_success(set_data, platforms)
 
     print(f'\n[pipeline] Done. {set_num} posted successfully.')
-    print(f'  IG Feed:  {"✅" if platforms["ig_feed"] else "✗"}')
-    print(f'  IG Reels: {"✅" if platforms["ig_reels"] else "✗"}')
-    print(f'  YouTube:  {"✅" if platforms["yt_shorts"] else "⏭️ skipped (no token)"}')
+    print(f'  IG Feed:  {"OK" if platforms["ig_feed"] else "X"}')
+    print(f'  IG Reels: {"OK" if platforms["ig_reels"] else "X"}')
+    print(f'  YouTube:  {"OK" if platforms["yt_shorts"] else "skipped (no token)"}')
 
 
 if __name__ == '__main__':

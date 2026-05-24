@@ -26,7 +26,7 @@ TOKEN_OUTPUT_FILE = 'youtube_token.json'
 def main():
     if not os.path.exists(CLIENT_SECRETS_FILE):
         print(f'ERROR: {CLIENT_SECRETS_FILE} not found.')
-        print('Download it from Google Cloud Console → Credentials → your OAuth client → Download JSON')
+        print('Download it from Google Cloud Console -> Credentials -> your OAuth client -> Download JSON')
         return
 
     flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)

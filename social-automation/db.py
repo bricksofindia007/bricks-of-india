@@ -80,7 +80,7 @@ def upload_to_storage(local_path: str, filename: str) -> str:
             file_options={'content-type': content_type, 'upsert': 'true'},
         )
     public_url = client.storage.from_(BUCKET_NAME).get_public_url(filename)
-    print(f'[db] Uploaded {filename} → {public_url}')
+    print(f'[db] Uploaded {filename} -> {public_url}')
     return public_url
 
 
