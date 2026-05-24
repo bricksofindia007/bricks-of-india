@@ -320,9 +320,22 @@ def get_new_set() -> dict | None:
         print('[scraper] No genuinely new sets found today.')
         return None
 
-    # Filter 2: not already posted
-    new_sets = [s for s in upcoming if s.get('set_num') and not db.is_already_posted(s['set_num'])]
+    # Filter 2: not already posted — single bulk DB call instead of one per set
+    posted_nums = db.get_all_posted_set_nums()
+    print(f'[scraper] posted_sets contains {len(posted_nums)} set(s): {sorted(posted_nums)}')
+    new_sets = [
+        s for s in upcoming
+        if s.get('set_num') and s['set_num'] not in posted_nums
+    ]
     print(f'[scraper] {len(new_sets)} unposted sets remaining')
+
+    # Filter 3: skip Rebrickable placeholder sets (name='{?}' or starts with '{')
+    real_sets = [s for s in new_sets if s.get('name', '').strip().lstrip('{').strip()]
+    real_sets = [s for s in real_sets if not s['name'].startswith('{')]
+    placeholder_count = len(new_sets) - len(real_sets)
+    if placeholder_count:
+        print(f'[scraper] Dropped {placeholder_count} placeholder set(s) (name starts with {{)')
+    new_sets = real_sets
 
     if not new_sets:
         return None

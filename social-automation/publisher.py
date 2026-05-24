@@ -47,12 +47,16 @@ def post_instagram_carousel(image_urls: list, caption: str) -> str:
     Returns the published media ID.
     """
     # Step 1: create a child container for each image
+    # Requires explicit media_type=IMAGE and is_carousel_item=true per Meta Graph API spec.
+    # 2-second gap between creations gives Instagram time to register each container
+    # before the next is submitted — prevents all slots rendering as the first image.
     child_ids = []
     for i, url in enumerate(image_urls):
-        print(f'[publisher] Creating carousel child {i + 1}/{len(image_urls)}...')
+        print(f'[publisher] Creating carousel child {i + 1}/{len(image_urls)}: {url}')
         resp = requests.post(
             f'{GRAPH_API_BASE}/{IG_USER_ID}/media',
             data={
+                'media_type': 'IMAGE',
                 'image_url': url,
                 'is_carousel_item': 'true',
                 'access_token': IG_ACCESS_TOKEN,
@@ -62,6 +66,10 @@ def post_instagram_carousel(image_urls: list, caption: str) -> str:
         child_id = _ig_check(resp, f'carousel child {i + 1} create')['id']
         child_ids.append(child_id)
         print(f'[publisher] Child {i + 1} container ID: {child_id}')
+        if i < len(image_urls) - 1:
+            time.sleep(2)  # allow Instagram to register each container before the next
+
+    print(f'[publisher] All child IDs: {child_ids}')
 
     # Step 2: create the parent carousel container
     print('[publisher] Creating carousel parent container...')

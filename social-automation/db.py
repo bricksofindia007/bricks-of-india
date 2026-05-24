@@ -53,6 +53,17 @@ def is_already_posted(set_num: str) -> bool:
     return len(result.data) > 0
 
 
+def get_all_posted_set_nums() -> set:
+    """
+    Returns a set of every set_num already in posted_sets.
+    Single DB call — use this instead of calling is_already_posted()
+    once per candidate set to avoid N separate round-trips.
+    """
+    client = _client()
+    result = client.table('posted_sets').select('set_num').execute()
+    return {r['set_num'] for r in result.data}
+
+
 def mark_as_posted(set_num: str, set_name: str, platforms_dict: dict) -> None:
     """
     platforms_dict keys: ig_feed, ig_reels, yt_shorts (all bool)
