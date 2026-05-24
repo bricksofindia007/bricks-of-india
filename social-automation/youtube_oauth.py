@@ -13,6 +13,7 @@ This script is NOT used in CI — it only needs to be run once.
 
 import json
 import os
+from pathlib import Path
 
 from google_auth_oauthlib.flow import InstalledAppFlow
 from google.oauth2.credentials import Credentials
@@ -28,9 +29,21 @@ def main():
         print('Download it from Google Cloud Console → Credentials → your OAuth client → Download JSON')
         return
 
-    print('Opening browser for Google OAuth consent...')
     flow = InstalledAppFlow.from_client_secrets_file(CLIENT_SECRETS_FILE, SCOPES)
-    creds = flow.run_local_server(port=0)
+
+    # Intercept webbrowser.open so run_local_server() generates the correct
+    # URL (with redirect_uri) but writes it to a file instead of opening a
+    # browser — which doesn't work from Claude Code's terminal.
+    import webbrowser
+
+    def _capture(url, new=0, autoraise=True):
+        Path('oauth_url.txt').write_text(url, encoding='utf-8')
+        print(f'Authorization URL written to oauth_url.txt', flush=True)
+        return True
+
+    webbrowser.open = _capture
+    print('Starting local callback server on http://localhost:8080 ...', flush=True)
+    creds = flow.run_local_server(port=8080, open_browser=True)
 
     token_data = {
         'token': creds.token,
