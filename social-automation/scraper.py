@@ -294,7 +294,7 @@ def _brickset_api_gallery(set_data: dict) -> list[str]:
     set_num  = set_data.get('set_num', '')
     bare_num = set_num.split('-')[0]
     set_id   = set_data.get('brickset_set_id')
-    main_img = set_data.get('brickset_image_url', '') or set_data.get('image_url', '')
+    main_img = set_data.get('brickset_image_url', '')  # Brickset CDN only — never Rebrickable URLs
 
     # If we don't have setID, look it up
     if not set_id and bare_num:

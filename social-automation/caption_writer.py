@@ -5,6 +5,7 @@ Voice: Jeremy Clarkson meets Indian wallet anxiety.
 
 import os
 import sys
+import time
 from pathlib import Path
 from dotenv import load_dotenv
 
@@ -62,14 +63,30 @@ End the caption with exactly this text, no modifications:
 I don't know. LEGO doesn't know. Nobody knows. \
 One day it will come. One day. 🤫"""
 
-    response = client.models.generate_content(
-        model=MODEL_NAME,
-        contents=user_prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
-        ),
-    )
-    caption = response.text.strip()
+    # Retry up to 3 times on 503 capacity spikes (30s back-off each attempt)
+    last_exc = None
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model=MODEL_NAME,
+                contents=user_prompt,
+                config=types.GenerateContentConfig(
+                    system_instruction=SYSTEM_PROMPT,
+                ),
+            )
+            caption = response.text.strip()
+            break
+        except Exception as exc:
+            last_exc = exc
+            msg = str(exc)
+            if '503' in msg or 'UNAVAILABLE' in msg:
+                wait = 30 * (attempt + 1)
+                print(f'[caption] Gemini 503 on attempt {attempt + 1}/3 — retrying in {wait}s...')
+                time.sleep(wait)
+            else:
+                raise
+    else:
+        raise RuntimeError(f'Gemini unavailable after 3 attempts: {last_exc}')
 
     # Hard safety check: ensure disclaimer is present exactly
     if DISCLAIMER not in caption:

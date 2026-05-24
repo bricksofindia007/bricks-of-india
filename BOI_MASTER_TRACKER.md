@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-14 (Day 14 CLOSE — REVIEWS-FIRST-3 done, 3 Codex reviews live, GEO-01-FU1 unblocked, RADAR-08 logged)
+> **Last updated:** 2026-05-24 (Day 24 — SOC-AUTO-01 LIVE, first run completed, full system audit docs written)
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -82,7 +82,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 | Phase 2 | Claude Project workbench | 🟡 Unblocked — pending setup | CONTENT |
 | Phase 3 | Topical Radar (RSS ingestion) | 🟡 In progress — RADAR-01–05/CRON ✅ Done. WEB-01–04 ✅ Done. DEFECT-005 ✅ closed. REVIEWS-FIRST-3 ✅ Done Day 14 (3 Codex reviews: McLaren P1 BUY, Rivendell BUY, NHM WAIT FOR SALE). GEO-01-FU1 unblocked. RADAR-08 logged (automated reviews pipeline). | CONTENT |
 | Phase 4 | Shorts / Reels workflow (DaVinci + ElevenLabs) | 🔴 Not started | VIDEO |
-| Phase 5 | Instagram carousel engine | 🔴 Not started | SOCIAL |
+| Phase 5 | Social automation (carousel + Reels + YouTube Shorts) | ✅ Done — SOC-AUTO-01 shipped. Daily cron 12:00 IST. First live run 2026-05-24: 76342-1 Daily Bugle posted to IG Feed (8-image carousel) + IG Reels (8s) + YouTube Shorts (45s). Gallery via Brickset API. | SOCIAL |
 | Phase 8 | LEGO Search Pulse | ✅ Live — LAB-07 /lab/heat-map shipped 2026-05-10. D3 choropleth India + world view, 23 states, city drill-down. | WEB (PULSE-01→N) |
 
 ---
@@ -129,7 +129,9 @@ JSON parses. If it doesn't, fix before doing anything else.
 
 ## Current blockers (top 3)
 
-1. **CONTENT-02 not started** — Claude Project workbench setup pending. Blocks consistent content production velocity.
+1. **Content freshness — CRITICAL** — /news 15 days stale, /blog 35 days stale. RADAR cron is running but no operator visits to `/admin/pending` since Day 14. Action: visit `/admin/pending`, approve + generate + publish ≥3 articles.
+2. **Fan CoLab CE dependencies not started** — 13 weeks to August deadline. WEB-05 (`/guides`) + WEB-06 (`/community`) must be built before CE-02 and CE-01 content can go live. LAB-06 frontend needed to unblock CE-06.
+3. **IG System User Token deferred** — current 60-day long-lived token expires ~2026-07-23. Requires manual re-exchange every 55 days. Permanent fix (Meta Business Manager System User) deferred.
 
 > PARSER-01 closed 2026-05-12 — New Elementary re-enabled via Blogger JSON (commits 700b561 + a311fc6).
 > BUG-013 closed 2026-05-02 as mis-diagnosed. GEO-01 hardening shipped. See Sprint changelog Day 2 for details.
@@ -173,10 +175,11 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 | LAB-02 | Which Set Are You? (quiz) | ✅ Live — 2026-05-10. /lab/which-set. 5 questions, 8 outcomes, store links with ABHINAV12. | LAB-01 | `briefs/LAB-02-which-set-quiz.md` |
 | LAB-03 | Daily price snapshot cron | ✅ Done — 2026-05-02. 724 snapshots/day, 08:30 IST cron. Verified Phase 5 by operator. | — | `briefs/LAB-03-price-snapshot-cron.md` |
 | LAB-04 | Lab homepage strip + nav + /lab directory | ✅ Done — 2026-05-02. /lab directory live, homepage strip + nav dropdown shipped. Fixes 2026-05-02 audit /lab 404. LAB-02 staged as coming_soon in src/lib/lab-tools.ts (single-edit unlock). | LAB-01, ideally LAB-02 | `briefs/LAB-04-homepage-strip.md` |
-| LAB-05 | Price Drop Board | 🔴 Deferred | LAB-03 + 30 days of snapshot data | — |
-| LAB-06 | Retirement Radar | 🔴 Deferred | CATALOG-04 v2 (Brickset cron) | — |
-| LAB-07 | LEGO Heat Map | ✅ Live — 2026-05-10. /lab/heat-map. D3 choropleth India + world bubble map, 23 states, city drill-down. GeoJSON loaded at runtime from datamaps/world-atlas CDNs. | Google Trends API integration | — |
-| LAB-08 | Brick Portfolio | 🔴 Deferred indefinitely | Auth strategy decision | — |
+| LAB-05 | CMF Tracker | 🔴 Not started — P2 | — | — |
+| LAB-06 | India Deals Today | 🟡 Backend live — P1 | — (store_prices data live) | CE-06 |
+| LAB-07 | Budget Calculator INR | 🔴 Not started — P2 | — | — |
+| LAB-07 (old) | LEGO Heat Map | ✅ Live — 2026-05-10. /lab/heat-map. D3 choropleth India + world bubble map, 23 states, city drill-down. | — | — |
+| LAB-08 | Retiring Soon | 🔴 Not started — P3 | LAB-03 snapshot history (30+ days) | — |
 
 **Decisions made:**
 
@@ -224,6 +227,34 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### Day 24 — 2026-05-24 — SOC-AUTO-01 live + system audit
+
+Shipped:
+- **SOC-AUTO-01** — Social automation pipeline. `social-automation/pipeline.py` + `scraper.py` + `media_processor.py` + `publisher.py`. GitHub Actions cron daily 06:30 UTC (12:00 IST). Three-platform posting: IG Feed (8-image carousel), IG Reels (8s video), YouTube Shorts (45s video). Commits `a236812` and subsequent hotfixes.
+- **Gallery via Brickset API** — replaced non-functional CDN probe with `getAdditionalImages` API using `setID` lookup. Returns 20–50 high-res product images per set. Sets with <10 images skipped. `brickset_set_id` stored in all set dicts and propagated through merge.
+- **First live run** — 2026-05-24. Set: 76342-1 Spider-Man vs. Mysterio: The Daily Bugle (861 parts, 26 gallery images). IG Feed media_id: `17888047680551486`. IG Reels media_id: `18104097262983341`. YouTube video_id: `Mgm28GniPmk`. posted_sets row: 2.
+- **Hotfixes during first run:** (1) `_build_video` re-downloaded `image_url` (Rebrickable CDN, timed out) — fixed to use `image_paths[0]` (already local). (2) `process_carousel_images` strict abort on first URL failure — fixed to skip failed URLs and try next from pool of 20-50. (3) `_brickset_api_gallery` prepended Rebrickable `image_url` as fallback — fixed to use `brickset_image_url` only. (4) Gemini 503 capacity spike — added 3-attempt retry with 30/60/90s back-off in `caption_writer.py`.
+- **System audit documentation** — 7 new docs created: `docs/SOCIAL_AUTOMATION_STATUS.md`, `docs/CONTENT_PIPELINE_AUDIT.md`, `docs/LAB_ROADMAP.md`, `docs/CONTENT_ENGINE_STATUS.md`, `docs/WEBSITE_SECTIONS_TODO.md`, `docs/SEO_BASELINE_AUDIT.md`, `docs/MONITORING_SCHEDULE.md`.
+
+Pending (flagged this session):
+- **IG System User Token** — permanent non-expiring token via Meta Business Manager. Deferred. Current 60-day token expires ~2026-07-23.
+- **RADAR-08** — logged Day 14, still not started.
+- **Content freshness** — /news 15 days stale, /blog 35 days stale. Operator visit to `/admin/pending` needed.
+- **Fan CoLab CE items** — all CE-01 through CE-06 not started. WEB-05/06 must be built first.
+
+**Health score recomputation (2026-05-24):**
+- Start: 100
+- P0 issues open: 0 → no deduction
+- P1 issues open: content freshness (CRITICAL, not a bug per se) → -5 (partial deduction)
+- Netlify minutes: credits reset 2026-05-22 → no deduction
+- Last audit: 2026-05-14 (10 days ago, <30 days) → no deduction
+- Blocked P1 pipeline items: WEB-05/06 (CE blockers) → -5
+- **Estimated health score: ~90** (social automation shipping raised it from unknown; content staleness drags it)
+
+**Last commit this session:** to be updated after docs commit.
+
+---
 
 ### Day 14 — 2026-05-14 — DEFECT-005 closed + housekeeping
 

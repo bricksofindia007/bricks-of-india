@@ -320,18 +320,24 @@ def process_carousel_images(set_data: dict) -> list:
     paths = []
 
     # ── Images 1-9: gallery photos ────────────────────────────────────────────
-    for idx, url in enumerate(gallery_images[:9], start=1):
-        path = _process_gallery_image(url, idx, set_num)
+    # Try URLs in order; if one fails (network error / bad image), skip it and
+    # try the next. We have 20-50 URLs available so failures are recoverable.
+    slot = 1
+    for url in gallery_images:
+        if slot > 9:
+            break
+        path = _process_gallery_image(url, slot, set_num)
         if path:
             paths.append(path)
-            print(f'[media] Image {idx}/10 saved: {Path(path).name}')
+            print(f'[media] Image {slot}/10 saved: {Path(path).name}')
+            slot += 1
         else:
-            print(f'[media] Image {idx}/10 FAILED -- skipping URL')
+            print(f'[media] Image slot {slot} FAILED for {url[:60]}... -- trying next URL')
 
     if len(paths) < 9:
         raise ValueError(
-            f'Only {len(paths)}/9 gallery images processed successfully for {set_num}. '
-            f'Aborting to avoid incomplete output.'
+            f'Only {len(paths)}/9 gallery images from {len(gallery_images)} URLs for {set_num}. '
+            f'All available URLs exhausted or failed.'
         )
 
     # ── Image 10: BOI stats card ──────────────────────────────────────────────
@@ -395,9 +401,8 @@ def _build_video(set_data: dict, image_paths: list,
     print(f'[media] Building {duration:.0f}s video ({out_suffix}): '
           f'{n} slides x {SEG_DUR:.2f}s, {trans}s crossfades, KB +{kb_zoom*100:.0f}%')
 
-    # Blurred background from first gallery image
-    img_url = set_data.get('image_url') or (set_data.get('gallery_images') or [''])[0]
-    raw     = _download_image(img_url)
+    # Blurred background from first slide (already a local file — no network call)
+    raw     = Image.open(image_paths[0]).convert('RGB')
     shared_bg = np.array(
         ImageEnhance.Brightness(
             _scale_to_fill(raw.convert('RGB'), W, H).filter(ImageFilter.GaussianBlur(radius=20))
