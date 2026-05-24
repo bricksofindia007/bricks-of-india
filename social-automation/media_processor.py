@@ -1,9 +1,14 @@
 """
 media_processor.py — Image and video generation for the social pipeline.
 
-process_image:           1080x1080 main product shot (white canvas, centred)
-process_carousel_images: 3-5 images — main shot, middle variant(s), stats card
-process_video:           1080x1920, 8 s, Ken Burns 1.0->1.12, music at 15%
+process_carousel_images: 8 images — 7 gallery photos + stats card (1080x1080, 40% watermark)
+process_reels_video:     8 s Reels — 3 images (gallery[0], gallery[1], stats card),
+                         0.3 s crossfades, music 8 s at 20%
+process_shorts_video:    45 s Shorts — 10 images (gallery[0-8] + stats card),
+                         0.5 s crossfades, Ken Burns 1.0->1.08, music 45 s at 20%
+
+Watermark: 40% opacity, bottom-right, applied at image generation time.
+Gallery images: from set_data['gallery_images'] (LEGO.com high-res, >= 10 required).
 """
 
 import os
@@ -70,7 +75,7 @@ def _apply_watermark(canvas: Image.Image) -> Image.Image:
         ratio = max_wm_w / wm.width
         wm = wm.resize((max_wm_w, int(wm.height * ratio)), Image.LANCZOS)
     r, g, b, a = wm.split()
-    a = ImageEnhance.Brightness(a).enhance(0.15)
+    a = ImageEnhance.Brightness(a).enhance(0.40)
     wm.putalpha(a)
     canvas.paste(wm, (1080 - wm.width - 20, 1080 - wm.height - 20), wm)
     return canvas
@@ -264,201 +269,247 @@ def process_image(set_data: dict) -> str:
     return out_path
 
 
-# ── Module 3a-carousel: 3-5 images ───────────────────────────────────────────
+# ── Module 3a: Carousel images (8 = 7 gallery photos + stats card) ────────────
+
+def _process_gallery_image(url: str, idx: int, set_num: str) -> str | None:
+    """
+    Download one gallery image URL, centre-contain on white 1080x1080, watermark.
+    Returns saved path or None on failure.
+    """
+    try:
+        raw    = _download_image(url)
+        canvas = Image.new('RGBA', (1080, 1080), (255, 255, 255, 255))
+        img    = _scale_to_contain(raw.copy(), 960, 960)
+        canvas.paste(img,
+                     ((1080 - img.width) // 2, (1080 - img.height) // 2),
+                     img if img.mode == 'RGBA' else None)
+        canvas    = _apply_watermark(canvas)
+        out_path  = str(OUT_DIR / f'{set_num}_feed_{idx}.jpg')
+        canvas.convert('RGB').save(out_path, 'JPEG', quality=95)
+        return out_path
+    except Exception as exc:
+        print(f'[media] WARNING: gallery image {idx} failed ({url[:60]}): {exc}')
+        return None
+
 
 def process_carousel_images(set_data: dict) -> list:
     """
-    Generates 3-5 carousel images for Instagram Feed.
+    Generates 10 product images: 9 gallery photos + stats card (last).
 
-    Image 1  ({set_num}_feed_1.jpg): main product shot — white canvas, centred [ALWAYS]
-    Images 2+ ({set_num}_feed_2.jpg ...): middle variants
-        - Uses additional image URLs from set_data['extra_image_urls'] if present
-        - Falls back to a fill-crop (editorial) variant of the main image
-        - Max 3 middle images (images 2-4)
-    Last image ({set_num}_feed_{n}.jpg): BOI stats card [ALWAYS]
+    Source: set_data['gallery_images'] — list of LEGO.com high-res URLs.
+    Requires at least 9 gallery images. Each image: 1080x1080, white canvas,
+    contained, watermarked at 40% opacity.
 
-    Minimum 3 total (main + one middle + stats card).
-    Maximum 5 total (main + three middles + stats card).
-
-    Returns list of local file paths in order.
+    Returns 10 local file paths — callers slice as needed:
+      Instagram carousel (8): paths[:7] + [paths[-1]]
+      YouTube Shorts   (10): paths          (all)
+      Instagram Reels   (3): [paths[0], paths[1], paths[-1]]
     """
-    set_num   = set_data['set_num']
-    image_url = set_data.get('image_url', '')
-    if not image_url:
-        raise ValueError(f'No image_url for set {set_num}')
+    set_num        = set_data['set_num']
+    gallery_images = set_data.get('gallery_images') or []
 
-    print(f'[media] Generating carousel images for {set_num}...')
-    raw = _download_image(image_url)
+    if len(gallery_images) < 9:
+        raise ValueError(
+            f'Need >= 9 gallery images for {set_num}, got {len(gallery_images)}. '
+            f'Run scraper with LEGO.com gallery enrichment first.'
+        )
+
+    print(f'[media] Generating 10 product images for {set_num} '
+          f'({len(gallery_images)} gallery URLs available)...')
+
     paths = []
 
-    # ── Image 1: main product shot (white canvas, contain 900x900) ────────────
-    canvas1 = Image.new('RGBA', (1080, 1080), (255, 255, 255, 255))
-    img1    = _scale_to_contain(raw.copy(), 900, 900)
-    canvas1.paste(img1,
-                  ((1080 - img1.width) // 2, (1080 - img1.height) // 2),
-                  img1 if img1.mode == 'RGBA' else None)
-    canvas1  = _apply_watermark(canvas1)
-    path1    = str(OUT_DIR / f'{set_num}_feed_1.jpg')
-    canvas1.convert('RGB').save(path1, 'JPEG', quality=95)
-    print(f'[media] Carousel 1 saved: {path1}')
-    paths.append(path1)
+    # ── Images 1-9: gallery photos ────────────────────────────────────────────
+    for idx, url in enumerate(gallery_images[:9], start=1):
+        path = _process_gallery_image(url, idx, set_num)
+        if path:
+            paths.append(path)
+            print(f'[media] Image {idx}/10 saved: {Path(path).name}')
+        else:
+            print(f'[media] Image {idx}/10 FAILED -- skipping URL')
 
-    # ── Middle images (2 to 4) ────────────────────────────────────────────────
-    # extra_image_urls: additional angles from future scraper enrichment
-    extra_urls = set_data.get('extra_image_urls') or []
-    extra_urls = extra_urls[:3]  # cap at 3 middle images
+    if len(paths) < 9:
+        raise ValueError(
+            f'Only {len(paths)}/9 gallery images processed successfully for {set_num}. '
+            f'Aborting to avoid incomplete output.'
+        )
 
-    if extra_urls:
-        for idx, url in enumerate(extra_urls, start=2):
-            try:
-                extra_raw = _download_image(url)
-                canvas_e  = Image.new('RGBA', (1080, 1080), (255, 255, 255, 255))
-                img_e     = _scale_to_contain(extra_raw, 900, 900)
-                canvas_e.paste(img_e,
-                               ((1080 - img_e.width) // 2, (1080 - img_e.height) // 2),
-                               img_e if img_e.mode == 'RGBA' else None)
-                canvas_e  = _apply_watermark(canvas_e)
-                path_e    = str(OUT_DIR / f'{set_num}_feed_{idx}.jpg')
-                canvas_e.convert('RGB').save(path_e, 'JPEG', quality=95)
-                print(f'[media] Carousel {idx} saved (extra angle): {path_e}')
-                paths.append(path_e)
-            except Exception as exc:
-                print(f'[media] WARNING: could not load extra image {url}: {exc}')
-    else:
-        # Fallback: fill-crop (editorial close-up of the same image)
-        img2   = _scale_to_fill(raw.convert('RGB'), 1080, 1080)
-        canvas2 = _apply_watermark(img2)
-        path2   = str(OUT_DIR / f'{set_num}_feed_2.jpg')
-        canvas2.convert('RGB').save(path2, 'JPEG', quality=95)
-        print(f'[media] Carousel 2 saved (fill-crop fallback): {path2}')
-        paths.append(path2)
+    # ── Image 10: BOI stats card ──────────────────────────────────────────────
+    stats_canvas = _make_stats_card(set_data)
+    stats_path   = str(OUT_DIR / f'{set_num}_feed_10.jpg')
+    stats_canvas.convert('RGB').save(stats_path, 'JPEG', quality=95)
+    print(f'[media] Image 10/10 saved (stats card): {Path(stats_path).name}')
+    paths.append(stats_path)
 
-    # ── Last image: stats card ────────────────────────────────────────────────
-    n         = len(paths) + 1
-    canvas_s  = _make_stats_card(set_data)
-    path_s    = str(OUT_DIR / f'{set_num}_feed_{n}.jpg')
-    canvas_s.convert('RGB').save(path_s, 'JPEG', quality=95)
-    print(f'[media] Carousel {n} saved (stats card): {path_s}')
-    paths.append(path_s)
-
-    print(f'[media] Carousel complete: {len(paths)} images')
-    return paths
+    print(f'[media] Image generation complete: {len(paths)} images')
+    return paths  # 10 paths: [gallery_1..9, stats_card]
 
 
-# ── Module 3b: Video (8 s, Ken Burns 1.0->1.12, music at 15%) ────────────────
+# ── Module 3b: Video (30 s, multi-image carousel, Ken Burns 1.0->1.08, music 20%) ─
 
-def process_video(set_data: dict, image_path: str = None) -> str:
+def _make_kb_clip(fg_arr: np.ndarray, bg_arr: np.ndarray,
+                  seg_dur: float, fg_size: int, fg_y: int) -> 'VideoClip':
     """
-    Builds a 1080x1920 Reels/Shorts video.
-    - Duration: 8 seconds
-    - Ken Burns zoom: 1.0 -> 1.12 over 8 seconds
-    - Background music from assets/background_music.mp4 at 15% volume
-    Returns local path to {set_num}_reels.mp4.
+    Factory: returns a VideoClip with Ken Burns zoom 1.0->1.08 for one slide.
+    Defined as a module-level-style factory (not a closure over a loop variable)
+    so each clip captures its own fg/bg arrays correctly.
     """
-    from moviepy.editor import VideoClip, AudioFileClip
+    from moviepy.editor import VideoClip
+
+    def frame(t: float) -> np.ndarray:
+        f      = bg_arr.copy()
+        scale  = 1.0 + 0.08 * (t / seg_dur)
+        new_sz = int(fg_size * scale)
+        img    = Image.fromarray(fg_arr).resize((new_sz, new_sz), Image.LANCZOS)
+        off    = (new_sz - fg_size) // 2
+        crop   = np.array(img.crop((off, off, off + fg_size, off + fg_size)))
+        f[fg_y:fg_y + fg_size, :] = crop
+        return f
+
+    return VideoClip(frame, duration=seg_dur)
+
+
+def _build_video(set_data: dict, image_paths: list,
+                 duration: float, trans: float, kb_zoom: float,
+                 out_suffix: str) -> str:
+    """
+    Shared video builder used by process_reels_video and process_shorts_video.
+
+    duration:   total video length in seconds
+    trans:      crossfade duration between slides (seconds)
+    kb_zoom:    Ken Burns zoom amount (e.g. 0.05 -> 1.0 to 1.05)
+    out_suffix: output filename suffix ('_reels.mp4' or '_shorts.mp4')
+    """
+    from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
     import moviepy.audio.fx.all as afx
 
     set_num = set_data['set_num']
-    if image_path is None:
-        image_path = process_image(set_data)
+    n       = len(image_paths)
+    # SEG_DUR chosen so n*SEG_DUR - (n-1)*trans == duration exactly
+    SEG_DUR = (duration + (n - 1) * trans) / n
+    FPS     = 30
+    W, H    = 1080, 1920
+    FG_SIZE = 1080
+    FG_Y    = (H - FG_SIZE) // 2   # 420 px
 
-    print(f'[media] Building video for {set_num}...')
+    print(f'[media] Building {duration:.0f}s video ({out_suffix}): '
+          f'{n} slides x {SEG_DUR:.2f}s, {trans}s crossfades, KB +{kb_zoom*100:.0f}%')
 
-    fg_pil   = Image.open(image_path).convert('RGB')
-    fg_array = np.array(fg_pil)
+    # Blurred background from first gallery image
+    img_url = set_data.get('image_url') or (set_data.get('gallery_images') or [''])[0]
+    raw     = _download_image(img_url)
+    shared_bg = np.array(
+        ImageEnhance.Brightness(
+            _scale_to_fill(raw.convert('RGB'), W, H).filter(ImageFilter.GaussianBlur(radius=20))
+        ).enhance(0.40)
+    )
 
-    raw    = _download_image(set_data['image_url'])
-    bg_pil = _scale_to_fill(raw.convert('RGB'), 1080, 1920)
-    bg_pil = bg_pil.filter(ImageFilter.GaussianBlur(radius=20))
-    bg_pil = ImageEnhance.Brightness(bg_pil).enhance(0.40)
-    bg_array = np.array(bg_pil)
+    # Navy background for stats card
+    navy_bg      = np.zeros((H, W, 3), dtype=np.uint8)
+    navy_bg[:, :] = NAVY
 
-    DURATION = 8.0
-    FPS      = 30
-    FG_W     = 1080
-    FG_H     = 1080
-    FG_Y     = (1920 - FG_H) // 2   # vertically centred in 1920
+    clips = []
+    for i, path in enumerate(image_paths):
+        fg       = np.array(Image.open(path).convert('RGB').resize((FG_SIZE, FG_SIZE), Image.LANCZOS))
+        is_stats = (i == n - 1)
+        bg       = navy_bg if is_stats else shared_bg
 
-    # Ken Burns: smooth zoom 1.0 -> 1.12 over 8 seconds
-    def fg_frame(t: float) -> np.ndarray:
-        scale = 1.0 + 0.12 * (t / DURATION)
-        new_w = int(FG_W * scale)
-        new_h = int(FG_H * scale)
-        img   = Image.fromarray(fg_array).resize((new_w, new_h), Image.LANCZOS)
-        left  = (new_w - FG_W) // 2
-        top   = (new_h - FG_H) // 2
-        cropped  = np.array(img.crop((left, top, left + FG_W, top + FG_H)))
-        frame    = bg_array.copy()
-        frame[FG_Y:FG_Y + FG_H, 0:FG_W] = cropped
-        return frame
+        if is_stats:
+            static             = bg.copy()
+            static[FG_Y:FG_Y + FG_SIZE, :] = fg
+            clip = ImageClip(static, duration=SEG_DUR)
+        else:
+            # Ken Burns: use kb_zoom, not the hardcoded 0.08 from _make_kb_clip
+            _fg, _bg, _sd, _fsz, _fy, _kbz = fg, bg, SEG_DUR, FG_SIZE, FG_Y, kb_zoom
 
-    video     = VideoClip(fg_frame, duration=DURATION)
+            def _frame(t: float,
+                       fg=_fg, bg=_bg, seg_dur=_sd,
+                       fg_size=_fsz, fg_y=_fy, zoom=_kbz) -> np.ndarray:
+                f      = bg.copy()
+                scale  = 1.0 + zoom * (t / seg_dur)
+                new_sz = int(fg_size * scale)
+                img    = Image.fromarray(fg).resize((new_sz, new_sz), Image.LANCZOS)
+                off    = (new_sz - fg_size) // 2
+                crop   = np.array(img.crop((off, off, off + fg_size, off + fg_size)))
+                f[fg_y:fg_y + fg_size, :] = crop
+                return f
+
+            from moviepy.editor import VideoClip
+            clip = VideoClip(_frame, duration=SEG_DUR)
+
+        if i > 0:
+            clip = clip.crossfadein(trans)
+
+        label = 'stats card (static)' if is_stats else f'Ken Burns +{kb_zoom*100:.0f}%'
+        print(f'[media]  Slide {i + 1}/{n}: {label} {SEG_DUR:.2f}s -- {Path(path).name}')
+        clips.append(clip)
+
+    video = concatenate_videoclips(clips, padding=-trans, method='compose')
+    print(f'[media] Assembled duration: {video.duration:.2f}s')
+
     has_audio = False
-
     if MUSIC_PATH.exists():
         try:
             audio = AudioFileClip(str(MUSIC_PATH))
-            # Trim to exactly 8 seconds (first 8s of track)
-            if audio.duration > DURATION:
-                audio = audio.subclip(0, DURATION)
-            else:
-                audio = afx.audio_loop(audio, duration=DURATION)
-            audio     = audio.volumex(0.15)
+            audio = audio.subclip(0, duration) if audio.duration > duration \
+                    else afx.audio_loop(audio, duration=duration)
+            audio     = audio.volumex(0.20)
             video     = video.set_audio(audio)
             has_audio = True
-            print('[media] Background music added at 15% volume (8 s)')
+            print(f'[media] Music: {duration:.0f}s at 20% volume')
         except Exception as exc:
-            print(f'[media] WARNING: could not load background music: {exc}')
+            print(f'[media] WARNING: music load failed: {exc}')
     else:
-        print(f'[media] No background music at {MUSIC_PATH} — exporting silent')
+        print(f'[media] No music at {MUSIC_PATH} -- silent export')
 
-    out_path = str(OUT_DIR / f'{set_num}_reels.mp4')
+    out_path = str(OUT_DIR / f'{set_num}{out_suffix}')
     video.write_videofile(
-        out_path,
-        fps=FPS,
-        codec='libx264',
+        out_path, fps=FPS, codec='libx264',
         audio_codec='aac' if has_audio else None,
-        audio=has_audio,
-        logger=None,
+        audio=has_audio, logger=None,
     )
     print(f'[media] Video saved: {out_path}')
     return out_path
 
 
+def process_reels_video(set_data: dict, all_image_paths: list = None) -> str:
+    """
+    8-second Instagram Reels video.
+    Uses: gallery[0], gallery[1], stats_card (3 slides).
+    Ken Burns 1.0->1.05. 0.3s crossfades. Music 8s at 20%.
+    """
+    if not all_image_paths:
+        all_image_paths = process_carousel_images(set_data)
+    # [first gallery, second gallery, stats card]
+    slides = [all_image_paths[0], all_image_paths[1], all_image_paths[-1]]
+    return _build_video(set_data, slides,
+                        duration=8.0, trans=0.3, kb_zoom=0.05,
+                        out_suffix='_reels.mp4')
+
+
+def process_shorts_video(set_data: dict, all_image_paths: list = None) -> str:
+    """
+    45-second YouTube Shorts video.
+    Uses: gallery[0-8] + stats_card (10 slides).
+    Ken Burns 1.0->1.08. 0.5s crossfades. Music 45s at 20%.
+    """
+    if not all_image_paths:
+        all_image_paths = process_carousel_images(set_data)
+    # First 9 gallery + stats card = 10 slides
+    slides = all_image_paths[:9] + [all_image_paths[-1]]
+    return _build_video(set_data, slides,
+                        duration=45.0, trans=0.5, kb_zoom=0.08,
+                        out_suffix='_shorts.mp4')
+
+
+def process_video(set_data: dict, image_paths: list = None) -> str:
+    """Backwards-compatible alias: calls process_reels_video."""
+    return process_reels_video(set_data, image_paths)
+
+
 if __name__ == '__main__':
-    print('Step 3 — Testing carousel (3 images) + 8s video with music...\n')
-    test_set = {
-        'set_num':   'test-11377',
-        'name':      'The Lord of the Rings: Minas Tirith',
-        'theme':     'LEGO Exclusive',
-        'num_parts': 8278,
-        'year':      2026,
-        'image_url': 'https://cdn.rebrickable.com/media/sets/11377-1/172481.jpg',
-        'usd_price': None,
-    }
+    print('Media processor tests -- uses REAL LEGO.com gallery images\n')
+    print('Requires set_data with gallery_images populated by scraper.\n')
+    print('Run test_pipeline.py for full end-to-end test.')
+    print('Run scraper.py directly to test gallery scraping.')
 
-    # Test 1: carousel
-    print('--- Test 1: Carousel images (3) ---')
-    try:
-        paths = process_carousel_images(test_set)
-        for i, p in enumerate(paths, 1):
-            size = Path(p).stat().st_size
-            print(f'  Image {i}: {Path(p).name}  ({size:,} bytes)')
-        print(f'Total images: {len(paths)} (expected 3 minimum)')
-        print('Open all images to verify watermarks and stats card layout.\n')
-    except Exception as exc:
-        import traceback; traceback.print_exc()
-        sys.exit(1)
-
-    # Test 2: video with music
-    print('--- Test 2: 8-second video with background music ---')
-    confirm = input('Generate 8-second video with music? (~45s render) [y/N]: ').strip().lower()
-    if confirm == 'y':
-        try:
-            vid = process_video(test_set, paths[0])
-            size = Path(vid).stat().st_size
-            print(f'  Video: {Path(vid).name}  ({size:,} bytes)')
-            print('Play the file — confirm 8 seconds, music audible at low volume.\n')
-        except Exception as exc:
-            import traceback; traceback.print_exc()
-            sys.exit(1)
