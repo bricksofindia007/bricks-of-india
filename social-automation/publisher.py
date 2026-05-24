@@ -155,10 +155,8 @@ def post_youtube_shorts(video_path: str, set_data: dict, caption_text: str) -> s
 
     youtube = build('youtube', 'v3', credentials=creds)
 
-    title = (
-        f"{set_data['name']} ({set_data['set_num']}) 🧱 | "
-        f"One day it will come to India. One day. 🇮🇳 | #LEGO #Shorts"
-    )
+    base = f"{set_data['name']} ({set_data['set_num']}) | #LEGO #Shorts"
+    title = base[:100]
 
     description = (
         f"{caption_text}\n\n"
