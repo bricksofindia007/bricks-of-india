@@ -228,13 +228,17 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
-### Day 25 — 2026-05-25 — System health check + docs
+### Day 25 — 2026-05-25 — WEB-05 /guides + RADAR report + image dedup fix
 
 Shipped:
 - **Full system audit docs** — 7 files updated + 2 new files created: `docs/FAN_COLAB_TIMELINE.md` (new — August 2026 deadline tracker, 12-week critical path), `docs/SESSION_MAY24_SUMMARY.md` (new — session record), `docs/SOCIAL_AUTOMATION_STATUS.md` (India defense layer, text overlays, carousel polling fix, run history), `docs/CONTENT_PIPELINE_AUDIT.md` (16d /news stale, 36d /blog stale), `docs/LAB_ROADMAP.md` (23 days snapshot data), `docs/CONTENT_ENGINE_STATUS.md` (12w to Fan CoLab), `docs/WEBSITE_SECTIONS_TODO.md` (FAN_COLAB_TIMELINE.md link added).
 - **Third pipeline run** — 75641-1 Dr. Hiriluk's Hideout (One Piece). India check blocked 4 sets: 75441-1, 31385-1, 76343-1, 31376-1. All 3 platforms posted (posted_sets row 3). Run ~02:57 UTC.
+- **SEO baseline + /lab sitemap fix** — bricksofindia.com has zero Google indexing (expected, 5-week domain). /lab pages were missing from sitemap.xml. Fixed in `src/app/sitemap.ts`. Documented in `docs/SEO_ACTION_PLAN.md`. Commit `13078b1`.
+- **Hero image dedup fix** — `src/app/admin/pending/actions.ts`: added dedup guard in `publishDraft()` — after fetching OG image, checks if URL already exists as `hero_image` in target table; if yes, publishes without hero rather than repeating. Fixes 60422-1.jpg appearing on 4 articles. Commit `6d11036`.
+- **docs/RADAR_FAILURE_REPORT.md** — root cause documented: RADAR is healthy, content stale because operator has not visited `/admin/pending` since April 20. 312 approved signals await Generate+Publish. Not a system failure.
+- **WEB-05 /guides route** — Fan CoLab critical path. `src/app/guides/page.tsx` (index: hero, 3-column card grid, category tabs: Getting Started / India Specific / Advanced), `src/app/guides/[slug]/page.tsx` (detail: Article JSON-LD, breadcrumb, related guides, Toycra banner). Migration: `supabase/migrations/20260525000000_guides.sql` (run manually in dashboard). Guides link added to Navbar. /guides + /guides/[slug] added to sitemap. Guide interface added to supabase.ts. Commit `eb8a049`.
 
-System health check (verified):
+System health check (verified 2026-05-25):
 
 | Metric | Value | Status |
 |--------|-------|--------|
@@ -242,11 +246,15 @@ System health check (verified):
 | store_prices | 1,955 rows | ✅ |
 | price_snapshots | 20,820 total | ✅ |
 | raw_signals | 7,403 total; latest 2026-05-24T18:39 UTC | ✅ |
-| pending_drafts (draft) | 308 | ⚠️ Needs operator publish |
-| pending_drafts (approved) | 9 | — |
+| pending_drafts (draft) | 5 | ✅ |
+| pending_drafts (approved) | 312 | ⚠️ Awaiting Generate+Publish |
 | pending_drafts (published) | 4 | — |
+| news_articles | 24 total; last: 2026-05-09 (16d stale) | ⚠️ |
+| blog_posts | last: 2026-04-19 (36d stale) | ⚠️ |
+| reviews | 3 total; last: 2026-05-14 (11d stale) | ⚠️ |
+| social-assets bucket | 26 files | ✅ |
 | BOI Social Automation | Success (02:50 UTC) | ✅ |
-| radar-pipeline | Success (02:35 UTC) | ✅ |
+| radar-pipeline | Success (2026-05-24T18:38 UTC) | ✅ |
 | Scrape Store Prices | Success (last: May 24 19:18 UTC) | ✅ |
 | Netlify deploys | All green | ✅ |
 
@@ -258,18 +266,19 @@ System health check (verified):
 - Last audit: today → 0
 - Voice test pending > 14 days → -5
 - GEO score 26 < 50 → -5
-- Blocked pipeline (WEB-05/06 P1 not started, Fan CoLab on critical path) → -5
+- Blocked pipeline (WEB-06 P1 not started; WEB-05 ✅ shipped) → -5
 - Content staleness (16d /news, 36d /blog) → -5
 - **Health score: 80**
 
-**Last commit this session:** `8f227b1`
+**Last commit this session:** `eb8a049`
 
 Pending (carry-overs):
-- **Content freshness** — /news 16 days stale, /blog 36 days stale. Operator visit to `/admin/pending` needed immediately.
-- **Sitemap /lab fix** — /lab pages were missing from sitemap.xml. Fixed 2026-05-25 in sitemap.ts.
-- **Fan CoLab critical path** — WEB-05 `/guides` + WEB-06 `/community` must ship by June 7. See `docs/FAN_COLAB_TIMELINE.md`.
+- **Content freshness** — /news 16 days stale, /blog 36 days stale. 312 approved signals at `/admin/pending` need Generate Article + Publish clicks.
+- **Guides migration** — run `supabase/migrations/20260525000000_guides.sql` in Supabase dashboard SQL editor before publishing any guides.
+- **WEB-06 /community** — Fan CoLab critical path, due June 7. Not yet started.
 - **LAB-06** — `/lab/deals` frontend. 1 session, backend already live.
 - **IG System User Token** — permanent token via Meta Business Manager. Current 60-day token expires ~2026-07-23.
+- **GSC setup** — manual: verify bricksofindia.com in Google Search Console, submit sitemap, request indexing for 10 key pages.
 
 ---
 

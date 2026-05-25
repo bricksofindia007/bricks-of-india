@@ -556,29 +556,29 @@
 {
   "meta": {
     "lastUpdated": "2026-05-25",
-    "trackerVersion": "v1.5",
-    "currentSprint": "Day 25 — System audit done. 3 sets posted. Fan CoLab critical path begins: WEB-05 + WEB-06 by June 7."
+    "trackerVersion": "v1.6",
+    "currentSprint": "Day 25 — WEB-05 /guides shipped. RADAR root cause documented. Image dedup fixed. WEB-06 /community next."
   },
   "kpis": {
     "healthScore": 80,
-    "healthScoreNote": "SOC-AUTO-01 live (3 runs). Content staleness critical (−5): /news 16d stale, /blog 36d stale — operator visit to /admin/pending needed. Fan CoLab WEB-05/06 not started (−5). GEO 26 < 50 (−5). Voice test still pending (−5).",
+    "healthScoreNote": "SOC-AUTO-01 live (3 runs). WEB-05 shipped. Content staleness (−5): /news 16d, /blog 36d — 312 approved signals need Generate+Publish. WEB-06 not started (−5). GEO 26 < 50 (−5). Voice test still pending (−5).",
     "openP0": 0,
     "openP1": 0,
     "netlifyMinutesLeft": 9999,
     "netlifyResetDate": "2026-06-22",
-    "daysSinceLastDeploy": 1,
-    "lastDeployDate": "2026-05-24",
-    "lastDeployCommit": "Day 24–25 · SOC-AUTO-01 shipped. 5 critical fixes. YouTube Shorts text overlays. Carousel FINISHED polling. 3 sets posted.",
+    "daysSinceLastDeploy": 0,
+    "lastDeployDate": "2026-05-25",
+    "lastDeployCommit": "eb8a049 · WEB-05 /guides route. Hero image dedup fix. RADAR_FAILURE_REPORT.md. TypeScript clean.",
     "voiceTestStatus": "Pending",
     "geoScore": 26,
     "geoScoreTarget": 75,
     "lastAuditDate": "2026-05-25",
     "nextAuditDate": "2026-06-25",
     "nextActions": [
-      "URGENT: Visit /admin/pending — approve + generate + publish ≥3 news articles (/news 16d stale)",
-      "Investigate Scrape Store Prices failure (2026-05-25 02:40 UTC)",
-      "WEB-05 /guides + WEB-06 /community routes — build by June 7 (Fan CoLab critical path)",
-      "LAB-06 /lab/deals frontend — 1 session, backend already live",
+      "URGENT: Visit /admin/pending — 312 approved signals need Generate Article + Publish (/news 16d stale, /blog 36d stale)",
+      "Run guides migration in Supabase dashboard SQL editor (supabase/migrations/20260525000000_guides.sql)",
+      "WEB-06 /community route — build by June 7 (Fan CoLab critical path)",
+      "GSC setup: verify bricksofindia.com, submit sitemap.xml, request indexing for 10 key pages",
       "IG token re-exchange by 2026-07-16 (expires ~2026-07-23)"
     ],
     "openManualChecks": [
@@ -630,7 +630,7 @@
     { "id": "PERF-01", "title": "Evaluate Cloudflare edge caching for article pages", "category": "Infrastructure", "status": "scheduled", "priority": "P3", "depsBlock": [], "blocks": [], "notes": "Currently cf-cache-status: DYNAMIC — Cloudflare is proxy-only, not caching. Article pages could be cached at edge to reduce ~775ms origin latency to ~10ms. Interacts with Next.js ISR; needs careful TTL tuning to avoid stale article content. Defer until after RADAR-01 and WEB-01 ship." },
     { "id": "RADAR-08", "title": "Automated reviews generation pipeline", "category": "Content OS", "status": "pending", "priority": "P2", "depsBlock": [], "blocks": ["RLFM-01"], "notes": "Briefed 2026-05-14. Reduce manual dependency — target 5+ Codex-compliant reviews/week. Requires: (a) reviews format added to RADAR-03 classifier, (b) generateArticle() extended to publish to reviews table with set_id UUID lookup, (c) hero_image from Rebrickable CDN, (d) lint Gate 3 verdict enforcement already in place. Blocks RLFM at scale." },
     { "id": "SOC-AUTO-01", "title": "Social automation pipeline — IG carousel + Reels + YouTube Shorts", "category": "Social", "status": "done", "priority": "P1", "depsBlock": [], "blocks": ["RLFM-01"], "notes": "Done 2026-05-24. social-automation/pipeline.py — daily cron 06:30 UTC (12:00 IST). Three platforms: IG Feed (8-image carousel), IG Reels (8s), YouTube Shorts (45s with text overlays). India defense layer: is_available_in_india() checks store_prices before posting. Source-aware captions. 3 sets posted: 11377-1, 76342-1, 75641-1. Run 3 blocked 4 India-available sets." },
-    { "id": "WEB-05", "title": "/guides route — index + [slug] pages", "category": "Website", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["CE-02", "CE-05"], "notes": "Fan CoLab requirement: 8 articles live at /guides by August 2026. Route must exist by June 7 to allow 10+ weeks of CE-02 content production. Reuse blog_posts table with category=guide filter. Effort: 1 session." },
+    { "id": "WEB-05", "title": "/guides route — index + [slug] pages", "category": "Website", "status": "done", "priority": "P1", "depsBlock": [], "blocks": ["CE-02", "CE-05"], "notes": "Shipped 2026-05-25. guides table migration in supabase/migrations/20260525000000_guides.sql — run manually in dashboard. Commit eb8a049." },
     { "id": "WEB-06", "title": "/community route — index + [slug] pages", "category": "Website", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["CE-01"], "notes": "Fan CoLab requirement: 2+ spotlights at /community by August 2026. Route must exist by June 7. New community_spotlights table. Effort: 1 session." }
   ],
   "auditChecklist": [
