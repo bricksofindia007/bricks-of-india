@@ -469,7 +469,7 @@ export async function publishDraft(formData: FormData) {
   }
 
   // Fetch OG image from source — 5s timeout, fall back to null gracefully
-  const heroImage = await fetchOgImage(draft.source_url);
+  let heroImage = await fetchOgImage(draft.source_url);
   console.log(`[publish] source_url=${draft.source_url} og_image_found=${!!heroImage} image_url=${heroImage?.slice(0, 80) ?? 'none'}`);
 
   // Gate 4 — verify hero image URL returns HTTP 200 (fetchOgImage extracts the URL but does
@@ -486,6 +486,16 @@ export async function publishDraft(formData: FormData) {
       if (err.message?.startsWith('[Gate 4 FAIL]')) throw err;
       // Network error (timeout, DNS failure) — WARN only, proceed without blocking publish
       console.warn(`[Gate 4 WARN] Could not verify hero image (${err.message}) — proceeding.`);
+    }
+  }
+
+  // Dedup guard — if this exact image URL is already in use in the target table, drop it
+  // rather than repeating the same hero image across multiple articles.
+  if (heroImage) {
+    const { data: imgConflict } = await supabase.from(table).select('id').eq('hero_image', heroImage).maybeSingle();
+    if (imgConflict) {
+      console.warn(`[publish] hero image already used in ${table} — skipping to avoid repetition`);
+      heroImage = null;
     }
   }
 
