@@ -1,7 +1,7 @@
 # Content Engine — Status
 
-**Last updated:** 2026-05-24  
-**Fan CoLab deadline:** August 2026 (~13 weeks)
+**Last updated:** 2026-05-25  
+**Fan CoLab deadline:** August 2026 (~12 weeks)
 
 ---
 
@@ -88,7 +88,7 @@ The Content Engine (CE) is the long-form + community + social content layer that
 
 ## Fan CoLab dependency timeline
 
-**Application deadline: August 2026 (~13 weeks from 2026-05-24)**
+**Application deadline: August 2026 (~12 weeks from 2026-05-25)**
 
 | Item | Requirement | Weeks available | Effort |
 |------|-------------|-----------------|--------|

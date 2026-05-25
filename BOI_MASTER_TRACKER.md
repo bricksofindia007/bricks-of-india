@@ -2,7 +2,7 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-24 (Day 24 — SOC-AUTO-01 LIVE, first run completed, full system audit docs written)
+> **Last updated:** 2026-05-25 (Day 25 — system health check, docs updated, run history 3 sets posted)
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -227,6 +227,51 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### Day 25 — 2026-05-25 — System health check + docs
+
+Shipped:
+- **Full system audit docs** — 7 files updated + 2 new files created: `docs/FAN_COLAB_TIMELINE.md` (new — August 2026 deadline tracker, 12-week critical path), `docs/SESSION_MAY24_SUMMARY.md` (new — session record), `docs/SOCIAL_AUTOMATION_STATUS.md` (India defense layer, text overlays, carousel polling fix, run history), `docs/CONTENT_PIPELINE_AUDIT.md` (16d /news stale, 36d /blog stale), `docs/LAB_ROADMAP.md` (23 days snapshot data), `docs/CONTENT_ENGINE_STATUS.md` (12w to Fan CoLab), `docs/WEBSITE_SECTIONS_TODO.md` (FAN_COLAB_TIMELINE.md link added).
+- **Third pipeline run** — 75641-1 Dr. Hiriluk's Hideout (One Piece). India check blocked 4 sets: 75441-1, 31385-1, 76343-1, 31376-1. All 3 platforms posted (posted_sets row 3). Run ~02:57 UTC.
+
+System health check (verified):
+
+| Metric | Value | Status |
+|--------|-------|--------|
+| posted_sets | 3 rows | ✅ |
+| store_prices | 1,955 rows | ✅ |
+| price_snapshots | 20,820 total | ✅ |
+| raw_signals | 7,403 total; latest 2026-05-24T18:39 UTC | ✅ |
+| pending_drafts (draft) | 308 | ⚠️ Needs operator publish |
+| pending_drafts (approved) | 9 | — |
+| pending_drafts (published) | 4 | — |
+| BOI Social Automation | Success (02:50 UTC) | ✅ |
+| radar-pipeline | Success (02:35 UTC) | ✅ |
+| Scrape Store Prices | **Failure (02:40 UTC)** | ⚠️ |
+| Netlify deploys | All green | ✅ |
+
+**Health score recomputation (2026-05-25):**
+- Start: 100
+- P0 issues open: 0 → 0
+- P1 issues open: 0 formal P1 bugs → 0
+- Netlify minutes: unlimited (off Netlify build pipeline) → 0
+- Last audit: today → 0
+- Voice test pending > 14 days → -5
+- GEO score 26 < 50 → -5
+- Blocked pipeline (WEB-05/06 P1 not started, Fan CoLab on critical path) → -5
+- Content staleness (16d /news, 36d /blog) → -5
+- **Health score: 80**
+
+**Last commit this session:** to be updated after this docs commit.
+
+Pending (carry-overs):
+- **Content freshness** — /news 16 days stale, /blog 36 days stale. Operator visit to `/admin/pending` needed immediately.
+- **Scrape Store Prices failure** — 2026-05-25 02:40 UTC run. Investigate cause (transient network issue vs. store site change).
+- **Fan CoLab critical path** — WEB-05 `/guides` + WEB-06 `/community` must ship by June 7. See `docs/FAN_COLAB_TIMELINE.md`.
+- **LAB-06** — `/lab/deals` frontend. 1 session, backend already live.
+- **IG System User Token** — permanent token via Meta Business Manager. Current 60-day token expires ~2026-07-23.
+
+---
 
 ### Day 24 — 2026-05-24 — SOC-AUTO-01 live + system audit
 

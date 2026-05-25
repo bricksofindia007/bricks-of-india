@@ -555,34 +555,35 @@
 <script id="boi-data" type="application/json">
 {
   "meta": {
-    "lastUpdated": "2026-05-14",
-    "trackerVersion": "v1.4",
-    "currentSprint": "Day 14 CLOSE — REVIEWS-FIRST-3 done, GEO-01-FU1 unblocked, RADAR-08 logged"
+    "lastUpdated": "2026-05-25",
+    "trackerVersion": "v1.5",
+    "currentSprint": "Day 25 — System audit done. 3 sets posted. Fan CoLab critical path begins: WEB-05 + WEB-06 by June 7."
   },
   "kpis": {
-    "healthScore": 95,
-    "healthScoreNote": "DEFECT-005 closed — no open P0s or P1s. Sole active deduction: GEO score 26 < 50 (−5). All pipelines green. Next: CONTENT-02 workbench setup.",
+    "healthScore": 80,
+    "healthScoreNote": "SOC-AUTO-01 live (3 runs). Content staleness critical (−5): /news 16d stale, /blog 36d stale — operator visit to /admin/pending needed. Fan CoLab WEB-05/06 not started (−5). GEO 26 < 50 (−5). Voice test still pending (−5).",
     "openP0": 0,
     "openP1": 0,
     "netlifyMinutesLeft": 9999,
-    "netlifyResetDate": "2026-05-22",
-    "daysSinceLastDeploy": 0,
-    "lastDeployDate": "2026-05-14",
-    "lastDeployCommit": "Day 14 · 3 Codex reviews live, REVIEWS-FIRST-3 closed, RADAR-08 logged",
+    "netlifyResetDate": "2026-06-22",
+    "daysSinceLastDeploy": 1,
+    "lastDeployDate": "2026-05-24",
+    "lastDeployCommit": "Day 24–25 · SOC-AUTO-01 shipped. 5 critical fixes. YouTube Shorts text overlays. Carousel FINISHED polling. 3 sets posted.",
     "voiceTestStatus": "Pending",
     "geoScore": 26,
     "geoScoreTarget": 75,
-    "lastAuditDate": "2026-05-01",
-    "nextAuditDate": "2026-06-01",
+    "lastAuditDate": "2026-05-25",
+    "nextAuditDate": "2026-06-25",
     "nextActions": [
-      "GEO-01-FU1 — verify buildReviewSchema() on /reviews/lego-42172-mclaren-p1-review after 2026-05-22 deploy",
-      "CONTENT-02 — set up Claude Project workbench (load BOI_Codex_v2.docx as project knowledge)",
-      "RADAR-08 — scope automated reviews pipeline (reviews format in classifier, set_id UUID lookup, Rebrickable hero_image)",
-      "LAB-05 Price Drop Board — eligible ~2026-06-01 (30 days of snapshot data accumulating)"
+      "URGENT: Visit /admin/pending — approve + generate + publish ≥3 news articles (/news 16d stale)",
+      "Investigate Scrape Store Prices failure (2026-05-25 02:40 UTC)",
+      "WEB-05 /guides + WEB-06 /community routes — build by June 7 (Fan CoLab critical path)",
+      "LAB-06 /lab/deals frontend — 1 session, backend already live",
+      "IG token re-exchange by 2026-07-16 (expires ~2026-07-23)"
     ],
     "openManualChecks": [
-      "Verify /reviews page renders all 3 reviews after next deploy",
-      "Verify review JSON-LD (Review + Product schema) on /reviews/[slug] after deploy"
+      "Confirm Scrape Store Prices failure root cause and fix",
+      "Verify daily cron fires at 12:00 IST and posts successfully"
     ]
   },
   "issues": [
@@ -604,7 +605,7 @@
     { "id": "GEO-02", "title": "Cloudflare AI Crawl Control — per-crawler WAF allow/block", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-01 (manual, by founder in Cloudflare dashboard). 9 search/assistant bots allowed; 13 training-only bots blocked at WAF. Declared policy aligned via ROBOTS-01 (commit e1054e1)." },
     { "id": "ROBOTS-01", "title": "Align app/robots.ts with Cloudflare AI Crawl Control policy", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": ["GEO-02"], "blocks": [], "notes": "Done 2026-05-01 (commit e1054e1). src/app/robots.ts now declares same allow/block list as Cloudflare WAF. Verified live: GPTBot Disallow:/, PerplexityBot Allow:/, Sitemap present." },
     { "id": "LAB-01", "title": "Biryani Index calculator at /lab/biryani-index", "category": "Lab", "status": "done", "priority": "P2", "depsBlock": [], "blocks": ["LAB-04"], "notes": "Shipped 2026-05-01 (merge commit be8f134). Converts any LEGO set price into biryani/chai/petrol/PVR equivalents. Reference prices last refreshed 2026-04-26 — refresh quarterly." },
-    { "id": "LAB-02", "title": "Which Set Are You? (quiz)", "category": "Lab", "status": "pending", "priority": "P2", "depsBlock": ["LAB-01"], "blocks": ["LAB-04"], "notes": "Personality quiz mapping LEGO set themes to user archetypes. Brief at briefs/LAB-02-which-set-quiz.md." },
+    { "id": "LAB-02", "title": "Which Set Are You? (quiz)", "category": "Lab", "status": "done", "priority": "P2", "depsBlock": ["LAB-01"], "blocks": ["LAB-04"], "notes": "Done 2026-05-10. /lab/which-set live. 5 questions, 8 outcomes, store links with ABHINAV12 code." },
     { "id": "LAB-03", "title": "Daily price snapshot cron", "category": "Lab", "status": "done", "priority": "P1", "depsBlock": [], "blocks": ["LAB-05"], "notes": "Done 2026-05-02. 724 snapshots/day, 08:30 IST cron. Phase 5 verified by operator. LAB-05 eligible 2026-06-01 (30 days runway). Brief at briefs/LAB-03-price-snapshot-cron.md." },
     { "id": "LAB-04", "title": "Lab homepage strip + nav + /lab directory", "category": "Lab", "status": "done", "priority": "P2", "depsBlock": ["LAB-01"], "blocks": [], "notes": "Done 2026-05-02. /lab directory live, homepage strip + nav dropdown shipped. Fixes /lab 404. LAB-02 staged as coming_soon in src/lib/lab-tools.ts. Brief at briefs/LAB-04-homepage-strip.md." },
     { "id": "CF-CACHE-01", "title": "Diagnose and fix 2.31% Cloudflare cache rate", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-02 (commit 6229d99). Cache-Control headers added per route type in next.config.mjs: /sets/* long (3600), /news+/blog+/reviews short (300), /admin no-store, /sitemap.xml medium. Target: 2.3% → 40%+ hit rate — verify in Cloudflare analytics 24h post-deploy." },
@@ -627,7 +628,10 @@
     { "id": "INSIDERS-01", "title": "LEGO Insiders points reconciliation", "category": "Brand", "status": "pending", "priority": "P3", "depsBlock": [], "blocks": ["RLFM application"], "notes": "Member #811205769 — zero points despite purchase history; founder credibility issue" },
     { "id": "RLFM-01", "title": "LAN RLFM application draft", "category": "Brand", "status": "scheduled", "priority": "P3", "depsBlock": [], "blocks": [], "notes": "Apply at one-year mark with live stats" },
     { "id": "PERF-01", "title": "Evaluate Cloudflare edge caching for article pages", "category": "Infrastructure", "status": "scheduled", "priority": "P3", "depsBlock": [], "blocks": [], "notes": "Currently cf-cache-status: DYNAMIC — Cloudflare is proxy-only, not caching. Article pages could be cached at edge to reduce ~775ms origin latency to ~10ms. Interacts with Next.js ISR; needs careful TTL tuning to avoid stale article content. Defer until after RADAR-01 and WEB-01 ship." },
-    { "id": "RADAR-08", "title": "Automated reviews generation pipeline", "category": "Content OS", "status": "pending", "priority": "P2", "depsBlock": [], "blocks": ["RLFM-01"], "notes": "Briefed 2026-05-14. Reduce manual dependency — target 5+ Codex-compliant reviews/week. Requires: (a) reviews format added to RADAR-03 classifier, (b) generateArticle() extended to publish to reviews table with set_id UUID lookup, (c) hero_image from Rebrickable CDN, (d) lint Gate 3 verdict enforcement already in place. Blocks RLFM at scale." }
+    { "id": "RADAR-08", "title": "Automated reviews generation pipeline", "category": "Content OS", "status": "pending", "priority": "P2", "depsBlock": [], "blocks": ["RLFM-01"], "notes": "Briefed 2026-05-14. Reduce manual dependency — target 5+ Codex-compliant reviews/week. Requires: (a) reviews format added to RADAR-03 classifier, (b) generateArticle() extended to publish to reviews table with set_id UUID lookup, (c) hero_image from Rebrickable CDN, (d) lint Gate 3 verdict enforcement already in place. Blocks RLFM at scale." },
+    { "id": "SOC-AUTO-01", "title": "Social automation pipeline — IG carousel + Reels + YouTube Shorts", "category": "Social", "status": "done", "priority": "P1", "depsBlock": [], "blocks": ["RLFM-01"], "notes": "Done 2026-05-24. social-automation/pipeline.py — daily cron 06:30 UTC (12:00 IST). Three platforms: IG Feed (8-image carousel), IG Reels (8s), YouTube Shorts (45s with text overlays). India defense layer: is_available_in_india() checks store_prices before posting. Source-aware captions. 3 sets posted: 11377-1, 76342-1, 75641-1. Run 3 blocked 4 India-available sets." },
+    { "id": "WEB-05", "title": "/guides route — index + [slug] pages", "category": "Website", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["CE-02", "CE-05"], "notes": "Fan CoLab requirement: 8 articles live at /guides by August 2026. Route must exist by June 7 to allow 10+ weeks of CE-02 content production. Reuse blog_posts table with category=guide filter. Effort: 1 session." },
+    { "id": "WEB-06", "title": "/community route — index + [slug] pages", "category": "Website", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["CE-01"], "notes": "Fan CoLab requirement: 2+ spotlights at /community by August 2026. Route must exist by June 7. New community_spotlights table. Effort: 1 session." }
   ],
   "auditChecklist": [
     {
@@ -746,6 +750,7 @@
     { "feature": "Light health check", "frequency": "Weekly (Sunday)", "mode": "manual", "owner": "Abhinav (proposed)", "notes": "Run audit checklist groups: Uptime, Functional CTAs, Pipeline" },
     { "feature": "Deep audit", "frequency": "Monthly", "mode": "manual", "owner": "Abhinav (proposed)", "notes": "Full checklist incl. GEO, performance, security" },
     { "feature": "GEO score re-baseline", "frequency": "Quarterly", "mode": "manual", "owner": "Abhinav (proposed)", "notes": "Independent re-run of original GEO audit" },
+    { "feature": "Social automation (BOI Social Automation)", "frequency": "Daily 06:30 UTC (12:00 IST)", "mode": "auto", "owner": "GitHub Actions — social-automation.yml", "notes": "Live since 2026-05-24. Selects new LEGO set → generates 10 product images + Reels video + Shorts video → posts to IG Feed, IG Reels, YouTube Shorts. India defense check prevents sets already in Indian stores from posting. Monitoring via Resend success/failure email." },
     { "feature": "Affiliate link integrity sweep", "frequency": "Weekly (proposed)", "mode": "manual", "owner": "Abhinav", "notes": "Confirm Toycra code resolves and merchant URLs alive" },
     { "feature": "API key + access review", "frequency": "Quarterly", "mode": "manual", "owner": "Abhinav", "notes": "Repo, Netlify, Cloudflare, Supabase, Rebrickable, Brickset" },
     { "feature": "Cloudflare 2FA + access review", "frequency": "Quarterly", "mode": "manual", "owner": "Abhinav", "notes": "Same review pass as other API key/access audits" }

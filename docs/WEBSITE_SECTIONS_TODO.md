@@ -1,6 +1,6 @@
 # Website Sections — Build Queue
 
-**Last updated:** 2026-05-24
+**Last updated:** 2026-05-25
 
 These routes do not exist yet. All are blocked until sufficient content exists to populate them, but the routes themselves should be built before the content is written — otherwise content creation is blocked on engineering.
 
@@ -78,4 +78,4 @@ LAB-06 /lab/deals ──────► CE-06 (Deals Alert IG Story)
 2. **LAB-06** in one session (backend already live — purely frontend)
 3. **WEB-07** as a quick add-on when CE-03 is being planned
 
-Target: WEB-05 + WEB-06 shipped by 2026-06-07 (2 weeks) to allow 10+ weeks of CE content production before Fan CoLab deadline.
+Target: WEB-05 + WEB-06 shipped by 2026-06-07 (2 weeks) to allow 10+ weeks of CE content production before Fan CoLab deadline. See `docs/FAN_COLAB_TIMELINE.md` for week-by-week schedule.

@@ -1,8 +1,8 @@
 # Social Automation Pipeline — Status
 
 **ID:** SOC-AUTO-01  
-**Status:** LIVE — first run completed 2026-05-24  
-**Last updated:** 2026-05-24
+**Status:** LIVE — 3 successful runs (latest: 75641-1, 2026-05-25)  
+**Last updated:** 2026-05-25
 
 ---
 
@@ -49,9 +49,10 @@ Merge strategy: Rebrickable wins on part count + image URL. Brickset fills: usd_
 2. Filter: `_is_genuinely_new()` — availability in {Not yet available, Available soon} OR us/uk release date in future OR on shelves within 14 days
 3. Filter: not already in `posted_sets` Supabase table
 4. Filter: remove Rebrickable placeholder names (start with `{`)
-5. Sort: highest part count first
-6. Gallery enrichment: for each candidate, fetch Brickset additional images; skip if < 10 images
-7. Select: first candidate with ≥ 10 gallery images
+5. **India defense check:** `db.is_available_in_india(set_num)` — queries `store_prices` by bare set number. If any row exists, set is already in Indian stores → skip. Fails open. [First proven effective in run 3 — blocked 75441-1, 31385-1, 76343-1, 31376-1.]
+6. Sort: highest part count first
+7. Gallery enrichment: for each candidate, fetch Brickset additional images; skip if < 10 images
+8. Select: first candidate with ≥ 10 gallery images
 
 ---
 
@@ -77,6 +78,10 @@ Merge strategy: Rebrickable wins on part count + image URL. Brickset fills: usd_
 - Crossfade: 0.5s
 - Music: `assets/background_music.mp4` at 20% volume, looped/trimmed to 45s
 - Resolution: 1080×1920, 30fps, H.264/AAC
+- **Text overlays (PIL, composited via numpy alpha blend):**
+  - Slides 1–9: set name (65px white, stroke, y=80), info line `Set #X · N pieces · $Y` (38px saffron `#F7A800`, below name), theme (34px white, y=1700). All text in blurred background areas above the product image zone.
+  - Slide 10 (stats card): "COMING SOON / TO INDIA 🇮🇳" (source=lego_coming_soon) or "NEW AT / BRICKSOFINDIA.COM" (source=rebrickable/brickset) at y=1540 in navy area below card.
+  - Zero pixels composited in product image zone (y 420–1500) — verified via pixel zone analysis.
 
 ---
 
@@ -85,8 +90,9 @@ Merge strategy: Rebrickable wins on part count + image URL. Brickset fills: usd_
 ### Instagram carousel
 - 8 images: `image_urls[:7] + [image_urls[-1]]` (7 gallery + stats card)
 - API: Meta Graph API v19.0
-- Flow: create 8 child containers (2s delay between each) → create CAROUSEL parent → publish
+- Flow: create 8 child containers (2s delay between each) → create CAROUSEL parent → **poll for FINISHED** (every 5s, max 18 attempts / 90s) → publish
 - Caption: Gemini Flash Lite generated (Jeremy Clarkson + Indian wallet anxiety voice)
+- Note: carousel parent requires FINISHED poll before publish (same as Reels). Error 9007 "Media ID not available" fires without it.
 
 ### Instagram Reels
 - Video URL from Supabase Storage (public bucket)
@@ -117,7 +123,9 @@ Local `tmp/` files are deleted after successful upload.
 **Model:** Gemini 2.5 Flash Lite  
 **Voice:** Jeremy Clarkson meets Indian wallet anxiety — dry, witty, precise. Opens with Indian hook (chai/traffic/EMIs/cricket), pivots to LEGO. Wallet is always a character.  
 **Retry:** 3 attempts with 30/60/90s back-off on Gemini 503 capacity errors.  
-**Fixed footer:** "🛑 Please do not ask when this set releases in India. I don't know. LEGO doesn't know. Nobody knows. One day it will come. One day. 🤫"
+**Source-aware footer:**
+- `lego_coming_soon` / `lego_com`: DISCLAIMER — "🛑 Please do not ask when this set releases in India. I don't know. LEGO doesn't know. Nobody knows. One day it will come. One day. 🤫"
+- `rebrickable` / `brickset`: NEUTRAL_SIGN_OFF — "🧱 Follow Bricks of India for LEGO news, prices & deals in India. Link in bio. #LEGOIndia #BricksofIndia"
 
 ---
 
@@ -144,26 +152,26 @@ Local `tmp/` files are deleted after successful upload.
 
 | ID | Issue | Severity | Status |
 |----|-------|----------|--------|
-| — | LEGO.com Cloudflare block | Medium | Accepted. Rebrickable/Brickset fallback works reliably. |
-| — | Minas Tirith (11377-1) not yet posted | Low | Highest part count set in candidate pool. Will be selected on next non-duplicate run. |
+| — | LEGO.com Cloudflare block | Medium | Accepted. Rebrickable/Brickset fallback works reliably. India check is the real safety layer. |
+| — | Scrape Store Prices failure 2026-05-25 02:40 UTC | Low | Investigate — may be transient. Price data current from previous run (1955 rows). |
 
 ---
 
-## First run evidence
+## Run history
 
-- **Date:** 2026-05-24
-- **Set:** 76342-1 — Spider-Man vs. Mysterio: The Daily Bugle (861 parts)
-- **Gallery:** 26 images via Brickset API
-- **IG carousel:** Media ID `17888047680551486`
-- **IG Reels:** Media ID `18104097262983341`
-- **YouTube:** Video ID `Mgm28GniPmk`
-- **posted_sets row:** ID 2
+| Row | Set | Date (UTC) | India check result | IG Feed | IG Reels | YouTube |
+|-----|-----|------------|-------------------|---------|---------|---------|
+| 1 | 11377-1 — Minas Tirith | 2026-05-24 13:10 | Pre-fix (not active) | ✅ | ✅ | ✅ |
+| 2 | 76342-1 — Daily Bugle | 2026-05-24 17:58 | Active (no blocks) | ✅ | ✅ | ✅ |
+| 3 | 75641-1 — Dr. Hiriluk's Hideout | 2026-05-25 02:57 | **4 sets blocked** | ✅ | ✅ | ✅ |
+
+Run 3 India check blocked: 75441-1, 31385-1, 76343-1, 31376-1
 
 ---
 
 ## Next actions
 
-1. Monitor first 48h — check IG + YouTube posts are visible and formatted correctly
-2. Confirm cron fires automatically on 2026-05-25 at 12:00 IST
-3. Set calendar reminder to re-exchange IG token before 2026-07-16 (7 days before expiry)
-4. Set up IG System User Token for permanent non-expiring access (deferred, low urgency while 60-day token is active)
+1. Investigate Scrape Store Prices failure (02:40 UTC 2026-05-25)
+2. Set calendar reminder to re-exchange IG token before 2026-07-16 (7 days before ~2026-07-23 expiry)
+3. Set up IG System User Token for permanent non-expiring access (deferred, low urgency while 60-day token is active)
+4. Monitor daily cron posts for correct text overlay rendering on mobile

@@ -1,6 +1,6 @@
 # The Lab — Roadmap
 
-**Last updated:** 2026-05-24  
+**Last updated:** 2026-05-25  
 **Live tools:** 4 of 8 (LAB-01, LAB-02, LAB-03/04, LAB-07)
 
 ---
@@ -32,7 +32,7 @@ Converts LEGO price to equivalent biryani plates / chai cups / petrol litres. La
 
 ### LAB-03: Daily Price Snapshot Cron
 **Route:** N/A (background cron)  
-Writes `price_snapshots` table daily at 08:30 IST. ~724 snapshots/day. Running since 2026-05-02 — 22 days of data as of 2026-05-24. Eligible for price-drop analysis from ~2026-06-01. Unblocks LAB-05.
+Writes `price_snapshots` table daily at 08:30 IST. ~724 snapshots/day. Running since 2026-05-02 — 23 days of data as of 2026-05-25 (20,820 total snapshots). Eligible for price-drop analysis from ~2026-06-01. Unblocks LAB-05.
 
 ### LAB-04: Lab Homepage + Nav
 **Route:** `/lab`  

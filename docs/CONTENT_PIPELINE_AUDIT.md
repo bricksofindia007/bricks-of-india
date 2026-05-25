@@ -1,6 +1,6 @@
 # Content Pipeline Audit
 
-**Audit date:** 2026-05-24  
+**Audit date:** 2026-05-25  
 **Auditor:** Claude Code session
 
 ---
@@ -24,13 +24,13 @@
 
 | Section | Last updated | Staleness | Severity |
 |---------|-------------|-----------|----------|
-| /news | 2026-05-09 | 15 days | **CRITICAL** |
-| /reviews | 2026-05-14 | 10 days | OK — manual cadence, expected |
-| /blog | 2026-04-19 | 35 days | **CRITICAL** |
+| /news | 2026-05-09 | 16 days | **CRITICAL** |
+| /reviews | 2026-05-14 | 11 days | OK — manual cadence, expected |
+| /blog | 2026-04-19 | 36 days | **CRITICAL** |
 
-### /news — 15 days stale (CRITICAL)
+### /news — 16 days stale (CRITICAL)
 
-RADAR-01/02/03 cron has been running daily since 2026-05-09. Signals are being ingested and classified into `pending_drafts`. However, no new articles have appeared on `/news` since 2026-05-09.
+RADAR-01/02/03 cron has been running daily since 2026-05-09. Signals are being ingested and classified into `pending_drafts` (308 draft, 9 approved as of 2026-05-25). However, no new articles have appeared on `/news` since 2026-05-09.
 
 **Root cause — under investigation.** Possible causes:
 1. RADAR-04 is on-demand only — no articles generated since last operator session
@@ -42,7 +42,7 @@ RADAR-01/02/03 cron has been running daily since 2026-05-09. Signals are being i
 
 **Action needed:** Operator visit to `/admin/pending` to review pending_drafts → approve → generate bodies → publish. Target: ≥3 news articles published by 2026-05-31.
 
-### /blog — 35 days stale (CRITICAL)
+### /blog — 36 days stale (CRITICAL)
 
 Last blog post was 2026-04-19. Blog pipeline (RADAR-05 targeting `blog_posts`) has not produced output in 35 days.
 
