@@ -262,7 +262,7 @@ System health check (verified):
 - Content staleness (16d /news, 36d /blog) → -5
 - **Health score: 80**
 
-**Last commit this session:** to be updated after this docs commit.
+**Last commit this session:** `8f227b1`
 
 Pending (carry-overs):
 - **Content freshness** — /news 16 days stale, /blog 36 days stale. Operator visit to `/admin/pending` needed immediately.
