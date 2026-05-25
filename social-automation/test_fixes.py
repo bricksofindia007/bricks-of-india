@@ -130,27 +130,62 @@ def test_3_caption_logic():
         check('rebrickable caption generation', False, str(exc))
 
 
-# ─── Test 4: YouTube removed from publisher ──────────────────────────────────
+# ─── Test 4: YouTube Shorts with text overlays ───────────────────────────────
 
 def test_4_youtube_removed():
-    print('\n=== Test 4: YouTube removed (FIX 4) ===')
+    print('\n=== Test 4: YouTube Shorts + text overlay wiring ===')
     import publisher
     import media_processor
+    import numpy as np
 
+    # publisher must have post_youtube_shorts
     has_yt_publisher = hasattr(publisher, 'post_youtube_shorts')
-    check('publisher.post_youtube_shorts does NOT exist', not has_yt_publisher,
-          'FIX 4: YouTube Shorts removed from publisher')
+    check('publisher.post_youtube_shorts exists', has_yt_publisher,
+          'YouTube Shorts restored to publisher')
 
+    # media_processor must have process_shorts_video
     has_yt_media = hasattr(media_processor, 'process_shorts_video')
-    check('media_processor.process_shorts_video does NOT exist', not has_yt_media,
-          'FIX 4: process_shorts_video removed from media_processor')
+    check('media_processor.process_shorts_video exists', has_yt_media,
+          'process_shorts_video with text overlays added')
 
-    # pipeline.py should not reference yt_shorts
+    # pipeline.py must reference yt_shorts and process_shorts_video
     pipeline_src = Path(__file__).parent / 'pipeline.py'
     pipeline_text = pipeline_src.read_text(encoding='utf-8')
-    has_yt_in_pipeline = 'yt_shorts' in pipeline_text or 'post_youtube_shorts' in pipeline_text
-    check('pipeline.py has no YouTube references', not has_yt_in_pipeline,
-          'FIX 4: pipeline.py cleaned of yt_shorts / post_youtube_shorts')
+    check('pipeline.py references yt_shorts',
+          'yt_shorts' in pipeline_text,
+          'pipeline wires up YouTube platform flag')
+    check('pipeline.py calls process_shorts_video',
+          'process_shorts_video' in pipeline_text,
+          'pipeline calls shorts video generator')
+
+    # Overlay pre-render must produce non-zero RGBA for both slide types
+    W, H = 1080, 1920
+    sample_set = {
+        'set_num': '99999-1', 'name': 'Test Set', 'theme': 'Technic',
+        'num_parts': 1234, 'usd_price': 99.99, 'source': 'lego_coming_soon',
+    }
+    overlay_product = media_processor._make_shorts_text_overlay(W, H, sample_set, is_stats=False)
+    overlay_stats   = media_processor._make_shorts_text_overlay(W, H, sample_set, is_stats=True)
+
+    product_alpha_px = int((overlay_product[:, :, 3] > 0).sum())
+    stats_alpha_px   = int((overlay_stats[:, :, 3] > 0).sum())
+
+    check('Product slide overlay has text pixels', product_alpha_px > 0,
+          f'{product_alpha_px:,} non-transparent px')
+    check('Stats card overlay has text pixels', stats_alpha_px > 0,
+          f'{stats_alpha_px:,} non-transparent px')
+
+    # Text must be in correct zones — NOT on the product image area (y 420-1500)
+    mid_px = int((overlay_product[420:1500, :, 3] > 0).sum())
+    check('Product slide overlay: 0 pixels in product image zone (y 420-1500)',
+          mid_px == 0,
+          f'{mid_px} px in image zone (should be 0 — text stays in blurred bg areas)')
+
+    # Stats card text must be below the card (y > 1500)
+    above_px = int((overlay_stats[:1500, :, 3] > 0).sum())
+    check('Stats card overlay: 0 pixels above y=1500',
+          above_px == 0,
+          f'{above_px} px above stats card (should be 0 — COMING SOON in navy area)')
 
 
 # ─── Test 5: Source tags — Rebrickable/Brickset are fallback sources ─────────

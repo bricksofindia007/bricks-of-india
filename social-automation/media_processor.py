@@ -1,11 +1,12 @@
 """
 media_processor.py — Image and video generation for the social pipeline.
 
-process_carousel_images: 8 images — 7 gallery photos + stats card (1080x1080, 40% watermark)
-process_reels_video:     8 s Reels — 3 images (gallery[0], gallery[1], stats card),
+process_carousel_images: 10 images — 9 gallery photos + stats card (1080x1080, 40% watermark)
+process_reels_video:     8 s Reels  — 3 images (gallery[0], gallery[1], stats card),
                          0.3 s crossfades, music 8 s at 20%
 process_shorts_video:    45 s Shorts — 10 images (gallery[0-8] + stats card),
-                         0.5 s crossfades, Ken Burns 1.0->1.08, music 45 s at 20%
+                         0.5 s crossfades, Ken Burns 1.0->1.08, music 45 s at 20%,
+                         + on-screen text overlays (set name / info / theme / CTA)
 
 Watermark: 40% opacity, bottom-right, applied at image generation time.
 Gallery images: from set_data['gallery_images'] (LEGO.com high-res, >= 10 required).
@@ -125,6 +126,104 @@ def _truncate_to_fit(draw: ImageDraw.ImageDraw, text: str,
         if draw.textbbox((0, 0), text + '...', font=font)[2] <= max_width:
             return text + '...'
     return '...'
+
+
+def _draw_text_outlined(draw: ImageDraw.ImageDraw, pos: tuple, text: str,
+                        font: ImageFont.ImageFont, fill, stroke_fill,
+                        stroke_width: int) -> None:
+    """Draw text with a stroke outline. Uses Pillow built-in if available."""
+    try:
+        draw.text(pos, text, font=font, fill=fill,
+                  stroke_width=stroke_width, stroke_fill=stroke_fill)
+    except TypeError:
+        x, y = pos
+        for dx in range(-stroke_width, stroke_width + 1):
+            for dy in range(-stroke_width, stroke_width + 1):
+                if dx != 0 or dy != 0:
+                    draw.text((x + dx, y + dy), text, font=font, fill=stroke_fill)
+        draw.text(pos, text, font=font, fill=fill)
+
+
+def _make_shorts_text_overlay(W: int, H: int, set_data: dict, is_stats: bool) -> np.ndarray:
+    """
+    Pre-renders per-slide text overlays as an RGBA numpy array (H, W, 4).
+    Transparent where no text; opaque where text is drawn.
+
+    Product slides (1-9): set name at top, info line below, theme at bottom.
+    Stats card (slide 10): 'COMING SOON TO INDIA' or availability CTA
+                           in the navy area below the stats card image.
+    """
+    overlay = Image.new('RGBA', (W, H), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(overlay)
+
+    if is_stats:
+        source = set_data.get('source', 'lego_coming_soon')
+        f_big = _try_font(80)
+        if source in ('lego_coming_soon', 'lego_com'):
+            lines = ['COMING SOON', 'TO INDIA']
+        else:
+            # Neutral CTA for emergency-fallback sources
+            lines = ['NEW AT', 'BRICKSOFINDIA.COM']
+        # Place in navy area below the stats card image (video rows 1500-1920)
+        y = 1540
+        for line in lines:
+            bbox = draw.textbbox((0, 0), line, font=f_big)
+            lw, lh = bbox[2] - bbox[0], bbox[3] - bbox[1]
+            x = (W - lw) // 2
+            _draw_text_outlined(draw, (x, y), line, f_big,
+                                fill=(255, 255, 255, 255),
+                                stroke_fill=(0, 0, 0, 255),
+                                stroke_width=4)
+            y += lh + 16
+    else:
+        set_num_bare = set_data.get('set_num', '').split('-')[0]
+        name = set_data.get('name', '')
+        num_parts = set_data.get('num_parts', 0)
+        usd_price = set_data.get('usd_price')
+        theme = str(set_data.get('theme') or '')
+
+        # ── Set name — top section (above product image which starts at y=420) ──
+        f_title = _try_font(65)
+        title_lines = _wrap_text(draw, name, f_title, W - 100)[:2]
+        y = 80
+        for line in title_lines:
+            bbox = draw.textbbox((0, 0), line, font=f_title)
+            lw, lh = bbox[2] - bbox[0], bbox[3] - bbox[1]
+            x = (W - lw) // 2
+            _draw_text_outlined(draw, (x, y), line, f_title,
+                                fill=(255, 255, 255, 255),
+                                stroke_fill=(0, 0, 0, 255),
+                                stroke_width=3)
+            y += lh + 10
+
+        # ── Info line (set number, pieces, price) ─────────────────────────────
+        f_info = _try_font(38)
+        parts_str = f'{num_parts:,}' if num_parts else '?'
+        price_str = f'${usd_price:.0f}' if usd_price else 'TBD'
+        info = f'#{set_num_bare}  •  {parts_str} pcs  •  {price_str}'
+        info = _truncate_to_fit(draw, info, f_info, W - 60)
+        bbox = draw.textbbox((0, 0), info, font=f_info)
+        lw = bbox[2] - bbox[0]
+        x = (W - lw) // 2
+        _draw_text_outlined(draw, (x, y + 12), info, f_info,
+                            fill=(247, 168, 0, 255),    # BOI saffron
+                            stroke_fill=(0, 0, 0, 255),
+                            stroke_width=2)
+
+        # ── Theme — bottom section (below product image which ends at y=1500) ─
+        if theme:
+            f_theme = _try_font(34)
+            theme_text = theme.upper()
+            theme_text = _truncate_to_fit(draw, theme_text, f_theme, W - 60)
+            bbox = draw.textbbox((0, 0), theme_text, font=f_theme)
+            lw = bbox[2] - bbox[0]
+            x = (W - lw) // 2
+            _draw_text_outlined(draw, (x, 1700), theme_text, f_theme,
+                                fill=(200, 220, 255, 255),
+                                stroke_fill=(0, 0, 0, 200),
+                                stroke_width=2)
+
+    return np.array(overlay)
 
 
 # ── Stats card (last carousel image) ─────────────────────────────────────────
@@ -377,7 +476,7 @@ def _make_kb_clip(fg_arr: np.ndarray, bg_arr: np.ndarray,
 
 def _build_video(set_data: dict, image_paths: list,
                  duration: float, trans: float, kb_zoom: float,
-                 out_suffix: str) -> str:
+                 out_suffix: str, overlays: list = None) -> str:
     """
     Shared video builder used by process_reels_video and process_shorts_video.
 
@@ -415,21 +514,27 @@ def _build_video(set_data: dict, image_paths: list,
 
     clips = []
     for i, path in enumerate(image_paths):
+        overlay_arr = overlays[i] if (overlays and i < len(overlays)) else None
         fg       = np.array(Image.open(path).convert('RGB').resize((FG_SIZE, FG_SIZE), Image.LANCZOS))
         is_stats = (i == n - 1)
         bg       = navy_bg if is_stats else shared_bg
 
         if is_stats:
-            static             = bg.copy()
+            static = bg.copy()
             static[FG_Y:FG_Y + FG_SIZE, :] = fg
+            if overlay_arr is not None:
+                alpha  = overlay_arr[:, :, 3:4].astype(np.float32) / 255.0
+                static = (static.astype(np.float32) * (1.0 - alpha) +
+                          overlay_arr[:, :, :3].astype(np.float32) * alpha).astype(np.uint8)
             clip = ImageClip(static, duration=SEG_DUR)
         else:
             # Ken Burns: use kb_zoom, not the hardcoded 0.08 from _make_kb_clip
             _fg, _bg, _sd, _fsz, _fy, _kbz = fg, bg, SEG_DUR, FG_SIZE, FG_Y, kb_zoom
+            _ov = overlay_arr
 
             def _frame(t: float,
                        fg=_fg, bg=_bg, seg_dur=_sd,
-                       fg_size=_fsz, fg_y=_fy, zoom=_kbz) -> np.ndarray:
+                       fg_size=_fsz, fg_y=_fy, zoom=_kbz, ov=_ov) -> np.ndarray:
                 f      = bg.copy()
                 scale  = 1.0 + zoom * (t / seg_dur)
                 new_sz = int(fg_size * scale)
@@ -437,6 +542,10 @@ def _build_video(set_data: dict, image_paths: list,
                 off    = (new_sz - fg_size) // 2
                 crop   = np.array(img.crop((off, off, off + fg_size, off + fg_size)))
                 f[fg_y:fg_y + fg_size, :] = crop
+                if ov is not None:
+                    a = ov[:, :, 3:4].astype(np.float32) / 255.0
+                    f = (f.astype(np.float32) * (1.0 - a) +
+                         ov[:, :, :3].astype(np.float32) * a).astype(np.uint8)
                 return f
 
             from moviepy.editor import VideoClip
@@ -491,6 +600,35 @@ def process_reels_video(set_data: dict, all_image_paths: list = None) -> str:
                         duration=8.0, trans=0.3, kb_zoom=0.05,
                         out_suffix='_reels.mp4')
 
+
+
+def process_shorts_video(set_data: dict, all_image_paths: list = None) -> str:
+    """
+    45-second YouTube Shorts video (1080x1920) with on-screen text overlays.
+
+    Slides 1-9 (Ken Burns, 4s each): set name at top, set number/pieces/price
+    below, theme at bottom — all in the blurred background zones above/below
+    the product image, leaving the image itself unobstructed.
+
+    Slide 10 (stats card, static): 'COMING SOON TO INDIA' or neutral CTA
+    rendered in the navy area beneath the stats card.
+
+    overlays are pre-rendered once as RGBA PIL images (no per-frame PIL overhead).
+    Alpha compositing is pure numpy (vectorised) inside the frame function.
+    """
+    if not all_image_paths:
+        all_image_paths = process_carousel_images(set_data)
+    slides = all_image_paths[:9] + [all_image_paths[-1]]
+    n = len(slides)
+    W, H = 1080, 1920
+    print(f'[media] Pre-rendering {n} text overlays for Shorts...')
+    overlays = [
+        _make_shorts_text_overlay(W, H, set_data, is_stats=(i == n - 1))
+        for i in range(n)
+    ]
+    return _build_video(set_data, slides,
+                        duration=45.0, trans=0.5, kb_zoom=0.08,
+                        out_suffix='_shorts.mp4', overlays=overlays)
 
 
 def process_video(set_data: dict, image_paths: list = None) -> str:

@@ -2,11 +2,9 @@
 pipeline.py — Master orchestrator for the BOI Social Automation Pipeline.
 
 Execution order:
-  scraper → 10 product images → reels video →
+  scraper → 10 product images → reels video → shorts video (with text overlays) →
   storage upload → caption → IG carousel (8 imgs) → IG reels →
-  mark posted → notify success → cleanup tmp/
-
-YouTube is disabled: communityPosts.insert does not exist in YouTube Data API v3.
+  YouTube Shorts → mark posted → notify success → cleanup tmp/
 """
 
 import sys
@@ -52,9 +50,12 @@ def main() -> None:
     print('[pipeline] Step 2: Generating 10 product images (9 gallery + stats card)...')
     all_paths = media_processor.process_carousel_images(set_data)
 
-    # ── Step 3: Generate Reels video ─────────────────────────────────────────
-    print('[pipeline] Step 3: Generating 8s Instagram Reels video...')
+    # ── Step 3: Generate videos ───────────────────────────────────────────────
+    print('[pipeline] Step 3a: Generating 8s Instagram Reels video...')
     reels_path = media_processor.process_reels_video(set_data, all_paths)
+
+    print('[pipeline] Step 3b: Generating 45s YouTube Shorts video with text overlays...')
+    shorts_path = media_processor.process_shorts_video(set_data, all_paths)
 
     # ── Step 4: Upload to Supabase Storage ───────────────────────────────────
     print('[pipeline] Step 4: Uploading 10 product images to storage...')
@@ -62,8 +63,11 @@ def main() -> None:
         [(p, f'{set_num}_feed_{i + 1}.jpg') for i, p in enumerate(all_paths)]
     )
 
-    print('[pipeline] Step 5: Uploading Reels video to storage...')
+    print('[pipeline] Step 5a: Uploading Reels video to storage...')
     reels_url = db.upload_to_storage(reels_path, f'{set_num}_reels.mp4')
+
+    print('[pipeline] Step 5b: Uploading Shorts video to storage...')
+    db.upload_to_storage(shorts_path, f'{set_num}_shorts.mp4')
 
     # ── Step 5: Generate caption ──────────────────────────────────────────────
     print('[pipeline] Step 6: Generating caption...')
@@ -71,7 +75,7 @@ def main() -> None:
     print(f'[pipeline] Caption preview (first 120 chars): {caption_text[:120]}...')
 
     # ── Step 6: Publish ───────────────────────────────────────────────────────
-    platforms = {'ig_feed': False, 'ig_reels': False}
+    platforms = {'ig_feed': False, 'ig_reels': False, 'yt_shorts': False}
 
     # IG carousel: 7 gallery images + stats card = 8 total (Meta allows up to 10)
     carousel_urls = image_urls[:7] + [image_urls[-1]]
@@ -83,21 +87,26 @@ def main() -> None:
     publisher.post_instagram_reels(reels_url, caption_text)
     platforms['ig_reels'] = True
 
+    print('[pipeline] Step 9: Uploading YouTube Short...')
+    yt_id = publisher.post_youtube_shorts(shorts_path, set_data, caption_text)
+    platforms['yt_shorts'] = yt_id is not None
+
     # ── Step 7: Record in Supabase ────────────────────────────────────────────
-    print('[pipeline] Step 9: Recording in posted_sets...')
+    print('[pipeline] Step 10: Recording in posted_sets...')
     db.mark_as_posted(set_num, set_data.get('name', ''), platforms)
 
     # ── Step 8: Clean up tmp/ ─────────────────────────────────────────────────
-    print('[pipeline] Step 10: Cleaning up tmp/ files...')
-    _cleanup(all_paths + [reels_path])
+    print('[pipeline] Step 11: Cleaning up tmp/ files...')
+    _cleanup(all_paths + [reels_path, shorts_path])
 
     # ── Step 9: Notify success ────────────────────────────────────────────────
-    print('[pipeline] Step 11: Sending success email...')
+    print('[pipeline] Step 12: Sending success email...')
     notifier.send_success(set_data, platforms)
 
     print(f'\n[pipeline] Done. {set_num} posted successfully.')
     print(f'  IG Feed:  {"OK" if platforms["ig_feed"] else "X"}')
     print(f'  IG Reels: {"OK" if platforms["ig_reels"] else "X"}')
+    print(f'  YouTube:  {"OK" if platforms["yt_shorts"] else "skipped (no token)"}')
 
 
 if __name__ == '__main__':
