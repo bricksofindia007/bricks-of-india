@@ -557,11 +557,11 @@
   "meta": {
     "lastUpdated": "2026-05-25",
     "trackerVersion": "v1.6",
-    "currentSprint": "Day 25 — WEB-05 /guides shipped. RADAR root cause documented. Image dedup fixed. WEB-06 /community next."
+    "currentSprint": "Day 25 — WEB-05 /guides + WEB-06 /community shipped. REVIEW-PRICE-01 extended: all 3 stores always rendered in review sidebar. Fan CoLab route unblocked."
   },
   "kpis": {
-    "healthScore": 80,
-    "healthScoreNote": "SOC-AUTO-01 live (3 runs). WEB-05 shipped. Content staleness (−5): /news 16d, /blog 36d — 312 approved signals need Generate+Publish. WEB-06 not started (−5). GEO 26 < 50 (−5). Voice test still pending (−5).",
+    "healthScore": 85,
+    "healthScoreNote": "WEB-05 + WEB-06 shipped. SOC-AUTO-01 live (3 runs). Deductions: content staleness (−5): /news 16d, /blog 36d — 312 approved signals need Generate+Publish. GEO 26 < 50 (−5). Voice test still pending (−5).",
     "openP0": 0,
     "openP1": 0,
     "netlifyMinutesLeft": 9999,
@@ -576,9 +576,10 @@
     "nextAuditDate": "2026-06-25",
     "nextActions": [
       "URGENT: Visit /admin/pending — 312 approved signals need Generate Article + Publish (/news 16d stale, /blog 36d stale)",
+      "Run community_spotlights migration in Supabase dashboard SQL editor (supabase/migrations/20260525120000_community_spotlights.sql)",
       "Run guides migration in Supabase dashboard SQL editor (supabase/migrations/20260525000000_guides.sql)",
-      "WEB-06 /community route — build by June 7 (Fan CoLab critical path)",
       "GSC setup: verify bricksofindia.com, submit sitemap.xml, request indexing for 10 key pages",
+      "CE-01 subject outreach: identify 2 Indian AFOL builders for /community spotlights (post in r/IndiaLEGO + AFOL India Facebook group)",
       "IG token re-exchange by 2026-07-16 (expires ~2026-07-23)"
     ],
     "openManualChecks": [
@@ -631,7 +632,7 @@
     { "id": "RADAR-08", "title": "Automated reviews generation pipeline", "category": "Content OS", "status": "pending", "priority": "P2", "depsBlock": [], "blocks": ["RLFM-01"], "notes": "Briefed 2026-05-14. Reduce manual dependency — target 5+ Codex-compliant reviews/week. Requires: (a) reviews format added to RADAR-03 classifier, (b) generateArticle() extended to publish to reviews table with set_id UUID lookup, (c) hero_image from Rebrickable CDN, (d) lint Gate 3 verdict enforcement already in place. Blocks RLFM at scale." },
     { "id": "SOC-AUTO-01", "title": "Social automation pipeline — IG carousel + Reels + YouTube Shorts", "category": "Social", "status": "done", "priority": "P1", "depsBlock": [], "blocks": ["RLFM-01"], "notes": "Done 2026-05-24. social-automation/pipeline.py — daily cron 06:30 UTC (12:00 IST). Three platforms: IG Feed (8-image carousel), IG Reels (8s), YouTube Shorts (45s with text overlays). India defense layer: is_available_in_india() checks store_prices before posting. Source-aware captions. 3 sets posted: 11377-1, 76342-1, 75641-1. Run 3 blocked 4 India-available sets." },
     { "id": "WEB-05", "title": "/guides route — index + [slug] pages", "category": "Website", "status": "done", "priority": "P1", "depsBlock": [], "blocks": ["CE-02", "CE-05"], "notes": "Shipped 2026-05-25. guides table migration in supabase/migrations/20260525000000_guides.sql — run manually in dashboard. Commit eb8a049." },
-    { "id": "WEB-06", "title": "/community route — index + [slug] pages", "category": "Website", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["CE-01"], "notes": "Fan CoLab requirement: 2+ spotlights at /community by August 2026. Route must exist by June 7. New community_spotlights table. Effort: 1 session." }
+    { "id": "WEB-06", "title": "/community route — index + [slug] pages", "category": "Website", "status": "done", "priority": "P1", "depsBlock": [], "blocks": ["CE-01"], "notes": "Shipped 2026-05-25. community_spotlights table migration at supabase/migrations/20260525120000_community_spotlights.sql — run in Supabase dashboard. Both routes live: /community (index with empty-state) + /community/[slug] (builder detail + photo gallery). Community added to nav. RLS: published=true SELECT only." }
   ],
   "auditChecklist": [
     {

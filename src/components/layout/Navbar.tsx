@@ -8,13 +8,14 @@ import { TricolourStripe } from '@/components/ui/TricolourStripe';
 import { LAB_TOOLS } from '@/lib/lab-tools';
 
 const NAV_LINKS = [
-  { href: '/sets',     label: 'Sets'     },
-  { href: '/themes',   label: 'Themes'   },
-  { href: '/deals',    label: 'Deals'    },
-  { href: '/reviews',  label: 'Reviews'  },
-  { href: '/news',     label: 'News'     },
-  { href: '/blog',     label: 'Blog'     },
-  { href: '/guides',   label: 'Guides'   },
+  { href: '/sets',       label: 'Sets'       },
+  { href: '/themes',     label: 'Themes'     },
+  { href: '/deals',      label: 'Deals'      },
+  { href: '/reviews',    label: 'Reviews'    },
+  { href: '/news',       label: 'News'       },
+  { href: '/blog',       label: 'Blog'       },
+  { href: '/guides',     label: 'Guides'     },
+  { href: '/community',  label: 'Community'  },
 ];
 
 /** Wordmark lockup — shared by desktop header and mobile drawer */
