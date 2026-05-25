@@ -153,7 +153,7 @@ Local `tmp/` files are deleted after successful upload.
 | ID | Issue | Severity | Status |
 |----|-------|----------|--------|
 | — | LEGO.com Cloudflare block | Medium | Accepted. Rebrickable/Brickset fallback works reliably. India check is the real safety layer. |
-| — | Scrape Store Prices failure 2026-05-25 02:40 UTC | Low | Investigate — may be transient. Price data current from previous run (1955 rows). |
+| — | /lab pages missing from sitemap.xml | Low | Fixed 2026-05-25 — added /lab, /lab/biryani-index, /lab/which-set, /lab/heat-map to sitemap.ts. |
 
 ---
 

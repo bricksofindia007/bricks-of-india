@@ -247,7 +247,7 @@ System health check (verified):
 | pending_drafts (published) | 4 | — |
 | BOI Social Automation | Success (02:50 UTC) | ✅ |
 | radar-pipeline | Success (02:35 UTC) | ✅ |
-| Scrape Store Prices | **Failure (02:40 UTC)** | ⚠️ |
+| Scrape Store Prices | Success (last: May 24 19:18 UTC) | ✅ |
 | Netlify deploys | All green | ✅ |
 
 **Health score recomputation (2026-05-25):**
@@ -266,7 +266,7 @@ System health check (verified):
 
 Pending (carry-overs):
 - **Content freshness** — /news 16 days stale, /blog 36 days stale. Operator visit to `/admin/pending` needed immediately.
-- **Scrape Store Prices failure** — 2026-05-25 02:40 UTC run. Investigate cause (transient network issue vs. store site change).
+- **Sitemap /lab fix** — /lab pages were missing from sitemap.xml. Fixed 2026-05-25 in sitemap.ts.
 - **Fan CoLab critical path** — WEB-05 `/guides` + WEB-06 `/community` must ship by June 7. See `docs/FAN_COLAB_TIMELINE.md`.
 - **LAB-06** — `/lab/deals` frontend. 1 session, backend already live.
 - **IG System User Token** — permanent token via Meta Business Manager. Current 60-day token expires ~2026-07-23.

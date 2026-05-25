@@ -88,10 +88,10 @@ Run 3 (75641-1) was the first run with India check fully active — filtered: 75
 | pending_drafts (published) | 4 | — |
 | BOI Social Automation last run | Success (02:50 UTC today) | ✅ |
 | radar-pipeline last run | Success (02:35 UTC today) | ✅ |
-| Scrape Store Prices last run | **Failure (02:40 UTC today)** | ⚠️ Investigate |
+| Scrape Store Prices last run | Success (May 24 19:18 UTC) | ✅ |
 | Netlify deploys | All green | ✅ |
 
-**Scrape Store Prices failure noted:** Price data is still current from previous run (1955 rows). Failure at 02:40 UTC today — investigate on next session (may be transient network issue or store site change).
+**Note on 02:40 UTC failures:** Two BOI Social Automation runs failed at 02:40 and 02:41 UTC with `libgl1-mesa-glx` package error — these were manual test triggers BEFORE the libgl1 fix was pushed to main. The Scrape Store Prices workflow was NOT involved. The successful run at 02:50 used the fixed workflow and posted 75641-1.
 
 ---
 
