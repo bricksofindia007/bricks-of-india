@@ -97,3 +97,16 @@ export interface NewsArticle {
   seo_description: string | null;
   created_at: string;
 }
+
+export interface Guide {
+  id: number;
+  slug: string;
+  title: string;
+  excerpt: string | null;
+  content: string | null;
+  category: string | null;
+  featured_image_url: string | null;
+  read_time_minutes: number | null;
+  published_at: string;
+  updated_at: string;
+}

@@ -18,6 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/lab/biryani-index`, priority: 0.7 },
     { url: `${base}/lab/which-set`, priority: 0.7 },
     { url: `${base}/lab/heat-map`, priority: 0.7 },
+    { url: `${base}/guides`, priority: 0.8 },
     { url: `${base}/about`, priority: 0.6 },
     { url: `${base}/contact`, priority: 0.5 },
     { url: `${base}/legal/disclaimer`, priority: 0.3 },
@@ -80,5 +81,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  return [...staticPages, ...setPages, ...blogPages, ...newsPages, ...reviewPages];
+  // Guides
+  const { data: guides } = await supabase.from('guides').select('slug, updated_at');
+  const guidePages = (guides || []).map((g: any) => ({
+    url: `${base}/guides/${g.slug}`,
+    lastModified: new Date(g.updated_at),
+    changeFrequency: 'weekly' as const,
+    priority: 0.8,
+  }));
+
+  return [...staticPages, ...setPages, ...blogPages, ...newsPages, ...reviewPages, ...guidePages];
 }
