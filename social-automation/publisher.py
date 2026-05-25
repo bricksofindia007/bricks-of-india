@@ -83,7 +83,27 @@ def post_instagram_carousel(image_urls: list, caption: str) -> str:
         timeout=30,
     )
     carousel_id = _ig_check(resp, 'carousel parent create')['id']
-    print(f'[publisher] Carousel container ID: {carousel_id}')
+    print(f'[publisher] Carousel container ID: {carousel_id}. Polling for FINISHED...')
+
+    # Step 2b: poll until container is ready — same as Reels flow.
+    # 9007 "Media ID not available" fires when we publish before Instagram has
+    # finished processing all child containers. Poll every 5s, timeout 90s.
+    for attempt in range(18):
+        time.sleep(5)
+        status_resp = requests.get(
+            f'{GRAPH_API_BASE}/{carousel_id}',
+            params={'fields': 'status_code', 'access_token': IG_ACCESS_TOKEN},
+            timeout=15,
+        )
+        status_data = status_resp.json()
+        status_code = status_data.get('status_code', '')
+        print(f'[publisher] Carousel status ({attempt + 1}/18): {status_code}')
+        if status_code == 'FINISHED':
+            break
+        if status_code == 'ERROR':
+            raise RuntimeError(f'Instagram carousel container failed: {status_data}')
+    else:
+        print('[publisher] WARNING: Carousel status poll timed out — attempting publish anyway')
 
     # Step 3: publish
     print('[publisher] Publishing carousel...')
