@@ -146,7 +146,7 @@ For any cron-based ✅ Done flip, the verification checklist must include "≥1 
 
 **Logged:** 2026-05-03
 **Severity:** P1 — blocks RADAR-04 production use; does not block Day 2 commit
-**Status:** 🟡 Partial — structural findings resolved, voice ceiling acknowledged, Day 3.5 deferred
+**Status:** ✅ Closed 2026-05-25 — Option A sufficient, escalation to Option B not required
 
 **Context:**
 Day 2 smoke test of scripts/radar/draft-articles.js produced one draft from the pinned Brickset RSS fixture (test row id 39dd6b67-ee8b-42e7-b4c0-b0e14275aa73 in pending_drafts, kept as known-bad reference for Day 3 before/after comparison). Gemini 2.5 Flash-Lite call succeeded (5876ms). Voice register (Clarkson + wallet anxiety) came through correctly — proving the model is capable. But the output is a YouTube script, not a news article, with seven specific structural violations.
@@ -184,6 +184,15 @@ Day 2 smoke test of scripts/radar/draft-articles.js produced one draft from the 
 - Source-framing leak (Finding 4) is probabilistic, not deterministic — will leak occasionally despite the anti-pattern list. Manual editor pass at /admin/pending will catch it; not worth a further prompt iteration at this stage
 - Day 3.5 deferred — three architectural options on the table: (A) few-shot exemplars from existing BOI articles loaded into system prompt, (B) two-stage drafting (classify then draft as separate Gemini calls), (C) test a stronger model. Decision pending operator's call after first batch of real RADAR-01 drafts in production
 - Iteration history: `baseline-v1-day2` → `day3-v2-attempt-1` → `day3-v2-attempt-2` → `day3-v3-final` → `day3-v3-final-postfix`
+
+**Resolution (2026-05-25 — Option A, Day 25):**
+- VOICE_EXAMPLES replaced: invented exemplars swapped for verbatim Codex Page 19 passages (F1 Race Car wallet-anxiety opener, Taj Mahal beat structure, pani puri Indian comparison, samosas build→collapse)
+- Prompt reordered: VOICE_EXAMPLES + ANTI_PATTERNS now lead the system prompt before the full codex — concrete rules anchor the model before abstract reference material
+- Three structural requirements made explicit: (1) wallet in paragraph 1, (2) India Paragraph mandatory, (3) beat structure enforced
+- NEVER list added inline in VOICE_EXAMPLES: "my friends", PR adjectives, 3-sentence builds, explaining the setup
+- Impatient-explanation rule added: niche subjects get 2 short slightly-annoyed sentences, then pivot
+- Flash-Lite model insight: holds register when exemplars include explicit DELETE examples alongside positive ones. Option B (two-stage drafting) not required — A was sufficient.
+- Voice ceiling lifted: wallet in Para 1 ✓, India Paragraph present ✓, Indian comparisons (chai, samosas) appearing naturally ✓
 - Day 4 (RADAR-01 + RADAR-02 plumbing) is now UNBLOCKED
 
 **Test fixture:** scripts/radar/test-fixture.xml (Brickset RSS pulled 2026-05-03)

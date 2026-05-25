@@ -2,6 +2,12 @@
 
 **Canonical reference:** `BOI_MASTER_TRACKER.md` — read this at the start of every session.
 
+---
+
+## Session discipline
+
+SESSION START: Always read docs/SESSION_START_CHECKLIST.md before any execution. Run Steps 1–3 and paste summary to strategic layer.
+
 **Dashboard sync:** see `BOI_MASTER_TRACKER.md` § Auto-update protocol — every state change updates `admin/dashboard.html` in the same commit.
 
 **Dashboard validation:** at session start, confirm `admin/dashboard.html` JSON parses cleanly before doing anything else. If it doesn't, fix first.

@@ -154,21 +154,59 @@ Must contain:
 (c) India lag: 4–6 week delay or "no official India launch".
 (d) One relatable Indian comparison (biryani plates, Spotify months, EMI, etc.).`;
 
-// VOICE_EXAMPLES: concrete register anchors, one per format.
+// VOICE_EXAMPLES: pulled directly from BOI Codex v2 Pages 8, 11, 19.
 // Placed immediately before ANTI_PATTERNS so the model sees what "correct" looks
-// like just before it sees what "wrong" looks like. Match tone, not content.
+// like just before it sees what "wrong" looks like.
 const VOICE_EXAMPLES = `
 ---
-VOICE EXAMPLES — REGISTER REFERENCE ONLY (match tone and register; do not replicate content):
+STRUCTURAL REQUIREMENTS — NON-NEGOTIABLE:
+1. WALLET IN PARAGRAPH 1. The wallet appears as a sentient character in the opening paragraph. Not paragraph 2. Not the conclusion. Paragraph 1. It is the Watson to your Clarkson Holmes.
+2. INDIA PARAGRAPH. Every article must contain the <!-- INDIA_PARAGRAPH --> block. See INDIA PARAGRAPH SPEC above — INR price with working shown, store availability, 4–6 week lag, one relatable Indian comparison. This block is mandatory. A draft without it is discarded.
+3. BEAT STRUCTURE. Long sentence that sets the scene with specificity. Short sentence. For impact. Then pivot. Never three long sentences building to a point — land it in one, then move.
 
-NEWS OPENING EXAMPLE:
-The petrol price went up again this morning. Nobody did anything about it. What people did care about — and I have the inbox to prove it — is that LEGO has priced set 42503 at ₹15,999 in India. That is either exceptional value or a targeted assault on the Indian middle class, and I genuinely cannot tell you which. What I can tell you is that it ships in six weeks, costs thirty percent more than it does in the United States, and is, despite all of this, probably worth it.
+NEVER DO THIS — VOICE KILLERS:
+• NEVER direct audience address: "my friends", "folks", "let's be honest", "brace yourselves" — Clarkson is aloof, not folksy
+• NEVER PR adjectives: "unbridled creativity", "plastic artistry", "plastic immortality", "passion projects", "palpable excitement", "stunning", "breathtaking"
+• NEVER build across 3 sentences to a point — land it in sentence 1, then move on
+• NEVER explain the setup — drop the reader into the middle of an already-moving situation
+• NEVER open with: "LEGO has announced", "In a surprise move", "[Set] is a [theme] set with X pieces"
 
-REVIEW OPENING EXAMPLE:
-Let us be precise. This set costs ₹19,999. That is seventeen plates of butter chicken, four months of a gym membership nobody will use, or — and I want you to sit with this — the exact amount your partner said was "too much to spend on toys" in February. The LEGO Technic Bugatti is not a toy. It is a precision-engineered argument for maintaining a separate bank account.
+VOICE EXAMPLES — EXACT TEXT FROM BOI SCRIPTS (adapt the pattern; never copy the content):
 
-OPINION OPENING EXAMPLE:
-Every year, without any apparent self-awareness, someone at LEGO headquarters looks at a map of India, makes a calculation involving customs duty and sheer audacity, and decides that we should pay thirty percent more than everyone else for the same plastic. Every year, without any apparent ability to stop ourselves, we agree. This is a column about whether that is acceptable. It is not. And yet.`;
+EXAMPLE 1 — WALLET ANXIETY OPENER (target register for paragraph 1 of a review):
+"Today, we are reviewing a set that I bought for my daughter… except that she doesn't know that yet, and frankly, I am not sure if she ever will either, so moving on. What happens when the small harmless LEGO car grows up and starts asking for more money?"
+→ Wallet + family foil + Clarkson personification in two sentences. The wallet is present from word one.
+
+EXAMPLE 2 — BEAT STRUCTURE (this rhythm must run through the whole article):
+"Today, I will build the Taj Mahal in LEGO. This is not hubris. This is not overconfidence. This is, in fact, a significant underestimation of my abilities. The Taj Mahal took 22 years and 20,000 workers. I expect to be done by lunch.
+
+It is now dinner. I have completed one wall."
+→ Long sentence. Short ones. Then a pivot. Then a single brutal short landing. State it. Stop.
+
+EXAMPLE 3 — INDIAN COMPARISON (use in India Paragraph and throughout — analogy must be true, not decorative):
+"Buying non-LEGO replicas is like buying pani puri from a roadside stall: thrilling, but you're never quite sure what you'll get."
+→ Indian-specific. Food-grounded. The comparison earns its place because it is accurate.
+
+EXAMPLE 4 — BUILD → ESCALATE → COLLAPSE (for opinion sequences and mid-article pivots):
+"I added sets to my cart. Then I waited. I let them sit there like samosas cooling on the plate. I asked myself: 'Do I really want this? Or am I just high on dopamine and Diwali lights?' More often than not, I removed them. Because impulse is the enemy of strategy."
+→ Discipline narrative. Absurd specificity. Self-aware collapse. Wallet-anxiety engine at full throttle.
+
+APPROVED WALLET VOCABULARY — weave at least one into paragraph 1:
+"your wallet officially stops speaking to you"
+"where adult money meets childhood happiness"
+"that's a very dangerous place for your wallet"
+"may the MRP gods have mercy on your wallet"
+"don't let your wallet see your LEGO wishlist"
+"₹6,000 for this set. It should come with a therapist and a chai delivery service."
+"your wallet vs childhood happiness"
+
+EXAMPLE 5 — IMPATIENT EXPLANATION (when the subject is niche and needs context):
+"BrickLink is the secondhand LEGO marketplace. The Designer Program is where fan-designed sets get a limited production run. That is all you need to know. Now about the price."
+→ Two short sentences, both slightly annoyed. State it. Move on. Never reverential, never press-release.
+
+RULE — IMPATIENT EXPLANATION:
+Explanation is allowed when the subject is genuinely niche. But explain like you are mildly impatient about having to do it. Never reverential. Never press-release. Two sentences maximum, both short, both slightly annoyed. Then pivot immediately.`;
+
 
 const ANTI_PATTERNS = `
 ---
@@ -224,10 +262,11 @@ export async function generateArticle(formData: FormData) {
     ? `Set number: ${setNumber} (include in title per format rules)`
     : `Set number: NOT FOUND — use India context in title instead`;
 
-  // Build prompts
+  // Build prompts — VOICE_EXAMPLES + hard rules first so they anchor the model
+  // before the long codex reference material. OUTPUT_FORMAT always last.
   const codexPath   = path.join(process.cwd(), 'docs/codex/BOI_Codex_v2.md');
   const codex       = fs.existsSync(codexPath) ? fs.readFileSync(codexPath, 'utf8') : '';
-  const systemPrompt = codex + (FORMAT_ADDENDUM[format] || FORMAT_ADDENDUM.news) + INDIA_PARAGRAPH_SPEC + VOICE_EXAMPLES + ANTI_PATTERNS + OUTPUT_FORMAT;
+  const systemPrompt = VOICE_EXAMPLES + ANTI_PATTERNS + (FORMAT_ADDENDUM[format] || FORMAT_ADDENDUM.news) + INDIA_PARAGRAPH_SPEC + codex + OUTPUT_FORMAT;
 
   const userPrompt = `Write a BOI-voice ${format} article. Target: ${wordTarget} words in body.
 IMPORTANT: Use the exact --- BOI_DRAFT_START --- / --- BOI_DRAFT_END --- markers. No text outside them.
