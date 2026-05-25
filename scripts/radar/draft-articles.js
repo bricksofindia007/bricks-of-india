@@ -168,8 +168,9 @@ block — do NOT scatter its components across multiple paragraphs.
 Place the HTML comment <!-- INDIA_PARAGRAPH --> on the line immediately before this block.
 
 The block MUST contain ALL FOUR components, in this order:
-  (a) INR price: state the calculation — USD MSRP × 1.35 × current USD/INR rate.
-      Show your working. If MSRP is unknown, estimate from context and say so.
+  (a) INR price: use the exact prices provided in context when available. If no prices
+      are provided, multiply USD MSRP by the current USD/INR rate (do NOT add any
+      multiplier) and label the result explicitly as "estimated import price".
   (b) Indian availability: name which stores stock it (Toycra, MyBrickHouse,
       Jaiman Toys), OR state "import only via BrickLink/eBay" if none do.
   (c) India lag: note the 4–6 week lag after global launch, OR "no official

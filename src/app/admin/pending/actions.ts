@@ -149,63 +149,21 @@ const INDIA_PARAGRAPH_SPEC = `
 INDIA PARAGRAPH — MANDATORY (single consolidated block):
 Place <!-- INDIA_PARAGRAPH --> on its own line immediately before this block. Write the block as normal prose.
 Must contain:
-(a) INR price: USD MSRP × 1.35 × current USD/INR rate. Show working.
+(a) INR price: use exact store prices from INDIA PRICE DATA when provided. If absent, multiply USD MSRP × current USD/INR rate (no additional multiplier). Label as estimate if computed.
 (b) Availability: which stores (Toycra, MyBrickHouse, Jaiman) or "import only".
 (c) India lag: 4–6 week delay or "no official India launch".
 (d) One relatable Indian comparison (biryani plates, Spotify months, EMI, etc.).`;
 
-// VOICE_EXAMPLES: pulled directly from BOI Codex v2 Pages 8, 11, 19.
-// Placed immediately before ANTI_PATTERNS so the model sees what "correct" looks
-// like just before it sees what "wrong" looks like.
-const VOICE_EXAMPLES = `
----
-STRUCTURAL REQUIREMENTS — NON-NEGOTIABLE:
-1. WALLET IN PARAGRAPH 1. The wallet appears as a sentient character in the opening paragraph. Not paragraph 2. Not the conclusion. Paragraph 1. It is the Watson to your Clarkson Holmes.
-2. INDIA PARAGRAPH. Every article must contain the <!-- INDIA_PARAGRAPH --> block. See INDIA PARAGRAPH SPEC above — INR price with working shown, store availability, 4–6 week lag, one relatable Indian comparison. This block is mandatory. A draft without it is discarded.
-3. BEAT STRUCTURE. Long sentence that sets the scene with specificity. Short sentence. For impact. Then pivot. Never three long sentences building to a point — land it in one, then move.
+// VOICE_EXAMPLES: simple system prompt — casual Indian English, no exemplar.
+const VOICE_EXAMPLES = `You write for Bricks of India, an Indian LEGO blog. Your readers are Indian LEGO fans who want honest, fun, easy-to-read articles. Write like a smart friend explaining something over chai — casual, witty, direct.
 
-NEVER DO THIS — VOICE KILLERS:
-• NEVER direct audience address: "my friends", "folks", "let's be honest", "brace yourselves" — Clarkson is aloof, not folksy
-• NEVER PR adjectives: "unbridled creativity", "plastic artistry", "plastic immortality", "passion projects", "palpable excitement", "stunning", "breathtaking"
-• NEVER build across 3 sentences to a point — land it in sentence 1, then move on
-• NEVER explain the setup — drop the reader into the middle of an already-moving situation
-• NEVER open with: "LEGO has announced", "In a surprise move", "[Set] is a [theme] set with X pieces"
+NEVER use: UK slang, literary prose, magazine language, words like pinnacle / testament / cognoscenti / whimsical / bloke / fever dreams / siren call / unadulterated.
 
-VOICE EXAMPLES — EXACT TEXT FROM BOI SCRIPTS (adapt the pattern; never copy the content):
+ALWAYS: mention wallet or price pain early, write in simple Indian English, include the India Paragraph (use exact store prices from the INDIA PRICE DATA provided — do not calculate), end with a verdict (BUY / WAIT FOR SALE / IMPORT ONLY / SKIP).
 
-EXAMPLE 1 — WALLET ANXIETY OPENER (target register for paragraph 1 of a review):
-"Today, we are reviewing a set that I bought for my daughter… except that she doesn't know that yet, and frankly, I am not sure if she ever will either, so moving on. What happens when the small harmless LEGO car grows up and starts asking for more money?"
-→ Wallet + family foil + Clarkson personification in two sentences. The wallet is present from word one.
+India Paragraph format: place <!-- INDIA_PARAGRAPH --> on its own line before it. State the INR price from each store using the exact figures in INDIA PRICE DATA. Mention 4–6 week India lag if the set is not yet available. Give one relatable Indian price comparison (chai / paneer butter masala / months of Spotify / autorickshaw rides).
 
-EXAMPLE 2 — BEAT STRUCTURE (this rhythm must run through the whole article):
-"Today, I will build the Taj Mahal in LEGO. This is not hubris. This is not overconfidence. This is, in fact, a significant underestimation of my abilities. The Taj Mahal took 22 years and 20,000 workers. I expect to be done by lunch.
-
-It is now dinner. I have completed one wall."
-→ Long sentence. Short ones. Then a pivot. Then a single brutal short landing. State it. Stop.
-
-EXAMPLE 3 — INDIAN COMPARISON (use in India Paragraph and throughout — analogy must be true, not decorative):
-"Buying non-LEGO replicas is like buying pani puri from a roadside stall: thrilling, but you're never quite sure what you'll get."
-→ Indian-specific. Food-grounded. The comparison earns its place because it is accurate.
-
-EXAMPLE 4 — BUILD → ESCALATE → COLLAPSE (for opinion sequences and mid-article pivots):
-"I added sets to my cart. Then I waited. I let them sit there like samosas cooling on the plate. I asked myself: 'Do I really want this? Or am I just high on dopamine and Diwali lights?' More often than not, I removed them. Because impulse is the enemy of strategy."
-→ Discipline narrative. Absurd specificity. Self-aware collapse. Wallet-anxiety engine at full throttle.
-
-APPROVED WALLET VOCABULARY — weave at least one into paragraph 1:
-"your wallet officially stops speaking to you"
-"where adult money meets childhood happiness"
-"that's a very dangerous place for your wallet"
-"may the MRP gods have mercy on your wallet"
-"don't let your wallet see your LEGO wishlist"
-"₹6,000 for this set. It should come with a therapist and a chai delivery service."
-"your wallet vs childhood happiness"
-
-EXAMPLE 5 — IMPATIENT EXPLANATION (when the subject is niche and needs context):
-"BrickLink is the secondhand LEGO marketplace. The Designer Program is where fan-designed sets get a limited production run. That is all you need to know. Now about the price."
-→ Two short sentences, both slightly annoyed. State it. Move on. Never reverential, never press-release.
-
-RULE — IMPATIENT EXPLANATION:
-Explanation is allowed when the subject is genuinely niche. But explain like you are mildly impatient about having to do it. Never reverential. Never press-release. Two sentences maximum, both short, both slightly annoyed. Then pivot immediately.`;
+Word count: 300–400 words for news, 500–700 for review, 400–500 for opinion.`;
 
 
 const ANTI_PATTERNS = `
@@ -252,24 +210,25 @@ export async function generateArticle(formData: FormData) {
   if (draft.draft_format === null) throw new Error('Draft has no format — re-run RADAR-03');
 
   const format    = (draft.draft_format as string) || 'news';
-  const setNumber = (() => { const m = (draft.source_url || '').match(/\/sets\/(\d{4,5})-/); return m ? m[1] : null; })();
+  const setNumber = extractSetNumber(draft.source_url, draft.source_title ?? null);
 
-  // Full-text fetch
-  const fullBody = await fetchFullBody(draft.source_url);
-  const content  = fullBody || draft.source_excerpt || draft.source_title || '(no content available)';
+  // Full-text fetch and India price lookup in parallel
+  const [fullBody, indiaPriceContext] = await Promise.all([
+    fetchFullBody(draft.source_url),
+    buildIndiaPriceContext(supabase, setNumber),
+  ]);
+
+  const content    = fullBody || draft.source_excerpt || draft.source_title || '(no content available)';
   const wordTarget = { news: '300–400', review: '500–700', opinion: '400–500' }[format] || '300–400';
   const setLine    = setNumber
-    ? `Set number: ${setNumber} (include in title per format rules)`
-    : `Set number: NOT FOUND — use India context in title instead`;
+    ? `Set number: ${setNumber} (include in title)`
+    : 'Set number: NOT FOUND — use India context in title instead';
 
-  // Build prompts — VOICE_EXAMPLES + hard rules first so they anchor the model
-  // before the long codex reference material. OUTPUT_FORMAT always last.
-  const codexPath   = path.join(process.cwd(), 'docs/codex/BOI_Codex_v2.md');
-  const codex       = fs.existsSync(codexPath) ? fs.readFileSync(codexPath, 'utf8') : '';
-  const systemPrompt = VOICE_EXAMPLES + ANTI_PATTERNS + (FORMAT_ADDENDUM[format] || FORMAT_ADDENDUM.news) + INDIA_PARAGRAPH_SPEC + codex + OUTPUT_FORMAT;
+  const systemPrompt = VOICE_EXAMPLES + OUTPUT_FORMAT;
 
-  const userPrompt = `Write a BOI-voice ${format} article. Target: ${wordTarget} words in body.
-IMPORTANT: Use the exact --- BOI_DRAFT_START --- / --- BOI_DRAFT_END --- markers. No text outside them.
+  const userPrompt = `Write a BOI-voice ${format} article. Target: ${wordTarget} words in body. Use the exact --- BOI_DRAFT_START --- / --- BOI_DRAFT_END --- markers.
+
+${indiaPriceContext}
 
 SOURCE:
 Title     : ${draft.source_title}
@@ -284,7 +243,7 @@ TITLE: <your title>
 VERDICT: <BUY | WAIT FOR SALE | IMPORT ONLY | SKIP | NONE>
 
 BODY:
-<article body — place <!-- INDIA_PARAGRAPH --> before the India Paragraph block>
+<article body — place <!-- INDIA_PARAGRAPH --> on its own line before the India Paragraph block>
 --- BOI_DRAFT_END ---`;
 
   // Gemini call
@@ -388,6 +347,63 @@ function extractSetNumber(sourceUrl: string, sourceTitle: string | null): string
   const titleStr = sourceTitle ?? '';
   const titleMatch = titleStr.match(/\b(\d{4,6})(?:-\d+)?\b/);
   return titleMatch ? titleMatch[1] : null;
+}
+
+const INDIA_STORE_PRIORITY: Record<string, number> = { mybrickhouse: 1, toycra: 2, jaiman: 3 };
+const INDIA_STORE_LABELS: Record<string, string>   = { mybrickhouse: 'MyBrickHouse', toycra: 'Toycra', jaiman: 'Jaiman Toys' };
+
+async function fetchLiveUsdInr(): Promise<number | null> {
+  try {
+    const r = await fetch('https://open.er-api.com/v6/latest/USD', { signal: AbortSignal.timeout(5000) });
+    const d = await r.json();
+    const rate = d?.rates?.INR;
+    return (rate && rate > 75 && rate < 130) ? Math.round(rate) : null;
+  } catch { return null; }
+}
+
+// Build the India price context string to inject into the Gemini userPrompt.
+// Priority: live store_prices → lego_mrp_inr → live-rate estimate → unknown.
+async function buildIndiaPriceContext(
+  supabase: ReturnType<typeof import('@/lib/supabase').createServerClient>,
+  setNumber: string | null,
+): Promise<string> {
+  if (!setNumber) return 'INDIA PRICE DATA: set number could not be identified from this source. Acknowledge price uncertainty; do not state a specific figure.';
+
+  // 1. Live store prices
+  const { data: sp } = await supabase
+    .from('store_prices')
+    .select('store_id, price_inr, in_stock')
+    .eq('set_id', setNumber);
+
+  const priced = (sp ?? [])
+    .sort((a: any, b: any) => (INDIA_STORE_PRIORITY[a.store_id] ?? 9) - (INDIA_STORE_PRIORITY[b.store_id] ?? 9));
+
+  if (priced.length > 0) {
+    const lines = priced.map((p: any) => {
+      const label = INDIA_STORE_LABELS[p.store_id] ?? p.store_id;
+      const stock = p.in_stock ? '' : ' (may be out of stock)';
+      return `  ${label}: ₹${Number(p.price_inr).toLocaleString('en-IN')}${stock}`;
+    });
+    return `INDIA PRICE DATA — use these exact figures, do not calculate:\n${lines.join('\n')}`;
+  }
+
+  // 2. LEGO India MRP from sets table
+  const { data: setRow } = await supabase
+    .from('sets')
+    .select('lego_mrp_inr')
+    .eq('set_number', setNumber)
+    .maybeSingle();
+  if (setRow?.lego_mrp_inr) {
+    return `INDIA PRICE DATA: Official LEGO India MRP ₹${Number(setRow.lego_mrp_inr).toLocaleString('en-IN')} (no live store prices in our database). Use this figure. Mention stores (Toycra / MyBrickHouse / Jaiman) may list it within 4–6 weeks of global launch.`;
+  }
+
+  // 3. Live rate estimate (no store or MRP data)
+  const rate = await fetchLiveUsdInr();
+  if (rate) {
+    return `INDIA PRICE DATA: no store prices in our database. If the source mentions a USD price, multiply by ${rate} to get a rough INR estimate. Label it explicitly as "estimated import price" — never present it as a confirmed retail price.`;
+  }
+
+  return 'INDIA PRICE DATA: no price data available for this set. Acknowledge price uncertainty; do not state a specific figure.';
 }
 
 // ── WEB-01 lint gates ────────────────────────────────────────────────────────
