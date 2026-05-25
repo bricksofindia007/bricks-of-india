@@ -379,6 +379,17 @@ async function fetchOgImage(url: string): Promise<string | null> {
   } catch { return null; }
 }
 
+// Extract a LEGO set number from a source URL or title.
+// URL pattern covers Brickset, Rebrickable, LEGO shop paths like /products/12345 or /sets/12345-1/.
+// Title regex catches "Set 12345", "12345-1", or a bare 4-6 digit number.
+function extractSetNumber(sourceUrl: string, sourceTitle: string | null): string | null {
+  const urlMatch = sourceUrl.match(/\/(?:sets?|products?)\/(\d{4,6})(?:[-\/]|$)/i);
+  if (urlMatch) return urlMatch[1];
+  const titleStr = sourceTitle ?? '';
+  const titleMatch = titleStr.match(/\b(\d{4,6})(?:-\d+)?\b/);
+  return titleMatch ? titleMatch[1] : null;
+}
+
 // ── WEB-01 lint gates ────────────────────────────────────────────────────────
 
 // pass: ±10% of format target bounds — PASS zone (auto-merge eligible)
@@ -528,13 +539,51 @@ export async function publishDraft(formData: FormData) {
     }
   }
 
-  // Dedup guard — if this exact image URL is already in use in the target table, drop it
-  // rather than repeating the same hero image across multiple articles.
+  // Dedup guard — if this exact image URL is already used in the target table, try a
+  // Rebrickable set image as fallback before dropping to null.
   if (heroImage) {
     const { data: imgConflict } = await supabase.from(table).select('id').eq('hero_image', heroImage).maybeSingle();
     if (imgConflict) {
-      console.warn(`[publish] hero image already used in ${table} — skipping to avoid repetition`);
+      console.warn(`[publish] hero image already used in ${table} — attempting Rebrickable fallback`);
       heroImage = null;
+
+      const setNum = extractSetNumber(draft.source_url, draft.source_title ?? null);
+      if (setNum) {
+        const { data: setRow } = await supabase
+          .from('sets')
+          .select('image_url')
+          .eq('set_number', setNum)
+          .maybeSingle();
+        const candidate = setRow?.image_url ?? null;
+        if (candidate) {
+          // Ensure this fallback image isn't already used either
+          const { data: fallbackConflict } = await supabase
+            .from(table)
+            .select('id')
+            .eq('hero_image', candidate)
+            .maybeSingle();
+          if (!fallbackConflict) {
+            // HEAD-verify the fallback URL before accepting it
+            try {
+              const fbRes = await fetch(candidate, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+              if (fbRes.ok) {
+                heroImage = candidate;
+                console.log(`[publish] Rebrickable fallback accepted: ${candidate.slice(0, 80)}`);
+              } else {
+                console.warn(`[publish] Rebrickable fallback returned HTTP ${fbRes.status} — dropping to null`);
+              }
+            } catch {
+              console.warn('[publish] Rebrickable fallback HEAD check timed out — dropping to null');
+            }
+          } else {
+            console.warn('[publish] Rebrickable fallback image also already in use — dropping to null');
+          }
+        } else {
+          console.warn(`[publish] No sets.image_url found for set ${setNum} — dropping to null`);
+        }
+      } else {
+        console.warn('[publish] Could not extract set number from source — dropping to null');
+      }
     }
   }
 

@@ -253,7 +253,7 @@ Defects found but **not** yet patched should still be logged immediately, with t
 | DEFECT-002 | LAB-04 branch name inconsistency | Low | Patched |
 | DEFECT-003 | LAB-04 LabStrip file path wrong | Medium | Patched |
 | DEFECT-004 | LAB-03 marked Done before first scheduled run | Low | Patched |
-| DEFECT-005 | RADAR-04 drafter: format/structure violations despite correct voice register | P1 | 🟡 Partial |
+| DEFECT-005 | RADAR-04 drafter: format/structure violations despite correct voice register | P1 | ✅ Closed 2026-05-25 |
 | DEFECT-006 | gh CLI not on PATH in Claude Code Bash session despite winget install | P3 | Workaround documented |
 | DEFECT-007 | RLS disabled on price_snapshots and pending_drafts | Critical | Patched (DB-level) |
 | DEFECT-008 | catalogue-audit.yml missing permissions block (403 on issue creation) | Low | Patched (commit e5b71b1, 2026-05-09) |
@@ -261,6 +261,8 @@ Defects found but **not** yet patched should still be logged immediately, with t
 | DEFECT-010 | GitHub Actions using Node.js 20 (deprecated) — actions/checkout@v4 + setup-node@v4 | Medium | ✅ Closed — FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true added to all 6 workflows (commit 41856ed, 2026-05-10) |
 | DEFECT-011 | fetchFullBody overly broad CSS selector `[class*="sidebar"]` removed JBB article content | Medium | ✅ Closed — Patched (commit 68aa474, 2026-05-09) |
 | DEFECT-012 | RADAR-04 auto-ran on all approved drafts via cron — Gemini quota burned without operator intent | P1 | ✅ Closed — Patched (commit 57cd130, 2026-05-09) |
+| DEFECT-013 | `generateArticle()` throws on missing `BOI_DRAFT` markers — pre-existing runtime error | Medium | ✅ Closed 2026-05-14 — commit `a03f6d5` |
+| DEFECT-014 | Hero image dedup: OG image collisions on same-topic articles; no Rebrickable fallback | Medium | ✅ Closed 2026-05-25 |
 
 ---
 
@@ -413,3 +415,70 @@ The only pages reading `store_prices` correctly were `sets/[slug]/page.tsx` (det
 
 **Lesson:**
 When adding a new scraper table, audit all listing pages that display prices — not just detail pages. The `prices(*)` join pattern was copy-pasted across 3 pages without being updated when `store_prices` was introduced.
+
+---
+
+## DEFECT-013 — `generateArticle()` throws on missing `BOI_DRAFT` markers
+
+| Field | Value |
+|---|---|
+| Found during | Day 14, 2026-05-14 — operator triggered generateArticle() on a pre-existing draft |
+| Found by | Runtime hard throw at line 248: `si === -1` when `BOI_DRAFT_BODY_START` not in Gemini response |
+| Severity | Medium — `generateArticle()` crashed on conversational Gemini responses missing structural markers |
+| Status | ✅ Closed 2026-05-14 — commit `a03f6d5` |
+| Patch commit | `a03f6d5` |
+
+**What was wrong:**
+`generateArticle()` parsed the Gemini response by searching for `BOI_DRAFT_BODY_START` / `BOI_DRAFT_BODY_END` markers. These markers appeared only as a fill-in template in `userPrompt` with no explicit instruction to reproduce them in the output. When Gemini responded conversationally (without markers), `String.indexOf()` returned `-1` and the hard `if (si === -1) throw` fired. Pre-existing on all drafts without the final `OUTPUT_FORMAT` anchor.
+
+**What was patched:**
+- `OUTPUT_FORMAT` constant added as the final segment of `systemPrompt` — a hard structural rule isolated from all voice/style guidance so it cannot be buried or overridden
+- `IMPORTANT:` anchor added to the top of `userPrompt` reinforcing the same requirement
+- Both changes together ensure Gemini reliably wraps output in the expected markers
+
+**Lesson:**
+Structural output requirements (markers, schema, format) must appear as `systemPrompt` content, not just as template text in `userPrompt`. The system prompt is the non-negotiable contract; the user prompt is the variable data.
+
+---
+
+## DEFECT-014 — Hero image OG collisions: same image on multiple articles; no Rebrickable fallback
+
+| Field | Value |
+|---|---|
+| Found during | Day 25, 2026-05-25 — operator audit of published news_articles hero images |
+| Found by | `scripts/audit-hero-dupes.mjs` — 3 duplicate groups, 8 articles sharing 3 images |
+| Severity | Medium — page crawlability + UX; same thumbnail appears on distinct article cards |
+| Status | ✅ Closed 2026-05-25 |
+| Patch commit | _(pending — atomic commit this session)_ |
+
+**What was wrong:**
+8 published `news_articles` shared hero images across 3 groups:
+- `60422-1.jpg` — 4 articles (3 less-specific nulled)
+- `10317-1.jpg` — 2 articles (1 nulled)
+- `76919-1.jpg` — 2 articles (1 nulled)
+
+Root cause: `fetchOgImage()` pulled the OG image from source articles covering similar LEGO 2026-sets news; those source pages happened to use the same Brickset set image as their OG. The dedup guard in `publishDraft()` was introduced after these articles were published and did not catch historical collisions.
+
+Additionally, when the dedup guard fires, the previous code simply dropped `heroImage` to null with no fallback — articles that hit a collision were published with no hero image at all, even if a Rebrickable set image was available.
+
+**Fix applied (Part A — retroactive):**
+Ran `scripts/fix-hero-dupes.mjs` — nulled `hero_image` on 5 articles across 3 groups. Kept the most specific / best-matched article in each group. Verification query confirmed 0 duplicate groups remaining.
+
+**Fix applied (Part B — forward-looking):**
+Added `extractSetNumber(sourceUrl, sourceTitle)` helper to `src/app/admin/pending/actions.ts`:
+- URL pattern: extracts 4-6 digit set number from `/sets/`, `/set/`, `/products/`, `/product/` URL paths
+- Title regex fallback: matches bare `NNNN-N` or `NNNN` patterns in source title
+
+Modified dedup guard in `publishDraft()`: on collision, attempts Rebrickable fallback —
+1. Extract set number from `source_url` / `source_title`
+2. Look up `sets.image_url` for that set number
+3. Check fallback image is not already in use in the target table
+4. HEAD-verify the fallback URL returns HTTP 200
+5. Accept fallback if all checks pass; drop to null on any failure (step is WARN-only, never blocks publish)
+
+**Scripts created:**
+- `scripts/audit-hero-dupes.mjs` — reads all `news_articles.hero_image` values, groups by URL, reports duplicates
+- `scripts/fix-hero-dupes.mjs` — retroactive UPDATE script, ran once, should not need re-running
+
+**Lesson:**
+`fetchOgImage()` is not content-aware — it extracts whatever the source article has as OG image, which on topic-similar pages (all covering "LEGO 2026 sets") often resolves to the same Brickset set image. The dedup guard prevents forward repetition but cannot patch historical state. For historical cleanup, a one-shot audit + UPDATE script is the correct tool.
