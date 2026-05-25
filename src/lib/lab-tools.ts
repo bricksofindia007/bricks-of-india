@@ -49,6 +49,14 @@ export const LAB_TOOLS: LabTool[] = [
     status: "live",
   },
   {
+    id: "india-deals",
+    name: "India Deals Today",
+    emoji: "🏷️",
+    tagline: "Every set currently discounted across Indian stores. Updated every 6 hours.",
+    href: "/lab/deals",
+    status: "live",
+  },
+  {
     id: "portfolio",
     name: "The Brick Portfolio",
     emoji: "📊",

@@ -557,7 +557,7 @@
   "meta": {
     "lastUpdated": "2026-05-25",
     "trackerVersion": "v1.6",
-    "currentSprint": "Day 25 — WEB-05 /guides + WEB-06 /community shipped. REVIEW-PRICE-01 extended: all 3 stores always rendered in review sidebar. Fan CoLab route unblocked."
+    "currentSprint": "Day 25 — WEB-05 /guides + WEB-06 /community + LAB-06 /lab/deals shipped. DEFECT-005 closed. REVIEW-PRICE-01 extended. Fan CoLab routes unblocked."
   },
   "kpis": {
     "healthScore": 85,
@@ -568,7 +568,7 @@
     "netlifyResetDate": "2026-06-22",
     "daysSinceLastDeploy": 0,
     "lastDeployDate": "2026-05-25",
-    "lastDeployCommit": "eb8a049 · WEB-05 /guides route. Hero image dedup fix. RADAR_FAILURE_REPORT.md. TypeScript clean.",
+    "lastDeployCommit": "6120fca · DEFECT-005 closed. VOICE_EXAMPLES tightened with verbatim Codex exemplars. LAB-06 /lab/deals live.",
     "voiceTestStatus": "Pending",
     "geoScore": 26,
     "geoScoreTarget": 75,
@@ -609,6 +609,7 @@
     { "id": "LAB-02", "title": "Which Set Are You? (quiz)", "category": "Lab", "status": "done", "priority": "P2", "depsBlock": ["LAB-01"], "blocks": ["LAB-04"], "notes": "Done 2026-05-10. /lab/which-set live. 5 questions, 8 outcomes, store links with ABHINAV12 code." },
     { "id": "LAB-03", "title": "Daily price snapshot cron", "category": "Lab", "status": "done", "priority": "P1", "depsBlock": [], "blocks": ["LAB-05"], "notes": "Done 2026-05-02. 724 snapshots/day, 08:30 IST cron. Phase 5 verified by operator. LAB-05 eligible 2026-06-01 (30 days runway). Brief at briefs/LAB-03-price-snapshot-cron.md." },
     { "id": "LAB-04", "title": "Lab homepage strip + nav + /lab directory", "category": "Lab", "status": "done", "priority": "P2", "depsBlock": ["LAB-01"], "blocks": [], "notes": "Done 2026-05-02. /lab directory live, homepage strip + nav dropdown shipped. Fixes /lab 404. LAB-02 staged as coming_soon in src/lib/lab-tools.ts. Brief at briefs/LAB-04-homepage-strip.md." },
+    { "id": "LAB-06", "title": "India Deals Today at /lab/deals", "category": "Lab", "status": "done", "priority": "P1", "depsBlock": [], "blocks": ["CE-06"], "notes": "Done 2026-05-25. Server Component. Queries store_prices (in_stock=true) + sets joined in memory by set_id=set_number. Computes discount_pct=(lego_mrp_inr-price_inr)/lego_mrp_inr*100. Sorted desc. Cards: set name, set number, store badge, INR price, strikethrough MRP, discount % badge, Buy Now CTA → product_url. Empty state graceful. Registered in lab-tools.ts + sitemap.ts. CE-06 unblocked." },
     { "id": "CF-CACHE-01", "title": "Diagnose and fix 2.31% Cloudflare cache rate", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-02 (commit 6229d99). Cache-Control headers added per route type in next.config.mjs: /sets/* long (3600), /news+/blog+/reviews short (300), /admin no-store, /sitemap.xml medium. Target: 2.3% → 40%+ hit rate — verify in Cloudflare analytics 24h post-deploy." },
     { "id": "INFRA-03", "title": "GitHub Actions deploy workflow (deploy.yml)", "category": "Infrastructure", "status": "done", "priority": "P0", "depsBlock": [], "blocks": ["Phase 8 globe", "RADAR-01 cron"], "notes": "Deployed 2026-04-24 (commit 8992aef). Build now runs on GitHub Actions; Netlify still hosts but no longer runs the build. Netlify build minute concern resolved." },
     { "id": "RADAR-01", "title": "Topical Radar daily cron @ 23:00 IST", "category": "Content OS", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-09 — PR #2 merged (e5b71b1). fetch-rss.js live, 11 active sources (5 deferred: PARSER-01/SCRAPE-01/YT-FEED-NOISE-01). 163 signals in raw_signals as of 2026-05-09T06:07 UTC. workflow_dispatch verified green (run 25593692037, 37s). First scheduled tick: 2026-05-09 17:30 UTC." },

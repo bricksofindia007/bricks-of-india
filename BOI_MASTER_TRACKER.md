@@ -176,7 +176,7 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 | LAB-03 | Daily price snapshot cron | ✅ Done — 2026-05-02. 724 snapshots/day, 08:30 IST cron. Verified Phase 5 by operator. | — | `briefs/LAB-03-price-snapshot-cron.md` |
 | LAB-04 | Lab homepage strip + nav + /lab directory | ✅ Done — 2026-05-02. /lab directory live, homepage strip + nav dropdown shipped. Fixes 2026-05-02 audit /lab 404. LAB-02 staged as coming_soon in src/lib/lab-tools.ts (single-edit unlock). | LAB-01, ideally LAB-02 | `briefs/LAB-04-homepage-strip.md` |
 | LAB-05 | CMF Tracker | 🔴 Not started — P2 | — | — |
-| LAB-06 | India Deals Today | 🟡 Backend live — P1 | — (store_prices data live) | CE-06 |
+| LAB-06 | India Deals Today | ✅ Live 2026-05-25 | — (store_prices data live) | CE-06 |
 | LAB-07 | Budget Calculator INR | 🔴 Not started — P2 | — | — |
 | LAB-07 (old) | LEGO Heat Map | ✅ Live — 2026-05-10. /lab/heat-map. D3 choropleth India + world bubble map, 23 states, city drill-down. | — | — |
 | LAB-08 | Retiring Soon | 🔴 Not started — P3 | LAB-03 snapshot history (30+ days) | — |

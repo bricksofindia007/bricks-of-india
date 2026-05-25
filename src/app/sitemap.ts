@@ -18,6 +18,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/lab/biryani-index`, priority: 0.7 },
     { url: `${base}/lab/which-set`, priority: 0.7 },
     { url: `${base}/lab/heat-map`, priority: 0.7 },
+    { url: `${base}/lab/deals`, priority: 0.7 },
     { url: `${base}/guides`, priority: 0.8 },
     { url: `${base}/about`, priority: 0.6 },
     { url: `${base}/contact`, priority: 0.5 },
