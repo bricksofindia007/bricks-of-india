@@ -318,20 +318,20 @@ export default function HeatMapPage() {
     : [...STATE_DATA].sort((a, b) => b.score - a.score);
 
   return (
-    <div style={{ background: '#fff', minHeight: '100vh', fontFamily: 'var(--font-inter), sans-serif', color: '#1A1A1A', display: 'flex', flexDirection: 'column' }}>
+    <div style={{ background: '#fff', minHeight: '100vh', fontFamily: 'var(--font-inter), sans-serif', color: 'var(--boi-text)', display: 'flex', flexDirection: 'column' }}>
 
       {/* Header */}
-      <div style={{ padding: '20px 24px 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderLeft: '4px solid #F7A800', marginLeft: 24 }}>
+      <div style={{ padding: '20px 24px 0', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, borderLeft: '4px solid var(--boi-saffron)', marginLeft: 24 }}>
         <div>
-          <Link href="/lab" style={{ color: '#006CB7', fontSize: '0.78rem', fontWeight: 600, textDecoration: 'none' }}>← The Lab</Link>
-          <h1 style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '1.7rem', color: '#1A1A1A', margin: '4px 0 2px' }}>LEGO Search Pulse</h1>
-          <p style={{ color: '#4A5568', fontSize: '0.8rem', margin: 0 }}>Google Trends Search Interest · Relative Index 0–100 · Q1 2026</p>
+          <Link href="/lab" style={{ color: 'var(--boi-blue)', fontSize: '0.78rem', fontWeight: 600, textDecoration: 'none' }}>← The Lab</Link>
+          <h1 style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '1.7rem', color: 'var(--boi-text)', margin: '4px 0 2px' }}>LEGO Search Pulse</h1>
+          <p style={{ color: 'var(--boi-text-secondary)', fontSize: '0.8rem', margin: 0 }}>Google Trends Search Interest · Relative Index 0–100 · Q1 2026</p>
         </div>
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', paddingRight: 8 }}>
           <div style={{ display: 'flex', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 8, overflow: 'hidden' }}>
             {(['india', 'world'] as View[]).map(v => (
               <button key={v} onClick={() => { setView(v); setDrill(null); }}
-                style={{ padding: '6px 14px', fontSize: '0.78rem', fontWeight: 600, border: 'none', cursor: 'pointer', background: view === v ? '#F7A800' : '#fff', color: view === v ? '#fff' : '#4A5568', transition: 'background 0.15s' }}>
+                style={{ padding: '6px 14px', fontSize: '0.78rem', fontWeight: 600, border: 'none', cursor: 'pointer', background: view === v ? 'var(--boi-saffron)' : '#fff', color: view === v ? '#fff' : 'var(--boi-text-secondary)', transition: 'background 0.15s' }}>
                 {v === 'india' ? '🇮🇳 India' : '🌍 World'}
               </button>
             ))}
@@ -339,7 +339,7 @@ export default function HeatMapPage() {
           <div style={{ display: 'flex', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 8, overflow: 'hidden' }}>
             {(['12mo', '5yr'] as TimeRange[]).map(t => (
               <button key={t} onClick={() => setTimeRange(t)}
-                style={{ padding: '6px 14px', fontSize: '0.78rem', fontWeight: 600, border: 'none', cursor: 'pointer', background: timeRange === t ? '#F7A800' : '#fff', color: timeRange === t ? '#fff' : '#4A5568', transition: 'background 0.15s' }}>
+                style={{ padding: '6px 14px', fontSize: '0.78rem', fontWeight: 600, border: 'none', cursor: 'pointer', background: timeRange === t ? 'var(--boi-saffron)' : '#fff', color: timeRange === t ? '#fff' : 'var(--boi-text-secondary)', transition: 'background 0.15s' }}>
                 {t === '12mo' ? '12 Months' : '5 Years'}
               </button>
             ))}
@@ -350,9 +350,9 @@ export default function HeatMapPage() {
       {/* Breadcrumb */}
       {drill && (
         <div style={{ padding: '10px 24px 0', display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.82rem' }}>
-          <button onClick={() => setDrill(null)} style={{ background: 'none', border: 'none', color: '#006CB7', cursor: 'pointer', fontWeight: 600, padding: 0 }}>← All States</button>
+          <button onClick={() => setDrill(null)} style={{ background: 'none', border: 'none', color: 'var(--boi-blue)', cursor: 'pointer', fontWeight: 600, padding: 0 }}>← All States</button>
           <span style={{ color: '#CBD5E0' }}>·</span>
-          <span style={{ color: '#4A5568' }}>{drill}</span>
+          <span style={{ color: 'var(--boi-text-secondary)' }}>{drill}</span>
         </div>
       )}
 
@@ -362,7 +362,7 @@ export default function HeatMapPage() {
         {/* Map */}
         <div ref={containerRef} style={{ flex: 1, position: 'relative', borderRadius: 12, border: '1px solid rgba(0,0,0,0.08)', overflow: 'hidden', background: '#FAFAFA', minHeight: 400, height: 0 }}>
           {loading && (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#4A5568', fontSize: '0.88rem' }}>
+            <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--boi-text-secondary)', fontSize: '0.88rem' }}>
               Loading map…
             </div>
           )}
@@ -370,10 +370,10 @@ export default function HeatMapPage() {
 
           {tooltip && (
             <div style={{ position: 'absolute', left: tooltip.x + 14, top: Math.max(8, tooltip.y - 10), background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '10px 14px', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', pointerEvents: 'none', maxWidth: 210, zIndex: 20 }}>
-              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1A1A1A' }}>{tooltip.name}</div>
-              <div style={{ fontFamily: 'var(--font-fredoka)', fontSize: '1.6rem', color: '#F7A800', fontWeight: 700, lineHeight: 1.1 }}>{tooltip.score}</div>
-              {tooltip.change && <div style={{ fontSize: '0.72rem', color: '#16A34A', fontWeight: 700 }}>↑ {tooltip.change}</div>}
-              {tooltip.note && <div style={{ fontSize: '0.7rem', color: '#4A5568', marginTop: 6, lineHeight: 1.45, fontStyle: 'italic' }}>{tooltip.note}</div>}
+              <div style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--boi-text)' }}>{tooltip.name}</div>
+              <div style={{ fontFamily: 'var(--font-fredoka)', fontSize: '1.6rem', color: 'var(--boi-saffron)', fontWeight: 700, lineHeight: 1.1 }}>{tooltip.score}</div>
+              {tooltip.change && <div style={{ fontSize: '0.72rem', color: 'var(--color-deal-green)', fontWeight: 700 }}>↑ {tooltip.change}</div>}
+              {tooltip.note && <div style={{ fontSize: '0.7rem', color: 'var(--boi-text-secondary)', marginTop: 6, lineHeight: 1.45, fontStyle: 'italic' }}>{tooltip.note}</div>}
             </div>
           )}
         </div>
@@ -384,14 +384,14 @@ export default function HeatMapPage() {
           {/* Selected state hero */}
           {view === 'india' && (
             <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: 16, flexShrink: 0 }}>
-              <div style={{ fontSize: '0.68rem', color: '#4A5568', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>{drill ? 'Selected' : 'Top State'}</div>
-              <div style={{ fontFamily: 'var(--font-fredoka)', fontSize: '1rem', fontWeight: 700, color: '#1A1A1A', marginTop: 2 }}>{selectedState.name}</div>
-              <div style={{ fontFamily: 'var(--font-fredoka)', fontSize: '3rem', fontWeight: 700, color: '#F7A800', lineHeight: 1 }}>{selectedState.score}</div>
-              <div style={{ fontSize: '0.78rem', color: '#16A34A', fontWeight: 700, marginTop: 2 }}>↑ {selectedState.change}</div>
-              <div style={{ fontSize: '0.76rem', color: '#4A5568', marginTop: 8, lineHeight: 1.5, fontStyle: 'italic' }}>{selectedState.note}</div>
+              <div style={{ fontSize: '0.68rem', color: 'var(--boi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600 }}>{drill ? 'Selected' : 'Top State'}</div>
+              <div style={{ fontFamily: 'var(--font-fredoka)', fontSize: '1rem', fontWeight: 700, color: 'var(--boi-text)', marginTop: 2 }}>{selectedState.name}</div>
+              <div style={{ fontFamily: 'var(--font-fredoka)', fontSize: '3rem', fontWeight: 700, color: 'var(--boi-saffron)', lineHeight: 1 }}>{selectedState.score}</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--color-deal-green)', fontWeight: 700, marginTop: 2 }}>↑ {selectedState.change}</div>
+              <div style={{ fontSize: '0.76rem', color: 'var(--boi-text-secondary)', marginTop: 8, lineHeight: 1.5, fontStyle: 'italic' }}>{selectedState.note}</div>
               {CITY_DATA[selectedState.name] && (
                 <button onClick={() => setDrill(selectedState.name)}
-                  style={{ marginTop: 10, width: '100%', padding: '8px', background: '#F7A800', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', color: '#fff' }}>
+                  style={{ marginTop: 10, width: '100%', padding: '8px', background: 'var(--boi-saffron)', border: 'none', borderRadius: 8, fontWeight: 700, fontSize: '0.78rem', cursor: 'pointer', color: '#fff' }}>
                   View Cities →
                 </button>
               )}
@@ -400,7 +400,7 @@ export default function HeatMapPage() {
 
           {/* Ranked list */}
           <div style={{ background: '#fff', border: '1px solid rgba(0,0,0,0.08)', borderRadius: 12, padding: '14px', flex: 1, overflowY: 'auto' }}>
-            <div style={{ fontSize: '0.68rem', color: '#4A5568', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600, marginBottom: 10 }}>
+            <div style={{ fontSize: '0.68rem', color: 'var(--boi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.07em', fontWeight: 600, marginBottom: 10 }}>
               {view === 'india' ? 'All States' : 'Countries'} · Ranked
             </div>
             {rankList.map((item, i) => {
@@ -410,9 +410,9 @@ export default function HeatMapPage() {
                   onClick={() => { if (s) { setSelectedState(s); if (CITY_DATA[s.name]) setDrill(s.name); } }}
                   style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '5px 0', borderBottom: '1px solid rgba(0,0,0,0.04)', cursor: s ? 'pointer' : 'default' }}>
                   <span style={{ fontSize: '0.68rem', color: '#CBD5E0', width: 18, textAlign: 'right', flexShrink: 0 }}>{i + 1}</span>
-                  <span style={{ flex: 1, fontSize: '0.8rem', color: '#1A1A1A', fontWeight: 500 }}>{item.name}</span>
-                  {s && s.trend === 'up' && <span style={{ fontSize: '0.68rem', color: '#16A34A', fontWeight: 700 }}>↑</span>}
-                  <span style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '0.88rem', color: item.score >= 70 ? '#E3000B' : item.score >= 45 ? '#F7A800' : '#4A5568' }}>
+                  <span style={{ flex: 1, fontSize: '0.8rem', color: 'var(--boi-text)', fontWeight: 500 }}>{item.name}</span>
+                  {s && s.trend === 'up' && <span style={{ fontSize: '0.68rem', color: 'var(--color-deal-green)', fontWeight: 700 }}>↑</span>}
+                  <span style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '0.88rem', color: item.score >= 70 ? 'var(--boi-red)' : item.score >= 45 ? 'var(--boi-saffron)' : 'var(--boi-text-secondary)' }}>
                     {item.score}
                   </span>
                 </div>

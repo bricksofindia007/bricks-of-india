@@ -130,7 +130,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 ## Current blockers (top 3)
 
 1. **Content freshness — CRITICAL** — /news 15 days stale, /blog 35 days stale. RADAR cron is running but no operator visits to `/admin/pending` since Day 14. Action: visit `/admin/pending`, approve + generate + publish ≥3 articles.
-2. **Fan CoLab CE content not started** — 13 weeks to August deadline. WEB-05 + WEB-06 routes now live. CE-01 subject outreach (2 Indian AFOL builders) needed immediately to hit July 15 deadline. LAB-06 frontend needed to unblock CE-06.
+2. **Fan CoLab CE content not started** — 13 weeks to August deadline. WEB-05 ✅ + WEB-06 ✅ routes live. CE-01 subject outreach (2 Indian AFOL builders) needed immediately to hit July 15 deadline. LAB-06 frontend live (✅ `/lab/deals`).
 3. **IG System User Token deferred** — current 60-day long-lived token expires ~2026-07-23. Requires manual re-exchange every 55 days. Permanent fix (Meta Business Manager System User) deferred.
 
 > PARSER-01 closed 2026-05-12 — New Elementary re-enabled via Blogger JSON (commits 700b561 + a311fc6).
@@ -160,6 +160,9 @@ JSON parses. If it doesn't, fix before doing anything else.
 | WEB-02 | Auto-publish gate: lint pass → publish proceeds | ✅ Done 2026-05-14 | Pipeline is UI-based not PR-based. Equivalent: Publish button in `/admin/pending` is hard-gated by `lintDraft()` — all gates must pass before `publishDraft()` inserts to Supabase. |
 | WEB-03 | 4-gate linter: word count, India Paragraph, verdict, image HTTP 200 | ✅ Done 2026-05-14 | `lintDraft()` in `actions.ts`. Gate 1: 3-state PASS/WARN/FAIL (±10% / ±25%). Gate 2: all 4 Codex components (marker, ₹price, store availability, Indian comparison) checked against `body.slice(markerIdx)`. Gate 3: verdict enum enforced for all formats. Gate 4: HEAD-check on extracted OG image URL in `publishDraft()` post-`fetchOgImage()`. |
 | WEB-04 | Failed lint → publish blocked + email alert | ✅ Done 2026-05-14 | `sendLintAlert()` in `actions.ts` — dynamic Resend import, fires on any Gate 1–4 FAIL, sends to `abhinav@bricksofindia.com` with draft title + gate error. Never throws (lint error propagates unmasked). Gate 1 WARN logs to console but does not trigger email or block publish. |
+| WEB-05 | /guides route — Fan CoLab critical path | ✅ Done 2026-05-25 | Commit `eb8a049`. `src/app/guides/page.tsx` (index: hero, 3-column card grid, category tabs) + `src/app/guides/[slug]/page.tsx` (Article JSON-LD, breadcrumb, related guides). Migration: `supabase/migrations/20260525000000_guides.sql`. Guides link in Navbar + sitemap. |
+| WEB-06 | /community route — Fan CoLab critical path | ✅ Done 2026-05-25 | Commit `2cda45a`. `src/app/community/page.tsx` + `src/app/community/[slug]/page.tsx` live. Tracker carry-over was stale. |
+| DESIGN-CSS-02 | Hardcoded hex cleanup — lab pages + globals | ✅ Done 2026-05-26 | `lab/deals/page.tsx`, `lab/which-set/page.tsx`, `lab/heat-map/page.tsx`: BOI brand colors → CSS vars (`--boi-saffron`, `--boi-blue`, `--boi-text`, etc.). `globals.css` heading colors tokenised. D3 `.attr()` calls and email template (`newsletter.ts`) excluded — hex required in those contexts. `admin/pending/page.tsx` deferred to DESIGN-CSS-03 (internal tooling, 37+ inline styles). |
 | REVIEWS-FIRST-3 | Write first 3 Codex-compliant set reviews | ✅ Done 2026-05-14 | 3 reviews inserted. (1) McLaren P1 42172 — BUY, ₹29,399 Toycra, 558w, id `34d279e3`. (2) Rivendell 10316 — BUY, ₹39,999 Toycra, 624w, id `7141242f`. (3) Natural History Museum 10326 — WAIT FOR SALE, ₹34,999 Toycra, 543w, id `70db543d`. All pass lint Gates 1–4. Schema hardened (hero_image, excerpt, seo_title, seo_description, updated_at). Unblocks GEO-01-FU1 and RLFM. |
 | GEO-01-FU1 | Verify /reviews/[slug] JSON-LD on first review publish | 🟡 Unblocked — pending Netlify deploy of 2026-05-25 changes. Verify `buildReviewSchema()` emits Review + Product schema on live /reviews/lego-42172-mclaren-p1-review. Netlify credits reset 2026-05-22 — deploy now unblocked. | Gated on reviews table having at least 1 row — now satisfied. |
 | RADAR-08 | Automated reviews generation pipeline | 🔴 Briefed, not started | Reduce manual dependency on operator-written reviews. Target: 5+ Codex-compliant reviews/week without bottleneck. Requires: (a) reviews format added to RADAR-03 classifier, (b) `generateArticle()` extended to publish to `reviews` table, (c) set_id UUID lookup by set_number wired into generation, (d) hero_image populated from Rebrickable CDN. Blocks RLFM at scale — current 3-review pace is insufficient for application velocity. |
@@ -229,6 +232,16 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### Day 26 — 2026-05-26 — MBH scraper fix + NHM review + health-check + CSS vars
+
+Shipped:
+- **MBH scraper bug (P0)** — `scripts/scrape-now.mjs`: `parseProduct()` lego-string filter was silently dropping 617/853 MBH products whose titles/handles don't contain "lego" (e.g. "Icons Natural History Museum Set 10326 Building Kit"). Bypass filter for `mybrickhouse` store; `knownSets.has()` is the real guard. MBH matched 848 sets (was 227). 10326 now in `store_prices` at ₹31,999. Commit `ff78b81`.
+- **NHM review price fix (REVIEW-PRICE-01 P0)** — reviews row `70db543d`: replaced ₹27,000 MRP references with correct store prices (Jaiman ₹26,990, MyBrickHouse ₹31,999, Toycra ₹34,999). WAIT FOR SALE verdict strengthened — Toycra is 30% above Jaiman. Live DB update via `scripts/update-nhm-review.mjs`. ₹27,000 fully removed from content.
+- **health-check.yml** — new nightly workflow (02:30 UTC / 08:00 IST). 7 checks: /news freshness (7d), /blog freshness (14d), RADAR pipeline (25h), social automation (25h), store prices (7h), IG token expiry (14d warning on 2026-07-23 expiry), pending drafts backlog (>50). One email per failure via Resend. Silence = green. Requires `BRIEF_EMAIL` secret. `scripts/health-check.mjs` + `.github/workflows/health-check.yml`. DEPLOYMENT.md updated.
+- **DESIGN-CSS-02** — `lab/deals/page.tsx`, `lab/which-set/page.tsx`, `lab/heat-map/page.tsx`: BOI brand hex → CSS vars (`--boi-saffron`, `--boi-blue`, `--boi-text`, `--boi-text-secondary`, `--boi-red`, `--boi-green`, `--color-primary-dark`, `--color-deal-green`). `globals.css`: html/body background + heading color tokenised. D3 `.attr()` calls and `newsletter.ts` (email HTML) excluded. `admin/pending/page.tsx` deferred → DESIGN-CSS-03.
+- **WEB-06 tracker correction** — `/community` route was shipped in commit `2cda45a` (prior session); tracker carry-over was stale. Corrected.
+- **DEFECT-005 one-liner** — Flash-Lite "fever dreams" residual noted in BRIEF_DEFECTS.md. Accepted at current stage.
+
 ### Day 25 — 2026-05-25 — WEB-05 /guides + RADAR report + image dedup fix
 
 Shipped:
@@ -267,7 +280,7 @@ System health check (verified 2026-05-25):
 - Last audit: today → 0
 - Voice test pending > 14 days → -5
 - GEO score 26 < 50 → -5
-- Blocked pipeline (WEB-06 P1 not started; WEB-05 ✅ shipped) → -5
+- WEB-06 shipped (commit 2cda45a) → 0
 - Content staleness (16d /news, 36d /blog) → -5
 - **Health score: 80**
 
@@ -276,7 +289,7 @@ System health check (verified 2026-05-25):
 Pending (carry-overs):
 - **Content freshness** — /news 16 days stale, /blog 36 days stale. 312 approved signals at `/admin/pending` need Generate Article + Publish clicks.
 - **Guides migration** — run `supabase/migrations/20260525000000_guides.sql` in Supabase dashboard SQL editor before publishing any guides.
-- **WEB-06 /community** — Fan CoLab critical path, due June 7. Not yet started.
+- **WEB-06 /community** — ✅ Done (commit 2cda45a). `/app/community/page.tsx` + `/app/community/[slug]/page.tsx` live. Tracker line was stale.
 - **LAB-06** — `/lab/deals` frontend. 1 session, backend already live.
 - **IG System User Token** — permanent token via Meta Business Manager. Current 60-day token expires ~2026-07-23.
 - **GSC setup** — manual: verify bricksofindia.com in Google Search Console, submit sitemap, request indexing for 10 key pages.

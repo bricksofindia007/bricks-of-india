@@ -43,7 +43,14 @@ succeeds in GitHub Actions (where `.env.local` does not exist).
 | `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Google Analytics measurement ID. |
 | `NEXT_PUBLIC_SITE_URL` | `https://bricksofindia.com` |
 
-**Total: 9 secrets to add.**
+### Required for health-check.yml (2 secrets)
+
+| Secret name | Notes |
+|-------------|-------|
+| `RESEND_API_KEY` | Resend API key — same as newsletter. Already in GitHub Secrets if newsletter email is working. |
+| `BRIEF_EMAIL` | Email address to receive health alerts. Set to `abhinav@bricksofindia.com` or any address you monitor. |
+
+**Total: 11 secrets to add.**
 
 ---
 

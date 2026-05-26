@@ -40,11 +40,11 @@
 }
 
 html {
-  background-color: #FFFFFF;
+  background-color: var(--boi-bg);
 }
 
 body {
-  background-color: #FFFFFF;
+  background-color: var(--boi-bg);
   color: #333333;
   font-family: var(--font-inter), var(--font-poppins), sans-serif;
   font-weight: 400;
@@ -55,13 +55,13 @@ body {
 h1, h2, h3 {
   font-family: var(--font-fredoka), var(--font-poppins), sans-serif;
   font-weight: 700;
-  color: #1A1A1A;
+  color: var(--boi-text);
 }
 
 h4, h5, h6 {
   font-family: var(--font-inter), var(--font-poppins), sans-serif;
   font-weight: 600;
-  color: #1A1A1A;
+  color: var(--boi-text);
 }
 
 button {

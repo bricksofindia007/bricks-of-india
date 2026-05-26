@@ -69,17 +69,17 @@ export default async function DealsPage() {
     .sort((a, b) => b.discountPct - a.discountPct);
 
   return (
-    <div style={{ background: '#fff', minHeight: '100vh', fontFamily: 'var(--font-inter), sans-serif', color: '#1A1A1A' }}>
+    <div style={{ background: '#fff', minHeight: '100vh', fontFamily: 'var(--font-inter), sans-serif', color: 'var(--boi-text)' }}>
 
       {/* Header — matches heat-map / lab tool pattern */}
       <div style={{ padding: '20px 28px 0', borderLeft: '4px solid #F7A800', margin: '8px 24px 0' }}>
-        <Link href="/lab" style={{ color: '#006CB7', fontSize: '0.78rem', fontWeight: 600, textDecoration: 'none' }}>
+        <Link href="/lab" style={{ color: 'var(--boi-blue)', fontSize: '0.78rem', fontWeight: 600, textDecoration: 'none' }}>
           ← The Lab
         </Link>
-        <h1 style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '1.7rem', color: '#1A1A1A', margin: '4px 0 2px' }}>
+        <h1 style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '1.7rem', color: 'var(--boi-text)', margin: '4px 0 2px' }}>
           India Deals Today
         </h1>
-        <p style={{ color: '#4A5568', fontSize: '0.85rem', margin: '0 0 2px' }}>
+        <p style={{ color: 'var(--boi-text-secondary)', fontSize: '0.85rem', margin: '0 0 2px' }}>
           Your wallet is already open. We found the discounts. The stores did not make this easy.
         </p>
         <p style={{ color: '#CBD5E0', fontSize: '0.72rem', margin: 0 }}>
@@ -89,7 +89,7 @@ export default async function DealsPage() {
 
       {/* Deal count chip */}
       {deals.length > 0 && (
-        <div style={{ padding: '10px 28px 0', fontSize: '0.78rem', fontWeight: 700, color: '#F7A800' }}>
+        <div style={{ padding: '10px 28px 0', fontSize: '0.78rem', fontWeight: 700, color: 'var(--boi-saffron)' }}>
           {deals.length} set{deals.length !== 1 ? 's' : ''} on discount right now
         </div>
       )}
@@ -99,15 +99,15 @@ export default async function DealsPage() {
         {deals.length === 0 ? (
           <div style={{ textAlign: 'center', padding: '80px 24px' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🏷️</div>
-            <h2 style={{ fontFamily: 'var(--font-fredoka)', fontSize: '1.4rem', color: '#1A1A1A', margin: '0 0 10px' }}>
+            <h2 style={{ fontFamily: 'var(--font-fredoka)', fontSize: '1.4rem', color: 'var(--boi-text)', margin: '0 0 10px' }}>
               Nothing on discount right now.
             </h2>
-            <p style={{ fontSize: '0.88rem', color: '#4A5568', maxWidth: 360, margin: '0 auto 20px' }}>
+            <p style={{ fontSize: '0.88rem', color: 'var(--boi-text-secondary)', maxWidth: 360, margin: '0 auto 20px' }}>
               The stores are doing their best. Their best is not good enough. Scrapers run every 6 hours — check back later.
             </p>
             <Link
               href="/sets"
-              style={{ display: 'inline-block', background: '#0F2D6B', color: '#fff', fontWeight: 700, fontSize: '0.82rem', padding: '10px 20px', borderRadius: 10, textDecoration: 'none' }}
+              style={{ display: 'inline-block', background: 'var(--color-primary-dark)', color: '#fff', fontWeight: 700, fontSize: '0.82rem', padding: '10px 20px', borderRadius: 10, textDecoration: 'none' }}
             >
               Browse all sets →
             </Link>
@@ -158,7 +158,7 @@ function DealCard({ deal }: { deal: DealRow }) {
         {/* Discount badge */}
         <div style={{
           position: 'absolute', top: 10, right: 10,
-          background: '#F7A800', color: '#fff',
+          background: 'var(--boi-saffron)', color: '#fff',
           fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '0.88rem',
           padding: '3px 10px', borderRadius: 20, lineHeight: 1.5,
         }}>
@@ -173,7 +173,7 @@ function DealCard({ deal }: { deal: DealRow }) {
         <div>
           <Link
             href={`/sets/${setSlug}`}
-            style={{ fontWeight: 700, fontSize: '0.88rem', color: '#1A1A1A', textDecoration: 'none', lineHeight: 1.35, display: 'block' }}
+            style={{ fontWeight: 700, fontSize: '0.88rem', color: 'var(--boi-text)', textDecoration: 'none', lineHeight: 1.35, display: 'block' }}
           >
             {deal.set.name}
           </Link>
@@ -184,12 +184,12 @@ function DealCard({ deal }: { deal: DealRow }) {
 
         {/* Store badge */}
         <div style={{ display: 'inline-flex', alignItems: 'center', background: '#EEF2FF', borderRadius: 6, padding: '2px 8px', width: 'fit-content' }}>
-          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: '#0F2D6B' }}>{storeName}</span>
+          <span style={{ fontSize: '0.68rem', fontWeight: 700, color: 'var(--color-primary-dark)' }}>{storeName}</span>
         </div>
 
         {/* Prices */}
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8 }}>
-          <span style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '1.4rem', color: '#0F2D6B', lineHeight: 1 }}>
+          <span style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '1.4rem', color: 'var(--color-primary-dark)', lineHeight: 1 }}>
             ₹{deal.price_inr.toLocaleString('en-IN')}
           </span>
           <span style={{ fontSize: '0.75rem', color: '#CBD5E0', textDecoration: 'line-through' }}>
@@ -208,7 +208,7 @@ function DealCard({ deal }: { deal: DealRow }) {
           style={{
             marginTop: 'auto',
             display: 'block', textAlign: 'center',
-            background: '#0F2D6B', color: '#fff',
+            background: 'var(--color-primary-dark)', color: '#fff',
             fontWeight: 700, fontSize: '0.82rem',
             padding: '9px 16px', borderRadius: 10,
             textDecoration: 'none',

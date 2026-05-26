@@ -66,7 +66,7 @@ const OUTCOMES: Record<string, Outcome> = {
     desc: "Gear ratios, differentials, pneumatic systems — this is your language. You do not just want a model, you want to understand how it works. Possibly better than the engineers who designed the real thing.",
     set: 'Technic Bugatti Chiron', setNum: '42151',
     why: 'Because if you are going to build a supercar, it should have a working 8-speed gearbox. Anything less is just sculpture.',
-    accent: '#F7A800',
+    accent: 'var(--boi-saffron)',
   },
   creator: {
     theme: 'Creator Expert', emoji: '🏛️',
@@ -74,7 +74,7 @@ const OUTCOMES: Record<string, Outcome> = {
     desc: "Your shelf is curated. Your lighting is intentional. You have googled 'LEGO display case India' at least once. The build is almost secondary.",
     set: 'Eiffel Tower', setNum: '10307',
     why: '10001 pieces. 1.5 metres tall. Absolutely unhinged. Exactly your energy.',
-    accent: '#F7A800',
+    accent: 'var(--boi-saffron)',
   },
   city: {
     theme: 'City', emoji: '🏙️',
@@ -82,7 +82,7 @@ const OUTCOMES: Record<string, Outcome> = {
     desc: "You might have kids. You might not. Either way City sets are the ones that make you forget time exists. There is something deeply satisfying about a miniature world that just works.",
     set: 'City Police Station', setNum: '60316',
     why: 'A whole ecosystem in one box. Also the little police motorbike is disproportionately satisfying to build.',
-    accent: '#138808',
+    accent: 'var(--boi-green)',
   },
   icons: {
     theme: 'LEGO Icons', emoji: '🤖',
@@ -90,7 +90,7 @@ const OUTCOMES: Record<string, Outcome> = {
     desc: "Icons sets are for people who grew up with something — a cartoon, a car, a moment — and never quite got over it. LEGO understood this and turned it into a product line.",
     set: 'Optimus Prime', setNum: '10302',
     why: 'It transforms. An adult LEGO set. That transforms. Into a truck. Back into Optimus. This is not a drill.',
-    accent: '#006CB7',
+    accent: 'var(--boi-blue)',
   },
   architecture: {
     theme: 'Architecture', emoji: '🏗️',
@@ -98,7 +98,7 @@ const OUTCOMES: Record<string, Outcome> = {
     desc: "You appreciate restraint. Clean lines. The fact that someone distilled the Burj Khalifa into 1460 pieces and made it look elegant. You probably have opinions about fonts too.",
     set: 'Singapore', setNum: '21057',
     why: "Asia's most recognisable skyline fits on any desk and yes the Marina Bay Sands is in there.",
-    accent: '#006CB7',
+    accent: 'var(--boi-blue)',
   },
   starwars: {
     theme: 'Star Wars', emoji: '🚀',
@@ -106,7 +106,7 @@ const OUTCOMES: Record<string, Outcome> = {
     desc: "You watched A New Hope at an age that permanently rewired your brain. Now you are an adult with disposable income and very specific opinions about Millennium Falcon accuracy.",
     set: 'Millennium Falcon', setNum: '75257',
     why: 'It is the Falcon. You already wanted it before you started this quiz. We both know this.',
-    accent: '#E3000B',
+    accent: 'var(--boi-red)',
   },
   ideas: {
     theme: 'LEGO Ideas', emoji: '🌿',
@@ -114,7 +114,7 @@ const OUTCOMES: Record<string, Outcome> = {
     desc: "LEGO Ideas sets are built by fans for fans. They are weird, specific, and wonderful. You do not build what is popular — you build what is interesting.",
     set: 'Tiny Plants', setNum: '21338',
     why: 'Succulents that do not die. A fiddle-leaf fig that will never disappoint you. Deeply therapeutic to build.',
-    accent: '#138808',
+    accent: 'var(--boi-green)',
   },
   speed: {
     theme: 'Speed Champions', emoji: '🏎️',
@@ -122,7 +122,7 @@ const OUTCOMES: Record<string, Outcome> = {
     desc: "You are decisive. You know what you like. You would rather have three Speed Champions on your desk than one bloated set. Also you probably have a favourite F1 team.",
     set: 'Ferrari 812 Competizione', setNum: '76914',
     why: 'Because it is a Ferrari. Because it is red. Because Schumacher. No further questions.',
-    accent: '#E3000B',
+    accent: 'var(--boi-red)',
   },
 };
 
@@ -171,25 +171,25 @@ export default function WhichSetPage() {
   function restart() { setAnswers({}); setStep(0); }
 
   return (
-    <div style={{ background: '#fff', minHeight: '100vh', fontFamily: 'var(--font-inter), sans-serif', color: '#1A1A1A', padding: '40px 24px 80px' }}>
+    <div style={{ background: '#fff', minHeight: '100vh', fontFamily: 'var(--font-inter), sans-serif', color: 'var(--boi-text)', padding: '40px 24px 80px' }}>
       <div style={{ maxWidth: 620, margin: '0 auto' }}>
 
         {/* Back link + title */}
         <div style={{ marginBottom: 32 }}>
-          <Link href="/lab" style={{ color: '#006CB7', fontSize: '0.8rem', fontWeight: 600, textDecoration: 'none' }}>← The Lab</Link>
-          <h1 style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: 'clamp(1.8rem, 5vw, 2.4rem)', color: '#1A1A1A', margin: '8px 0 4px' }}>Which LEGO Set Are You?</h1>
-          <p style={{ color: '#4A5568', fontSize: '0.88rem', margin: 0 }}>A short quiz that judges your taste and recommends a set.</p>
+          <Link href="/lab" style={{ color: 'var(--boi-blue)', fontSize: '0.8rem', fontWeight: 600, textDecoration: 'none' }}>← The Lab</Link>
+          <h1 style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: 'clamp(1.8rem, 5vw, 2.4rem)', color: 'var(--boi-text)', margin: '8px 0 4px' }}>Which LEGO Set Are You?</h1>
+          <p style={{ color: 'var(--boi-text-secondary)', fontSize: '0.88rem', margin: 0 }}>A short quiz that judges your taste and recommends a set.</p>
         </div>
 
         {/* Progress bar */}
         {!isIntro && !isResult && (
           <div style={{ marginBottom: 28 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: '#4A5568', marginBottom: 6 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', color: 'var(--boi-text-secondary)', marginBottom: 6 }}>
               <span>Question {step} of {total}</span>
               <span>{progress}%</span>
             </div>
             <div style={{ height: 6, background: 'rgba(0,0,0,0.08)', borderRadius: 99 }}>
-              <div style={{ height: '100%', width: `${progress}%`, background: '#F7A800', borderRadius: 99, transition: 'width 0.3s ease' }} />
+              <div style={{ height: '100%', width: `${progress}%`, background: 'var(--boi-saffron)', borderRadius: 99, transition: 'width 0.3s ease' }} />
             </div>
           </div>
         )}
@@ -198,11 +198,11 @@ export default function WhichSetPage() {
         {isIntro && (
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
             <div style={{ fontSize: '4rem', marginBottom: 16 }}>🎯</div>
-            <p style={{ color: '#4A5568', fontSize: '1rem', lineHeight: 1.75, maxWidth: 460, margin: '0 auto 32px' }}>
+            <p style={{ color: 'var(--boi-text-secondary)', fontSize: '1rem', lineHeight: 1.75, maxWidth: 460, margin: '0 auto 32px' }}>
               Five questions. No wrong answers. Mostly. We will tell you exactly which LEGO set matches your personality, budget, and the fact that you have googled &ldquo;LEGO price India&rdquo; more than once this week.
             </p>
             <button onClick={() => setStep(1)}
-              style={{ background: '#F7A800', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 40px', fontFamily: 'var(--font-fredoka)', fontSize: '1.1rem', fontWeight: 700, cursor: 'pointer' }}>
+              style={{ background: 'var(--boi-saffron)', color: '#fff', border: 'none', borderRadius: 12, padding: '14px 40px', fontFamily: 'var(--font-fredoka)', fontSize: '1.1rem', fontWeight: 700, cursor: 'pointer' }}>
               Start the Quiz →
             </button>
           </div>
@@ -212,8 +212,8 @@ export default function WhichSetPage() {
         {!isIntro && !isResult && currentQ && (
           <div>
             <div style={{ marginBottom: 24 }}>
-              <h2 style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '1.5rem', color: '#1A1A1A', margin: '0 0 6px' }}>{currentQ.q}</h2>
-              <p style={{ color: '#4A5568', fontSize: '0.86rem', margin: 0, fontStyle: 'italic' }}>{currentQ.sub}</p>
+              <h2 style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '1.5rem', color: 'var(--boi-text)', margin: '0 0 6px' }}>{currentQ.q}</h2>
+              <p style={{ color: 'var(--boi-text-secondary)', fontSize: '0.86rem', margin: 0, fontStyle: 'italic' }}>{currentQ.sub}</p>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
               {currentQ.options.map(opt => (
@@ -223,12 +223,12 @@ export default function WhichSetPage() {
                   onMouseLeave={() => setHovered(null)}
                   style={{
                     background: '#fff',
-                    border: `2px solid ${hovered === opt.value ? '#F7A800' : 'rgba(0,0,0,0.08)'}`,
+                    border: `2px solid ${hovered === opt.value ? 'var(--boi-saffron)' : 'rgba(0,0,0,0.08)'}`,
                     borderRadius: 12, padding: '14px 18px', textAlign: 'left',
                     cursor: 'pointer', transition: 'border-color 0.15s', width: '100%',
                   }}>
-                  <div style={{ fontWeight: 600, fontSize: '0.93rem', color: '#1A1A1A' }}>{opt.label}</div>
-                  <div style={{ fontSize: '0.78rem', color: '#4A5568', marginTop: 2 }}>{opt.sub}</div>
+                  <div style={{ fontWeight: 600, fontSize: '0.93rem', color: 'var(--boi-text)' }}>{opt.label}</div>
+                  <div style={{ fontSize: '0.78rem', color: 'var(--boi-text-secondary)', marginTop: 2 }}>{opt.sub}</div>
                 </button>
               ))}
             </div>
@@ -243,29 +243,29 @@ export default function WhichSetPage() {
               <div style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '1rem', color: result.accent, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 6 }}>
                 {result.theme}
               </div>
-              <h2 style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: 'clamp(1.4rem, 4vw, 1.9rem)', color: '#1A1A1A', margin: '0 0 12px', lineHeight: 1.2 }}>
+              <h2 style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: 'clamp(1.4rem, 4vw, 1.9rem)', color: 'var(--boi-text)', margin: '0 0 12px', lineHeight: 1.2 }}>
                 {result.tagline}
               </h2>
-              <p style={{ color: '#4A5568', fontSize: '0.93rem', lineHeight: 1.75, maxWidth: 500, margin: '0 auto' }}>{result.desc}</p>
+              <p style={{ color: 'var(--boi-text-secondary)', fontSize: '0.93rem', lineHeight: 1.75, maxWidth: 500, margin: '0 auto' }}>{result.desc}</p>
             </div>
 
             {/* Set card */}
             <div style={{ background: '#fff', border: `2px solid ${result.accent}`, borderRadius: 16, padding: '20px 22px', marginBottom: 22 }}>
-              <div style={{ fontSize: '0.68rem', color: '#4A5568', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 6 }}>Our pick for you</div>
-              <div style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '1.25rem', color: '#1A1A1A' }}>{result.set}</div>
-              <div style={{ fontSize: '0.78rem', color: '#4A5568', marginBottom: 10 }}>Set #{result.setNum}</div>
-              <p style={{ fontSize: '0.86rem', color: '#4A5568', fontStyle: 'italic', lineHeight: 1.65, margin: 0 }}>{result.why}</p>
+              <div style={{ fontSize: '0.68rem', color: 'var(--boi-text-secondary)', textTransform: 'uppercase', letterSpacing: '0.08em', fontWeight: 600, marginBottom: 6 }}>Our pick for you</div>
+              <div style={{ fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '1.25rem', color: 'var(--boi-text)' }}>{result.set}</div>
+              <div style={{ fontSize: '0.78rem', color: 'var(--boi-text-secondary)', marginBottom: 10 }}>Set #{result.setNum}</div>
+              <p style={{ fontSize: '0.86rem', color: 'var(--boi-text-secondary)', fontStyle: 'italic', lineHeight: 1.65, margin: 0 }}>{result.why}</p>
             </div>
 
             {/* Store links */}
             <div style={{ marginBottom: 26 }}>
-              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#1A1A1A', marginBottom: 10 }}>Where to buy in India</div>
+              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--boi-text)', marginBottom: 10 }}>Where to buy in India</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {STORES.map(store => (
                   <a key={store.name} href={store.url} target="_blank" rel="noopener noreferrer"
-                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', border: '1.5px solid #F7A800', borderRadius: 10, textDecoration: 'none', color: '#1A1A1A', fontWeight: 600, fontSize: '0.86rem' }}>
+                    style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', border: '1.5px solid #F7A800', borderRadius: 10, textDecoration: 'none', color: 'var(--boi-text)', fontWeight: 600, fontSize: '0.86rem' }}>
                     <span>{store.name}</span>
-                    {store.note && <span style={{ fontSize: '0.73rem', color: '#F7A800', fontWeight: 700 }}>{store.note}</span>}
+                    {store.note && <span style={{ fontSize: '0.73rem', color: 'var(--boi-saffron)', fontWeight: 700 }}>{store.note}</span>}
                   </a>
                 ))}
               </div>
@@ -274,7 +274,7 @@ export default function WhichSetPage() {
             {/* Retake */}
             <div style={{ textAlign: 'center', marginBottom: 20 }}>
               <button onClick={restart}
-                style={{ background: 'none', border: '2px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '10px 28px', fontWeight: 600, fontSize: '0.86rem', cursor: 'pointer', color: '#4A5568' }}>
+                style={{ background: 'none', border: '2px solid rgba(0,0,0,0.08)', borderRadius: 10, padding: '10px 28px', fontWeight: 600, fontSize: '0.86rem', cursor: 'pointer', color: 'var(--boi-text-secondary)' }}>
                 Retake the Quiz
               </button>
             </div>
