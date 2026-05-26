@@ -193,6 +193,7 @@ Day 2 smoke test of scripts/radar/draft-articles.js produced one draft from the 
 - Impatient-explanation rule added: niche subjects get 2 short slightly-annoyed sentences, then pivot
 - Flash-Lite model insight: holds register when exemplars include explicit DELETE examples alongside positive ones. Option B (two-stage drafting) not required — A was sufficient.
 - Voice ceiling lifted: wallet in Para 1 ✓, India Paragraph present ✓, Indian comparisons (chai, samosas) appearing naturally ✓
+- Flash-Lite residual: "fever dreams" appears for limited-edition content. Accepted at current stage. Revisit when revenue justifies model upgrade.
 - Day 4 (RADAR-01 + RADAR-02 plumbing) is now UNBLOCKED
 
 **Test fixture:** scripts/radar/test-fixture.xml (Brickset RSS pulled 2026-05-03)
