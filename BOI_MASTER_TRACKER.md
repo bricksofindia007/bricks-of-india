@@ -80,7 +80,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 | Phase 0 | Launch + post-launch P0 fixes | ✅ Done | WEB |
 | Phase 1 | Voice Codex | ✅ Done — `docs/codex/BOI_Codex_v2.docx` committed 2026-05-01 | CONTENT |
 | Phase 2 | Claude Project workbench | 🟡 Unblocked — pending setup | CONTENT |
-| Phase 3 | Topical Radar (RSS ingestion) | 🟡 In progress — RADAR-01–05/CRON ✅ Done. WEB-01–04 ✅ Done. DEFECT-005 ✅ closed. REVIEWS-FIRST-3 ✅ Done Day 14 (3 Codex reviews: McLaren P1 BUY, Rivendell BUY, NHM WAIT FOR SALE). GEO-01-FU1 unblocked. RADAR-08 logged (automated reviews pipeline). | CONTENT |
+| Phase 3 | Topical Radar (RSS ingestion) | 🟡 In progress — RADAR-01–05/CRON ✅ Done. WEB-01–04 ✅ Done. DEFECT-005 ✅ closed. REVIEWS-FIRST-3 ✅ Done Day 14 (3 Codex reviews: McLaren P1 BUY, Rivendell BUY, NHM WAIT FOR SALE). GEO-01-FU1 unblocked. RADAR-08 ✅ Done Day 26 (automated reviews pipeline — 10 approved drafts seeded, nightly cron active). | CONTENT |
 | Phase 4 | Shorts / Reels workflow (DaVinci + ElevenLabs) | 🔴 Not started | VIDEO |
 | Phase 5 | Social automation (carousel + Reels + YouTube Shorts) | ✅ Done — SOC-AUTO-01 shipped. Daily cron 12:00 IST. First live run 2026-05-24: 76342-1 Daily Bugle posted to IG Feed (8-image carousel) + IG Reels (8s) + YouTube Shorts (45s). Gallery via Brickset API. | SOCIAL |
 | Phase 8 | LEGO Search Pulse | ✅ Live — LAB-07 /lab/heat-map shipped 2026-05-10. D3 choropleth India + world view, 23 states, city drill-down. | WEB (PULSE-01→N) |
@@ -165,7 +165,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 | DESIGN-CSS-02 | Hardcoded hex cleanup — lab pages + globals | ✅ Done 2026-05-26 | `lab/deals/page.tsx`, `lab/which-set/page.tsx`, `lab/heat-map/page.tsx`: BOI brand colors → CSS vars (`--boi-saffron`, `--boi-blue`, `--boi-text`, etc.). `globals.css` heading colors tokenised. D3 `.attr()` calls and email template (`newsletter.ts`) excluded — hex required in those contexts. `admin/pending/page.tsx` deferred to DESIGN-CSS-03 (internal tooling, 37+ inline styles). |
 | REVIEWS-FIRST-3 | Write first 3 Codex-compliant set reviews | ✅ Done 2026-05-14 | 3 reviews inserted. (1) McLaren P1 42172 — BUY, ₹29,399 Toycra, 558w, id `34d279e3`. (2) Rivendell 10316 — BUY, ₹39,999 Toycra, 624w, id `7141242f`. (3) Natural History Museum 10326 — WAIT FOR SALE, ₹34,999 Toycra, 543w, id `70db543d`. All pass lint Gates 1–4. Schema hardened (hero_image, excerpt, seo_title, seo_description, updated_at). Unblocks GEO-01-FU1 and RLFM. |
 | GEO-01-FU1 | Verify /reviews/[slug] JSON-LD on first review publish | 🟡 Unblocked — pending Netlify deploy of 2026-05-25 changes. Verify `buildReviewSchema()` emits Review + Product schema on live /reviews/lego-42172-mclaren-p1-review. Netlify credits reset 2026-05-22 — deploy now unblocked. | Gated on reviews table having at least 1 row — now satisfied. |
-| RADAR-08 | Automated reviews generation pipeline | 🔴 Briefed, not started | Reduce manual dependency on operator-written reviews. Target: 5+ Codex-compliant reviews/week without bottleneck. Requires: (a) reviews format added to RADAR-03 classifier, (b) `generateArticle()` extended to publish to `reviews` table, (c) set_id UUID lookup by set_number wired into generation, (d) hero_image populated from Rebrickable CDN. Blocks RLFM at scale — current 3-review pace is insufficient for application velocity. |
+| RADAR-08 | Automated reviews generation pipeline | ✅ Done 2026-05-26 | `scripts/radar-08-reviews.js` — queries store_prices for in-stock sets, deduplicates against reviews (UUID join) and pending_drafts (brickset URL pattern), applies ₹1,000 price floor and accessory name filter (pen/keychain/magnet/bag charm/pin), inserts up to 10 approved drafts/run. Store priority: mybrickhouse > toycra > jaiman; tiebreak: price_inr desc. Title format: `LEGO [Name] ([Set Number]) — Worth ₹[price] in India?`. Integrated into radar.yml after RADAR-03 step. First run: 10 drafts seeded (Death Star 75419 through Captain Jack Sparrow's Pirate Ship 10365, all mybrickhouse, ₹36k–₹1.05L). |
 
 ---
 
@@ -307,7 +307,7 @@ Shipped:
 
 Pending (flagged this session):
 - **IG System User Token** — permanent non-expiring token via Meta Business Manager. Deferred. Current 60-day token expires ~2026-07-23.
-- **RADAR-08** — logged Day 14, still not started.
+- **RADAR-08** — ✅ Done 2026-05-26. See tracker row above.
 - **Content freshness** — /news 15 days stale, /blog 35 days stale. Operator visit to `/admin/pending` needed.
 - **Fan CoLab CE items** — all CE-01 through CE-06 not started. WEB-05/06 must be built first.
 

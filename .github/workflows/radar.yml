@@ -38,5 +38,8 @@ jobs:
 
       - name: RADAR-03 — classify + queue to pending_drafts
         run: node scripts/radar/classify-signals.js
+
+      - name: RADAR-08 — queue review candidates from in-stock sets
+        run: node scripts/radar-08-reviews.js
       # RADAR-04 (generate-drafts.js) removed from cron — generation is now
       # on-demand via the "Generate Article" button in /admin/pending.
