@@ -216,12 +216,13 @@ function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filter
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 interface Props {
-  searchParams: { status?: string; format?: string; domain?: string };
+  searchParams: { status?: string; format?: string; domain?: string; genError?: string; genDraftId?: string };
 }
 
 export default async function AdminPendingPage({ searchParams }: Props) {
   if (!isAuthed()) return <LoginPage />;
 
+  const genError    = searchParams.genError ? decodeURIComponent(searchParams.genError) : null;
   const statusFilter = searchParams.status || 'draft';
   const formatFilter = searchParams.format || '';
   const domainFilter = searchParams.domain || '';
@@ -279,6 +280,14 @@ export default async function AdminPendingPage({ searchParams }: Props) {
       </div>
 
       <div style={{ maxWidth: 860, margin: '0 auto', padding: '20px 16px' }}>
+
+        {/* ── Generation error banner ── */}
+        {genError && (
+          <div style={{ background: '#FEE2E2', border: '2px solid #DC2626', borderRadius: 10, padding: '14px 18px', marginBottom: 16 }}>
+            <p style={{ margin: 0, fontWeight: 700, color: '#991B1B', fontSize: 13 }}>Generation failed:</p>
+            <pre style={{ margin: '6px 0 0', color: '#7F1D1D', fontSize: 12, whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontFamily: 'monospace' }}>{genError}</pre>
+          </div>
+        )}
 
         {/* ── Filter bar ── */}
         <div style={{ background: '#fff', border: '1px solid #E4E7EB', borderRadius: 12, padding: '14px 16px', marginBottom: 20 }}>

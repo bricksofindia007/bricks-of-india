@@ -200,6 +200,7 @@ export async function generateArticle(formData: FormData) {
   console.error('GEN: started id=%s', id);
   console.error('GEN: service key present:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
   console.error('GEN: gemini key present:', !!process.env.GEMINI_API_KEY);
+  try {
   const supabase   = createServerClient();
 
   // Fetch the draft
@@ -311,6 +312,13 @@ BODY:
 
   revalidatePath('/admin/pending');
   redirect(redirectTo);
+  } catch (err: any) {
+    if (err?.digest?.startsWith('NEXT_REDIRECT')) throw err;
+    console.error('GEN FATAL:', err);
+    const msg = err instanceof Error ? err.message : String(err);
+    const sep = redirectTo.includes('?') ? '&' : '?';
+    redirect(`${redirectTo}${sep}genError=${encodeURIComponent(msg)}&genDraftId=${encodeURIComponent(id)}`);
+  }
 }
 
 // ── Publish helpers ───────────────────────────────────────────────────────────
