@@ -197,6 +197,9 @@ BODY:
 export async function generateArticle(formData: FormData) {
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
+  console.error('GEN: started id=%s', id);
+  console.error('GEN: service key present:', !!process.env.SUPABASE_SERVICE_ROLE_KEY);
+  console.error('GEN: gemini key present:', !!process.env.GEMINI_API_KEY);
   const supabase   = createServerClient();
 
   // Fetch the draft
@@ -208,9 +211,11 @@ export async function generateArticle(formData: FormData) {
 
   if (error || !draft) throw new Error(`Draft not found: ${error?.message}`);
   if (draft.draft_format === null) throw new Error('Draft has no format — re-run RADAR-03');
+  console.error('GEN: draft fetched format=%s url=%s', draft.draft_format, (draft.source_url ?? '').slice(0, 80));
 
   const format    = (draft.draft_format as string) || 'news';
   const setNumber = extractSetNumber(draft.source_url, draft.source_title ?? null);
+  console.error('GEN: set number extracted:', setNumber);
 
   // Full-text fetch and India price lookup in parallel
   const [fullBody, indiaPriceContext] = await Promise.all([
@@ -219,6 +224,7 @@ export async function generateArticle(formData: FormData) {
       .catch(() => 'INDIA PRICE DATA: price lookup failed. Acknowledge price uncertainty; do not state a specific figure.'),
   ]);
 
+  console.error('GEN: parallel fetch done fullBody=%s priceCtx=%s', !!fullBody, indiaPriceContext.slice(0, 60));
   const content    = fullBody || draft.source_excerpt || draft.source_title || '(no content available)';
   const wordTarget = { news: '300–400', review: '500–700', opinion: '400–500' }[format] || '300–400';
   const setLine    = setNumber
@@ -248,6 +254,7 @@ BODY:
 --- BOI_DRAFT_END ---`;
 
   // Gemini call
+  console.error('GEN: gemini call starting');
   const { GoogleGenerativeAI } = await import('@google/generative-ai');
   const genai  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
   const result = await genai
@@ -256,6 +263,7 @@ BODY:
       contents         : [{ role: 'user', parts: [{ text: userPrompt }] }],
       generationConfig : { temperature: 0.7, maxOutputTokens: 2000 },
     });
+  console.error('GEN: gemini response received');
 
   const rawText = result.response.text();
   if (!rawText?.trim()) throw new Error('Gemini returned empty response');
@@ -363,11 +371,16 @@ function fmtInr(n: number): string {
 
 async function fetchLiveUsdInr(): Promise<number | null> {
   try {
+    console.error('GEN: exchange rate fetch starting');
     const r = await fetch('https://open.er-api.com/v6/latest/USD', { signal: AbortSignal.timeout(5000) });
     const d = await r.json();
     const rate = d?.rates?.INR;
+    console.error('GEN: exchange rate fetch done rate=%s', rate ?? 'null');
     return (rate && rate > 75 && rate < 130) ? Math.round(rate) : null;
-  } catch { return null; }
+  } catch (e: any) {
+    console.error('GEN: exchange rate fetch threw:', e?.message);
+    return null;
+  }
 }
 
 // Build the India price context string to inject into the Gemini userPrompt.
@@ -376,13 +389,15 @@ async function buildIndiaPriceContext(
   supabase: ReturnType<typeof import('@/lib/supabase').createServerClient>,
   setNumber: string | null,
 ): Promise<string> {
+  console.error('GEN: store_prices query starting setNumber=%s', setNumber);
   if (!setNumber) return 'INDIA PRICE DATA: set number could not be identified from this source. Acknowledge price uncertainty; do not state a specific figure.';
 
   // 1. Live store prices
-  const { data: sp } = await supabase
+  const { data: sp, error: spErr } = await supabase
     .from('store_prices')
     .select('store_id, price_inr, in_stock')
     .eq('set_id', setNumber);
+  console.error('GEN: store_prices query done rows=%s err=%s', sp?.length ?? 0, spErr?.message ?? 'none');
 
   const priced = (sp ?? [])
     .sort((a: any, b: any) => (INDIA_STORE_PRIORITY[a.store_id] ?? 9) - (INDIA_STORE_PRIORITY[b.store_id] ?? 9));
@@ -397,11 +412,13 @@ async function buildIndiaPriceContext(
   }
 
   // 2. LEGO India MRP from sets table
-  const { data: setRow } = await supabase
+  console.error('GEN: sets MRP query starting');
+  const { data: setRow, error: setErr } = await supabase
     .from('sets')
     .select('lego_mrp_inr')
     .eq('set_number', setNumber)
     .maybeSingle();
+  console.error('GEN: sets MRP query done mrp=%s err=%s', setRow?.lego_mrp_inr ?? 'none', setErr?.message ?? 'none');
   if (setRow?.lego_mrp_inr) {
     return `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices in our database). Use this figure. Mention stores (Toycra / MyBrickHouse / Jaiman) may list it within 4–6 weeks of global launch.`;
   }
