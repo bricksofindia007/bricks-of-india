@@ -194,26 +194,33 @@ BODY:
 <article body — place <!-- INDIA_PARAGRAPH --> on its own line immediately before the India Paragraph block>
 --- BOI_DRAFT_END ---`;
 
-export async function generateArticle(formData: FormData) {
-  const id         = formData.get('id') as string;
-  const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
-  try {
-  const supabase   = createServerClient();
+// ── Core generation helper (shared by single and batch flows) ────────────────
 
-  // Fetch the draft
-  const { data: draft, error } = await supabase
-    .from('pending_drafts')
-    .select('id, source_url, source_title, source_excerpt, source_published_at, draft_format')
-    .eq('id', id)
-    .single();
+type DraftInput = {
+  source_url: string;
+  source_title: string | null;
+  source_excerpt: string | null;
+  source_published_at: string | null;
+  draft_format: string | null;
+};
 
-  if (error || !draft) throw new Error(`Draft not found: ${error?.message}`);
+type GenerationResult = {
+  title: string;
+  body: string;
+  verdict: string | null;
+  format: string;
+  wordCount: number;
+};
+
+async function generateBody(
+  supabase: ReturnType<typeof createServerClient>,
+  draft: DraftInput,
+): Promise<GenerationResult> {
   if (draft.draft_format === null) throw new Error('Draft has no format — re-run RADAR-03');
 
   const format    = (draft.draft_format as string) || 'news';
   const setNumber = extractSetNumber(draft.source_url, draft.source_title ?? null);
 
-  // Full-text fetch and India price lookup in parallel
   const [fullBody, indiaPriceContext] = await Promise.all([
     fetchFullBody(draft.source_url),
     buildIndiaPriceContext(supabase, setNumber)
@@ -248,7 +255,6 @@ BODY:
 <article body — place <!-- INDIA_PARAGRAPH --> on its own line before the India Paragraph block>
 --- BOI_DRAFT_END ---`;
 
-  // Gemini call
   const { GoogleGenerativeAI } = await import('@google/generative-ai');
   const genai  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
   const result = await genai
@@ -261,7 +267,6 @@ BODY:
   const rawText = result.response.text();
   if (!rawText?.trim()) throw new Error('Gemini returned empty response');
 
-  // Parse structured response
   const si = rawText.indexOf('--- BOI_DRAFT_START ---');
   const ei = rawText.indexOf('--- BOI_DRAFT_END ---');
   if (si === -1 || ei === -1) throw new Error('Gemini response missing BOI_DRAFT markers');
@@ -284,32 +289,81 @@ BODY:
   let body = bodyLines.join('\n').trim();
   if (!title || !body) throw new Error('Gemini response missing TITLE or BODY');
 
-  // Verdict backstop
-  const TEMPLATES: Record<string, string> = {
+  const VERDICT_TEMPLATES: Record<string, string> = {
     'BUY':           'Verdict: BUY. The price is right — grab it.',
     'WAIT FOR SALE': 'Verdict: WAIT FOR SALE. Decent set, but wait for a discount.',
     'IMPORT ONLY':   'Verdict: IMPORT ONLY. Worth it if you can handle the customs markup.',
     'SKIP':          'Verdict: SKIP. Save your money for something better.',
   };
   if (verdict && !['buy','wait for sale','import only','skip'].some(v => body.toLowerCase().includes(v))) {
-    body += '\n\n' + TEMPLATES[verdict];
+    body += '\n\n' + VERDICT_TEMPLATES[verdict];
   }
 
-  const wordCount = body.split(/\s+/).filter(Boolean).length;
+  return { title, body, verdict, format, wordCount: body.split(/\s+/).filter(Boolean).length };
+}
 
-  await supabase
-    .from('pending_drafts')
-    .update({ draft_title: title, draft_body: body, draft_verdict: verdict, draft_format: format, word_count: wordCount, status: 'draft' })
-    .eq('id', id);
+// ── Generate Article (single draft, operator-initiated) ───────────────────────
 
-  revalidatePath('/admin/pending');
-  redirect(redirectTo);
+export async function generateArticle(formData: FormData) {
+  const id         = formData.get('id') as string;
+  const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
+  try {
+    const supabase = createServerClient();
+
+    const { data: draft, error } = await supabase
+      .from('pending_drafts')
+      .select('id, source_url, source_title, source_excerpt, source_published_at, draft_format')
+      .eq('id', id)
+      .single();
+
+    if (error || !draft) throw new Error(`Draft not found: ${error?.message}`);
+
+    const { title, body, verdict, format, wordCount } = await generateBody(supabase, draft);
+
+    await supabase
+      .from('pending_drafts')
+      .update({ draft_title: title, draft_body: body, draft_verdict: verdict, draft_format: format, word_count: wordCount, status: 'draft' })
+      .eq('id', id);
+
+    revalidatePath('/admin/pending');
+    redirect(redirectTo);
   } catch (err: any) {
     if (err?.digest?.startsWith('NEXT_REDIRECT')) throw err;
     console.error('GEN FATAL:', err);
     const msg = err instanceof Error ? err.message : String(err);
     const sep = redirectTo.includes('?') ? '&' : '?';
     redirect(`${redirectTo}${sep}genError=${encodeURIComponent(msg)}&genDraftId=${encodeURIComponent(id)}`);
+  }
+}
+
+// ── Generate one draft for batch — called from client, returns result ─────────
+// Each invocation is a separate server request; the 7s inter-call delay
+// lives in the client component, so no function timeout risk.
+
+export async function generateOneForBatch(
+  id: string,
+): Promise<{ ok: true; title: string } | { ok: false; error: string }> {
+  const pw = cookies().get('boi_admin')?.value;
+  if (!pw || pw !== process.env.ADMIN_PASSWORD) return { ok: false, error: 'Unauthorized' };
+
+  const supabase = createServerClient();
+  const { data: draft, error } = await supabase
+    .from('pending_drafts')
+    .select('id, source_url, source_title, source_excerpt, source_published_at, draft_format')
+    .eq('id', id)
+    .single();
+
+  if (error || !draft) return { ok: false, error: `Draft not found: ${error?.message}` };
+
+  try {
+    const { title, body, verdict, format, wordCount } = await generateBody(supabase, draft);
+    await supabase
+      .from('pending_drafts')
+      .update({ draft_title: title, draft_body: body, draft_verdict: verdict, draft_format: format, word_count: wordCount, status: 'draft' })
+      .eq('id', id);
+    return { ok: true, title };
+  } catch (err: any) {
+    return { ok: false, error: err instanceof Error ? err.message : String(err) };
   }
 }
 

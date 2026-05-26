@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { createServerClient } from '@/lib/supabase';
 import { login, logout, approveDraft, rejectDraft, approveAll, generateArticle, publishDraft } from './actions';
+import { GenerateBatchButton } from './GenerateBatchButton';
 
 export const metadata: Metadata = {
   title: 'Pending Drafts | BOI Admin',
@@ -334,21 +335,34 @@ export default async function AdminPendingPage({ searchParams }: Props) {
         </div>
 
         {/* ── Results bar ── */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-          <p style={{ fontSize: 14, color: '#6B7280', margin: 0 }}>
-            {error ? `Error: ${error.message}` : `${draftsToShow.length} ${statusFilter} draft${draftsToShow.length !== 1 ? 's' : ''}`}
-          </p>
-          {statusFilter === 'draft' && draftsToShow.length > 0 && (
-            <form action={approveAll} style={{ margin: 0 }}>
-              {formatFilter && <input type="hidden" name="format" value={formatFilter} />}
-              {domainFilter && <input type="hidden" name="domain" value={domainFilter} />}
-              <input type="hidden" name="redirectTo" value={redirectTo} />
-              <button type="submit" style={{ padding: '7px 16px', background: '#0F2D6B', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
-                ✓ Approve all {draftsToShow.length}
-              </button>
-            </form>
-          )}
-        </div>
+        {(() => {
+          const awaitingIds = statusFilter === 'approved'
+            ? draftsToShow.filter((d: any) => !d.draft_body).map((d: any) => d.id as string)
+            : [];
+          return (
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <p style={{ fontSize: 14, color: '#6B7280', margin: 0 }}>
+                {error ? `Error: ${error.message}` : `${draftsToShow.length} ${statusFilter} draft${draftsToShow.length !== 1 ? 's' : ''}`}
+                {awaitingIds.length > 0 && (
+                  <span style={{ marginLeft: 8, fontSize: 12, color: '#92400E' }}>({awaitingIds.length} awaiting generation)</span>
+                )}
+              </p>
+              {statusFilter === 'draft' && draftsToShow.length > 0 && (
+                <form action={approveAll} style={{ margin: 0 }}>
+                  {formatFilter && <input type="hidden" name="format" value={formatFilter} />}
+                  {domainFilter && <input type="hidden" name="domain" value={domainFilter} />}
+                  <input type="hidden" name="redirectTo" value={redirectTo} />
+                  <button type="submit" style={{ padding: '7px 16px', background: '#0F2D6B', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
+                    ✓ Approve all {draftsToShow.length}
+                  </button>
+                </form>
+              )}
+              {statusFilter === 'approved' && awaitingIds.length > 0 && (
+                <GenerateBatchButton draftIds={awaitingIds} />
+              )}
+            </div>
+          );
+        })()}
 
         {/* ── Draft list ── */}
         {draftsToShow.length === 0 && !error ? (
