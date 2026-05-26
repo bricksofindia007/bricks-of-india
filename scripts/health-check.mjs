@@ -23,8 +23,9 @@ try {
 
 const SUPABASE_URL      = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY       = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const RESEND_API_KEY    = process.env.RESEND_API_KEY;
-const BRIEF_EMAIL       = process.env.BRIEF_EMAIL;
+// Strip BOM (U+FEFF, codepoint 65279) — GitHub Secrets copied from BOM-encoded files include it
+const RESEND_API_KEY    = (process.env.RESEND_API_KEY ?? '').replace(/^﻿/, '').trim();
+const BRIEF_EMAIL       = (process.env.BRIEF_EMAIL ?? '').replace(/^﻿/, '').trim();
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
   console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');

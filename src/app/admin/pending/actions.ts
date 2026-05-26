@@ -215,7 +215,8 @@ export async function generateArticle(formData: FormData) {
   // Full-text fetch and India price lookup in parallel
   const [fullBody, indiaPriceContext] = await Promise.all([
     fetchFullBody(draft.source_url),
-    buildIndiaPriceContext(supabase, setNumber),
+    buildIndiaPriceContext(supabase, setNumber)
+      .catch(() => 'INDIA PRICE DATA: price lookup failed. Acknowledge price uncertainty; do not state a specific figure.'),
   ]);
 
   const content    = fullBody || draft.source_excerpt || draft.source_title || '(no content available)';
@@ -352,6 +353,14 @@ function extractSetNumber(sourceUrl: string, sourceTitle: string | null): string
 const INDIA_STORE_PRIORITY: Record<string, number> = { mybrickhouse: 1, toycra: 2, jaiman: 3 };
 const INDIA_STORE_LABELS: Record<string, string>   = { mybrickhouse: 'MyBrickHouse', toycra: 'Toycra', jaiman: 'Jaiman Toys' };
 
+function fmtInr(n: number): string {
+  const s = Math.round(n).toString();
+  const last3 = s.slice(-3);
+  const rest = s.slice(0, -3);
+  if (!rest) return last3;
+  return rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + last3;
+}
+
 async function fetchLiveUsdInr(): Promise<number | null> {
   try {
     const r = await fetch('https://open.er-api.com/v6/latest/USD', { signal: AbortSignal.timeout(5000) });
@@ -382,7 +391,7 @@ async function buildIndiaPriceContext(
     const lines = priced.map((p: any) => {
       const label = INDIA_STORE_LABELS[p.store_id] ?? p.store_id;
       const stock = p.in_stock ? '' : ' (may be out of stock)';
-      return `  ${label}: ₹${Number(p.price_inr).toLocaleString('en-IN')}${stock}`;
+      return `  ${label}: ₹${fmtInr(Number(p.price_inr))}${stock}`;
     });
     return `INDIA PRICE DATA — use these exact figures, do not calculate:\n${lines.join('\n')}`;
   }
@@ -394,7 +403,7 @@ async function buildIndiaPriceContext(
     .eq('set_number', setNumber)
     .maybeSingle();
   if (setRow?.lego_mrp_inr) {
-    return `INDIA PRICE DATA: Official LEGO India MRP ₹${Number(setRow.lego_mrp_inr).toLocaleString('en-IN')} (no live store prices in our database). Use this figure. Mention stores (Toycra / MyBrickHouse / Jaiman) may list it within 4–6 weeks of global launch.`;
+    return `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices in our database). Use this figure. Mention stores (Toycra / MyBrickHouse / Jaiman) may list it within 4–6 weeks of global launch.`;
   }
 
   // 3. Live rate estimate (no store or MRP data)

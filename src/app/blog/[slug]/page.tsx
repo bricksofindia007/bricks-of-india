@@ -28,6 +28,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function BlogPostPage({ params }: Props) {
   const { data: post } = await supabase.from('blog_posts').select('*').eq('slug', params.slug).single();
   if (!post) notFound();
+  const cleanContent = post.content
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/^THE [A-Z\s]+$/gm, '')
+    .trim();
 
   const { data: related } = await supabase.from('blog_posts').select('*').eq('category', post.category).neq('slug', params.slug).limit(3);
 
@@ -65,7 +69,7 @@ export default async function BlogPostPage({ params }: Props) {
         <h1 className="font-heading text-dark text-5xl md:text-6xl mb-3">{post.title}</h1>
         <Byline publishedAt={post.published_at} updatedAt={post.updated_at} />
         <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8">
-          <ReactMarkdown>{post.content}</ReactMarkdown>
+          <ReactMarkdown>{cleanContent}</ReactMarkdown>
         </div>
 
         {/* Share */}

@@ -29,6 +29,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function NewsArticlePage({ params }: Props) {
   const { data: article } = await supabase.from('news_articles').select('*').eq('slug', params.slug).single();
   if (!article) notFound();
+  const cleanContent = article.content
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/^THE [A-Z\s]+$/gm, '')
+    .trim();
 
   const { data: related } = await supabase.from('news_articles').select('*').eq('category', article.category).neq('slug', params.slug).limit(3);
 
@@ -64,7 +68,7 @@ export default async function NewsArticlePage({ params }: Props) {
         <h1 className="font-heading text-dark text-5xl md:text-6xl mb-3">{article.title}</h1>
         <Byline publishedAt={article.published_at} updatedAt={article.updated_at} />
         <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8">
-          <ReactMarkdown>{article.content}</ReactMarkdown>
+          <ReactMarkdown>{cleanContent}</ReactMarkdown>
         </div>
 
         {/* Share */}

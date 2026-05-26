@@ -39,6 +39,10 @@ export default async function ReviewPage({ params }: Props) {
   if (!review) notFound();
 
   const set = review.sets;
+  const cleanContent = review.content
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/^THE [A-Z\s]+$/gm, '')
+    .trim();
 
   // Store prices — full map for all tracked stores (mirrors sets/[slug]/page.tsx pattern)
   const storePriceMap = new Map<string, { store_id: string; price_inr: number | null; in_stock: boolean; product_url: string }>();
@@ -109,7 +113,7 @@ export default async function ReviewPage({ params }: Props) {
 
             {/* Review content */}
             <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8">
-              <ReactMarkdown>{review.content}</ReactMarkdown>
+              <ReactMarkdown>{cleanContent}</ReactMarkdown>
             </div>
 
             {/* Verdict */}
