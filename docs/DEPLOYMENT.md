@@ -54,6 +54,33 @@ succeeds in GitHub Actions (where `.env.local` does not exist).
 
 ---
 
+## One-time setup: add Netlify environment variables
+
+**GitHub Secrets ≠ Netlify environment variables.** GitHub Secrets only flow into
+GitHub Actions jobs (the build step). They are not visible to Netlify Functions at
+runtime. Server Actions, API routes, and server components that read `process.env`
+at request time need their vars set separately in the Netlify UI.
+
+Go to: **Netlify → bricksofindia.com → Site configuration → Environment variables → Add a variable**
+
+| Variable | Notes |
+|----------|-------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Same value as the GitHub Secret. Needed at runtime by server components. |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Same value as the GitHub Secret. Needed at runtime by server components. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server Actions and API routes use this at runtime — never expose client-side. |
+| `REBRICKABLE_API_KEY` | `src/lib/rebrickable.ts` is called at request time by set/review pages. |
+| `RESEND_API_KEY` | Newsletter subscribe (Server Action) and lint-failure alerts (`publishDraft`) run at runtime. |
+| `ADMIN_PASSWORD` | `/admin/pending` login and session auth check run at runtime. |
+| `GEMINI_API_KEY` | `generateArticle()` Server Action calls Gemini at runtime. **Missing from Netlify = generation fails.** |
+| `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Rendered server-side into the `<head>` — must be present at runtime. |
+
+**Total: 8 variables to add in Netlify UI.**
+
+Note: `BRICKSET_API_KEY` and `NEXT_PUBLIC_SITE_URL` are only used in local scripts
+or are not referenced in `src/` — they do not need to be added to Netlify.
+
+---
+
 ## Testing the workflow
 
 After adding all 9 secrets:
