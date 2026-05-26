@@ -1,0 +1,39 @@
+name: generate-drafts
+
+on:
+  workflow_dispatch:
+    inputs:
+      limit:
+        description: 'Max drafts to generate (blank = all approved)'
+        required: false
+        default: ''
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GEMINI_API_KEY:            ${{ secrets.GEMINI_API_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Generate approved drafts
+        run: |
+          if [ -n "${{ inputs.limit }}" ]; then
+            node scripts/generate-approved-drafts.js --limit ${{ inputs.limit }}
+          else
+            node scripts/generate-approved-drafts.js
+          fi
