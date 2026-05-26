@@ -152,8 +152,11 @@ function parseProduct(product, storeId, domain) {
   const titleLower  = (product.title  ?? '').toLowerCase();
   const handleLower = (product.handle ?? '').toLowerCase();
 
-  // Skip products that don't appear to be LEGO sets
-  if (!titleLower.includes('lego') && !handleLower.includes('lego')) return null;
+  // Skip products that don't appear to be LEGO sets.
+  // mybrickhouse is a LEGO-only domain — their titles/handles often omit "lego"
+  // (e.g. "Icons Natural History Museum Set 10326"). Skip the string check for
+  // that store; the knownSets filter downstream is the real guard.
+  if (storeId !== 'mybrickhouse' && !titleLower.includes('lego') && !handleLower.includes('lego')) return null;
 
   const setNumber = extractSetNumber(product.title, product.handle);
   if (!setNumber) return null;
