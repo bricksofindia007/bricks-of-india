@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@/lib/supabase';
 import { login, logout, approveDraft, rejectDraft, approveAll, generateArticle, publishDraft } from './actions';
 import { GenerateBatchButton } from './GenerateBatchButton';
+import { DraftBodyExpander } from './DraftBodyExpander';
 
 export const metadata: Metadata = {
   title: 'Pending Drafts | BOI Admin',
@@ -99,11 +100,7 @@ function FormatBadge({ format }: { format: string | null }) {
 function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filters; redirectTo: string }) {
   const title             = draft.draft_title || draft.source_title || '(no title)';
   const awaitingGeneration = draft.status === 'approved' && !draft.draft_body;
-  const preview           = draft.draft_body
-    ? draft.draft_body.slice(0, 300)
-    : draft.source_excerpt
-    ? draft.source_excerpt.slice(0, 300)
-    : null;
+  const preview           = draft.source_excerpt ? draft.source_excerpt.slice(0, 300) : null;
   const pubDate = draft.source_published_at
     ? new Date(draft.source_published_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
     : null;
@@ -142,9 +139,10 @@ function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filter
         <p style={{ fontSize: 13, color: '#92400E', margin: '0 0 16px', background: '#FFFBEB', padding: '10px 12px', borderRadius: 8, borderLeft: '3px solid #FCD34D' }}>
           Body not yet generated — run RADAR-04 (generate-drafts.js) or wait for the next nightly cron tick.
         </p>
+      ) : draft.draft_body ? (
+        <DraftBodyExpander body={draft.draft_body} />
       ) : preview ? (
-        <p style={{ fontSize: 13, color: '#4B5563', lineHeight: 1.6, margin: '0 0 16px', background: '#F9FAFB', padding: '10px 12px', borderRadius: 8, borderLeft: `3px solid ${draft.draft_body ? '#006CB7' : '#E4E7EB'}` }}>
-          {draft.draft_body && <span style={{ fontSize: 10, color: '#006CB7', fontWeight: 700, textTransform: 'uppercase', display: 'block', marginBottom: 4 }}>Generated body</span>}
+        <p style={{ fontSize: 13, color: '#4B5563', lineHeight: 1.6, margin: '0 0 16px', background: '#F9FAFB', padding: '10px 12px', borderRadius: 8, borderLeft: '3px solid #E4E7EB' }}>
           {preview}{preview.length >= 300 && ' …'}
         </p>
       ) : null}
