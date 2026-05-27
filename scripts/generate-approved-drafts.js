@@ -195,7 +195,7 @@ async function generateBody(draft) {
   ]);
 
   const content    = fullBody || draft.source_excerpt || draft.source_title || '(no content available)';
-  const wordTarget = { news: '300–400', review: '500–700', opinion: '400–500' }[format] || '300–400';
+  const wordTarget = { news: '300–400', review: '500–700', opinion: '400–500', guide: '700–1000' }[format] || '300–400';
   const setLine    = setNumber
     ? `Set number: ${setNumber} (include in title)`
     : 'Set number: NOT FOUND — use India context in title instead';

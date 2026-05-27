@@ -155,9 +155,10 @@ function generateSlug(title: string): string {
 }
 
 function resolveTarget(format: string): { table: string; path: string; category: string } {
-  if (format === 'opinion') return { table: 'blog_posts',    path: '/blog', category: 'Opinion' };
-  if (format === 'review')  return { table: 'news_articles', path: '/news', category: 'Review'  };
-  return                           { table: 'news_articles', path: '/news', category: 'News'    };
+  if (format === 'guide')   return { table: 'guides',        path: '/guides', category: 'Guide'   };
+  if (format === 'opinion') return { table: 'blog_posts',    path: '/blog',   category: 'Opinion' };
+  if (format === 'review')  return { table: 'news_articles', path: '/news',   category: 'Review'  };
+  return                           { table: 'news_articles', path: '/news',   category: 'News'    };
 }
 
 async function fetchOgImage(url: string): Promise<string | null> {
@@ -179,9 +180,10 @@ async function fetchOgImage(url: string): Promise<string | null> {
 // ── WEB-01 lint gates ────────────────────────────────────────────────────────
 
 const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: [number, number] }> = {
-  news    : { pass: [270, 440],  fail: [225, 500]  },  // target 300–400
-  review  : { pass: [450, 770],  fail: [375, 875]  },  // target 500–700
-  opinion : { pass: [360, 550],  fail: [300, 625]  },  // target 400–500
+  news    : { pass: [270,  440],  fail: [225,  500]  },  // target 300–400
+  review  : { pass: [450,  770],  fail: [375,  875]  },  // target 500–700
+  opinion : { pass: [360,  550],  fail: [300,  625]  },  // target 400–500
+  guide   : { pass: [630, 1100],  fail: [525, 1250]  },  // target 700–1000
 };
 const VALID_VERDICTS = new Set(['BUY', 'WAIT FOR SALE', 'IMPORT ONLY', 'SKIP']);
 
