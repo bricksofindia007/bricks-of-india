@@ -54,7 +54,19 @@ succeeds in GitHub Actions (where `.env.local` does not exist).
 
 This secret is NOT used by GitHub Actions — it lives only in Netlify. Add it in the Netlify UI (see below), not here.
 
-**Total: 11 secrets to add.**
+### Required for brief.yml — daily morning brief (5 secrets)
+
+| Secret name | Notes |
+|-------------|-------|
+| `RESEND_API_KEY` | Already present if health-check email is working. |
+| `BRIEF_EMAIL` | Already present from health-check setup. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Already present from build secrets. |
+| `NEXT_PUBLIC_SUPABASE_URL` | Already present from build secrets. |
+| `GH_DISPATCH_TOKEN` | Fine-grained PAT (Actions read/write, repo scope) — already in Netlify. Reuse same secret here for GitHub API queries (pipeline status section). |
+
+All 5 secrets are already in GitHub Secrets from prior setup. No new secrets required.
+
+**Total: 11 secrets to add (unchanged — brief.yml reuses existing secrets).**
 
 ---
 
