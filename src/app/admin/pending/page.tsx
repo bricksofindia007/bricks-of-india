@@ -336,15 +336,15 @@ export default async function AdminPendingPage({ searchParams }: Props) {
 
         {/* ── Results bar ── */}
         {(() => {
-          const awaitingIds = statusFilter === 'approved'
-            ? draftsToShow.filter((d: any) => !d.draft_body).map((d: any) => d.id as string)
-            : [];
+          const awaitingCount = statusFilter === 'approved'
+            ? draftsToShow.filter((d: any) => !d.draft_body).length
+            : 0;
           return (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <p style={{ fontSize: 14, color: '#6B7280', margin: 0 }}>
                 {error ? `Error: ${error.message}` : `${draftsToShow.length} ${statusFilter} draft${draftsToShow.length !== 1 ? 's' : ''}`}
-                {awaitingIds.length > 0 && (
-                  <span style={{ marginLeft: 8, fontSize: 12, color: '#92400E' }}>({awaitingIds.length} awaiting generation)</span>
+                {awaitingCount > 0 && (
+                  <span style={{ marginLeft: 8, fontSize: 12, color: '#92400E' }}>({awaitingCount} awaiting generation)</span>
                 )}
               </p>
               {statusFilter === 'draft' && draftsToShow.length > 0 && (
@@ -357,8 +357,8 @@ export default async function AdminPendingPage({ searchParams }: Props) {
                   </button>
                 </form>
               )}
-              {statusFilter === 'approved' && awaitingIds.length > 0 && (
-                <GenerateBatchButton draftIds={awaitingIds} />
+              {statusFilter === 'approved' && awaitingCount > 0 && (
+                <GenerateBatchButton count={awaitingCount} />
               )}
             </div>
           );

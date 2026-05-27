@@ -50,6 +50,10 @@ succeeds in GitHub Actions (where `.env.local` does not exist).
 | `RESEND_API_KEY` | Resend API key — same as newsletter. Already in GitHub Secrets if newsletter email is working. |
 | `BRIEF_EMAIL` | Email address to receive health alerts. Set to `abhinav@bricksofindia.com` or any address you monitor. |
 
+### Required for batch article generation (1 secret)
+
+This secret is NOT used by GitHub Actions — it lives only in Netlify. Add it in the Netlify UI (see below), not here.
+
 **Total: 11 secrets to add.**
 
 ---
@@ -73,8 +77,9 @@ Go to: **Netlify → bricksofindia.com → Site configuration → Environment va
 | `ADMIN_PASSWORD` | `/admin/pending` login and session auth check run at runtime. |
 | `GEMINI_API_KEY` | `generateArticle()` Server Action calls Gemini at runtime. **Missing from Netlify = generation fails.** |
 | `NEXT_PUBLIC_GA_MEASUREMENT_ID` | Rendered server-side into the `<head>` — must be present at runtime. |
+| `GH_DISPATCH_TOKEN` | Fine-grained PAT with Actions read/write scope, repo scope only. Used by the "Generate All" button to trigger `generate-drafts.yml` on GitHub Actions. Regenerate annually. |
 
-**Total: 8 variables to add in Netlify UI.**
+**Total: 9 variables to add in Netlify UI.**
 
 Note: `BRICKSET_API_KEY` and `NEXT_PUBLIC_SITE_URL` are only used in local scripts
 or are not referenced in `src/` — they do not need to be added to Netlify.
