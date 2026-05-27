@@ -1,15 +1,15 @@
-name: BOI Health Check
+name: Weekly Technical Hygiene
 
 on:
   schedule:
-    - cron: '30 2 * * *'  # 02:30 UTC = 08:00 IST
+    - cron: '0 4 * * 1'  # Monday 04:00 UTC = Monday 09:30 IST
   workflow_dispatch:
 
 jobs:
-  health-check:
-    name: Check pipeline and content health
+  hygiene:
+    name: Weekly site and infrastructure checks
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 30
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
@@ -23,15 +23,20 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Install Chromium
+        run: sudo apt-get install -y chromium-browser
+
       - name: Install dependencies
         run: npm ci
 
-      - name: Run health checks
+      - name: Run technical hygiene checks
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           BRIEF_EMAIL: ${{ secrets.BRIEF_EMAIL }}
+          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: node scripts/health-check.mjs
+          CHROME_PATH: /usr/bin/chromium-browser
+        run: node scripts/technical-hygiene.mjs

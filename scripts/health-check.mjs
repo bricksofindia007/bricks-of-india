@@ -209,6 +209,111 @@ try {
   failures.push('drafts-check-error');
 }
 
+// ── Check 8: Per-store in-stock counts (alert if any store < 50) ─────────────
+// Full 20%-drop detection requires cross-day comparison; this catches complete failures.
+try {
+  const stores = ['mybrickhouse', 'toycra', 'jaiman'];
+  const counts = {};
+  for (const store of stores) {
+    const { count } = await sb
+      .from('store_prices')
+      .select('*', { count: 'exact', head: true })
+      .eq('store_id', store)
+      .eq('in_stock', true);
+    counts[store] = count ?? 0;
+  }
+  const countStr = stores.map(s => `${s}: ${counts[s]}`).join(', ');
+  console.log(`[8] Store in-stock counts: ${countStr}`);
+  const failed = stores.filter(s => counts[s] < 50);
+  if (failed.length > 0) {
+    failures.push('store-count-low');
+    await sendAlert(
+      '⚠️ BOI Health Alert — Store price count critically low',
+      `In-stock counts: ${countStr}\n\nStores below threshold (50): ${failed.join(', ')}\n\nScraper may have failed. Check GitHub Actions → scrape-prices.yml.`
+    );
+  }
+} catch (e) {
+  console.error('[8] Store count check failed:', e.message);
+  failures.push('store-count-error');
+}
+
+// ── Check 9: Cron success timestamps (> 26 hours = alert) ────────────────────
+try {
+  const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
+  const REPO         = process.env.GITHUB_REPOSITORY ?? 'bricksofindia007/bricks-of-india';
+  if (!GITHUB_TOKEN) throw new Error('GITHUB_TOKEN not set');
+
+  const workflows = [
+    { file: 'radar.yml',          label: 'RADAR pipeline'   },
+    { file: 'social-automation.yml', label: 'Social automation' },
+    { file: 'scrape-prices.yml',  label: 'Price scraper'    },
+    { file: 'generate-drafts.yml', label: 'Batch generator' },
+  ];
+
+  for (const wf of workflows) {
+    const res = await fetch(
+      `https://api.github.com/repos/${REPO}/actions/workflows/${wf.file}/runs?per_page=1`,
+      { headers: { Authorization: `Bearer ${GITHUB_TOKEN}`, 'X-GitHub-Api-Version': '2022-11-28' } }
+    );
+    if (!res.ok) { console.warn(`[9] ${wf.file}: API error ${res.status}`); continue; }
+    const json = await res.json();
+    const lastRun = json.workflow_runs?.[0];
+    if (!lastRun) { console.log(`[9] ${wf.label}: no runs found`); continue; }
+    const ageHours = (Date.now() - new Date(lastRun.created_at).getTime()) / 3_600_000;
+    const status   = lastRun.conclusion ?? lastRun.status;
+    console.log(`[9] ${wf.label}: last run ${ageHours.toFixed(1)}h ago (${status})`);
+    if (ageHours > 26) {
+      failures.push(`cron-stale-${wf.file}`);
+      await sendAlert(
+        `⚠️ BOI Health Alert — ${wf.label} cron stale`,
+        `Workflow: ${wf.file}\nLast run: ${ageHours.toFixed(1)} hours ago (${lastRun.created_at})\nStatus: ${status}\n\nThreshold: 26 hours.\n\nCheck GitHub Actions for failures.`
+      );
+    }
+  }
+} catch (e) {
+  console.error('[9] Cron timestamp check failed:', e.message);
+  failures.push('cron-check-error');
+}
+
+// ── Check 10: Sets with zero store coverage (log weekly, no alert) ────────────
+try {
+  // Count distinct set_ids in store_prices
+  let coveredSetIds = new Set();
+  let offset = 0;
+  const PAGE = 1000;
+  while (true) {
+    const { data } = await sb.from('store_prices').select('set_id').range(offset, offset + PAGE - 1);
+    if (!data || data.length === 0) break;
+    data.forEach(r => coveredSetIds.add(r.set_id));
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+  const { count: totalSets } = await sb.from('sets').select('*', { count: 'exact', head: true });
+  const uncovered = (totalSets ?? 0) - coveredSetIds.size;
+  const pct = totalSets ? ((coveredSetIds.size / totalSets) * 100).toFixed(1) : '0';
+  console.log(`[10] Store coverage: ${coveredSetIds.size}/${totalSets} sets covered (${pct}%), ${uncovered} with zero coverage`);
+} catch (e) {
+  console.error('[10] Store coverage check failed:', e.message);
+}
+
+// ── Check 11: TEST MODE — deliberate fail to verify alert email delivery ──────
+// TODO: Remove this check after first alert email is confirmed received.
+try {
+  const testTable = 'this_table_does_not_exist_boi_test';
+  const { error } = await sb.from(testTable).select('id').limit(1);
+  if (error) {
+    failures.push('test-mode-deliberate-fail');
+    await sendAlert(
+      '🧪 BOI Health — TEST MODE alert (delete me)',
+      'This is a deliberate test failure to verify that the Resend alert email is working.\n\nIf you received this email, alert delivery is confirmed.\n\nRemove Check 11 from scripts/health-check.mjs.'
+    );
+  } else {
+    console.warn('[11] TEST: table unexpectedly exists — test inconclusive');
+  }
+} catch (e) {
+  console.error('[11] Test check error:', e.message);
+}
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 console.log('\n═══════════════════════════════');
 if (failures.length === 0) {
