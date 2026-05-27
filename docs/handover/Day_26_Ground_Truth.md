@@ -1,102 +1,146 @@
 # Day 26 Ground Truth — Bricks of India
-**Date written:** 2026-05-26
+**Date written:** 2026-05-27 (session close)
 **Branch:** main
-**HEAD commit:** bf151c5 (pre-session; Day 26 commits pending push)
+**HEAD commit:** 57844f3
 
 ---
 
 ## A. Work completed this session
 
-### P0 fixes (committed before RADAR-08)
+### Phase 2 — Batch generation via GitHub Actions
+
+The full GHA batch generation pipeline shipped today. All work was confirmed before final deploy.
 
 | Commit | Work |
 |--------|------|
-| `243d134` | Strip HTML comments in ReactMarkdown renderers (review/news/blog); `fmtInr()` ICU-safe price formatter; health-check BOM strip |
-| `92dbf59` | Surface `generateArticle()` errors on `/admin/pending` UI via try/catch + `?genError=` redirect + red banner |
-| `e32265e` | Add "Netlify Environment Variables" section to `docs/DEPLOYMENT.md` — documents all 8 runtime vars including GEMINI_API_KEY and ADMIN_PASSWORD which were absent |
-| `bf151c5` | Strip `GEN:` debug logs from `generateArticle()` after root cause confirmed |
+| `cc1f9c2` | `src/lib/generate-body.ts` (shared TS lib); `scripts/generate-approved-drafts.js` (CJS, node-runnable); `.github/workflows/generate-drafts.yml` (120-min timeout, workflow_dispatch) |
+| `57844f3` | Phase 2 final: dispatch-only `GenerateBatchButton.tsx` (count prop, idle→loading→started→error states); `triggerBatchGeneration()` Server Action (POST to GitHub API, returns 204); `actions.ts` stripped of 400+ lines of duplicated helpers (now imports from `generate-body.ts`); `page.tsx` updated (awaitingIds[]→awaitingCount); `generate-drafts.yml` + `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24`; `DEPLOYMENT.md` updated with `GH_DISPATCH_TOKEN` (9 Netlify vars total) |
 
-**Root cause of `generateArticle()` P0:** `GEMINI_API_KEY` was present in GitHub Secrets (build-time only) but absent from Netlify Environment Variables (runtime). User added key to Netlify UI; generation confirmed working in production.
+**GH_DISPATCH_TOKEN** added to Netlify environment variables via API (session-close task). Fine-grained PAT, Actions read/write, repo scope only. Confirmed present in all deploy contexts.
 
-### RADAR-08 — Automated reviews pipeline
+**GHA confirmation:** `generate-drafts.yml` run #1 (commit `cc1f9c2`) succeeded at 02:57 UTC (1m 7s). Run #2 dispatched at session close (03:51 UTC) — was in_progress when this doc was written.
 
-**Script:** `scripts/radar-08-reviews.js`
+### Session-close additions (committed after final deploy)
 
-**Logic:**
-1. Paginate `store_prices` for all `in_stock=true, price_inr IS NOT NULL` rows
-2. Join to `sets` table by set_number → get name + UUID
-3. Dedup: skip sets with existing `reviews` row (UUID match) or existing `pending_drafts` source_url (`https://brickset.com/sets/<set_number>/`)
-4. Filters: price_inr ≥ ₹1,000 (price floor); skip if name matches `/\b(pen|keychain|key chain|magnet|bag charm|pin)\b/i` (accessory filter)
-5. Best store per set: mybrickhouse(1) > toycra(2) > jaiman(3), tiebreak price_inr desc
-6. Sort candidates: store priority asc, price desc → take top 10
-7. Insert with `status: 'approved'` and `draft_title` pre-populated
-
-**Draft title format:** `LEGO [Set Name] ([Set Number]) — Worth ₹[fmtInr(price)] in India?`
-**Source URL format:** `https://brickset.com/sets/[set_number]/`
-
-**First run results (10 rows written to pending_drafts, status=approved):**
-
-| # | Set | Store | Price |
-|---|-----|-------|-------|
-| 1 | LEGO Death Star (75419) | mybrickhouse | ₹1,04,999 |
-| 2 | LEGO Eiffel Tower (10307) | mybrickhouse | ₹65,999 |
-| 3 | LEGO Titanic (10294) | mybrickhouse | ₹63,999 |
-| 4 | LEGO Venator-Class Republic Attack Cruiser (75367) | mybrickhouse | ₹58,999 |
-| 5 | LEGO Jabba's Sail Barge (75397) | mybrickhouse | ₹51,999 |
-| 6 | LEGO Avengers Tower (76269) | mybrickhouse | ₹48,999 |
-| 7 | LEGO Tropical Aquarium (10366) | mybrickhouse | ₹45,799 |
-| 8 | LEGO Volvo EC500 Hybrid Excavator (42215) | mybrickhouse | ₹44,999 |
-| 9 | LEGO Hogsmeade Village – Collectors' Edition (76457) | mybrickhouse | ₹41,199 |
-| 10 | LEGO Captain Jack Sparrow's Pirate Ship (10365) | mybrickhouse | ₹36,499 |
-
-Set 1701 "Bionicle Gali Pen" was rejected by operator (price data mismatch) and eliminated by the accessory name filter.
-
-**Cron integration:** Added as RADAR-08 step in `.github/workflows/radar.yml` after RADAR-03.
-
-**Stats:** 1711 in-stock rows → 1047 matched sets → 934 candidates after filters → 10 selected.
+| Item | Result |
+|------|--------|
+| `resolveTarget()` guide case | Added `format === 'guide' → guides table, /guides path`. Previously fell through to news_articles (bug). `guides` table confirmed to exist (0 rows). |
+| `WORD_COUNT_TARGETS` guide entry | Added `guide: { pass: [630, 1100], fail: [525, 1250] }` (target 700–1000 words) to lintDraft in actions.ts |
+| `generate-body.ts` guide wordTarget | Added `guide: '700–1000'` to the wordTarget map |
+| `generate-approved-drafts.js` guide wordTarget | Same fix — now handles news/review/opinion/guide correctly |
+| health-check additions (Checks 8–11) | Check 8: per-store in_stock counts (alert if < 50); Check 9: cron timestamp via GitHub API for 4 workflows (>26h = alert); Check 10: sets with zero store coverage (log only); Check 11: TEST MODE deliberate fail to verify Resend alert delivery |
+| `health-check.yml` env | Added `GITHUB_TOKEN` and `GITHUB_REPOSITORY` for Check 9 |
+| `technical-hygiene.yml` + `scripts/technical-hygiene.mjs` | New Monday 04:00 UTC workflow: 6 checks (route health, hero images, sitemap count, Lighthouse, prices staleness, row counts) + weekly Resend email report |
+| BRIEF-01 / brief.yml | **Does not exist.** No `brief.yml` in `.github/workflows/`. No BRIEF-01 entry in BOI_MASTER_TRACKER.md. This workflow was never implemented. Health score 85 is not hardcoded in any script. Noted for awareness — not a regression. |
 
 ---
 
-## B. Known Netlify gotchas (permanent rules — add to CLAUDE.md next edit)
+## B. Verified Supabase state (queried at session close 2026-05-27)
 
-Three rules saved in memory (`feedback_claude_md_pending.md`) for addition to CLAUDE.md:
+All numbers from direct Node.js queries with `SUPABASE_SERVICE_ROLE_KEY`. No invented figures.
 
-1. **`toLocaleString('en-IN')` throws on Netlify** — Netlify Node.js minimal ICU. Use `fmtInr()` (defined in `actions.ts`) everywhere.
-2. **BOM in GitHub Secrets** — U+FEFF silently corrupts env vars. Strip with `.replace(/^﻿/, '').trim()` on sensitive env vars.
-3. **Live page verification mandatory** — TypeScript green ≠ content correct. Fetch live URL and confirm symptom absent before closing any content fix.
+### pending_drafts
+
+| Status | Count |
+|--------|-------|
+| approved | 338 |
+| draft | 11 |
+| published | 4 |
+| rejected | 4 |
+
+**338 approved drafts** awaiting body generation. The `generate-drafts.yml` run triggered at session close will process these.
+
+### Published content
+
+| Table | Count | Notes |
+|-------|-------|-------|
+| `news_articles` | 24 | Last published: 2026-05-09T18:20:16 UTC — **18 days stale** |
+| `blog_posts` | 19 | No freshness query run; likely staler than /news |
+| `reviews` | 3 | McLaren P1 (BUY), Rivendell (BUY), NHM (WAIT FOR SALE) |
+| `guides` | 0 | Table exists (migration 20260525000000_guides.sql) but no articles yet |
+| `sets` | 24,559 | Rebrickable catalogue — weekly sync via sync-catalogue.yml |
+| `posted_sets` | 4 | Social automation (IG Feed + Reels + YouTube Shorts) |
+
+### store_prices (2,575 total rows)
+
+| Store | Total rows | in_stock rows |
+|-------|-----------|---------------|
+| jaiman | 1,087 | 228 |
+| mybrickhouse | 846 | 180 |
+| toycra | 642 | 592 |
+| **Total** | **2,575** | **1,000** |
+
+Toycra has the highest in_stock rate (~92%). Mybrickhouse and Jaiman have lower rates — expected for premium/import-heavy inventory.
 
 ---
 
-## C. Open items carried forward
-
-| Item | Status | Notes |
-|------|--------|-------|
-| GEO-01-FU1 | 🟡 Unblocked | Verify `buildReviewSchema()` on live `/reviews/lego-42172-mclaren-p1-review`. Netlify credits reset 2026-05-22. |
-| Task 2 — "Generate All Approved" batch button | 🔴 Not started | Sequential generation, 7s delay (Gemini 10 RPM). Deferred until RADAR-08 confirmed working in production. |
-| CLAUDE.md Netlify Gotchas section | 🟡 Pending | Add on next CLAUDE.md edit — memory saved in `feedback_claude_md_pending.md`. |
-| CE-02: 8 `/guides` articles | 🔴 Not started | Fan CoLab critical path. Start June 1. 1 article per 11 days. |
-| CE-05: History of LEGO in India | 🔴 Not started | Fan CoLab must-be-live. Start by July 1. |
-| CE-01: Builder Spotlight × 2 | 🔴 Not started | 2 live required for Fan CoLab. |
-
----
-
-## D. Pipeline state
-
-- **Nightly cron:** RADAR-01 → RADAR-02 → RADAR-03 → RADAR-08. RADAR-04 (generate) remains on-demand only.
-- **pending_drafts:** was 233 source_urls pre-session; +10 approved review drafts written this session.
-- **reviews table:** 3 rows (McLaren P1, Rivendell, NHM).
-- **store_prices in-stock:** 1711 rows across mybrickhouse/toycra/jaiman.
-
----
-
-## E. Day 27 entry point
+## C. Git state at session close
 
 ```
-cat docs/handover/Day_26_Ground_Truth.md && echo "---" && cat BOI_MASTER_TRACKER.md
+HEAD: 57844f3
+Branch: main
+Working tree: clean (untracked diagnostic scripts only — not committed)
+Last 5 commits:
+  57844f3 Phase 2: dispatch-only batch generation via GitHub Actions
+  cc1f9c2 feat(radar): GHA batch generation -- script + workflow + shared lib
+  2bdcd57 feat(admin): 503 retry pass + 30s summary hold in batch generator
+  b1a48b0 feat(admin): Task 2 -- Generate All Approved batch button
+  7f9e78b feat(radar): RADAR-08 -- automated review candidate pipeline
+```
+
+### GHA runs at session close
+
+| Workflow | Status | Time |
+|----------|--------|------|
+| generate-drafts | in_progress | triggered 03:51 UTC (our dispatch) |
+| Build & Deploy to Netlify | success | 03:29 UTC, 2m 30s |
+| generate-drafts (run #1) | success | 02:57 UTC, 1m 7s |
+| Scrape Store Prices | success | 2026-05-26 20:10 UTC |
+| radar-pipeline | success | 2026-05-26 19:33 UTC |
+
+---
+
+## D. Architecture decisions made this session
+
+**Netlify function timeout is the root cause of batch failure.** Netlify serverless functions timeout at 10s; Gemini calls take 10–15s under load. Resolution: GitHub Actions (120-min timeout) handles all batch generation. `triggerBatchGeneration()` Server Action is a single POST to the GitHub API (~200ms), returns 204, no timeout risk.
+
+**TypeScript lib + CJS mirror pattern.** `src/lib/generate-body.ts` is the canonical TypeScript version used by `actions.ts`. `scripts/generate-approved-drafts.js` is a self-contained CJS mirror for the Node.js/GHA context. Comment in both files: "keep in sync when editing." Accepted duplication for pragmatic separation of concerns.
+
+**`GH_DISPATCH_TOKEN` is a Netlify secret, not a GitHub Secret.** It's used by the Netlify-hosted Server Action to call the GitHub API. GitHub Secrets flow to GitHub Actions builds only — Netlify Function runtime cannot see them.
+
+---
+
+## E. Open items carried forward
+
+| Item | Priority | Notes |
+|------|----------|-------|
+| /news and /blog content freshness | **P0** | /news 18 days stale, /blog worse. health-check.yml alerts already firing. Need to visit /admin/pending and publish from the 338 approved drafts once generate-drafts.yml run completes. |
+| GEO-01-FU1 | P1 | Verify `buildReviewSchema()` on live /reviews/lego-42172-mclaren-p1-review. Deploy unblocked. |
+| CE-02: 8 /guides articles | P1 | Fan CoLab critical path. Guides table + routes live. Start June 1. 1 article per 11 days target. |
+| CE-05: History of LEGO in India | P1 | Fan CoLab must-be-live. Start by July 1. |
+| CE-01: Builder Spotlight × 2 | P2 | 2 live required for Fan CoLab by August. |
+| BRIEF-01 / brief.yml | P3 | Unimplemented. brief.yml does not exist. Not blocking anything today. |
+| Test mode (Check 11) health-check.mjs | P3 | Remove Check 11 after first Resend alert email confirmed received. |
+| technical-hygiene.yml first run | Tracking | Next Monday 04:00 UTC. Will_dispatch first run manually to verify. |
+
+---
+
+## F. Day 27 entry point
+
+```bash
+# Verify generate-drafts run result
+gh run list --workflow=generate-drafts.yml --limit 3
+
+# Check what got written
+# (query pending_drafts where status='draft' and draft_body IS NOT NULL — those are the new ones)
+
+# Publish top articles from /admin/pending?status=draft
+# (health alert is already firing for /news staleness — 18 days)
 ```
 
 Priority order:
-1. Verify RADAR-08 ran clean on first nightly cron (check `gh run list --workflow=radar.yml` for the next run after 17:30 UTC)
-2. Task 2 — "Generate All Approved" batch button on `/admin/pending`
-3. GEO-01-FU1 — verify JSON-LD on live review page
-4. CE content (WEB-05 `/guides` route done — start CE-02 articles)
+1. Confirm generate-drafts.yml run #2 succeeded — check GHA tab
+2. Visit /admin/pending?status=draft — approve best articles, publish to /news
+3. Run health-check.yml manually → confirm Test Mode alert email arrives → remove Check 11
+4. GEO-01-FU1 — verify JSON-LD on live /reviews/lego-42172-mclaren-p1-review
+5. CE-02 — draft first /guides article (CE content critical path)
