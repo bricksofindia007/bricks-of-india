@@ -185,7 +185,7 @@ const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: [number
   opinion : { pass: [360,  550],  fail: [300,  625]  },  // target 400–500
   guide   : { pass: [630, 1100],  fail: [525, 1250]  },  // target 700–1000
 };
-const VALID_VERDICTS = new Set(['BUY', 'WAIT FOR SALE', 'IMPORT ONLY', 'SKIP']);
+const VALID_VERDICTS = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID']);
 
 const INDIA_COMPARISON_RE = /\b(biryani|chai|EMI|Spotify|Netflix|petrol|samosa|litre|liter|movie.?ticket|PVR|butter.?chicken|Swiggy|Zomato|iPhone|months? of|weeks? of|auto.?rickshaw)\b/i;
 const INDIA_STORE_RE      = /\b(Toycra|MyBrickHouse|Jaiman|import.?only)\b/i;
@@ -231,7 +231,7 @@ function lintDraft(draft: {
   const v = (draft.draft_verdict || '').trim().toUpperCase();
   if (!VALID_VERDICTS.has(v)) {
     throw new Error(
-      `[Gate 3 FAIL] Verdict '${draft.draft_verdict || 'none'}' is not in [BUY, WAIT FOR SALE, IMPORT ONLY, SKIP]. Set a valid verdict before publishing.`
+      `[Gate 3 FAIL] Verdict '${draft.draft_verdict || 'none'}' is not in [BUY NOW, WAIT, IMPORT ONLY, AVOID]. Set a valid verdict before publishing.`
     );
   }
 
