@@ -296,24 +296,6 @@ try {
   console.error('[10] Store coverage check failed:', e.message);
 }
 
-// ── Check 11: TEST MODE — deliberate fail to verify alert email delivery ──────
-// TODO: Remove this check after first alert email is confirmed received.
-try {
-  const testTable = 'this_table_does_not_exist_boi_test';
-  const { error } = await sb.from(testTable).select('id').limit(1);
-  if (error) {
-    failures.push('test-mode-deliberate-fail');
-    await sendAlert(
-      '🧪 BOI Health — TEST MODE alert (delete me)',
-      'This is a deliberate test failure to verify that the Resend alert email is working.\n\nIf you received this email, alert delivery is confirmed.\n\nRemove Check 11 from scripts/health-check.mjs.'
-    );
-  } else {
-    console.warn('[11] TEST: table unexpectedly exists — test inconclusive');
-  }
-} catch (e) {
-  console.error('[11] Test check error:', e.message);
-}
-
 // ── Summary ──────────────────────────────────────────────────────────────────
 console.log('\n═══════════════════════════════');
 if (failures.length === 0) {
