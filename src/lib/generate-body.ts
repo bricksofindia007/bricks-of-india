@@ -57,9 +57,9 @@ WHAT NEVER APPEARS IN BOI ARTICLES:
 
 INDIA PARAGRAPH — non-negotiable, every article:
 - Use exact store prices from INDIA PRICE DATA provided. Do not calculate.
-- Price hierarchy: MyBrickHouse first, Toycra second, Jaiman Toys third.
-- Include Toycra affiliate note exactly: "Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra."
-- If set is not yet in Indian stores: mention 4–6 week India lag from global launch.
+- Always mention all three stores: MyBrickHouse, Toycra, Jaiman Toys — even if only one has a live price. For stores without a listed price, say "check [store] for availability."
+- Always include the Toycra affiliate note exactly: "Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra."
+- If set is not yet in any Indian store: mention 4–6 week India lag from global launch and all three stores to watch.
 - One relatable Indian price comparison — must be specific and numeric. Good examples: "that's 14 months of Spotify Premium", "enough for 23kg of Amul butter", "three EMIs on a decent washing machine". Bad examples: "more than your monthly rent for many", "a paneer feast for a year."
 - Place <!-- INDIA_PARAGRAPH --> on its own line immediately before this block. This is a processing marker — do not remove it, do not move it.
 
@@ -243,7 +243,9 @@ export async function generateBody(
     : 'Set number: NOT FOUND — use India context in title instead';
 
   const systemPrompt = VOICE_EXAMPLES + OUTPUT_FORMAT;
-  const userPrompt   = `Write a BOI-voice ${format} article. Target: ${wordTarget} words in body. Use the exact --- BOI_DRAFT_START --- / --- BOI_DRAFT_END --- markers.
+  const userPrompt   = `Write a BOI-voice ${format} article about the source below. Target: ${wordTarget} words in body.
+
+Your entire response must be wrapped in the BOI_DRAFT markers exactly as specified in your instructions. No text before or after the markers.
 
 ${indiaPriceContext}
 
@@ -252,15 +254,7 @@ Title     : ${draft.source_title}
 URL       : ${draft.source_url}
 Published : ${draft.source_published_at || 'unknown'}
 ${setLine}
-${fullBody ? 'Full article body' : 'Excerpt'}: ${content}
-
---- BOI_DRAFT_START ---
-FORMAT: ${format}
-TITLE: <your title>
-VERDICT: <BUY NOW | WAIT | IMPORT ONLY | AVOID | NONE>
-BODY:
-<article body — plain text only, no markdown, no asterisks, no bold. Place <!-- INDIA_PARAGRAPH --> on its own line before the India Paragraph.>
---- BOI_DRAFT_END ---`;
+${fullBody ? 'Full article body' : 'Excerpt'}: ${content}`;
 
   const { GoogleGenerativeAI } = await import('@google/generative-ai');
   const genai  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
@@ -296,7 +290,8 @@ BODY:
   let body = bodyLines.join('\n').trim();
   if (!title || !body) throw new Error('Gemini response missing TITLE or BODY');
 
-  if (verdict && !['buy now', 'wait', 'import only', 'avoid'].some(v => body.toLowerCase().includes(v))) {
+  // Append verdict line if not already present (check for "verdict:" prefix, not the word itself)
+  if (verdict && !body.toLowerCase().includes('verdict:')) {
     body += '\n\n' + (VERDICT_TEMPLATES[verdict] ?? '');
   }
 
