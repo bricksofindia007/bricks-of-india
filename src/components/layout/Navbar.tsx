@@ -14,6 +14,7 @@ const NAV_LINKS = [
   { href: '/reviews',    label: 'Reviews'    },
   { href: '/news',       label: 'News'       },
   { href: '/blog',       label: 'Blog'       },
+  { href: '/opinion',    label: 'Opinion'    },
   { href: '/guides',     label: 'Guides'     },
   { href: '/community',  label: 'Community'  },
 ];

@@ -20,6 +20,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/lab/heat-map`, priority: 0.7 },
     { url: `${base}/lab/deals`, priority: 0.7 },
     { url: `${base}/guides`, priority: 0.8 },
+    { url: `${base}/opinion`, priority: 0.8 },
     { url: `${base}/about`, priority: 0.6 },
     { url: `${base}/contact`, priority: 0.5 },
     { url: `${base}/legal/disclaimer`, priority: 0.3 },
@@ -91,5 +92,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8,
   }));
 
-  return [...staticPages, ...setPages, ...blogPages, ...newsPages, ...reviewPages, ...guidePages];
+  // Opinion posts
+  const { data: opinions } = await supabase
+    .from('blog_posts')
+    .select('slug, published_at')
+    .eq('category', 'Opinion');
+  const opinionPages = (opinions || []).map((p: any) => ({
+    url: `${base}/opinion/${p.slug}`,
+    lastModified: new Date(p.published_at),
+    changeFrequency: 'weekly' as const,
+    priority: 0.7,
+  }));
+
+  return [...staticPages, ...setPages, ...blogPages, ...newsPages, ...reviewPages, ...guidePages, ...opinionPages];
 }

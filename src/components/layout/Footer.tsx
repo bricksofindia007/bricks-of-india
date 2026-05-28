@@ -105,6 +105,8 @@ export function Footer() {
                 { href: '/reviews', label: 'Reviews'  },
                 { href: '/news',    label: 'News'     },
                 { href: '/blog',    label: 'Blog'     },
+                { href: '/opinion', label: 'Opinion'  },
+                { href: '/guides',  label: 'Guides'   },
                 { href: '/lab',     label: 'The Lab'  },
               ].map(({ href, label }) => (
                 <li key={href}>
