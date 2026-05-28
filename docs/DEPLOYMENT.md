@@ -54,6 +54,25 @@ succeeds in GitHub Actions (where `.env.local` does not exist).
 
 This secret is NOT used by GitHub Actions — it lives only in Netlify. Add it in the Netlify UI (see below), not here.
 
+### Required for content-quality.yml — daily content quality pipeline (5 secrets)
+
+| Secret name | Notes |
+|-------------|-------|
+| `NEXT_PUBLIC_SUPABASE_URL` | Already present. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Already present. |
+| `RESEND_API_KEY` | Already present. |
+| `BRIEF_EMAIL` | Already present. |
+| `NEXT_PUBLIC_SITE_URL` | Already present (needed by visual renderer + report links). |
+
+All 5 secrets already in GitHub Secrets. **New Supabase tables required** — run migration `supabase/migrations/20260529000000_content_quality_system_v2.sql` in Supabase dashboard before first workflow run:
+- `content_quality_issues` — adds `auto_fixable` + `fix_detail` columns
+- `content_image_registry` — image URL registry with HTTP status + duplicate tracking
+- `content_fix_log` — before/after log of every auto-fix applied
+
+Schedule: daily `03:00 UTC` (08:30 IST). 5-step pipeline: linter → auto-fixer → visual renderer → verify → email report. Steps 1–4 have `continue-on-error: true` so the report always sends.
+
+---
+
 ### Required for brief.yml — daily morning brief (5 secrets)
 
 | Secret name | Notes |

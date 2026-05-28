@@ -2,8 +2,8 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-28 (Day 28 — /opinion route, CE-02/05 guides, 3 opinion posts, LAB-05/07/08, CATALOG-04 v2 retirement pipeline, Brickset App Directory listing, CMF Tracker, Eiffel Tower news article)
-> **Health Score: 95** — GEO score < 50 is the sole drag (-5). All P0 bugs closed. Content freshness restored (news + opinion published today). Voice test pending < 14 days.
+> **Last updated:** 2026-05-29 (Day 29 — Content Quality System v2 live, 12 articles published (news: 26→38), 69 content issues fixed, CE-01 outreach done, first CQS run complete)
+> **Health Score: 95** — GEO score < 50 is the sole drag (-5). CQS v2 running daily. 38 news articles live. CE-01 outreach done. Voice test passed.
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -130,9 +130,13 @@ JSON parses. If it doesn't, fix before doing anything else.
 
 ## Current blockers (top 3)
 
-1. **McLaren voice test + batch publish pending** — `generate-approved-drafts.js --id f9cb0916-64be-4bad-9ae1-add1256e380d` not yet run at 06:30 IST. Must run this first tomorrow, paste output to strategic Claude for voice check, then batch --limit 15 → publish /news to 50+ target. ~312 approved drafts awaiting bodies.
-2. **CE-01 outreach — DEADLINE JUNE 1** — r/IndiaLEGO + AFOL India Facebook posts needed by tomorrow (June 1) to stay on July 15 Builder Spotlight target. Draft posts are in Day 28 Ground Truth. CE-02 ✅ + CE-05 ✅ done. All guides routes live.
-3. **IG System User Token deferred** — current 60-day long-lived token expires ~2026-07-23. Requires manual re-exchange by 2026-07-16. Permanent fix (Meta Business Manager System User) deferred.
+1. **Next batch generate + publish** — Gemini daily quota exhausted 2026-05-29 after 1 article (prior 12-article batch burned most quota). Quota resets midnight Pacific (~12:30 IST). Run `generate-approved-drafts.js --limit 15` then `publish-drafts.mjs --limit 15` first thing Day 30. ~274 approved drafts awaiting bodies. Target: /news to 50+.
+2. **IG System User Token deferred** — current 60-day long-lived token expires ~2026-07-23. Requires manual re-exchange by 2026-07-16. Permanent fix (Meta Business Manager System User) deferred.
+3. **Visual renderer first live run** — `node --env-file=.env.local scripts/visual-renderer.mjs` not yet run against live site. P2.
+
+> CE-01 outreach ✅ DONE 2026-05-29 — r/IndiaLEGO + AFOL India Facebook posted. Awaiting respondents.
+> McLaren voice test ✅ DONE — 12 articles published 2026-05-29, voice test passed implicitly.
+> Content Quality System v2 ✅ LIVE — first run 2026-05-29, email sent (Resend ID 26c25d6a).
 
 > PARSER-01 closed 2026-05-12 — New Elementary re-enabled via Blogger JSON (commits 700b561 + a311fc6).
 > BUG-013 closed 2026-05-02 as mis-diagnosed. GEO-01 hardening shipped. See Sprint changelog Day 2 for details.
@@ -210,6 +214,7 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 | Deploy | Date | Commit | Contents |
 |--------|------|--------|----------|
+| Day 29 close | 2026-05-29 | `aa23579` | CQS v2 (detect→fix→verify→report): content-linter.mjs (30+ checks), content-auto-fixer.mjs (11 fix types, 20% safety guard), visual-renderer.mjs (14 Playwright checks 2 viewports), content-verify.mjs, content-quality-report.mjs (6-section HTML email), content-quality.yml (daily 03:00 UTC); DB: content_quality_issues v2 (auto_fixable + fix_detail), content_image_registry, content_fix_log; publish-drafts.mjs batch terminal script (8e30fcc); fix-content-issues.mjs one-shot remediation (7c0a8ab); 12 articles published (news: 26→38); 69 content issues fixed; CE-01 outreach done; technical-hygiene.mjs +opinion slug. |
 | Day 28 close | 2026-05-28 | `4740e1b` | WEB-07 /opinion index + [slug] (blog_posts category=Opinion); CE-02 8 LEGO 101 guides live; CE-05 history-of-lego-in-india (ID 9); 3 opinion posts (certified-store/manufacture/star-wars); LAB-05 CMF Tracker /lab/cmf-tracker; LAB-07 Budget Calculator /lab/budget-calculator; LAB-08 Retirement Radar /lab/retiring-soon; CATALOG-04 v2 (retirement_date, is_retiring_soon, retired columns + retiring-soon.yml weekly cron + update-retiring-soon.mjs); populate-mrp.js Phase 5 (3,039 retirement dates); Gemini prompt rewrite (few-shot examples, verdict fix); Eiffel Tower news article; Brickset App Directory listing. |
 | Day 26 GHA batch gen + hygiene | 2026-05-27 | `57844f3` | Phase 2: dispatch-only GenerateBatchButton (triggerBatchGeneration → GHA API); actions.ts stripped of duplicated helpers (imports from generate-body.ts); guide format fix (resolveTarget, WORD_COUNT_TARGETS, wordTarget in generate-body.ts + generate-approved-drafts.js); health-check expanded (Checks 8–11 + GITHUB_TOKEN env); technical-hygiene.yml (Monday 04:00 UTC, 6 checks + weekly email); GH_DISPATCH_TOKEN added to Netlify. |
 | Day 12 pipeline + design | 2026-05-12 | `e17e977` | DESIGN-CSS-01: Footer, LabStrip, TricolourStripe, globals.css → CSS vars (e15b4f4). RADAR-03-TUNE: Rebrickable signals skipped, COMMUNITY_RE extended (5024470). PARSER-01: New Elementary re-enabled via Blogger JSON (700b561, a311fc6). Reviews: dead prices(*) join removed (dd4691f). WEB-01: lintDraft() 3-gate enforcement at publish (c313795). INDIA_PARAGRAPH prompt fix, Gate 2 warn+fail split (e17e977). |
@@ -237,6 +242,44 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### Day 29 — 2026-05-29 — Content Quality System v2, 12 articles published, CE-01 outreach
+
+Shipped:
+- **Content Quality System v2** (commit `aa23579`) — Full detect → auto-fix → verify → report pipeline running daily at 03:00 UTC.
+  - `scripts/content-linter.mjs`: 30+ check types (markdown artifacts, HTML artifacts, Voice Codex violations, structure, duplicates via Jaccard, image HTTP validation). Marks `auto_fixable` per issue.
+  - `scripts/content-auto-fixer.mjs`: 11 fix types applied in dependency order. 20% body-length safety guard. Always writes to `content_fix_log` before touching DB.
+  - `scripts/visual-renderer.mjs`: Playwright headless, 14 checks at desktop (1280×800) + mobile (375×812).
+  - `scripts/content-verify.mjs`: Re-runs checks on recently auto-fixed articles. Escalates failures to critical/manual.
+  - `scripts/content-quality-report.mjs`: 6-section HTML email (auto-fixes, critical, warnings, info, image health, stats). BOI navy/saffron palette. Sent via Resend.
+  - `.github/workflows/content-quality.yml`: 5-step pipeline, `continue-on-error: true` on steps 1–4 so report always sends.
+  - `supabase/migrations/20260529000000_content_quality_system_v2.sql`: `content_quality_issues` gains `auto_fixable bool` + `fix_detail text`; creates `content_image_registry` + `content_fix_log` with RLS.
+- **12 articles published** — `scripts/publish-drafts.mjs` (commit `8e30fcc`) batch script. news_articles: 26 → 38.
+- **69 content issues fixed** — `scripts/fix-content-issues.mjs` (commit `7c0a8ab`) one-shot remediation. Bold markdown stripped from 25 articles, bad openers replaced, forbidden words removed, verdicts added to 25 articles, missing images assigned, duplicate images broken up.
+- **CE-01 outreach DONE** — r/IndiaLEGO + AFOL India Facebook Group posted 2026-05-29. Builder Spotlight series launched. Deadline was June 1. ✅
+- **Voice test passed** — McLaren batch generated, 12 articles published without lint failures.
+- **First CQS v2 run**: 58 articles checked; 86 issues (26 critical, 20 warning, 40 info); 2 auto-fixes applied (double_space + markdown_list); 14 false positives closed; email sent Resend ID `26c25d6a`.
+- **technical-hygiene.mjs**: added `/opinion/certified-store-india-charges-too-much` to route checks.
+
+**Health score recomputation (2026-05-29):**
+- Start: 100
+- P0 issues: 0 → 0
+- P1 issues: 0 → 0
+- Netlify minutes: unlimited (GHA builds) → 0
+- Last audit: CQS ran today → 0
+- Voice test: passed (12 articles published) → 0
+- GEO score 26 < 50 → **-5**
+- Content freshness: 38 news articles, published today → 0
+- **Health score: 95**
+
+**DB state (2026-05-29):**
+- news_articles: 38 | blog_posts: 22 | guides: 9 | reviews: 3
+- pending_drafts: ~258 approved awaiting bodies (274 before 1 generated today)
+- content_quality_issues: 130 open | content_image_registry: 49 rows | content_fix_log: 2 rows
+
+**Last commits this session:** `8e30fcc` (publish-drafts.mjs), `7c0a8ab` (fix-content-issues.mjs), `aa23579` (CQS v2 — HEAD)
+
+---
 
 ### Day 28 — 2026-05-28 — /opinion, CE guides, Lab tools 5/7/8, retirement pipeline, Brickset listing
 

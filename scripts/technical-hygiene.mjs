@@ -63,6 +63,7 @@ const ROUTES = [
   '/deals',
   '/guides',
   '/opinion',
+  '/opinion/certified-store-india-charges-too-much',
   '/compare',
   '/reviews',
   '/about',
