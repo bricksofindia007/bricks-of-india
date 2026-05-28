@@ -371,8 +371,8 @@ BODY:
       console.log(`OK (${result.wordCount}w, verdict=${result.verdict ?? 'none'})`);
     } catch (err) {
       failed++;
-      const msg = err instanceof Error ? err.message : String(err);
-      console.log(`FAIL: ${msg.slice(0, 150)}`);
+      const msg = err instanceof Error ? err.message : (err?.message ?? JSON.stringify(err));
+      console.log(`FAIL: ${String(msg).slice(0, 200)}`);
       if (msg.includes('[429')) {
         console.log('Rate limit (429) — stopping batch to avoid quota waste.');
         break;
