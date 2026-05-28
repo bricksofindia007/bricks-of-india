@@ -62,6 +62,7 @@ const ROUTES = [
   '/sets/page/2',
   '/deals',
   '/guides',
+  '/opinion',
   '/compare',
   '/reviews',
   '/about',
@@ -70,6 +71,9 @@ const ROUTES = [
   '/calendar',
   '/contact',
   '/lab',
+  '/lab/budget-calculator',
+  '/lab/retiring-soon',
+  '/lab/cmf-tracker',
   '/legal/privacy',
   '/legal/terms',
   '/legal/disclaimer',
@@ -101,6 +105,42 @@ await Promise.allSettled(
   })
 );
 log('RouteHealth', `${ROUTES.length - routeFailures.length}/${ROUTES.length} routes OK`);
+
+// ── Check 1b: Guide route health — all live guide slugs ──────────────────────
+
+log('GuideRoutes', 'Fetching guide slugs from DB');
+try {
+  const { data: guideSlugs } = await sb.from('guides').select('slug');
+  if (!guideSlugs || guideSlugs.length === 0) {
+    alertFail('GuideRoutes', 'No guides found in DB — expected 9');
+  } else {
+    const guideFailures = [];
+    await Promise.allSettled(
+      guideSlugs.map(async ({ slug }) => {
+        const url = `${SITE_URL}/guides/${slug}`;
+        try {
+          const res = await fetch(url, {
+            redirect: 'follow',
+            signal: AbortSignal.timeout(15_000),
+            headers: { 'User-Agent': 'BOI-TechHygiene/1.0' },
+          });
+          if (res.ok) {
+            log('GuideRoutes', `  200 /guides/${slug}`);
+          } else {
+            guideFailures.push(`/guides/${slug} → ${res.status}`);
+            alertFail('GuideRoutes', `/guides/${slug} returned HTTP ${res.status}`);
+          }
+        } catch (e) {
+          guideFailures.push(`/guides/${slug} → error`);
+          alertFail('GuideRoutes', `/guides/${slug} fetch error: ${e.message.slice(0, 60)}`);
+        }
+      })
+    );
+    log('GuideRoutes', `${guideSlugs.length - guideFailures.length}/${guideSlugs.length} guide routes OK`);
+  }
+} catch (e) {
+  alertFail('GuideRoutes', `Guide slug fetch failed: ${e.message.slice(0, 80)}`);
+}
 
 // ── Check 2: Broken hero images ───────────────────────────────────────────────
 
