@@ -37,8 +37,8 @@ export const LAB_TOOLS: LabTool[] = [
     name: "Retirement Radar",
     emoji: "⏳",
     tagline: "Sets nearing end-of-life. The fear is the feature.",
-    href: null,
-    status: "coming_soon",
+    href: "/lab/retiring-soon",
+    status: "live",
   },
   {
     id: "heat-map",
