@@ -1,7 +1,9 @@
 /**
- * Content Linter — database-level text checks on all published content.
- * Detect-only. Never modifies articles. Writes issues to content_quality_issues.
- * Run: node --env-file=.env.local scripts/content-linter.mjs
+ * BOI Content Quality Linter v2
+ * Detects issues across all published content. Writes to content_quality_issues.
+ * Does NOT fix anything — that's content-auto-fixer.mjs.
+ *
+ * Usage: node --env-file=.env.local scripts/content-linter.mjs
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -24,288 +26,299 @@ try {
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!SUPABASE_URL || !SERVICE_KEY) { console.error('Missing env vars'); process.exit(1); }
 
-if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
-  process.exit(1);
-}
+const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
-const sb = createClient(SUPABASE_URL, SERVICE_KEY);
-
-// ── Issue accumulator ─────────────────────────────────────────────────────────
-
-/** @type {{ article_id: string|null, article_slug: string, section: string, check_name: string, severity: string, detail: string }[]} */
-const issues = [];
-
-function flag(articleId, slug, section, checkName, severity, detail) {
-  issues.push({ article_id: articleId ?? null, article_slug: slug, section, check_name: checkName, severity, detail });
-  console.log(`  ${severity === 'critical' ? '❌' : severity === 'warning' ? '⚠️ ' : 'ℹ️ '} [${slug}] ${checkName}: ${detail}`);
-}
-
-// ── Check sets ────────────────────────────────────────────────────────────────
-
-const MARKDOWN_CHECKS = [
-  { re: /\*\*[^*\n]+\*\*/,  name: 'bold_markdown',    detail: 'Bold markdown (**text**) visible in published content' },
-  { re: /(?<!\*)\*(?!\*)[^*\n]+\*(?!\*)/,  name: 'italic_markdown',  detail: 'Italic markdown (*text*) visible in published content' },
-  { re: /^#{1,6}\s/m,       name: 'heading_markdown', detail: 'Heading markdown (# H1) visible in published content' },
-  { re: /^\s*[-*]\s\S/m,    name: 'list_markdown',    detail: 'List markdown (- item) visible in published content' },
-];
-
-const HTML_ARTIFACT_CHECKS = [
-  { re: /<!--/,          name: 'html_comment',        severity: 'critical', detail: 'HTML comment tag found in content' },
-  { re: /INDIA_PARAGRAPH/, name: 'marker_visible',   severity: 'critical', detail: 'INDIA_PARAGRAPH marker text visible in content' },
-  { re: /BOI_DRAFT_START/, name: 'draft_marker',     severity: 'critical', detail: 'BOI_DRAFT_START/END marker leaked into published content' },
-  { re: /<script\b/i,    name: 'script_tag',          severity: 'critical', detail: '<script> tag found in content' },
-  { re: /<style\b/i,     name: 'style_tag',           severity: 'critical', detail: '<style> tag found in content' },
-  { re: /<iframe\b/i,    name: 'iframe_tag',          severity: 'critical', detail: '<iframe> tag found in content' },
-];
+// ── Constants ─────────────────────────────────────────────────────────────────
 
 const FORBIDDEN_WORDS = [
   'pinnacle', 'testament', 'cognoscenti', 'whimsical', 'bloke',
   'fever dreams', 'siren call', 'unadulterated', 'folks', 'aficionados',
-  'enthusiasts', 'hefty', 'at the end of the day', 'jam', 'stunning', 'marvel',
+  'enthusiasts', 'hefty', 'at the end of the day', 'stunning',
+  'marvel', 'impressive', 'delve', 'utilize',
+  "that's your jam", "it's your jam",
 ];
+const BAD_OPENERS = ['So,', 'Okay', 'Alright,', "Let's talk"];
+const VERDICT_WORDS = ['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID'];
+const STORE_NAMES   = ['MyBrickHouse', 'Toycra', 'Jaiman'];
+const SIGNOFF       = 'On that bombshell';
 
-const BAD_OPENERS = ['So,', 'Okay,', 'Alright,', "Let's talk"];
+const RUN_AT = new Date().toISOString();
 
-const VALID_VERDICTS = ['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID'];
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
-const INDIA_STORE_RE = /\b(Toycra|MyBrickHouse|Jaiman)\b/i;
+function wordCount(text) {
+  return text.split(/\s+/).filter(Boolean).length;
+}
 
-// Editorial targets for published content (wider than draft lint gates)
-const WORD_COUNT_TARGETS = {
-  news:    { min: 600,   max: 1200 },
-  review:  { min: 1000,  max: 2500 },
-  opinion: { min: 700,   max: 1500 },
-  guide:   { min: 800,   max: 2000 },
-};
+function paragraphs(text) {
+  return text.split(/\n\n+/).filter(p => p.trim().length > 0);
+}
 
-// ALL CAPS words that are expected and not a style violation
-const ALLOWED_CAPS = new Set([
-  'LEGO', 'HTML', 'HTTP', 'HTTPS', 'JSON', 'ISBN', 'AFOL', 'MFOL',
-  'NISB', 'MIB', 'CMF', 'GWP', 'URL', 'API', 'ID', 'DIY', 'FAQ',
-  'VIP', 'SKU', 'PDF', 'EOL', 'NFC', 'NYC', 'UK', 'US', 'AU', 'EU',
-  'BUY', 'NOW', 'WAIT', 'ONLY', 'AVOID', 'IMPORT', 'INR', 'MRP', 'IGT',
-  'VERDICT', 'SALE', 'NASA', 'IKEA', 'BILLY', 'DETOLF', 'DUPLO',
-  'WHAT', 'COULD', 'BETTER', 'SHOULD', 'COST', 'GOOD', 'BEST',
+function jaccardSimilarity(a, b) {
+  const tokenize = s => new Set(s.toLowerCase().replace(/[^a-z0-9\s]/g, '').split(/\s+/).filter(Boolean));
+  const ta = tokenize(a), tb = tokenize(b);
+  const intersection = [...ta].filter(x => tb.has(x)).length;
+  const union = new Set([...ta, ...tb]).size;
+  return union === 0 ? 0 : intersection / union;
+}
+
+function firstSentence(text) {
+  return (text.match(/^[^.!?]+[.!?]/) || [text.slice(0, 100)])[0];
+}
+
+// ── Issue accumulator ─────────────────────────────────────────────────────────
+
+const issues = [];
+
+function flag(art, checkName, severity, detail, autoFixable = false) {
+  issues.push({
+    checked_at:   RUN_AT,
+    article_id:   (typeof art.id === 'string' && art.id.includes('-')) ? art.id : null,
+    article_slug: art.slug,
+    section:      art._section,
+    check_name:   checkName,
+    severity,
+    detail,
+    auto_fixable: autoFixable,
+    resolved:     false,
+  });
+}
+
+// ── Image HTTP check ──────────────────────────────────────────────────────────
+
+const UA = 'BricksOfIndia-RadarBot/1.0 (+https://bricksofindia.com)';
+
+async function checkImageUrl(url) {
+  try {
+    const res = await fetch(url, { method: 'HEAD', headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(6000) });
+    return res.status;
+  } catch { return 0; }
+}
+
+// ── Load articles ─────────────────────────────────────────────────────────────
+
+async function loadSection(table, extraFilter) {
+  const rows = [];
+  let offset = 0;
+  const PAGE = 200;
+  while (true) {
+    let q = sb.from(table).select('*').range(offset, offset + PAGE - 1);
+    if (extraFilter) q = extraFilter(q);
+    const { data, error } = await q;
+    if (error) { console.error('Load error', table, error.message); break; }
+    if (!data?.length) break;
+    for (const r of data) r._section = table;
+    rows.push(...data);
+    if (data.length < PAGE) break;
+    offset += PAGE;
+  }
+  return rows;
+}
+
+console.log('Loading articles…');
+const [news, opinion, reviews, guides] = await Promise.all([
+  loadSection('news_articles'),
+  loadSection('blog_posts', q => q.eq('category', 'Opinion')),
+  loadSection('reviews'),
+  loadSection('guides'),
 ]);
+const all = [...news, ...opinion, ...reviews, ...guides];
+console.log(`Loaded: ${news.length} news, ${opinion.length} opinion, ${reviews.length} reviews, ${guides.length} guides = ${all.length} total\n`);
 
-function runChecks(content, slug, articleId, section, format) {
-  if (!content || content.trim().length === 0) {
-    flag(articleId, slug, section, 'empty_content', 'critical', 'Article has no content');
-    return;
-  }
+// ── Per-article checks ────────────────────────────────────────────────────────
 
-  // Markdown artifacts
-  for (const check of MARKDOWN_CHECKS) {
-    if (check.re.test(content)) {
-      flag(articleId, slug, section, check.name, 'warning', check.detail);
-    }
-  }
+const imageMap = {}; // url → [slug, ...]
 
-  // HTML artifacts
-  for (const check of HTML_ARTIFACT_CHECKS) {
-    if (check.re.test(content)) {
-      flag(articleId, slug, section, check.name, check.severity, check.detail);
-    }
-  }
+for (const art of all) {
+  const body    = art.content || '';
+  const section = art._section;
+  const isNewsOrReview   = section === 'news_articles' || section === 'reviews';
+  const isOpinionOrNews  = section === 'blog_posts'    || section === 'news_articles';
 
-  // Forbidden words (case-insensitive, whole match)
-  const lc = content.toLowerCase();
+  // MARKDOWN ARTIFACTS ──────────────────────────────────────────────────────
+
+  const asteriskMatches = [...body.matchAll(/(?<!\*)\*(?!\*)([^*\n]{1,100})(?<!\*)\*(?!\*)/g)];
+  for (const m of asteriskMatches.slice(0, 3))
+    flag(art, 'markdown_asterisk', 'warning', `Asterisk markdown: ${m[0].slice(0, 60)}`, true);
+
+  const boldMatches = [...body.matchAll(/\*\*([^*\n]{1,100})\*\*/g)];
+  for (const m of boldMatches.slice(0, 3))
+    flag(art, 'markdown_bold', 'warning', `Bold markdown: ${m[0].slice(0, 60)}`, true);
+
+  const headerMatches = [...body.matchAll(/^#{1,6}\s.+/gm)];
+  for (const m of headerMatches.slice(0, 2))
+    flag(art, 'markdown_header', 'warning', `Markdown header: ${m[0].slice(0, 60)}`, true);
+
+  const listMatches = [...body.matchAll(/^\s*[-*]\s+\S/gm)];
+  for (const m of listMatches.slice(0, 2))
+    flag(art, 'markdown_list', 'warning', `Markdown list item: ${m[0].slice(0, 60)}`, true);
+
+  if (body.includes('  '))
+    flag(art, 'double_space', 'info', 'Double space found in body', true);
+
+  if (body.split('\n').some(l => /\s+$/.test(l)))
+    flag(art, 'trailing_space', 'info', 'Trailing whitespace on one or more lines', true);
+
+  if (/\n{3,}/.test(body))
+    flag(art, 'consecutive_blank_lines', 'info', '3+ consecutive blank lines', true);
+
+  // Capitalisation after period — skip URLs and set numbers
+  const capErrors = [...body.matchAll(/\.\s+([a-z])(?=[a-z]{2,})/g)]
+    .filter(m => !/https?:|www\.|[0-9]{4,}/.test(body.slice(Math.max(0, m.index - 20), m.index + 20)));
+  for (const m of capErrors.slice(0, 2))
+    flag(art, 'capitalisation_error', 'info', `Lowercase after period: "${m[0].slice(0, 40)}"`, true);
+
+  // HTML ARTIFACTS ──────────────────────────────────────────────────────────
+
+  if (body.includes('<!--'))
+    flag(art, 'html_comment_visible', 'critical', 'HTML comment visible in body', true);
+
+  if (body.includes('INDIA_PARAGRAPH'))
+    flag(art, 'india_paragraph_marker', 'critical', 'INDIA_PARAGRAPH marker visible in body', true);
+
+  if (body.includes('BOI_DRAFT_START') || body.includes('BOI_DRAFT_END'))
+    flag(art, 'draft_marker_leaked', 'critical', 'Draft marker leaked into body', true);
+
+  if (/<script|<iframe|<style/i.test(body))
+    flag(art, 'script_injection', 'critical', 'Possible script injection in body', false);
+
+  // VOICE CODEX ─────────────────────────────────────────────────────────────
+
+  const bodyLower = body.toLowerCase();
+
   for (const word of FORBIDDEN_WORDS) {
-    if (lc.includes(word.toLowerCase())) {
-      flag(articleId, slug, section, 'forbidden_word', 'warning', `Forbidden word: "${word}"`);
-    }
+    if (bodyLower.includes(word.toLowerCase()))
+      flag(art, 'forbidden_word', 'warning', `Forbidden word: "${word}"`, false);
   }
 
-  // Opener check
-  const trimmed = content.trimStart();
+  const firstWords = body.trimStart().slice(0, 60);
   for (const opener of BAD_OPENERS) {
-    if (trimmed.startsWith(opener)) {
-      flag(articleId, slug, section, 'bad_opener', 'warning', `Forbidden opener: "${opener}"`);
+    if (firstWords.startsWith(opener)) {
+      flag(art, 'bad_opener', 'warning', `Bad opener: "${firstWords.slice(0, 50)}"`, false);
+      break;
     }
   }
 
-  // Verdict check (news and reviews only)
-  if (format === 'news' || format === 'review') {
-    const hasVerdict = VALID_VERDICTS.some(v => content.includes(v));
-    if (!hasVerdict) {
-      flag(articleId, slug, section, 'missing_verdict', 'warning', 'No verdict (BUY NOW / WAIT / IMPORT ONLY / AVOID) found');
+  if (isNewsOrReview && !VERDICT_WORDS.some(v => body.includes(v)))
+    flag(art, 'missing_verdict', 'critical', 'No verdict found (BUY NOW/WAIT/IMPORT ONLY/AVOID)', false);
+
+  if (isNewsOrReview && !body.includes('₹'))
+    flag(art, 'missing_india_paragraph', 'critical', 'No INR price (₹) found in body', false);
+
+  if (isNewsOrReview && !STORE_NAMES.some(s => body.includes(s)))
+    flag(art, 'missing_store_mention', 'warning', 'No store name found (MyBrickHouse / Toycra / Jaiman)', false);
+
+  if (isOpinionOrNews && !body.includes(SIGNOFF))
+    flag(art, 'missing_signoff', 'info', `Missing "${SIGNOFF}" signoff`, false);
+
+  // STRUCTURE ───────────────────────────────────────────────────────────────
+
+  const wc = wordCount(body);
+  const wt = ({ news_articles: { lo: 250, hi: 500 }, reviews: { lo: 400, hi: 900 }, blog_posts: { lo: 300, hi: 700 }, guides: { lo: 500, hi: 1500 } })[section] ?? { lo: 250, hi: 500 };
+  if (wc < wt.lo)       flag(art, 'word_count_low',  'warning', `Word count ${wc}, target ≥${wt.lo}`, false);
+  else if (wc > wt.hi)  flag(art, 'word_count_high', 'info',    `Word count ${wc} above target ${wt.hi}`, false);
+
+  const paras = paragraphs(body);
+  if (paras.length < 3)
+    flag(art, 'thin_content', 'warning', `Only ${paras.length} paragraphs`, false);
+
+  for (let i = 0; i < paras.length; i++) {
+    const pw = wordCount(paras[i]);
+    if (pw > 200) flag(art, 'wall_of_text', 'warning', `Paragraph ${i + 1} is ${pw} words`, false);
+  }
+
+  // IMAGE CHECKS ────────────────────────────────────────────────────────────
+
+  // guides use featured_image_url; news/reviews/blog use hero_image
+  const imgUrl = art.hero_image || art.image_url || art.featured_image_url || null;
+
+  if (!imgUrl) {
+    flag(art, 'missing_image', 'critical', 'No image URL set', false);
+  } else {
+    // exclude YouTube maxresdefault (valid filename, not a placeholder)
+    if (/placeholder|no-image|fallback|blank/i.test(imgUrl) || (/\bdefault\b/i.test(imgUrl) && !/ytimg\.com|youtube/i.test(imgUrl)))
+      flag(art, 'placeholder_image', 'critical', `Placeholder image URL: ${imgUrl.slice(0, 80)}`, false);
+    if (!imageMap[imgUrl]) imageMap[imgUrl] = [];
+    imageMap[imgUrl].push({ slug: art.slug, section });
+  }
+}
+
+// ── Duplicate detection ───────────────────────────────────────────────────────
+
+console.log('Running duplicate detection…');
+for (let i = 0; i < all.length; i++) {
+  for (let j = i + 1; j < all.length; j++) {
+    const a = all[i], b = all[j];
+    const tSim = jaccardSimilarity(a.title || '', b.title || '');
+    if (tSim > 0.7) {
+      flag(a, 'duplicate_title', 'warning', `Similar title (${Math.round(tSim * 100)}%) to: ${b.slug}`, false);
+      flag(b, 'duplicate_title', 'warning', `Similar title (${Math.round(tSim * 100)}%) to: ${a.slug}`, false);
+    }
+    const oSim = jaccardSimilarity(firstSentence(a.content || ''), firstSentence(b.content || ''));
+    if (oSim > 0.8) {
+      flag(a, 'duplicate_opener', 'warning', `Similar opener (${Math.round(oSim * 100)}%) to: ${b.slug}`, false);
+      flag(b, 'duplicate_opener', 'warning', `Similar opener (${Math.round(oSim * 100)}%) to: ${a.slug}`, false);
     }
   }
+}
 
-  // India Paragraph: ₹ symbol + store name
-  const hasRupee = content.includes('₹');
-  const hasStore  = INDIA_STORE_RE.test(content);
-  if (!hasRupee || !hasStore) {
-    const missing = [];
-    if (!hasRupee) missing.push('₹ symbol');
-    if (!hasStore) missing.push('Indian store name (Toycra/MyBrickHouse/Jaiman)');
-    flag(articleId, slug, section, 'missing_india_paragraph', 'warning',
-      `India Paragraph incomplete — missing: ${missing.join(', ')}`);
-  }
+// ── Image HTTP checks ─────────────────────────────────────────────────────────
 
-  // Typography: double spaces
-  if (/  /.test(content)) {
-    flag(articleId, slug, section, 'double_space', 'info', 'Double space found');
-  }
+const uniqueUrls = Object.keys(imageMap);
+console.log(`Checking ${uniqueUrls.length} unique image URLs…`);
+const imageStatusMap = {};
+await Promise.allSettled(
+  uniqueUrls.map(async url => { imageStatusMap[url] = await checkImageUrl(url); })
+);
 
-  // Typography: >2 consecutive blank lines
-  if (/\n{4,}/.test(content)) {
-    flag(articleId, slug, section, 'excess_blank_lines', 'info', 'More than 2 consecutive blank lines found');
-  }
-
-  // Typography: ALL CAPS words >3 chars (excluding known acronyms)
-  const capsMatches = (content.match(/\b[A-Z][A-Z]{3,}\b/g) || [])
-    .filter(w => !ALLOWED_CAPS.has(w));
-  if (capsMatches.length > 0) {
-    flag(articleId, slug, section, 'all_caps_word', 'info',
-      `ALL CAPS word(s) found: ${[...new Set(capsMatches)].slice(0, 3).join(', ')}`);
-  }
-
-  // Structure: word count vs editorial targets
-  const words = content.split(/\s+/).filter(Boolean).length;
-  const targets = WORD_COUNT_TARGETS[format] ?? WORD_COUNT_TARGETS.news;
-  if (words < targets.min || words > targets.max) {
-    flag(articleId, slug, section, 'word_count', 'info',
-      `Word count ${words} outside editorial target ${targets.min}–${targets.max} for '${format}'`);
-  }
-
-  // Structure: paragraph count < 3
-  const paragraphs = content.split(/\n\n+/).filter(p => p.trim().length > 20);
-  if (paragraphs.length < 3) {
-    flag(articleId, slug, section, 'too_few_paragraphs', 'warning',
-      `Only ${paragraphs.length} paragraph(s) — expected ≥ 3`);
-  }
-
-  // Structure: average paragraph > 200 words
-  if (paragraphs.length > 0) {
-    const avgWords = Math.round(words / paragraphs.length);
-    if (avgWords > 200) {
-      flag(articleId, slug, section, 'wall_of_text', 'warning',
-        `Average paragraph length is ${avgWords} words — expected ≤ 200 (wall of text risk)`);
+const imageRegistryRows = [];
+for (const [url, entries] of Object.entries(imageMap)) {
+  const status = imageStatusMap[url] ?? 0;
+  const isDuplicate = entries.length > 1;
+  for (const { slug, section } of entries) {
+    const art = all.find(a => a.slug === slug);
+    imageRegistryRows.push({
+      checked_at: RUN_AT, article_slug: slug, section, image_url: url,
+      http_status: status, is_duplicate: isDuplicate,
+      duplicate_of: isDuplicate ? entries.filter(e => e.slug !== slug).map(e => e.slug) : [],
+    });
+    if (status !== 200) {
+      flag(art, 'broken_image', 'critical',
+        status === 0
+          ? `Image request failed (timeout): ${url.slice(0, 80)}`
+          : `Image returns HTTP ${status}: ${url.slice(0, 80)}`,
+        false);
     }
-  }
-}
-
-// ── Jaccard duplicate detection ───────────────────────────────────────────────
-
-function tokenize(text) {
-  return new Set(text.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/).filter(Boolean));
-}
-
-function jaccard(setA, setB) {
-  if (setA.size === 0 && setB.size === 0) return 0;
-  let intersect = 0;
-  for (const t of setA) { if (setB.has(t)) intersect++; }
-  return intersect / (setA.size + setB.size - intersect);
-}
-
-// ── Fetch all published content ───────────────────────────────────────────────
-
-console.log('── Content Linter ──────────────────────────────────────');
-console.log('Fetching published content...');
-
-const allArticles = [];
-
-const { data: newsRows, error: newsErr } = await sb
-  .from('news_articles').select('id, slug, title, content');
-if (newsErr) console.error('news_articles fetch error:', newsErr.message);
-for (const row of newsRows ?? []) {
-  allArticles.push({ id: row.id, slug: row.slug, title: row.title, content: row.content, section: 'news_articles', format: 'news' });
-}
-
-const { data: opinionRows, error: opErr } = await sb
-  .from('blog_posts').select('id, slug, title, content').eq('category', 'Opinion');
-if (opErr) console.error('blog_posts fetch error:', opErr.message);
-for (const row of opinionRows ?? []) {
-  allArticles.push({ id: row.id, slug: row.slug, title: row.title, content: row.content, section: 'blog_posts', format: 'opinion' });
-}
-
-const { data: reviewRows, error: revErr } = await sb
-  .from('reviews').select('id, slug, title, content');
-if (revErr) console.error('reviews fetch error:', revErr.message);
-for (const row of reviewRows ?? []) {
-  allArticles.push({ id: row.id, slug: row.slug, title: row.title, content: row.content, section: 'reviews', format: 'review' });
-}
-
-const { data: guideRows, error: guideErr } = await sb
-  .from('guides').select('id, slug, title, content');
-if (guideErr) console.error('guides fetch error:', guideErr.message);
-for (const row of guideRows ?? []) {
-  // guides.id is bigint — store as null in the uuid column, use slug as primary ref
-  allArticles.push({ id: null, slug: row.slug, title: row.title, content: row.content, section: 'guides', format: 'guide' });
-}
-
-console.log(`Loaded ${allArticles.length} articles (${newsRows?.length ?? 0} news, ${opinionRows?.length ?? 0} opinion, ${reviewRows?.length ?? 0} reviews, ${guideRows?.length ?? 0} guides)\n`);
-
-// ── Run per-article checks ────────────────────────────────────────────────────
-
-for (const article of allArticles) {
-  runChecks(article.content, article.slug, article.id, article.section, article.format);
-}
-
-// ── Duplicate detection (within each section) ─────────────────────────────────
-
-console.log('\nRunning duplicate detection...');
-
-const bySection = {};
-for (const a of allArticles) {
-  (bySection[a.section] ??= []).push(a);
-}
-
-for (const [section, group] of Object.entries(bySection)) {
-  for (let i = 0; i < group.length; i++) {
-    for (let j = i + 1; j < group.length; j++) {
-      const a = group[i], b = group[j];
-
-      const titleSim = jaccard(tokenize(a.title || ''), tokenize(b.title || ''));
-      if (titleSim > 0.7) {
-        flag(a.id, a.slug, section, 'duplicate_title', 'warning',
-          `Title ${(titleSim * 100).toFixed(0)}% similar to "${b.slug}"`);
-      }
-
-      const aOpener = (a.content || '').split(/[.!?]/)[0] ?? '';
-      const bOpener = (b.content || '').split(/[.!?]/)[0] ?? '';
-      if (aOpener.length > 30 && bOpener.length > 30) {
-        const openerSim = jaccard(tokenize(aOpener), tokenize(bOpener));
-        if (openerSim > 0.8) {
-          flag(a.id, a.slug, section, 'duplicate_opener', 'critical',
-            `Opening sentence ${(openerSim * 100).toFixed(0)}% similar to "${b.slug}"`);
-        }
-      }
-    }
+    if (isDuplicate)
+      flag(art, 'duplicate_image', 'warning',
+        `Image shared with: ${entries.filter(e => e.slug !== slug).map(e => e.slug).slice(0, 3).join(', ')}`,
+        false);
   }
 }
 
 // ── Write issues to DB ────────────────────────────────────────────────────────
 
-const criticalCount = issues.filter(i => i.severity === 'critical').length;
-const warningCount  = issues.filter(i => i.severity === 'warning').length;
-const infoCount     = issues.filter(i => i.severity === 'info').length;
-
-console.log(`\n── Results ─────────────────────────────────────────────`);
-console.log(`Articles checked : ${allArticles.length}`);
-console.log(`Total issues     : ${issues.length}`);
-console.log(`  Critical       : ${criticalCount}`);
-console.log(`  Warnings       : ${warningCount}`);
-console.log(`  Info           : ${infoCount}`);
-
-if (issues.length > 0) {
-  const BATCH = 200;
-  let written = 0;
-  for (let offset = 0; offset < issues.length; offset += BATCH) {
-    const batch = issues.slice(offset, offset + BATCH);
-    const { error } = await sb.from('content_quality_issues').insert(batch);
-    if (error) {
-      console.error('DB write error:', error.message);
-    } else {
-      written += batch.length;
-    }
-  }
-  console.log(`\nWrote ${written} rows to content_quality_issues`);
-} else {
-  console.log('\nAll clean — nothing written to DB');
+console.log(`\nWriting ${issues.length} issues to DB…`);
+const BATCH = 50;
+for (let i = 0; i < issues.length; i += BATCH) {
+  const { error } = await sb.from('content_quality_issues').insert(issues.slice(i, i + BATCH));
+  if (error) console.error('Insert error:', error.message);
 }
 
-console.log('── Linter done ─────────────────────────────────────────');
+console.log(`Writing ${imageRegistryRows.length} image registry rows…`);
+for (let i = 0; i < imageRegistryRows.length; i += BATCH) {
+  const { error } = await sb.from('content_image_registry').insert(imageRegistryRows.slice(i, i + BATCH));
+  if (error) console.error('Image registry error:', error.message);
+}
+
+// ── Summary ───────────────────────────────────────────────────────────────────
+
+const counts = { critical: 0, warning: 0, info: 0 };
+for (const i of issues) counts[i.severity] = (counts[i.severity] || 0) + 1;
+const autoFixable = issues.filter(i => i.auto_fixable).length;
+
+console.log(`\nLinter complete: ${all.length} articles checked`);
+console.log(`Critical: ${counts.critical} | Warning: ${counts.warning} | Info: ${counts.info}`);
+console.log(`Auto-fixable: ${autoFixable} | Manual required: ${issues.length - autoFixable}`);

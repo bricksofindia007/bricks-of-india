@@ -1,12 +1,14 @@
 /**
- * Content Quality Report — daily email digest of content_quality_issues.
- * Queries issues from the last 24h and sends via Resend to BRIEF_EMAIL.
- * Always sends even when clean (confirms the check ran).
+ * BOI Content Quality Report v2
+ * Queries content_quality_issues and content_fix_log for last 24h.
+ * Sends HTML email digest via Resend to BRIEF_EMAIL.
+ * Always sends — clean run confirms the system is working.
  *
- * Run: node --env-file=.env.local scripts/content-quality-report.mjs
+ * Usage: node --env-file=.env.local scripts/content-quality-report.mjs
  */
 
 import { createClient } from '@supabase/supabase-js';
+import { Resend } from 'resend';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -26,242 +28,205 @@ try {
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const RESEND_KEY   = (process.env.RESEND_API_KEY ?? '').replace(/^﻿/, '').trim();
-const BRIEF_EMAIL  = (process.env.BRIEF_EMAIL ?? '').replace(/^﻿/, '').trim();
+const RESEND_KEY   = process.env.RESEND_API_KEY;
+const TO_EMAIL     = process.env.BRIEF_EMAIL;
+const SITE_URL     = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://bricksofindia.com').replace(/\/$/, '');
 
-if (!SUPABASE_URL || !SERVICE_KEY) {
-  console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
+if (!SUPABASE_URL || !SERVICE_KEY || !RESEND_KEY || !TO_EMAIL) {
+  console.error('Missing env vars (SUPABASE, RESEND_API_KEY, BRIEF_EMAIL)');
   process.exit(1);
 }
 
-const sb = createClient(SUPABASE_URL, SERVICE_KEY);
+const sb     = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+const resend = new Resend(RESEND_KEY);
 
-// ── Fetch last 24h issues ─────────────────────────────────────────────────────
+const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+const dateStr  = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
-const since = new Date(Date.now() - 24 * 3_600_000).toISOString();
+// ── Query data ────────────────────────────────────────────────────────────────
 
-const { data: allIssues, error } = await sb
-  .from('content_quality_issues')
-  .select('*')
-  .gte('checked_at', since)
-  .eq('resolved', false)
-  .order('severity', { ascending: true })  // critical first (alphabetically c < i < w)
-  .order('checked_at', { ascending: false });
+const [{ data: todayIssues }, { data: fixLog }, { data: imageIssues }, { data: allOpen }] = await Promise.all([
+  sb.from('content_quality_issues').select('*').gte('checked_at', since24h).eq('resolved', false),
+  sb.from('content_fix_log').select('*').gte('fixed_at', since24h),
+  sb.from('content_image_registry').select('*').gte('checked_at', since24h),
+  sb.from('content_quality_issues').select('id, severity').eq('resolved', false),
+]);
 
-if (error) {
-  console.error('Failed to fetch issues:', error.message);
-  process.exit(1);
-}
+const newIssues  = todayIssues ?? [];
+const fixes      = fixLog      ?? [];
+const imgReg     = imageIssues ?? [];
+const openIssues = allOpen     ?? [];
 
-const issues    = allIssues ?? [];
-const critical  = issues.filter(i => i.severity === 'critical');
-const warnings  = issues.filter(i => i.severity === 'warning');
-const info      = issues.filter(i => i.severity === 'info');
+const bySeverity = { critical: 0, warning: 0, info: 0 };
+for (const i of newIssues) bySeverity[i.severity] = (bySeverity[i.severity] || 0) + 1;
 
-const today     = new Date().toISOString().slice(0, 10);
-const isClean   = issues.length === 0;
-const status    = isClean ? '✅ ALL CLEAR' : `❌ ${critical.length} CRITICAL · ⚠️ ${warnings.length} WARNINGS`;
+const totalOpen = { critical: 0, warning: 0, info: 0 };
+for (const i of openIssues) totalOpen[i.severity] = (totalOpen[i.severity] || 0) + 1;
 
-console.log(`Content Quality Report — ${today}`);
-console.log(`Status: ${status}`);
-console.log(`Issues in last 24h: ${issues.length} (${critical.length} critical, ${warnings.length} warnings, ${info.length} info)`);
+const isClean = newIssues.length === 0;
+const subject = isClean
+  ? `BOI Content Quality — All clear ✅ ${dateStr}`
+  : `BOI Content Quality — ${bySeverity.critical} critical, ${bySeverity.warning} warnings ${dateStr}`;
 
-// ── HTML email builder ────────────────────────────────────────────────────────
+// ── Image health stats ────────────────────────────────────────────────────────
+
+const imgBroken      = imgReg.filter(r => r.http_status !== 200 && r.http_status !== null).length;
+const imgPlaceholder = imgReg.filter(r => /placeholder|default|no-image|fallback|blank/i.test(r.image_url ?? '')).length;
+const imgDuplicate   = imgReg.filter(r => r.is_duplicate).length;
+const imgTotal       = new Set(imgReg.map(r => r.image_url).filter(Boolean)).size;
+const imgHealthy     = imgBroken === 0 && imgPlaceholder === 0;
+
+// ── HTML builders ─────────────────────────────────────────────────────────────
 
 const SAFFRON = '#F7A800';
 const NAVY    = '#0F2D6B';
-const RED     = '#dc2626';
-const AMBER   = '#d97706';
-const SLATE   = '#64748b';
+const RED     = '#DC2626';
+const AMBER   = '#D97706';
+const GREEN   = '#16A34A';
+const GRAY    = '#6B7280';
 
-function esc(str) {
-  return (str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function sectionHeader(title, count, color = SAFFRON) {
+  return `<tr><td style="padding:20px 24px 8px;background:#fff;">
+    <h2 style="margin:0;font-size:15px;font-weight:700;color:${color};letter-spacing:0.5px;text-transform:uppercase;border-bottom:2px solid ${color};padding-bottom:6px;">
+      ${title}${count !== undefined ? ` <span style="font-weight:400;font-size:13px;color:${GRAY};">(${count})</span>` : ''}
+    </h2></td></tr>`;
 }
 
-function severityColor(sev) {
-  if (sev === 'critical') return RED;
-  if (sev === 'warning')  return AMBER;
-  return SLATE;
+function issueRow(slug, checkName, detail, section) {
+  const path = { news_articles: 'news', blog_posts: 'opinion', reviews: 'reviews', guides: 'guides' }[section] ?? 'news';
+  const url  = `${SITE_URL}/${path}/${slug}`;
+  return `<tr><td style="padding:4px 24px;border-bottom:1px solid #f3f4f6;">
+    <table width="100%" cellpadding="0" cellspacing="0"><tr>
+      <td style="font-size:12px;color:${NAVY};"><a href="${url}" style="color:${NAVY};text-decoration:none;font-weight:600;">${slug.slice(0, 55)}</a></td>
+      <td style="font-size:11px;color:${GRAY};text-align:right;white-space:nowrap;">${checkName}</td>
+    </tr><tr><td colspan="2" style="font-size:11px;color:${GRAY};padding-top:2px;">${(detail ?? '').slice(0, 120)}</td></tr>
+    </table></td></tr>`;
 }
 
-function severityBadge(sev) {
-  const color = severityColor(sev);
-  const label = sev.toUpperCase();
-  return `<span style="background:${color};color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;font-weight:600;font-family:monospace;">${label}</span>`;
+function fixRow(f) {
+  return `<tr><td style="padding:4px 24px;border-bottom:1px solid #f3f4f6;font-size:12px;color:${NAVY};">
+    <strong>${f.article_slug?.slice(0, 45) ?? '?'}</strong>
+    <span style="color:${GRAY};"> → ${f.fix_type}</span>
+  </td></tr>`;
 }
 
-function issueRows(list, maxRows = 30) {
-  if (list.length === 0) return '<tr><td colspan="4" style="color:#64748b;padding:8px 0;">No issues</td></tr>';
-  return list.slice(0, maxRows).map(iss => `
-    <tr style="border-bottom:1px solid #e2e8f0;">
-      <td style="padding:8px 6px;font-size:12px;color:#374151;">${severityBadge(iss.severity)}</td>
-      <td style="padding:8px 6px;font-size:12px;color:#374151;font-family:monospace;">${esc(iss.article_slug ?? '—')}</td>
-      <td style="padding:8px 6px;font-size:12px;color:#374151;">${esc(iss.section ?? '—')}</td>
-      <td style="padding:8px 6px;font-size:12px;color:#374151;">${esc(iss.check_name ?? '—')}: ${esc(iss.detail ?? '')}</td>
-    </tr>`).join('');
+function stat(label, value, color = NAVY) {
+  return `<tr><td style="padding:3px 24px;font-size:12px;color:${GRAY};">${label}</td>
+          <td style="padding:3px 24px;font-size:12px;font-weight:600;color:${color};text-align:right;">${value}</td></tr>`;
 }
 
-// Group by check_name for summary
-const checkCounts = {};
-for (const iss of issues) {
-  checkCounts[iss.check_name] = (checkCounts[iss.check_name] ?? 0) + 1;
-}
-const topChecks = Object.entries(checkCounts)
-  .sort((a, b) => b[1] - a[1])
-  .slice(0, 8);
+// ── Build email ───────────────────────────────────────────────────────────────
 
-const summaryRows = topChecks.map(([name, count]) =>
-  `<tr><td style="padding:4px 8px;font-family:monospace;font-size:12px;">${esc(name)}</td><td style="padding:4px 8px;font-size:12px;text-align:right;">${count}</td></tr>`
-).join('');
+const criticals = newIssues.filter(i => i.severity === 'critical');
+const warnings  = newIssues.filter(i => i.severity === 'warning');
+const infos     = newIssues.filter(i => i.severity === 'info');
 
-const headerBg   = isClean ? '#166534' : critical.length > 0 ? RED : AMBER;
-const headerText = isClean ? 'ALL CLEAR — Content Quality Check Passed' : `${issues.length} Issues Found`;
+const html = `<!DOCTYPE html><html><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>${subject}</title></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:Inter,-apple-system,BlinkMacSystemFont,sans-serif;">
+<table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;">
+<tr><td align="center" style="padding:24px 16px;">
+<table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
 
-const html = `<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
-<body style="margin:0;padding:0;font-family:Inter,sans-serif;background:#f8fafc;">
-<div style="max-width:700px;margin:24px auto;background:#ffffff;border-radius:8px;overflow:hidden;box-shadow:0 1px 3px rgba(0,0,0,0.1);">
+<!-- HEADER -->
+<tr><td style="background:${NAVY};padding:24px;text-align:center;">
+  <p style="margin:0;color:#fff;font-size:11px;letter-spacing:1px;text-transform:uppercase;opacity:0.7;">Bricks of India</p>
+  <h1 style="margin:8px 0 4px;color:#fff;font-size:20px;font-weight:700;">Content Quality Report</h1>
+  <p style="margin:0;color:${SAFFRON};font-size:13px;">${dateStr}</p>
+</td></tr>
 
-  <!-- Header -->
-  <div style="background:${NAVY};padding:20px 24px;display:flex;align-items:center;gap:12px;">
-    <span style="font-family:'Fredoka One',sans-serif;font-size:22px;color:${SAFFRON};font-weight:700;">Bricks of India</span>
-    <span style="color:#94a3b8;font-size:14px;">· Content Quality Monitor</span>
-  </div>
+<!-- STATUS BANNER -->
+<tr><td style="padding:16px 24px;background:${isClean ? '#f0fdf4' : '#fef2f2'};border-bottom:1px solid #e5e7eb;">
+  <p style="margin:0;font-size:14px;font-weight:600;color:${isClean ? GREEN : RED};">
+    ${isClean ? '✅ All clear — no new issues today' : `❌ ${bySeverity.critical} critical · ⚠️ ${bySeverity.warning} warnings · ℹ️ ${bySeverity.info} info`}
+  </p>
+</td></tr>
 
-  <!-- Status banner -->
-  <div style="background:${headerBg};padding:16px 24px;">
-    <div style="color:#fff;font-size:18px;font-weight:700;">${headerText}</div>
-    <div style="color:rgba(255,255,255,0.85);font-size:13px;margin-top:4px;">${today} · Issues from last 24 hours</div>
-  </div>
+<!-- SECTION 1: AUTO-FIXES -->
+${sectionHeader('Fixed Automatically', fixes.length, GREEN)}
+<tr><td style="padding:0 0 8px;">
+${fixes.length > 0
+  ? `<table width="100%" cellpadding="0" cellspacing="0">${fixes.map(fixRow).join('')}</table>`
+  : `<p style="padding:8px 24px;font-size:12px;color:${GRAY};margin:0;">No auto-fixes applied today</p>`}
+</td></tr>
 
-  <!-- Score summary -->
-  <div style="padding:20px 24px;background:#f8fafc;border-bottom:1px solid #e2e8f0;">
-    <table style="width:100%;border-collapse:collapse;">
-      <tr>
-        <td style="text-align:center;padding:8px;">
-          <div style="font-size:28px;font-weight:800;color:${RED};">${critical.length}</div>
-          <div style="font-size:12px;color:#64748b;margin-top:2px;">Critical</div>
-        </td>
-        <td style="text-align:center;padding:8px;">
-          <div style="font-size:28px;font-weight:800;color:${AMBER};">${warnings.length}</div>
-          <div style="font-size:12px;color:#64748b;margin-top:2px;">Warnings</div>
-        </td>
-        <td style="text-align:center;padding:8px;">
-          <div style="font-size:28px;font-weight:800;color:${SLATE};">${info.length}</div>
-          <div style="font-size:12px;color:#64748b;margin-top:2px;">Info</div>
-        </td>
-        <td style="text-align:center;padding:8px;">
-          <div style="font-size:28px;font-weight:800;color:${NAVY};">${issues.length}</div>
-          <div style="font-size:12px;color:#64748b;margin-top:2px;">Total</div>
-        </td>
-      </tr>
-    </table>
-  </div>
+<!-- SECTION 2: CRITICAL -->
+${sectionHeader('Critical — Fix Today', criticals.length, RED)}
+<tr><td style="padding:0 0 8px;">
+${criticals.length > 0
+  ? `<table width="100%" cellpadding="0" cellspacing="0">${criticals.map(i => issueRow(i.article_slug, i.check_name, i.detail, i.section)).join('')}</table>`
+  : `<p style="padding:8px 24px;font-size:12px;color:${GREEN};margin:0;">✓ No critical issues</p>`}
+</td></tr>
 
-  ${topChecks.length > 0 ? `
-  <!-- Top failing checks -->
-  <div style="padding:20px 24px;border-bottom:1px solid #e2e8f0;">
-    <div style="font-size:14px;font-weight:600;color:${NAVY};margin-bottom:10px;">Top Failing Checks</div>
-    <table style="border-collapse:collapse;width:100%;">
-      <thead>
-        <tr style="border-bottom:2px solid #e2e8f0;">
-          <th style="text-align:left;padding:4px 8px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Check</th>
-          <th style="text-align:right;padding:4px 8px;font-size:11px;color:#64748b;text-transform:uppercase;letter-spacing:0.05em;">Count</th>
-        </tr>
-      </thead>
-      <tbody>${summaryRows}</tbody>
-    </table>
-  </div>` : ''}
+<!-- SECTION 3: WARNINGS -->
+${sectionHeader('Warnings — Fix This Week', warnings.length, AMBER)}
+<tr><td style="padding:0 0 8px;">
+${warnings.length > 0
+  ? `<table width="100%" cellpadding="0" cellspacing="0">${warnings.map(i => issueRow(i.article_slug, i.check_name, i.detail, i.section)).join('')}</table>`
+  : `<p style="padding:8px 24px;font-size:12px;color:${GREEN};margin:0;">✓ No warnings</p>`}
+</td></tr>
 
-  ${critical.length > 0 ? `
-  <!-- Critical issues -->
-  <div style="padding:20px 24px;border-bottom:1px solid #e2e8f0;">
-    <div style="font-size:14px;font-weight:600;color:${RED};margin-bottom:10px;">❌ Critical Issues (${critical.length})</div>
-    <table style="border-collapse:collapse;width:100%;font-size:12px;">
-      <thead>
-        <tr style="border-bottom:2px solid #e2e8f0;">
-          <th style="text-align:left;padding:6px;color:#64748b;">Sev</th>
-          <th style="text-align:left;padding:6px;color:#64748b;">Slug</th>
-          <th style="text-align:left;padding:6px;color:#64748b;">Section</th>
-          <th style="text-align:left;padding:6px;color:#64748b;">Detail</th>
-        </tr>
-      </thead>
-      <tbody>${issueRows(critical, 20)}</tbody>
-    </table>
-  </div>` : ''}
+<!-- SECTION 4: INFO -->
+${infos.length > 0 ? `
+${sectionHeader('Info — Fix When Time Allows', infos.length, GRAY)}
+<tr><td style="padding:0 0 8px;">
+<table width="100%" cellpadding="0" cellspacing="0">${infos.map(i => issueRow(i.article_slug, i.check_name, i.detail, i.section)).join('')}</table>
+</td></tr>` : ''}
 
-  ${warnings.length > 0 ? `
-  <!-- Warnings -->
-  <div style="padding:20px 24px;border-bottom:1px solid #e2e8f0;">
-    <div style="font-size:14px;font-weight:600;color:${AMBER};margin-bottom:10px;">⚠️ Warnings (${warnings.length})</div>
-    <table style="border-collapse:collapse;width:100%;font-size:12px;">
-      <thead>
-        <tr style="border-bottom:2px solid #e2e8f0;">
-          <th style="text-align:left;padding:6px;color:#64748b;">Sev</th>
-          <th style="text-align:left;padding:6px;color:#64748b;">Slug</th>
-          <th style="text-align:left;padding:6px;color:#64748b;">Section</th>
-          <th style="text-align:left;padding:6px;color:#64748b;">Detail</th>
-        </tr>
-      </thead>
-      <tbody>${issueRows(warnings, 20)}</tbody>
-    </table>
-  </div>` : ''}
+<!-- SECTION 5: IMAGE HEALTH -->
+${sectionHeader('Image Health', undefined, SAFFRON)}
+<tr><td style="padding:8px 0;">
+<table width="100%" cellpadding="0" cellspacing="0">
+  ${stat('Total unique images checked', imgTotal)}
+  ${stat('Broken (non-200)', imgBroken, imgBroken > 0 ? RED : GREEN)}
+  ${stat('Placeholder URLs', imgPlaceholder, imgPlaceholder > 0 ? RED : GREEN)}
+  ${stat('Duplicate images', imgDuplicate, imgDuplicate > 0 ? AMBER : GREEN)}
+  ${stat('Overall', imgHealthy ? '✅ All healthy' : '❌ Issues found', imgHealthy ? GREEN : RED)}
+</table>
+</td></tr>
 
-  ${isClean ? `
-  <!-- Clean state -->
-  <div style="padding:32px 24px;text-align:center;">
-    <div style="font-size:48px;margin-bottom:12px;">✅</div>
-    <div style="font-size:18px;font-weight:700;color:#166534;">All content quality checks passed</div>
-    <div style="font-size:13px;color:#64748b;margin-top:6px;">No issues found in the last 24 hours</div>
-  </div>` : ''}
+<!-- SECTION 6: STATS -->
+${sectionHeader('System Stats', undefined, GRAY)}
+<tr><td style="padding:8px 0 16px;">
+<table width="100%" cellpadding="0" cellspacing="0">
+  ${stat('New issues today', newIssues.length)}
+  ${stat('Auto-fixes applied', fixes.length, GREEN)}
+  ${stat('Total open (all time)', openIssues.length)}
+  ${stat('Critical open', totalOpen.critical, totalOpen.critical > 0 ? RED : GREEN)}
+  ${stat('Warning open', totalOpen.warning, totalOpen.warning > 0 ? AMBER : GREEN)}
+  ${stat('System ran', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) + ' IST')}
+</table>
+</td></tr>
 
-  <!-- Footer -->
-  <div style="background:#f1f5f9;padding:14px 24px;border-top:1px solid #e2e8f0;">
-    <div style="font-size:11px;color:#94a3b8;text-align:center;">
-      Bricks of India · Content Quality Monitor · ${today}<br>
-      This is a detect-only system. No content was auto-modified.
-    </div>
-  </div>
+<!-- FOOTER -->
+<tr><td style="padding:16px 24px;background:#f9fafb;border-top:1px solid #e5e7eb;text-align:center;">
+  <p style="margin:0;font-size:11px;color:${GRAY};">
+    <a href="${SITE_URL}/admin/pending" style="color:${NAVY};">Admin Panel</a> ·
+    <a href="${SITE_URL}/news" style="color:${NAVY};">News</a> ·
+    <a href="${SITE_URL}/guides" style="color:${NAVY};">Guides</a>
+  </p>
+  <p style="margin:6px 0 0;font-size:10px;color:#9CA3AF;">Bricks of India Content Quality System</p>
+</td></tr>
 
-</div>
-</body>
-</html>`;
+</table></td></tr></table></body></html>`;
 
-// ── Send via Resend ───────────────────────────────────────────────────────────
+// ── Send ──────────────────────────────────────────────────────────────────────
 
-if (!RESEND_KEY || !BRIEF_EMAIL) {
-  console.warn('No RESEND_API_KEY or BRIEF_EMAIL — report not sent');
-  console.log('\n── HTML preview (first 500 chars) ─────────────────────');
-  console.log(html.slice(0, 500));
-  process.exit(0);
-}
-
-const subject = isClean
-  ? `✅ Content Quality Clear — ${today}`
-  : `❌ ${critical.length} Critical · ⚠️ ${warnings.length} Warnings — BOI Content Quality ${today}`;
-
-const res = await fetch('https://api.resend.com/emails', {
-  method: 'POST',
-  headers: {
-    Authorization: `Bearer ${RESEND_KEY}`,
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify({
-    from:    'Bricks of India <abhinav@bricksofindia.com>',
-    to:      [BRIEF_EMAIL],
-    subject,
-    html,
-  }),
+const { data: sendData, error: sendErr } = await resend.emails.send({
+  from:    'Bricks of India <abhinav@bricksofindia.com>',
+  to:      [TO_EMAIL],
+  subject,
+  html,
 });
 
-if (res.ok) {
-  const body = await res.json();
-  console.log(`Report emailed — Resend ID: ${body.id}`);
-} else {
-  const body = await res.text();
-  console.error('Resend failed:', body);
+if (sendErr) {
+  console.error('Resend error:', sendErr.message);
   process.exit(1);
 }
 
-console.log('── Report done ─────────────────────────────────────────');
+console.log(`Report sent: ${sendData?.id}`);
+console.log(`Subject: ${subject}`);
+console.log(`New issues: ${newIssues.length} (${bySeverity.critical} critical, ${bySeverity.warning} warnings, ${bySeverity.info} info)`);
+console.log(`Auto-fixes applied: ${fixes.length}`);
+console.log(`Total open: ${openIssues.length}`);
