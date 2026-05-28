@@ -57,6 +57,14 @@ export const LAB_TOOLS: LabTool[] = [
     status: "live",
   },
   {
+    id: "budget-calculator",
+    name: "Budget Calculator",
+    emoji: "💰",
+    tagline: "Enter your budget. Get the best LEGO sets available in Indian stores right now.",
+    href: "/lab/budget-calculator",
+    status: "live",
+  },
+  {
     id: "portfolio",
     name: "The Brick Portfolio",
     emoji: "📊",
