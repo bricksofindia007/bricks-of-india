@@ -65,7 +65,7 @@ export default async function BudgetCalculatorPage({
   }
 
   // Filter to budget range
-  const inBudget = [...bestBySet.entries()]
+  const inBudget = Array.from(bestBySet.entries())
     .filter(([, v]) => v.price >= min && v.price <= max)
     .map(([set_id, v]) => ({ set_id, ...v }));
 
