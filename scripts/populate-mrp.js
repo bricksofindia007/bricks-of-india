@@ -48,7 +48,8 @@ function usdToInr(usd, rate) {
 }
 
 async function fetchBricksetYear(year, rate) {
-  const prices = {}; // set_number → inr_price
+  const prices    = {}; // set_number → inr_price
+  const exitDates = {}; // set_number → 'YYYY-MM-DD'
   let page = 1;
   let total = null;
 
@@ -69,16 +70,17 @@ async function fetchBricksetYear(year, rate) {
     for (const set of (json.sets || [])) {
       const usd = set.LEGOCom?.US?.retailPrice;
       if (usd && usd > 0) prices[set.number] = usdToInr(usd, rate);
+      if (set.exitDate) exitDates[set.number] = set.exitDate.slice(0, 10);
     }
 
     const fetched = (page - 1) * PAGE_SIZE + (json.sets?.length ?? 0);
-    console.log(`  ${year} p${page}: ${json.sets?.length ?? 0} sets | ${Object.keys(prices).length} priced so far / ${total} total`);
+    console.log(`  ${year} p${page}: ${json.sets?.length ?? 0} sets | ${Object.keys(prices).length} priced, ${Object.keys(exitDates).length} with exitDate so far / ${total} total`);
     if (fetched >= total) break;
     page++;
     await sleep(CALL_DELAY);
   }
 
-  return prices;
+  return { prices, exitDates };
 }
 
 async function loadDbSets() {
@@ -106,15 +108,18 @@ async function run() {
 
   const rate = await fetchUsdInrRate();
 
-  // Phase 1 — fetch all Brickset prices by year
-  const bricksetPrices = {};
+  // Phase 1 — fetch all Brickset prices and exit dates by year
+  const bricksetPrices    = {};
+  const bricksetExitDates = {};
   for (let year = START_YEAR; year <= END_YEAR; year++) {
     console.log(`\nFetching Brickset year ${year}...`);
-    const yp = await fetchBricksetYear(year, rate);
-    Object.assign(bricksetPrices, yp);
+    const { prices, exitDates } = await fetchBricksetYear(year, rate);
+    Object.assign(bricksetPrices, prices);
+    Object.assign(bricksetExitDates, exitDates);
     await sleep(CALL_DELAY);
   }
   console.log(`\nBrickset map: ${Object.keys(bricksetPrices).length} sets with USD retail price`);
+  console.log(`Brickset map: ${Object.keys(bricksetExitDates).length} sets with exitDate`);
 
   // Phase 2 — load DB sets needing MRP
   console.log(`\nLoading DB sets (year>=${START_YEAR}, lego_mrp_inr IS NULL)...`);
@@ -137,10 +142,13 @@ async function run() {
       const s = dbSets.find(x => x.id === u.id);
       console.log(`  ${s.set_number.padEnd(12)} ${String(s.year).padEnd(6)} ${s.name.slice(0, 40).padEnd(42)} ₹${u.lego_mrp_inr}`);
     });
+    const rdSample = Object.entries(bricksetExitDates).slice(0, 5);
+    console.log('\nSample retirement dates:');
+    rdSample.forEach(([n, d]) => console.log(`  ${n.padEnd(12)} ${d}`));
     return;
   }
 
-  // Phase 4 — update in parallel batches of 50 (upsert can't be used — PostgREST INSERT leg hits NOT NULL on set_number)
+  // Phase 4 — update lego_mrp_inr in parallel batches of 50
   const CONCURRENCY = 50;
   let written = 0;
   for (let i = 0; i < updates.length; i += CONCURRENCY) {
@@ -152,13 +160,34 @@ async function run() {
     }));
     process.stdout.write(`\r  Written: ${written}/${updates.length}`);
   }
-  console.log(`\nDone. ${written} rows updated.`);
+  console.log(`\nDone. ${written} MRP rows updated.`);
+
+  // Phase 5 — write retirement_date for all Brickset sets that have an exitDate
+  // Applies to ALL matched sets regardless of MRP null status (separate from Phase 4 filter)
+  const exitEntries = Object.entries(bricksetExitDates);
+  console.log(`\nPhase 5 — writing retirement_date for ${exitEntries.length} sets with Brickset exitDate...`);
+  let rdWritten = 0, rdErrors = 0;
+  for (let i = 0; i < exitEntries.length; i += CONCURRENCY) {
+    const chunk = exitEntries.slice(i, i + CONCURRENCY);
+    await Promise.all(chunk.map(async ([setNum, exitDate]) => {
+      const { error } = await sb.from('sets')
+        .update({ retirement_date: exitDate })
+        .eq('set_number', setNum);
+      if (error) { rdErrors++; }
+      else rdWritten++;
+    }));
+    process.stdout.write(`\r  retirement_date written: ${rdWritten}/${exitEntries.length}`);
+  }
+  console.log(`\nDone. ${rdWritten} retirement_date rows updated${rdErrors ? `, ${rdErrors} errors` : ''}.`);
 
   // Final audit-gate check
   const { count: scoped } = await sb.from('sets').select('*', { count: 'exact', head: true }).gte('year', START_YEAR);
   const { count: priced } = await sb.from('sets').select('*', { count: 'exact', head: true }).gte('year', START_YEAR).not('lego_mrp_inr', 'is', null);
   const pct = scoped ? Math.round(priced / scoped * 100) : 0;
   console.log(`\nAudit gate: ${priced}/${scoped} (${pct}%) 2020+ sets have lego_mrp_inr — ${pct >= 45 ? 'PASS ✓' : 'FAIL ✗ (need 45%)'}`);
+
+  const { count: rdCount } = await sb.from('sets').select('*', { count: 'exact', head: true }).not('retirement_date', 'is', null);
+  console.log(`Retirement dates populated: ${rdCount} sets`);
 }
 
 run().catch(e => { console.error(e); process.exit(1); });
