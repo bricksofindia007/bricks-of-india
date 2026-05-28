@@ -2,7 +2,8 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-27 (Day 26 — GHA batch generation pipeline, guide format fix, health-check expanded, technical-hygiene.yml)
+> **Last updated:** 2026-05-28 (Day 28 — /opinion route, CE-02/05 guides, 3 opinion posts, LAB-05/07/08, CATALOG-04 v2 retirement pipeline, Brickset App Directory listing, CMF Tracker, Eiffel Tower news article)
+> **Health Score: 95** — GEO score < 50 is the sole drag (-5). All P0 bugs closed. Content freshness restored (news + opinion published today). Voice test pending < 14 days.
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -129,12 +130,13 @@ JSON parses. If it doesn't, fix before doing anything else.
 
 ## Current blockers (top 3)
 
-1. **Content freshness — CRITICAL** — /news 18 days stale (last: 2026-05-09). 338 approved drafts in queue; generate-drafts.yml run triggered 2026-05-27 03:51 UTC. Once run completes (~40 min), visit `/admin/pending?status=draft` to approve and publish.
-2. **Fan CoLab CE content not started** — 13 weeks to August deadline. WEB-05 ✅ + WEB-06 ✅ routes live. CE-01 subject outreach (2 Indian AFOL builders) needed immediately to hit July 15 deadline. LAB-06 frontend live (✅ `/lab/deals`).
-3. **IG System User Token deferred** — current 60-day long-lived token expires ~2026-07-23. Requires manual re-exchange every 55 days. Permanent fix (Meta Business Manager System User) deferred.
+1. **McLaren voice test + batch publish pending** — `generate-approved-drafts.js --id f9cb0916-64be-4bad-9ae1-add1256e380d` not yet run at 06:30 IST. Must run this first tomorrow, paste output to strategic Claude for voice check, then batch --limit 15 → publish /news to 50+ target. ~312 approved drafts awaiting bodies.
+2. **CE-01 outreach — DEADLINE JUNE 1** — r/IndiaLEGO + AFOL India Facebook posts needed by tomorrow (June 1) to stay on July 15 Builder Spotlight target. Draft posts are in Day 28 Ground Truth. CE-02 ✅ + CE-05 ✅ done. All guides routes live.
+3. **IG System User Token deferred** — current 60-day long-lived token expires ~2026-07-23. Requires manual re-exchange by 2026-07-16. Permanent fix (Meta Business Manager System User) deferred.
 
 > PARSER-01 closed 2026-05-12 — New Elementary re-enabled via Blogger JSON (commits 700b561 + a311fc6).
 > BUG-013 closed 2026-05-02 as mis-diagnosed. GEO-01 hardening shipped. See Sprint changelog Day 2 for details.
+> BRICKSET-01 — Listed in Brickset App Directory 2026-05-28 by Huw Millington. URL: brickset.com/article/131478. Quote: "It looks great."
 
 ## Carry-overs
 
@@ -169,7 +171,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 
 ---
 
-## THE LAB — 3 of 6 live
+## THE LAB — 7 of 8 live
 
 Experimental features. Each ships as a standalone page under `/lab/`. Brief files live in `briefs/`.
 
@@ -179,11 +181,13 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 | LAB-02 | Which Set Are You? (quiz) | ✅ Live — 2026-05-10. /lab/which-set. 5 questions, 8 outcomes, store links with ABHINAV12. | LAB-01 | `briefs/LAB-02-which-set-quiz.md` |
 | LAB-03 | Daily price snapshot cron | ✅ Done — 2026-05-02. 724 snapshots/day, 08:30 IST cron. Verified Phase 5 by operator. | — | `briefs/LAB-03-price-snapshot-cron.md` |
 | LAB-04 | Lab homepage strip + nav + /lab directory | ✅ Done — 2026-05-02. /lab directory live, homepage strip + nav dropdown shipped. Fixes 2026-05-02 audit /lab 404. LAB-02 staged as coming_soon in src/lib/lab-tools.ts (single-edit unlock). | LAB-01, ideally LAB-02 | `briefs/LAB-04-homepage-strip.md` |
-| LAB-05 | CMF Tracker | 🔴 Not started — P2 | — | — |
+| LAB-05 | CMF Tracker | ✅ Live — 2026-05-28. /lab/cmf-tracker. 118 CMF figures across Series 20–29 (2020–2026). Series tab selector, per-figure checkboxes, saffron progress bar → green at 100%, store price with ABHINAV12 discount. Server+Client split. | — | — |
 | LAB-06 | India Deals Today | ✅ Live 2026-05-25 | — (store_prices data live) | CE-06 |
-| LAB-07 | Budget Calculator INR | 🔴 Not started — P2 | — | — |
-| LAB-07 (old) | LEGO Heat Map | ✅ Live — 2026-05-10. /lab/heat-map. D3 choropleth India + world bubble map, 23 states, city drill-down. | — | — |
-| LAB-08 | Retiring Soon | 🔴 Not started — P3 | LAB-03 snapshot history (30+ days) | — |
+| LAB-07 | Budget Calculator INR | ✅ Live — 2026-05-28. /lab/budget-calculator. Min/max INR inputs, 5 quick-select ranges, paginated store_prices query (2 pages for 1,707 rows), Toycra ABHINAV12 discount, sorted by piece count DESC. | — | — |
+| LAB-07b | LEGO Heat Map | ✅ Live — 2026-05-10. /lab/heat-map. D3 choropleth India + world bubble map, 23 states, city drill-down. | — | — |
+| LAB-08 | Retirement Radar | ✅ Live — 2026-05-28. /lab/retiring-soon. 128 sets retiring in 90 days, grouped by date, urgency colour stripe (red/saffron/gray), best store price. Powered by Brickset exitDate via populate-mrp.js Phase 5. Weekly refresh via retiring-soon.yml (Sunday 02:00 UTC). | CATALOG-04 v2 | — |
+| LAB-09 | Price Drop Board | 🔴 Not started — P3 | LAB-03 (30+ days snapshot history, eligible ~2026-06-01) | — |
+| LAB-10 | Brick Portfolio | 🔴 Not started — P3 | User accounts | — |
 
 **Decisions made:**
 
@@ -206,6 +210,7 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 | Deploy | Date | Commit | Contents |
 |--------|------|--------|----------|
+| Day 28 close | 2026-05-28 | `4740e1b` | WEB-07 /opinion index + [slug] (blog_posts category=Opinion); CE-02 8 LEGO 101 guides live; CE-05 history-of-lego-in-india (ID 9); 3 opinion posts (certified-store/manufacture/star-wars); LAB-05 CMF Tracker /lab/cmf-tracker; LAB-07 Budget Calculator /lab/budget-calculator; LAB-08 Retirement Radar /lab/retiring-soon; CATALOG-04 v2 (retirement_date, is_retiring_soon, retired columns + retiring-soon.yml weekly cron + update-retiring-soon.mjs); populate-mrp.js Phase 5 (3,039 retirement dates); Gemini prompt rewrite (few-shot examples, verdict fix); Eiffel Tower news article; Brickset App Directory listing. |
 | Day 26 GHA batch gen + hygiene | 2026-05-27 | `57844f3` | Phase 2: dispatch-only GenerateBatchButton (triggerBatchGeneration → GHA API); actions.ts stripped of duplicated helpers (imports from generate-body.ts); guide format fix (resolveTarget, WORD_COUNT_TARGETS, wordTarget in generate-body.ts + generate-approved-drafts.js); health-check expanded (Checks 8–11 + GITHUB_TOKEN env); technical-hygiene.yml (Monday 04:00 UTC, 6 checks + weekly email); GH_DISPATCH_TOKEN added to Netlify. |
 | Day 12 pipeline + design | 2026-05-12 | `e17e977` | DESIGN-CSS-01: Footer, LabStrip, TricolourStripe, globals.css → CSS vars (e15b4f4). RADAR-03-TUNE: Rebrickable signals skipped, COMMUNITY_RE extended (5024470). PARSER-01: New Elementary re-enabled via Blogger JSON (700b561, a311fc6). Reviews: dead prices(*) join removed (dd4691f). WEB-01: lintDraft() 3-gate enforcement at publish (c313795). INDIA_PARAGRAPH prompt fix, Gate 2 warn+fail split (e17e977). |
 | Day 11 design sprint | 2026-05-11 | `2c34f75` | Sky blue hero banners (news/blog/reviews/lab). White navbar. BOI-blue (#006CB7) footer with saffron text. Tricolour stripe → saffron/white/green. Heat-map: SVG height fix, cancellation flag, auto-drill removed, Q1 2026 label. Review card image fix (set:sets alias). Duplicate excerpt removed from news+blog slug pages. About page: origin story + float-right photo, credential year 2025, CSS variable colours. |
@@ -232,6 +237,54 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### Day 28 — 2026-05-28 — /opinion, CE guides, Lab tools 5/7/8, retirement pipeline, Brickset listing
+
+Shipped:
+- **WEB-07 /opinion route** — `src/app/opinion/page.tsx` + `src/app/opinion/[slug]/page.tsx`. Sources from `blog_posts WHERE category='Opinion'`. Canonical set to `/opinion/[slug]`. Added to Navbar, Footer, sitemap. Opinion posts appear at both /blog/[slug] and /opinion/[slug] (dual-URL, canonical wins).
+- **CE-02 + CE-05 — /guides live** — 8 LEGO 101 guides (IDs 1–8) + History of LEGO in India (ID 9). All via insert scripts. /guides index + /guides/[slug] routes shipping from Day 25 WEB-05. 9 guides total live.
+- **3 opinion posts inserted** — `certified-store-india-charges-too-much`, `lego-should-manufacture-in-india`, `star-wars-lego-will-bankrupt-you`. Inserted via `scripts/insert-opinion-01-03.js`. blog_posts count: 19 → 22.
+- **LAB-07 Budget Calculator** — `/lab/budget-calculator`. Server + BudgetForm client. Paginated store_prices (1,707 rows, 2 pages). Quick-select ranges, saffron Find Sets button, Toycra ABHINAV12 discount, sorted pieces DESC. TypeScript fix: `Array.from(bestBySet.entries())` (Map iterator spread fails TS target). Commit `85a6dde`.
+- **CATALOG-04 v2 — retirement pipeline** — `supabase/migrations/20260528000000_sets_retirement_columns.sql` (retirement_date date, is_retiring_soon boolean, retired boolean). `scripts/update-retiring-soon.mjs` (3-pass: retire past dates, flag 90-day window, clear stale flags). `.github/workflows/retiring-soon.yml` (Sunday 02:00 UTC). `scripts/populate-mrp.js` extended with Phase 5 — reads Brickset `exitDate`, writes `retirement_date` for ALL matched sets (3,039 rows written). Manual run of `update-retiring-soon.mjs`: 2,202 sets marked retired, 128 sets `is_retiring_soon=true`. 10307 confirmed `retirement_date=2026-07-31, is_retiring_soon=true`.
+- **LAB-08 Retirement Radar** — `/lab/retiring-soon`. 128 sets grouped by retirement date, urgency colour stripe (red ≤30d, saffron ≤60d, gray otherwise), best store price + ABHINAV12 discount, MRP fallback. Retirement Radar promoted to `live` in lab-tools.ts. Commit `54e3f32`.
+- **LAB-05 CMF Tracker** — `/lab/cmf-tracker`. Server page fetches all `theme ilike '%Minifigures%'` sets (118 rows), filters bundles, groups by series. Client component: series tab selector (horizontal scroll), progress bar (saffron → green at 100%), store price with blind-bag note, per-figure checkboxes (saffron tint + ✓ badge when owned), Reset button. TS clean. Commit `4740e1b`.
+- **Eiffel Tower news article** — slug `lego-eiffel-tower-10307-retiring-india`. news_articles count: 24 → 26. Body: 10307, 10,001 pieces, ₹65,999 MBH, retirement 2026-07-31, buy-now verdict.
+- **Brickset App Directory listing** — BRICKSET-01 COMPLETE. Listed by Huw Millington same day (2026-05-28). URL: brickset.com/article/131478. Quote: "It looks great." First external authority validation from within the global LEGO hobby ecosystem.
+- **Gemini prompt rewrite** (Day 27 carry-over) — Few-shot examples (4 annotated samples), forbidden patterns updated, "Never open with So," added, verdict options fixed: BUY NOW / WAIT / IMPORT ONLY / AVOID. No markdown/asterisks rule explicit. Specific numeric India comparisons required.
+- **Misc** — `scripts/generate-approved-drafts.js` error logging fix (err?.message ?? JSON.stringify(err) — was serialising PostgrestError as `[object Object]`). 16 diagnostic scripts committed in Day 28: misc cleanup.
+
+**Health score recomputation (2026-05-28):**
+- Start: 100
+- P0 issues: 0 → 0
+- P1 issues: 0 → 0
+- Netlify minutes: unlimited (GHA builds) → 0
+- Last audit: Day 26, 2 days ago → 0
+- Voice test pending: McLaren test pending 1–2 days, < 14d threshold → 0
+- GEO score 26 < 50 → **-5**
+- Content staleness: news + opinion published today → 0
+- **Health score: 95**
+
+**DB state (2026-05-28):**
+- sets: 24,559 | lego_mrp_inr: 45% (3,405/7,547 ≥2020) | retirement_date: 3,039 | is_retiring_soon: 128 | retired: 2,202
+- store_prices: ~1,955 | price_snapshots: 20,820+
+- news_articles: 26 | blog_posts: 22 | guides: 9 | reviews: 3
+- pending_drafts: ~312 approved awaiting Gemini bodies
+
+**Last commit this session:** `24066cb` (Day 28 misc cleanup → tracker+handover commit to follow)
+
+---
+
+### Day 27 — 2026-05-27 (included in Day 28 close)
+
+Items shipped in Day 27 session (prior context window — included in Day 28 close commit):
+- BRIEF-01 daily digest live: `scripts/morning-brief.mjs` (6-section HTML email) + `.github/workflows/brief.yml` (01:30 UTC / 07:00 IST). Sender: hello@bricksofindia.com. Resend ID e78409af confirmed.
+- generate-drafts 429 bail fix — script breaks immediately on first 429.
+- RESEND_API_KEY fixed (Day 26/27 carryover).
+- health-check.yml: 11 checks, email working.
+- /admin/pending body expander live.
+- Retirement date research — Brickset API `exitDate` field confirmed. Rebrickable has none.
+
+---
 
 ### Day 26 — 2026-05-26 — MBH scraper fix + NHM review + health-check + CSS vars
 
