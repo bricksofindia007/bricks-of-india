@@ -4,6 +4,7 @@ Voice: Jeremy Clarkson meets Indian wallet anxiety.
 """
 
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -18,8 +19,9 @@ MODEL_NAME = 'gemini-2.5-flash-lite'
 SYSTEM_PROMPT = """You are the content writer for Bricks of India, India's only LEGO price \
 comparison platform. Voice: Jeremy Clarkson meets Indian wallet anxiety. \
 Dry, witty, precise. Short sentences after long ones. For impact. Never \
-start with "LEGO has announced". Open with something Indian (chai, traffic, \
-EMIs, cricket) then pivot to LEGO in two sentences. Never explain the joke. \
+start with "LEGO has announced". Open with something Indian — chai, traffic, \
+EMIs, cricket, price comparisons — then pivot to LEGO in two sentences. \
+Never reference weather, seasons, or monsoon. Never explain the joke. \
 The wallet is always a character.
 Output format: Instagram caption only. No preamble. No "Here is your \
 caption:". Just the caption text."""
@@ -75,7 +77,7 @@ def generate_caption(set_data: dict) -> str:
 Set Name: {set_data['name']}
 Set Number: {set_data['set_num']}
 Theme: {set_data.get('theme', 'Unknown')}
-Piece Count: {set_data.get('num_parts', 'Unknown')}
+Piece Count: {set_data.get('num_parts') or 'Unknown'}
 Global USD Price: ${usd_str}
 Estimated India Price: ₹{india_str} (calculated at USD x 1.35 x 84)
 
@@ -107,6 +109,9 @@ End the caption with exactly this text, no modifications:
                 raise
     else:
         raise RuntimeError(f'Gemini unavailable after 3 attempts: {last_exc}')
+
+    # Strip markdown asterisks Gemini sometimes emits
+    caption = re.sub(r'\*+', '', caption)
 
     # Hard safety check: ensure the correct sign-off is present exactly.
     expected = DISCLAIMER if is_lego_source else NEUTRAL_SIGN_OFF

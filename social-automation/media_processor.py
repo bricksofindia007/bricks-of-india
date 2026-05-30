@@ -198,7 +198,7 @@ def _make_shorts_text_overlay(W: int, H: int, set_data: dict, is_stats: bool) ->
 
         # ── Info line (set number, pieces, price) ─────────────────────────────
         f_info = _try_font(38)
-        parts_str = f'{num_parts:,}' if num_parts else '?'
+        parts_str = f'{num_parts:,}' if num_parts else 'N/A'
         price_str = f'${usd_price:.0f}' if usd_price else 'TBD'
         info = f'#{set_num_bare}  •  {parts_str} pcs  •  {price_str}'
         info = _truncate_to_fit(draw, info, f_info, W - 60)
