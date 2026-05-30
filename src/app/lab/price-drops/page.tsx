@@ -89,7 +89,7 @@ export default async function PriceDropsPage({ searchParams }: Props) {
   type RawDrop = { set_id: string; store_id: string; old_price: number; new_price: number; drop_inr: number; drop_pct: number; scraped_at: string };
   const rawDrops: RawDrop[] = [];
 
-  for (const [key, cur] of currentMap) {
+  for (const [key, cur] of Array.from(currentMap.entries())) {
     const baseline = baselineMap.get(key);
     if (!baseline) continue;
     if (cur.price >= baseline) continue;
