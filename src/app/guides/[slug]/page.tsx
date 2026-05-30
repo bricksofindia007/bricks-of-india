@@ -73,7 +73,7 @@ export default async function GuideArticlePage({ params }: Props) {
 
         <h1 className="font-heading text-dark text-5xl md:text-6xl mb-6">{guide.title}</h1>
 
-        <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8">
+        <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8 prose-p:mb-5 prose-p:leading-relaxed prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-2xl prose-h3:text-xl">
           <ReactMarkdown>{guide.content}</ReactMarkdown>
         </div>
 

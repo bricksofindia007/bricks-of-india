@@ -96,9 +96,29 @@ export default async function GuidesPage({ searchParams }: { searchParams: { cat
                     )}
                   </div>
                 ) : (
-                  <div className="bg-surface flex items-center justify-center" style={{ aspectRatio: '16/9' }}>
+                  <div className="relative overflow-hidden" style={{ aspectRatio: '16/9' }}>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center"
+                      style={{
+                        background: guide.category === 'India Specific'
+                          ? 'linear-gradient(135deg, #F7A800 0%, #e09600 100%)'
+                          : guide.category === 'Advanced'
+                          ? 'linear-gradient(135deg, #E3000B 0%, #b80009 100%)'
+                          : 'linear-gradient(135deg, #006CB7 0%, #005a99 100%)'
+                      }}>
+                      {/* BOI stud pattern — decorative */}
+                      <svg width="80" height="80" viewBox="0 0 80 80" fill="none" xmlns="http://www.w3.org/2000/svg" className="opacity-20 absolute">
+                        {[0,1,2,3].map(row => [0,1,2,3].map(col => (
+                          <circle key={`${row}-${col}`} cx={10 + col * 20} cy={10 + row * 20} r="7" fill="white"/>
+                        )))}
+                      </svg>
+                      {/* Logo */}
+                      <div className="relative z-10 flex flex-col items-center gap-2 px-4 text-center">
+                        <span className="text-white font-black text-lg tracking-tight leading-none">BRICKS</span>
+                        <span className="text-white/80 font-bold text-xs tracking-widest uppercase">OF INDIA</span>
+                      </div>
+                    </div>
                     {guide.category && (
-                      <span className="inline-block bg-white text-dark text-xs font-bold px-3 py-1 rounded-full border-2 border-dark">
+                      <span className="absolute top-3 left-3 z-20 text-xs font-semibold px-3 py-1 rounded-full bg-white/90 text-gray-800 shadow-sm">
                         {guide.category}
                       </span>
                     )}
