@@ -10,6 +10,37 @@
  * "Shipped" means: new /lab route → add HTTP + content check; new DB pipeline
  * → add row-count or data-shape check; new article format → add content check.
  * This file is the living proof that the system works. Keep it current.
+ *
+ * CHECK GROUPS (15 total):
+ *   1.  RouteHealth      — HTTP 200 for 26 live routes
+ *   1b. GuideRoutes      — HTTP 200 for all guide slugs
+ *   2.  HeroImages       — HEAD all news_articles.hero_image URLs
+ *   3.  Sitemap          — /sitemap.xml URL count ≥ 1000
+ *   4.  Lighthouse       — perf/a11y/SEO on homepage + /sets
+ *   5.  Staleness        — store_prices MAX(scraped_at) per store ≤ 8h
+ *   6.  RowCounts        — all major table counts (trend log)
+ *   7.  DataIntegrity    — related prices join · store coverage · India content ·
+ *                          lab pages · sets filter routes · RPC themes
+ *   8.  P1 Technical     — store URLs · 25h freshness · stuck drafts ·
+ *                          lab ₹ data · error boundaries · sets missing data
+ *   9.  P1 Content       — markdown leak · placeholder text · meta descriptions ·
+ *                          news hero images · review hero images
+ *  10.  Homepage         — reviews alias · deals price coverage
+ *  11.  PageCoverage     — /deals · /themes · /themes/technic · /compare ·
+ *                          /blog · /opinion · /community · /lab/which-set ·
+ *                          /lab/deals · /lab/budget-calculator · /lab/heat-map
+ *  12.  ExtDependencies  — Rebrickable API · Brickset API · 3 Shopify stores ·
+ *                          D3/TopoJSON/India map CDNs · GH_DISPATCH_TOKEN ·
+ *                          IG_ACCESS_TOKEN expiry
+ *  13.  DataPipeline     — raw_signals freshness · price_snapshots today ·
+ *                          content_fix_log recency · newsletter table ·
+ *                          guides content · blog_posts content · legacy prices table
+ *  14.  ContentIntegrity — word count · HTML leak · ABHINAV12 · store spelling ·
+ *                          opinion sign-off · review verdicts · duplicate slugs ·
+ *                          future dates · ALL CAPS · India Paragraph stores ·
+ *                          blog hero null rate
+ *  15.  Performance      — page response times · internal links · OG/canonical ·
+ *                          scraper balance · Gemini quota · social automation
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
@@ -663,6 +694,443 @@ try {
 } catch (e) {
   alertFail('Homepage', `Deals price coverage check failed: ${e.message.slice(0, 80)}`);
 }
+
+// ── Check 11: Page coverage — previously unchecked routes ─────────────────────
+
+const PAGE_CHECKS = [
+  { route: '/deals',              contains: '₹',              label: 'deals ₹ data'        },
+  { route: '/blog',               contains: null,             label: 'blog loads'           },
+  { route: '/opinion',            contains: null,             label: 'opinion loads'        },
+  { route: '/community',          contains: null,             label: 'community loads'      },
+  { route: '/lab/which-set',      contains: 'question',       label: 'quiz form'            },
+  { route: '/lab/deals',          contains: '₹',              label: 'lab/deals ₹ data'    },
+  { route: '/lab/budget-calculator', contains: 'budget',      label: 'budget input'         },
+  { route: '/lab/heat-map',       contains: null,             label: 'heat-map loads'       },
+];
+
+await Promise.allSettled(PAGE_CHECKS.map(async ({ route, contains, label }) => {
+  try {
+    const res = await fetch(`${SITE_URL}${route}`, {
+      signal: AbortSignal.timeout(15_000),
+      headers: { 'User-Agent': 'BOI-TechHygiene/1.0' },
+    });
+    if (!res.ok) { alertFail('PageCoverage', `${route} returned HTTP ${res.status}`); return; }
+    const body = await res.text();
+    if (body.length < 500) { alertFail('PageCoverage', `${route} body only ${body.length} chars — likely error page`); return; }
+    if (contains && !body.toLowerCase().includes(contains.toLowerCase())) {
+      alertFail('PageCoverage', `${route}: expected "${contains}" not found — ${label} check failed`);
+    } else {
+      log('PageCoverage', `${route}: 200, ${label} ✓`);
+    }
+  } catch (e) { alertFail('PageCoverage', `${route} error: ${e.message.slice(0, 60)}`); }
+}));
+
+// 11b: /themes — at least 10 theme names visible
+try {
+  const res = await fetch(`${SITE_URL}/themes`, { signal: AbortSignal.timeout(15_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+  if (!res.ok) { alertFail('PageCoverage', `/themes returned HTTP ${res.status}`); }
+  else {
+    const body = await res.text();
+    const themeCount = (body.match(/\/themes\//g) || []).length;
+    if (themeCount < 10) alertFail('PageCoverage', `/themes: only ${themeCount} theme links found — expected ≥ 10`);
+    else log('PageCoverage', `/themes: ${themeCount} theme links ✓`);
+  }
+} catch (e) { alertFail('PageCoverage', `/themes error: ${e.message.slice(0, 60)}`); }
+
+// 11c: /themes/technic — set cards present
+try {
+  const res = await fetch(`${SITE_URL}/themes/technic`, { signal: AbortSignal.timeout(15_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+  if (!res.ok) { alertFail('PageCoverage', `/themes/technic returned HTTP ${res.status}`); }
+  else {
+    const body = await res.text();
+    if (!body.includes('Technic') || body.length < 2000) alertFail('PageCoverage', `/themes/technic: no Technic content found`);
+    else log('PageCoverage', `/themes/technic: 200, Technic content present ✓`);
+  }
+} catch (e) { alertFail('PageCoverage', `/themes/technic error: ${e.message.slice(0, 60)}`); }
+
+// 11d: /compare — set 42172 exists in DB (search proxy)
+try {
+  const { data } = await sb.from('sets').select('set_number, name').eq('set_number', '42172').maybeSingle();
+  if (!data) alertFail('PageCoverage', `/compare search proxy: set 42172 not in sets table — /compare may return no results`);
+  else log('PageCoverage', `/compare search proxy: set 42172 (${data.name}) in DB ✓`);
+} catch (e) { alertFail('PageCoverage', `/compare proxy check error: ${e.message.slice(0, 60)}`); }
+
+// ── Check 12: External dependency health ──────────────────────────────────────
+
+// 12a: Rebrickable API — known set 42172-1
+try {
+  const rbKey = process.env.REBRICKABLE_API_KEY;
+  const rbHdrs = { 'User-Agent': 'BOI-TechHygiene/1.0', ...(rbKey ? { Authorization: `key ${rbKey}` } : {}) };
+  const res = await fetch('https://rebrickable.com/api/v3/lego/sets/42172-1/', { headers: rbHdrs, signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) { alertFail('ExtDependencies', `Rebrickable API returned HTTP ${res.status} for set 42172-1`); }
+  else {
+    const data = await res.json();
+    if (!data.set_img_url) alertFail('ExtDependencies', `Rebrickable 42172-1: set_img_url missing`);
+    else log('ExtDependencies', `Rebrickable API: 200, 42172-1 = ${data.name}, img ✓`);
+  }
+} catch (e) { alertFail('ExtDependencies', `Rebrickable API error: ${e.message.slice(0, 80)}`); }
+
+// 12b: Brickset API — connectivity + key present
+try {
+  if (!process.env.BRICKSET_API_KEY) {
+    alertFail('ExtDependencies', 'BRICKSET_API_KEY not set');
+  } else {
+    const res = await fetch('https://brickset.com/api/v3.asmx/checkKey?' +
+      `apiKey=${encodeURIComponent(process.env.BRICKSET_API_KEY)}`,
+      { signal: AbortSignal.timeout(10_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+    if (!res.ok) { alertFail('ExtDependencies', `Brickset API returned HTTP ${res.status}`); }
+    else {
+      const text = await res.text();
+      if (text.includes('OK')) log('ExtDependencies', `Brickset API: key valid ✓`);
+      else alertFail('ExtDependencies', `Brickset API: key check returned "${text.slice(0, 60)}"`);
+    }
+  }
+} catch (e) { alertFail('ExtDependencies', `Brickset API error: ${e.message.slice(0, 80)}`); }
+
+// 12c: Shopify store endpoints return 200
+const SHOPIFY_ENDPOINTS = [
+  { name: 'Toycra',       url: 'https://www.toycra.com/collections/lego/products.json?limit=1' },
+  { name: 'MyBrickHouse', url: 'https://lego.mybrickhouse.com/products.json?limit=1' },
+  { name: 'Jaiman',       url: 'https://jaimantoys.com/products.json?limit=1' },
+];
+await Promise.allSettled(SHOPIFY_ENDPOINTS.map(async ({ name, url }) => {
+  try {
+    const res = await fetch(url, { signal: AbortSignal.timeout(15_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' }, redirect: 'follow' });
+    if (res.ok) log('ExtDependencies', `${name} Shopify: ${res.status} ✓`);
+    else alertFail('ExtDependencies', `${name} Shopify endpoint returned HTTP ${res.status}`);
+  } catch (e) { alertFail('ExtDependencies', `${name} Shopify error: ${e.message.slice(0, 60)}`); }
+}));
+
+// 12d–12f: CDN health (D3, TopoJSON, India map)
+const CDN_URLS = [
+  { label: 'D3.js CDN',     url: 'https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js' },
+  { label: 'TopoJSON CDN',  url: 'https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js' },
+  { label: 'India map',     url: 'https://raw.githubusercontent.com/markmarkoh/datamaps/master/src/js/data/ind.json' },
+];
+await Promise.allSettled(CDN_URLS.map(async ({ label, url }) => {
+  try {
+    const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(10_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+    if (res.ok) log('ExtDependencies', `${label}: ${res.status} ✓`);
+    else alertFail('ExtDependencies', `${label} returned HTTP ${res.status}`);
+  } catch (e) { alertFail('ExtDependencies', `${label} error: ${e.message.slice(0, 60)}`); }
+}));
+
+// 12g: GH_DISPATCH_TOKEN — verify set + makes valid GitHub API call
+try {
+  const tok = GITHUB_TOKEN || process.env.GH_DISPATCH_TOKEN;
+  if (!tok) { alertFail('ExtDependencies', 'GH_DISPATCH_TOKEN not set — batch generation dispatch unavailable'); }
+  else {
+    const res = await fetch('https://api.github.com/repos/' + GITHUB_REPO, {
+      headers: { Authorization: `Bearer ${tok}`, 'User-Agent': 'BOI-TechHygiene/1.0' },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (res.ok) log('ExtDependencies', `GH_DISPATCH_TOKEN: valid, repo accessible ✓`);
+    else alertFail('ExtDependencies', `GH_DISPATCH_TOKEN: GitHub API returned HTTP ${res.status} — token may be expired`);
+  }
+} catch (e) { alertFail('ExtDependencies', `GH_DISPATCH_TOKEN check error: ${e.message.slice(0, 60)}`); }
+
+// 12h: IG_ACCESS_TOKEN — expiry warning (expires ~2026-07-23, action by 2026-07-16)
+try {
+  const IG_EXPIRY = new Date('2026-07-23T00:00:00Z');
+  const daysLeft = Math.floor((IG_EXPIRY - Date.now()) / 86_400_000);
+  if (daysLeft < 0) {
+    alertFail('ExtDependencies', `IG_ACCESS_TOKEN EXPIRED ${Math.abs(daysLeft)} days ago — social automation is down`);
+  } else if (daysLeft <= 14) {
+    alertFail('ExtDependencies', `IG_ACCESS_TOKEN expires in ${daysLeft} days (${IG_EXPIRY.toISOString().slice(0, 10)}) — re-exchange NOW`);
+  } else if (daysLeft <= 30) {
+    log('ExtDependencies', `IG_ACCESS_TOKEN: ${daysLeft} days until expiry — schedule re-exchange ⚠️`);
+  } else {
+    log('ExtDependencies', `IG_ACCESS_TOKEN: ${daysLeft} days until expiry ✓`);
+  }
+} catch (e) { alertFail('ExtDependencies', `IG token expiry check error: ${e.message.slice(0, 60)}`); }
+
+// ── Check 13: Data pipeline health ────────────────────────────────────────────
+
+// 13a: raw_signals — at least 1 row in last 25h (RADAR ingesting)
+try {
+  const cutoff = new Date(Date.now() - 25 * 3_600_000).toISOString();
+  const { count } = await sb.from('raw_signals').select('*', { count: 'exact', head: true }).gte('created_at', cutoff);
+  if (!count || count === 0) alertFail('DataPipeline', 'No raw_signals in last 25h — RADAR may not be running');
+  else log('DataPipeline', `raw_signals: ${count} rows in last 25h ✓`);
+} catch (e) { alertFail('DataPipeline', `raw_signals check error: ${e.message.slice(0, 80)}`); }
+
+// 13b: price_snapshots — rows exist for today or yesterday
+try {
+  const today     = new Date().toISOString().slice(0, 10);
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const { count } = await sb.from('price_snapshots').select('*', { count: 'exact', head: true })
+    .gte('snapshot_date', yesterday);
+  if (!count || count === 0) alertFail('DataPipeline', `price_snapshots: no rows for today (${today}) or yesterday — LAB-03 cron may be failing`);
+  else log('DataPipeline', `price_snapshots: ${count} rows for today/yesterday ✓`);
+} catch (e) { alertFail('DataPipeline', `price_snapshots check error: ${e.message.slice(0, 80)}`); }
+
+// 13c: content_fix_log — at least 1 row in last 7 days (auto-fixer ran)
+try {
+  const cutoff = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const { count } = await sb.from('content_fix_log').select('*', { count: 'exact', head: true }).gte('created_at', cutoff);
+  if (!count || count === 0) log('DataPipeline', 'content_fix_log: no rows in last 7 days — auto-fixer may not have run (acceptable if no issues)');
+  else log('DataPipeline', `content_fix_log: ${count} fix(es) in last 7 days ✓`);
+} catch (e) { log('DataPipeline', `content_fix_log check skipped: ${e.message.slice(0, 60)}`); }
+
+// 13d: newsletter_subscribers — table queryable
+try {
+  const { error } = await sb.from('newsletter_subscribers').select('*', { count: 'exact', head: true });
+  if (error) alertFail('DataPipeline', `newsletter_subscribers table error: ${error.message.slice(0, 80)}`);
+  else log('DataPipeline', 'newsletter_subscribers: table queryable ✓');
+} catch (e) { alertFail('DataPipeline', `newsletter_subscribers error: ${e.message.slice(0, 80)}`); }
+
+// 13e: guides — at least 9 rows with non-null content
+try {
+  const { count } = await sb.from('guides').select('*', { count: 'exact', head: true }).not('content', 'is', null);
+  if (!count || count < 9) alertFail('DataPipeline', `guides: only ${count ?? 0} rows with content — expected ≥ 9`);
+  else log('DataPipeline', `guides: ${count} rows with content ✓`);
+} catch (e) { alertFail('DataPipeline', `guides check error: ${e.message.slice(0, 80)}`); }
+
+// 13f: blog_posts — at least 1 with non-null content AND hero_image
+try {
+  const { count } = await sb.from('blog_posts').select('*', { count: 'exact', head: true })
+    .not('content', 'is', null).not('hero_image', 'is', null);
+  if (!count || count === 0) alertFail('DataPipeline', 'blog_posts: no rows with both content and hero_image — blog cards will show no images');
+  else log('DataPipeline', `blog_posts: ${count} rows with content + hero_image ✓`);
+} catch (e) { alertFail('DataPipeline', `blog_posts check error: ${e.message.slice(0, 80)}`); }
+
+// 13g: legacy prices table — flag existence as cleanup reminder
+try {
+  const { error } = await sb.from('prices').select('id').limit(1);
+  if (!error) log('DataPipeline', 'prices (legacy): table still exists — ADMIN-CLEANUP-01 pending. Safe to drop once confirmed unused.');
+  // No alert — informational only
+} catch (e) { /* table may not exist — fine */ }
+
+// ── Check 14: Content integrity ────────────────────────────────────────────────
+
+const { data: last10News } = await sb.from('news_articles').select('slug, title, content, published_at')
+  .not('content', 'is', null).order('published_at', { ascending: false }).limit(10);
+const news10 = last10News ?? [];
+
+// 14a: Word count 250–500 for news articles
+const wordCountFails = news10.filter(a => {
+  const wc = (a.content || '').split(/\s+/).filter(Boolean).length;
+  return wc < 150 || wc > 600;
+});
+if (wordCountFails.length > 0) {
+  alertFail('ContentIntegrity', `${wordCountFails.length} article(s) outside 150–600 word range: ${wordCountFails.map(a => `${a.slug}(${(a.content||'').split(/\s+/).filter(Boolean).length}w)`).join(', ')}`);
+} else {
+  log('ContentIntegrity', `Word count: all ${news10.length} recent articles within 150–600 words ✓`);
+}
+
+// 14b: HTML tags leaking in content
+const htmlLeaks = news10.filter(a => /<(p|br|strong|em|div|span|h[1-6])\b/i.test(a.content || ''));
+if (htmlLeaks.length > 0) alertFail('ContentIntegrity', `HTML tags leaking in ${htmlLeaks.length} article(s): ${htmlLeaks.map(a => a.slug).join(', ')}`);
+else log('ContentIntegrity', `HTML leak check: clean ✓`);
+
+// 14c: ABHINAV12 present when Toycra is mentioned
+const toycraWithoutCode = news10.filter(a =>
+  /toycra/i.test(a.content || '') && !/ABHINAV12/i.test(a.content || '')
+);
+if (toycraWithoutCode.length > 0) alertFail('ContentIntegrity', `${toycraWithoutCode.length} article(s) mention Toycra without ABHINAV12: ${toycraWithoutCode.map(a => a.slug).join(', ')}`);
+else log('ContentIntegrity', `ABHINAV12 code: present in all Toycra-mentioning articles ✓`);
+
+// 14d: Store names spelled correctly
+// "My Brick House" (spaced) is flagged — brand name is "MyBrickHouse" (no spaces).
+// If first run shows false positives from natural prose, remove the first entry and
+// replace with a tighter pattern (e.g. only flag when preceded by "at " or "on ").
+const MISSPELLINGS = [
+  { re: /my\s+brick\s+house/i, correct: 'MyBrickHouse' },
+  { re: /jaiman(?!\s+toys)/i,   correct: 'Jaiman Toys' },
+];
+const spellingFails = [];
+for (const a of news10) {
+  for (const { re, correct } of MISSPELLINGS) {
+    if (re.test(a.content || '')) spellingFails.push(`${a.slug}: use "${correct}"`);
+  }
+}
+if (spellingFails.length > 0) alertFail('ContentIntegrity', `Store name misspellings: ${spellingFails.join(' | ')}`);
+else log('ContentIntegrity', `Store name spelling: clean ✓`);
+
+// 14e: Last 5 opinion posts contain "On that bombshell" sign-off
+try {
+  const { data: opinions } = await sb.from('blog_posts').select('slug, content')
+    .eq('category', 'Opinion').not('content', 'is', null)
+    .order('published_at', { ascending: false }).limit(5);
+  const withSignoff = (opinions ?? []).filter(p => /on that bombshell/i.test(p.content || ''));
+  const total = (opinions ?? []).length;
+  if (total > 0 && withSignoff.length === 0) {
+    log('ContentIntegrity', `Opinion sign-off: 0/${total} recent opinion posts have "On that bombshell" — may be acceptable for community content`);
+  } else {
+    log('ContentIntegrity', `Opinion sign-off: ${withSignoff.length}/${total} recent opinion posts have sign-off ✓`);
+  }
+} catch (e) { log('ContentIntegrity', `Opinion sign-off check skipped: ${e.message.slice(0, 60)}`); }
+
+// 14f: All reviews have valid verdict
+try {
+  const VALID_VERDICTS = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID']);
+  const { data: revs } = await sb.from('reviews').select('slug, verdict');
+  const badVerdict = (revs ?? []).filter(r => !r.verdict || !VALID_VERDICTS.has((r.verdict || '').trim().toUpperCase()));
+  if (badVerdict.length > 0) alertFail('ContentIntegrity', `Reviews with null/invalid verdict: ${badVerdict.map(r => `${r.slug}(${r.verdict ?? 'null'})`).join(', ')}`);
+  else log('ContentIntegrity', `Review verdicts: all ${(revs ?? []).length} valid ✓`);
+} catch (e) { alertFail('ContentIntegrity', `Review verdict check error: ${e.message.slice(0, 80)}`); }
+
+// 14g: No duplicate slugs in news_articles
+try {
+  const { data: slugs } = await sb.from('news_articles').select('slug');
+  const seen = new Map();
+  for (const { slug } of slugs ?? []) seen.set(slug, (seen.get(slug) ?? 0) + 1);
+  const dupes = [...seen.entries()].filter(([, c]) => c > 1).map(([s]) => s);
+  if (dupes.length > 0) alertFail('ContentIntegrity', `Duplicate slugs in news_articles: ${dupes.join(', ')}`);
+  else log('ContentIntegrity', `news_articles slugs: no duplicates ✓`);
+} catch (e) { alertFail('ContentIntegrity', `news_articles slug check error: ${e.message.slice(0, 80)}`); }
+
+// 14h: No duplicate slugs in blog_posts
+try {
+  const { data: slugs } = await sb.from('blog_posts').select('slug');
+  const seen = new Map();
+  for (const { slug } of slugs ?? []) seen.set(slug, (seen.get(slug) ?? 0) + 1);
+  const dupes = [...seen.entries()].filter(([, c]) => c > 1).map(([s]) => s);
+  if (dupes.length > 0) alertFail('ContentIntegrity', `Duplicate slugs in blog_posts: ${dupes.join(', ')}`);
+  else log('ContentIntegrity', `blog_posts slugs: no duplicates ✓`);
+} catch (e) { alertFail('ContentIntegrity', `blog_posts slug check error: ${e.message.slice(0, 80)}`); }
+
+// 14i: No articles published in the future
+try {
+  const now14 = new Date().toISOString();
+  const { count } = await sb.from('news_articles').select('*', { count: 'exact', head: true }).gt('published_at', now14);
+  if (count && count > 0) alertFail('ContentIntegrity', `${count} news_article(s) have published_at in the future`);
+  else log('ContentIntegrity', `Future date check: clean ✓`);
+} catch (e) { alertFail('ContentIntegrity', `Future date check error: ${e.message.slice(0, 80)}`); }
+
+// 14j: No ALL CAPS words (5+ uppercase letters, not in headings or verdict lines)
+const allCapsRe = /\b[A-Z]{5,}\b/g;
+const allowedCaps = new Set(['LEGO', 'LEGOR', 'ABHINAV12', 'IMPORT', 'AVOID', 'BRICKHEADZ', 'NINJAGO', 'DUPLO', 'TECHNIC']);
+const capsArticles = news10.filter(a => {
+  const lines = (a.content || '').split('\n')
+    .filter(l => !l.trim().startsWith('#') && !/^verdict:/i.test(l.trim()));
+  const text = lines.join(' ');
+  const caps = [...text.matchAll(allCapsRe)].map(m => m[0]).filter(w => !allowedCaps.has(w));
+  return caps.length > 0;
+});
+if (capsArticles.length > 0) alertFail('ContentIntegrity', `ALL CAPS words in ${capsArticles.length} article(s): ${capsArticles.map(a => a.slug).join(', ')}`);
+else log('ContentIntegrity', `ALL CAPS check: clean ✓`);
+
+// 14k: India Paragraph mentions all 3 stores (check via content proxy — marker stripped at publish)
+const missingStores = news10.filter(a => {
+  const c = a.content || '';
+  return /₹[\d,]+/.test(c) && (
+    !/toycra/i.test(c) || !/mybrickhouse/i.test(c) || !/jaiman/i.test(c)
+  );
+});
+if (missingStores.length > 0) alertFail('ContentIntegrity', `${missingStores.length} article(s) have price data but missing store name(s): ${missingStores.map(a => a.slug).join(', ')}`);
+else log('ContentIntegrity', `India Paragraph store coverage: all priced articles mention all 3 stores ✓`);
+
+// 14l: blog_posts hero_image null rate >20%
+try {
+  const [{ count: total }, { count: nullImg }] = await Promise.all([
+    sb.from('blog_posts').select('*', { count: 'exact', head: true }),
+    sb.from('blog_posts').select('*', { count: 'exact', head: true }).is('hero_image', null),
+  ]);
+  const pct = total ? Math.round((nullImg / total) * 100) : 0;
+  if (pct > 20) alertFail('ContentIntegrity', `${pct}% of blog_posts have null hero_image (${nullImg}/${total}) — card images will show placeholder`);
+  else log('ContentIntegrity', `blog_posts hero_image: ${nullImg}/${total} null (${pct}%) ✓`);
+} catch (e) { alertFail('ContentIntegrity', `blog hero null rate error: ${e.message.slice(0, 80)}`); }
+
+// ── Check 15: Performance + technical ─────────────────────────────────────────
+
+// 15a–15c: Page response times <3s
+const PERF_ROUTES = ['/', '/news', '/sets'];
+await Promise.allSettled(PERF_ROUTES.map(async route => {
+  try {
+    const t0 = Date.now();
+    const res = await fetch(`${SITE_URL}${route}`, { signal: AbortSignal.timeout(8_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+    const ms = Date.now() - t0;
+    if (!res.ok) { alertFail('Performance', `${route} returned HTTP ${res.status}`); return; }
+    if (ms > 3000) alertFail('Performance', `${route} response time ${ms}ms > 3000ms threshold`);
+    else log('Performance', `${route}: ${ms}ms ✓`);
+  } catch (e) { alertFail('Performance', `${route} timing error: ${e.message.slice(0, 60)}`); }
+}));
+
+// 15d: Internal links on homepage — sample 10, verify 200
+try {
+  const res = await fetch(SITE_URL, { signal: AbortSignal.timeout(10_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+  if (res.ok) {
+    const html = await res.text();
+    const hrefs = [...new Set([...html.matchAll(/href="(\/[^"#?][^"]*?)"/g)].map(m => m[1]))]
+      .filter(h => !h.startsWith('/api') && !h.startsWith('/_next'));
+    const sample = hrefs.sort(() => Math.random() - 0.5).slice(0, 10);
+    const linkFails = [];
+    await Promise.allSettled(sample.map(async href => {
+      try {
+        const r = await fetch(`${SITE_URL}${href}`, { method: 'HEAD', signal: AbortSignal.timeout(8_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' }, redirect: 'follow' });
+        if (!r.ok) linkFails.push(`${href} → ${r.status}`);
+      } catch (e) { linkFails.push(`${href} → error`); }
+    }));
+    if (linkFails.length > 0) alertFail('Performance', `Broken internal links: ${linkFails.join(', ')}`);
+    else log('Performance', `Internal links: ${sample.length} sampled, all 200 ✓`);
+  }
+} catch (e) { alertFail('Performance', `Internal link check error: ${e.message.slice(0, 60)}`); }
+
+// 15e: OG meta image present on 3 key pages
+const OG_CHECK_ROUTES = ['/', `/news/${(last10News?.[0]?.slug ?? '')}`, '/sets'];
+await Promise.allSettled(OG_CHECK_ROUTES.filter(r => r !== '/news/').map(async route => {
+  try {
+    const res = await fetch(`${SITE_URL}${route}`, { signal: AbortSignal.timeout(10_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+    if (!res.ok) return;
+    const html = await res.text();
+    const hasOg = /<meta[^>]+property=["']og:image["'][^>]+content=["'][^"']{5,}["']/i.test(html)
+               || /<meta[^>]+content=["'][^"']{5,}["'][^>]+property=["']og:image["']/i.test(html);
+    if (!hasOg) alertFail('Performance', `${route}: og:image meta tag missing or empty`);
+    else log('Performance', `${route}: og:image present ✓`);
+  } catch (e) { alertFail('Performance', `${route} OG check error: ${e.message.slice(0, 60)}`); }
+}));
+
+// 15f: Canonical URL tag on homepage and /sets
+await Promise.allSettled(['/', '/sets'].map(async route => {
+  try {
+    const res = await fetch(`${SITE_URL}${route}`, { signal: AbortSignal.timeout(10_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+    if (!res.ok) return;
+    const html = await res.text();
+    const hasCanonical = /<link[^>]+rel=["']canonical["'][^>]+href=["'][^"']{5,}["']/i.test(html);
+    if (!hasCanonical) alertFail('Performance', `${route}: canonical link tag missing`);
+    else log('Performance', `${route}: canonical present ✓`);
+  } catch (e) { alertFail('Performance', `${route} canonical check error: ${e.message.slice(0, 60)}`); }
+}));
+
+// 15g: store_prices — no single store has >80% of rows (scraper imbalance)
+try {
+  const { data: storeRows } = await sb.from('store_prices').select('store_id').limit(3000);
+  const total15 = (storeRows ?? []).length;
+  const counts = {};
+  for (const r of storeRows ?? []) counts[r.store_id] = (counts[r.store_id] ?? 0) + 1;
+  for (const [storeId, count] of Object.entries(counts)) {
+    const pct = Math.round((count / total15) * 100);
+    if (pct > 80) alertFail('Performance', `${storeId} has ${pct}% of store_prices rows — scraper imbalance`);
+  }
+  log('Performance', `store_prices distribution: ${Object.entries(counts).map(([s, c]) => `${s}=${c}`).join(', ')} ✓`);
+} catch (e) { alertFail('Performance', `store_prices distribution check error: ${e.message.slice(0, 80)}`); }
+
+// 15h: Gemini quota proxy — flag if approved pending_drafts count > 300 without recent drafts
+try {
+  const { count: approved } = await sb.from('pending_drafts').select('*', { count: 'exact', head: true }).eq('status', 'approved').is('draft_body', null);
+  const { count: drafts }   = await sb.from('pending_drafts').select('*', { count: 'exact', head: true }).eq('status', 'draft');
+  log('Performance', `Gemini queue: ${approved ?? 0} approved awaiting body, ${drafts ?? 0} generated (draft state)`);
+  if ((approved ?? 0) > 300 && (drafts ?? 0) === 0) {
+    alertFail('Performance', `${approved} approved drafts waiting with 0 generated — possible Gemini quota exhaustion`);
+  }
+} catch (e) { alertFail('Performance', `Gemini queue check error: ${e.message.slice(0, 80)}`); }
+
+// 15i: Social automation — posted_sets entry within 25h (skip gracefully if table missing)
+try {
+  const cutoff = new Date(Date.now() - 25 * 3_600_000).toISOString();
+  const { data, error } = await sb.from('posted_sets').select('id, created_at').order('created_at', { ascending: false }).limit(1);
+  if (error) {
+    log('Performance', `Social automation: posted_sets table unavailable — ${error.message.slice(0, 60)}`);
+  } else if (!data || data.length === 0) {
+    alertFail('Performance', 'Social automation: no rows in posted_sets — social pipeline may never have run');
+  } else {
+    const lastPost = data[0].created_at;
+    const hoursAgo = (Date.now() - new Date(lastPost).getTime()) / 3_600_000;
+    if (hoursAgo > 25) alertFail('Performance', `Social automation: last post ${hoursAgo.toFixed(1)}h ago — daily pipeline may be failing`);
+    else log('Performance', `Social automation: last post ${hoursAgo.toFixed(1)}h ago ✓`);
+  }
+} catch (e) { log('Performance', `Social automation check skipped: ${e.message.slice(0, 60)}`); }
 
 // ── Weekly email report ───────────────────────────────────────────────────────
 
