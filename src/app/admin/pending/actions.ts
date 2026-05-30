@@ -376,35 +376,3 @@ export async function publishDraft(formData: FormData) {
   redirect(redirectTo);
 }
 
-// ── publishAll — batch publish up to 50 approved drafts with bodies ───────────
-
-export async function publishAll(): Promise<{ published: number; failed: number; errors: string[] }> {
-  const pw = cookies().get('boi_admin')?.value;
-  if (!pw || pw !== process.env.ADMIN_PASSWORD) {
-    return { published: 0, failed: 0, errors: ['Unauthorized'] };
-  }
-
-  const supabase = createServerClient();
-  const { data: drafts } = await supabase
-    .from('pending_drafts')
-    .select('id, draft_title, draft_body, draft_verdict, draft_format, word_count, source_url, source_title')
-    .eq('status', 'approved')
-    .not('draft_body', 'is', null)
-    .order('updated_at', { ascending: true })
-    .limit(50);
-
-  let published = 0, failed = 0;
-  const errors: string[] = [];
-
-  for (const draft of drafts ?? []) {
-    try {
-      await publishOneDraft(draft as PublishableDraft, supabase, false);
-      published++;
-    } catch (err: any) {
-      failed++;
-      errors.push(`${(draft.draft_title || 'Untitled').slice(0, 50)}: ${err.message}`);
-    }
-  }
-
-  return { published, failed, errors };
-}

@@ -29,8 +29,8 @@ export const LAB_TOOLS: LabTool[] = [
     name: "Price Drop Board",
     emoji: "📉",
     tagline: "Today's steepest falls. Updated daily. Suspicious by nature.",
-    href: null,
-    status: "coming_soon",
+    href: "/lab/price-drops",
+    status: "live",
   },
   {
     id: "retirement-radar",

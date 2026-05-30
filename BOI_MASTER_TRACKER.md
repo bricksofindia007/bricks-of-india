@@ -175,7 +175,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 
 ---
 
-## THE LAB — 7 of 8 live
+## THE LAB — 8 of 9 live
 
 Experimental features. Each ships as a standalone page under `/lab/`. Brief files live in `briefs/`.
 
@@ -190,7 +190,7 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 | LAB-07 | Budget Calculator INR | ✅ Live — 2026-05-28. /lab/budget-calculator. Min/max INR inputs, 5 quick-select ranges, paginated store_prices query (2 pages for 1,707 rows), Toycra ABHINAV12 discount, sorted by piece count DESC. | — | — |
 | LAB-07b | LEGO Heat Map | ✅ Live — 2026-05-10. /lab/heat-map. D3 choropleth India + world bubble map, 23 states, city drill-down. | — | — |
 | LAB-08 | Retirement Radar | ✅ Live — 2026-05-28. /lab/retiring-soon. 128 sets retiring in 90 days, grouped by date, urgency colour stripe (red/saffron/gray), best store price. Powered by Brickset exitDate via populate-mrp.js Phase 5. Weekly refresh via retiring-soon.yml (Sunday 02:00 UTC). | CATALOG-04 v2 | — |
-| LAB-09 | Price Drop Board | 🔴 Not started — P3 | LAB-03 (30+ days snapshot history, eligible ~2026-06-01) | — |
+| LAB-09 | Price Drop Board | ✅ Live — 2026-05-30. /lab/price-drops. store_prices (current) vs oldest price_history in 30-day window per (set_id, store_id). Min ₹200 or 5% drop. Sorted by biggest ₹ drop. Theme/store/% filters. ABHINAV12 Toycra discount shown. | LAB-03 | — |
 | LAB-10 | Brick Portfolio | 🔴 Not started — P3 | User accounts | — |
 
 **Decisions made:**
