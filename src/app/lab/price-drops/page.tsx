@@ -101,7 +101,7 @@ export default async function PriceDropsPage({ searchParams }: Props) {
   }
 
   // ── 4. Fetch set metadata for matched set_ids ─────────────────────────────────
-  const setIds = [...new Set(rawDrops.map(d => d.set_id))];
+  const setIds = Array.from(new Set(rawDrops.map(d => d.set_id)));
   const setsMap = new Map<string, { name: string; theme: string | null; image_url: string | null }>();
   for (let i = 0; i < setIds.length; i += 200) {
     const { data } = await supabase
@@ -123,7 +123,7 @@ export default async function PriceDropsPage({ searchParams }: Props) {
     .filter((r): r is DropRow => r !== null);
 
   // Unique themes for filter (before applying theme filter)
-  const allThemes = [...new Set(allRows.map(r => r.theme).filter((t): t is string => !!t))].sort();
+  const allThemes = Array.from(new Set(allRows.map(r => r.theme).filter((t): t is string => !!t))).sort();
 
   // Apply filters
   if (storeFilter) allRows = allRows.filter(r => r.store_id === storeFilter);
