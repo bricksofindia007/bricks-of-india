@@ -417,6 +417,219 @@ try {
   alertFail('DataIntegrity', `get_distinct_themes RPC failed: ${e.message.slice(0, 80)}`);
 }
 
+// ── Check 8: P1 Technical checks ──────────────────────────────────────────────
+
+// 8a. Store affiliate URL health — one live product_url per store
+try {
+  const stores = ['toycra', 'mybrickhouse', 'jaiman'];
+  await Promise.allSettled(stores.map(async storeId => {
+    try {
+      const { data } = await sb
+        .from('store_prices')
+        .select('product_url, store_id')
+        .eq('store_id', storeId)
+        .eq('in_stock', true)
+        .not('product_url', 'is', null)
+        .limit(1);
+      const url = data?.[0]?.product_url;
+      if (!url) { alertFail('StoreURLs', `${storeId}: no in-stock product_url found`); return; }
+      const res = await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(10_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' }, redirect: 'follow' });
+      if (res.ok) {
+        log('StoreURLs', `${storeId}: ${res.status} ${url.slice(0, 60)} ✓`);
+      } else {
+        alertFail('StoreURLs', `${storeId}: product_url returned HTTP ${res.status} — ${url.slice(0, 60)}`);
+      }
+    } catch (e) {
+      alertFail('StoreURLs', `${storeId}: fetch error — ${e.message.slice(0, 60)}`);
+    }
+  }));
+} catch (e) {
+  alertFail('StoreURLs', `Store URL check failed: ${e.message.slice(0, 80)}`);
+}
+
+// 8b. Stale store_prices — all 3 stores must have data scraped within 25h
+try {
+  const stores = ['toycra', 'mybrickhouse', 'jaiman'];
+  const cutoff = new Date(Date.now() - 25 * 3_600_000).toISOString();
+  for (const storeId of stores) {
+    const { count } = await sb.from('store_prices').select('*', { count: 'exact', head: true })
+      .eq('store_id', storeId).gte('scraped_at', cutoff);
+    if (!count || count === 0) {
+      alertFail('StoreFreshness', `${storeId}: no rows scraped in last 25h — scraper may be failing silently`);
+    } else {
+      log('StoreFreshness', `${storeId}: ${count} rows scraped within 25h ✓`);
+    }
+  }
+} catch (e) {
+  alertFail('StoreFreshness', `Store freshness check failed: ${e.message.slice(0, 80)}`);
+}
+
+// 8c. Stuck pending_drafts — status=draft with body, not published after 48h
+try {
+  const cutoff = new Date(Date.now() - 48 * 3_600_000).toISOString();
+  const { data: stuck } = await sb
+    .from('pending_drafts')
+    .select('id, draft_title, updated_at')
+    .eq('status', 'draft')
+    .not('draft_body', 'is', null)
+    .lt('updated_at', cutoff);
+  if ((stuck ?? []).length > 0) {
+    alertFail('Pipeline', `${stuck.length} draft(s) stuck with body for >48h — publish pipeline blocked?\n` +
+      stuck.slice(0, 3).map(d => `  ${(d.draft_title || d.id).slice(0, 60)} (updated ${d.updated_at.slice(0, 10)})`).join('\n'));
+  } else {
+    log('Pipeline', 'No stuck drafts (status=draft with body >48h) ✓');
+  }
+} catch (e) {
+  alertFail('Pipeline', `Stuck drafts check failed: ${e.message.slice(0, 80)}`);
+}
+
+// 8d. Lab price tools return real data (₹ sign present, not empty-state HTML)
+const PRICE_LAB_ROUTES = ['/lab/price-drops', '/lab/biryani-index', '/lab/retiring-soon'];
+await Promise.allSettled(PRICE_LAB_ROUTES.map(async route => {
+  try {
+    const res = await fetch(`${SITE_URL}${route}`, {
+      signal: AbortSignal.timeout(15_000),
+      headers: { 'User-Agent': 'BOI-TechHygiene/1.0' },
+    });
+    if (!res.ok) { alertFail('LabData', `${route} returned HTTP ${res.status}`); return; }
+    const body = await res.text();
+    if (!body.includes('₹')) {
+      alertFail('LabData', `${route} has no ₹ sign — may be showing empty state or missing price data`);
+    } else {
+      log('LabData', `${route}: ₹ data present ✓`);
+    }
+  } catch (e) {
+    alertFail('LabData', `${route} fetch error: ${e.message.slice(0, 60)}`);
+  }
+}));
+
+// 8e. JS error boundary detection on 3 key pages
+const ERROR_MARKERS = ['Something went wrong', 'Application error', 'digest:', 'Error: Minified React error'];
+const ERROR_CHECK_ROUTES = ['/', '/sets', '/news'];
+await Promise.allSettled(ERROR_CHECK_ROUTES.map(async route => {
+  try {
+    const res = await fetch(`${SITE_URL}${route}`, { signal: AbortSignal.timeout(15_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+    if (!res.ok) return; // route check already covers this
+    const body = await res.text();
+    const hit = ERROR_MARKERS.find(m => body.includes(m));
+    if (hit) {
+      alertFail('ErrorBoundary', `${route} contains error boundary marker: "${hit}"`);
+    } else {
+      log('ErrorBoundary', `${route}: no error boundary text ✓`);
+    }
+  } catch (e) {
+    alertFail('ErrorBoundary', `${route} error boundary check failed: ${e.message.slice(0, 60)}`);
+  }
+}));
+
+// 8f. Sets missing pieces or year data (flag if >5%)
+try {
+  const [{ count: total }, { count: missingPieces }, { count: missingYear }] = await Promise.all([
+    sb.from('sets').select('*', { count: 'exact', head: true }),
+    sb.from('sets').select('*', { count: 'exact', head: true }).or('pieces.is.null,pieces.eq.0'),
+    sb.from('sets').select('*', { count: 'exact', head: true }).is('year', null),
+  ]);
+  const pctPieces = total ? Math.round((missingPieces / total) * 100) : 0;
+  const pctYear   = total ? Math.round((missingYear   / total) * 100) : 0;
+  log('CatalogCoverage', `Sets missing pieces: ${missingPieces}/${total} (${pctPieces}%) | missing year: ${missingYear}/${total} (${pctYear}%)`);
+  if (pctPieces > 5) alertFail('CatalogCoverage', `${pctPieces}% of sets missing pieces data — catalogue may be degraded`);
+  if (pctYear   > 5) alertFail('CatalogCoverage', `${pctYear}% of sets missing year data — catalogue may be degraded`);
+} catch (e) {
+  alertFail('CatalogCoverage', `Sets coverage check failed: ${e.message.slice(0, 80)}`);
+}
+
+// ── Check 9: P1 Content checks ─────────────────────────────────────────────────
+
+// 9a. Markdown leaking — scan last 10 news_articles for ** or isolated *
+try {
+  const { data: arts } = await sb.from('news_articles').select('slug, content')
+    .not('content', 'is', null).order('published_at', { ascending: false }).limit(10);
+  const leaking = (arts ?? []).filter(a => /\*\*|\b\*[^*\s]/.test(a.content ?? ''));
+  if (leaking.length > 0) {
+    alertFail('ContentQuality', `Markdown asterisks leaking in ${leaking.length} article(s): ${leaking.map(a => a.slug).join(', ')}`);
+  } else {
+    log('ContentQuality', `Markdown leak check: 0/${(arts ?? []).length} articles have ** or * ✓`);
+  }
+} catch (e) {
+  alertFail('ContentQuality', `Markdown leak check failed: ${e.message.slice(0, 80)}`);
+}
+
+// 9b. Placeholder text in last 10 articles
+try {
+  const { data: arts } = await sb.from('news_articles').select('slug, content, title')
+    .not('content', 'is', null).order('published_at', { ascending: false }).limit(10);
+  const PLACEHOLDERS = /\[INSERT\]|\bTODO\b|\bPLACEHOLDER\b|lorem ipsum/i;
+  const contaminated = (arts ?? []).filter(a => PLACEHOLDERS.test(a.content ?? '') || PLACEHOLDERS.test(a.title ?? ''));
+  if (contaminated.length > 0) {
+    alertFail('ContentQuality', `Placeholder text in ${contaminated.length} article(s): ${contaminated.map(a => a.slug).join(', ')}`);
+  } else {
+    log('ContentQuality', `Placeholder check: clean ✓`);
+  }
+} catch (e) {
+  alertFail('ContentQuality', `Placeholder check failed: ${e.message.slice(0, 80)}`);
+}
+
+// 9c. Meta description present on 3 key pages
+const META_CHECK_ROUTES = ['/', '/news', '/sets', '/reviews'];
+await Promise.allSettled(META_CHECK_ROUTES.map(async route => {
+  try {
+    const res = await fetch(`${SITE_URL}${route}`, { signal: AbortSignal.timeout(15_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+    if (!res.ok) return;
+    const html = await res.text();
+    const match = html.match(/<meta\s+name=["']description["']\s+content=["']([^"']{10,})["']/i)
+                || html.match(/<meta\s+content=["']([^"']{10,})["']\s+name=["']description["']/i);
+    if (!match) {
+      alertFail('MetaTags', `${route} missing or empty <meta name="description">`);
+    } else {
+      log('MetaTags', `${route}: description="${match[1].slice(0, 60)}" ✓`);
+    }
+  } catch (e) {
+    alertFail('MetaTags', `${route} meta check failed: ${e.message.slice(0, 60)}`);
+  }
+}));
+
+// 9d. Sample 10 news_articles hero_image URLs — HEAD check
+try {
+  const { data: articles } = await sb.from('news_articles').select('slug, hero_image')
+    .not('hero_image', 'is', null).not('hero_image', 'eq', '').limit(10);
+  const imgFails = [];
+  await Promise.allSettled((articles ?? []).map(async a => {
+    try {
+      const r = await fetch(a.hero_image, { method: 'HEAD', signal: AbortSignal.timeout(8_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+      if (!r.ok) imgFails.push(`${a.slug}: HTTP ${r.status}`);
+    } catch (e) { imgFails.push(`${a.slug}: ${e.message.slice(0, 40)}`); }
+  }));
+  if (imgFails.length > 0) {
+    alertFail('ImageHealth', `${imgFails.length} news hero image(s) broken:\n${imgFails.map(f => '  ' + f).join('\n')}`);
+  } else {
+    log('ImageHealth', `News hero images: ${(articles ?? []).length} sampled, all 200 ✓`);
+  }
+} catch (e) {
+  alertFail('ImageHealth', `News image check failed: ${e.message.slice(0, 80)}`);
+}
+
+// 9e. Review hero_image — all rows, verify 200 or flag null
+try {
+  const { data: reviews } = await sb.from('reviews').select('slug, hero_image');
+  const nullRevs = (reviews ?? []).filter(r => !r.hero_image);
+  if (nullRevs.length > 0) alertFail('ImageHealth', `${nullRevs.length} review(s) have null hero_image: ${nullRevs.map(r => r.slug).join(', ')}`);
+  const withImg = (reviews ?? []).filter(r => r.hero_image);
+  const revFails = [];
+  await Promise.allSettled(withImg.map(async r => {
+    try {
+      const res = await fetch(r.hero_image, { method: 'HEAD', signal: AbortSignal.timeout(8_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+      if (!res.ok) revFails.push(`${r.slug}: HTTP ${res.status}`);
+    } catch (e) { revFails.push(`${r.slug}: ${e.message.slice(0, 40)}`); }
+  }));
+  if (revFails.length > 0) {
+    alertFail('ImageHealth', `Review hero image(s) broken: ${revFails.join(', ')}`);
+  } else {
+    log('ImageHealth', `Review hero images: ${withImg.length} checked, all 200 ✓`);
+  }
+} catch (e) {
+  alertFail('ImageHealth', `Review image check failed: ${e.message.slice(0, 80)}`);
+}
+
 // ── Weekly email report ───────────────────────────────────────────────────────
 
 const now    = new Date().toISOString().slice(0, 10);

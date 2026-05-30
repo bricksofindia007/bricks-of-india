@@ -1,10 +1,13 @@
 /**
- * Backfill: fix YouTube CDN hero images in news_articles.
- * Finds articles where hero_image contains ytimg.com / yt3.ggpht.com / youtube.com/vi/
- * and replaces them using the same fallback chain as the publish pipeline:
- *   1. Extract set numbers from title + content → Rebrickable set image
+ * Backfill: fix bad hero images in news_articles.
+ * Targets:
+ *   - hero_image containing YouTube CDN domains (ytimg.com, yt3.ggpht.com, youtube.com/vi/)
+ *   - hero_image that is null or empty
+ *
+ * Fallback chain:
+ *   1. Extract set numbers from title + content (with year-exclusion filter) → Rebrickable set image
  *   2. Extract LEGO theme keyword from title → Rebrickable search image
- *   3. null (no hero image — better than a YouTube thumbnail)
+ *   3. null (no hero image)
  *
  * Usage:
  *   node --env-file=.env.local scripts/fix-youtube-hero-images.mjs --dry-run
@@ -36,6 +39,21 @@ const RB_KEY  = process.env.REBRICKABLE_API_KEY;
 const RB_HDRS = { 'User-Agent': UA, ...(RB_KEY ? { Authorization: `key ${RB_KEY}` } : {}) };
 
 const YOUTUBE_IMG_RE = /ytimg\.com|yt3\.ggpht\.com|youtube\.com\/vi\//i;
+
+// Slugs to never touch — year-range false positives or manually verified as acceptable null
+const SKIP_SLUGS = new Set([
+  '1999-lego-adventurers-amazon-ancient-ruins-in-india-a-relic-',
+]);
+
+// Year-exclusion: 4-digit numbers in 1930-2030 that look like calendar years, not set numbers.
+// Filters: number starts the title, or is preceded by year-context words in the combined text.
+function isYearLike(num, matchIndex, combined, title) {
+  const n = parseInt(num, 10);
+  if (n < 1930 || n > 2030 || num.length !== 4) return false;
+  if ((title ?? '').trim().startsWith(num)) return true;
+  const before = combined.slice(Math.max(0, matchIndex - 35), matchIndex);
+  return /\b(year|since|from|in|of|during|around|back\s+in|released|launched|arrived)\s+$/i.test(before);
+}
 
 // keyword → Rebrickable search term map (checked in order, first match wins)
 const KEYWORD_THEME_MAP = [
@@ -86,13 +104,16 @@ function findThemeSearch(title) {
 async function resolveImage(title, content) {
   const combined = `${title ?? ''} ${content ?? ''}`;
 
-  // Step 1+2: set numbers → Rebrickable
+  // Step 1+2: set numbers → Rebrickable (year-like numbers excluded)
   const seen = new Set();
   const setNums = [];
   const re = /\b(\d{4,6})\b/g;
   let m;
   while ((m = re.exec(combined)) !== null) {
-    if (!seen.has(m[1])) { seen.add(m[1]); setNums.push(m[1]); }
+    if (seen.has(m[1])) continue;
+    if (isYearLike(m[1], m.index, combined, title)) { seen.add(m[1]); continue; }
+    seen.add(m[1]);
+    setNums.push(m[1]);
   }
   for (const num of setNums.slice(0, 5)) {
     try {
@@ -130,7 +151,7 @@ async function resolveImage(title, content) {
 
 // ── Fetch affected articles ───────────────────────────────────────────────────
 
-console.log(`\n━━ fix-youtube-hero-images${DRY_RUN ? ' [DRY RUN]' : ''} ━━━━━━━━━━━━━━━━━━━`);
+console.log(`\n━━ fix-bad-hero-images${DRY_RUN ? ' [DRY RUN]' : ''} ━━━━━━━━━━━━━━━━━━━━━━`);
 
 const PAGE = 1000;
 const affected = [];
@@ -138,17 +159,17 @@ for (let offset = 0; ; offset += PAGE) {
   const { data, error } = await sb
     .from('news_articles')
     .select('id, slug, title, content, hero_image')
-    .not('hero_image', 'is', null)
     .range(offset, offset + PAGE - 1);
   if (error) { console.error('Fetch error:', error.message); process.exit(1); }
   if (!data || data.length === 0) break;
   for (const row of data) {
-    if (row.hero_image && YOUTUBE_IMG_RE.test(row.hero_image)) affected.push(row);
+    if (SKIP_SLUGS.has(row.slug)) continue;
+    if (!row.hero_image || YOUTUBE_IMG_RE.test(row.hero_image)) affected.push(row);
   }
   if (data.length < PAGE) break;
 }
 
-console.log(`\nArticles with YouTube CDN hero images: ${affected.length}\n`);
+console.log(`\nArticles needing hero image fix: ${affected.length}\n`);
 
 if (affected.length === 0) {
   console.log('Nothing to fix.');
@@ -165,7 +186,7 @@ for (const article of affected) {
 
   const status = newImg ? `→ ${via}` : '→ null (no match)';
   console.log(`  ${article.slug}`);
-  console.log(`    OLD: ${old.slice(0, 90)}`);
+  console.log(`    OLD: ${old ? old.slice(0, 90) : 'null'}`);
   console.log(`    NEW: ${newImg ? newImg.slice(0, 90) : 'null'} [${via}]`);
 
   if (!DRY_RUN) {
