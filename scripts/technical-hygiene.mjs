@@ -116,6 +116,10 @@ const ROUTES = [
   '/lab/retiring-soon',
   '/lab/cmf-tracker',
   '/lab/price-drops',
+  '/lab/deals',
+  '/lab/which-set',
+  '/lab/heat-map',
+  '/themes/technic',
   '/legal/privacy',
   '/legal/terms',
   '/legal/disclaimer',
@@ -569,6 +573,90 @@ try {
   alertFail('CatalogCoverage', `Sets coverage check failed: ${e.message.slice(0, 80)}`);
 }
 
+// 8g. blog_posts — hero_image null rate >20% = critical
+try {
+  const [{ count: bpTotal }, { count: bpNull }] = await Promise.all([
+    sb.from('blog_posts').select('*', { count: 'exact', head: true }),
+    sb.from('blog_posts').select('*', { count: 'exact', head: true }).is('hero_image', null),
+  ]);
+  const pct = bpTotal ? Math.round((bpNull / bpTotal) * 100) : 0;
+  if (pct > 20) alertFail('ContentCoverage', `${pct}% of blog_posts have null hero_image (${bpNull}/${bpTotal}) — cards will show placeholder`);
+  else log('ContentCoverage', `blog_posts hero_image: ${bpNull}/${bpTotal} null (${pct}%) ✓`);
+} catch (e) { alertFail('ContentCoverage', `blog_posts hero check error: ${e.message.slice(0, 80)}`); }
+
+// 8h. blog_posts — body (content) null count
+try {
+  const [{ count: bpTotal }, { count: bpNoBody }] = await Promise.all([
+    sb.from('blog_posts').select('*', { count: 'exact', head: true }),
+    sb.from('blog_posts').select('*', { count: 'exact', head: true }).is('content', null),
+  ]);
+  if (bpNoBody && bpNoBody > 0) alertFail('ContentCoverage', `${bpNoBody}/${bpTotal} blog_posts have null content body — posts will render empty`);
+  else log('ContentCoverage', `blog_posts content: all ${bpTotal} have non-null body ✓`);
+} catch (e) { alertFail('ContentCoverage', `blog_posts body check error: ${e.message.slice(0, 80)}`); }
+
+// 8i. guides — any row with null body
+try {
+  const { data: nullGuides } = await sb.from('guides').select('slug').is('content', null);
+  if ((nullGuides ?? []).length > 0) alertFail('ContentCoverage', `${nullGuides.length} guide(s) have null content: ${nullGuides.map(g => g.slug).join(', ')}`);
+  else log('ContentCoverage', `guides content: all rows have non-null body ✓`);
+} catch (e) { alertFail('ContentCoverage', `guides body check error: ${e.message.slice(0, 80)}`); }
+
+// 8j. price_snapshots — no row today/yesterday = critical (LAB-06 broken)
+try {
+  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const { count } = await sb.from('price_snapshots').select('*', { count: 'exact', head: true }).gte('snapshot_date', yesterday);
+  if (!count || count === 0) alertFail('DataPipelineP1', `price_snapshots: no rows for today or yesterday — LAB-06 snapshot cron may be broken`);
+  else log('DataPipelineP1', `price_snapshots: ${count} rows since ${yesterday} ✓`);
+} catch (e) { alertFail('DataPipelineP1', `price_snapshots P1 check error: ${e.message.slice(0, 80)}`); }
+
+// 8k. raw_signals — no row in last 25h = critical (RADAR dead)
+try {
+  const cutoff = new Date(Date.now() - 25 * 3_600_000).toISOString();
+  const { count } = await sb.from('raw_signals').select('*', { count: 'exact', head: true }).gte('created_at', cutoff);
+  if (!count || count === 0) alertFail('DataPipelineP1', `raw_signals: no rows in last 25h — RADAR pipeline may be dead`);
+  else log('DataPipelineP1', `raw_signals: ${count} rows in last 25h ✓`);
+} catch (e) { alertFail('DataPipelineP1', `raw_signals P1 check error: ${e.message.slice(0, 80)}`); }
+
+// 8l. store_prices product_url — sample 5 per store, verify non-null, non-empty, starts with https://
+try {
+  const stores8l = ['toycra', 'mybrickhouse', 'jaiman'];
+  for (const storeId of stores8l) {
+    const { data: rows } = await sb.from('store_prices').select('set_id, product_url').eq('store_id', storeId).limit(5);
+    const bad = (rows ?? []).filter(r => !r.product_url || !r.product_url.startsWith('https://'));
+    if (bad.length > 0) alertFail('StoreURLsP1', `${storeId}: ${bad.length} product_url(s) null/invalid in sample of ${(rows ?? []).length}`);
+    else log('StoreURLsP1', `${storeId}: product_url sample valid (${(rows ?? []).length} rows) ✓`);
+  }
+} catch (e) { alertFail('StoreURLsP1', `store product_url check error: ${e.message.slice(0, 80)}`); }
+
+// 8m. Rebrickable API — P1 connectivity check (42172-1)
+try {
+  const rbKey = process.env.REBRICKABLE_API_KEY;
+  const rbHdrs = { 'User-Agent': 'BOI-TechHygiene/1.0', ...(rbKey ? { Authorization: `key ${rbKey}` } : {}) };
+  const res = await fetch('https://rebrickable.com/api/v3/lego/sets/42172-1/', { headers: rbHdrs, signal: AbortSignal.timeout(10_000) });
+  if (!res.ok) alertFail('ExtP1', `Rebrickable API: HTTP ${res.status} for 42172-1 — image fallback chain will fail`);
+  else {
+    const data = await res.json();
+    if (!data.set_img_url) alertFail('ExtP1', `Rebrickable 42172-1: no set_img_url — image fallback broken`);
+    else log('ExtP1', `Rebrickable API: 200, set_img_url present ✓`);
+  }
+} catch (e) { alertFail('ExtP1', `Rebrickable API P1 check error: ${e.message.slice(0, 80)}`); }
+
+// 8n. Shopify endpoints — HTTP 200 (connectivity, separate from zero-row scraper check)
+try {
+  const shopify8n = [
+    { name: 'Toycra',       url: 'https://www.toycra.com/collections/lego/products.json?limit=1' },
+    { name: 'MyBrickHouse', url: 'https://lego.mybrickhouse.com/products.json?limit=1' },
+    { name: 'Jaiman',       url: 'https://jaimantoys.com/products.json?limit=1' },
+  ];
+  await Promise.allSettled(shopify8n.map(async ({ name, url }) => {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(15_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' }, redirect: 'follow' });
+      if (res.ok) log('ExtP1', `${name} Shopify endpoint: ${res.status} ✓`);
+      else alertFail('ExtP1', `${name} Shopify endpoint: HTTP ${res.status} — scraper will fail at next run`);
+    } catch (e) { alertFail('ExtP1', `${name} Shopify endpoint error: ${e.message.slice(0, 60)}`); }
+  }));
+} catch (e) { alertFail('ExtP1', `Shopify P1 check error: ${e.message.slice(0, 80)}`); }
+
 // ── Check 9: P1 Content checks ─────────────────────────────────────────────────
 
 // 9a. Markdown leaking — scan last 10 news_articles for ** or isolated *
@@ -660,6 +748,34 @@ try {
 } catch (e) {
   alertFail('ImageHealth', `Review image check failed: ${e.message.slice(0, 80)}`);
 }
+
+// 9f. Last 5 blog_posts — markdown asterisk leak
+try {
+  const { data: bps } = await sb.from('blog_posts').select('slug, content')
+    .not('content', 'is', null).order('published_at', { ascending: false }).limit(5);
+  const leaking = (bps ?? []).filter(a => /\*\*|\b\*[^*\s]/.test(a.content ?? ''));
+  if (leaking.length > 0) alertFail('ContentQuality', `Markdown asterisks in ${leaking.length} blog_post(s): ${leaking.map(a => a.slug).join(', ')}`);
+  else log('ContentQuality', `blog_posts markdown leak: clean (${(bps ?? []).length} checked) ✓`);
+} catch (e) { alertFail('ContentQuality', `blog_posts markdown check error: ${e.message.slice(0, 80)}`); }
+
+// 9g. Last 5 blog_posts — placeholder text
+try {
+  const { data: bps } = await sb.from('blog_posts').select('slug, content, title')
+    .not('content', 'is', null).order('published_at', { ascending: false }).limit(5);
+  const PLACEHOLDERS = /\[INSERT\]|\bTODO\b|\bPLACEHOLDER\b|lorem ipsum/i;
+  const contaminated = (bps ?? []).filter(a => PLACEHOLDERS.test(a.content ?? '') || PLACEHOLDERS.test(a.title ?? ''));
+  if (contaminated.length > 0) alertFail('ContentQuality', `Placeholder text in ${contaminated.length} blog_post(s): ${contaminated.map(a => a.slug).join(', ')}`);
+  else log('ContentQuality', `blog_posts placeholder check: clean ✓`);
+} catch (e) { alertFail('ContentQuality', `blog_posts placeholder check error: ${e.message.slice(0, 80)}`); }
+
+// 9h. Last 5 blog_posts — seo_description present and non-empty (meta description proxy)
+try {
+  const { data: bps } = await sb.from('blog_posts').select('slug, seo_description')
+    .order('published_at', { ascending: false }).limit(5);
+  const noMeta = (bps ?? []).filter(a => !a.seo_description || a.seo_description.trim().length < 10);
+  if (noMeta.length > 0) alertFail('MetaTags', `${noMeta.length} blog_post(s) missing seo_description: ${noMeta.map(a => a.slug).join(', ')}`);
+  else log('MetaTags', `blog_posts seo_description: all ${(bps ?? []).length} present ✓`);
+} catch (e) { alertFail('MetaTags', `blog_posts meta check error: ${e.message.slice(0, 80)}`); }
 
 // ── Check 10: Homepage regression guards ──────────────────────────────────────
 
