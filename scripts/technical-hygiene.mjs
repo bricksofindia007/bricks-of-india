@@ -2,6 +2,15 @@
  * Technical Hygiene — weekly checks, runs Monday 04:00 UTC
  * Sends one Resend email with the full weekly report regardless of pass/fail.
  * Alerts on failures; always emails scores for trend tracking.
+ *
+ * ─────────────────────────────────────────────────────────────────────────────
+ * CONTRIBUTING RULE — NO EXCEPTIONS:
+ * Every new feature, page, or data pipeline shipped must include a
+ * corresponding integrity check in this file in the same commit.
+ * "Shipped" means: new /lab route → add HTTP + content check; new DB pipeline
+ * → add row-count or data-shape check; new article format → add content check.
+ * This file is the living proof that the system works. Keep it current.
+ * ─────────────────────────────────────────────────────────────────────────────
  */
 
 import { createClient } from '@supabase/supabase-js';
@@ -59,7 +68,7 @@ const ROUTES = [
   '/news',
   '/blog',
   '/sets',
-  '/sets/page/2',
+  '/sets?page=2',
   '/deals',
   '/guides',
   '/opinion',
@@ -191,9 +200,8 @@ try {
     const xml   = await res.text();
     const count = (xml.match(/<loc>/g) || []).length;
     log('Sitemap', `${count} URLs in sitemap.xml`);
-    // Baseline: alert if fewer than 30 URLs (sanity check)
-    if (count < 30) {
-      alertFail('Sitemap', `Only ${count} URLs in sitemap — expected ≥ 30`);
+    if (count < 1000) {
+      alertFail('Sitemap', `Only ${count} URLs in sitemap — expected ≥ 1000 (sets catalogue drives bulk)`);
     }
   }
 } catch (e) {
@@ -287,6 +295,113 @@ try {
 } catch (e) {
   rowCounts['pending_drafts'] = `ERROR: ${e.message}`;
 }
+
+// ── Check 7: Data integrity ───────────────────────────────────────────────────
+// Catches silent regressions: dead table references, prompt failures, empty renders.
+
+// 7a. Related sets have live prices — verifies store_prices join (not dead prices table)
+try {
+  const { data: themeSets } = await sb
+    .from('sets').select('set_number').eq('theme', 'Technic').limit(20);
+  const nums = (themeSets ?? []).map(s => s.set_number);
+  if (nums.length === 0) {
+    alertFail('DataIntegrity', 'No Technic sets found — cannot verify related-set prices');
+  } else {
+    const { count: priceCount } = await sb
+      .from('store_prices').select('*', { count: 'exact', head: true }).in('set_id', nums);
+    if (!priceCount || priceCount === 0) {
+      alertFail('DataIntegrity', 'No store_prices rows for Technic sets — related set cards will show no prices');
+    } else {
+      log('DataIntegrity', `Related-set prices: ${priceCount} store_prices rows for Technic sets ✓`);
+    }
+  }
+} catch (e) {
+  alertFail('DataIntegrity', `Related-set price check failed: ${e.message.slice(0, 80)}`);
+}
+
+// 7b. store_prices has rows for at least 3 distinct stores
+try {
+  const { data: storeRows } = await sb.from('store_prices').select('store_id').limit(3000);
+  const storeIds = new Set((storeRows ?? []).map(r => r.store_id));
+  if (storeIds.size < 3) {
+    alertFail('DataIntegrity', `Only ${storeIds.size} store(s) with data in store_prices — expected ≥ 3 (${[...storeIds].join(', ')})`);
+  } else {
+    log('DataIntegrity', `Store coverage: ${storeIds.size} stores with data (${[...storeIds].join(', ')}) ✓`);
+  }
+} catch (e) {
+  alertFail('DataIntegrity', `Store coverage check failed: ${e.message.slice(0, 80)}`);
+}
+
+// 7c. Recent news articles contain India price content (₹ + store name)
+// Note: INDIA_PARAGRAPH marker is stripped at publish time — check for content proxies instead.
+try {
+  const { data: recentArticles } = await sb
+    .from('news_articles')
+    .select('slug, content')
+    .not('content', 'is', null)
+    .order('published_at', { ascending: false })
+    .limit(10);
+  const withIndia = (recentArticles ?? []).filter(
+    a => a.content?.includes('₹') && /\b(Toycra|MyBrickHouse|Jaiman)\b/i.test(a.content)
+  );
+  if ((recentArticles ?? []).length === 0) {
+    alertFail('DataIntegrity', 'No news articles found in DB');
+  } else if (withIndia.length === 0) {
+    alertFail('DataIntegrity', `0 of last ${(recentArticles ?? []).length} articles have India price data (₹ + store name) — possible prompt regression`);
+  } else {
+    log('DataIntegrity', `India content: ${withIndia.length}/${(recentArticles ?? []).length} recent articles have ₹ + store name ✓`);
+  }
+} catch (e) {
+  alertFail('DataIntegrity', `India content check failed: ${e.message.slice(0, 80)}`);
+}
+
+// 7d. Lab pages return 200 with non-trivial content
+const LAB_CONTENT_PAGES = ['/lab/price-drops', '/lab/biryani-index', '/lab/retiring-soon'];
+for (const route of LAB_CONTENT_PAGES) {
+  try {
+    const res = await fetch(`${SITE_URL}${route}`, {
+      signal: AbortSignal.timeout(15_000),
+      headers: { 'User-Agent': 'BOI-TechHygiene/1.0' },
+    });
+    if (!res.ok) {
+      alertFail('DataIntegrity', `${route} returned HTTP ${res.status}`);
+    } else {
+      const body = await res.text();
+      if (body.length < 2000) {
+        alertFail('DataIntegrity', `${route} body only ${body.length} chars — may be rendering empty`);
+      } else {
+        log('DataIntegrity', `${route}: ${res.status}, ${body.length} chars ✓`);
+      }
+    }
+  } catch (e) {
+    alertFail('DataIntegrity', `${route} fetch error: ${e.message.slice(0, 60)}`);
+  }
+}
+
+// 7e. /sets filter routes return 200 (catches searchParams regression)
+const SETS_FILTER_CHECKS = [
+  { url: '/sets?theme=Icons',      label: 'Sets theme filter (Icons)' },
+  { url: '/sets?sort=price_asc',   label: 'Sets price sort (price_asc)' },
+  { url: '/sets?instock=1',        label: 'Sets in-stock toggle' },
+  { url: '/sets?price=under2k',    label: 'Sets price band filter' },
+];
+await Promise.allSettled(
+  SETS_FILTER_CHECKS.map(async ({ url, label }) => {
+    try {
+      const res = await fetch(`${SITE_URL}${url}`, {
+        signal: AbortSignal.timeout(15_000),
+        headers: { 'User-Agent': 'BOI-TechHygiene/1.0' },
+      });
+      if (!res.ok) {
+        alertFail('DataIntegrity', `${label}: ${url} returned HTTP ${res.status}`);
+      } else {
+        log('DataIntegrity', `${label}: ${res.status} ✓`);
+      }
+    } catch (e) {
+      alertFail('DataIntegrity', `${label}: fetch error — ${e.message.slice(0, 60)}`);
+    }
+  })
+);
 
 // ── Weekly email report ───────────────────────────────────────────────────────
 
