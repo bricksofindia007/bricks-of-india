@@ -1248,6 +1248,148 @@ try {
   }
 } catch (e) { log('Performance', `Social automation check skipped: ${e.message.slice(0, 60)}`); }
 
+// ── Check 16: Reviewed sets missing store_prices ─────────────────────────────
+// 16a. Every set in the reviews table must have at least one store_prices row.
+//      A reviewed set with no prices means the compare sidebar is empty on the
+//      review page — the most important commercial surface on the site.
+try {
+  const { data: reviewedSets } = await sb.from('reviews').select('set_id, title');
+  const { data: setRows } = await sb.from('sets')
+    .select('id, set_number')
+    .in('id', reviewedSets.map(r => r.set_id));
+  const setNumberMap = Object.fromEntries(setRows.map(s => [s.id, s.set_number]));
+  const setNumbers = Object.values(setNumberMap);
+  const { data: priceRows } = await sb.from('store_prices')
+    .select('set_id')
+    .in('set_id', setNumbers);
+  const pricedSetNumbers = new Set(priceRows.map(p => p.set_id));
+  const missing = reviewedSets.filter(r => !pricedSetNumbers.has(setNumberMap[r.set_id]));
+  if (missing.length > 0) {
+    alertFail('ReviewedSetPrices', `${missing.length} reviewed set(s) have no store_prices: ${missing.map(r => r.title).join(', ')}`);
+  } else {
+    log('ReviewedSetPrices', `all ${reviewedSets.length} reviewed sets have store_prices ✓`);
+  }
+} catch (e) { alertFail('ReviewedSetPrices', `check failed: ${e.message.slice(0, 80)}`); }
+
+// ── Check 17: Reviews verdict enum ───────────────────────────────────────────
+// 17a. All verdict values must be in VALID_VERDICTS. A rogue value ('BUY'
+//      instead of 'BUY NOW') breaks the BOI Says verdict display component.
+try {
+  const VALID_VERDICTS17 = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID']);
+  const { data: reviewVerdicts } = await sb.from('reviews').select('id, title, verdict');
+  const bad = (reviewVerdicts ?? []).filter(r => !VALID_VERDICTS17.has(r.verdict));
+  if (bad.length > 0) {
+    alertFail('ReviewVerdict', `${bad.length} review(s) have invalid verdict: ${bad.map(r => `${r.title}=${r.verdict}`).join(', ')}`);
+  } else {
+    log('ReviewVerdict', `all ${(reviewVerdicts ?? []).length} review verdicts valid ✓`);
+  }
+} catch (e) { alertFail('ReviewVerdict', `check failed: ${e.message.slice(0, 80)}`); }
+
+// ── Check 18: Reviewed sets missing MRP ──────────────────────────────────────
+// 18a. Sets that have a published review must have lego_mrp_inr populated.
+//      MRP drives the "X% below MRP" callout on the review sidebar — null
+//      means that line silently disappears.
+try {
+  const { data: reviewedSets } = await sb.from('reviews').select('set_id, title');
+  const { data: setRows } = await sb.from('sets')
+    .select('id, set_number, lego_mrp_inr')
+    .in('id', (reviewedSets ?? []).map(r => r.set_id));
+  const missingMrp = (setRows ?? []).filter(s => !s.lego_mrp_inr);
+  if (missingMrp.length > 0) {
+    alertFail('ReviewedSetMRP', `${missingMrp.length} reviewed set(s) missing lego_mrp_inr: ${missingMrp.map(s => s.set_number).join(', ')}`);
+  } else {
+    log('ReviewedSetMRP', `all ${(setRows ?? []).length} reviewed sets have MRP ✓`);
+  }
+} catch (e) { alertFail('ReviewedSetMRP', `check failed: ${e.message.slice(0, 80)}`); }
+
+// ── Check 19: Pending drafts — unpublishable approved rows ────────────────────
+// 19a. Any draft with status='approved' but null draft_title cannot be
+//      processed by generate-approved-drafts.js — it will silently skip.
+//      These are RADAR-08 seeds with incomplete data.
+try {
+  const { data: badDrafts } = await sb.from('pending_drafts')
+    .select('id, draft_format, source_url')
+    .eq('status', 'approved')
+    .is('draft_title', null);
+  if ((badDrafts ?? []).length > 0) {
+    alertFail('DraftTitleNull', `${badDrafts.length} approved draft(s) have null draft_title and will be skipped by generator: ${badDrafts.map(d => d.id.slice(0, 8)).join(', ')}`);
+  } else {
+    log('DraftTitleNull', `all approved drafts have draft_title ✓`);
+  }
+} catch (e) { alertFail('DraftTitleNull', `check failed: ${e.message.slice(0, 80)}`); }
+
+// ── Check 20: Per-store price row count regression ────────────────────────────
+// 20a. If any store drops below its known baseline, the scraper has regressed
+//      or the store changed its feed structure. Baselines from Day 31 audit:
+//      Toycra ≥500, MBH ≥800, Jaiman ≥1000.
+try {
+  const STORE_BASELINES = { toycra: 500, mybrickhouse: 800, jaiman: 1000 };
+  for (const [storeId, baseline] of Object.entries(STORE_BASELINES)) {
+    const { count } = await sb.from('store_prices')
+      .select('*', { count: 'exact', head: true })
+      .eq('store_id', storeId);
+    if ((count ?? 0) < baseline) {
+      alertFail('StorePriceCount', `${storeId} has ${count} rows — below baseline of ${baseline}. Scraper may have regressed.`);
+    } else {
+      log('StorePriceCount', `${storeId}: ${count} rows ≥ ${baseline} ✓`);
+    }
+  }
+} catch (e) { alertFail('StorePriceCount', `check failed: ${e.message.slice(0, 80)}`); }
+
+// ── Check 21: Tier-1 RSS source freshness ────────────────────────────────────
+// 21a. Each Tier-1 source must have at least one raw_signal fetched in the
+//      last 48h. A dead Tier-1 source means we're missing editorial signals
+//      from the most important feeds.
+try {
+  const TIER1_SOURCES = ['The Brothers Brick', "Jay's Brick Blog", 'BrickNerd', 'New Elementary'];
+  const cutoff = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+  for (const source of TIER1_SOURCES) {
+    const { count } = await sb.from('raw_signals')
+      .select('*', { count: 'exact', head: true })
+      .eq('source_name', source)
+      .gte('fetched_at', cutoff);
+    if (!count || count === 0) {
+      alertFail('Tier1Source', `${source} has no signals in last 48h — source may be dead or feed URL changed`);
+    } else {
+      log('Tier1Source', `${source}: ${count} signal(s) in last 48h ✓`);
+    }
+  }
+} catch (e) { alertFail('Tier1Source', `check failed: ${e.message.slice(0, 80)}`); }
+
+// ── Check 22: guides featured_image_url coverage ─────────────────────────────
+// 22a. Guides with null featured_image_url render a branded fallback gradient
+//      (shipped Day 31). This check tracks the null count so we know when
+//      images are actually populated — currently expected to be 9/9 null.
+try {
+  const [{ count: totalGuides }, { count: nullImages }] = await Promise.all([
+    sb.from('guides').select('*', { count: 'exact', head: true }),
+    sb.from('guides').select('*', { count: 'exact', head: true }).is('featured_image_url', null),
+  ]);
+  if (nullImages === totalGuides) {
+    log('GuideImages', `${nullImages}/${totalGuides} guides using fallback gradient (no real images yet — expected) ✓`);
+  } else if (nullImages > 0) {
+    log('GuideImages', `${nullImages}/${totalGuides} guides still using fallback gradient, ${totalGuides - nullImages} have real images ✓`);
+  } else {
+    log('GuideImages', `all ${totalGuides} guides have featured_image_url ✓`);
+  }
+} catch (e) { alertFail('GuideImages', `check failed: ${e.message.slice(0, 80)}`); }
+
+// ── Check 23: publish-drafts review routing guard ─────────────────────────────
+// 23a. No slug should exist in both reviews and news_articles. This would
+//      indicate a routing collision — review-format drafts land in news_articles
+//      (category=Review); the reviews table is manually curated only.
+try {
+  const { data: reviewSlugs } = await sb.from('reviews').select('slug');
+  const { data: newsSlugs }   = await sb.from('news_articles').select('slug');
+  const newsSlugSet = new Set((newsSlugs ?? []).map(n => n.slug));
+  const collisions = (reviewSlugs ?? []).filter(r => newsSlugSet.has(r.slug));
+  if (collisions.length > 0) {
+    alertFail('ReviewRouting', `${collisions.length} slug(s) exist in both reviews and news_articles: ${collisions.map(r => r.slug).join(', ')}`);
+  } else {
+    log('ReviewRouting', `no slug collisions between reviews and news_articles ✓`);
+  }
+} catch (e) { alertFail('ReviewRouting', `check failed: ${e.message.slice(0, 80)}`); }
+
 // ── Weekly email report ───────────────────────────────────────────────────────
 
 const now    = new Date().toISOString().slice(0, 10);
