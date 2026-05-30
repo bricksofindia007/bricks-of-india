@@ -75,6 +75,7 @@ const ROUTES = [
   '/lab/budget-calculator',
   '/lab/retiring-soon',
   '/lab/cmf-tracker',
+  '/lab/price-drops',
   '/legal/privacy',
   '/legal/terms',
   '/legal/disclaimer',
