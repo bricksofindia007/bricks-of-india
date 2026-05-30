@@ -228,11 +228,14 @@ function lintDraft(draft: {
     throw new Error('[Gate 2 FAIL] No relatable Indian comparison found in India Paragraph (expected: biryani, EMI, Spotify months, petrol, etc.).');
   }
 
-  const v = (draft.draft_verdict || '').trim().toUpperCase();
-  if (!VALID_VERDICTS.has(v)) {
-    throw new Error(
-      `[Gate 3 FAIL] Verdict '${draft.draft_verdict || 'none'}' is not in [BUY NOW, WAIT, IMPORT ONLY, AVOID]. Set a valid verdict before publishing.`
-    );
+  // Gate 3: verdict — required for review and opinion only; news skips this gate
+  if (format !== 'news') {
+    const v = (draft.draft_verdict || '').trim().toUpperCase();
+    if (!VALID_VERDICTS.has(v)) {
+      throw new Error(
+        `[Gate 3 FAIL] Verdict '${draft.draft_verdict || 'none'}' is not in [BUY NOW, WAIT, IMPORT ONLY, AVOID]. Set a valid verdict before publishing.`
+      );
+    }
   }
 
   return { warnings };

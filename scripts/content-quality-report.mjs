@@ -1,4 +1,4 @@
-/**
+﻿/**
  * BOI Content Quality Report v2
  * Queries content_quality_issues and content_fix_log for last 24h.
  * Sends HTML email digest via Resend to BRIEF_EMAIL.
@@ -28,7 +28,7 @@ try {
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const RESEND_KEY   = process.env.RESEND_API_KEY;
+const RESEND_KEY   = (process.env.RESEND_API_KEY || '').replace(/^﻿/, '').trim();
 const TO_EMAIL     = process.env.BRIEF_EMAIL;
 const SITE_URL     = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://bricksofindia.com').replace(/\/$/, '');
 

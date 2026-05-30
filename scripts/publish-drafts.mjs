@@ -86,13 +86,15 @@ function lintDraft(draft) {
     else throw new Error('[Gate 2 FAIL] No Indian comparison in India Paragraph');
   }
 
-  // Gate 3: verdict (required for news/review; community content with null verdict is allowed as warning)
-  const v = (draft.draft_verdict || '').trim().toUpperCase();
-  if (draft.draft_verdict !== null && !VALID_VERDICTS.has(v)) {
-    throw new Error(`[Gate 3 FAIL] Verdict '${draft.draft_verdict}' not in [BUY NOW, WAIT, IMPORT ONLY, AVOID]`);
-  }
-  if (draft.draft_verdict === null) {
-    warnings.push('[Gate 3 WARN] No verdict — publishing as community/informational content');
+  // Gate 3: verdict — required for review and opinion only; news skips this gate
+  if (format !== 'news') {
+    const v = (draft.draft_verdict || '').trim().toUpperCase();
+    if (draft.draft_verdict !== null && !VALID_VERDICTS.has(v)) {
+      throw new Error(`[Gate 3 FAIL] Verdict '${draft.draft_verdict}' not in [BUY NOW, WAIT, IMPORT ONLY, AVOID]`);
+    }
+    if (draft.draft_verdict === null) {
+      warnings.push('[Gate 3 WARN] No verdict — publishing as community/informational content');
+    }
   }
 
   return { warnings };
