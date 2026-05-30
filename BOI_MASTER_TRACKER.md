@@ -768,6 +768,65 @@ Decision deferred to Day 3 open.
 
 ---
 
+---
+
+## Day 31 — 2026-05-31 (UTC: 2026-05-30T20:39)
+
+**HEAD:** `329f983`
+**Health Score:** 96 (+1 — scraper gap closed, integrity layer complete to 23 checks)
+**Session commits:** 4
+
+### What shipped
+
+| Commit | Fix |
+|--------|-----|
+| `323ea52` | Blog H1 "GUIDES & OPINION" → "BLOG"; guides card branded gradient fallback (saffron/red/blue per category + BOI wordmark + stud SVG); prose-p:mb-5 + heading spacing on blog/[slug] and guides/[slug] |
+| `a241dd2` | Prose spacing on opinion/[slug], news/[slug], reviews/[slug]; MyBrickHouse URL mybrickhouse.in → lego.mybrickhouse.com in lab/which-set; Rivendell lego_mrp_inr 45000 → 50399 |
+| `11a0b89` | MBH scraper: name-based set number fallback in parseProduct() — knownSetsByName Map built from sets.name; fixes silent drop of 10316 Rivendell + 30736 White Seaplane + 30734 Mini F1 Academy Car; store_prices 2597 → 2600 |
+| `329f983` | technical-hygiene.mjs: checks 16–23 added (reviewed set prices, verdict enum, reviewed set MRP, null draft_title, per-store baseline, Tier-1 RSS freshness, guide image tracker, review routing guard); 6 dead debug scripts deleted |
+
+### DB-only changes (no code commit)
+- `reviews.verdict`: BUY → BUY NOW on 3 seeded rows (McLaren P1, Rivendell, NHM) — matches VALID_VERDICTS enum
+- `sets.lego_mrp_inr`: 10316 Rivendell patched 45000 → 50399 (confirmed from MBH live page)
+
+### DB state at close
+
+| Table | Count | Notes |
+|-------|-------|-------|
+| news_articles | 53 | +1 since Day 30 |
+| blog_posts | 22 | — |
+| reviews | 3 | verdicts all BUY NOW |
+| guides | 9 | featured_image_url null — fallback gradient live |
+| store_prices | 2,600 | +3 MBH (Rivendell, White Seaplane, Mini F1 Car) |
+| pending_drafts | 463 | approved:355, draft:72, published:32, rejected:4 |
+
+### Integrity layer — complete picture
+- `technical-hygiene.mjs`: Checks 1–23 (was 1–15, added 16–23 today)
+- `health-check.mjs`: 10 daily checks (unchanged)
+- `catalogue-audit.yml`: 7 inline checks (unchanged)
+- `code-audit.yml`: ESLint + tsc + npm audit (unchanged)
+- `content-verify.mjs`: 11 CQS lint checks (unchanged)
+
+### Blockers (unchanged from Day 30)
+1. **IG System User Token** — hard deadline Jul 16
+2. **GSC setup** — 15 min manual task, unblocks GEO entirely
+3. **CE-01 Builder Spotlights ×2** — Jul 15
+
+### Known acceptable state
+- `guides.featured_image_url`: 9/9 null — branded fallback renders
+- `news_articles.hero_image`: 3 null — MOC articles, no set number
+- `sets.lego_mrp_inr`: 86% null — expected, 2020+ sets only
+- Review-format drafts (107): publish to `news_articles` by design
+- generate+publish not run today — 355 approved drafts queued, quota resets ~12:30 IST
+
+### Open next session
+1. Run `generate-approved-drafts.js --limit 15` then `publish-drafts.mjs --limit 15`
+2. GSC setup — DNS TXT → verify → sitemap submit → request indexing 10 pages
+3. CE-01 Builder Spotlight — check inbox + Reddit DMs
+4. Visual renderer 3 ISSUES — diagnose in content_quality_issues table
+
+---
+
 ## Legend
 
 - ✅ Done
