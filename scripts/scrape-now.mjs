@@ -79,6 +79,10 @@ const STORES = [
   },
 ];
 
+// Module-level name lookup: lowercased set name → set_number. Populated in main().
+// Used by parseProduct() MBH fallback when title/handle contains no set number.
+const knownSetsByName = new Map();
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 /** Exponential-backoff retry: 2 s, 4 s, 8 s */
@@ -161,7 +165,12 @@ function parseProduct(product, storeId, domain) {
   // that store; the knownSets filter downstream is the real guard.
   if (storeId !== 'mybrickhouse' && !titleLower.includes('lego') && !handleLower.includes('lego')) return null;
 
-  const setNumber = extractSetNumber(product.title, product.handle);
+  let setNumber = extractSetNumber(product.title, product.handle);
+  if (!setNumber && storeId === 'mybrickhouse') {
+    // Fallback: match against set name when title/handle omit the set number
+    const cleaned = (product.title ?? '').toLowerCase().replace(/[™®©]/g, '').replace(/\s+/g, ' ').trim().replace(/^the\s+/, '');
+    setNumber = knownSetsByName.get(cleaned) ?? null;
+  }
   if (!setNumber) return null;
 
   if (!product.variants?.length) return null;
@@ -243,13 +252,19 @@ async function main() {
   for (let offset = 0; ; offset += PAGE) {
     const { data: page, error: pageError } = await supabase
       .from('sets')
-      .select('set_number')
+      .select('set_number, name')
       .range(offset, offset + PAGE - 1);
     if (pageError) {
       console.error('Failed to load sets:', pageError.message);
       process.exit(1);
     }
-    for (const s of page ?? []) knownSets.add(s.set_number);
+    for (const s of page ?? []) {
+      knownSets.add(s.set_number);
+      if (s.name) knownSetsByName.set(
+        s.name.toLowerCase().replace(/[™®©\s]+/g, ' ').trim(),
+        s.set_number,
+      );
+    }
     if ((page ?? []).length < PAGE) break;
   }
   console.log(`Loaded ${knownSets.size} known sets from Supabase.\n`);
