@@ -100,6 +100,72 @@ function lintDraft(draft) {
   return { warnings };
 }
 
+// ── YouTube hero image fallback chain ────────────────────────────────────────
+
+const YOUTUBE_SRC_RE = /youtube\.com|youtu\.be/i;
+const YOUTUBE_IMG_RE = /ytimg\.com|yt3\.ggpht\.com|youtube\.com\/vi\//i;
+
+const LEGO_THEME_KEYWORDS = [
+  'Technic','City','Star Wars','Harry Potter','Ideas','Icons','Creator','Ninjago',
+  'Friends','Marvel','DC','Disney','Minecraft','Speed Champions','Architecture',
+  'Botanical','BrickHeadz','Duplo','Monkie Kid','Jurassic World','Super Mario',
+  'Dreamzzz','Classic','Seasonal','DOTS','Dimensions','Hidden Side',
+];
+
+async function resolveYouTubeHeroImage(title, body) {
+  const rbKey  = process.env.REBRICKABLE_API_KEY;
+  const rbHdrs = { 'User-Agent': UA, ...(rbKey ? { Authorization: `key ${rbKey}` } : {}) };
+  const combined = `${title ?? ''} ${body ?? ''}`;
+
+  // Steps 1+2: extract distinct 4–6 digit set numbers, try Rebrickable for each
+  const seen = new Set();
+  const setNums = [];
+  const re = /\b(\d{4,6})\b/g;
+  let m;
+  while ((m = re.exec(combined)) !== null) {
+    if (!seen.has(m[1])) { seen.add(m[1]); setNums.push(m[1]); }
+  }
+  for (const num of setNums.slice(0, 5)) {
+    try {
+      const res = await fetch(
+        `https://rebrickable.com/api/v3/lego/sets/${num}-1/`,
+        { headers: rbHdrs, signal: AbortSignal.timeout(5000) },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        if (data.set_img_url) {
+          console.log(`  [yt-fallback] set ${num} → ${data.set_img_url.slice(0, 70)}`);
+          return data.set_img_url;
+        }
+      }
+    } catch { /* try next */ }
+  }
+
+  // Step 3: theme keyword → Rebrickable search → first set with image
+  const titleLower = (title ?? '').toLowerCase();
+  const theme = LEGO_THEME_KEYWORDS.find(t => titleLower.includes(t.toLowerCase()));
+  if (theme) {
+    try {
+      const res = await fetch(
+        `https://rebrickable.com/api/v3/lego/sets/?search=${encodeURIComponent(theme)}&ordering=-year&page_size=5`,
+        { headers: rbHdrs, signal: AbortSignal.timeout(5000) },
+      );
+      if (res.ok) {
+        const data = await res.json();
+        const hit = (data.results ?? []).find(s => s.set_img_url);
+        if (hit?.set_img_url) {
+          console.log(`  [yt-fallback] theme "${theme}" → ${hit.set_img_url.slice(0, 70)}`);
+          return hit.set_img_url;
+        }
+      }
+    } catch { /* fall through */ }
+  }
+
+  // Step 4: no image resolved
+  console.log('  [yt-fallback] no image resolved — hero will be null');
+  return null;
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function generateSlug(title) {
@@ -187,8 +253,12 @@ for (const draft of queue) {
     slug = `${baseSlug.slice(0, 57)}-${attempt++}`;
   }
 
-  // OG image
+  // OG image — with YouTube fallback chain
   let heroImage = await fetchOgImage(draft.source_url);
+  if (YOUTUBE_SRC_RE.test(draft.source_url) || (heroImage !== null && YOUTUBE_IMG_RE.test(heroImage))) {
+    console.log('  [yt] YouTube source — running Rebrickable fallback chain');
+    heroImage = await resolveYouTubeHeroImage(draft.draft_title, draft.source_title);
+  }
   if (heroImage) {
     try {
       const imgRes = await fetch(heroImage, { method: 'HEAD', signal: AbortSignal.timeout(5000) });

@@ -264,6 +264,75 @@ async function sendLintAlert(draftTitle: string, gateMessage: string): Promise<v
   }
 }
 
+// ── YouTube hero image fallback chain ────────────────────────────────────────
+
+const YOUTUBE_SRC_RE = /youtube\.com|youtu\.be/i;
+const YOUTUBE_IMG_RE = /ytimg\.com|yt3\.ggpht\.com|youtube\.com\/vi\//i;
+
+const LEGO_THEME_KEYWORDS = [
+  'Technic','City','Star Wars','Harry Potter','Ideas','Icons','Creator','Ninjago',
+  'Friends','Marvel','DC','Disney','Minecraft','Speed Champions','Architecture',
+  'Botanical','BrickHeadz','Duplo','Monkie Kid','Jurassic World','Super Mario',
+  'Dreamzzz','Classic','Seasonal','DOTS','Dimensions','Hidden Side',
+];
+
+async function resolveYouTubeHeroImage(
+  title: string | null,
+  body: string | null,
+): Promise<string | null> {
+  const rbKey  = process.env.REBRICKABLE_API_KEY;
+  const rbHdrs = { 'User-Agent': UA, ...(rbKey ? { Authorization: `key ${rbKey}` } : {}) };
+  const combined = `${title ?? ''} ${body ?? ''}`;
+
+  // Steps 1+2: extract distinct 4–6 digit set numbers, try Rebrickable for each
+  const seen = new Set<string>();
+  const setNums: string[] = [];
+  const re = /\b(\d{4,6})\b/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(combined)) !== null) {
+    if (!seen.has(m[1])) { seen.add(m[1]); setNums.push(m[1]); }
+  }
+  for (const num of setNums.slice(0, 5)) {
+    try {
+      const res = await fetch(
+        `https://rebrickable.com/api/v3/lego/sets/${num}-1/`,
+        { headers: rbHdrs, signal: AbortSignal.timeout(5000) },
+      );
+      if (res.ok) {
+        const data = await res.json() as { set_img_url?: string };
+        if (data.set_img_url) {
+          console.log(`[publish:yt] set ${num} → ${data.set_img_url.slice(0, 70)}`);
+          return data.set_img_url;
+        }
+      }
+    } catch { /* try next set number */ }
+  }
+
+  // Step 3: theme keyword → Rebrickable search → first set with image
+  const titleLower = (title ?? '').toLowerCase();
+  const theme = LEGO_THEME_KEYWORDS.find(t => titleLower.includes(t.toLowerCase()));
+  if (theme) {
+    try {
+      const res = await fetch(
+        `https://rebrickable.com/api/v3/lego/sets/?search=${encodeURIComponent(theme)}&ordering=-year&page_size=5`,
+        { headers: rbHdrs, signal: AbortSignal.timeout(5000) },
+      );
+      if (res.ok) {
+        const data = await res.json() as { results?: Array<{ set_img_url?: string }> };
+        const hit = (data.results ?? []).find(s => s.set_img_url);
+        if (hit?.set_img_url) {
+          console.log(`[publish:yt] theme "${theme}" → ${hit.set_img_url.slice(0, 70)}`);
+          return hit.set_img_url;
+        }
+      }
+    } catch { /* fall through */ }
+  }
+
+  // Step 4: all chains exhausted — publish without hero image
+  console.log('[publish:yt] no image resolved — hero will be null');
+  return null;
+}
+
 // ── publishOneDraft — shared core, called by publishDraft and publishAll ──────
 
 type PublishableDraft = {
@@ -307,6 +376,12 @@ async function publishOneDraft(
 
   let heroImage = await fetchOgImage(draft.source_url);
   console.log(`[publish] og=${!!heroImage} url=${draft.source_url.slice(0, 60)}`);
+
+  // YouTube sources: bypass thumbnail CDN, resolve proper set image via Rebrickable chain
+  if (YOUTUBE_SRC_RE.test(draft.source_url) || (heroImage !== null && YOUTUBE_IMG_RE.test(heroImage))) {
+    console.log('[publish] YouTube source detected — running Rebrickable fallback chain');
+    heroImage = await resolveYouTubeHeroImage(draft.draft_title, draft.draft_body);
+  }
 
   if (heroImage) {
     try {
