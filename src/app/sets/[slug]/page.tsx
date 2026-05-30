@@ -2,7 +2,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import { createServerClient, supabase } from '@/lib/supabase';
+import { createServerClient } from '@/lib/supabase';
 import { getSet } from '@/lib/rebrickable';
 import { formatPrice, slugify, whatsappShareUrl } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
@@ -25,9 +25,10 @@ const TRACKED_STORES = [
 
 async function getSetData(slug: string) {
   const setNumber = slug.split('-')[0];
+  const client = createServerClient();
 
   // Primary path: Supabase
-  const { data: set } = await supabase
+  const { data: set } = await client
     .from('sets')
     .select('*, reviews(*)')
     .eq('set_number', setNumber)
@@ -121,15 +122,30 @@ export default async function SetPage({ params }: Props) {
   const hasToycra = !!storePriceMap.get('toycra')?.price_inr;
 
   // Related sets
-  let relatedSets = null;
+  let relatedSets: any[] = [];
+  const relatedPriceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
   if (set.theme) {
-    const { data } = await supabase
+    const { data: relData } = await serverClient
       .from('sets')
-      .select('*, prices(*)')
+      .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr')
       .eq('theme', set.theme)
       .neq('set_number', set.set_number)
       .limit(4);
-    relatedSets = data;
+    relatedSets = relData ?? [];
+
+    const relNumbers = relatedSets.map((s: any) => s.set_number);
+    if (relNumbers.length > 0) {
+      const { data: relPrices } = await serverClient
+        .from('store_prices')
+        .select('set_id, price_inr, store_id, product_url')
+        .in('set_id', relNumbers);
+      for (const rp of (relPrices ?? []) as { set_id: string; price_inr: number; store_id: string; product_url: string | null }[]) {
+        const existing = relatedPriceMap[rp.set_id];
+        if (!existing || rp.price_inr < existing.price_inr) {
+          relatedPriceMap[rp.set_id] = { price_inr: rp.price_inr, store_name: rp.store_id, buy_url: rp.product_url ?? null };
+        }
+      }
+    }
   }
 
   const review = set.reviews?.[0] || null;
@@ -414,14 +430,13 @@ export default async function SetPage({ params }: Props) {
         </div>
 
         {/* Related Sets */}
-        {relatedSets && relatedSets.length > 0 && (
+        {relatedSets.length > 0 && (
           <div className="mt-12">
             <h2 className="font-heading text-dark text-3xl mb-6">MORE {set.theme?.toUpperCase()} SETS</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {relatedSets.map((relSet: any) => {
-                const rPrices = (relSet.prices || []).filter((p: any) => p.is_active && p.price_inr);
-                const bestP = rPrices.sort((a: any, b: any) => a.price_inr - b.price_inr)[0] || null;
-                return <SetCard key={relSet.id} set={relSet} bestPrice={bestP} priceCount={rPrices.length} />;
+                const bestP = relatedPriceMap[relSet.set_number] ?? null;
+                return <SetCard key={relSet.id} set={relSet} bestPrice={bestP} priceCount={bestP ? 1 : 0} />;
               })}
             </div>
           </div>
