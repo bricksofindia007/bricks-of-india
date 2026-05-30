@@ -52,6 +52,9 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 // Set via workflow_dispatch input `dry_run: true` — reads only, no Supabase writes.
 const DRY_RUN = process.env.DRY_RUN === 'true';
 
+const RESEND_KEY  = (process.env.RESEND_API_KEY || '').replace(/^﻿/, '').trim();
+const ALERT_EMAIL = process.env.BRIEF_EMAIL || 'abhinav@bricksofindia.com';
+
 // ── Store config ─────────────────────────────────────────────────────────────
 // Toycra has a dedicated LEGO collection — avoids paging through thousands
 // of non-LEGO toys. MyBrickHouse and Jaiman are LEGO-heavy so general path works.
@@ -176,6 +179,48 @@ function parseProduct(product, storeId, domain) {
   return { setNumber, storeId, priceInr, inStock, productUrl };
 }
 
+// ── Scraper alert ────────────────────────────────────────────────────────────
+
+async function sendScraperAlert(storeName, storeId, timestamp) {
+  // Fetch last known row count from store_prices for context
+  let lastCount = null;
+  try {
+    const { count } = await supabase
+      .from('store_prices')
+      .select('*', { count: 'exact', head: true })
+      .eq('store_id', storeId);
+    lastCount = count;
+  } catch { /* non-fatal */ }
+
+  if (!RESEND_KEY) {
+    console.warn(`  [alert] RESEND_API_KEY not set — skipping email alert for ${storeName}`);
+    return;
+  }
+  try {
+    const { Resend } = await import('resend');
+    const resend = new Resend(RESEND_KEY);
+    await resend.emails.send({
+      from:    'Bricks of India <abhinav@bricksofindia.com>',
+      to:      ALERT_EMAIL,
+      subject: `⚠️ BOI Scraper Alert — ${storeName} returned 0 rows`,
+      text:    [
+        `Store:             ${storeName}`,
+        `Timestamp:         ${timestamp}`,
+        `Matched rows:      0`,
+        `Last known count:  ${lastCount ?? 'unknown'} rows in store_prices`,
+        '',
+        'This may indicate a scraper failure, website structure change, or store downtime.',
+        '',
+        'Check run logs:',
+        'https://github.com/bricksofindia007/bricks-of-india/actions/workflows/scrape-prices.yml',
+      ].join('\n'),
+    });
+    console.warn(`  [alert] Email sent — ${storeName} returned 0 rows`);
+  } catch (err) {
+    console.error(`  [alert] Email failed: ${err.message}`);
+  }
+}
+
 // ── Main ─────────────────────────────────────────────────────────────────────
 
 async function main() {
@@ -243,9 +288,12 @@ async function main() {
     }
 
     if (allMatched.length === 0) {
+      console.warn(`  WARN: 0 rows matched for ${store.name} — sending alert`);
+      if (!DRY_RUN) await sendScraperAlert(store.name, store.id, now);
       summary.push({ store: store.name, fetched: allProducts.length, parsed: parsed.length, matched: 0, upserted: 0 });
       continue;
     }
+    console.log(`  Row count: ${allMatched.length} matched rows for ${store.name}`);
 
     // ── DEDUPLICATE by set_id ───────────────────────────────────────────────
     // A store may list the same LEGO set multiple times (different pack sizes,

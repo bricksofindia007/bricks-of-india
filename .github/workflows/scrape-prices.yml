@@ -37,6 +37,8 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL: ${{ secrets.BRIEF_EMAIL }}
           # REBRICKABLE_API_KEY only needed if you extend the scraper to
           # fetch sets not yet in Supabase. Not required for price-only scraping.
           REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
