@@ -261,6 +261,104 @@ async function sendLintAlert(draftTitle: string, gateMessage: string): Promise<v
   }
 }
 
+// ── publishOneDraft — shared core, called by publishDraft and publishAll ──────
+
+type PublishableDraft = {
+  id: string;
+  draft_title: string | null;
+  draft_body: string | null;
+  draft_verdict: string | null;
+  draft_format: string | null;
+  word_count: number | null;
+  source_url: string;
+  source_title: string | null;
+};
+
+async function publishOneDraft(
+  draft: PublishableDraft,
+  supabase: ReturnType<typeof createServerClient>,
+  sendAlerts: boolean,
+): Promise<{ path: string; slug: string }> {
+  if (!draft.draft_body) throw new Error('Draft has no generated body');
+
+  let lintWarnings: string[] = [];
+  try {
+    ({ warnings: lintWarnings } = lintDraft(draft));
+  } catch (lintErr: any) {
+    if (sendAlerts) await sendLintAlert(draft.draft_title || draft.source_title || 'Untitled', lintErr.message);
+    throw lintErr;
+  }
+  if (lintWarnings.length > 0) console.warn('[publish lint]', lintWarnings.join(' | '));
+
+  const format             = draft.draft_format || 'news';
+  const { table, path, category } = resolveTarget(format);
+  const title              = draft.draft_title || draft.source_title || 'Untitled';
+  const baseSlug           = generateSlug(title);
+
+  let slug = baseSlug, attempt = 2;
+  while (true) {
+    const { data: existing } = await supabase.from(table).select('id').eq('slug', slug).maybeSingle();
+    if (!existing) break;
+    slug = `${baseSlug.slice(0, 57)}-${attempt++}`;
+  }
+
+  let heroImage = await fetchOgImage(draft.source_url);
+  console.log(`[publish] og=${!!heroImage} url=${draft.source_url.slice(0, 60)}`);
+
+  if (heroImage) {
+    try {
+      const imgRes = await fetch(heroImage, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+      if (!imgRes.ok) {
+        const gate4Err = new Error(`[Gate 4 FAIL] Hero image URL returned HTTP ${imgRes.status}`);
+        if (sendAlerts) await sendLintAlert(draft.draft_title || draft.source_title || 'Untitled', gate4Err.message);
+        throw gate4Err;
+      }
+    } catch (err: any) {
+      if (err.message?.startsWith('[Gate 4 FAIL]')) throw err;
+      console.warn(`[Gate 4 WARN] hero image check failed (${err.message}) — proceeding`);
+    }
+  }
+
+  if (heroImage) {
+    const { data: imgConflict } = await supabase.from(table).select('id').eq('hero_image', heroImage).maybeSingle();
+    if (imgConflict) {
+      heroImage = null;
+      const setNum = extractSetNumber(draft.source_url, draft.source_title ?? null);
+      if (setNum) {
+        const { data: setRow } = await supabase.from('sets').select('image_url').eq('set_number', setNum).maybeSingle();
+        const candidate = setRow?.image_url ?? null;
+        if (candidate) {
+          const { data: fallbackConflict } = await supabase.from(table).select('id').eq('hero_image', candidate).maybeSingle();
+          if (!fallbackConflict) {
+            try {
+              const fbRes = await fetch(candidate, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+              if (fbRes.ok) heroImage = candidate;
+            } catch { /* drop to null */ }
+          }
+        }
+      }
+    }
+  }
+
+  const cleanBody = draft.draft_body.replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '');
+  const excerpt   = cleanBody.replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 160);
+  const now       = new Date().toISOString();
+
+  const { error: insertErr } = await supabase.from(table).insert({
+    title, slug, content: cleanBody, category, excerpt,
+    published_at: now, seo_title: title, seo_description: excerpt,
+    ...(heroImage ? { hero_image: heroImage } : {}),
+  });
+  if (insertErr) throw new Error(`Insert failed (${table}): ${insertErr.message}`);
+
+  await supabase.from('pending_drafts').update({ status: 'published', published_url: `${path}/${slug}` }).eq('id', draft.id);
+  revalidatePath(path);
+
+  return { path, slug };
+}
+
+// ── publishDraft — single draft via Publish button ────────────────────────────
+
 export async function publishDraft(formData: FormData) {
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
@@ -273,104 +371,40 @@ export async function publishDraft(formData: FormData) {
     .single();
 
   if (fetchErr || !draft) throw new Error(`Draft not found: ${fetchErr?.message}`);
-  if (!draft.draft_body)  throw new Error('Draft has no generated body — click Generate Article first');
 
-  let lintWarnings: string[] = [];
-  try {
-    ({ warnings: lintWarnings } = lintDraft(draft));
-  } catch (lintErr: any) {
-    await sendLintAlert(draft.draft_title || draft.source_title || 'Untitled', lintErr.message);
-    throw lintErr;
-  }
-  if (lintWarnings.length > 0) console.warn('[publishDraft lint]', lintWarnings.join(' | '));
-
-  const format   = draft.draft_format || 'news';
-  const { table, path, category } = resolveTarget(format);
-  const title    = draft.draft_title || draft.source_title || 'Untitled';
-  const baseSlug = generateSlug(title);
-
-  let slug = baseSlug, attempt = 2;
-  while (true) {
-    const { data: existing } = await supabase.from(table).select('id').eq('slug', slug).maybeSingle();
-    if (!existing) break;
-    slug = `${baseSlug.slice(0, 57)}-${attempt++}`;
-  }
-
-  let heroImage = await fetchOgImage(draft.source_url);
-  console.log(`[publish] source_url=${draft.source_url} og_image_found=${!!heroImage} image_url=${heroImage?.slice(0, 80) ?? 'none'}`);
-
-  if (heroImage) {
-    try {
-      const imgRes = await fetch(heroImage, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
-      if (!imgRes.ok) {
-        const gate4Err = new Error(`[Gate 4 FAIL] Hero image URL returned HTTP ${imgRes.status} — source may have a broken OG image.`);
-        await sendLintAlert(draft.draft_title || draft.source_title || 'Untitled', gate4Err.message);
-        throw gate4Err;
-      }
-    } catch (err: any) {
-      if (err.message?.startsWith('[Gate 4 FAIL]')) throw err;
-      console.warn(`[Gate 4 WARN] Could not verify hero image (${err.message}) — proceeding.`);
-    }
-  }
-
-  if (heroImage) {
-    const { data: imgConflict } = await supabase.from(table).select('id').eq('hero_image', heroImage).maybeSingle();
-    if (imgConflict) {
-      console.warn(`[publish] hero image already used in ${table} — attempting Rebrickable fallback`);
-      heroImage = null;
-
-      const setNum = extractSetNumber(draft.source_url, draft.source_title ?? null);
-      if (setNum) {
-        const { data: setRow } = await supabase
-          .from('sets')
-          .select('image_url')
-          .eq('set_number', setNum)
-          .maybeSingle();
-        const candidate = setRow?.image_url ?? null;
-        if (candidate) {
-          const { data: fallbackConflict } = await supabase
-            .from(table)
-            .select('id')
-            .eq('hero_image', candidate)
-            .maybeSingle();
-          if (!fallbackConflict) {
-            try {
-              const fbRes = await fetch(candidate, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
-              if (fbRes.ok) {
-                heroImage = candidate;
-                console.log(`[publish] Rebrickable fallback accepted: ${candidate.slice(0, 80)}`);
-              } else {
-                console.warn(`[publish] Rebrickable fallback returned HTTP ${fbRes.status} — dropping to null`);
-              }
-            } catch {
-              console.warn('[publish] Rebrickable fallback HEAD check timed out — dropping to null');
-            }
-          } else {
-            console.warn('[publish] Rebrickable fallback image also already in use — dropping to null');
-          }
-        } else {
-          console.warn(`[publish] No sets.image_url found for set ${setNum} — dropping to null`);
-        }
-      } else {
-        console.warn('[publish] Could not extract set number from source — dropping to null');
-      }
-    }
-  }
-
-  const cleanBody = draft.draft_body.replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '');
-
-  const excerpt = cleanBody.replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 160);
-  const now = new Date().toISOString();
-
-  const { error: insertErr } = await supabase.from(table).insert({
-    title, slug, content: cleanBody, category, excerpt,
-    published_at: now, seo_title: title, seo_description: excerpt,
-    ...(heroImage ? { hero_image: heroImage } : {}),
-  });
-  if (insertErr) throw new Error(`Publish failed (${table}): ${insertErr.message}`);
-
-  await supabase.from('pending_drafts').update({ status: 'published', published_url: `${path}/${slug}` }).eq('id', id);
-
-  revalidatePath(path);
+  await publishOneDraft(draft, supabase, true);
   redirect(redirectTo);
+}
+
+// ── publishAll — batch publish up to 50 approved drafts with bodies ───────────
+
+export async function publishAll(): Promise<{ published: number; failed: number; errors: string[] }> {
+  const pw = cookies().get('boi_admin')?.value;
+  if (!pw || pw !== process.env.ADMIN_PASSWORD) {
+    return { published: 0, failed: 0, errors: ['Unauthorized'] };
+  }
+
+  const supabase = createServerClient();
+  const { data: drafts } = await supabase
+    .from('pending_drafts')
+    .select('id, draft_title, draft_body, draft_verdict, draft_format, word_count, source_url, source_title')
+    .eq('status', 'approved')
+    .not('draft_body', 'is', null)
+    .order('updated_at', { ascending: true })
+    .limit(50);
+
+  let published = 0, failed = 0;
+  const errors: string[] = [];
+
+  for (const draft of drafts ?? []) {
+    try {
+      await publishOneDraft(draft as PublishableDraft, supabase, false);
+      published++;
+    } catch (err: any) {
+      failed++;
+      errors.push(`${(draft.draft_title || 'Untitled').slice(0, 50)}: ${err.message}`);
+    }
+  }
+
+  return { published, failed, errors };
 }

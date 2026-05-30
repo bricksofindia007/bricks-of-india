@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { createServerClient } from '@/lib/supabase';
 import { login, logout, approveDraft, rejectDraft, approveAll, generateArticle, publishDraft } from './actions';
 import { GenerateBatchButton } from './GenerateBatchButton';
+import { PublishAllButton } from './PublishAllButton';
 import { DraftBodyExpander } from './DraftBodyExpander';
 
 export const metadata: Metadata = {
@@ -337,12 +338,18 @@ export default async function AdminPendingPage({ searchParams }: Props) {
           const awaitingCount = statusFilter === 'approved'
             ? draftsToShow.filter((d: any) => !d.draft_body).length
             : 0;
+          const readyCount = statusFilter === 'approved'
+            ? draftsToShow.filter((d: any) => !!d.draft_body).length
+            : 0;
           return (
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
               <p style={{ fontSize: 14, color: '#6B7280', margin: 0 }}>
                 {error ? `Error: ${error.message}` : `${draftsToShow.length} ${statusFilter} draft${draftsToShow.length !== 1 ? 's' : ''}`}
                 {awaitingCount > 0 && (
                   <span style={{ marginLeft: 8, fontSize: 12, color: '#92400E' }}>({awaitingCount} awaiting generation)</span>
+                )}
+                {readyCount > 0 && (
+                  <span style={{ marginLeft: 8, fontSize: 12, color: '#16A34A' }}>({readyCount} ready to publish)</span>
                 )}
               </p>
               {statusFilter === 'draft' && draftsToShow.length > 0 && (
@@ -355,8 +362,11 @@ export default async function AdminPendingPage({ searchParams }: Props) {
                   </button>
                 </form>
               )}
-              {statusFilter === 'approved' && awaitingCount > 0 && (
-                <GenerateBatchButton count={awaitingCount} />
+              {statusFilter === 'approved' && (readyCount > 0 || awaitingCount > 0) && (
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {readyCount > 0 && <PublishAllButton count={readyCount} />}
+                  {awaitingCount > 0 && <GenerateBatchButton count={awaitingCount} />}
+                </div>
               )}
             </div>
           );
