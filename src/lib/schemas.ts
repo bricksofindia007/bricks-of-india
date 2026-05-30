@@ -127,10 +127,10 @@ type ArticleData = {
   updated_at?: string | null;
 };
 
-export function buildArticleSchema(article: ArticleData) {
+export function buildArticleSchema(article: ArticleData, type: 'NewsArticle' | 'Article' = 'NewsArticle') {
   return {
     '@context': 'https://schema.org',
-    '@type': 'Article',
+    '@type': type,
     headline: article.title,
     description: article.excerpt,
     datePublished: article.published_at,
