@@ -2,8 +2,8 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-29 (Day 29 — Content Quality System v2 live, 12 articles published (news: 26→38), 69 content issues fixed, CE-01 outreach done, first CQS run complete)
-> **Health Score: 95** — GEO score < 50 is the sole drag (-5). CQS v2 running daily. 38 news articles live. CE-01 outreach done. Voice test passed.
+> **Last updated:** 2026-05-30 (Day 30 — LAB-09 Price Drop Board live, publish-drafts GHA workflow, social automation fixed (2 days down), GEO/llms.txt expanded, India Paragraph prompt hardened, 5 articles published (news: 47→52))
+> **Health Score: 95** — GEO score < 50 is the sole drag (-5). 52 news articles live. 8 of 9 Lab tools live. CE-01 outreach done. CQS v2 running daily.
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -130,8 +130,8 @@ JSON parses. If it doesn't, fix before doing anything else.
 
 ## Current blockers (top 3)
 
-1. **Next batch generate + publish** — Gemini daily quota exhausted 2026-05-29 after 1 article (prior 12-article batch burned most quota). Quota resets midnight Pacific (~12:30 IST). Run `generate-approved-drafts.js --limit 15` then `publish-drafts.mjs --limit 15` first thing Day 30. ~274 approved drafts awaiting bodies. Target: /news to 50+.
-2. **IG System User Token deferred** — current 60-day long-lived token expires ~2026-07-23. Requires manual re-exchange by 2026-07-16. Permanent fix (Meta Business Manager System User) deferred.
+1. **IG System User Token** — current 60-day token expires ~2026-07-23. Manual re-exchange required by **2026-07-16** (hard deadline). Permanent fix (Meta Business Manager System User) deferred.
+2. **GSC setup** — Google Search Console not yet verified. Zero Google indexing = no AI overview citations. Manual: DNS TXT via Cloudflare, sitemap submit, request indexing 10 key pages. ~15 min. Unblocks GEO score improvement.
 3. **Visual renderer first live run** — `node --env-file=.env.local scripts/visual-renderer.mjs` not yet run against live site. P2.
 
 > CE-01 outreach ✅ DONE 2026-05-29 — r/IndiaLEGO + AFOL India Facebook posted. Awaiting respondents.
@@ -214,6 +214,7 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 | Deploy | Date | Commit | Contents |
 |--------|------|--------|----------|
+| Day 30 close | 2026-05-30 | `9744990` | Social automation: apt-get update fix (libcaca0 mirror 404, 2 days down); caption writer: piece count 0→N/A, monsoon guardrail, asterisk strip. GEO: llms.txt 24→60 lines (all lab tools + guides + community + data sourcing), /community added to sitemap, NewsArticle schema on news pages. reset-failing-drafts.mjs tool. PublishAllButton → GHA link (publishAll Server Action removed). LAB-09 /lab/price-drops (price_history drop detection, store/theme/% filters, saffron cards, ABHINAV12). publish-drafts.yml GHA workflow. India Paragraph MANDATORY COMPARISON hardening (explicit fork: price/no-price paths, aspirational comparison required for MOC/vintage). 5 articles published (news: 47→52). 9 stale draft bodies reset for regeneration. |
 | Day 29 close | 2026-05-29 | `aa23579` | CQS v2 (detect→fix→verify→report): content-linter.mjs (30+ checks), content-auto-fixer.mjs (11 fix types, 20% safety guard), visual-renderer.mjs (14 Playwright checks 2 viewports), content-verify.mjs, content-quality-report.mjs (6-section HTML email), content-quality.yml (daily 03:00 UTC); DB: content_quality_issues v2 (auto_fixable + fix_detail), content_image_registry, content_fix_log; publish-drafts.mjs batch terminal script (8e30fcc); fix-content-issues.mjs one-shot remediation (7c0a8ab); 12 articles published (news: 26→38); 69 content issues fixed; CE-01 outreach done; technical-hygiene.mjs +opinion slug. |
 | Day 28 close | 2026-05-28 | `4740e1b` | WEB-07 /opinion index + [slug] (blog_posts category=Opinion); CE-02 8 LEGO 101 guides live; CE-05 history-of-lego-in-india (ID 9); 3 opinion posts (certified-store/manufacture/star-wars); LAB-05 CMF Tracker /lab/cmf-tracker; LAB-07 Budget Calculator /lab/budget-calculator; LAB-08 Retirement Radar /lab/retiring-soon; CATALOG-04 v2 (retirement_date, is_retiring_soon, retired columns + retiring-soon.yml weekly cron + update-retiring-soon.mjs); populate-mrp.js Phase 5 (3,039 retirement dates); Gemini prompt rewrite (few-shot examples, verdict fix); Eiffel Tower news article; Brickset App Directory listing. |
 | Day 26 GHA batch gen + hygiene | 2026-05-27 | `57844f3` | Phase 2: dispatch-only GenerateBatchButton (triggerBatchGeneration → GHA API); actions.ts stripped of duplicated helpers (imports from generate-body.ts); guide format fix (resolveTarget, WORD_COUNT_TARGETS, wordTarget in generate-body.ts + generate-approved-drafts.js); health-check expanded (Checks 8–11 + GITHUB_TOKEN env); technical-hygiene.yml (Monday 04:00 UTC, 6 checks + weekly email); GH_DISPATCH_TOKEN added to Netlify. |
@@ -242,6 +243,37 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### Day 30 — 2026-05-30 — LAB-09 Price Drop Board, publish-drafts GHA workflow, social automation fixes, prompt hardening
+
+Shipped:
+- **Social automation fixed** (commits `21e0de2`, `b2c5cf5`) — 2 days of failed runs caused by libcaca0 apt mirror 404 on GitHub Actions runner. Fix: `apt-get update -y` before install. Caption writer hardening: piece count `0`→`'N/A'` in image overlay; `monsoon`/`season`/`weather` banned from SYSTEM_PROMPT; `re.sub(r'\*+', '', caption)` strips Gemini markdown asterisks before any downstream use.
+- **GEO improvements** (commit `4a41d99`) — `public/llms.txt` expanded 24→60 lines (all 7 lab tools, guides, opinion, community, data sourcing details, Brickset listing note). `/community` added to `sitemap.ts` (was the only live route missing). `buildArticleSchema()` now accepts `type` param — news pages emit `NewsArticle`, blog/guides/opinion emit `Article`.
+- **`reset-failing-drafts.mjs`** (commit `59d28eb`) — reusable tool: fetches all `status=draft` drafts with bodies, runs Gate 2 lint, clears body + resets to `approved` for any that fail. Used twice this session to clear 44 then 9 stale bodies.
+- **Publish All → GHA** (commit `1159c53`) — `PublishAllButton` replaced with static link to `publish-drafts.yml` workflow dispatch page. Removes Netlify timeout risk. `publishAll()` Server Action removed. `publishOneDraft()` private helper extracted — shared by `publishDraft()` (single, with email alerts) and future batch paths.
+- **LAB-09 Price Drop Board** (commit `8e7eb1f`) — `/lab/price-drops` live. `store_prices` (current) vs oldest 5 pages of `price_history` in 30-day window per `(set_id, store_id)`. Min ₹200 or 5% drop threshold. Filters: store/theme/min%. Sort: biggest ₹ drop first. ABHINAV12 Toycra discount shown. Empty state. Saffron stripe cards — matches retiring-soon UI exactly. `lab-tools.ts` unlocked (`coming_soon`→`live`). Added to `sitemap.ts`. Lab count: 8 of 9 live.
+- **`publish-drafts.yml` GHA workflow** (commit `8e7eb1f`) — `workflow_dispatch` with `limit` input (default 15). Runs `publish-drafts.mjs` on GHA runners. Same secrets pattern as `generate-drafts.yml`.
+- **India Paragraph prompt hardening** (commit `9744990`) — `MANDATORY COMPARISON` heading replaces soft bullet. Explicit fork: (a) price data exists → compare actual INR to biryani/EMI/Spotify/etc.; (b) no price data (MOC/fan-build/vintage/unreleased) → aspirational estimate required e.g. "if officially sold, roughly 18 months of Netflix." Standalone sentence + number + Indian reference enforced. Hard close: "Do not skip this under any circumstances." Fixes 9 drafts cycling through Gate 2.
+- **5 articles published** — news: 47 → 52. First batch of 15 generated: 5 published, 10 failed Gate 2 (missing Indian comparison). All 10 reset. 9 regenerated with hardened prompt tonight; Tahu (224w, Gate 1) reset manually.
+
+**Health score recomputation (2026-05-30):**
+- Start: 100
+- P0 issues: 0 → 0
+- P1 issues: 0 → 0
+- Netlify minutes: unlimited (GHA builds) → 0
+- Last audit: CQS ran 2026-05-29 → 0
+- Voice test: passed → 0
+- GEO score 26 < 50 → **-5**
+- **Health score: 95**
+
+**DB state (2026-05-30):**
+- news_articles: 52 | blog_posts: 22 | guides: 9 | reviews: 3
+- pending_drafts: ~333 approved awaiting bodies | 9 reset with new prompt ready for next run
+- Lab tools: 8 of 9 live (LAB-09 added today)
+
+**Last commits this session:** `21e0de2` (social apt fix) → `b2c5cf5` (caption fixes) → `4a41d99` (GEO) → `59d28eb` (reset tool) → `1159c53` (PublishAll→GHA) → `8e7eb1f` (LAB-09 + publish workflow) → `9744990` (prompt hardening — HEAD)
+
+---
 
 ### Day 29 — 2026-05-29 — Content Quality System v2, 12 articles published, CE-01 outreach
 

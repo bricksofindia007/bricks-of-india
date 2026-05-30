@@ -1,8 +1,8 @@
 # Fan CoLab Application — Timeline Tracker
 
-**Application deadline:** August 2026 (~12 weeks from 2026-05-25)  
-**Last updated:** 2026-05-25  
-**Risk level:** HIGH — 4 of 5 required items not started. Critical path starts immediately.
+**Application deadline:** August 2026 (~9 weeks from 2026-05-30)  
+**Last updated:** 2026-05-30  
+**Risk level:** LOW — 4 of 5 required items DONE. Only CE-01 Builder Spotlights remain (outreach done 2026-05-29, awaiting respondents).
 
 ---
 
@@ -22,13 +22,13 @@ BOI's application target: August 2026. Requirements are inferred from RLFM guide
 
 | # | Item | Route | Status | Due |
 |---|------|-------|--------|-----|
-| 1 | `/guides` route — must exist | WEB-05 | 🔴 Not started | June 7 |
-| 2 | 8 LEGO 101 guides live at `/guides` | CE-02 | 🔴 Not started | July 25 |
-| 3 | History of LEGO in India — flagship piece | CE-05 | 🔴 Not started | July 1 (hard) |
-| 4 | 2 Indian Builder Spotlights live at `/community` | CE-01 | 🔴 Not started | July 15 |
-| 5 | `/community` route — must exist | WEB-06 | 🔴 Not started | June 7 |
+| 1 | `/guides` route — must exist | WEB-05 | ✅ DONE — Day 25 (2026-05-25), commit `eb8a049` | June 7 |
+| 2 | 9 guides live at `/guides` (8 LEGO 101 + History) | CE-02 + CE-05 | ✅ DONE — Day 28 (2026-05-28). IDs 1–9. All Codex-compliant. | July 25 |
+| 3 | History of LEGO in India — flagship piece | CE-05 | ✅ DONE — Day 28 (2026-05-28). Slug: `history-of-lego-in-india`, ID 9. | July 1 (hard) |
+| 4 | 2 Indian Builder Spotlights live at `/community` | CE-01 | 🟡 Outreach done 2026-05-29 (r/IndiaLEGO + AFOL India FB). Awaiting respondents. | July 15 |
+| 5 | `/community` route — must exist | WEB-06 | ✅ DONE — Day 25 (2026-05-25), commit `2cda45a` | June 7 |
 
-**Social automation (SOC-AUTO-01):** ✅ Already live. Daily posting across IG Feed, IG Reels, YouTube Shorts — demonstrates consistent publishing cadence.
+**Social automation (SOC-AUTO-01):** ✅ Already live. Daily posting across IG Feed, IG Reels, YouTube Shorts — demonstrates consistent publishing cadence. (Brief outage May 29–30 due to apt mirror issue — fixed commit `21e0de2`.)
 
 ---
 
@@ -108,11 +108,11 @@ BOI's application target: August 2026. Requirements are inferred from RLFM guide
 
 ## Application checklist (submit August 2026)
 
-- [ ] WEB-05 `/guides` route live
-- [ ] 8 CE-02 LEGO 101 guides at `/guides` — all pass Codex lint
-- [ ] CE-05 "History of LEGO in India" at `/guides/history-of-lego-india` — live
-- [ ] WEB-06 `/community` route live
-- [ ] CE-01 Builder Spotlight #1 and #2 at `/community` — with photos + quotes
-- [ ] SOC-AUTO-01 proof — screenshot 30+ consecutive daily posts on IG + YouTube
-- [ ] reviews page — 3+ Codex-compliant reviews live (already done ✅)
+- [x] WEB-05 `/guides` route live ✅ Day 25
+- [x] 9 guides at `/guides` (CE-02 × 8 + CE-05 × 1) — all Codex-compliant ✅ Day 28
+- [x] CE-05 "History of LEGO in India" at `/guides/history-of-lego-india` ✅ Day 28
+- [x] WEB-06 `/community` route live ✅ Day 25
+- [ ] CE-01 Builder Spotlight #1 and #2 at `/community` — with photos + quotes (outreach done 2026-05-29)
+- [ ] SOC-AUTO-01 proof — screenshot 30+ consecutive daily posts on IG + YouTube (capture by July 25)
+- [x] reviews page — 3+ Codex-compliant reviews live ✅
 - [ ] bricksofindia.com uptime — all pages returning 200 (verify week before application)
