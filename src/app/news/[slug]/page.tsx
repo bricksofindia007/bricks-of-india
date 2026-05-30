@@ -67,7 +67,7 @@ export default async function NewsArticlePage({ params }: Props) {
 
         <h1 className="font-heading text-dark text-5xl md:text-6xl mb-3">{article.title}</h1>
         <Byline publishedAt={article.published_at} updatedAt={article.updated_at} />
-        <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8">
+        <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8 prose-p:mb-5 prose-p:leading-relaxed prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-2xl prose-h3:text-xl">
           <ReactMarkdown>{cleanContent}</ReactMarkdown>
         </div>
 
