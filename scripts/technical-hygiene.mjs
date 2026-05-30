@@ -403,6 +403,20 @@ await Promise.allSettled(
   })
 );
 
+// 7f. get_distinct_themes RPC returns >= 10 distinct themes
+try {
+  const { data, error } = await sb.rpc('get_distinct_themes');
+  if (error) throw new Error(error.message);
+  const count = (data ?? []).length;
+  if (count < 10) {
+    alertFail('DataIntegrity', `get_distinct_themes RPC returned ${count} themes — expected ≥ 10`);
+  } else {
+    log('DataIntegrity', `get_distinct_themes RPC: ${count} distinct themes ✓`);
+  }
+} catch (e) {
+  alertFail('DataIntegrity', `get_distinct_themes RPC failed: ${e.message.slice(0, 80)}`);
+}
+
 // ── Weekly email report ───────────────────────────────────────────────────────
 
 const now    = new Date().toISOString().slice(0, 10);

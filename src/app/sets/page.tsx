@@ -3,7 +3,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { createServerClient } from '@/lib/supabase';
 import { SetCard } from '@/components/sets/SetCard';
-import { MASCOTS, THEMES } from '@/lib/brand';
+import { MASCOTS, THEMES } from '@/lib/brand'; // THEMES used as fallback only
 import { JsonLd } from '@/components/JsonLd';
 import { buildItemListSchema } from '@/lib/schemas';
 
@@ -69,6 +69,17 @@ export default async function SetsPage({ searchParams }: Props) {
 
   const isPriceMode =
     instockOnly || !!priceBand || sortKey === 'price_asc' || sortKey === 'price_desc';
+
+  // ── 0. Distinct themes for dropdown (RPC, fallback to curated list) ───────
+  let themes: string[];
+  try {
+    const { data, error } = await supabase.rpc('get_distinct_themes');
+    if (error) throw error;
+    themes = ((data ?? []) as { theme: string }[]).map(r => r.theme).filter(Boolean);
+    if (themes.length === 0) throw new Error('RPC returned empty list');
+  } catch {
+    themes = THEMES.map(t => t.name);
+  }
 
   // ── 1. All store_prices (filtering + card display) ────────────────────────
   type PriceRow = {
@@ -218,8 +229,8 @@ export default async function SetsPage({ searchParams }: Props) {
                 className="border border-border rounded-lg px-3 py-2 text-sm bg-white font-body min-w-[150px]"
               >
                 <option value="">All Themes</option>
-                {THEMES.map(t => (
-                  <option key={t.slug} value={t.name}>{t.name}</option>
+                {themes.map(t => (
+                  <option key={t} value={t}>{t}</option>
                 ))}
               </select>
             </div>
