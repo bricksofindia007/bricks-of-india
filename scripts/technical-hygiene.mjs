@@ -630,6 +630,40 @@ try {
   alertFail('ImageHealth', `Review image check failed: ${e.message.slice(0, 80)}`);
 }
 
+// ── Check 10: Homepage regression guards ──────────────────────────────────────
+
+// 10a. Homepage reviews alias — set join returns image_url (catches set: alias regression)
+try {
+  const { data: revs } = await sb.from('reviews').select('slug, set:sets(image_url)');
+  const withImg = (revs ?? []).filter(r => r.set?.image_url);
+  if ((revs ?? []).length > 0 && withImg.length === 0) {
+    alertFail('Homepage', 'No reviews have set.image_url via join — set: alias may be broken (regression)');
+  } else {
+    log('Homepage', `Reviews join: ${withImg.length}/${(revs ?? []).length} have set.image_url ✓`);
+  }
+} catch (e) {
+  alertFail('Homepage', `Reviews join check failed: ${e.message.slice(0, 80)}`);
+}
+
+// 10b. Homepage deals — store_prices has coverage for top deal sets (catches dead prices(*) regression)
+try {
+  const { data: dealSets } = await sb.from('sets')
+    .select('set_number').not('lego_mrp_inr', 'is', null)
+    .order('updated_at', { ascending: false }).limit(8);
+  const nums = (dealSets ?? []).map(s => s.set_number).filter(Boolean);
+  if (nums.length > 0) {
+    const { count } = await sb.from('store_prices')
+      .select('*', { count: 'exact', head: true }).in('set_id', nums);
+    if (!count || count === 0) {
+      alertFail('Homepage', 'No store_prices for homepage deal sets — deal cards will show no prices (dead table regression)');
+    } else {
+      log('Homepage', `Deals price coverage: ${count} store_prices rows for top ${nums.length} deal sets ✓`);
+    }
+  }
+} catch (e) {
+  alertFail('Homepage', `Deals price coverage check failed: ${e.message.slice(0, 80)}`);
+}
+
 // ── Weekly email report ───────────────────────────────────────────────────────
 
 const now    = new Date().toISOString().slice(0, 10);

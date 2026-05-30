@@ -27,13 +27,13 @@ async function getHomepageData() {
   const [setsRes, reviewsRes, newsRes, blogRes, setsCountRes, newsCountRes, reviewsCountRes] = await Promise.allSettled([
     supabase
       .from('sets')
-      .select('*, prices(*)')
+      .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr')
       .not('lego_mrp_inr', 'is', null)
       .order('updated_at', { ascending: false })
       .limit(8),
     supabase
       .from('reviews')
-      .select('*, sets(name, image_url, rebrickable_id, set_number, theme)')
+      .select('*, set:sets(name, image_url, rebrickable_id, set_number, theme)')
       .order('published_at', { ascending: false })
       .limit(3),
     supabase
@@ -55,8 +55,27 @@ async function getHomepageData() {
   const newsCount = newsCountRes.status === 'fulfilled' ? (newsCountRes.value.count ?? 0) : 0;
   const reviewsCount = reviewsCountRes.status === 'fulfilled' ? (reviewsCountRes.value.count ?? 0) : 0;
 
+  const sets = setsRes.status === 'fulfilled' ? (setsRes.value.data || []) : [];
+
+  // Fetch live store prices for the 8 deal sets (replaces dead prices(*) join)
+  const dealPriceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
+  const dealSetNums = (sets as any[]).map((s) => s.set_number).filter(Boolean);
+  if (dealSetNums.length > 0) {
+    const { data: storePrices } = await supabase
+      .from('store_prices')
+      .select('set_id, store_id, price_inr, in_stock, product_url')
+      .in('set_id', dealSetNums);
+    for (const row of (storePrices ?? []) as any[]) {
+      const ex = dealPriceMap[row.set_id];
+      if (!ex || row.price_inr < ex.price_inr) {
+        dealPriceMap[row.set_id] = { price_inr: row.price_inr, store_name: row.store_id, buy_url: row.product_url ?? null };
+      }
+    }
+  }
+
   return {
-    sets: setsRes.status === 'fulfilled' ? (setsRes.value.data || []) : [],
+    sets,
+    dealPriceMap,
     reviews: reviewsRes.status === 'fulfilled' ? (reviewsRes.value.data || []) : [],
     news: newsRes.status === 'fulfilled' ? (newsRes.value.data || []) : [],
     blog: blogRes.status === 'fulfilled' ? (blogRes.value.data || []) : [],
@@ -67,7 +86,7 @@ async function getHomepageData() {
 }
 
 export default async function HomePage() {
-  const { sets, reviews, news, blog, setsCount, newsCount, reviewsCount } = await getHomepageData();
+  const { sets, dealPriceMap, reviews, news, blog, setsCount, newsCount, reviewsCount } = await getHomepageData();
 
   return (
     <div className="bg-white">
@@ -276,15 +295,13 @@ export default async function HomePage() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {sets.slice(0, 8).map((set: any) => {
-                const prices = set.prices || [];
-                const activePrices = prices.filter((p: any) => p.is_active && p.price_inr);
-                const bestPrice = activePrices.sort((a: any, b: any) => a.price_inr - b.price_inr)[0] || null;
+                const bestPrice = dealPriceMap[set.set_number] ?? null;
                 return (
                   <SetCard
                     key={set.id}
                     set={set}
                     bestPrice={bestPrice}
-                    priceCount={activePrices.length}
+                    priceCount={bestPrice ? 1 : 0}
                   />
                 );
               })}
