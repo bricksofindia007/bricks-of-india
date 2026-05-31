@@ -39,7 +39,7 @@ export default async function GuideArticlePage({ params }: Props) {
 
   return (
     <div className="bg-white min-h-screen">
-      <JsonLd data={buildArticleSchema({ title: guide.title, excerpt: guide.excerpt, published_at: guide.published_at, updated_at: guide.updated_at }, 'Article')} />
+      <JsonLd data={buildArticleSchema({ title: guide.title, excerpt: guide.excerpt, published_at: guide.published_at, updated_at: guide.updated_at, hero_image: guide.featured_image_url, url: `https://bricksofindia.com/guides/${params.slug}` }, 'Article')} />
 
       {/* Breadcrumb */}
       <div className="max-w-site mx-auto px-4 py-6">

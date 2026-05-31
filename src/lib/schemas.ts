@@ -60,6 +60,11 @@ export const authorSchema = {
   name: 'Abhinav Bhargav',
   jobTitle: 'Founder, Bricks of India',
   url: 'https://www.bricksofindia.com/about',
+  sameAs: [
+    'https://www.youtube.com/@BricksofIndia',
+    'https://www.instagram.com/bricksofindia/',
+    'https://www.linkedin.com/in/abhinavbhargav/',
+  ],
 } as const;
 
 // ── Page-level schema builders ────────────────────────────────────────────────
@@ -126,6 +131,7 @@ type ArticleData = {
   published_at: string;
   updated_at?: string | null;
   hero_image?: string | null;
+  url?: string | null;
 };
 
 export function buildArticleSchema(article: ArticleData, type: 'NewsArticle' | 'Article' = 'NewsArticle') {
@@ -137,6 +143,7 @@ export function buildArticleSchema(article: ArticleData, type: 'NewsArticle' | '
     datePublished: article.published_at,
     dateModified: article.updated_at || article.published_at,
     ...(article.hero_image && { image: article.hero_image }),
+    ...(article.url && { url: article.url }),
     author: authorSchema,
     publisher: publisherSchema,
   };

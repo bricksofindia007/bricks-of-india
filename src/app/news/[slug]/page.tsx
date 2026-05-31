@@ -41,7 +41,7 @@ export default async function NewsArticlePage({ params }: Props) {
 
   return (
     <div className="bg-white min-h-screen">
-      <JsonLd data={buildArticleSchema(article)} />
+      <JsonLd data={buildArticleSchema({ ...article, url: `https://bricksofindia.com/news/${params.slug}` })} />
 
       <div className="max-w-site mx-auto px-4 py-6">
         <nav className="text-sm text-gray-400 flex items-center gap-2 mb-4">

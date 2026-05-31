@@ -40,7 +40,7 @@ export default async function BlogPostPage({ params }: Props) {
 
   return (
     <div className="bg-white min-h-screen">
-      <JsonLd data={buildArticleSchema(post, 'Article')} />
+      <JsonLd data={buildArticleSchema({ ...post, url: `https://bricksofindia.com/blog/${params.slug}` }, 'Article')} />
 
       <div className="max-w-site mx-auto px-4 py-6">
         <nav className="text-sm text-gray-400 flex items-center gap-2 mb-4">
