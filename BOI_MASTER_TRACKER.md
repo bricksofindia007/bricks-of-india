@@ -877,3 +877,10 @@ Decision deferred to Day 3 open.
 - Page load timeout false alarms: visual renderer hitting /news/ for blog_posts articles — renderer URL prefix bug, logged
 - Homepage stat cards: sets/news are dynamic DB counts, deals=500+, CMF=400+ hardcoded approximates
 - Content quality report: 43 criticals reduced — majority were false positives from wrong category enforcement
+
+### Day 31 Addendum 9 — GSC 5xx fix + route error boundaries
+- Added error.tsx to all 7 dynamic routes: news/[slug], blog/[slug], guides/[slug], reviews/[slug], opinion/[slug], community/[slug], lab routes + root app/error.tsx
+- Only sets/[slug] had error boundary before — all others were unprotected 5xx surfaces
+- All 5 route types returning 200 confirmed post-deploy
+- GSC Validate Fix triggered — Google recrawling affected sitemap URLs
+- Root cause: no error boundaries meant any server component throw = 500 to Googlebot
