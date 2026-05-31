@@ -28,6 +28,7 @@ const ALLOWED_AI_CRAWLERS = [
   'Applebot',            // Apple Intelligence + Spotlight
   'MistralAI-User',      // Mistral live fetch
   'DuckAssistBot',       // DuckDuckGo AI assistant
+  'Bingbot',             // Microsoft Bing + Copilot search index
 ]
 
 // Crawlers we explicitly block — training-only with no referral benefit

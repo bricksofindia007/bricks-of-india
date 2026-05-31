@@ -5,6 +5,8 @@ import { createServerClient } from '@/lib/supabase';
 import { ThemeGrid } from '@/components/sets/ThemeGrid';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { THEMES } from '@/lib/brand';
+import { JsonLd } from '@/components/JsonLd';
+import { buildItemListSchema } from '@/lib/schemas';
 
 interface Props {
   params: { theme: string };
@@ -72,8 +74,21 @@ export default async function ThemePage({ params }: Props) {
 
   const setCount = sets.length;
 
+  const listItems = sets.slice(0, 10).map((s) => {
+    const bestPrice = (s.prices ?? [])
+      .filter((p: any) => p.is_active && p.price_inr)
+      .sort((a: any, b: any) => a.price_inr - b.price_inr)[0] ?? null;
+    return {
+      name: s.name,
+      set_number: s.set_number,
+      image_url: s.image_url,
+      bestPrice: bestPrice ? { price_inr: bestPrice.price_inr, buy_url: bestPrice.buy_url } : null,
+    };
+  });
+
   return (
     <div className="bg-white min-h-screen">
+      <JsonLd data={buildItemListSchema(`LEGO ${theme.name} Sets in India`, setCount, listItems)} />
       {/* Header — dark navy matches the premium footer */}
       <div className="bg-primary-dark py-10 px-4">
         <div className="max-w-site mx-auto">
