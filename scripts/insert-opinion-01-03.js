@@ -65,7 +65,7 @@ LEGO needs to address Indian pricing structurally — not through retail experie
 
 Until that conversation happens, the certified store is a beautiful shop that most Indian LEGO fans will visit occasionally for the experience and buy from rarely for the price.
 
-Check bricksofindia.com before every purchase. MyBrickHouse, Toycra, and Jaiman Toys all on one page. Use code ABHINAV12 at Toycra for 12% off above ₹500. The certified store is worth visiting. It is not always worth paying.
+Check bricksofindia.com before every purchase. MyBrickHouse and Toycra on one page. Use code ABHINAV12 at Toycra for 12% off above ₹500. The certified store is worth visiting. It is not always worth paying.
 
 On that bombshell — the prices were always there. We just did not want to look at them on opening day.`,
   },
@@ -110,7 +110,7 @@ What Indian fans can do in the meantime
 
 Exactly what they have always done. Compare prices carefully. Use every discount available. Buy with patience and intention rather than impulse.
 
-Check bricksofindia.com before every purchase — MyBrickHouse, Toycra, and Jaiman Toys on one page, updated every six hours. Use code ABHINAV12 at Toycra for 12% off above ₹500. The import premium is real and it is not going away soon.
+Check bricksofindia.com before every purchase — MyBrickHouse and Toycra on one page, updated every six hours. Use code ABHINAV12 at Toycra for 12% off above ₹500. The import premium is real and it is not going away soon.
 
 But the certified store is here. Fifty more are coming. The trajectory is right even if the pricing is not yet.
 
@@ -155,7 +155,7 @@ If you are already deep in Star Wars collecting, I am not suggesting you stop. T
 
 Your wallet is not bottomless. Neither is the Death Star, technically, but LEGO keeps rebuilding it.
 
-Check bricksofindia.com for live Indian prices before any Star Wars purchase. MyBrickHouse, Toycra, Jaiman Toys — all three on one page. Use code ABHINAV12 at Toycra for 12% off above ₹500. Buy the sets you love. Skip the ones you feel obligated to own.
+Check bricksofindia.com for live Indian prices before any Star Wars purchase. MyBrickHouse and Toycra on one page. Use code ABHINAV12 at Toycra for 12% off above ₹500. Buy the sets you love. Skip the ones you feel obligated to own.
 
 On that bombshell — the Falcon is beautiful. It will also cost you ₹75,000. You have been warned.`,
   },
