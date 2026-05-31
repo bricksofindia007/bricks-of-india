@@ -836,6 +836,17 @@ Decision deferred to Day 3 open.
 - `cmf_figures` table: 427 rows (was 122)
 - `sync-cmf-figures.mjs`: covers all 29 series (8683–71052)
 
+### Day 31 Addendum 3 — Jaiman removal
+- Jaiman Toys removed from entire platform — 25 files, 1,088 DB rows deleted
+- Root cause: Jaiman had corrupt price data (₹2,429 for Ninjago City Workshops, ₹5,669 for Concorde etc.) — trust issue
+- Scraper now hits Toycra + MBH only
+- Amazon + Flipkart search links surfaced in place of Jaiman
+- Store count display removed from SetCard entirely
+- Gate 2 lint updated: Jaiman → Amazon/Flipkart in INDIA_STORE_RE
+- Content pipeline Gemini prompt updated: "both stores: MyBrickHouse and Toycra"
+- Monitoring: all health/hygiene Jaiman references removed
+- One-shot seed scripts (insert-guide, insert-opinion) still reference Jaiman — historical, already run, leave as-is
+
 ---
 
 ## Legend

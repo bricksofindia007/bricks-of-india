@@ -167,3 +167,24 @@ Note: Check 21 source names corrected to actual `raw_signals.source_name` values
 | **2026-07-16** | IG System User Token re-exchange (permanent fix deferred, current token expires 2026-07-23) |
 | **2026-07-15** | CE-01 Builder Spotlight ×2 published at /community |
 | **2026-08-01** | LEGO Fan CoLab application submitted |
+
+## Day 31 Late Session additions
+
+### Jaiman removal (25 files, 1,088 DB rows)
+- Corrupt price data confirmed: 71837 at ₹2,429, 10318 at ₹5,669 vs ₹14,000+ actual
+- Decision: remove entirely rather than risk visitor trust
+- Platform now: Toycra + MBH for tracked prices, Amazon/Flipkart as search links
+
+### Deals page fix
+- Dead prices(*) join removed from sets query
+- bestPrice object now pulls real store_id + product_url from store_prices
+- Deal cards now show correct store name and working Buy link
+
+### CMF tracker — all 29 series
+- Series 1-19 added (297 additional figures)
+- 427 total figures across Series 1-29 (2010-2026)
+- Page description updated: 2020-2026 → 2010-2026
+
+### Rivendell review — all prices corrected
+- Title + seo_title: ₹39,999 → ₹50,399 (MRP-anchored)
+- Content: ₹40,319 Toycra, ₹50,399 MRP, ₹10,080 delta throughout
