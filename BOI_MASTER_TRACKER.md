@@ -924,3 +924,28 @@ Decision deferred to Day 3 open.
 - sitemap.ts: /compare (0.9), /themes index (0.8), /community/[slug] dynamic pages added
 - visual-renderer.mjs: networkidle -> domcontentloaded + 30s timeout (fixes CDN-heavy page timeouts)
 - Head: 4a0f5ac (prompt fix) | health: 97 | news: 73
+
+### DEFECT-015 — Blog/Opinion route duplication (HIGH)
+**Filed:** 2026-05-31
+
+**Symptom:** Opinion articles accessible at both /blog/[slug] AND /opinion/[slug] with conflicting self-canonicals.
+
+**Root cause:**
+- publish-drafts.mjs resolveTarget('opinion') inserts into blog_posts table, path=/opinion
+- blog/[slug]/page.tsx queries ALL blog_posts (no category filter), sets canonical to /blog/[slug]
+- opinion/[slug]/page.tsx queries blog_posts WHERE category='Opinion', sets canonical to /opinion/[slug]
+- Result: 3 opinion articles each have two live URLs, each claiming itself as canonical
+
+**Risk:** Duplicate content = GSC canonicalisation ambiguity on live indexed pages. GSC now active.
+
+**Fix (read before applying):**
+- Option A (recommended): blog/[slug] query adds .neq('category', 'Opinion') — opinion slugs return 404 from /blog/ route
+- Option B: blog/[slug] 308 redirects opinion category slugs to /opinion/[slug]
+- Option A is cleaner — the routes are semantically separate by design
+
+**Affected slugs (3):**
+- certified-store-india-charges-too-much
+- lego-should-manufacture-in-india
+- star-wars-lego-will-bankrupt-you
+
+**Status:** 🔴 Open — do NOT publish new opinion articles until resolved
