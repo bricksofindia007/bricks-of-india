@@ -105,7 +105,7 @@ for (const art of articles) {
     // page_load_error
     let loadOk = false;
     try {
-      const response = await page.goto(art._url, { waitUntil: 'networkidle', timeout: 20000 });
+      const response = await page.goto(art._url, { waitUntil: 'domcontentloaded', timeout: 30000 });
       if (!response || !response.ok()) {
         flag(art, 'page_load_error', 'critical', `HTTP ${response?.status() ?? 'none'} on ${vp.name}`);
       } else {
