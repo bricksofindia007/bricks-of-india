@@ -855,3 +855,11 @@ Decision deferred to Day 3 open.
 - 🟡 In progress / partial
 - 🔴 Not started / blocked
 - ⚠️ Issue found, needs fix
+
+### Day 31 Addendum 5 — Integrity + UI cleanup
+- health-check.mjs Check 5b: scrape coverage per store — alerts if <80% in-stock rows fresh in last 7h
+- Previous Check 5 bug: limit:1 meant one fresh row = entire check passed — now fixed
+- Homepage: 3 Indian Stores Live stat card removed entirely
+- Homepage: Hamleys dropped from search copy (never tracked)
+- Disclaimer "data may be stale" + "Updated every 6 hours" removed from set pages
+- health-check.mjs + technical-hygiene.mjs: both already clean post-Jaiman removal
