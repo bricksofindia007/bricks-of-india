@@ -26,7 +26,7 @@ export default async function DealsPage() {
   // Get all current store prices
   const { data: storePrices } = await supabase
     .from('store_prices')
-    .select('set_id, store_id, price_inr, in_stock, scraped_at')
+    .select('set_id, store_id, price_inr, in_stock, product_url, scraped_at')
     .not('price_inr', 'is', null);
 
   // 30-day history for deal calculation
