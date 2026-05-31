@@ -113,7 +113,7 @@ AVOID — poor value at any price
 One line after the verdict. No hedging. Final.
 
 WORD COUNT:
-News article: 300–400 words
+News article: minimum 300 words, target 320–420 words. Never write fewer than 300 words under any circumstances — articles below 300 words will be rejected.
 Review: 500–700 words
 Opinion: 400–500 words`;
 
@@ -233,10 +233,10 @@ async function buildIndiaPriceContext(setNumber) {
 
   const rate = await fetchLiveUsdInr();
   if (rate) {
-    return `INDIA PRICE DATA: no store prices in database. If the source mentions a USD price, multiply by ${rate} for a rough INR estimate. Label it "estimated import price" — not a confirmed retail price.`;
+    return `INDIA PRICE DATA: no store prices or official India MRP in our database. You MUST still include a ₹ figure in the India Paragraph — use this formula: USD retail price × 1.35 × ${rate} = estimated INR (the 1.35 factor covers import duty and retailer markup). Example: $99.99 USD → ₹${Math.round(99.99 * 1.35 * rate).toLocaleString('en-IN')} estimated. Round to nearest ₹100. Label it clearly as "estimated import price — not confirmed India retail." If the source does not mention any USD price, use IMPORT ONLY verdict and state the set is not currently available at any official India retailer.`;
   }
 
-  return 'INDIA PRICE DATA: no price data available. Acknowledge price uncertainty; do not state a specific figure.';
+  return 'INDIA PRICE DATA: no price data available. Use IMPORT ONLY verdict. State the set is not currently available at any official India retailer, and omit a specific price figure.';
 }
 
 async function generateBody(draft) {
@@ -252,7 +252,7 @@ async function generateBody(draft) {
   ]);
 
   const content    = fullBody || draft.source_excerpt || draft.source_title || '(no content available)';
-  const wordTarget = { news: '300–400', review: '500–700', opinion: '400–500', guide: '700–1000' }[format] || '300–400';
+  const wordTarget = { news: 'minimum 300, target 320–420', review: '500–700', opinion: '400–500', guide: '700–1000' }[format] || 'minimum 300, target 320–420';
   const setLine    = setNumber
     ? `Set number: ${setNumber} (include in title)`
     : 'Set number: NOT FOUND — use India context in title instead';
