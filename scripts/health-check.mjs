@@ -173,6 +173,32 @@ try {
   failures.push('prices-check-error');
 }
 
+// ── Check 5b: Scrape coverage — % of in-stock rows fresh (<7h) ───────────────
+try {
+  const cutoff5b = new Date(Date.now() - 7 * 3_600_000).toISOString();
+  const stores5b = ['toycra', 'mybrickhouse'];
+  for (const store of stores5b) {
+    const [{ count: total }, { count: fresh }] = await Promise.all([
+      sb.from('store_prices').select('*', { count: 'exact', head: true })
+        .eq('store_id', store).eq('in_stock', true),
+      sb.from('store_prices').select('*', { count: 'exact', head: true })
+        .eq('store_id', store).eq('in_stock', true).gte('scraped_at', cutoff5b),
+    ]);
+    const pct = total > 0 ? Math.round((fresh / total) * 100) : 0;
+    console.log(`[5b] ScrapeCoverage ${store}: ${fresh}/${total} in-stock rows fresh (<7h) = ${pct}%`);
+    if (pct < 80) {
+      failures.push(`scrape-coverage-${store}`);
+      await sendAlert(
+        `⚠️ BOI Health Alert — Scrape coverage low: ${store}`,
+        `Only ${pct}% of in-stock rows for ${store} scraped in last 7h (${fresh}/${total}).\n\nThreshold: 80%.\n\nCheck GitHub Actions → scrape-prices.yml.`
+      );
+    }
+  }
+} catch (e) {
+  console.error('[5b] ScrapeCoverage check failed:', e.message);
+  failures.push('scrape-coverage-error');
+}
+
 // ── Check 6: IG token expiry (within 14 days = alert) ───────────────────────
 try {
   const daysUntilExpiry = (IG_TOKEN_EXPIRY.getTime() - Date.now()) / 86_400_000;
