@@ -10,7 +10,7 @@ import { Badge, BestPriceBadge, OutOfStockBadge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { SetCard } from '@/components/sets/SetCard';
 import { JsonLd } from '@/components/JsonLd';
-import { buildProductSchema } from '@/lib/schemas';
+import { buildProductSchema, buildFAQSchema } from '@/lib/schemas';
 
 interface Props {
   params: { slug: string };
@@ -384,7 +384,7 @@ export default async function SetPage({ params }: Props) {
             <div className="mb-6">
               <h2 className="font-heading text-dark text-2xl mb-4">FREQUENTLY ASKED QUESTIONS</h2>
               <div className="space-y-3">
-                {[
+                {(() => { const faqs = [
                   {
                     q: `Where is ${set.name} cheapest in India?`,
                     a: hasPrices
@@ -411,7 +411,7 @@ export default async function SetPage({ params }: Props) {
                     q: `Where can I buy ${set.name} with a discount?`,
                     a: `Use code ABHINAV12 at Toycra for 12% off (min. ₹500 purchase). This is an exclusive Bricks of India deal with no usage limits.`,
                   },
-                ].map((faq, i) => (
+                ]; return (<><JsonLd data={buildFAQSchema(faqs)} />{faqs.map((faq, i) => (
                   <details key={i} className="border-2 border-border rounded-xl overflow-hidden group">
                     <summary className="px-4 py-3 font-bold text-dark cursor-pointer hover:bg-light-grey transition-colors flex items-center justify-between">
                       {faq.q}
@@ -421,7 +421,7 @@ export default async function SetPage({ params }: Props) {
                       {faq.a}
                     </div>
                   </details>
-                ))}
+                ))}</>);})()}
               </div>
             </div>
           </div>
