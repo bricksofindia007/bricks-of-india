@@ -204,7 +204,7 @@ for (const art of all) {
   if (isNewsOrReview && art.category === 'Review' && !VERDICT_WORDS.some(v => body.includes(v)))
     flag(art, 'missing_verdict', 'critical', 'No verdict found (BUY NOW/WAIT/IMPORT ONLY/AVOID)', false);
 
-  if (isNewsOrReview && !body.includes('₹'))
+  if (isNewsOrReview && ['New Sets', 'India Launches', 'Review'].includes(art.category) && !body.includes('₹'))
     flag(art, 'missing_india_paragraph', 'critical', 'No INR price (₹) found in body', false);
 
   if (isNewsOrReview && !STORE_NAMES.some(s => body.includes(s)))
