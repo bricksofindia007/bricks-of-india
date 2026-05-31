@@ -948,4 +948,4 @@ Decision deferred to Day 3 open.
 - lego-should-manufacture-in-india
 - star-wars-lego-will-bankrupt-you
 
-**Status:** 🔴 Open — do NOT publish new opinion articles until resolved
+**Status:** ✅ Closed 2026-05-31 — commit `8e1dce2`. blog/[slug] queries now filter `.neq('category','Opinion')`. Opinion slugs 404 from /blog/, only accessible at /opinion/[slug]. Pipeline routing unchanged — structural fix, not cosmetic. GSC will drop /blog duplicates on next crawl. Safe to publish opinion articles.

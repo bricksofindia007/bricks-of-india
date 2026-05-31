@@ -60,6 +60,13 @@ with new prompt (300-word floor + mandatory ₹ formula).
 - Visual renderer: networkidle → domcontentloaded + 30s timeout (fixes CDN-heavy page failures)
 - Sitemap completeness: /compare was missing — highest commercial-intent page, now included
 
+### DEFECT-015 — Blog/Opinion duplication ✅ Closed (8e1dce2)
+- 3 opinion articles were accessible at both /blog/[slug] and /opinion/[slug] with conflicting self-canonicals
+- Fix: blog/[slug] queries now filter `.neq('category', 'Opinion')` — opinion slugs 404 from /blog/
+- Structural fix: pipeline routing unchanged, category='Opinion' is always set on opinion inserts
+- GSC will drop /blog duplicates on next crawl — no further action needed
+- Safe to publish opinion articles from Day 34
+
 ---
 
 ## Day 34 opening sequence
