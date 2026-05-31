@@ -83,7 +83,7 @@ export default async function DealsPage() {
 
   const { data: setsData } = await supabase
     .from('sets')
-    .select('*, prices(*)')
+    .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr')
     .in('set_number', priceSetIds);
 
   // Apply MSRP fallback for sets without enough history
@@ -196,15 +196,18 @@ export default async function DealsPage() {
             </h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {dealSets.map((set: any) => {
+                const bestSp = (storePrices ?? [])
+                  .filter(sp => sp.set_id === set.set_number && sp.in_stock && sp.price_inr)
+                  .sort((a, b) => (a.price_inr as number) - (b.price_inr as number))[0];
                 const bestPrice = {
                   id: 'deal',
-                  set_id: set.id,
-                  store_name: '',
-                  store_url: '',
+                  set_id: set.set_number,
+                  store_name: bestSp?.store_id ?? '',
+                  store_url: bestSp?.product_url ?? '',
                   price_inr: set._dealPrice,
                   availability: 'in_stock' as const,
-                  buy_url: '',
-                  scraped_at: '',
+                  buy_url: bestSp?.product_url ?? '',
+                  scraped_at: bestSp?.scraped_at ?? '',
                   is_active: true,
                 };
                 const priceCount = (storePrices ?? []).filter(
