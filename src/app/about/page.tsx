@@ -146,16 +146,16 @@ export default function AboutPage() {
               }}
             >
               <p>
-                I&apos;m Abhinav Bhargav. For the past two decades I&apos;ve been an entrepreneur — I have led global teams in enterprise sales, marketing, and account management. Somewhere along the way I also went to Cornell University, which was considerably harder than my own start-up.
+                I&apos;m Abhinav Bhargav. For the past two decades I&apos;ve been an Entrepreneur, I have led global teams in enterprise sales, marketing, and account management. Somewhere along the way I also went to Cornell University, which was considerably harder than all of this.
               </p>
               <p>
-                I&apos;m also, embarrassingly, obsessed with LEGO. I own a Concorde in LEGO AND a Concorde in COBI, which is the kind of behaviour that should probably concern my family and definitely concerns my perennially empty wallet. My daughter thinks it&apos;s normal. She&apos;s wrong.
+                I&apos;m also, embarrassingly, obsessed with LEGO. I own a Concorde in LEGO AND a Concorde in COBI, which is the kind of behaviour that should probably concern my family and definitely concern my perennially empty wallet on life support. My daughter thinks it&apos;s normal. She&apos;s innocent.
               </p>
               <p>
-                In August 2025, I launched Bricks of India — first as a YouTube channel (and Instagram page) about LEGO, India, and the financial decisions one makes at 2am with a credit card in hand — and then this website, because apparently one outlet for obsession is never enough.
+                In August 2025, I launched Bricks of India, first as a YouTube channel (and an Instagram page) about LEGO and the financial decisions one makes at 2am with a credit card in hand and then this website, because apparently one outlet for obsession is never enough.
               </p>
               <p>
-                Bricks of India exists because I got tired of Googling &ldquo;LEGO price India&rdquo; and getting results from 2019, three British websites, a Norwegian AFOL, and zero rupees mentioned anywhere. Indian LEGO buyers deserve better. So this is my attempt at better — honest prices from Indian stores, reviews without PR spin, news written by someone who knows what ₹6,499 actually feels like when your EMI is also due that week.
+                Bricks of India exists because I got tired of Googling &ldquo;LEGO price India&rdquo; and getting results from 2019, three British websites, a Norwegian AFOL, and zero rupees mentioned anywhere. Indian LEGO buyers deserve better. So, this is my attempt at better honest prices from Indian stores, reviews without PR spin, news written by someone who knows what ₹6,499 actually feels like when your EMI is also due that week.
               </p>
             </div>
           </section>
@@ -172,7 +172,7 @@ export default function AboutPage() {
                   />
                 </div>
                 <figcaption style={{ marginTop: '8px', fontSize: '0.78rem', color: 'var(--boi-text-secondary)', fontStyle: 'italic', textAlign: 'center', fontFamily: 'var(--font-inter)' }}>
-                  The car that started all of this. No doors. No regrets.
+                  <strong>The car that started all of this. No doors. No regrets.</strong>
                 </figcaption>
               </figure>
               <p>
@@ -185,13 +185,16 @@ export default function AboutPage() {
                 Looking at it today, I can&apos;t help but feel this may have accidentally inspired the Tesla Cybertruck. You&apos;re welcome, Elon.
               </p>
               <p>
-                What started as a small, slightly wobbly car turned into a lifelong obsession &mdash; building, collecting, rebuilding&hellip; and occasionally pretending I&apos;m buying sets for my daughter.
+                What started as a small, slightly wobbly car turned into a lifelong obsession of building, collecting, rebuilding&hellip; and occasionally pretending I&apos;m buying sets for my daughter.
               </p>
               <p>
                 LEGO wasn&apos;t just a toy. It was the beginning of how I think, solve, and create.
               </p>
               <p>
-                And clearly, my genius was visible even then. A man who could look at a pile of random bricks and see a vehicle &mdash; not just any vehicle, but one so aerodynamically unconventional it was decades ahead of its time &mdash; is not a normal man. That is vision. That is engineering intuition.
+                And clearly, my genius was visible even then. A man who could look at a pile of random bricks and see a vehicle and not just any vehicle, Oh no sir! but one so aerodynamically unconventional it was decades ahead of its time; is not a normal man. That is vision. That is engineering intuition. That is the kind of raw, creative intelligence that most people only read about in biographies of people considerably more famous than me, but give it time.
+              </p>
+              <p>
+                I have built India&apos;s first LEGO price comparison website, while producing YouTube content watched by people in atleast seven continents (yes, even Antarctica, which frankly raises more questions than it answers) a sentence so needlessly excessive it sounds made up, yet here we are convincing myself repeatedly, successfully, without a shred of regret that every new LEGO set is technically an investment.
               </p>
               <p>
                 The car still doesn&apos;t have doors. Some design choices are timeless and apparently, so is my brilliance.
