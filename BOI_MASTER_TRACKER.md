@@ -863,3 +863,10 @@ Decision deferred to Day 3 open.
 - Homepage: Hamleys dropped from search copy (never tracked)
 - Disclaimer "data may be stale" + "Updated every 6 hours" removed from set pages
 - health-check.mjs + technical-hygiene.mjs: both already clean post-Jaiman removal
+
+### Day 31 Addendum 6 — Homepage stat cards
+- Replaced "3 Set Reviews" stat card with two stronger cards
+- 500+ Active Deals (red #E3000B) -> /deals
+- 400+ CMF Minifigures (navy) -> /lab/cmf-tracker
+- Homepage now: Sets Tracked / News Articles / Active Deals / CMF Minifigures
+- Approximate numbers used throughout — won't go stale
