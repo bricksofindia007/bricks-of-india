@@ -221,17 +221,31 @@ export default async function HomePage() {
               </div>
             </Link>
 
-            {/* Reviews — clickable */}
+            {/* Deals — clickable */}
             <Link
-              href="/reviews"
+              href="/deals"
+              className="rounded-xl px-4 py-4 text-center transition-opacity hover:opacity-80"
+              style={{ border: '2px solid #E30613', background: 'rgba(227,6,19,0.10)' }}
+            >
+              <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--boi-navy)', fontFamily: 'var(--font-fredoka)', lineHeight: 1.2 }}>
+                500+
+              </div>
+              <div style={{ fontSize: '11px', fontWeight: 600, color: '#666', fontFamily: 'var(--font-inter)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>
+                Active deals
+              </div>
+            </Link>
+
+            {/* CMF tracker — clickable */}
+            <Link
+              href="/lab/cmf-tracker"
               className="rounded-xl px-4 py-4 text-center transition-opacity hover:opacity-80"
               style={{ border: '2px solid #1a2332', background: 'rgba(26,35,50,0.10)' }}
             >
               <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--boi-navy)', fontFamily: 'var(--font-fredoka)', lineHeight: 1.2 }}>
-                {reviewsCount > 0 ? reviewsCount : 'Reviews'}
+                400+
               </div>
               <div style={{ fontSize: '11px', fontWeight: 600, color: '#666', fontFamily: 'var(--font-inter)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>
-                {reviewsCount > 0 ? 'Set reviews' : 'Read reviews'}
+                CMF minifigures
               </div>
             </Link>
           </div>
