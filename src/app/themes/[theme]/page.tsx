@@ -23,6 +23,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `LEGO ${theme.name} Sets India 2026 — Compare Prices | Bricks of India`,
     description: `All LEGO ${theme.name} sets available in India. Compare prices across Indian stores and find the best deals.`,
     alternates: { canonical: `https://bricksofindia.com/themes/${params.theme}` },
+    openGraph: {
+      title: `LEGO ${theme.name} Sets India 2026 — Bricks of India`,
+      description: `Compare all LEGO ${theme.name} prices across Indian stores. Updated every 6 hours.`,
+      images: theme.image ? [{ url: theme.image }] : [],
+    },
   };
 }
 

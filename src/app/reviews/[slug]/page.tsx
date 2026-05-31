@@ -25,6 +25,11 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `LEGO ${review.sets?.name || review.title} Review — Is It Worth Buying in India?`,
     description: `Our honest verdict on the LEGO ${review.sets?.name}. ${review.rating}/5 stars. Read the full review including price comparison and buying advice for India.`,
     alternates: { canonical: `https://bricksofindia.com/reviews/${params.slug}` },
+    openGraph: {
+      title: `LEGO ${review.sets?.name || review.title} Review — Bricks of India`,
+      description: `${review.rating}/5 stars. Honest verdict with live India price comparison.`,
+      images: review.hero_image ? [{ url: review.hero_image }] : [],
+    },
   };
 }
 
