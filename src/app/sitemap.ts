@@ -23,6 +23,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/lab/retiring-soon`, priority: 0.7 },
     { url: `${base}/lab/cmf-tracker`, priority: 0.7 },
     { url: `${base}/lab/price-drops`, priority: 0.7 },
+    { url: `${base}/compare`, priority: 0.9 },
+    { url: `${base}/themes`, priority: 0.8 },
     { url: `${base}/guides`, priority: 0.8 },
     { url: `${base}/opinion`, priority: 0.8 },
     { url: `${base}/community`, priority: 0.8 },
@@ -109,5 +111,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  return [...staticPages, ...setPages, ...blogPages, ...newsPages, ...reviewPages, ...guidePages, ...opinionPages];
+  // Community spotlights
+  const { data: spotlights } = await supabase
+    .from('community_spotlights')
+    .select('slug, published_at')
+    .eq('published', true);
+  const communityPages = (spotlights || []).map((s: any) => ({
+    url: `${base}/community/${s.slug}`,
+    lastModified: new Date(s.published_at),
+    changeFrequency: 'monthly' as const,
+    priority: 0.7,
+  }));
+
+  return [...staticPages, ...setPages, ...blogPages, ...newsPages, ...reviewPages, ...guidePages, ...opinionPages, ...communityPages];
 }
