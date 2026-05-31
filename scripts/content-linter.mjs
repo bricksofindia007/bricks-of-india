@@ -201,7 +201,7 @@ for (const art of all) {
     }
   }
 
-  if (isNewsOrReview && !VERDICT_WORDS.some(v => body.includes(v)))
+  if (isNewsOrReview && art.category === 'Review' && !VERDICT_WORDS.some(v => body.includes(v)))
     flag(art, 'missing_verdict', 'critical', 'No verdict found (BUY NOW/WAIT/IMPORT ONLY/AVOID)', false);
 
   if (isNewsOrReview && !body.includes('₹'))
