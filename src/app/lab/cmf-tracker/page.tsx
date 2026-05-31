@@ -40,65 +40,56 @@ function sortBySetNum(a: FigureData, b: FigureData): number {
 export default async function CmfTrackerPage() {
   const supabase = createServerClient();
 
-  // All CMF rows — Series X Minifigures + Collectible Minifigures
+  // Fetch individual figures from cmf_figures (populated by sync-cmf-figures.mjs)
   const { data: rawRows } = await supabase
-    .from('sets')
-    .select('set_number, name, year, theme, image_url')
-    .ilike('theme', '%Minifigures%')
-    .order('set_number', { ascending: true });
+    .from('cmf_figures')
+    .select('figure_number, series_set_number, name, year, image_url, series_name, figure_index')
+    .order('series_set_number', { ascending: true })
+    .order('figure_index',       { ascending: true });
 
-  // Filter out bundles/packs — keep individual figures only
-  const figures = (rawRows ?? []).filter(r => !BUNDLE_RE.test(r.name)) as {
-    set_number: string; name: string; year: number; theme: string; image_url: string | null;
-  }[];
+  type CmfRow = { figure_number: string; series_set_number: string; name: string; year: number | null; image_url: string | null; series_name: string; figure_index: number };
 
-  // Group by theme
-  const byTheme = new Map<string, typeof figures>();
-  for (const f of figures) {
-    const g = byTheme.get(f.theme) ?? [];
-    g.push(f);
-    byTheme.set(f.theme, g);
+  // Group by series_set_number, preserving figure order
+  const bySeriesMap = new Map<string, SeriesData>();
+  for (const row of (rawRows ?? []) as CmfRow[]) {
+    if (!bySeriesMap.has(row.series_set_number)) {
+      bySeriesMap.set(row.series_set_number, {
+        theme:   row.series_name,
+        year:    row.year ?? 0,
+        figures: [],
+        prices:  [],
+      });
+    }
+    bySeriesMap.get(row.series_set_number)!.figures.push({
+      set_number: row.figure_number,
+      name:       row.name,
+      image_url:  row.image_url ?? null,
+    });
   }
 
-  // Build SeriesData[], newest year first
-  const seriesList: SeriesData[] = Array.from(byTheme.entries())
-    .map(([theme, figs]) => {
-      const year = Math.max(...figs.map(f => f.year ?? 0));
-      const sorted = [...figs].sort(sortBySetNum);
-      return {
-        theme,
-        year,
-        figures: sorted.map(f => ({ set_number: f.set_number, name: f.name, image_url: f.image_url })),
-        prices: [] as PriceData[],
-      };
-    })
-    .sort((a, b) => b.year - a.year || b.theme.localeCompare(a.theme));
+  // Build SeriesData[], newest year first; track series_set_number → index for price mapping
+  const seriesSetToIdx = new Map<string, number>();
+  const seriesList: SeriesData[] = Array.from(bySeriesMap.entries())
+    .sort(([, a], [, b]) => b.year - a.year || b.theme.localeCompare(a.theme))
+    .map(([key, val], i) => { seriesSetToIdx.set(key, i); return val; });
 
-  // Fetch store prices for all figure set_numbers
-  const allNums = figures.map(f => f.set_number);
-  if (allNums.length > 0) {
+  // Fetch store prices by base series set_number (blind-bag level, not individual figures)
+  const allSeriesNums = Array.from(bySeriesMap.keys());
+  if (allSeriesNums.length > 0) {
     const { data: priceRows } = await supabase
       .from('store_prices')
       .select('set_id, store_id, price_inr')
       .eq('in_stock', true)
       .not('price_inr', 'is', null)
-      .in('set_id', allNums);
-
-    // Map set_number → series index
-    const numToIdx = new Map<string, number>();
-    for (let i = 0; i < seriesList.length; i++) {
-      for (const f of seriesList[i].figures) numToIdx.set(f.set_number, i);
-    }
+      .in('set_id', allSeriesNums);
 
     for (const p of (priceRows ?? []) as { set_id: string; store_id: string; price_inr: number }[]) {
-      const idx = numToIdx.get(p.set_id);
-      if (idx !== undefined) {
-        seriesList[idx].prices.push({ store_id: p.store_id, price_inr: p.price_inr });
-      }
+      const idx = seriesSetToIdx.get(p.set_id);
+      if (idx !== undefined) seriesList[idx].prices.push({ store_id: p.store_id, price_inr: p.price_inr });
     }
   }
 
-  const totalFigures = figures.length;
+  const totalFigures = seriesList.reduce((sum, s) => sum + s.figures.length, 0);
 
   return (
     <div style={{ background: '#fff', minHeight: '100vh', fontFamily: 'var(--font-inter), sans-serif', color: 'var(--boi-text)' }}>
