@@ -50,7 +50,7 @@ INDIA PARAGRAPH SPEC — MANDATORY:
 Place <!-- INDIA_PARAGRAPH --> on its own line immediately before this block. Write the block as normal prose.
 Must contain:
 (a) INR price: USD MSRP × 1.35 × current USD/INR rate. Show working.
-(b) Availability: which stores (Toycra, MyBrickHouse, Jaiman) or "import only".
+(b) Availability: which stores (Toycra, MyBrickHouse) or "import only".
 (c) India lag: 4–6 week delay or "no official India launch".
 (d) One relatable Indian comparison (biryani plates, Spotify months, EMI, etc.).`;
 

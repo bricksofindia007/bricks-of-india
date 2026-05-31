@@ -28,7 +28,7 @@ const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABA
 const DRY_RUN = process.argv.includes('--dry-run');
 
 const INDIA_COMPARE_RE = /\b(biryani|chai|EMI|Spotify|Netflix|petrol|samosa|litre|liter|movie.?ticket|PVR|butter.?chicken|Swiggy|Zomato|iPhone|months? of|weeks? of|auto.?rickshaw|pizza|pizzas|thali|dosa|subscription|streaming|Jio|Airtel|OTT|paneer|vada|rickshaw|salary|rent)\b/i;
-const INDIA_STORE_RE   = /\b(Toycra|MyBrickHouse|Jaiman|import.?only)\b/i;
+const INDIA_STORE_RE   = /\b(Toycra|MyBrickHouse|Amazon|Flipkart|import.?only)\b/i;
 
 function gate2Fail(draft) {
   const body = draft.draft_body || '';

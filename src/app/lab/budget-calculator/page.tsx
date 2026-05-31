@@ -6,14 +6,13 @@ import { BudgetForm } from './BudgetForm';
 
 export const metadata: Metadata = {
   title: 'Budget Calculator | Bricks of India Lab',
-  description: 'Find the best LEGO sets for your budget — live Indian store prices across Toycra, MyBrickHouse, and Jaiman Toys. Updated every 6 hours.',
+  description: 'Find the best LEGO sets for your budget — live Indian store prices across Toycra and MyBrickHouse. Updated every 6 hours.',
   alternates: { canonical: 'https://bricksofindia.com/lab/budget-calculator' },
 };
 
 const STORE_LABELS: Record<string, string> = {
   toycra:       'Toycra',
   mybrickhouse: 'MyBrickHouse',
-  jaiman:       'Jaiman Toys',
 };
 
 interface SetResult {
@@ -120,7 +119,7 @@ export default async function BudgetCalculatorPage({
           Find the best LEGO sets for your budget — live Indian store prices.
         </p>
         <p style={{ color: '#CBD5E0', fontSize: '0.72rem', margin: 0 }}>
-          Updated every 6 hours · Toycra, MyBrickHouse, Jaiman Toys · Sorted by piece count
+          Updated every 6 hours · Toycra, MyBrickHouse · Sorted by piece count
         </p>
       </div>
 

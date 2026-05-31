@@ -181,7 +181,7 @@ Every article MUST contain exactly one India Paragraph as a single consolidated 
 Place <!-- INDIA_PARAGRAPH --> on its own line immediately before this block. Write the block as normal prose.
 The block MUST contain ALL FOUR components in order:
   (a) INR price: USD MSRP × 1.35 × current USD/INR rate. Show working. Estimate if unknown.
-  (b) Indian availability: name stores (Toycra, MyBrickHouse, Jaiman Toys) or "import only".
+  (b) Indian availability: name stores (Toycra, MyBrickHouse) or "import only".
   (c) India lag: 4–6 week lag after global launch, or "no official India launch" if import-only.
   (d) One relatable Indian comparison: kg of mangoes, biryani plates, Spotify months, EMI, etc.`;
 

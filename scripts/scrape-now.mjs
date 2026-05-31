@@ -57,7 +57,7 @@ const ALERT_EMAIL = process.env.BRIEF_EMAIL || 'abhinav@bricksofindia.com';
 
 // ── Store config ─────────────────────────────────────────────────────────────
 // Toycra has a dedicated LEGO collection — avoids paging through thousands
-// of non-LEGO toys. MyBrickHouse and Jaiman are LEGO-heavy so general path works.
+// of non-LEGO toys. MyBrickHouse is LEGO-heavy so general path works.
 const STORES = [
   {
     id:     'toycra',
@@ -69,12 +69,6 @@ const STORES = [
     id:     'mybrickhouse',
     name:   'MyBrickHouse',
     domain: 'lego.mybrickhouse.com',
-    path:   '/products.json',
-  },
-  {
-    id:     'jaiman',
-    name:   'Jaiman Toys',
-    domain: 'jaimantoys.com',
     path:   '/products.json',
   },
 ];

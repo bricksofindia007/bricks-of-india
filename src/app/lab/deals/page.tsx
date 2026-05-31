@@ -6,14 +6,13 @@ import { slugify } from '@/lib/utils';
 export const metadata: Metadata = {
   title: 'India Deals Today | Bricks of India Lab',
   description:
-    'Every LEGO set currently discounted across Indian stores — Toycra, MyBrickHouse, Jaiman Toys. Sorted by discount %. Updated every 6 hours.',
+    'Every LEGO set currently discounted across Indian stores — Toycra and MyBrickHouse. Sorted by discount %. Updated every 6 hours.',
   alternates: { canonical: 'https://bricksofindia.com/lab/deals' },
 };
 
 const STORE_LABELS: Record<string, string> = {
   toycra:       'Toycra',
   mybrickhouse: 'MyBrickHouse',
-  jaiman:       'Jaiman Toys',
 };
 
 interface DealRow {
@@ -83,7 +82,7 @@ export default async function DealsPage() {
           Your wallet is already open. We found the discounts. The stores did not make this easy.
         </p>
         <p style={{ color: '#CBD5E0', fontSize: '0.72rem', margin: 0 }}>
-          Scraped every 6 hours · Toycra, MyBrickHouse, Jaiman Toys · Sorted by discount %
+          Scraped every 6 hours · Toycra, MyBrickHouse · Sorted by discount %
         </p>
       </div>
 

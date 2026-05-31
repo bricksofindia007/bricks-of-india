@@ -41,7 +41,7 @@ const FORBIDDEN_WORDS = [
 ];
 const BAD_OPENERS = ['So,', 'Okay', 'Alright,', "Let's talk"];
 const VERDICT_WORDS = ['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID'];
-const STORE_NAMES   = ['MyBrickHouse', 'Toycra', 'Jaiman'];
+const STORE_NAMES   = ['MyBrickHouse', 'Toycra'];
 const SIGNOFF       = 'On that bombshell';
 
 const RUN_AT = new Date().toISOString();
@@ -208,7 +208,7 @@ for (const art of all) {
     flag(art, 'missing_india_paragraph', 'critical', 'No INR price (₹) found in body', false);
 
   if (isNewsOrReview && !STORE_NAMES.some(s => body.includes(s)))
-    flag(art, 'missing_store_mention', 'warning', 'No store name found (MyBrickHouse / Toycra / Jaiman)', false);
+    flag(art, 'missing_store_mention', 'warning', 'No store name found (MyBrickHouse / Toycra)', false);
 
   if (isOpinionOrNews && !body.includes(SIGNOFF))
     flag(art, 'missing_signoff', 'info', `Missing "${SIGNOFF}" signoff`, false);

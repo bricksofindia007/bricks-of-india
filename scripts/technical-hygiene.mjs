@@ -276,7 +276,7 @@ for (const url of LIGHTHOUSE_URLS) {
 // ── Check 5: Store prices staleness (> 8 hours = alert) ──────────────────────
 
 log('Staleness', 'Checking store_prices MAX(scraped_at) per store');
-const stores = ['mybrickhouse', 'toycra', 'jaiman'];
+const stores = ['mybrickhouse', 'toycra'];
 for (const store of stores) {
   try {
     const { data } = await sb
@@ -377,7 +377,7 @@ try {
     .order('published_at', { ascending: false })
     .limit(10);
   const withIndia = (recentArticles ?? []).filter(
-    a => a.content?.includes('₹') && /\b(Toycra|MyBrickHouse|Jaiman)\b/i.test(a.content)
+    a => a.content?.includes('₹') && /\b(Toycra|MyBrickHouse)\b/i.test(a.content)
   );
   if ((recentArticles ?? []).length === 0) {
     alertFail('DataIntegrity', 'No news articles found in DB');
@@ -456,7 +456,7 @@ try {
 
 // 8a. Store affiliate URL health — one live product_url per store
 try {
-  const stores = ['toycra', 'mybrickhouse', 'jaiman'];
+  const stores = ['toycra', 'mybrickhouse'];
   await Promise.allSettled(stores.map(async storeId => {
     try {
       const { data } = await sb
@@ -482,9 +482,9 @@ try {
   alertFail('StoreURLs', `Store URL check failed: ${e.message.slice(0, 80)}`);
 }
 
-// 8b. Stale store_prices — all 3 stores must have data scraped within 25h
+// 8b. Stale store_prices — both stores must have data scraped within 25h
 try {
-  const stores = ['toycra', 'mybrickhouse', 'jaiman'];
+  const stores = ['toycra', 'mybrickhouse'];
   const cutoff = new Date(Date.now() - 25 * 3_600_000).toISOString();
   for (const storeId of stores) {
     const { count } = await sb.from('store_prices').select('*', { count: 'exact', head: true })
@@ -619,7 +619,7 @@ try {
 
 // 8l. store_prices product_url — sample 5 per store, verify non-null, non-empty, starts with https://
 try {
-  const stores8l = ['toycra', 'mybrickhouse', 'jaiman'];
+  const stores8l = ['toycra', 'mybrickhouse'];
   for (const storeId of stores8l) {
     const { data: rows } = await sb.from('store_prices').select('set_id, product_url').eq('store_id', storeId).limit(5);
     const bad = (rows ?? []).filter(r => !r.product_url || !r.product_url.startsWith('https://'));
@@ -646,7 +646,6 @@ try {
   const shopify8n = [
     { name: 'Toycra',       url: 'https://www.toycra.com/collections/lego/products.json?limit=1' },
     { name: 'MyBrickHouse', url: 'https://lego.mybrickhouse.com/products.json?limit=1' },
-    { name: 'Jaiman',       url: 'https://jaimantoys.com/products.json?limit=1' },
   ];
   await Promise.allSettled(shopify8n.map(async ({ name, url }) => {
     try {
@@ -907,7 +906,6 @@ try {
 const SHOPIFY_ENDPOINTS = [
   { name: 'Toycra',       url: 'https://www.toycra.com/collections/lego/products.json?limit=1' },
   { name: 'MyBrickHouse', url: 'https://lego.mybrickhouse.com/products.json?limit=1' },
-  { name: 'Jaiman',       url: 'https://jaimantoys.com/products.json?limit=1' },
 ];
 await Promise.allSettled(SHOPIFY_ENDPOINTS.map(async ({ name, url }) => {
   try {
@@ -1052,7 +1050,6 @@ else log('ContentIntegrity', `ABHINAV12 code: present in all Toycra-mentioning a
 // replace with a tighter pattern (e.g. only flag when preceded by "at " or "on ").
 const MISSPELLINGS = [
   { re: /my\s+brick\s+house/i, correct: 'MyBrickHouse' },
-  { re: /jaiman(?!\s+toys)/i,   correct: 'Jaiman Toys' },
 ];
 const spellingFails = [];
 for (const a of news10) {
@@ -1127,15 +1124,15 @@ const capsArticles = news10.filter(a => {
 if (capsArticles.length > 0) alertFail('ContentIntegrity', `ALL CAPS words in ${capsArticles.length} article(s): ${capsArticles.map(a => a.slug).join(', ')}`);
 else log('ContentIntegrity', `ALL CAPS check: clean ✓`);
 
-// 14k: India Paragraph mentions all 3 stores (check via content proxy — marker stripped at publish)
+// 14k: India Paragraph mentions both stores (check via content proxy — marker stripped at publish)
 const missingStores = news10.filter(a => {
   const c = a.content || '';
   return /₹[\d,]+/.test(c) && (
-    !/toycra/i.test(c) || !/mybrickhouse/i.test(c) || !/jaiman/i.test(c)
+    !/toycra/i.test(c) || !/mybrickhouse/i.test(c)
   );
 });
 if (missingStores.length > 0) alertFail('ContentIntegrity', `${missingStores.length} article(s) have price data but missing store name(s): ${missingStores.map(a => a.slug).join(', ')}`);
-else log('ContentIntegrity', `India Paragraph store coverage: all priced articles mention all 3 stores ✓`);
+else log('ContentIntegrity', `India Paragraph store coverage: all priced articles mention both stores ✓`);
 
 // 14l: blog_posts hero_image null rate >20%
 try {
@@ -1321,9 +1318,9 @@ try {
 // ── Check 20: Per-store price row count regression ────────────────────────────
 // 20a. If any store drops below its known baseline, the scraper has regressed
 //      or the store changed its feed structure. Baselines from Day 31 audit:
-//      Toycra ≥500, MBH ≥800, Jaiman ≥1000.
+//      Toycra ≥500, MBH ≥800.
 try {
-  const STORE_BASELINES = { toycra: 500, mybrickhouse: 800, jaiman: 1000 };
+  const STORE_BASELINES = { toycra: 500, mybrickhouse: 800 };
   for (const [storeId, baseline] of Object.entries(STORE_BASELINES)) {
     const { count } = await sb.from('store_prices')
       .select('*', { count: 'exact', head: true })

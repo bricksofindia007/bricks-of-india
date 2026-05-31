@@ -10,7 +10,7 @@ import { MASCOTS, THEMES, PRICE_RANGES } from '@/lib/brand';
 
 export const metadata: Metadata = {
   title: 'Compare LEGO Prices in India | Bricks of India',
-  description: 'Compare LEGO set prices across Toycra, MyBrickHouse, Jaiman Toys and more. Updated every 6 hours. Find the best deal in India.',
+  description: 'Compare LEGO set prices across Toycra and MyBrickHouse. Updated every 6 hours. Find the best deal in India.',
   alternates: { canonical: 'https://bricksofindia.com/compare' },
 };
 
@@ -203,7 +203,7 @@ export default async function ComparePage({ searchParams }: Props) {
               <p className="text-gray-300 font-body">
                 {total > 0
                   ? `${total.toLocaleString()} sets. Updated every 6 hours. Cheapest first.`
-                  : 'Search LEGO sets across Toycra, MyBrickHouse, Jaiman Toys and more.'}
+                  : 'Search LEGO sets across Toycra and MyBrickHouse.'}
               </p>
             </div>
             <Image

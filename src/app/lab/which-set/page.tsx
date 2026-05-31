@@ -144,9 +144,8 @@ function getResult(a: Answers): Outcome {
 }
 
 const STORES = [
-  { name: 'Toycra',       url: 'https://toycra.com',       note: 'use code ABHINAV12' },
-  { name: 'MyBrickHouse', url: 'https://lego.mybrickhouse.com',  note: null },
-  { name: 'Jaiman Toys',  url: 'https://jaimantoys.com',   note: null },
+  { name: 'Toycra',       url: 'https://toycra.com',            note: 'use code ABHINAV12' },
+  { name: 'MyBrickHouse', url: 'https://lego.mybrickhouse.com', note: null },
 ];
 
 // ── Component ──────────────────────────────────────────────────────────────────

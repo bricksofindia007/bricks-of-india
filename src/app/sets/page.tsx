@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   title: 'All LEGO Sets in India | Bricks of India',
   description:
     'Browse every LEGO set available in India. Filter by theme, price, and availability. ' +
-    'Compare prices across Toycra, MyBrickHouse, Jaiman Toys. Updated every 6 hours.',
+    'Compare prices across Toycra and MyBrickHouse. Updated every 6 hours.',
   alternates: { canonical: 'https://bricksofindia.com/sets' },
 };
 

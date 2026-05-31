@@ -7,7 +7,7 @@ import { slugify } from '@/lib/utils';
 export const metadata: Metadata = {
   title: 'LEGO Price Drops in India — Bricks of India',
   description:
-    'Daily LEGO price drops across Indian stores — Toycra, MyBrickHouse, Jaiman Toys. ' +
+    'Daily LEGO price drops across Indian stores — Toycra and MyBrickHouse. ' +
     'Sorted by biggest drop. Updated every day from live store data.',
   alternates: { canonical: 'https://bricksofindia.com/lab/price-drops' },
 };
@@ -15,9 +15,8 @@ export const metadata: Metadata = {
 const STORE_LABELS: Record<string, string> = {
   toycra:       'Toycra',
   mybrickhouse: 'MyBrickHouse',
-  jaiman:       'Jaiman Toys',
 };
-const STORE_IDS = ['toycra', 'mybrickhouse', 'jaiman'];
+const STORE_IDS = ['toycra', 'mybrickhouse'];
 
 function fmtInr(n: number) {
   return `₹${Math.round(n).toLocaleString('en-IN')}`;
@@ -157,7 +156,7 @@ export default async function PriceDropsPage({ searchParams }: Props) {
           {hasFilters ? ' (filtered)' : ' — min ₹200 or 5%'}
         </p>
         <p style={{ color: '#CBD5E0', fontSize: '0.72rem', margin: 0 }}>
-          Toycra · MyBrickHouse · Jaiman Toys · Scraped daily · Sorted by biggest ₹ drop
+          Toycra · MyBrickHouse · Scraped daily · Sorted by biggest ₹ drop
         </p>
       </div>
 

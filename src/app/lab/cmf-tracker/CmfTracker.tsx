@@ -6,7 +6,6 @@ import type { SeriesData } from './page';
 const STORE_LABELS: Record<string, string> = {
   toycra:       'Toycra',
   mybrickhouse: 'MyBrickHouse',
-  jaiman:       'Jaiman Toys',
 };
 
 function fmtInr(n: number) {

@@ -16,11 +16,10 @@ interface Props {
   params: { slug: string };
 }
 
-// ── The 3 stores we actively track ───────────────────────────────────────────
+// ── The 2 stores we actively track ───────────────────────────────────────────
 const TRACKED_STORES = [
   { id: 'toycra',       name: 'Toycra',       url: 'https://www.toycra.com'   },
   { id: 'mybrickhouse', name: 'MyBrickHouse',  url: 'https://mybrickhouse.com' },
-  { id: 'jaiman',       name: 'Jaiman Toys',   url: 'https://jaimantoys.com'   },
 ];
 
 async function getSetData(slug: string) {
@@ -66,7 +65,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!set) return { title: 'Set Not Found' };
   return {
     title: `${set.name} (${set.set_number}) Price in India 2026`,
-    description: `Find the best price for ${set.name} in India. Compare prices across Toycra, MyBrickHouse, Jaiman Toys and more. Updated every 6 hours.`,
+    description: `Find the best price for ${set.name} in India. Compare prices across Toycra and MyBrickHouse. Updated every 6 hours.`,
     alternates: { canonical: `https://bricksofindia.com/sets/${params.slug}` },
     openGraph: {
       title: `${set.name} (${set.set_number}) — Best Price in India`,
@@ -161,7 +160,6 @@ export default async function SetPage({ params }: Props) {
   const STORE_NAMES: Record<string, string> = {
     toycra:       'Toycra',
     mybrickhouse: 'MyBrickHouse',
-    jaiman:       'Jaiman Toys',
   };
 
   return (
@@ -395,7 +393,7 @@ export default async function SetPage({ params }: Props) {
                   },
                   {
                     q: `Is ${set.name} available in India?`,
-                    a: `${set.name} availability is tracked across Toycra, MyBrickHouse, and Jaiman Toys. Check individual store links above for real-time stock.`,
+                    a: `${set.name} availability is tracked across Toycra and MyBrickHouse. Check individual store links above for real-time stock.`,
                   },
                   {
                     q: `What is the official MRP of ${set.name} in India?`,

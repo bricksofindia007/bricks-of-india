@@ -16,7 +16,6 @@ interface Props { params: { slug: string } }
 const TRACKED_STORES = [
   { id: 'toycra',       name: 'Toycra'      },
   { id: 'mybrickhouse', name: 'MyBrickHouse' },
-  { id: 'jaiman',       name: 'Jaiman Toys'  },
 ];
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
@@ -241,7 +240,7 @@ export default async function ReviewPage({ params }: Props) {
                 q: `Where can I buy ${set?.name || 'this set'} cheapest in India?`,
                 a: hasPrices
                   ? `Based on our latest tracking, ${TRACKED_STORES.find(s => s.id === bestStorePrice?.store_id)?.name ?? 'a tracked store'} has the best price. Use code ABHINAV12 at Toycra for 12% off.`
-                  : `Check Toycra, MyBrickHouse, and Jaiman Toys for current prices. Use code ABHINAV12 at Toycra for an exclusive 12% off.`,
+                  : `Check Toycra and MyBrickHouse for current prices. Use code ABHINAV12 at Toycra for an exclusive 12% off.`,
               },
               {
                 q: `What is the price of ${set?.name || 'this set'} in India?`,

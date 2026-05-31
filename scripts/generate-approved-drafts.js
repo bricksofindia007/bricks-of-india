@@ -82,10 +82,10 @@ GOOD OPENER (no price data yet):
 "LEGO just announced the Imperial Lambda Shuttle and your wallet is already nervous. No Indian prices yet, which means we are in that particular purgatory where you want it but cannot fully panic yet."
 
 GOOD INDIA PARAGRAPH (price data available):
-"In India, the LEGO Eiffel Tower (10307) is available at MyBrickHouse for ₹65,999. Toycra has it for ₹61,500 — use code ABHINAV12 for 12% off on orders above ₹500, which brings it down to ₹54,120. That is 18 months of Netflix Premium or a return flight to Dubai. This is not an impulse buy. MyBrickHouse | Toycra | Jaiman Toys."
+"In India, the LEGO Eiffel Tower (10307) is available at MyBrickHouse for ₹65,999. Toycra has it for ₹61,500 — use code ABHINAV12 for 12% off on orders above ₹500, which brings it down to ₹54,120. That is 18 months of Netflix Premium or a return flight to Dubai. This is not an impulse buy. MyBrickHouse | Toycra."
 
 GOOD INDIA PARAGRAPH (no price data):
-"No Indian store prices yet. Based on the US retail price of $239.99 and current exchange rates, expect this to land somewhere around ₹32,000–35,000 when it arrives. That is roughly 10 months of Spotify Premium Family Plan. MyBrickHouse, Toycra, and Jaiman Toys are the stores to watch — use code ABHINAV12 at Toycra for 12% off above ₹500. Expect a 4–6 week lag from global launch."
+"No Indian store prices yet. Based on the US retail price of $239.99 and current exchange rates, expect this to land somewhere around ₹32,000–35,000 when it arrives. That is roughly 10 months of Spotify Premium Family Plan. MyBrickHouse and Toycra are the stores to watch — use code ABHINAV12 at Toycra for 12% off above ₹500. Expect a 4–6 week lag from global launch."
 
 WHAT NEVER APPEARS IN BOI ARTICLES:
 - "So," at the start of any sentence that opens the article
@@ -95,9 +95,9 @@ WHAT NEVER APPEARS IN BOI ARTICLES:
 
 INDIA PARAGRAPH — non-negotiable, every article, no exceptions:
 - Use exact store prices from INDIA PRICE DATA provided. Do not calculate.
-- Always mention all three stores: MyBrickHouse, Toycra, Jaiman Toys — even if only one has a live price. For stores without a listed price, say "check [store] for availability."
+- Always mention both stores: MyBrickHouse and Toycra — even if only one has a live price. For stores without a listed price, say "check [store] for availability."
 - Always include the Toycra affiliate note exactly: "Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra."
-- If set is not yet in any Indian store: mention 4–6 week India lag from global launch and all three stores to watch.
+- If set is not yet in any Indian store: mention 4–6 week India lag from global launch and both stores to watch.
 - MANDATORY COMPARISON — this line is required in every single article, no exceptions, even if there is no price data:
   * If price data exists: compare the actual INR price to something relatable. Good: "that's 14 months of Spotify Premium", "enough for 23 kg of Amul butter", "three EMIs on a decent washing machine". Bad: "more than your monthly rent", "a paneer feast for a year."
   * If NO price data exists (MOC, fan build, vintage, unreleased): use an aspirational comparison based on an estimated value. Example: "if this were officially sold in India, it would cost roughly the same as 18 months of Netflix — assuming LEGO India's usual enthusiasm for your wallet."
@@ -138,8 +138,8 @@ const VERDICT_TEMPLATES = {
   'AVOID':       'Verdict: AVOID. Save your money for something better.',
 };
 
-const INDIA_STORE_PRIORITY = { mybrickhouse: 1, toycra: 2, jaiman: 3 };
-const INDIA_STORE_LABELS   = { mybrickhouse: 'MyBrickHouse', toycra: 'Toycra', jaiman: 'Jaiman Toys' };
+const INDIA_STORE_PRIORITY = { mybrickhouse: 1, toycra: 2 };
+const INDIA_STORE_LABELS   = { mybrickhouse: 'MyBrickHouse', toycra: 'Toycra' };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -228,7 +228,7 @@ async function buildIndiaPriceContext(setNumber) {
     .eq('set_number', setNumber)
     .maybeSingle();
   if (setRow?.lego_mrp_inr) {
-    return `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices). Use this figure. Mention Toycra / MyBrickHouse / Jaiman may list it within 4–6 weeks.`;
+    return `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices). Use this figure. Mention Toycra / MyBrickHouse may list it within 4–6 weeks.`;
   }
 
   const rate = await fetchLiveUsdInr();

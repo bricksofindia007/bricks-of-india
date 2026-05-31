@@ -61,9 +61,7 @@ export function SetCard({ set, bestPrice, priceCount }: SetCardProps) {
             ) : (
               <span className="text-xs text-gray-400 italic">Price TBD</span>
             )}
-            {(priceCount ?? 0) > 1 && (
-              <p className="text-xs text-gray-400 mt-0.5">{priceCount} stores</p>
-            )}
+
           </div>
           <span className="text-xs font-bold text-primary group-hover:underline shrink-0">Compare →</span>
         </div>

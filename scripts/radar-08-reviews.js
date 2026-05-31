@@ -5,7 +5,7 @@
  * Identifies in-stock sets that have no existing review and no pending
  * review draft, then writes up to 10 approved draft rows to pending_drafts.
  *
- * Priority: mybrickhouse first, toycra second, jaiman third.
+ * Priority: mybrickhouse first, toycra second.
  * Tiebreak within same store: higher price_inr first.
  *
  * Usage:
@@ -20,7 +20,7 @@ const DRY_RUN = process.argv.includes('--dry-run');
 const CAP     = 10;
 const PAGE    = 1000;
 
-const STORE_PRIORITY = { mybrickhouse: 1, toycra: 2, jaiman: 3 };
+const STORE_PRIORITY = { mybrickhouse: 1, toycra: 2 };
 
 const MIN_PRICE_INR = 1000;
 // Accessories with a scraper-matched set number are not reviewable content

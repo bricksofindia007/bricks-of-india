@@ -33,7 +33,7 @@ export async function subscribeNewsletter(email: string): Promise<{ ok: boolean;
           "",
           "No spam. No daily blasts. Just the stuff that matters to your wallet.",
           "",
-          "In the meantime, check out what's on at bricksofindia.com — live prices from Toycra, MyBrickHouse, and Jaiman, all in one place.",
+          "In the meantime, check out what's on at bricksofindia.com — live prices from Toycra and MyBrickHouse, all in one place.",
           "",
           "On that bombshell,",
           "Abhinav",
@@ -63,7 +63,7 @@ export async function subscribeNewsletter(email: string): Promise<{ ok: boolean;
   </p>
 
   <p style="font-size:13px;color:#6b7280;margin-top:32px;">
-    Live prices from Toycra, MyBrickHouse, and Jaiman — all in one place.<br>
+    Live prices from Toycra and MyBrickHouse — all in one place.<br>
     <a href="https://bricksofindia.com/legal/privacy" style="color:#6b7280;">Privacy Policy</a> ·
     You subscribed at <a href="https://bricksofindia.com" style="color:#6b7280;">bricksofindia.com</a>
   </p>

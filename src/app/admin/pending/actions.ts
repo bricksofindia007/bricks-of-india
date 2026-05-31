@@ -188,7 +188,7 @@ const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: [number
 const VALID_VERDICTS = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID']);
 
 const INDIA_COMPARISON_RE = /\b(biryani|chai|EMI|Spotify|Netflix|petrol|samosa|litre|liter|movie.?ticket|PVR|butter.?chicken|Swiggy|Zomato|iPhone|months? of|weeks? of|auto.?rickshaw)\b/i;
-const INDIA_STORE_RE      = /\b(Toycra|MyBrickHouse|Jaiman|import.?only)\b/i;
+const INDIA_STORE_RE      = /\b(Toycra|MyBrickHouse|Amazon|Flipkart|import.?only)\b/i;
 
 function lintDraft(draft: {
   draft_body: string | null;
@@ -222,7 +222,7 @@ function lintDraft(draft: {
     throw new Error('[Gate 2 FAIL] No INR price (₹NNN) found in India Paragraph. Regenerate or edit.');
   }
   if (!INDIA_STORE_RE.test(indiaSeg)) {
-    throw new Error('[Gate 2 FAIL] No availability statement (Toycra / MyBrickHouse / Jaiman / "import only") found in India Paragraph.');
+    throw new Error('[Gate 2 FAIL] No availability statement (Toycra / MyBrickHouse / Amazon / Flipkart / "import only") found in India Paragraph.');
   }
   if (!INDIA_COMPARISON_RE.test(indiaSeg)) {
     throw new Error('[Gate 2 FAIL] No relatable Indian comparison found in India Paragraph (expected: biryani, EMI, Spotify months, petrol, etc.).');

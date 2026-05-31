@@ -212,7 +212,7 @@ try {
 // ── Check 8: Per-store in-stock counts (alert if any store < 50) ─────────────
 // Full 20%-drop detection requires cross-day comparison; this catches complete failures.
 try {
-  const stores = ['mybrickhouse', 'toycra', 'jaiman'];
+  const stores = ['mybrickhouse', 'toycra'];
   const counts = {};
   for (const store of stores) {
     const { count } = await sb

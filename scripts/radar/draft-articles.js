@@ -171,8 +171,8 @@ The block MUST contain ALL FOUR components, in this order:
   (a) INR price: use the exact prices provided in context when available. If no prices
       are provided, multiply USD MSRP by the current USD/INR rate (do NOT add any
       multiplier) and label the result explicitly as "estimated import price".
-  (b) Indian availability: name which stores stock it (Toycra, MyBrickHouse,
-      Jaiman Toys), OR state "import only via BrickLink/eBay" if none do.
+  (b) Indian availability: name which stores stock it (Toycra, MyBrickHouse),
+      OR state "import only via BrickLink/eBay" if none do.
   (c) India lag: note the 4–6 week lag after global launch, OR "no official
       India launch" for import-only sets.
   (d) One relatable Indian comparison: convert the price to something tangible —
