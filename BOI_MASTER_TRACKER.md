@@ -2,8 +2,8 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-30 (Day 30 FINAL — 15-group integrity layer complete (90+ checks), homepage bugs fixed (reviews alias + dead prices table), YouTube hero backfill (10 articles), full site audit confirmed)
-> **Health Score: 95** — GEO score < 50 is the sole drag (-5). 52 news articles live. 8 of 9 Lab tools live. Full integrity layer: Checks 1–15 covering routes, DB, content, external deps, performance, visual, pipelines.
+> **Last updated:** 2026-05-31 (Day 32 — GEO sprint complete, schema coverage 100%, GSC verified, 73 news articles live, generation prompt hardened)
+> **Health Score: 97** — GSC verified (GEO drag resolved). 73 news articles live. 9 of 9 Lab tools live. Full integrity layer: Checks 1–23. FAQPage schema live on all set + article pages.
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -131,8 +131,8 @@ JSON parses. If it doesn't, fix before doing anything else.
 ## Current blockers (top 3)
 
 1. **IG System User Token** — current 60-day token expires ~2026-07-23. Manual re-exchange required by **2026-07-16** (hard deadline). Permanent fix (Meta Business Manager System User) deferred.
-2. **GSC setup** — Google Search Console not yet verified. Zero Google indexing = no AI overview citations. Manual: DNS TXT via Cloudflare, sitemap submit, request indexing 10 key pages. ~15 min. Unblocks GEO score improvement.
-3. **Visual renderer first live run** — `node --env-file=.env.local scripts/visual-renderer.mjs` not yet run against live site. P2.
+2. **CE-01 Builder Spotlights ×2** — deadline **2026-07-15**. Outreach posted 2026-05-29. Awaiting respondents. Check Reddit/FB inbox mid-June; escalate to direct outreach if no responses.
+3. **Draft queue backlog** — 334 approved drafts, ~22 days to clear at 15/day Gemini quota. Consider quota increase.
 
 > CE-01 outreach ✅ DONE 2026-05-29 — r/IndiaLEGO + AFOL India Facebook posted. Awaiting respondents.
 > McLaren voice test ✅ DONE — 12 articles published 2026-05-29, voice test passed implicitly.
@@ -915,3 +915,12 @@ Decision deferred to Day 3 open.
 - Logged as future ticket: update Gemini prompt to produce markdown links to /sets/[slug]
 
 **GEO-04 (India price data page)** — deferred, requires new route + cron, logged as P2 ticket
+
+### Day 32 Addendum 11 — Content pipeline + prompt hardening
+- 17 articles published (news_articles: 53 -> 73)
+- generate-approved-drafts.js: Gate 1 hard floor raised to 300w (was "300-400", Gemini treated as soft)
+- generate-approved-drafts.js: Gate 2 no-price path now mandatory — formula USD x 1.35 x live_rate = estimated INR; forces a Rs figure or IMPORT ONLY verdict
+- 7 failed drafts reset to approved queue (3 Gate 1 word-count, 4 Gate 2 no-price)
+- sitemap.ts: /compare (0.9), /themes index (0.8), /community/[slug] dynamic pages added
+- visual-renderer.mjs: networkidle -> domcontentloaded + 30s timeout (fixes CDN-heavy page timeouts)
+- Head: 4a0f5ac (prompt fix) | health: 97 | news: 73
