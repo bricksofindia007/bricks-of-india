@@ -870,3 +870,10 @@ Decision deferred to Day 3 open.
 - 400+ CMF Minifigures (navy) -> /lab/cmf-tracker
 - Homepage now: Sets Tracked / News Articles / Active Deals / CMF Minifigures
 - Approximate numbers used throughout — won't go stale
+
+### Day 31 Addendum 7 — Content quality fixes
+- content-linter.mjs: missing_verdict now only fires on category=Review (not all News)
+- insert-opinion-01-03.js: Jaiman references removed, 3 opinion articles confirmed in blog_posts
+- Page load timeout false alarms: visual renderer hitting /news/ for blog_posts articles — renderer URL prefix bug, logged
+- Homepage stat cards: sets/news are dynamic DB counts, deals=500+, CMF=400+ hardcoded approximates
+- Content quality report: 43 criticals reduced — majority were false positives from wrong category enforcement
