@@ -884,3 +884,34 @@ Decision deferred to Day 3 open.
 - All 5 route types returning 200 confirmed post-deploy
 - GSC Validate Fix triggered — Google recrawling affected sitemap URLs
 - Root cause: no error boundaries meant any server component throw = 500 to Googlebot
+
+### Day 31 Addendum 10 — GEO sprint (schema, robots, GSC)
+
+**GSC**
+- DNS TXT verification complete — bricksofindia.com now verified in Google Search Console
+- Sitemap submitted, 10 key pages requested for indexing
+- Unblocks GEO score improvement entirely (was -5 drag on health score)
+
+**Schema coverage — now complete across all routes**
+- themes/[theme]: was the only content route missing JSON-LD — now emits ItemList schema (up to 10 Product items)
+- reviews/[slug] + themes/[theme]: openGraph block added (was missing entirely)
+- guides/[slug]: featured_image_url now wired into buildArticleSchema as hero_image
+- authorSchema: sameAs added (YouTube, Instagram, LinkedIn) — E-E-A-T cross-reference on every article
+- ArticleData type: hero_image + url fields added; buildArticleSchema emits both
+- Canonical url passed at every JsonLd call site (news, blog, opinion, guides)
+
+**FAQPage schema — rich result eligibility**
+- buildFAQSchema() added to schemas.ts
+- FAQPage schema injected into news/[slug], blog/[slug] — 75 pages eligible
+- FAQPage schema injected into sets/[slug] — dynamic per-set answers (~24,000 pages)
+- Hamleys removed from hardcoded FAQ answers in news + blog pages
+
+**robots.ts**
+- Bingbot added to ALLOWED_AI_CRAWLERS (Microsoft Bing + Copilot search index)
+
+**GEO-05 internal linking audit**
+- Hub/spoke (themes -> sets -> themes): solid, no gaps
+- Article -> set page links: gap exists but scope is content generation, not sprint fix
+- Logged as future ticket: update Gemini prompt to produce markdown links to /sets/[slug]
+
+**GEO-04 (India price data page)** — deferred, requires new route + cron, logged as P2 ticket
