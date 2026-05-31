@@ -5,7 +5,7 @@ import { CmfTracker } from './CmfTracker';
 
 export const metadata: Metadata = {
   title: 'CMF Tracker | Bricks of India Lab',
-  description: 'Browse every LEGO Collectible Minifigures series from 2020–2026 and track which figures you own.',
+  description: 'Browse every LEGO Collectible Minifigures series from 2010–2026 and track which figures you own.',
   alternates: { canonical: 'https://bricksofindia.com/lab/cmf-tracker' },
 };
 
@@ -106,7 +106,7 @@ export default async function CmfTrackerPage() {
           Browse every Collectible Minifigures series and track what you own.
         </p>
         <p style={{ color: '#CBD5E0', fontSize: '0.72rem', margin: 0 }}>
-          {seriesList.length} series · {totalFigures} figures · 2020–2026
+          {seriesList.length} series · {totalFigures} figures · 2010–2026
         </p>
       </div>
 

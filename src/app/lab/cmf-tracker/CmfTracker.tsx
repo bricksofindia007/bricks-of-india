@@ -211,7 +211,7 @@ export function CmfTracker({ seriesList }: { seriesList: SeriesData[] }) {
 
       {/* Footer note */}
       <p style={{ fontSize: '0.72rem', color: '#CBD5E0', marginTop: 32, textAlign: 'center' }}>
-        Showing CMF series 2020–2026 · Earlier series available on BrickOwl and via grey market · Progress resets on refresh
+        Showing CMF series 2010–2026 · All 29 series · Progress resets on refresh
       </p>
     </div>
   );

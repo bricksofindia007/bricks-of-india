@@ -827,6 +827,17 @@ Decision deferred to Day 3 open.
 
 ---
 
+### Day 31 Addendum (post-close fixes)
+- Rivendell review title/seo_title patched to ₹50,399 (MRP-anchored)
+- Rivendell review content: all price mentions updated (₹40,319 Toycra, ₹50,399 MRP, ₹10,080 delta)
+- About page: full BIO content applied, August 2025 launch date correct, Antarctica/Oh no sir/give it time added
+- `@tailwindcss/typography` installed + wired — prose styles live on all 5 content page types for first time since launch
+- CMF tracker: extended Series 20–29 → Series 1–29 (427 figures, 2010–2026)
+- `cmf_figures` table: 427 rows (was 122)
+- `sync-cmf-figures.mjs`: covers all 29 series (8683–71052)
+
+---
+
 ## Legend
 
 - ✅ Done
