@@ -15,7 +15,7 @@ import { buildArticleSchema, buildFAQSchema } from '@/lib/schemas';
 interface Props { params: { slug: string } }
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
-  const { data: post } = await supabase.from('blog_posts').select('*').eq('slug', params.slug).single();
+  const { data: post } = await supabase.from('blog_posts').select('*').eq('slug', params.slug).neq('category', 'Opinion').single();
   if (!post) return { title: 'Post Not Found' };
   return {
     title: post.seo_title || `${post.title} | Bricks of India`,
@@ -26,7 +26,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function BlogPostPage({ params }: Props) {
-  const { data: post } = await supabase.from('blog_posts').select('*').eq('slug', params.slug).single();
+  const { data: post } = await supabase.from('blog_posts').select('*').eq('slug', params.slug).neq('category', 'Opinion').single();
   if (!post) notFound();
   const cleanContent = post.content
     .replace(/<!--[\s\S]*?-->/g, '')
