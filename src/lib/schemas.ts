@@ -125,6 +125,7 @@ type ArticleData = {
   excerpt?: string | null;
   published_at: string;
   updated_at?: string | null;
+  hero_image?: string | null;
 };
 
 export function buildArticleSchema(article: ArticleData, type: 'NewsArticle' | 'Article' = 'NewsArticle') {
@@ -135,8 +136,23 @@ export function buildArticleSchema(article: ArticleData, type: 'NewsArticle' | '
     description: article.excerpt,
     datePublished: article.published_at,
     dateModified: article.updated_at || article.published_at,
+    ...(article.hero_image && { image: article.hero_image }),
     author: authorSchema,
     publisher: publisherSchema,
+  };
+}
+
+type FAQItem = { q: string; a: string };
+
+export function buildFAQSchema(items: FAQItem[]) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: items.map((item) => ({
+      '@type': 'Question',
+      name: item.q,
+      acceptedAnswer: { '@type': 'Answer', text: item.a },
+    })),
   };
 }
 
