@@ -206,18 +206,6 @@ export default async function HomePage() {
               </div>
             </Link>
 
-            {/* Stores count — static */}
-            <div
-              className="rounded-xl px-4 py-4 text-center"
-              style={{ border: '2px solid #E30613', background: 'rgba(227,6,19,0.10)' }}
-            >
-              <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--boi-navy)', fontFamily: 'var(--font-fredoka)', lineHeight: 1.2 }}>
-                3
-              </div>
-              <div style={{ fontSize: '11px', fontWeight: 600, color: '#666', fontFamily: 'var(--font-inter)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>
-                Indian stores live
-              </div>
-            </div>
 
             {/* News — clickable */}
             <Link
@@ -260,8 +248,8 @@ export default async function HomePage() {
             <div className="flex-1 text-center md:text-left">
               <h2 className="font-heading text-dark text-5xl mb-3">FIND THE CHEAPEST PRICE IN INDIA</h2>
               <p className="text-text-secondary mb-6 font-body">
-                Type a set name or number. We&apos;ll find it across Toycra, MyBrickHouse, Hamleys,
-                and more. Updated every 6 hours. We never sleep. Unlike your wallet.
+                Type a set name or number. We&apos;ll find it across Toycra and MyBrickHouse.
+                Updated every 6 hours. We never sleep. Unlike your wallet.
               </p>
               <div className="max-w-xl">
                 <SearchBar size="lg" placeholder="Search by name or set number... go on then." />
