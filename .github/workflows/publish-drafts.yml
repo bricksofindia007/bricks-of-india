@@ -1,6 +1,10 @@
 name: publish-drafts
 
 on:
+  schedule:
+    - cron: '0 19 * * *'   # 00:30 IST — post-RADAR generation window
+    - cron: '30 7 * * *'   # 13:00 IST — post Gemini quota reset
+    - cron: '30 12 * * *'  # 18:00 IST — evening freshness run
   workflow_dispatch:
     inputs:
       limit:
@@ -18,6 +22,7 @@ jobs:
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       RESEND_API_KEY:            ${{ secrets.RESEND_API_KEY }}
       REBRICKABLE_API_KEY:       ${{ secrets.REBRICKABLE_API_KEY }}
+      NEXT_PUBLIC_SITE_URL:      ${{ secrets.NEXT_PUBLIC_SITE_URL }}
 
     steps:
       - name: Checkout
@@ -33,4 +38,4 @@ jobs:
         run: npm ci
 
       - name: Publish approved drafts
-        run: node scripts/publish-drafts.mjs --limit ${{ inputs.limit }}
+        run: node scripts/publish-drafts.mjs --limit ${{ inputs.limit || '15' }}
