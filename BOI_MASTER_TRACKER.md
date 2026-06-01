@@ -2,8 +2,8 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-05-31 (Day 32 — GEO sprint complete, schema coverage 100%, GSC verified, 73 news articles live, generation prompt hardened)
-> **Health Score: 97** — GSC verified (GEO drag resolved). 73 news articles live. 9 of 9 Lab tools live. Full integrity layer: Checks 1–23. FAQPage schema live on all set + article pages.
+> **Last updated:** 2026-06-02 (Day 33 — P0 sweep, 3× hardening systems, scheduled publish live, social automation fixed, 84 news articles live)
+> **Health Score: 97** — GSC verified. 84 news articles live. 9 of 9 Lab tools live. Checks 1–23 + secrets manifest audit. Publish pipeline: pre-publish quality gate + 3× daily schedule. Social automation: theme/India filter/pieces/price all fixed.
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -132,7 +132,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 
 1. **IG System User Token** — current 60-day token expires ~2026-07-23. Manual re-exchange required by **2026-07-16** (hard deadline). Permanent fix (Meta Business Manager System User) deferred.
 2. **CE-01 Builder Spotlights ×2** — deadline **2026-07-15**. Outreach posted 2026-05-29. Awaiting respondents. Check Reddit/FB inbox mid-June; escalate to direct outreach if no responses.
-3. **Draft queue backlog** — 334 approved drafts, ~22 days to clear at 15/day Gemini quota. Consider quota increase.
+3. **Draft queue backlog** — ~321 approved drafts. Scheduled publish now 3×/day (00:30/13:00/18:00 IST, 15/run = 45/day max). Queue clears in ~7 days at current rate assuming daily Gemini generation.
 
 > CE-01 outreach ✅ DONE 2026-05-29 — r/IndiaLEGO + AFOL India Facebook posted. Awaiting respondents.
 > McLaren voice test ✅ DONE — 12 articles published 2026-05-29, voice test passed implicitly.
@@ -245,6 +245,73 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### Day 33 — 2026-06-02 — P0 sweep, three hardening systems, scheduled publish, social automation fixed
+
+**HEAD:** `1debd26` | **Health:** 97 | **news_articles:** 84 (+11)
+
+Shipped:
+
+**P0 fixes (commits `caaff6e`, `2110dce`):**
+- Homepage deal cards query flipped: sets-first (MRP) → store_prices-first (in_stock), `createServerClient()`. Dead `prices(*)` join was causing zero prices on all deal cards since Day 9.
+- 251 approved drafts had null `draft_title` → bulk pre-populated from `source_title` (`fix-null-draft-titles.mjs`).
+- NHM review verdict patched: "WAIT FOR SALE" → "WAIT" (invalid enum).
+- Editorial CDN blocklist in `publish-drafts.mjs`: Squarespace/Brothers Brick/Flickr/JBB images now trigger Rebrickable fallback chain at publish time instead of being stored as hotlink-protected URLs. 27 existing articles backfilled (`fix-editorial-hero-images.mjs`): 1 Rebrickable image, 26 nulled (MOC/community content).
+- `BRICKSET_API_KEY` added to `technical-hygiene.yml` env block — key was in GitHub Secrets but never forwarded to the step, firing false 401 alert every Monday.
+- `REBRICKABLE_API_KEY` already fixed in `publish-drafts.yml` (prior session carry-over confirmed fixed).
+
+**CQS content sweep (commits `c7725fd`, `432b830`, `da9d605`, `916fe60`):**
+- Jaiman Toys removed from 25 news_articles + 1 blog_post via bulk regex (`fix-cqs-warnings-day33.mjs`). Store removed 2026-05-31; articles published before that date still referenced it.
+- 16 missing signoffs ("On that bombshell, bubyee.") added to news_articles.
+- Duplicate hero image (75313 AT-AT) on `lego-sets-destroy-wallet-2026` → replaced with 10366 Tropical Aquarium (Rebrickable).
+- Forbidden words stripped: "testament" → "proof of" (weapon-wednesday), "whimsical" → "creative" (febrovery). Signoff added to febrovery.
+- 4 articles with missing India Paragraphs fixed with live `store_prices` data: creator-2026 (278w→355w, real prices 31150/31151/31152), ideas-2026 (315w→372w, Amazon removed, real prices 21365/21367), love-birds (Toycra note + ABHINAV12 added, verdict VERDICT:BUY→BUY NOW), mybrickhouse-arrivals (Has ₹: false→true, ₹1,699→₹45,799 tier coverage).
+- 7 short articles extended to 300w+ with substantive BOI-voice additions (tahu 230→336, bo-katans 279→352, summer-fun 232→319, porco-rosso 246→333, contest-roundup 227→327, megatron-brickheadz 249→340, ebon-hawk 259→347).
+- 2 bad openers rewritten: technic-42228 "Okay, everyone," → "Your wallet called.", love-birds "Hey everyone! So," → direct set introduction.
+- summer-fun additional fixes: verdict WAIT FOR SALE→WAIT, signoff "it's time to say goodbye"→"bubyee".
+- `posted_sets.created_at` → `posted_at` in hygiene Check 15i — column never existed, was silently firing false alerts.
+- 11 articles published in batch run (news: 73→84). 4 Gate 2 failures reset to approved.
+
+**Three hardening systems (commit `0262dc0`):**
+1. **Publisher pre-publish gate** (`publish-drafts.mjs`): `prePublishAutoFix()` runs on every draft before DB insert — strips markdown, removes Jaiman Toys, substitutes forbidden words, injects ABHINAV12 if missing, appends signoff. `cqsHardCheck()` resets drafts with script injection/leaked draft markers to `approved` for regeneration. Nothing that fails CQS tomorrow is publishable today.
+2. **CQS auto-fixer extended** (`content-auto-fixer.mjs` + `content-linter.mjs`): three new fix types — `jaiman_reference` (strips Jaiman Toys), `forbidden_word` (16-pattern substitution map), `missing_signoff` (appends signoff). All three now `auto_fixable=true` in linter.
+3. **Secrets manifest** (`.github/secrets-manifest.json` + `scripts/audit-secrets-manifest.mjs`): declares all 16 secrets × 15 workflows, 65 references. Validates Check A (every required secret present in workflow) + Check B (every workflow secret declared in manifest). Wired into `code-audit.yml` Monday run. Audit passed clean at commit time. Catches BRICKSET_API_KEY and REBRICKABLE_API_KEY class of bugs before they reach production.
+
+**Scheduled publish-drafts (commit `0ad0411`):**
+- `publish-drafts.yml` now has 3 cron triggers: 00:30 IST (19:00 UTC), 13:00 IST (07:30 UTC), 18:00 IST (12:30 UTC).
+- 15 per run × 3 = 45 articles/day max. Independent schedule (not chained to radar.yml — resilient).
+- `NEXT_PUBLIC_SITE_URL` added to env block.
+- `workflow_dispatch` with limit input preserved for manual override.
+- 19 approved-with-body drafts flipped to `draft` for tonight's 00:30 IST run.
+
+**npm security (commit `a515533`):**
+- `npm audit fix` (no force): axios bumped to 1.16.0 (14 CVEs fixed — prototype pollution, SSRF, credential theft, MITM). basic-ftp, ws, brace-expansion, follow-redirects, ip-address also patched.
+- 5 remaining vulns require `next@16.2.6` (isSemVerMajor). All DoS/cache/feature-specific, none exploited in our setup. Deferred: Next.js 14→15 migration sprint needed.
+
+**Social automation fixed (commits `655a185`, `1debd26`, `e7289af`):**
+- **Theme-as-number** (`scraper.py:491`): Rebrickable path was `str(theme_id)` = numeric e.g. "246" rendering on slides. Fixed: `''` (empty), Brickset merge fills theme name.
+- **India filter removal** (`scraper.py:684-687`): `is_available_in_india()` was excluding any set in `store_prices` — with 648 tracked sets, this starved the selection pool (June 1 run: 0 candidates, exited in 1m29s). Fix: removed exclusion. `posted_sets` dedup (Filter 2) is the only gate. Sets in store_prices produce better captions (real INR prices).
+- **Pieces Supabase fallback** (`db.py`: `get_pieces_from_supabase()`): fourth-tier fallback after LEGO.com/Rebrickable/Brickset all return 0. `sets.pieces` is 100% populated (24,633 rows). `N/A` on slides now only when set is genuinely unknown.
+- **Real India price on stats card** (`db.py`: `get_india_price()`, `media_processor.py`: `_make_stats_card()`): was always `??` / "Price TBA - Coming Soon". Now shows `₹24,999` / "Best price in India today" when set is in store_prices. Fallback unchanged when no data.
+- `posted_sets.created_at` → `posted_at` hygiene fix (Check 15i was firing false Monday alerts for 6+ weeks).
+
+**Health score recomputation (2026-06-02):**
+- Start: 100
+- P0 issues: 0 → 0
+- P1 issues: 0 → 0
+- Last audit: CQS ran 2026-06-02 → 0
+- GEO: GSC active, score improving → 0
+- Social automation: fixed, June 1 run was selection starvation not pipeline failure → 0
+- **Health score: 97**
+
+**DB state (2026-06-02):**
+- news_articles: 84 | blog_posts: 22 | guides: 9 | reviews: 3
+- pending_drafts: ~484 total | approved: ~321 | draft: 0 | published: ~51 | rejected: 4
+- store_prices: 2,600 | sets: 24,633 (pieces: 100% coverage)
+
+**Key commits (Day 33):** `caaff6e` → `2110dce` → `916fe60` → `c7725fd` → `a515533` → `432b830` → `da9d605` → `0262dc0` → `0ad0411` → `e7289af` → `655a185` → `1debd26` (HEAD)
+
+---
 
 ### Day 30 — 2026-05-30 — LAB-09 Price Drop Board, publish-drafts GHA workflow, social automation fixes, prompt hardening
 
