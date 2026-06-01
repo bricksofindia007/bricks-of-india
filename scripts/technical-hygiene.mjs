@@ -1225,13 +1225,13 @@ try {
 // 15i: Social automation — posted_sets entry within 25h (skip gracefully if table missing)
 try {
   const cutoff = new Date(Date.now() - 25 * 3_600_000).toISOString();
-  const { data, error } = await sb.from('posted_sets').select('id, created_at').order('created_at', { ascending: false }).limit(1);
+  const { data, error } = await sb.from('posted_sets').select('id, posted_at').order('posted_at', { ascending: false }).limit(1);
   if (error) {
     log('Performance', `Social automation: posted_sets table unavailable — ${error.message.slice(0, 60)}`);
   } else if (!data || data.length === 0) {
     alertFail('Performance', 'Social automation: no rows in posted_sets — social pipeline may never have run');
   } else {
-    const lastPost = data[0].created_at;
+    const lastPost = data[0].posted_at;
     const hoursAgo = (Date.now() - new Date(lastPost).getTime()) / 3_600_000;
     if (hoursAgo > 25) alertFail('Performance', `Social automation: last post ${hoursAgo.toFixed(1)}h ago — daily pipeline may be failing`);
     else log('Performance', `Social automation: last post ${hoursAgo.toFixed(1)}h ago ✓`);
