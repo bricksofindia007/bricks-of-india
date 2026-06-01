@@ -681,6 +681,20 @@ def get_new_set() -> dict | None:
             # India availability: removed as selection filter.
             # Sets in store_prices produce BETTER captions (real INR prices).
             # Dedup is handled by posted_sets check above — same set never repeats.
+
+            # Supabase pieces fallback — sets table has 100% coverage
+            if not s.get('num_parts'):
+                pieces = db.get_pieces_from_supabase(s['set_num'])
+                if pieces:
+                    s['num_parts'] = pieces
+                    print(f'[scraper] num_parts from Supabase sets table: {pieces}')
+
+            # Supabase India price — real INR for the stats card
+            india_price = db.get_india_price(s['set_num'])
+            if india_price:
+                s['india_price'] = india_price
+                print(f'[scraper] India price from store_prices: {india_price}')
+
             print(
                 f'[scraper] Selected: {s["set_num"]} - {s["name"]} '
                 f'({s["num_parts"]} parts, {len(gallery)} gallery images, '

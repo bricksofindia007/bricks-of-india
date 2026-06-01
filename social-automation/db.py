@@ -77,6 +77,67 @@ def is_available_in_india(set_num: str) -> tuple:
         return False, ''
 
 
+def get_pieces_from_supabase(set_num: str) -> int:
+    """
+    Fourth-tier fallback for num_parts when LEGO.com/Rebrickable/Brickset all return 0.
+    Queries the Supabase sets table which has 100% pieces coverage (24,633 rows).
+    Returns 0 on any error so a lookup failure never blocks the pipeline.
+    """
+    bare_num = set_num.split('-')[0]
+    try:
+        result = (_client()
+                  .table('sets')
+                  .select('pieces')
+                  .eq('set_number', bare_num)
+                  .maybe_single()
+                  .execute())
+        return (result.data or {}).get('pieces') or 0
+    except Exception as exc:
+        print(f'[db] pieces fallback error for {bare_num}: {exc}')
+        return 0
+
+
+def _fmt_inr(amount: float) -> str:
+    """Format a number in Indian number format: ₹24,999 / ₹1,05,999."""
+    s = str(int(amount))
+    if len(s) <= 3:
+        return f'₹{s}'
+    last3 = s[-3:]
+    rest = s[:-3]
+    groups = []
+    while len(rest) > 2:
+        groups.append(rest[-2:])
+        rest = rest[:-2]
+    if rest:
+        groups.append(rest)
+    return '₹' + ','.join(reversed(groups)) + ',' + last3
+
+
+def get_india_price(set_num: str) -> str | None:
+    """
+    Returns a formatted INR price string (e.g. '₹24,999') for a set from store_prices,
+    or None if no live price data. Picks the cheapest in-stock price across stores.
+    Used to populate the stats card India Price box with real data when available.
+    """
+    bare_num = set_num.split('-')[0]
+    try:
+        result = (_client()
+                  .table('store_prices')
+                  .select('price_inr, in_stock')
+                  .eq('set_id', bare_num)
+                  .execute())
+        rows = [r for r in (result.data or []) if r.get('price_inr')]
+        if not rows:
+            return None
+        # Prefer in-stock rows; fall back to any price
+        in_stock = [r for r in rows if r.get('in_stock')]
+        best = min(in_stock or rows, key=lambda r: r['price_inr'])
+        return _fmt_inr(best['price_inr'])
+    except Exception as exc:
+        print(f'[db] India price lookup error for {bare_num}: {exc}')
+        return None
+
+
 def get_all_posted_set_nums() -> set:
     """
     Returns a set of every set_num already in posted_sets.

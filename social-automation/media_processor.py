@@ -314,19 +314,27 @@ def _make_stats_card(set_data: dict) -> Image.Image:
     )
 
     f_price_lbl = _try_font(28)
-    f_price_val = _try_font(90)
     f_price_sub = _try_font(26)
 
     lbl = 'INDIA PRICE'
     bw = draw.textbbox((0, 0), lbl, font=f_price_lbl)[2]
     draw.text(((1080 - bw) // 2, box_top + 20), lbl, font=f_price_lbl, fill=NAVY)
 
-    val = '??'
+    india_price = set_data.get('india_price')
+    if india_price:
+        # Real price from store_prices — scale font to fit if needed
+        f_price_val = _try_font(78) if len(india_price) > 8 else _try_font(90)
+        val = india_price
+        sub = 'Best price in India today'
+    else:
+        f_price_val = _try_font(90)
+        val = '??'
+        sub = 'Price TBA - Coming Soon'
+
     bbox = draw.textbbox((0, 0), val, font=f_price_val)
     bw, bh = bbox[2] - bbox[0], bbox[3] - bbox[1]
     draw.text(((1080 - bw) // 2, box_top + 60), val, font=f_price_val, fill=NAVY)
 
-    sub = 'Price TBA - Coming Soon'
     bw = draw.textbbox((0, 0), sub, font=f_price_sub)[2]
     draw.text(((1080 - bw) // 2, box_top + 168), sub, font=f_price_sub, fill=NAVY)
 
