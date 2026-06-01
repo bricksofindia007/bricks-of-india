@@ -335,31 +335,32 @@ try {
 // Catches silent regressions: dead table references, prompt failures, empty renders.
 
 // 7a. Related sets have live prices — verifies store_prices join (not dead prices table)
+// Uses City theme (Technic is not stocked by Toycra/MBH — acceptable, not a regression)
 try {
   const { data: themeSets } = await sb
-    .from('sets').select('set_number').eq('theme', 'Technic').limit(20);
+    .from('sets').select('set_number').eq('theme', 'City').limit(20);
   const nums = (themeSets ?? []).map(s => s.set_number);
   if (nums.length === 0) {
-    alertFail('DataIntegrity', 'No Technic sets found — cannot verify related-set prices');
+    alertFail('DataIntegrity', 'No City sets found — cannot verify related-set prices');
   } else {
     const { count: priceCount } = await sb
       .from('store_prices').select('*', { count: 'exact', head: true }).in('set_id', nums);
     if (!priceCount || priceCount === 0) {
-      alertFail('DataIntegrity', 'No store_prices rows for Technic sets — related set cards will show no prices');
+      alertFail('DataIntegrity', 'No store_prices rows for City sets — related set cards will show no prices');
     } else {
-      log('DataIntegrity', `Related-set prices: ${priceCount} store_prices rows for Technic sets ✓`);
+      log('DataIntegrity', `Related-set prices: ${priceCount} store_prices rows for City sets ✓`);
     }
   }
 } catch (e) {
   alertFail('DataIntegrity', `Related-set price check failed: ${e.message.slice(0, 80)}`);
 }
 
-// 7b. store_prices has rows for at least 3 distinct stores
+// 7b. store_prices has rows for at least 2 distinct stores (Jaiman removed 2026-05-31)
 try {
   const { data: storeRows } = await sb.from('store_prices').select('store_id').limit(3000);
   const storeIds = new Set((storeRows ?? []).map(r => r.store_id));
-  if (storeIds.size < 3) {
-    alertFail('DataIntegrity', `Only ${storeIds.size} store(s) with data in store_prices — expected ≥ 3 (${[...storeIds].join(', ')})`);
+  if (storeIds.size < 2) {
+    alertFail('DataIntegrity', `Only ${storeIds.size} store(s) with data in store_prices — expected ≥ 2 (${[...storeIds].join(', ')})`);
   } else {
     log('DataIntegrity', `Store coverage: ${storeIds.size} stores with data (${[...storeIds].join(', ')}) ✓`);
   }
@@ -791,20 +792,15 @@ try {
   alertFail('Homepage', `Reviews join check failed: ${e.message.slice(0, 80)}`);
 }
 
-// 10b. Homepage deals — store_prices has coverage for top deal sets (catches dead prices(*) regression)
+// 10b. Homepage deals — store_prices has in_stock rows (catches scraper regression)
+// Query mirrors fixed homepage: store_prices-first, not sets-first.
 try {
-  const { data: dealSets } = await sb.from('sets')
-    .select('set_number').not('lego_mrp_inr', 'is', null)
-    .order('updated_at', { ascending: false }).limit(8);
-  const nums = (dealSets ?? []).map(s => s.set_number).filter(Boolean);
-  if (nums.length > 0) {
-    const { count } = await sb.from('store_prices')
-      .select('*', { count: 'exact', head: true }).in('set_id', nums);
-    if (!count || count === 0) {
-      alertFail('Homepage', 'No store_prices for homepage deal sets — deal cards will show no prices (dead table regression)');
-    } else {
-      log('Homepage', `Deals price coverage: ${count} store_prices rows for top ${nums.length} deal sets ✓`);
-    }
+  const { count: inStockCount } = await sb.from('store_prices')
+    .select('*', { count: 'exact', head: true }).eq('in_stock', true);
+  if (!inStockCount || inStockCount === 0) {
+    alertFail('Homepage', 'No in_stock store_prices rows — homepage deal cards will be empty');
+  } else {
+    log('Homepage', `Deals price coverage: ${inStockCount} in_stock store_prices rows ✓`);
   }
 } catch (e) {
   alertFail('Homepage', `Deals price coverage check failed: ${e.message.slice(0, 80)}`);
@@ -1206,17 +1202,14 @@ await Promise.allSettled(['/', '/sets'].map(async route => {
   } catch (e) { alertFail('Performance', `${route} canonical check error: ${e.message.slice(0, 60)}`); }
 }));
 
-// 15g: store_prices — no single store has >80% of rows (scraper imbalance)
+// 15g: store_prices distribution — log only (threshold removed: 2-store config means one
+// store will always be dominant; MBH skew is acceptable after Jaiman removal 2026-05-31)
 try {
   const { data: storeRows } = await sb.from('store_prices').select('store_id').limit(3000);
   const total15 = (storeRows ?? []).length;
   const counts = {};
   for (const r of storeRows ?? []) counts[r.store_id] = (counts[r.store_id] ?? 0) + 1;
-  for (const [storeId, count] of Object.entries(counts)) {
-    const pct = Math.round((count / total15) * 100);
-    if (pct > 80) alertFail('Performance', `${storeId} has ${pct}% of store_prices rows — scraper imbalance`);
-  }
-  log('Performance', `store_prices distribution: ${Object.entries(counts).map(([s, c]) => `${s}=${c}`).join(', ')} ✓`);
+  log('Performance', `store_prices distribution: ${Object.entries(counts).map(([s, c]) => `${s}=${c} (${Math.round((c/total15)*100)}%)`).join(', ')}`);
 } catch (e) { alertFail('Performance', `store_prices distribution check error: ${e.message.slice(0, 80)}`); }
 
 // 15h: Gemini quota proxy — flag if approved pending_drafts count > 300 without recent drafts

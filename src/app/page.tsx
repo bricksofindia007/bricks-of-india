@@ -12,7 +12,7 @@ import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { TricolourStripe } from '@/components/ui/TricolourStripe';
 import { LabStrip } from '@/components/ui/LabStrip';
 import { BRAND, MASCOTS, THEMES } from '@/lib/brand';
-import { supabase } from '@/lib/supabase';
+import { supabase, createServerClient } from '@/lib/supabase';
 
 export const revalidate = 3600; // re-fetch from Supabase at most every hour
 
@@ -24,13 +24,36 @@ export const metadata: Metadata = {
 };
 
 async function getHomepageData() {
+  const svc = createServerClient();
+
+  // Deal sets: start from store_prices (service client bypasses RLS).
+  // Flip from old sets-first approach which produced MRP sets with no matching
+  // store_prices rows. Now we start from what's actually stocked.
+  const { data: inStockSp } = await svc
+    .from('store_prices')
+    .select('set_id, store_id, price_inr, product_url')
+    .eq('in_stock', true)
+    .not('price_inr', 'is', null)
+    .limit(500);
+
+  const dealPriceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
+  for (const row of (inStockSp ?? []) as any[]) {
+    const ex = dealPriceMap[row.set_id];
+    if (!ex || row.price_inr < ex.price_inr) {
+      dealPriceMap[row.set_id] = { price_inr: row.price_inr, store_name: row.store_id, buy_url: row.product_url ?? null };
+    }
+  }
+  const dealSetNums = Object.keys(dealPriceMap);
+
   const [setsRes, reviewsRes, newsRes, blogRes, setsCountRes, newsCountRes, reviewsCountRes] = await Promise.allSettled([
-    supabase
-      .from('sets')
-      .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr')
-      .not('lego_mrp_inr', 'is', null)
-      .order('updated_at', { ascending: false })
-      .limit(8),
+    dealSetNums.length > 0
+      ? supabase
+          .from('sets')
+          .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr')
+          .in('set_number', dealSetNums)
+          .order('year', { ascending: false })
+          .limit(8)
+      : Promise.resolve({ data: [] }),
     supabase
       .from('reviews')
       .select('*, set:sets(name, image_url, rebrickable_id, set_number, theme)')
@@ -54,24 +77,7 @@ async function getHomepageData() {
   const setsCount = setsCountRes.status === 'fulfilled' ? (setsCountRes.value.count ?? 0) : 0;
   const newsCount = newsCountRes.status === 'fulfilled' ? (newsCountRes.value.count ?? 0) : 0;
   const reviewsCount = reviewsCountRes.status === 'fulfilled' ? (reviewsCountRes.value.count ?? 0) : 0;
-
-  const sets = setsRes.status === 'fulfilled' ? (setsRes.value.data || []) : [];
-
-  // Fetch live store prices for the 8 deal sets (replaces dead prices(*) join)
-  const dealPriceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
-  const dealSetNums = (sets as any[]).map((s) => s.set_number).filter(Boolean);
-  if (dealSetNums.length > 0) {
-    const { data: storePrices } = await supabase
-      .from('store_prices')
-      .select('set_id, store_id, price_inr, in_stock, product_url')
-      .in('set_id', dealSetNums);
-    for (const row of (storePrices ?? []) as any[]) {
-      const ex = dealPriceMap[row.set_id];
-      if (!ex || row.price_inr < ex.price_inr) {
-        dealPriceMap[row.set_id] = { price_inr: row.price_inr, store_name: row.store_id, buy_url: row.product_url ?? null };
-      }
-    }
-  }
+  const sets = setsRes.status === 'fulfilled' ? ((setsRes.value as any).data || []) : [];
 
   return {
     sets,

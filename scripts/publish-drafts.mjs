@@ -100,10 +100,26 @@ function lintDraft(draft) {
   return { warnings };
 }
 
-// ── YouTube hero image fallback chain ────────────────────────────────────────
+// ── Hero image CDN blocklist + fallback chain ─────────────────────────────────
+// Editorial CDNs (Brothers Brick/Squarespace, Jay's Brick Blog, Flickr) use
+// hotlink protection and are unreliable in headless renderers. When an OG image
+// resolves to one of these, we run the same Rebrickable fallback as YouTube.
 
 const YOUTUBE_SRC_RE = /youtube\.com|youtu\.be/i;
 const YOUTUBE_IMG_RE = /ytimg\.com|yt3\.ggpht\.com|youtube\.com\/vi\//i;
+
+const EDITORIAL_CDN_BLOCKLIST = new Set([
+  'static1.squarespace.com',       // New Elementary
+  'media-cdn.brothers-brick.com',  // Brothers Brick
+  'live.staticflickr.com',         // Flickr embeds
+  'jaysbrickblog.com',             // Jay's Brick Blog
+]);
+
+function isEditorialCDN(url) {
+  if (!url) return false;
+  try { return EDITORIAL_CDN_BLOCKLIST.has(new URL(url).hostname); }
+  catch { return false; }
+}
 
 const LEGO_THEME_KEYWORDS = [
   'Technic','City','Star Wars','Harry Potter','Ideas','Icons','Creator','Ninjago',
@@ -253,10 +269,13 @@ for (const draft of queue) {
     slug = `${baseSlug.slice(0, 57)}-${attempt++}`;
   }
 
-  // OG image — with YouTube fallback chain
+  // OG image — with YouTube + editorial CDN fallback chain
   let heroImage = await fetchOgImage(draft.source_url);
   if (YOUTUBE_SRC_RE.test(draft.source_url) || (heroImage !== null && YOUTUBE_IMG_RE.test(heroImage))) {
     console.log('  [yt] YouTube source — running Rebrickable fallback chain');
+    heroImage = await resolveYouTubeHeroImage(draft.draft_title, draft.source_title);
+  } else if (isEditorialCDN(heroImage)) {
+    console.log(`  [cdn-block] Editorial CDN (${new URL(heroImage).hostname}) — running Rebrickable fallback chain`);
     heroImage = await resolveYouTubeHeroImage(draft.draft_title, draft.source_title);
   }
   if (heroImage) {
