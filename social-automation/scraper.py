@@ -488,7 +488,7 @@ def rebrickable_get_sets() -> list[dict]:
                 'name':          s.get('name', ''),
                 'year':          s.get('year', 0),
                 'theme_id':      s.get('theme_id', ''),
-                'theme':         str(s.get('theme_id', '')),
+                'theme':         '',  # Rebrickable has no theme name — Brickset merge fills this
                 'num_parts':     s.get('num_parts', 0),
                 'image_url':     s.get('set_img_url', ''),
                 'usd_price':     None,
@@ -678,13 +678,9 @@ def get_new_set() -> dict | None:
             # Use first gallery image as primary image_url if absent
             if not s.get('image_url'):
                 s['image_url'] = gallery[0]
-            # FIX 2: India availability check — mandatory defense layer
-            # Must run AFTER gallery check so we only pay the DB round-trip
-            # for sets that would otherwise be posted.
-            in_india, price_str = db.is_available_in_india(s['set_num'])
-            if in_india:
-                print(f'[scraper] SKIP {s["set_num"]} — already in Indian stores ({price_str})')
-                continue
+            # India availability: removed as selection filter.
+            # Sets in store_prices produce BETTER captions (real INR prices).
+            # Dedup is handled by posted_sets check above — same set never repeats.
             print(
                 f'[scraper] Selected: {s["set_num"]} - {s["name"]} '
                 f'({s["num_parts"]} parts, {len(gallery)} gallery images, '
