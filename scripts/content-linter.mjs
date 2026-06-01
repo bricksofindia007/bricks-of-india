@@ -190,8 +190,12 @@ for (const art of all) {
 
   for (const word of FORBIDDEN_WORDS) {
     if (bodyLower.includes(word.toLowerCase()))
-      flag(art, 'forbidden_word', 'warning', `Forbidden word: "${word}"`, false);
+      flag(art, 'forbidden_word', 'warning', `Forbidden word: "${word}"`, true);
   }
+
+  // Jaiman Toys reference — store removed 2026-05-31
+  if (/jaiman/i.test(body))
+    flag(art, 'jaiman_reference', 'warning', 'Article mentions Jaiman Toys (store removed 2026-05-31)', true);
 
   const firstWords = body.trimStart().slice(0, 60);
   for (const opener of BAD_OPENERS) {
@@ -211,7 +215,7 @@ for (const art of all) {
     flag(art, 'missing_store_mention', 'warning', 'No store name found (MyBrickHouse / Toycra)', false);
 
   if (isOpinionOrNews && !body.includes(SIGNOFF))
-    flag(art, 'missing_signoff', 'info', `Missing "${SIGNOFF}" signoff`, false);
+    flag(art, 'missing_signoff', 'info', `Missing "${SIGNOFF}" signoff`, true);
 
   // STRUCTURE ───────────────────────────────────────────────────────────────
 

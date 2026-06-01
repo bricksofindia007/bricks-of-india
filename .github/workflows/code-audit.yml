@@ -38,11 +38,17 @@ jobs:
         run: npm audit --audit-level=high
         continue-on-error: true
 
+      - name: Secrets manifest audit
+        id: secrets
+        run: node scripts/audit-secrets-manifest.mjs
+        continue-on-error: true
+
       - name: Send failure alert
-        if: steps.lint.outcome == 'failure' || steps.typecheck.outcome == 'failure' || steps.audit.outcome == 'failure'
+        if: steps.lint.outcome == 'failure' || steps.typecheck.outcome == 'failure' || steps.audit.outcome == 'failure' || steps.secrets.outcome == 'failure'
         env:
           RESEND_API_KEY:    ${{ secrets.RESEND_API_KEY }}
           LINT_OUTCOME:      ${{ steps.lint.outcome }}
           TYPECHECK_OUTCOME: ${{ steps.typecheck.outcome }}
           AUDIT_OUTCOME:     ${{ steps.audit.outcome }}
+          SECRETS_OUTCOME:   ${{ steps.secrets.outcome }}
         run: node scripts/code-audit-notify.mjs

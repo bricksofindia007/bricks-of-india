@@ -13,6 +13,7 @@ const checks = {
   'ESLint (npm run lint)':         process.env.LINT_OUTCOME      || 'skipped',
   'TypeScript (tsc --noEmit)':     process.env.TYPECHECK_OUTCOME || 'skipped',
   'npm audit --audit-level=high':  process.env.AUDIT_OUTCOME     || 'skipped',
+  'Secrets manifest audit':        process.env.SECRETS_OUTCOME   || 'skipped',
 };
 
 const failed  = Object.entries(checks).filter(([, v]) => v === 'failure').map(([k]) => k);

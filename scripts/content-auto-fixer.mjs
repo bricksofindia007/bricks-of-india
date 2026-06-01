@@ -31,6 +31,38 @@ if (!SUPABASE_URL || !SERVICE_KEY) { console.error('Missing env vars'); process.
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
+// ── Shared constants (keep in sync with publish-drafts.mjs) ──────────────────
+
+const FORBIDDEN_SUBS = [
+  [/\ba testament to\b/gi,         'proof of'],
+  [/\ba testament\b/gi,            'a sign'],
+  [/\btestament\b/gi,              'proof'],
+  [/\bwhimsical\b/gi,              'playful'],
+  [/\bpinnacle\b/gi,               'peak'],
+  [/\baficionados\b/gi,            'fans'],
+  [/\benthusiasts\b/gi,            'fans'],
+  [/\bdelve\b/gi,                  'dig into'],
+  [/\butilize\b/gi,                'use'],
+  [/\bat the end of the day\b/gi,  'ultimately'],
+  [/\bunadulterated\b/gi,          'pure'],
+  [/\bsiren call\b/gi,             'pull'],
+  [/\bfever dreams\b/gi,           'wild visions'],
+  [/\bbloke\b/gi,                  'person'],
+  [/\bcognoscenti\b/gi,            'experts'],
+  [/\bthat[''']s your jam\b/gi,    'that suits you'],
+  [/\bit[''']s your jam\b/gi,      "it's for you"],
+];
+
+const JAIMAN_SUBS = [
+  [/MyBrickHouse,\s*Toycra,\s*and\s*Jaiman\s*Toys/gi, 'MyBrickHouse and Toycra'],
+  [/Toycra,\s*and\s*Jaiman\s*Toys/gi,                 'Toycra'],
+  [/MyBrickHouse\s*and\s*Jaiman\s*Toys/gi,             'MyBrickHouse and Toycra'],
+  [/,?\s*and\s*Jaiman\s*Toys/gi,                       ''],
+  [/Jaiman\s*Toys/gi,                                  'Toycra'],
+];
+
+const SIGNOFF = 'On that bombshell, bubyee.';
+
 // ── Fix functions ─────────────────────────────────────────────────────────────
 
 function applyFix(checkName, body) {
@@ -88,6 +120,22 @@ function applyFix(checkName, body) {
         .replace(/^(FORMAT|TITLE|VERDICT|BODY):\s*.*/gm, '')
         .replace(/\n{3,}/g, '\n\n')
         .trim();
+
+    case 'jaiman_reference': {
+      let jb = body;
+      for (const [re, sub] of JAIMAN_SUBS) jb = jb.replace(re, sub);
+      return jb;
+    }
+
+    case 'forbidden_word': {
+      let fb = body;
+      for (const [re, sub] of FORBIDDEN_SUBS) fb = fb.replace(re, sub);
+      return fb;
+    }
+
+    case 'missing_signoff':
+      if (/on that bombshell/i.test(body)) return body;
+      return body.replace(/\s+$/, '') + '\n\n' + SIGNOFF;
 
     default:
       return body; // no-op for unknown checks
@@ -149,8 +197,11 @@ for (const { section, slug, issues } of Object.values(byArticle)) {
   // Apply each fix in dependency order (order matters for compound fixes)
   const ORDER = [
     'draft_marker_leaked', 'html_comment_visible', 'india_paragraph_marker',
+    'jaiman_reference',                                                         // remove stale store
+    'forbidden_word',                                                            // word substitutions
     'markdown_bold', 'markdown_asterisk', 'markdown_header', 'markdown_list',
     'consecutive_blank_lines', 'double_space', 'trailing_space', 'capitalisation_error',
+    'missing_signoff',                                                           // last: may add words
   ];
   const issueChecks = issues.map(i => i.check_name);
   for (const check of ORDER) {

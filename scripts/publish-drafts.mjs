@@ -115,6 +115,75 @@ const EDITORIAL_CDN_BLOCKLIST = new Set([
   'jaysbrickblog.com',             // Jay's Brick Blog
 ]);
 
+// ── Pre-publish auto-fix + CQS gate ──────────────────────────────────────────
+// Mirrors content-auto-fixer.mjs logic. Runs on every draft before DB insert
+// so nothing publishable today would fail CQS tomorrow.
+// Keep FORBIDDEN_SUBS and JAIMAN_SUBS in sync with content-auto-fixer.mjs.
+
+const FORBIDDEN_SUBS = [
+  [/\ba testament to\b/gi,         'proof of'],
+  [/\ba testament\b/gi,            'a sign'],
+  [/\btestament\b/gi,              'proof'],
+  [/\bwhimsical\b/gi,              'playful'],
+  [/\bpinnacle\b/gi,               'peak'],
+  [/\baficionados\b/gi,            'fans'],
+  [/\benthusiasts\b/gi,            'fans'],
+  [/\bdelve\b/gi,                  'dig into'],
+  [/\butilize\b/gi,                'use'],
+  [/\bat the end of the day\b/gi,  'ultimately'],
+  [/\bunadulterated\b/gi,          'pure'],
+  [/\bsiren call\b/gi,             'pull'],
+  [/\bfever dreams\b/gi,           'wild visions'],
+  [/\bbloke\b/gi,                  'person'],
+  [/\bcognoscenti\b/gi,            'experts'],
+];
+
+const JAIMAN_SUBS = [
+  [/MyBrickHouse,\s*Toycra,\s*and\s*Jaiman\s*Toys/gi, 'MyBrickHouse and Toycra'],
+  [/Toycra,\s*and\s*Jaiman\s*Toys/gi,                 'Toycra'],
+  [/MyBrickHouse\s*and\s*Jaiman\s*Toys/gi,             'MyBrickHouse and Toycra'],
+  [/,?\s*and\s*Jaiman\s*Toys/gi,                       ''],
+  [/Jaiman\s*Toys/gi,                                  'Toycra'],
+];
+
+const SIGNOFF_TEXT = 'On that bombshell, bubyee.';
+
+function prePublishAutoFix(body) {
+  let c = body;
+  // Strip markdown artifacts
+  c = c.replace(/\*\*([^*\n]{1,200})\*\*/g, '$1');
+  c = c.replace(/(?<!\*)\*(?!\*)([^*\n]{1,200})(?<!\*)\*(?!\*)/g, '$1');
+  c = c.replace(/^#{1,6}\s+(.+)$/gm, '$1');
+  c = c.replace(/^(\s*)[-*]\s+/gm, '$1');
+  // Collapse double spaces
+  while (c.includes('  ')) c = c.replace(/  /g, ' ');
+  // Remove Jaiman Toys
+  for (const [re, sub] of JAIMAN_SUBS) c = c.replace(re, sub);
+  // Substitute forbidden words
+  for (const [re, sub] of FORBIDDEN_SUBS) c = c.replace(re, sub);
+  // Inject ABHINAV12 if Toycra present without the code
+  if (/Toycra/i.test(c) && !/ABHINAV12/i.test(c)) {
+    c = c.replace(/(Toycra\b[^.\n]*\.)/, '$1 Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra.');
+  }
+  // Ensure signoff present
+  if (!/on that bombshell/i.test(c)) c = c.replace(/\s+$/, '') + '\n\n' + SIGNOFF_TEXT;
+  return c;
+}
+
+// Hard CQS check — only truly critical issues that cannot be auto-fixed.
+// Returns an error string if the body should be rejected, null if it passes.
+const CQS_HARD = [
+  { re: /<script[\s>]|<iframe[\s>]/i, msg: 'script/iframe injection in body' },
+  { re: /BOI_DRAFT_START|BOI_DRAFT_END/, msg: 'draft marker leaked into published body' },
+];
+
+function cqsHardCheck(body) {
+  for (const { re, msg } of CQS_HARD) {
+    if (re.test(body)) return msg;
+  }
+  return null;
+}
+
 function isEditorialCDN(url) {
   if (!url) return false;
   try { return EDITORIAL_CDN_BLOCKLIST.has(new URL(url).hostname); }
@@ -289,10 +358,27 @@ for (const draft of queue) {
     if (imgConflict) heroImage = null;
   }
 
-  // Clean body: strip the processing marker before storing
-  const cleanBody = draft.draft_body.replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '');
-  const excerpt   = cleanBody.replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 160);
-  const now       = new Date().toISOString();
+  // Clean body: strip processing marker, then run pre-publish auto-fix + CQS gate
+  const rawBody   = draft.draft_body.replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '');
+  const cleanBody = prePublishAutoFix(rawBody);
+  const fixedWords = cleanBody.split(/\s+/).filter(Boolean).length;
+  if (fixedWords !== (draft.word_count ?? 0)) {
+    process.stdout.write(`\n    [pre-fix] ${draft.word_count ?? '?'}w → ${fixedWords}w`);
+  }
+
+  const cqsErr = cqsHardCheck(cleanBody);
+  if (cqsErr) {
+    failed++;
+    failures.push({ title: label, reason: `[CQS REJECT] ${cqsErr}` });
+    console.log(`\n  CQS REJECT: ${cqsErr} — resetting to approved`);
+    await sb.from('pending_drafts').update({
+      status: 'approved', draft_body: null, draft_verdict: null, word_count: null,
+    }).eq('id', draft.id);
+    continue;
+  }
+
+  const excerpt = cleanBody.replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 160);
+  const now     = new Date().toISOString();
 
   const row = {
     title, slug, content: cleanBody, category, excerpt,
