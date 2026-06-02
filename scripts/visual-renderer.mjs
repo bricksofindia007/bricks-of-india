@@ -136,8 +136,8 @@ for (const art of articles) {
       else if (h1Count > 1)  flag(art, 'multiple_h1',  'warning',  `${h1Count} H1 elements found`);
     }
 
-    // image_render_broken (desktop only)
-    if (vp.name === 'desktop') {
+    // image_render_broken (desktop only) — skip if hero_image is null (caught by missing_image check)
+    if (vp.name === 'desktop' && art.hero_image) {
       const heroNaturalWidth = await page.evaluate(() => {
         const img = document.querySelector('img[src]');
         return img ? img.naturalWidth : -1;

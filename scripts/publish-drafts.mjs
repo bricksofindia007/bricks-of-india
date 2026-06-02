@@ -148,25 +148,64 @@ const JAIMAN_SUBS = [
 
 const SIGNOFF_TEXT = 'On that bombshell, bubyee.';
 
-function prePublishAutoFix(body) {
+// Bad opener patterns — replace with neutral BOI-voice opener
+const BAD_OPENER_PATTERNS = [
+  /^(Okay,\s*(LEGO\s*)?(fans?|everyone|fellow|let's)[^.!?]*[.!?])\s*/i,
+  /^(Alright,\s*(LEGO\s*)?(fans?|everyone|Potterheads|fellow)[^.!?]*[.!?])\s*/i,
+  /^(So,\s*[a-z][^.!?]*[.!?])\s*/i,
+  /^(Hey\s+everyone[^.!?]*[.!?])\s*/i,
+];
+
+function prePublishAutoFix(body, draft) {
   let c = body;
+
   // Strip markdown artifacts
   c = c.replace(/\*\*([^*\n]{1,200})\*\*/g, '$1');
   c = c.replace(/(?<!\*)\*(?!\*)([^*\n]{1,200})(?<!\*)\*(?!\*)/g, '$1');
   c = c.replace(/^#{1,6}\s+(.+)$/gm, '$1');
   c = c.replace(/^(\s*)[-*]\s+/gm, '$1');
+
   // Collapse double spaces
   while (c.includes('  ')) c = c.replace(/  /g, ' ');
+
   // Remove Jaiman Toys
   for (const [re, sub] of JAIMAN_SUBS) c = c.replace(re, sub);
+
   // Substitute forbidden words
   for (const [re, sub] of FORBIDDEN_SUBS) c = c.replace(re, sub);
+
+  // Fix bad openers — strip the bad opener sentence, derive title-based replacement
+  for (const pat of BAD_OPENER_PATTERNS) {
+    if (pat.test(c)) {
+      const title = draft?.source_title || draft?.draft_title || '';
+      const setRef = title ? title.replace(/^LEGO\s*/i, '').replace(/[–—-].*$/, '').trim() : 'this set';
+      const replacement = `The ${setRef} has landed — and your wallet already knows what's coming. `;
+      c = c.replace(pat, replacement);
+      break;
+    }
+  }
+
   // Inject ABHINAV12 if Toycra present without the code
   if (/Toycra/i.test(c) && !/ABHINAV12/i.test(c)) {
     c = c.replace(/(Toycra\b[^.\n]*\.)/, '$1 Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra.');
   }
+
+  // Inject store mention if ₹ price present but neither store mentioned
+  const hasPrice = /₹[\d,]+/.test(c);
+  const hasStore = /MyBrickHouse|Toycra/i.test(c);
+  if (hasPrice && !hasStore) {
+    c = c.replace(/(₹[\d,]+[^.\n]*\.)/, '$1 Available at MyBrickHouse and Toycra (use code ABHINAV12 for 12% off above ₹500).');
+  }
+
+  // Inject verdict if ₹ price present but no verdict found
+  const hasVerdict = /\b(BUY NOW|WAIT|IMPORT ONLY|AVOID)\b/.test(c);
+  if (hasPrice && !hasVerdict) {
+    c = c.replace(/\s+$/, '') + '\n\n**Verdict: WAIT** — check prices at MyBrickHouse and Toycra before pulling the trigger.';
+  }
+
   // Ensure signoff present
   if (!/on that bombshell/i.test(c)) c = c.replace(/\s+$/, '') + '\n\n' + SIGNOFF_TEXT;
+
   return c;
 }
 
@@ -360,7 +399,7 @@ for (const draft of queue) {
 
   // Clean body: strip processing marker, then run pre-publish auto-fix + CQS gate
   const rawBody   = draft.draft_body.replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '');
-  const cleanBody = prePublishAutoFix(rawBody);
+  const cleanBody = prePublishAutoFix(rawBody, draft);
   const fixedWords = cleanBody.split(/\s+/).filter(Boolean).length;
   if (fixedWords !== (draft.word_count ?? 0)) {
     process.stdout.write(`\n    [pre-fix] ${draft.word_count ?? '?'}w → ${fixedWords}w`);
