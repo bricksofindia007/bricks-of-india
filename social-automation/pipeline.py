@@ -88,8 +88,12 @@ def main() -> None:
     platforms['ig_reels'] = True
 
     print('[pipeline] Step 9: Uploading YouTube Short...')
-    yt_id = publisher.post_youtube_shorts(shorts_path, set_data, caption_text)
-    platforms['yt_shorts'] = yt_id is not None
+    try:
+        yt_id = publisher.post_youtube_shorts(shorts_path, set_data, caption_text)
+        platforms['yt_shorts'] = yt_id is not None
+    except Exception as yt_exc:
+        print(f'[pipeline] YouTube upload failed (non-fatal): {yt_exc}')
+        platforms['yt_shorts'] = False
 
     # ── Step 7: Record in Supabase ────────────────────────────────────────────
     print('[pipeline] Step 10: Recording in posted_sets...')
@@ -117,6 +121,6 @@ if __name__ == '__main__':
         raise
     except Exception as exc:
         tb_str = traceback.format_exc()
-        print(f'\n[pipeline] FATAL ERROR:\n{tb_str}', file=sys.stderr)
+        print(f'\n[pipeline] FATAL ERROR:\n{tb_str}')
         notifier.send_failure(exc, tb_str, current_module)
         sys.exit(1)

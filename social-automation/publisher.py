@@ -189,10 +189,16 @@ def _load_youtube_credentials():
         print(f'[publisher] YOUTUBE_CLIENT_SECRETS is not valid JSON: {exc}. Skipping YouTube.')
         return None
 
+    from google.auth.exceptions import RefreshError
+
     creds = Credentials.from_authorized_user_info(token_data, YT_SCOPES)
     if creds.expired and creds.refresh_token:
         print('[publisher] Refreshing YouTube token...')
-        creds.refresh(Request())
+        try:
+            creds.refresh(Request())
+        except RefreshError as exc:
+            print(f'[publisher] YouTube token refresh failed: {exc}. Skipping YouTube.')
+            return None
     return creds
 
 

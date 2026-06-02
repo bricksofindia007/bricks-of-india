@@ -30,19 +30,25 @@ def _send(subject: str, html_body: str) -> None:
     print(f'[notifier] Email sent. ID: {result.get("id")}')
 
 
+def _sanitize(text: str) -> str:
+    return text.replace('﻿', '').encode('ascii', 'replace').decode('ascii')
+
+
 def send_failure(error: Exception, traceback_str: str, module_name: str = 'unknown') -> None:
     today = date.today().isoformat()
-    subject = f'⚠️ BOI Social Pipeline Failed — {today}'
+    subject = f'BOI Social Pipeline Failed - {today}'
+    safe_error = _sanitize(f'{type(error).__name__}: {error}')
+    safe_tb = _sanitize(traceback_str)
     html = f"""
 <h2>Social Automation Pipeline Failure</h2>
 <p><strong>Date:</strong> {today}</p>
 <p><strong>Module that failed:</strong> <code>{module_name}</code></p>
 <p><strong>Error:</strong></p>
-<pre style="background:#fee;padding:12px;border-radius:4px;">{type(error).__name__}: {error}</pre>
+<pre style="background:#fee;padding:12px;border-radius:4px;">{safe_error}</pre>
 <p><strong>Full traceback:</strong></p>
-<pre style="background:#f5f5f5;padding:12px;border-radius:4px;font-size:12px;">{traceback_str}</pre>
+<pre style="background:#f5f5f5;padding:12px;border-radius:4px;font-size:12px;">{safe_tb}</pre>
 <hr>
-<p style="color:#888;font-size:12px;">Bricks of India — bricksofindia.com</p>
+<p style="color:#888;font-size:12px;">Bricks of India - bricksofindia.com</p>
 """
     try:
         _send(subject, html)
