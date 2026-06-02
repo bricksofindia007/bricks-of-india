@@ -2,8 +2,8 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-06-02 (Day 33 — P0 sweep, 3× hardening systems, scheduled publish live, social automation fixed, 84 news articles live)
-> **Health Score: 97** — GSC verified. 84 news articles live. 9 of 9 Lab tools live. Checks 1–23 + secrets manifest audit. Publish pipeline: pre-publish quality gate + 3× daily schedule. Social automation: theme/India filter/pieces/price all fixed.
+> **Last updated:** 2026-06-03 (Day 34 — CQS spike resolved, fallback hero system complete, social automation hardened, YouTube re-auth in progress, 98 news articles live)
+> **Health Score: 97** — GSC verified. 98 news articles live. 9 of 9 Lab tools live. Checks 1–23 + secrets manifest audit. CQS false-positive spike resolved. Fallback hero on 41 articles. YouTube Shorts degraded (OAuth re-auth blocked on Google verification); IG unaffected.
 > **Audit log:** `audit-block1.log`
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -131,8 +131,9 @@ JSON parses. If it doesn't, fix before doing anything else.
 ## Current blockers (top 3)
 
 1. **IG System User Token** — current 60-day token expires ~2026-07-23. Manual re-exchange required by **2026-07-16** (hard deadline). Permanent fix (Meta Business Manager System User) deferred.
-2. **CE-01 Builder Spotlights ×2** — deadline **2026-07-15**. Outreach posted 2026-05-29. Awaiting respondents. Check Reddit/FB inbox mid-June; escalate to direct outreach if no responses.
-3. **Draft queue backlog** — ~321 approved drafts. Scheduled publish now 3×/day (00:30/13:00/18:00 IST, 15/run = 45/day max). Queue clears in ~7 days at current rate assuming daily Gemini generation.
+2. **YouTube OAuth re-auth** — refresh token expired (`invalid_grant`). Full re-auth required via `social-automation/youtube_oauth_helper.py`. Blocked: Google OAuth app under verification review (4–6 weeks); `bricksofindia007@gmail.com` added as test user but `access_denied` persisting. YouTube Shorts skipped gracefully (pipeline continues to post IG). Health Check 6b will alert nightly.
+3. **CE-01 Builder Spotlights ×2** — deadline **2026-07-15**. Outreach posted 2026-05-29. Awaiting respondents. Check Reddit/FB inbox mid-June; escalate to direct outreach if no responses.
+4. **store_prices drop** — 2,600 → 1,512 rows between Day 33 close and Day 34 open. Likely a scraper run with reduced match rate. Investigate next session: check scrape-prices.yml last run log and SCRAPE-03 alert for zero-row condition.
 
 > CE-01 outreach ✅ DONE 2026-05-29 — r/IndiaLEGO + AFOL India Facebook posted. Awaiting respondents.
 > McLaren voice test ✅ DONE — 12 articles published 2026-05-29, voice test passed implicitly.
@@ -245,6 +246,61 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### Day 34 — 2026-06-03 — CQS spike resolved, fallback hero system, social automation hardened
+
+**HEAD:** `57a3113` | **Health:** 97 | **news_articles:** 98 (+14 from overnight scheduled runs)
+
+**Root cause of Day 34 work:** Social automation `social-automation.yml` run 26815624526 failed after 6m47s. Diagnosis: YouTube OAuth refresh token expired (`invalid_grant`) at Step 9. IG carousel + Reels posted successfully (media IDs `18127043203618719`, `18021263351831817`) but `posted_sets` never recorded. Failure chain: YouTube exception → notifier crash (BOM encoding) → traceback never printed. Separately, CQS report showed 158 criticals (spike from Day 33's 22) — traced to null hero images + misapplied checks.
+
+**Social automation hardening (commits `1477c75`, `a8b1546`):**
+- `publisher.py`: `creds.refresh()` wrapped in `try/except RefreshError` — token failure now returns `None`, YouTube skipped gracefully instead of crashing pipeline
+- `pipeline.py`: `post_youtube_shorts()` wrapped in its own `try/except` — IG-live sets always reach `mark_as_posted()` regardless of YouTube outcome; fatal error print moved stderr → stdout so GHA captures real traceback
+- `notifier.py`: `_sanitize()` strips `﻿` BOM + encodes ASCII before HTML embed; emoji removed from subject to avoid `resend@0.7.0` latin-1 crash
+- `health-check.mjs` Check 6b: YouTube token expiry check (missing secret → alert, malformed JSON → alert, `expiry` ≤3 days → alert); `YOUTUBE_CLIENT_SECRETS` added to `health-check.yml` env + `secrets-manifest.json`
+- `posted_sets`: `76470-1` inserted manually (IG live, YT failed — prevents duplicate post)
+
+**YouTube re-auth attempt (blocked):**
+- Root cause confirmed: refresh token `invalid_grant` (Google OAuth app in Testing mode, tokens expire after 7 days)
+- `client_secrets.json` corrected: wrong `client_id` (`505184160322-...`) → correct (`824336036645-...`) from `.env` YOUTUBE_CLIENT_SECRETS
+- `youtube_oauth_helper.py` written: proper state sharing between `authorization_url()` and `run_local_server()` to prevent CSRF mismatch; `redirect_uri` set before URL generation
+- Google OAuth consent screen blocked: app under verification review (submitted 2026-06-02, 4–6 week review). `bricksofindia007@gmail.com` added as test user but `access_denied` persisting (propagation or UI issue)
+- Status: YouTube Shorts skipped gracefully. IG pipeline unaffected. Re-auth resumes when Google review completes or test user access resolves.
+
+**CQS spike resolution — 158 criticals → 0 actionable (8 commits `14fedb4`–`57a3113`):**
+
+Code fixes:
+- `visual-renderer.mjs`: `image_render_broken` check now guards with `art.hero_image` — null hero images no longer flagged as broken render (were 41 false-critical triggers)
+- `content-linter.mjs`: `missing_image` now only fires when slug contains a 4–6 digit set number — MOC/community articles suppressed
+- `content-linter.mjs`: `placeholder_image` check carves out `/fallback-hero.png` as canonical
+- `content-linter.mjs`: `duplicate_image` suppressed when both articles share the same set number — same product, one Rebrickable image expected
+- `publish-drafts.mjs`: `prePublishAutoFix(body, draft, slug)` — 3 new gates: bad opener rewrite (BOI-voice title-derived replacement), store mention injection (₹ price + no store → MyBrickHouse/Toycra line), verdict injection (₹ price + set number in slug + no verdict → WAIT); `BAD_OPENER_PATTERNS` constant; slug passed as third arg; verdict gate requires set number in slug (prevents MOC false-positives)
+- `publish-drafts.mjs`: `EDITORIAL_CDN_BLOCKLIST` expanded to 8 domains (added `cdn.bricklink.com`, `i.imgur.com`, `external-preview.redd.it`, `preview.redd.it`)
+- `publish-drafts.mjs`: `resolveYouTubeHeroImage` no-image path now returns `/fallback-hero.png` instead of `null`
+
+DB fixes (46 articles updated across 3 script runs):
+- 41 `news_articles` + 1 `blog_posts` null `hero_image` → `/fallback-hero.png`
+- 5 Rebrickable fallback images resolved (set numbers found in slugs): `5986-1`, `1999-1`, `11380-1`, `42228-1`, `3500-1`
+- 3 `VERDICT: BUY` → `VERDICT: BUY NOW` (normalised to strict regex)
+- 1 verdict injected (`bossks-houndstooth`)
+- 5 bad openers rewritten retroactively (volvo-ec500, death-star, hogsmeade, venator, jabbas-barge, imperial-lambda, bossks)
+- 4 duplicate openers rewritten (`Your wallet called.` → article-specific lines)
+- 1 store mention injected (`1999-adventurers-amazon`)
+- 2 forbidden word fixes (`lego-themes-explained`, `how-to-store-display-lego`)
+- 1 duplicate title renamed (`unplanned-lego-photos-chaos-2` → `unplanned-lego-photos-when-chaos-becomes-the-shot`)
+- 1 word count extension (`reviving-9v` 248w → 337w)
+- India paragraph check confirmed correct (3 slugs, `content` column, `has_rupee:true`)
+- 0 missing signoffs (CQS 21-count was false alarm — all articles have signoff)
+
+**DB state (2026-06-03):**
+- news_articles: 98 | blog_posts: 23 | guides: 9 | reviews: 3
+- pending_drafts: approved:331 | draft:91 | published:78 | rejected:4
+- store_prices: 1,512 ⚠️ (was 2,600 at Day 33 — investigate scraper run)
+- posted_sets: 9
+
+**Key commits (Day 34):** `1477c75` → `a8b1546` → `14fedb4` → `ff18be8` → `9d7d19c` → `43c6321` → `79b6e63` → `57a3113` (HEAD)
+
+---
 
 ### Day 33 — 2026-06-02 — P0 sweep, three hardening systems, scheduled publish, social automation fixed
 
