@@ -156,7 +156,7 @@ const BAD_OPENER_PATTERNS = [
   /^(Hey\s+everyone[^.!?]*[.!?])\s*/i,
 ];
 
-function prePublishAutoFix(body, draft) {
+function prePublishAutoFix(body, draft, slug = '') {
   let c = body;
 
   // Strip markdown artifacts
@@ -197,9 +197,10 @@ function prePublishAutoFix(body, draft) {
     c = c.replace(/(₹[\d,]+[^.\n]*\.)/, '$1 Available at MyBrickHouse and Toycra (use code ABHINAV12 for 12% off above ₹500).');
   }
 
-  // Inject verdict if ₹ price present but no verdict found
+  // Inject verdict if ₹ price present, no verdict, and slug contains a set number
   const hasVerdict = /\b(BUY NOW|WAIT|IMPORT ONLY|AVOID)\b/.test(c);
-  if (hasPrice && !hasVerdict) {
+  const hasSetNum = /\b\d{4,6}\b/.test(slug);
+  if (hasPrice && !hasVerdict && hasSetNum) {
     c = c.replace(/\s+$/, '') + '\n\n**Verdict: WAIT** — check prices at MyBrickHouse and Toycra before pulling the trigger.';
   }
 
@@ -399,7 +400,7 @@ for (const draft of queue) {
 
   // Clean body: strip processing marker, then run pre-publish auto-fix + CQS gate
   const rawBody   = draft.draft_body.replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '');
-  const cleanBody = prePublishAutoFix(rawBody, draft);
+  const cleanBody = prePublishAutoFix(rawBody, draft, slug);
   const fixedWords = cleanBody.split(/\s+/).filter(Boolean).length;
   if (fixedWords !== (draft.word_count ?? 0)) {
     process.stdout.write(`\n    [pre-fix] ${draft.word_count ?? '?'}w → ${fixedWords}w`);
