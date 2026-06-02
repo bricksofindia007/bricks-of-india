@@ -298,10 +298,19 @@ for (const [url, entries] of Object.entries(imageMap)) {
           : `Image returns HTTP ${status}: ${url.slice(0, 80)}`,
         false);
     }
-    if (isDuplicate)
-      flag(art, 'duplicate_image', 'warning',
-        `Image shared with: ${entries.filter(e => e.slug !== slug).map(e => e.slug).slice(0, 3).join(', ')}`,
-        false);
+    if (isDuplicate) {
+      const dupSlugs = entries.filter(e => e.slug !== slug).map(e => e.slug);
+      const setNumA = slug.match(/\b(\d{4,6})\b/)?.[1];
+      const sameset = dupSlugs.some(dupSlug => {
+        const setNumB = dupSlug.match(/\b(\d{4,6})\b/)?.[1];
+        return setNumA && setNumB && setNumA === setNumB;
+      });
+      // Suppress duplicate_image if both articles share the same set number — same product, expected
+      if (!sameset)
+        flag(art, 'duplicate_image', 'warning',
+          `Image shared with: ${dupSlugs.slice(0, 3).join(', ')}`,
+          false);
+    }
   }
 }
 
