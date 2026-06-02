@@ -113,6 +113,10 @@ const EDITORIAL_CDN_BLOCKLIST = new Set([
   'media-cdn.brothers-brick.com',  // Brothers Brick
   'live.staticflickr.com',         // Flickr embeds
   'jaysbrickblog.com',             // Jay's Brick Blog
+  'cdn.bricklink.com',             // BrickLink
+  'i.imgur.com',                   // Imgur
+  'external-preview.redd.it',      // Reddit preview
+  'preview.redd.it',               // Reddit preview
 ]);
 
 // ── Pre-publish auto-fix + CQS gate ──────────────────────────────────────────
@@ -287,8 +291,8 @@ async function resolveYouTubeHeroImage(title, body) {
   }
 
   // Step 4: no image resolved
-  console.log('  [yt-fallback] no image resolved — hero will be null');
-  return null;
+  console.log('  [yt-fallback] no image resolved — using fallback hero');
+  return '/fallback-hero.png';
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -243,8 +243,9 @@ for (const art of all) {
   if (!imgUrl && hasSetNumber) {
     flag(art, 'missing_image', 'critical', 'No image URL set', false);
   } else {
-    // exclude YouTube maxresdefault (valid filename, not a placeholder)
-    if (/placeholder|no-image|fallback|blank/i.test(imgUrl) || (/\bdefault\b/i.test(imgUrl) && !/ytimg\.com|youtube/i.test(imgUrl)))
+    // exclude YouTube maxresdefault and canonical fallback from placeholder check
+    const CANONICAL_FALLBACK = '/fallback-hero.png';
+    if (imgUrl !== CANONICAL_FALLBACK && (/placeholder|no-image|fallback|blank/i.test(imgUrl) || (/\bdefault\b/i.test(imgUrl) && !/ytimg\.com|youtube/i.test(imgUrl))))
       flag(art, 'placeholder_image', 'critical', `Placeholder image URL: ${imgUrl.slice(0, 80)}`, false);
     if (!imageMap[imgUrl]) imageMap[imgUrl] = [];
     imageMap[imgUrl].push({ slug: art.slug, section });
