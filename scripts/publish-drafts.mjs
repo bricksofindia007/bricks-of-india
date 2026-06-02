@@ -150,7 +150,7 @@ const SIGNOFF_TEXT = 'On that bombshell, bubyee.';
 
 // Bad opener patterns — replace with neutral BOI-voice opener
 const BAD_OPENER_PATTERNS = [
-  /^(Okay,\s*(LEGO\s*)?(fans?|everyone|fellow|let's)[^.!?]*[.!?])\s*/i,
+  /^(Okay,\s*[^.!?]*[.!?])\s*/i,
   /^(Alright,\s*(LEGO\s*)?(fans?|everyone|Potterheads|fellow)[^.!?]*[.!?])\s*/i,
   /^(So,\s*[a-z][^.!?]*[.!?])\s*/i,
   /^(Hey\s+everyone[^.!?]*[.!?])\s*/i,
