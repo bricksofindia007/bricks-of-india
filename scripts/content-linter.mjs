@@ -238,7 +238,9 @@ for (const art of all) {
   // guides use featured_image_url; news/reviews/blog use hero_image
   const imgUrl = art.hero_image || art.image_url || art.featured_image_url || null;
 
-  if (!imgUrl) {
+  // Only flag missing_image if slug contains a set number — MOC/community articles have no image source
+  const hasSetNumber = /\b\d{4,6}\b/.test(art.slug || '');
+  if (!imgUrl && hasSetNumber) {
     flag(art, 'missing_image', 'critical', 'No image URL set', false);
   } else {
     // exclude YouTube maxresdefault (valid filename, not a placeholder)
