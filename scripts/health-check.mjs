@@ -215,6 +215,37 @@ try {
   failures.push('ig-check-error');
 }
 
+// ── Check 6b: YouTube token expiry ───────────────────────────────────────────
+try {
+  const ytSecrets = process.env.YOUTUBE_CLIENT_SECRETS;
+  if (!ytSecrets) {
+    failures.push('yt-token-missing');
+    await sendAlert(
+      '⚠️ BOI Health Alert — YouTube token missing',
+      'YOUTUBE_CLIENT_SECRETS not set — YouTube Shorts upload will be skipped.\n\nRe-authenticate via social-automation/youtube_oauth.py and update the GitHub Secret.'
+    );
+  } else {
+    const creds = JSON.parse(ytSecrets);
+    const expiry = new Date(creds.expiry);
+    const daysLeft = Math.floor((expiry - new Date()) / (1000 * 60 * 60 * 24));
+    console.log(`[6b] YouTube token: expires in ${daysLeft} day(s) (${expiry.toISOString().slice(0, 10)})`);
+    if (daysLeft <= 3) {
+      failures.push('yt-token-expiring');
+      await sendAlert(
+        '⚠️ BOI Health Alert — YouTube token expiring',
+        `Token expires in ${daysLeft} day(s) — re-auth required via social-automation/youtube_oauth.py.\n\nUpdate YOUTUBE_CLIENT_SECRETS in GitHub Secrets before it expires.`
+      );
+    }
+  }
+} catch (e) {
+  console.error('[6b] YouTube token check failed:', e.message);
+  failures.push('yt-token-malformed');
+  await sendAlert(
+    '⚠️ BOI Health Alert — YouTube token malformed',
+    `YOUTUBE_CLIENT_SECRETS cannot be parsed: ${e.message}\n\nRe-authenticate via social-automation/youtube_oauth.py and update the GitHub Secret.`
+  );
+}
+
 // ── Check 7: Pending drafts backlog (> 50 approved = alert) ─────────────────
 try {
   const { count, error } = await sb

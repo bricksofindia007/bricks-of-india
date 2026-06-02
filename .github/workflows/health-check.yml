@@ -34,4 +34,5 @@ jobs:
           BRIEF_EMAIL: ${{ secrets.BRIEF_EMAIL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
         run: node scripts/health-check.mjs
