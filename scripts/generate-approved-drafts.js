@@ -19,7 +19,7 @@ const { createClient } = require('@supabase/supabase-js');
 
 const LIMIT = (() => {
   const i = process.argv.indexOf('--limit');
-  return i !== -1 ? parseInt(process.argv[i + 1], 10) : Infinity;
+  return i !== -1 ? parseInt(process.argv[i + 1], 10) : 50;
 })();
 
 const DRAFT_ID = (() => {
@@ -313,6 +313,55 @@ ${fullBody ? 'Full article body' : 'Excerpt'}: ${content}`;
   return { title, body, verdict, format, wordCount: body.split(/\s+/).filter(Boolean).length };
 }
 
+// ── Auto-publish helpers (news only) ─────────────────────────────────────────
+
+function makeSlug(title) {
+  return (title || 'untitled')
+    .toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')
+    .replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
+}
+
+async function fetchOgImage(url) {
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(6000) });
+    if (!res.ok) return null;
+    const html = await res.text();
+    return html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)?.[1]
+        || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)?.[1]
+        || null;
+  } catch { return null; }
+}
+
+function passesAutoPublishGates({ body, verdict, wordCount }) {
+  if (wordCount < 300 || wordCount > 500) return false;
+  if (!body.includes('<!-- INDIA_PARAGRAPH -->')) return false;
+  const seg = body.slice(body.indexOf('<!-- INDIA_PARAGRAPH -->'));
+  if (!/\b(MyBrickHouse|Toycra)\b/i.test(seg)) return false;
+  if (!/₹[\d,]+/.test(seg)) return false;
+  if (!['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID'].includes(verdict ?? '')) return false;
+  return true;
+}
+
+async function autoPublish(sb, draft, result) {
+  const cleanBody = result.body.replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '').trim();
+  let baseSlug = makeSlug(result.title), slug = baseSlug, attempt = 2;
+  while (true) {
+    const { data: ex } = await sb.from('news_articles').select('id').eq('slug', slug).maybeSingle();
+    if (!ex) break;
+    slug = `${baseSlug.slice(0, 57)}-${attempt++}`;
+  }
+  const excerpt   = cleanBody.replace(/[#*\n]+/g, ' ').trim().slice(0, 160);
+  const heroImage = await fetchOgImage(draft.source_url);
+  const { error } = await sb.from('news_articles').insert({
+    title: result.title, slug, content: cleanBody, category: 'News',
+    excerpt, hero_image: heroImage || null,
+    published_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+  await sb.from('pending_drafts').update({ status: 'published' }).eq('id', draft.id);
+  return slug;
+}
+
 // ── Main ──────────────────────────────────────────────────────────────────────
 
 (async () => {
@@ -351,22 +400,26 @@ ${fullBody ? 'Full article body' : 'Excerpt'}: ${content}`;
     try {
       const result = await generateBody(draft);
 
-      const { error: upErr } = await sb
-        .from('pending_drafts')
-        .update({
-          draft_title  : result.title,
-          draft_body   : result.body,
-          draft_verdict: result.verdict,
-          draft_format : result.format,
-          word_count   : result.wordCount,
-          status       : 'draft',
-        })
-        .eq('id', draft.id);
-
-      if (upErr) throw upErr;
-
-      ok++;
-      console.log(`OK (${result.wordCount}w, verdict=${result.verdict ?? 'none'})`);
+      if (result.format === 'news' && passesAutoPublishGates(result)) {
+        const publishedSlug = await autoPublish(sb, draft, result);
+        ok++;
+        console.log(`AUTO-PUBLISHED → /news/${publishedSlug} (${result.wordCount}w, verdict=${result.verdict})`);
+      } else {
+        const { error: upErr } = await sb
+          .from('pending_drafts')
+          .update({
+            draft_title  : result.title,
+            draft_body   : result.body,
+            draft_verdict: result.verdict,
+            draft_format : result.format,
+            word_count   : result.wordCount,
+            status       : 'draft',
+          })
+          .eq('id', draft.id);
+        if (upErr) throw upErr;
+        ok++;
+        console.log(`OK → pending review (${result.wordCount}w, verdict=${result.verdict ?? 'none'})`);
+      }
     } catch (err) {
       failed++;
       const msg = err instanceof Error ? err.message : (err?.message ?? JSON.stringify(err));

@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       limit:
-        description: 'Max drafts to generate (blank = all approved)'
+        description: 'Max drafts to generate (default 50)'
         required: false
-        default: ''
+        default: '50'
 
 jobs:
   generate:

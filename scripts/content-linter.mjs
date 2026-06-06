@@ -282,9 +282,14 @@ for (let i = 0; i < all.length; i++) {
 const uniqueUrls = Object.keys(imageMap);
 console.log(`Checking ${uniqueUrls.length} unique image URLs…`);
 const imageStatusMap = {};
-await Promise.allSettled(
-  uniqueUrls.map(async url => { imageStatusMap[url] = await checkImageUrl(url); })
-);
+
+// Rebrickable CDN caps at 3 concurrent — separate to avoid parallel timeouts
+const rbUrls    = uniqueUrls.filter(u => u.includes('cdn.rebrickable.com'));
+const otherUrls = uniqueUrls.filter(u => !u.includes('cdn.rebrickable.com'));
+await Promise.allSettled(otherUrls.map(async url => { imageStatusMap[url] = await checkImageUrl(url); }));
+for (let i = 0; i < rbUrls.length; i += 3) {
+  await Promise.allSettled(rbUrls.slice(i, i + 3).map(async url => { imageStatusMap[url] = await checkImageUrl(url); }));
+}
 
 const imageRegistryRows = [];
 for (const [url, entries] of Object.entries(imageMap)) {

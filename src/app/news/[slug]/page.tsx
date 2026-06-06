@@ -1,4 +1,4 @@
-import Image from 'next/image';
+import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
@@ -54,11 +54,15 @@ export default async function NewsArticlePage({ params }: Props) {
       </div>
 
       <div className="max-w-3xl mx-auto px-4 pb-12">
-        {article.hero_image && (
-          <div className="relative h-64 md:h-96 rounded-2xl overflow-hidden mb-6">
-            <Image src={article.hero_image} alt={article.title} fill className="object-cover" unoptimized />
-          </div>
-        )}
+        <div className="relative h-64 md:h-96 rounded-2xl overflow-hidden mb-6">
+          <ImageWithFallback
+            srcs={[article.hero_image, '/fallback-hero.png'].filter(Boolean) as string[]}
+            alt={article.title}
+            fill
+            className="object-cover"
+            sizes="(max-width: 768px) 100vw, 768px"
+          />
+        </div>
 
         <div className="flex items-center gap-3 mb-4">
           <Badge variant="secondary">{article.category}</Badge>

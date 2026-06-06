@@ -33,7 +33,8 @@ export function ImageWithFallback({
 }: ImageWithFallbackProps) {
   const validSrcs = srcs.filter(Boolean);
   const [idx, setIdx] = useState(0);
-  const src = validSrcs[idx] ?? '/images/lego-placeholder.svg';
+  const src = validSrcs[idx] ?? '/fallback-hero.png';
+  const isExternal = src.startsWith('http');
 
   return (
     <Image
@@ -46,7 +47,7 @@ export function ImageWithFallback({
       sizes={sizes}
       priority={priority}
       style={style}
-      unoptimized
+      unoptimized={isExternal}
       onError={() => setIdx((i) => Math.min(i + 1, validSrcs.length - 1))}
     />
   );
