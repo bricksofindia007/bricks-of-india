@@ -217,7 +217,7 @@ try {
 
 // ── Check 6b: YouTube token expiry ───────────────────────────────────────────
 try {
-  const ytSecrets = process.env.YOUTUBE_CLIENT_SECRETS;
+  const ytSecrets = (process.env.YOUTUBE_CLIENT_SECRETS || '').replace(/^﻿/, '').trim();
   if (!ytSecrets) {
     failures.push('yt-token-missing');
     await sendAlert(
