@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       limit:
-        description: 'Max drafts to publish (default 15)'
+        description: 'Max drafts to publish (default 30)'
         required: false
-        default: '15'
+        default: '30'
 
 jobs:
   publish:
@@ -38,4 +38,4 @@ jobs:
         run: npm ci
 
       - name: Publish approved drafts
-        run: node scripts/publish-drafts.mjs --limit ${{ inputs.limit || '15' }}
+        run: node scripts/publish-drafts.mjs --limit ${{ inputs.limit || '30' }}
