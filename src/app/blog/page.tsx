@@ -10,11 +10,11 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://bricksofindia.com/blog' },
 };
 
-const BLOG_CATEGORIES = ['Buying Guides', 'Opinion', 'How-To', 'Gift Guides', 'Value Picks'];
+const BLOG_CATEGORIES = ['Buying Guides', 'How-To', 'Gift Guides', 'Value Picks'];
 
 export default async function BlogPage({ searchParams }: { searchParams: { category?: string } }) {
   const category = searchParams.category || '';
-  let query = supabase.from('blog_posts').select('*').order('published_at', { ascending: false });
+  let query = supabase.from('blog_posts').select('*').neq('category', 'Opinion').order('published_at', { ascending: false });
   if (category) query = query.eq('category', category);
   const { data: posts } = await query;
 
