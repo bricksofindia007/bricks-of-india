@@ -1,0 +1,195 @@
+# Bricks of India — robots.txt
+# Policy: allow all respectful crawlers; block sensitive paths; Crawl-delay: 2 (advisory)
+# Edge enforcement: Cloudflare WAF rate-limit rule caps named UAs at 2 req/s per IP
+# Last reviewed: 2026-06-06 — GEO-AUDIT-FIX-01
+
+# Default: allow all, block sensitive paths
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /_next/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+# Per-agent blocks — explicit Allow + Disallows override any conflicting * rule
+# All 22 agents get same treatment: allow public content, block sensitive paths
+
+User-agent: GPTBot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: ChatGPT-User
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: OAI-SearchBot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: ClaudeBot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: anthropic-ai
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: Claude-Web
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: Google-Extended
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: GoogleOther
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: PerplexityBot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: Perplexity-User
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: CCBot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: Bytespider
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: Applebot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: Applebot-Extended
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: FacebookBot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: Meta-ExternalAgent
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: Amazonbot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: AI2Bot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: YouBot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: DuckAssistBot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: cohere-ai
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: Diffbot
+Allow: /
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+Sitemap: https://bricksofindia.com/sitemap.xml

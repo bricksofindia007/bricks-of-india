@@ -954,6 +954,41 @@ try {
   }
 } catch (e) { alertFail('ExtDependencies', `IG token expiry check error: ${e.message.slice(0, 60)}`); }
 
+// 12i: robots.txt — 23+ User-agent blocks, each with Allow+4 Disallows (GEO-AUDIT-FIX-01 Phase 1)
+try {
+  const SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://bricksofindia.com').replace(/\/$/, '');
+  const r = await fetch(`${SITE}/robots.txt`, { signal: AbortSignal.timeout(8000) });
+  if (!r.ok) { alertFail('ExtDependencies', `robots.txt returned HTTP ${r.status}`); }
+  else {
+    const txt = await r.text();
+    const REQUIRED_AGENTS = [
+      'GPTBot','ChatGPT-User','OAI-SearchBot','ClaudeBot','anthropic-ai','Claude-Web',
+      'Google-Extended','GoogleOther','PerplexityBot','Perplexity-User','CCBot','Bytespider',
+      'Applebot','Applebot-Extended','FacebookBot','Meta-ExternalAgent','Amazonbot',
+      'AI2Bot','YouBot','DuckAssistBot','cohere-ai','Diffbot',
+    ];
+    const REQUIRED_DISALLOWS = ['/admin/', '/api/', '/pending/', '/*?*draft='];
+    const missing = [];
+    for (const agent of REQUIRED_AGENTS) {
+      const agentIdx = txt.indexOf(`User-agent: ${agent}`);
+      if (agentIdx === -1) { missing.push(`${agent}: block missing`); continue; }
+      const block = txt.slice(agentIdx, txt.indexOf('\n\n', agentIdx) + 1 || txt.length);
+      for (const dis of REQUIRED_DISALLOWS) {
+        if (!block.includes(`Disallow: ${dis}`)) missing.push(`${agent}: missing Disallow ${dis}`);
+      }
+      if (!block.includes('Allow: /')) missing.push(`${agent}: missing Allow: /`);
+    }
+    const uaCount = (txt.match(/^User-agent:/gm) || []).length;
+    if (missing.length > 0) {
+      alertFail('ExtDependencies', `robots.txt integrity failures (${missing.length}): ${missing.slice(0, 3).join('; ')}${missing.length > 3 ? '…' : ''}`);
+    } else if (uaCount < 23) {
+      alertFail('ExtDependencies', `robots.txt has only ${uaCount} User-agent blocks, expected >= 23`);
+    } else {
+      log('ExtDependencies', `robots.txt: ${uaCount} User-agent blocks, all 22 agents with required Allow+Disallows ✓`);
+    }
+  }
+} catch (e) { alertFail('ExtDependencies', `robots.txt integrity check error: ${e.message.slice(0, 60)}`); }
+
 // ── Check 13: Data pipeline health ────────────────────────────────────────────
 
 // 13a: raw_signals — at least 1 row in last 25h (RADAR ingesting)
@@ -1430,6 +1465,19 @@ try {
     alertFail('SecurityPosture', `No CSP or CSP-Report-Only header on homepage, or script-src missing — got: "${csp.slice(0, 60)}"`);
   }
 } catch (e) { log('SecurityPosture', `CSP check skipped: ${e.message.slice(0, 60)}`); }
+
+// 16f: sitemap contains no admin/api/pending/draft URLs
+try {
+  const SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://bricksofindia.com').replace(/\/$/, '');
+  const r = await fetch(`${SITE}/sitemap.xml`, { signal: AbortSignal.timeout(8000) });
+  const xml = await r.text();
+  const leaks = (xml.match(/https?:\/\/[^<]+/g) ?? []).filter(u => /\/admin|\/api\/|\/pending|draft=/.test(u));
+  if (leaks.length > 0) {
+    alertFail('SecurityPosture', `sitemap.xml contains ${leaks.length} sensitive URL(s): ${leaks[0]}`);
+  } else {
+    log('SecurityPosture', `sitemap.xml: no admin/api/pending/draft URLs ✓`);
+  }
+} catch (e) { log('SecurityPosture', `sitemap check skipped: ${e.message.slice(0, 60)}`); }
 
 // 16e: no mailto: on homepage (email harvesting prevention)
 try {
