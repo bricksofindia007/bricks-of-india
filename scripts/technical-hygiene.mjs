@@ -1380,6 +1380,69 @@ try {
   }
 } catch (e) { alertFail('ReviewRouting', `check failed: ${e.message.slice(0, 80)}`); }
 
+// ── Group 16: Security Posture ────────────────────────────────────────────────
+// Added: GEO-AUDIT-FIX-01 Phase 0
+
+// 16a: pending_drafts inaccessible to anon role (RLS enforcement)
+try {
+  const anonClient = createClient(SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+  const { count, error } = await anonClient.from('pending_drafts').select('id', { count: 'exact', head: true });
+  if (error) {
+    log('SecurityPosture', `pending_drafts anon access: blocked (${error.code}) ✓`);
+  } else if (count === 0) {
+    log('SecurityPosture', `pending_drafts anon access: 0 rows (RLS policy blocking) ✓`);
+  } else {
+    alertFail('SecurityPosture', `pending_drafts LEAKING to anon role — ${count} rows exposed. Fix RLS immediately.`);
+  }
+} catch (e) { alertFail('SecurityPosture', `pending_drafts RLS check error: ${e.message.slice(0, 80)}`); }
+
+// 16b: v_published_articles_public view exists and anon can SELECT
+try {
+  const anonClient = createClient(SUPABASE_URL, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+  const { error } = await anonClient.from('v_published_articles_public').select('id').limit(1);
+  if (error) {
+    alertFail('SecurityPosture', `v_published_articles_public missing or anon access denied: ${error.message.slice(0, 80)}`);
+  } else {
+    log('SecurityPosture', 'v_published_articles_public accessible to anon ✓');
+  }
+} catch (e) { alertFail('SecurityPosture', `view check error: ${e.message.slice(0, 80)}`); }
+
+// 16c: /admin routes return X-Robots-Tag: noindex
+try {
+  const SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://bricksofindia.com').replace(/\/$/, '');
+  const r = await fetch(`${SITE}/admin/pending`, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(8000) });
+  const xrobots = r.headers.get('x-robots-tag') ?? '';
+  if (xrobots.toLowerCase().includes('noindex')) {
+    log('SecurityPosture', `X-Robots-Tag on /admin: "${xrobots}" ✓`);
+  } else {
+    alertFail('SecurityPosture', `/admin X-Robots-Tag missing or does not contain noindex — got: "${xrobots}"`);
+  }
+} catch (e) { log('SecurityPosture', `X-Robots-Tag /admin check skipped: ${e.message.slice(0, 60)}`); }
+
+// 16d: homepage has a CSP or CSP-Report-Only header
+try {
+  const SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://bricksofindia.com').replace(/\/$/, '');
+  const r = await fetch(`${SITE}/`, { method: 'HEAD', signal: AbortSignal.timeout(8000) });
+  const csp = r.headers.get('content-security-policy') ?? r.headers.get('content-security-policy-report-only') ?? '';
+  if (csp && csp.includes('script-src')) {
+    log('SecurityPosture', `CSP header present and contains script-src ✓`);
+  } else {
+    alertFail('SecurityPosture', `No CSP or CSP-Report-Only header on homepage, or script-src missing — got: "${csp.slice(0, 60)}"`);
+  }
+} catch (e) { log('SecurityPosture', `CSP check skipped: ${e.message.slice(0, 60)}`); }
+
+// 16e: no mailto: on homepage (email harvesting prevention)
+try {
+  const SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://bricksofindia.com').replace(/\/$/, '');
+  const r = await fetch(`${SITE}/`, { signal: AbortSignal.timeout(8000) });
+  const html = await r.text();
+  if (html.includes('mailto:')) {
+    alertFail('SecurityPosture', 'homepage HTML contains mailto: — email address exposed to harvesters');
+  } else {
+    log('SecurityPosture', 'homepage: no mailto: found ✓');
+  }
+} catch (e) { log('SecurityPosture', `mailto check skipped: ${e.message.slice(0, 60)}`); }
+
 // ── Weekly email report ───────────────────────────────────────────────────────
 
 const now    = new Date().toISOString().slice(0, 10);
