@@ -22,7 +22,10 @@ IG_USER_ID           = os.environ.get('IG_USER_ID', '')
 YOUTUBE_CLIENT_SECRETS = os.environ.get('YOUTUBE_CLIENT_SECRETS', '')
 
 GRAPH_API_BASE = 'https://graph.facebook.com/v19.0'
-YT_SCOPES      = ['https://www.googleapis.com/auth/youtube.upload']
+YT_SCOPES      = [
+    'https://www.googleapis.com/auth/youtube.upload',
+    'https://www.googleapis.com/auth/youtube.readonly',
+]
 
 
 # ── Instagram ─────────────────────────────────────────────────────────────────
