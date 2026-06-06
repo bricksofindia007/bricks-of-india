@@ -91,6 +91,7 @@ function flag(art, checkName, severity, detail, autoFixable = false) {
 const UA = 'BricksOfIndia-RadarBot/1.0 (+https://bricksofindia.com)';
 
 async function checkImageUrl(url) {
+  if (url.startsWith('/')) return 200; // local public-folder asset — skip HTTP check, treat as valid
   try {
     const res = await fetch(url, { method: 'HEAD', headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(6000) });
     return res.status;

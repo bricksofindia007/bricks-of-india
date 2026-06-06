@@ -107,6 +107,7 @@ function lintDraft(draft) {
 
 const YOUTUBE_SRC_RE = /youtube\.com|youtu\.be/i;
 const YOUTUBE_IMG_RE = /ytimg\.com|yt3\.ggpht\.com|youtube\.com\/vi\//i;
+const HERO_FALLBACK  = '/fallback-hero.png';
 
 const EDITORIAL_CDN_BLOCKLIST = new Set([
   'static1.squarespace.com',       // New Elementary
@@ -290,9 +291,9 @@ async function resolveYouTubeHeroImage(title, body) {
     } catch { /* fall through */ }
   }
 
-  // Step 4: no image resolved
-  console.log('  [yt-fallback] no image resolved — using fallback hero');
-  return '/fallback-hero.png';
+  // Step 4: no image resolved — return null; caller stores HERO_FALLBACK
+  console.log('  [yt-fallback] no image resolved — returning null for caller to apply HERO_FALLBACK');
+  return null;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -387,17 +388,19 @@ for (const draft of queue) {
   if (YOUTUBE_SRC_RE.test(draft.source_url) || (heroImage !== null && YOUTUBE_IMG_RE.test(heroImage))) {
     console.log('  [yt] YouTube source — running Rebrickable fallback chain');
     heroImage = await resolveYouTubeHeroImage(draft.draft_title, draft.source_title);
+    if (!heroImage) heroImage = HERO_FALLBACK;
   } else if (isEditorialCDN(heroImage)) {
     console.log(`  [cdn-block] Editorial CDN (${new URL(heroImage).hostname}) — running Rebrickable fallback chain`);
     heroImage = await resolveYouTubeHeroImage(draft.draft_title, draft.source_title);
+    if (!heroImage) heroImage = HERO_FALLBACK;
   }
-  if (heroImage) {
+  if (heroImage && !heroImage.startsWith('/')) {
     try {
       const imgRes = await fetch(heroImage, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
       if (!imgRes.ok) heroImage = null;
     } catch { heroImage = null; }
   }
-  if (heroImage) {
+  if (heroImage && !heroImage.startsWith('/')) {
     const { data: imgConflict } = await sb.from(table).select('id').eq('hero_image', heroImage).maybeSingle();
     if (imgConflict) heroImage = null;
   }
