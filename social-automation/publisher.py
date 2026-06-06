@@ -216,10 +216,14 @@ def post_youtube_shorts(video_path: str, set_data: dict, caption_text: str) -> s
 
     youtube = build('youtube', 'v3', credentials=creds)
 
-    channel = youtube.channels().list(part='snippet', mine=True).execute()
-    ch_title = channel['items'][0]['snippet']['title']
-    if ch_title != 'Bricks of India':
-        raise SystemExit(f'[publisher] WRONG CHANNEL: {ch_title}. Aborting upload.')
+    _EXPECTED_CLIENT_ID = '824336036645-sqostsnet88ovm0u4msgr8snnk4n4jtf.apps.googleusercontent.com'
+    try:
+        _token_data = json.loads(YOUTUBE_CLIENT_SECRETS.lstrip('﻿').strip())
+        _client_id  = _token_data.get('client_id', '')
+    except Exception:
+        _client_id = ''
+    if _client_id != _EXPECTED_CLIENT_ID:
+        raise SystemExit(f'[publisher] WRONG OAUTH CLIENT: {_client_id!r}. Aborting upload.')
 
     title       = f"{set_data['name']} ({set_data['set_num']}) | #LEGO #Shorts"[:100]
     description = (

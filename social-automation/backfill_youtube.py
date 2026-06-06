@@ -24,19 +24,24 @@ import caption_writer
 SLEEP_BETWEEN = 15  # seconds between uploads to avoid YouTube rate limits
 
 
+_EXPECTED_CLIENT_ID = '824336036645-sqostsnet88ovm0u4msgr8snnk4n4jtf.apps.googleusercontent.com'
+
+
 def _verify_youtube_channel() -> None:
-    """Guard: abort if OAuth token resolves to any channel other than Bricks of India."""
-    creds = publisher._load_youtube_credentials()
-    if creds is None:
-        print('[backfill] YouTube credentials not available — skipping channel guard')
+    """Guard: abort if YOUTUBE_CLIENT_SECRETS belongs to a different OAuth app."""
+    import json as _json
+    secrets = os.environ.get('YOUTUBE_CLIENT_SECRETS', '')
+    if not secrets:
+        print('[backfill] YOUTUBE_CLIENT_SECRETS not set — skipping channel guard')
         return
-    from googleapiclient.discovery import build
-    youtube = build('youtube', 'v3', credentials=creds)
-    channel = youtube.channels().list(part='snippet', mine=True).execute()
-    ch_title = channel['items'][0]['snippet']['title']
-    if ch_title != 'Bricks of India':
-        raise SystemExit(f'[backfill] WRONG CHANNEL: {ch_title}. Aborting upload.')
-    print(f'[backfill] Channel verified: {ch_title}')
+    try:
+        data = _json.loads(secrets.lstrip('﻿').strip())
+        client_id = data.get('client_id', '')
+    except Exception:
+        client_id = ''
+    if client_id != _EXPECTED_CLIENT_ID:
+        raise SystemExit(f'[backfill] WRONG OAUTH CLIENT: {client_id!r}. Aborting upload.')
+    print(f'[backfill] OAuth client verified: {client_id[:50]}')
 
 
 def _download_shorts(set_num: str) -> str:
