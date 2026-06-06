@@ -71,8 +71,12 @@ function firstSentence(text) {
 // ── Issue accumulator ─────────────────────────────────────────────────────────
 
 const issues = [];
+const seenFlags = new Set(); // deduplicate: each (slug, check_name) fires once per run
 
 function flag(art, checkName, severity, detail, autoFixable = false) {
+  const dedupKey = `${art.slug}|${checkName}`;
+  if (seenFlags.has(dedupKey)) return;
+  seenFlags.add(dedupKey);
   issues.push({
     checked_at:   RUN_AT,
     article_id:   (typeof art.id === 'string' && art.id.includes('-')) ? art.id : null,
@@ -92,8 +96,9 @@ const UA = 'BricksOfIndia-RadarBot/1.0 (+https://bricksofindia.com)';
 
 async function checkImageUrl(url) {
   if (url.startsWith('/')) return 200; // local public-folder asset — skip HTTP check, treat as valid
+  const timeout = url.includes('cdn.rebrickable.com') ? 12000 : 6000;
   try {
-    const res = await fetch(url, { method: 'HEAD', headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(6000) });
+    const res = await fetch(url, { method: 'HEAD', headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(timeout) });
     return res.status;
   } catch { return 0; }
 }
@@ -207,7 +212,7 @@ for (const art of all) {
   }
 
   if (isNewsOrReview && art.category === 'Review' && !VERDICT_WORDS.some(v => body.includes(v)))
-    flag(art, 'missing_verdict', 'critical', 'No verdict found (BUY NOW/WAIT/IMPORT ONLY/AVOID)', false);
+    flag(art, 'missing_verdict', 'critical', 'No verdict found (BUY NOW/WAIT/IMPORT ONLY/AVOID)', true);
 
   if (isNewsOrReview && ['New Sets', 'India Launches', 'Review'].includes(art.category) && !body.includes('₹'))
     flag(art, 'missing_india_paragraph', 'critical', 'No INR price (₹) found in body', false);

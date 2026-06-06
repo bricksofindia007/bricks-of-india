@@ -216,6 +216,11 @@ def post_youtube_shorts(video_path: str, set_data: dict, caption_text: str) -> s
 
     youtube = build('youtube', 'v3', credentials=creds)
 
+    channel = youtube.channels().list(part='snippet', mine=True).execute()
+    ch_title = channel['items'][0]['snippet']['title']
+    if ch_title != 'Bricks of India':
+        raise SystemExit(f'[publisher] WRONG CHANNEL: {ch_title}. Aborting upload.')
+
     title       = f"{set_data['name']} ({set_data['set_num']}) | #LEGO #Shorts"[:100]
     description = (
         f"{caption_text}\n\n"

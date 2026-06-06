@@ -133,6 +133,17 @@ function applyFix(checkName, body) {
       return fb;
     }
 
+    case 'missing_verdict': {
+      // Remove any standalone NONE placeholder, then insert WAIT before signoff
+      let vb = body.replace(/^NONE\s*$/gm, '').replace(/\n{3,}/g, '\n\n').trim();
+      if (/on that bombshell/i.test(vb)) {
+        vb = vb.replace(/(On that bombshell)/i, '**Verdict: WAIT**\n\n$1');
+      } else {
+        vb = vb.replace(/\s+$/, '') + '\n\n**Verdict: WAIT**';
+      }
+      return vb;
+    }
+
     case 'missing_signoff':
       if (/on that bombshell/i.test(body)) return body;
       return body.replace(/\s+$/, '') + '\n\n' + SIGNOFF;
@@ -201,6 +212,7 @@ for (const { section, slug, issues } of Object.values(byArticle)) {
     'forbidden_word',                                                            // word substitutions
     'markdown_bold', 'markdown_asterisk', 'markdown_header', 'markdown_list',
     'consecutive_blank_lines', 'double_space', 'trailing_space', 'capitalisation_error',
+    'missing_verdict',                                                           // before signoff: inserts WAIT + cleans NONE
     'missing_signoff',                                                           // last: may add words
   ];
   const issueChecks = issues.map(i => i.check_name);

@@ -24,6 +24,21 @@ import caption_writer
 SLEEP_BETWEEN = 15  # seconds between uploads to avoid YouTube rate limits
 
 
+def _verify_youtube_channel() -> None:
+    """Guard: abort if OAuth token resolves to any channel other than Bricks of India."""
+    creds = publisher._load_youtube_credentials()
+    if creds is None:
+        print('[backfill] YouTube credentials not available — skipping channel guard')
+        return
+    from googleapiclient.discovery import build
+    youtube = build('youtube', 'v3', credentials=creds)
+    channel = youtube.channels().list(part='snippet', mine=True).execute()
+    ch_title = channel['items'][0]['snippet']['title']
+    if ch_title != 'Bricks of India':
+        raise SystemExit(f'[backfill] WRONG CHANNEL: {ch_title}. Aborting upload.')
+    print(f'[backfill] Channel verified: {ch_title}')
+
+
 def _download_shorts(set_num: str) -> str:
     """Download {set_num}_shorts.mp4 from Supabase Storage to a temp file. Returns local path."""
     client = db._client()
@@ -73,6 +88,8 @@ def main() -> None:
     if not pending:
         print('[backfill] Nothing to do.')
         return
+
+    _verify_youtube_channel()
 
     successes = []
     failures = []
