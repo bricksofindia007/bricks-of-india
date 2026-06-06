@@ -184,7 +184,7 @@ def _load_youtube_credentials():
     from google.auth.transport.requests import Request
 
     try:
-        token_data = json.loads(YOUTUBE_CLIENT_SECRETS)
+        token_data = json.loads(YOUTUBE_CLIENT_SECRETS.lstrip('﻿').strip())
     except json.JSONDecodeError as exc:
         print(f'[publisher] YOUTUBE_CLIENT_SECRETS is not valid JSON: {exc}. Skipping YouTube.')
         return None
