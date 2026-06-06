@@ -164,7 +164,7 @@ export default async function SetPage({ params }: Props) {
 
   return (
     <div className="bg-white min-h-screen">
-      <JsonLd data={buildProductSchema(set, activePrices, params.slug, STORE_NAMES)} />
+      <JsonLd data={buildProductSchema(set, activePrices, params.slug, STORE_NAMES, review)} />
 
       {/* Breadcrumb */}
       <div className="max-w-site mx-auto px-4 py-3">

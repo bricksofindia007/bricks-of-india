@@ -2,8 +2,8 @@
 > India's only LEGO® price comparison, review, and news platform. Live prices across Indian retailers, honest set reviews with India price context, and LEGO news written for Indian fans.
 
 ## What this site does
-- Tracks daily LEGO prices across 3 Indian stores: Toycra, MyBrickHouse, Jaiman Toys
-- Publishes independent set reviews with an India-specific verdict (BUY / WAIT FOR SALE / IMPORT ONLY / AVOID) and local INR prices
+- Tracks daily LEGO prices across 2 Indian stores: Toycra, MyBrickHouse
+- Publishes independent set reviews with an India-specific verdict (BUY NOW / WAIT / IMPORT ONLY / AVOID) and local INR prices
 - Publishes LEGO news with India context — arrival dates, import prices, retailer availability
 - Runs The Lab: experimental LEGO data tools built for India (see below)
 - Maintains a guide library for Indian LEGO fans
@@ -12,13 +12,13 @@
 ## Key sections
 
 ### Price comparison
-- [All sets](https://www.bricksofindia.com/sets): ~1,700 LEGO sets with live Indian store prices, updated daily
+- [All sets](https://www.bricksofindia.com/sets): Search across 24,000+ LEGO sets globally; live Indian retailer pricing on 600+ sets currently stocked in India
 - [Deals](https://www.bricksofindia.com/deals): Current LEGO deals and discounts across Indian stores
 - [Themes](https://www.bricksofindia.com/themes): Browse LEGO sets by theme with Indian prices
 
 ### Editorial
 - [Reviews](https://www.bricksofindia.com/reviews): Independent LEGO set reviews — India price, local availability, honest verdict
-- [News](https://www.bricksofindia.com/news): LEGO news written from an India perspective (38+ articles)
+- [News](https://www.bricksofindia.com/news): LEGO news written from an India perspective (100+ original news articles)
 - [Guides](https://www.bricksofindia.com/guides): LEGO 101 for Indian fans — buying, storing, themes, customs duties (9 guides)
 - [Opinion](https://www.bricksofindia.com/opinion): Commentary on LEGO pricing, certified stores, and Indian hobby culture
 - [Community](https://www.bricksofindia.com/community): Indian AFOL builder spotlights and community stories
@@ -29,7 +29,7 @@
 - [Which Set Are You?](https://www.bricksofindia.com/lab/which-set): 5-question quiz matching you to a LEGO set
 - [CMF Tracker](https://www.bricksofindia.com/lab/cmf-tracker): Track your LEGO Collectible Minifigure collection across Series 20–29
 - [Budget Calculator](https://www.bricksofindia.com/lab/budget-calculator): Find LEGO sets within your INR budget, sorted by piece count
-- [Retiring Soon](https://www.bricksofindia.com/lab/retiring-soon): 128 LEGO sets retiring within 90 days with best Indian store price
+- [Retiring Soon](https://www.bricksofindia.com/lab/retiring-soon): Live retiring-soon set tracker with best Indian store price
 - [LEGO Heat Map](https://www.bricksofindia.com/lab/heat-map): LEGO search interest by Indian state — D3 choropleth, 23 states, city drill-down
 
 ### About
@@ -39,8 +39,8 @@
 All content is written by Abhinav Bhargav, founder of Bricks of India. 20+ years in enterprise sales, marketing, and account management. Cornell University. Running Bricks of India on YouTube, Instagram, and web since 2024. Listed in the Brickset App Directory (May 2026).
 
 ## Data sourcing
-- Prices scraped daily from Toycra, MyBrickHouse, and Jaiman Toys official Shopify APIs
-- Set catalogue: ~24,500 sets synced weekly from Rebrickable
+- Prices scraped daily from Toycra and MyBrickHouse official Shopify APIs
+- Set catalogue: 24,000+ sets synced weekly from Rebrickable
 - Retirement dates: Brickset API (exitDate field), updated weekly
 - All prices in INR. Scraper runs every 6 hours via GitHub Actions.
 

@@ -344,3 +344,23 @@ const autoFixable = issues.filter(i => i.auto_fixable).length;
 console.log(`\nLinter complete: ${all.length} articles checked`);
 console.log(`Critical: ${counts.critical} | Warning: ${counts.warning} | Info: ${counts.info}`);
 console.log(`Auto-fixable: ${autoFixable} | Manual required: ${issues.length - autoFixable}`);
+
+// ── Root-cause breakdown ──────────────────────────────────────────────────────
+
+const bySeverity = { critical: [], warning: [], info: [] };
+const byCheck = {};
+for (const issue of issues) {
+  byCheck[issue.check_name] = byCheck[issue.check_name] || { count: 0, severity: issue.severity };
+  byCheck[issue.check_name].count++;
+}
+for (const [checkName, { count, severity }] of Object.entries(byCheck)) {
+  (bySeverity[severity] ?? (bySeverity.info)).push({ checkName, count });
+}
+for (const sev of ['critical', 'warning', 'info']) {
+  const group = bySeverity[sev].sort((a, b) => b.count - a.count);
+  if (!group.length) continue;
+  console.log(`\n  [${sev.toUpperCase()}]`);
+  for (const { checkName, count } of group) {
+    console.log(`    ${String(count).padStart(3)}  ${checkName}`);
+  }
+}

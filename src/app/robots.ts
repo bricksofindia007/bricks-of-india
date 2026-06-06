@@ -10,7 +10,7 @@ import type { MetadataRoute } from 'next'
  * allow/block at the WAF). This file declares the same policy at
  * the robots.txt layer for well-behaved crawlers that check it first.
  *
- * Last reviewed: 2026-05-01
+ * Last reviewed: 2026-06-06
  * Tracker reference: GEO-02, ROBOTS-01
  */
 
@@ -29,6 +29,8 @@ const ALLOWED_AI_CRAWLERS = [
   'MistralAI-User',      // Mistral live fetch
   'DuckAssistBot',       // DuckDuckGo AI assistant
   'Bingbot',             // Microsoft Bing + Copilot search index
+  'YandexBot',           // Yandex search (site verified 2026-06-06)
+  'YouBot',              // You.com AI search → referral traffic
 ]
 
 // Crawlers we explicitly block — training-only with no referral benefit
@@ -46,6 +48,7 @@ const BLOCKED_AI_CRAWLERS = [
   'PetalBot',            // Huawei AI training
   'cohere-ai',           // Cohere training
   'TikTok-Spider',       // ByteDance training
+  'AI2Bot',              // Allen Institute for AI — training only
 ]
 
 export default function robots(): MetadataRoute.Robots {

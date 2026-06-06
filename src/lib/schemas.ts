@@ -203,6 +203,7 @@ export function buildProductSchema(
   activePrices: StorePrice[],
   slug: string,
   storeNames: Record<string, string>,
+  review?: ReviewData | null,
 ) {
   const hasPrices = activePrices.length > 0;
   return {
@@ -215,6 +216,15 @@ export function buildProductSchema(
       set.description ||
       `LEGO ${set.theme ? set.theme + ' ' : ''}set ${set.set_number}${set.pieces ? ', ' + set.pieces + ' pieces' : ''}, compare prices across Indian stores`,
     brand: { '@type': 'Brand', name: 'LEGO' },
+    ...(review?.rating != null && {
+      aggregateRating: {
+        '@type': 'AggregateRating',
+        ratingValue: String(review.rating),
+        bestRating: '5',
+        worstRating: '1',
+        reviewCount: '1',
+      },
+    }),
     ...(hasPrices && {
       offers: {
         '@type': 'AggregateOffer',

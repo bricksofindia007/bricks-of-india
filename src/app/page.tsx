@@ -205,7 +205,7 @@ export default async function HomePage() {
               style={{ border: '2px solid #FFC72C', background: 'rgba(255,199,44,0.12)' }}
             >
               <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--boi-navy)', fontFamily: 'var(--font-fredoka)', lineHeight: 1.2 }}>
-                25,000+
+                {Math.floor(setsCount / 1000)},000+
               </div>
               <div style={{ fontSize: '11px', fontWeight: 600, color: '#666', fontFamily: 'var(--font-inter)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>
                 Sets tracked
@@ -220,7 +220,7 @@ export default async function HomePage() {
               style={{ border: '2px solid #138808', background: 'rgba(19,136,8,0.10)' }}
             >
               <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--boi-navy)', fontFamily: 'var(--font-fredoka)', lineHeight: 1.2 }}>
-                100+
+                {newsCount}+
               </div>
               <div style={{ fontSize: '11px', fontWeight: 600, color: '#666', fontFamily: 'var(--font-inter)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>
                 News articles
