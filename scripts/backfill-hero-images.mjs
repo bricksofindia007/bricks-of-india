@@ -21,19 +21,12 @@ if (!SUPABASE_URL || !SERVICE_KEY) { console.error('Missing Supabase env vars');
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
-const LEGO_THEME_KEYWORDS = [
-  'Technic','City','Star Wars','Harry Potter','Ideas','Icons','Creator','Ninjago',
-  'Friends','Marvel','DC','Disney','Minecraft','Speed Champions','Architecture',
-  'Botanical','BrickHeadz','Duplo','Monkie Kid','Jurassic World','Super Mario',
-  'Dreamzzz','Classic','Seasonal','DOTS','Dimensions','Hidden Side',
-];
-
 async function resolveYouTubeHeroImage(title, body) {
   const rbKey  = process.env.REBRICKABLE_API_KEY;
   const rbHdrs = { 'User-Agent': UA, ...(rbKey ? { Authorization: `key ${rbKey}` } : {}) };
   const combined = `${title ?? ''} ${body ?? ''}`;
 
-  // Step 1+2: extract up to 5 set numbers → try each on Rebrickable
+  // Step 1: extract up to 5 set numbers → try each on Rebrickable
   const seen = new Set();
   const setNums = [];
   const re = /\b(\d{4,6})\b/g;
@@ -54,23 +47,7 @@ async function resolveYouTubeHeroImage(title, body) {
     } catch { /* try next */ }
   }
 
-  // Step 3: theme keyword → Rebrickable search
-  const titleLower = (title ?? '').toLowerCase();
-  const theme = LEGO_THEME_KEYWORDS.find(t => titleLower.includes(t.toLowerCase()));
-  if (theme) {
-    try {
-      const res = await fetch(
-        `https://rebrickable.com/api/v3/lego/sets/?search=${encodeURIComponent(theme)}&ordering=-year&page_size=5`,
-        { headers: rbHdrs, signal: AbortSignal.timeout(5000) },
-      );
-      if (res.ok) {
-        const data = await res.json();
-        const hit = (data.results ?? []).find(s => s.set_img_url);
-        if (hit?.set_img_url) return hit.set_img_url;
-      }
-    } catch { /* fall through */ }
-  }
-
+  // Step 2: no set number matched — return null
   return null;
 }
 
