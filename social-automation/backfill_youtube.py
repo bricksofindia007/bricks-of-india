@@ -88,11 +88,11 @@ def main() -> None:
     pending = result.data or []
     print(f'[backfill] {len(pending)} rows with yt_shorts_posted = false')
 
+    _verify_youtube_channel()
+
     if not pending:
         print('[backfill] Nothing to do.')
         return
-
-    _verify_youtube_channel()
 
     successes = []
     failures = []
