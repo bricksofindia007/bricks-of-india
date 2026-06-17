@@ -38,6 +38,8 @@ def main() -> None:
 
     if set_data is None:
         print('[pipeline] No new sets found today. Exiting cleanly.')
+        db.record_heartbeat('instagram', success=None, error='no_eligible_candidates')
+        db.record_heartbeat('youtube',   success=None, error='no_eligible_candidates')
         sys.exit(0)
 
     set_num = set_data['set_num']
@@ -86,14 +88,23 @@ def main() -> None:
     print('[pipeline] Step 8: Posting to Instagram Reels...')
     publisher.post_instagram_reels(reels_url, caption_text)
     platforms['ig_reels'] = True
+    db.record_heartbeat('instagram', success=True)
 
     print('[pipeline] Step 9: Uploading YouTube Short...')
+    yt_failure_reason = None
     try:
         yt_id = publisher.post_youtube_shorts(shorts_path, set_data, caption_text)
-        platforms['yt_shorts'] = yt_id is not None
+        if yt_id is not None:
+            platforms['yt_shorts'] = True
+            db.record_heartbeat('youtube', success=True)
+        else:
+            yt_failure_reason = 'token invalid or absent'
+            db.record_heartbeat('youtube', success=False, error=yt_failure_reason)
     except Exception as yt_exc:
-        print(f'[pipeline] YouTube upload failed (non-fatal): {yt_exc}')
+        yt_failure_reason = str(yt_exc)
+        print(f'[pipeline] YouTube upload failed: {yt_exc}')
         platforms['yt_shorts'] = False
+        db.record_heartbeat('youtube', success=False, error=yt_failure_reason)
 
     # ── Step 7: Record in Supabase ────────────────────────────────────────────
     print('[pipeline] Step 10: Recording in posted_sets...')
@@ -110,7 +121,11 @@ def main() -> None:
     print(f'\n[pipeline] Done. {set_num} posted successfully.')
     print(f'  IG Feed:  {"OK" if platforms["ig_feed"] else "X"}')
     print(f'  IG Reels: {"OK" if platforms["ig_reels"] else "X"}')
-    print(f'  YouTube:  {"OK" if platforms["yt_shorts"] else "skipped (no token)"}')
+    print(f'  YouTube:  {"OK" if platforms["yt_shorts"] else "FAIL — " + (yt_failure_reason or "unknown")}')
+
+    if yt_failure_reason:
+        print(f'[pipeline] Exiting non-zero: YouTube failed — {yt_failure_reason}')
+        sys.exit(1)
 
 
 if __name__ == '__main__':

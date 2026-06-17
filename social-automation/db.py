@@ -165,6 +165,33 @@ def mark_as_posted(set_num: str, set_name: str, platforms_dict: dict) -> None:
     print(f'[db] Marked {set_num} as posted. Row ID: {result.data[0]["id"]}')
 
 
+def record_heartbeat(platform: str, success: bool | None, error: str | None = None) -> None:
+    """
+    Upsert into social_automation_heartbeat. Non-fatal — never blocks the pipeline.
+
+    success=True  → sets last_attempt_at + last_success_at
+    success=False → sets last_attempt_at + last_failure_at + last_error
+    success=None  → sets last_attempt_at only (pipeline ran, no eligible content)
+    """
+    import datetime
+    client = _client()
+    now = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    row: dict = {'platform': platform, 'last_attempt_at': now}
+    if success is True:
+        row['last_success_at'] = now
+        row['last_error'] = None
+    elif success is False:
+        row['last_failure_at'] = now
+        row['last_error'] = (error or 'unknown')[:500]
+    # success is None: last_attempt_at only — last_success_at/last_failure_at untouched
+    try:
+        client.table('social_automation_heartbeat').upsert(row, on_conflict='platform').execute()
+        state = 'OK' if success is True else ('FAIL' if success is False else 'SKIP')
+        print(f'[db] Heartbeat: {platform} {state}')
+    except Exception as exc:
+        print(f'[db] Heartbeat write failed (non-fatal): {exc}')
+
+
 def upload_to_storage(local_path: str, filename: str) -> str:
     """Upload file to social-assets bucket. Returns public URL."""
     client = _client()
