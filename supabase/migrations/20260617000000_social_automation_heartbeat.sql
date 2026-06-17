@@ -20,15 +20,8 @@ INSERT INTO public.social_automation_heartbeat (platform)
 VALUES ('instagram'), ('youtube')
 ON CONFLICT (platform) DO NOTHING;
 
--- updated_at trigger (reuse function if it already exists)
-CREATE OR REPLACE FUNCTION public.trig_set_updated_at()
-RETURNS trigger LANGUAGE plpgsql AS $$
-BEGIN
-    NEW.updated_at = now();
-    RETURN NEW;
-END;
-$$;
-
+-- updated_at trigger — reuses update_updated_at() from 20260503000000_pending_drafts.sql
+-- (originally defined in scripts/schema.sql baseline).
 CREATE TRIGGER set_social_automation_heartbeat_updated_at
 BEFORE UPDATE ON public.social_automation_heartbeat
-FOR EACH ROW EXECUTE FUNCTION public.trig_set_updated_at();
+FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
