@@ -80,5 +80,5 @@ except FileNotFoundError:
     sys.exit(1)
 
 expiry = datetime.now(timezone.utc) + timedelta(days=7)
-print(f'✅ Token stored. Next expiry: {expiry.strftime("%Y-%m-%dT%H:%M:%SZ")}', flush=True)
+print(f'[OK] Token stored. Next expiry: {expiry.strftime("%Y-%m-%dT%H:%M:%SZ")}', flush=True)
 print('Remember to delete client_secrets.json and youtube_token.json from this directory.', flush=True)
