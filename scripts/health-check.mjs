@@ -222,7 +222,7 @@ try {
     failures.push('yt-token-missing');
     await sendAlert(
       '⚠️ BOI Health Alert — YouTube token missing',
-      'YOUTUBE_CLIENT_SECRETS not set — YouTube Shorts upload will be skipped.\n\nRe-authenticate via social-automation/youtube_oauth.py and update the GitHub Secret.'
+      'YOUTUBE_CLIENT_SECRETS not set — YouTube Shorts upload will be skipped.\n\nRe-authenticate via social-automation/youtube_oauth_helper.py and update the GitHub Secret.'
     );
   } else {
     const creds = JSON.parse(ytSecrets);
@@ -233,7 +233,7 @@ try {
       failures.push('yt-token-expiring');
       await sendAlert(
         '⚠️ BOI Health Alert — YouTube token expiring',
-        `Token expires in ${daysLeft} day(s) — re-auth required via social-automation/youtube_oauth.py.\n\nUpdate YOUTUBE_CLIENT_SECRETS in GitHub Secrets before it expires.`
+        `Token expires in ${daysLeft} day(s) — re-auth required via social-automation/youtube_oauth_helper.py.\n\nUpdate YOUTUBE_CLIENT_SECRETS in GitHub Secrets before it expires.`
       );
     }
   }
@@ -242,8 +242,38 @@ try {
   failures.push('yt-token-malformed');
   await sendAlert(
     '⚠️ BOI Health Alert — YouTube token malformed',
-    `YOUTUBE_CLIENT_SECRETS cannot be parsed: ${e.message}\n\nRe-authenticate via social-automation/youtube_oauth.py and update the GitHub Secret.`
+    `YOUTUBE_CLIENT_SECRETS cannot be parsed: ${e.message}\n\nRe-authenticate via social-automation/youtube_oauth_helper.py and update the GitHub Secret.`
   );
+}
+
+// ── Check 6c: YouTube heartbeat (null or > 26 hours = alert) ────────────────
+try {
+  const { data: hb, error: hbErr } = await sb
+    .from('social_automation_heartbeat')
+    .select('last_success_at')
+    .eq('platform', 'youtube')
+    .single();
+  if (hbErr) throw hbErr;
+  if (!hb.last_success_at) {
+    failures.push('yt-heartbeat-never');
+    await sendAlert(
+      '⚠️ BOI Health Alert — YouTube never posted',
+      'social_automation_heartbeat.youtube.last_success_at is NULL — no YouTube Short has uploaded successfully.\n\nCheck social-automation.yml logs and re-auth via social-automation/youtube_oauth_helper.py if needed.'
+    );
+  } else {
+    const ageHours = (Date.now() - new Date(hb.last_success_at).getTime()) / 3_600_000;
+    console.log(`[6c] YouTube heartbeat: last success ${ageHours.toFixed(1)}h ago`);
+    if (ageHours > 26) {
+      failures.push('yt-heartbeat-stale');
+      await sendAlert(
+        '⚠️ BOI Health Alert — YouTube Shorts stale',
+        `Last successful YouTube upload was ${ageHours.toFixed(1)} hours ago.\n\nThreshold: 26 hours.\n\nCheck social-automation.yml logs — likely a token expiry. Re-auth via social-automation/youtube_oauth_helper.py.`
+      );
+    }
+  }
+} catch (e) {
+  console.error('[6c] YouTube heartbeat check failed:', e.message);
+  failures.push('yt-heartbeat-error');
 }
 
 // ── Check 7: Pending drafts backlog (> 50 approved = alert) ─────────────────
