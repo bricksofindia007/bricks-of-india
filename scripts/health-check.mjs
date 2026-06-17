@@ -246,29 +246,45 @@ try {
   );
 }
 
-// ── Check 6c: YouTube heartbeat (null or > 26 hours = alert) ────────────────
+// ── Check 6c: YouTube heartbeat ──────────────────────────────────────────────
+// Primary alert  (26h): last_attempt_at stale → workflow itself hasn't run
+// Secondary alert (72h): last_success_at stale → workflow runs but YouTube never succeeds
 try {
   const { data: hb, error: hbErr } = await sb
     .from('social_automation_heartbeat')
-    .select('last_success_at')
+    .select('last_attempt_at, last_success_at')
     .eq('platform', 'youtube')
     .single();
   if (hbErr) throw hbErr;
-  if (!hb.last_success_at) {
-    failures.push('yt-heartbeat-never');
+
+  if (!hb.last_attempt_at) {
+    failures.push('yt-heartbeat-never-ran');
     await sendAlert(
-      '⚠️ BOI Health Alert — YouTube never posted',
-      'social_automation_heartbeat.youtube.last_success_at is NULL — no YouTube Short has uploaded successfully.\n\nCheck social-automation.yml logs and re-auth via social-automation/youtube_oauth_helper.py if needed.'
+      '⚠️ BOI Health Alert — YouTube pipeline never ran',
+      'social_automation_heartbeat.youtube.last_attempt_at is NULL — social-automation.yml has never written a heartbeat.\n\nCheck that the migration was applied and the workflow is running.'
     );
   } else {
-    const ageHours = (Date.now() - new Date(hb.last_success_at).getTime()) / 3_600_000;
-    console.log(`[6c] YouTube heartbeat: last success ${ageHours.toFixed(1)}h ago`);
-    if (ageHours > 26) {
+    const attemptAge = (Date.now() - new Date(hb.last_attempt_at).getTime()) / 3_600_000;
+    console.log(`[6c] YouTube heartbeat: last attempt ${attemptAge.toFixed(1)}h ago`);
+    if (attemptAge > 26) {
       failures.push('yt-heartbeat-stale');
       await sendAlert(
-        '⚠️ BOI Health Alert — YouTube Shorts stale',
-        `Last successful YouTube upload was ${ageHours.toFixed(1)} hours ago.\n\nThreshold: 26 hours.\n\nCheck social-automation.yml logs — likely a token expiry. Re-auth via social-automation/youtube_oauth_helper.py.`
+        '⚠️ BOI Health Alert — YouTube pipeline not attempting',
+        `social-automation.yml last ran ${attemptAge.toFixed(1)} hours ago.\n\nThreshold: 26 hours (runs daily at 12:00 IST).\n\nCheck GitHub Actions → social-automation.yml for failures or missed triggers.`
       );
+    } else if (hb.last_success_at) {
+      const successAge = (Date.now() - new Date(hb.last_success_at).getTime()) / 3_600_000;
+      console.log(`[6c] YouTube heartbeat: last success ${successAge.toFixed(1)}h ago`);
+      if (successAge > 72) {
+        failures.push('yt-heartbeat-no-success');
+        await sendAlert(
+          '⚠️ BOI Health Alert — YouTube not uploading',
+          `Pipeline is running (last attempt ${attemptAge.toFixed(1)}h ago) but last successful YouTube upload was ${successAge.toFixed(1)} hours ago.\n\nThreshold: 72 hours.\n\nLikely causes: token expiry, no eligible sets, or upload error. Check social-automation.yml logs.`
+        );
+      }
+    } else {
+      // last_attempt_at fresh but last_success_at NULL — pipeline ran, never succeeded
+      console.log('[6c] YouTube heartbeat: pipeline running but no successful upload yet');
     }
   }
 } catch (e) {

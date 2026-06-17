@@ -38,6 +38,8 @@ def main() -> None:
 
     if set_data is None:
         print('[pipeline] No new sets found today. Exiting cleanly.')
+        db.record_heartbeat('instagram', success=None, error='no_eligible_candidates')
+        db.record_heartbeat('youtube',   success=None, error='no_eligible_candidates')
         sys.exit(0)
 
     set_num = set_data['set_num']

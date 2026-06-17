@@ -5,6 +5,7 @@
 
 CREATE TABLE IF NOT EXISTS public.social_automation_heartbeat (
     platform         text        PRIMARY KEY,
+    last_attempt_at  timestamptz,
     last_success_at  timestamptz,
     last_failure_at  timestamptz,
     last_error       text,
