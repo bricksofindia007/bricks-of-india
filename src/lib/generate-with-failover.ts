@@ -1,7 +1,6 @@
 import { buildSystemPrompt, buildUserPrompt, parseDraftResponse } from './prompts/draft-prompt';
 import { GeminiProvider, CerebrasProvider } from './providers';
 import { isCerebrasEligible } from './source-quality';
-import { getCerebrasGraduationStatus, requiresManualApproval } from './cerebras-graduation';
 import { lintDraft, type LintResult } from './lint';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
@@ -37,6 +36,25 @@ function isRetryableGeminiError(err: unknown): boolean {
   return /\[429/.test(msg) || /\[5\d\d/.test(msg);
 }
 
+const vlog = (...args: unknown[]) => {
+  if (process.env.SMOKE_TEST === '1') console.log('  [failover]', ...args);
+};
+
+function lintSummary(lint: LintResult | null): void {
+  if (!lint || process.env.SMOKE_TEST !== '1') return;
+  const g = lint.gates;
+  const fmt = (label: string, r: { severity: string; reason?: string | null } | null) =>
+    `    ${label.padEnd(16)} ${r ? r.severity.toUpperCase().padEnd(5) : 'n/a  '} ${r?.reason ?? ''}`;
+  console.log('  [lint] gates:');
+  console.log(fmt('wordCount', g.wordCount));
+  console.log(fmt('indiaParagraph', g.indiaParagraph));
+  console.log(fmt('verdict', g.verdict));
+  console.log(fmt('factuality', g.factuality));
+  console.log(fmt('sourceFidelity', g.sourceFidelity));
+  console.log(`  [lint] overallPass: ${lint.overallPass}`);
+  if (lint.warnings.length) console.log(`  [lint] warnings: ${lint.warnings.join(' | ')}`);
+}
+
 export async function generateWithFailover(
   input: DraftGenerationInput,
   sb: SupabaseClient,
@@ -67,10 +85,14 @@ export async function generateWithFailover(
   const gemini = new GeminiProvider(geminiKey);
   let geminiErr: unknown = null;
 
+  vlog('Attempting Gemini...');
   try {
     const { text } = await gemini.call({ systemPrompt, userPrompt });
+    vlog('Gemini succeeded — running lint');
     const parsed   = parseDraftResponse(text, input.format);
     const lint     = await runLint(parsed.body, parsed.verdict, parsed.wordCount).catch(() => null);
+    lintSummary(lint);
+    vlog(`Routing: provider=gemini requiresManualApproval=false failoverUsed=false`);
     return {
       title: parsed.title,
       body:  parsed.body,
@@ -87,24 +109,39 @@ export async function generateWithFailover(
   }
 
   // ── Decide whether to failover ────────────────────────────────────────────────
-  if (!isRetryableGeminiError(geminiErr) || !cerebrasKey) {
+  const errMsg    = (geminiErr instanceof Error ? geminiErr.message : String(geminiErr)).slice(0, 120);
+  const retryable = isRetryableGeminiError(geminiErr);
+  vlog(`Gemini failed: ${errMsg}`);
+  vlog(`Error classification: ${retryable ? 'RETRYABLE (429/5xx)' : 'NON-RETRYABLE — will not failover'}`);
+
+  if (!retryable || !cerebrasKey) {
     throw geminiErr;
   }
 
-  if (!isCerebrasEligible({ source_excerpt: input.sourceExcerpt })) {
+  const excerptLen = (input.sourceExcerpt ?? '').length;
+  const eligible   = isCerebrasEligible({ source_excerpt: input.sourceExcerpt });
+  vlog(`Cerebras eligibility: excerpt_len=${excerptLen} → ${eligible ? 'ELIGIBLE' : 'INELIGIBLE (< 200 chars)'}`);
+
+  if (!eligible) {
     throw new Error(
       `Gemini failed (retryable) and Cerebras not eligible (excerpt < 200 chars): ${(geminiErr as Error).message}`,
     );
   }
 
   // ── Cerebras failover ─────────────────────────────────────────────────────────
-  const graduation   = await getCerebrasGraduationStatus(sb);
-  const needsManual  = requiresManualApproval(graduation.graduated);
-  const cerebras     = new CerebrasProvider(cerebrasKey);
-
+  // Cerebras publishes identically to Gemini — gates-only, no probation.
+  vlog('Triggering Cerebras failover...');
+  const cerebras = new CerebrasProvider(cerebrasKey);
+  vlog('Calling Cerebras gpt-oss-120b...');
   const { text } = await cerebras.call({ systemPrompt, userPrompt });
+  vlog(`Cerebras returned ${text.length} chars — parsing...`);
+
   const parsed   = parseDraftResponse(text, input.format);
-  const lint     = await runLint(parsed.body, parsed.verdict, parsed.wordCount).catch(() => null);
+  vlog(`Parsed: title="${parsed.title.slice(0, 60)}" wordCount=${parsed.wordCount} verdict=${parsed.verdict}`);
+
+  const lint = await runLint(parsed.body, parsed.verdict, parsed.wordCount).catch(() => null);
+  lintSummary(lint);
+  vlog('Routing: provider=cerebras requiresManualApproval=false failoverUsed=true');
 
   return {
     title:   parsed.title,
@@ -113,7 +150,7 @@ export async function generateWithFailover(
     format:  parsed.format,
     wordCount: parsed.wordCount,
     provider: 'cerebras',
-    requiresManualApproval: needsManual,
+    requiresManualApproval: false,
     failoverUsed: true,
     lintResult: lint,
   };
