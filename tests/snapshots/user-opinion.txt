@@ -1,0 +1,12 @@
+Write a BOI-voice opinion article about the source below. Target: 400–500 words in body.
+
+Your entire response must be wrapped in the BOI_DRAFT markers exactly as specified in your instructions. No text before or after the markers.
+
+INDIA PRICE DATA: set number could not be identified from this source. Acknowledge price uncertainty; do not state a specific figure.
+
+SOURCE:
+Title     : Why LEGO Icons Sets Are the Best Value in 2026
+URL       : https://brickset.com/article/why-lego-icons-2026
+Published : 2026-05-20
+Set number: NOT FOUND — use India context in title instead
+Excerpt: LEGO Icons sets continue to dominate the collector market with excellent part-per-rupee value.

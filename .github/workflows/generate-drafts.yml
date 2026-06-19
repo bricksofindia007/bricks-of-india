@@ -17,6 +17,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       GEMINI_API_KEY:            ${{ secrets.GEMINI_API_KEY }}
+      CEREBRAS_API_KEY:          ${{ secrets.CEREBRAS_API_KEY }}
 
     steps:
       - name: Checkout
@@ -34,7 +35,7 @@ jobs:
       - name: Generate approved drafts
         run: |
           if [ -n "${{ inputs.limit }}" ]; then
-            node scripts/generate-approved-drafts.js --limit ${{ inputs.limit }}
+            npx tsx scripts/generate-approved-drafts.ts --limit ${{ inputs.limit }}
           else
-            node scripts/generate-approved-drafts.js
+            npx tsx scripts/generate-approved-drafts.ts
           fi

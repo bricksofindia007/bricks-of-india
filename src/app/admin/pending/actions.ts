@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase';
 import { generateBody, extractSetNumber } from '@/lib/generate-body';
+import { lintDraft } from '@/lib/lint';
 
 export async function login(formData: FormData) {
   const pw = (formData.get('password') as string) ?? '';
@@ -177,70 +178,6 @@ async function fetchOgImage(url: string): Promise<string | null> {
   } catch { return null; }
 }
 
-// ── WEB-01 lint gates ────────────────────────────────────────────────────────
-
-const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: [number, number] }> = {
-  news    : { pass: [270,  440],  fail: [225,  500]  },  // target 300–400
-  review  : { pass: [450,  770],  fail: [375,  875]  },  // target 500–700
-  opinion : { pass: [360,  550],  fail: [300,  625]  },  // target 400–500
-  guide   : { pass: [630, 1100],  fail: [525, 1250]  },  // target 700–1000
-};
-const VALID_VERDICTS = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID']);
-
-const INDIA_COMPARISON_RE = /\b(biryani|chai|EMI|Spotify|Netflix|petrol|samosa|litre|liter|movie.?ticket|PVR|butter.?chicken|Swiggy|Zomato|iPhone|months? of|weeks? of|auto.?rickshaw)\b/i;
-const INDIA_STORE_RE      = /\b(Toycra|MyBrickHouse|Amazon|Flipkart|import.?only)\b/i;
-
-function lintDraft(draft: {
-  draft_body: string | null;
-  draft_verdict: string | null;
-  draft_format: string | null;
-  word_count: number | null;
-}): { warnings: string[] } {
-  const body      = draft.draft_body || '';
-  const format    = draft.draft_format || 'news';
-  const wordCount = draft.word_count ?? body.split(/\s+/).filter(Boolean).length;
-  const warnings: string[] = [];
-
-  const targets        = WORD_COUNT_TARGETS[format] ?? WORD_COUNT_TARGETS.news;
-  const [pMin, pMax]   = targets.pass;
-  const [fMin, fMax]   = targets.fail;
-  if (wordCount < fMin || wordCount > fMax) {
-    throw new Error(
-      `[Gate 1 FAIL] Word count ${wordCount} exceeds hard limit ${fMin}–${fMax} for '${format}'. Regenerate or heavily edit.`
-    );
-  }
-  if (wordCount < pMin || wordCount > pMax) {
-    warnings.push(`[Gate 1 WARN] Word count ${wordCount} outside target ${pMin}–${pMax} for '${format}'.`);
-  }
-
-  const markerIdx = body.indexOf('<!-- INDIA_PARAGRAPH -->');
-  if (markerIdx === -1) {
-    throw new Error('[Gate 2 FAIL] <!-- INDIA_PARAGRAPH --> marker missing. Regenerate the article.');
-  }
-  const indiaSeg = body.slice(markerIdx);
-  if (!/₹[\d,]+/.test(indiaSeg)) {
-    throw new Error('[Gate 2 FAIL] No INR price (₹NNN) found in India Paragraph. Regenerate or edit.');
-  }
-  if (!INDIA_STORE_RE.test(indiaSeg)) {
-    throw new Error('[Gate 2 FAIL] No availability statement (Toycra / MyBrickHouse / Amazon / Flipkart / "import only") found in India Paragraph.');
-  }
-  if (!INDIA_COMPARISON_RE.test(indiaSeg)) {
-    throw new Error('[Gate 2 FAIL] No relatable Indian comparison found in India Paragraph (expected: biryani, EMI, Spotify months, petrol, etc.).');
-  }
-
-  // Gate 3: verdict — required for review and opinion only; news skips this gate
-  if (format !== 'news') {
-    const v = (draft.draft_verdict || '').trim().toUpperCase();
-    if (!VALID_VERDICTS.has(v)) {
-      throw new Error(
-        `[Gate 3 FAIL] Verdict '${draft.draft_verdict || 'none'}' is not in [BUY NOW, WAIT, IMPORT ONLY, AVOID]. Set a valid verdict before publishing.`
-      );
-    }
-  }
-
-  return { warnings };
-}
-
 async function sendLintAlert(draftTitle: string, gateMessage: string): Promise<void> {
   try {
     const { Resend } = await import('resend');
@@ -344,6 +281,7 @@ type PublishableDraft = {
   word_count: number | null;
   source_url: string;
   source_title: string | null;
+  source_excerpt: string | null;
 };
 
 async function publishOneDraft(
@@ -353,14 +291,32 @@ async function publishOneDraft(
 ): Promise<{ path: string; slug: string }> {
   if (!draft.draft_body) throw new Error('Draft has no generated body');
 
-  let lintWarnings: string[] = [];
-  try {
-    ({ warnings: lintWarnings } = lintDraft(draft));
-  } catch (lintErr: any) {
-    if (sendAlerts) await sendLintAlert(draft.draft_title || draft.source_title || 'Untitled', lintErr.message);
-    throw lintErr;
+  const lint = await lintDraft(
+    {
+      format:   draft.draft_format || 'news',
+      body:     draft.draft_body || '',
+      word_count: draft.word_count,
+      verdict:  draft.draft_verdict,
+      source: {
+        source_url:     draft.source_url,
+        source_title:   draft.source_title,
+        source_excerpt: draft.source_excerpt,
+      },
+    },
+    { supabase },
+  );
+  if (lint.warnings.length > 0) console.warn('[publish lint]', lint.warnings.join(' | '));
+  if (!lint.overallPass) {
+    const failReasons = [
+      lint.gates.wordCount, lint.gates.indiaParagraph, lint.gates.verdict,
+      lint.gates.factuality, lint.gates.sourceFidelity,
+    ]
+      .filter((g): g is NonNullable<typeof g> => g !== null && g.severity === 'fail')
+      .map(g => g.reason ?? 'gate failure');
+    const gateMsg = failReasons.join('; ') || 'lint failed';
+    if (sendAlerts) await sendLintAlert(draft.draft_title || draft.source_title || 'Untitled', gateMsg);
+    throw new Error(gateMsg);
   }
-  if (lintWarnings.length > 0) console.warn('[publish lint]', lintWarnings.join(' | '));
 
   const format             = draft.draft_format || 'news';
   const { table, path, category } = resolveTarget(format);
@@ -418,7 +374,9 @@ async function publishOneDraft(
     }
   }
 
-  const cleanBody = draft.draft_body.replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '');
+  const cleanBody = draft.draft_body
+    .replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '')
+    .replace(/<!--\s*\/INDIAN?_PARAGRAPH\s*-->\n?/g, '');  // /INDIAN_PARAGRAPH is a known model typo
   const excerpt   = cleanBody.replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 160);
   const now       = new Date().toISOString();
 
@@ -444,7 +402,7 @@ export async function publishDraft(formData: FormData) {
 
   const { data: draft, error: fetchErr } = await supabase
     .from('pending_drafts')
-    .select('id, draft_title, draft_body, draft_verdict, draft_format, word_count, source_url, source_title')
+    .select('id, draft_title, draft_body, draft_verdict, draft_format, word_count, source_url, source_title, source_excerpt')
     .eq('id', id)
     .single();
 

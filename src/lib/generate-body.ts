@@ -1,12 +1,16 @@
 /**
  * Shared article generation logic — no Next.js imports.
  * Used by: src/app/admin/pending/actions.ts (Server Action context)
- * Mirrored by: scripts/generate-approved-drafts.js (Node.js / GHA context)
- *
- * When editing generation logic, update the JS script to match.
+ * Mirrored by: scripts/generate-approved-drafts.ts (Node.js / GHA context)
  */
 
 import type { SupabaseClient } from '@supabase/supabase-js';
+import {
+  buildSystemPrompt,
+  buildUserPrompt,
+  parseDraftResponse,
+  MODEL_CONFIG,
+} from './prompts/draft-prompt';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -14,91 +18,6 @@ const SKIP_FETCH_DOMAINS = new Set([
   'rebrickable.com', 'youtube.com', 'reddit.com', 'i.redd.it',
 ]);
 const UA = 'BricksOfIndia-RadarBot/1.0 (+https://bricksofindia.com)';
-
-const VOICE_EXAMPLES = `You write short, punchy articles for Bricks of India (bricksofindia.com) — an Indian LEGO price comparison and content site. Your reader is a 28–40 year old Indian LEGO fan reading this on their phone, probably during a commute or lunch break. They are smart, price-conscious, and mildly addicted to plastic bricks.
-
-VOICE — read this carefully:
-Write like a smart Indian friend explaining something over chai. Conversational. Direct. Dry wit. Never mean. Short sentences after long ones. For impact. The wallet is always a character — mention price pain in the first two sentences, not the third.
-
-FORBIDDEN WORDS AND PATTERNS:
-- Never: pinnacle, testament, cognoscenti, whimsical, bloke, fever dreams, siren call, unadulterated, jam (as in "that's your jam"), folks, aficionados, enthusiasts, marvel, stunning, impressive, hefty, hefty price tag, tough pill to swallow, at the end of the day
-- Never open with "Okay" or "Alright" or "So," or "Let's talk about"
-- Never use *asterisks* for emphasis — use plain text only, no markdown
-- Never use invented Hindi/regional slang like "dhana" or "paisa" as casual English — write in natural Indian English
-- Never force Bollywood or cricket references unless they land naturally
-- Never hedge on verdicts ("maybe", "if you have the budget", "it depends")
-- Never open any sentence with "So," as the first word of the article
-
-OPENER RULE — non-negotiable:
-First sentence must hook with either a relatable Indian situation OR the price. Never start with the set name or "LEGO has announced." Examples of good openers:
-- "Your wallet called. It wants to discuss the LEGO Eiffel Tower."
-- "Ten thousand pieces. Five feet tall. One very uncomfortable conversation with your bank account."
-- "LEGO announced the [set] and approximately zero Indian fans checked the price first."
-
-EXAMPLES — study these, match this style exactly:
-
-GOOD OPENER (set with price data):
-"Ten thousand pieces. Nearly five feet tall. And a price tag that will make your EMI calculator sweat. The LEGO Eiffel Tower (10307) is not a casual purchase."
-
-GOOD OPENER (no price data yet):
-"LEGO just announced the Imperial Lambda Shuttle and your wallet is already nervous. No Indian prices yet, which means we are in that particular purgatory where you want it but cannot fully panic yet."
-
-GOOD INDIA PARAGRAPH (price data available):
-"In India, the LEGO Eiffel Tower (10307) is available at MyBrickHouse for ₹65,999. Toycra has it for ₹61,500 — use code ABHINAV12 for 12% off on orders above ₹500, which brings it down to ₹54,120. That is 18 months of Netflix Premium or a return flight to Dubai. This is not an impulse buy. MyBrickHouse | Toycra."
-
-GOOD INDIA PARAGRAPH (no price data):
-"No Indian store prices yet. Based on the US retail price of $239.99 and current exchange rates, expect this to land somewhere around ₹32,000–35,000 when it arrives. That is roughly 10 months of Spotify Premium Family Plan. MyBrickHouse and Toycra are the stores to watch — use code ABHINAV12 at Toycra for 12% off above ₹500. Expect a 4–6 week lag from global launch."
-
-WHAT NEVER APPEARS IN BOI ARTICLES:
-- "So," at the start of any sentence that opens the article
-- *asterisks* around any word for any reason
-- "folks", "enthusiasts", "at the end of the day"
-- Vague comparisons like "similar to a mid-range smartphone" — always give a specific number
-
-INDIA PARAGRAPH — non-negotiable, every article:
-- Use exact store prices from INDIA PRICE DATA provided. Do not calculate.
-- Always mention both stores: MyBrickHouse and Toycra — even if only one has a live price. For stores without a listed price, say "check [store] for availability."
-- Always include the Toycra affiliate note exactly: "Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra."
-- If set is not yet in any Indian store: mention 4–6 week India lag from global launch and both stores to watch.
-- One relatable Indian price comparison — must be specific and numeric. Good examples: "that's 14 months of Spotify Premium", "enough for 23kg of Amul butter", "three EMIs on a decent washing machine". Bad examples: "more than your monthly rent for many", "a paneer feast for a year."
-- Place <!-- INDIA_PARAGRAPH --> on its own line immediately before this block. This is a processing marker — do not remove it, do not move it.
-
-VERDICT — one of exactly four options, no others:
-BUY NOW — set is available in India, price is fair, buy immediately
-WAIT — price is high or set just launched, wait for a deal or price drop
-IMPORT ONLY — not available in India stores, only way is grey market/travel
-AVOID — poor value at any price
-
-One line after the verdict. No hedging. Final.
-
-WORD COUNT:
-News article: 300–400 words
-Review: 500–700 words
-Opinion: 400–500 words`;
-
-const OUTPUT_FORMAT = `
-
-OUTPUT FORMAT — NON-NEGOTIABLE:
-Your entire response MUST be wrapped in exactly these markers.
-No text before the opening marker. No text after the closing marker.
-
---- BOI_DRAFT_START ---
-FORMAT: <format>
-TITLE: <title — must include set number if reviewing a set. For reviews: "LEGO [Set Name] ([number]): Worth ₹[INR price]?" For news: include set number in title.>
-VERDICT: <BUY NOW | WAIT | IMPORT ONLY | AVOID | NONE>
-BODY:
-<article body — plain text only, no markdown, no asterisks, no bold. Place <!-- INDIA_PARAGRAPH --> on its own line immediately before the India Paragraph.>
---- BOI_DRAFT_END ---`;
-
-const VERDICT_TEMPLATES: Record<string, string> = {
-  'BUY NOW':      'Verdict: BUY NOW. The price is right — grab it.',
-  'WAIT':         'Verdict: WAIT. Good set, but the price will drop.',
-  'IMPORT ONLY':  'Verdict: IMPORT ONLY. Not in Indian stores — grey market or wait.',
-  'AVOID':        'Verdict: AVOID. Save your money for something better.',
-};
-
-const INDIA_STORE_PRIORITY: Record<string, number> = { mybrickhouse: 1, toycra: 2 };
-const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: 'MyBrickHouse', toycra: 'Toycra' };
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -183,12 +102,15 @@ export async function buildIndiaPriceContext(
   supabase: SupabaseClient,
   setNumber: string | null,
 ): Promise<string> {
-  if (!setNumber) return 'INDIA PRICE DATA: set number could not be identified from this source. Acknowledge price uncertainty; do not state a specific figure.';
+  if (!setNumber) return 'INDIA PRICE DATA: set number could not be identified. Acknowledge price uncertainty; do not state a specific figure.';
 
   const { data: sp } = await supabase
     .from('store_prices')
     .select('store_id, price_inr, in_stock')
     .eq('set_id', setNumber);
+
+  const INDIA_STORE_PRIORITY: Record<string, number> = { mybrickhouse: 1, toycra: 2 };
+  const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: 'MyBrickHouse', toycra: 'Toycra' };
 
   const priced = (sp ?? [])
     .sort((a: any, b: any) => (INDIA_STORE_PRIORITY[a.store_id] ?? 9) - (INDIA_STORE_PRIORITY[b.store_id] ?? 9));
@@ -208,15 +130,15 @@ export async function buildIndiaPriceContext(
     .eq('set_number', setNumber)
     .maybeSingle();
   if (setRow?.lego_mrp_inr) {
-    return `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices in our database). Use this figure. Mention stores (Toycra / MyBrickHouse) may list it within 4–6 weeks of global launch.`;
+    return `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices). Use this figure. Mention Toycra / MyBrickHouse may list it within 4–6 weeks.`;
   }
 
   const rate = await fetchLiveUsdInr();
   if (rate) {
-    return `INDIA PRICE DATA: no store prices in our database. If the source mentions a USD price, multiply by ${rate} to get a rough INR estimate. Label it explicitly as "estimated import price" — never present it as a confirmed retail price.`;
+    return `INDIA PRICE DATA: no store prices or official India MRP in our database. You MUST still include a ₹ figure in the India Paragraph — use this formula: USD retail price × 1.35 × ${rate} = estimated INR (the 1.35 factor covers import duty and retailer markup). Example: $99.99 USD → ₹${Math.round(99.99 * 1.35 * rate).toLocaleString('en-IN')} estimated. Round to nearest ₹100. Label it clearly as "estimated import price — not confirmed India retail." If the source does not mention any USD price, use IMPORT ONLY verdict and state the set is not currently available at any official India retailer.`;
   }
 
-  return 'INDIA PRICE DATA: no price data available for this set. Acknowledge price uncertainty; do not state a specific figure.';
+  return 'INDIA PRICE DATA: no price data available. Use IMPORT ONLY verdict. State the set is not currently available at any official India retailer, and omit a specific price figure.';
 }
 
 // ── Core generation ───────────────────────────────────────────────────────────
@@ -236,64 +158,26 @@ export async function generateBody(
       .catch(() => 'INDIA PRICE DATA: price lookup failed. Acknowledge price uncertainty; do not state a specific figure.'),
   ]);
 
-  const content    = fullBody || draft.source_excerpt || draft.source_title || '(no content available)';
-  const wordTarget = ({ news: '300–400', review: '500–700', opinion: '400–500', guide: '700–1000' } as Record<string, string>)[format] || '300–400';
-  const setLine    = setNumber
-    ? `Set number: ${setNumber} (include in title)`
-    : 'Set number: NOT FOUND — use India context in title instead';
-
-  const systemPrompt = VOICE_EXAMPLES + OUTPUT_FORMAT;
-  const userPrompt   = `Write a BOI-voice ${format} article about the source below. Target: ${wordTarget} words in body.
-
-Your entire response must be wrapped in the BOI_DRAFT markers exactly as specified in your instructions. No text before or after the markers.
-
-${indiaPriceContext}
-
-SOURCE:
-Title     : ${draft.source_title}
-URL       : ${draft.source_url}
-Published : ${draft.source_published_at || 'unknown'}
-${setLine}
-${fullBody ? 'Full article body' : 'Excerpt'}: ${content}`;
+  const systemPrompt = buildSystemPrompt();
+  const userPrompt   = buildUserPrompt({
+    format,
+    sourceTitle:       draft.source_title,
+    sourceUrl:         draft.source_url,
+    sourcePublishedAt: draft.source_published_at,
+    setNumber,
+    fullBody,
+    sourceExcerpt:     draft.source_excerpt,
+    indiaPriceContext,
+  });
 
   const { GoogleGenerativeAI } = await import('@google/generative-ai');
   const genai  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
   const result = await genai
-    .getGenerativeModel({ model: 'gemini-2.5-flash-lite', systemInstruction: systemPrompt })
+    .getGenerativeModel({ model: MODEL_CONFIG.model, systemInstruction: systemPrompt })
     .generateContent({
       contents         : [{ role: 'user', parts: [{ text: userPrompt }] }],
-      generationConfig : { temperature: 0.7, maxOutputTokens: 2000 },
+      generationConfig : { temperature: MODEL_CONFIG.temperature, maxOutputTokens: MODEL_CONFIG.maxOutputTokens },
     });
 
-  const rawText = result.response.text();
-  if (!rawText?.trim()) throw new Error('Gemini returned empty response');
-
-  const si = rawText.indexOf('--- BOI_DRAFT_START ---');
-  const ei = rawText.indexOf('--- BOI_DRAFT_END ---');
-  if (si === -1 || ei === -1) throw new Error('Gemini response missing BOI_DRAFT markers');
-
-  const inner = rawText.slice(si + '--- BOI_DRAFT_START ---'.length, ei).trim();
-  let title = '', verdict: string | null = null, inBody = false;
-  const bodyLines: string[] = [];
-
-  for (const line of inner.split('\n')) {
-    if (!inBody) {
-      if (line.startsWith('TITLE:'))   title   = line.slice(6).trim();
-      if (line.startsWith('VERDICT:')) {
-        const v = line.slice(8).trim();
-        verdict = ['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID'].includes(v) ? v : null;
-      }
-      if (line.trim() === 'BODY:') inBody = true;
-    } else { bodyLines.push(line); }
-  }
-
-  let body = bodyLines.join('\n').trim();
-  if (!title || !body) throw new Error('Gemini response missing TITLE or BODY');
-
-  // Append verdict line if not already present (check for "verdict:" prefix, not the word itself)
-  if (verdict && !body.toLowerCase().includes('verdict:')) {
-    body += '\n\n' + (VERDICT_TEMPLATES[verdict] ?? '');
-  }
-
-  return { title, body, verdict, format, wordCount: body.split(/\s+/).filter(Boolean).length };
+  return parseDraftResponse(result.response.text(), format);
 }

@@ -96,6 +96,20 @@ function FormatBadge({ format }: { format: string | null }) {
   );
 }
 
+// ── Provider badge ────────────────────────────────────────────────────────────
+
+function ProviderBadge({ provider }: { provider: string | null }) {
+  if (!provider) return null;
+  const style = provider === 'gemini'
+    ? { bg: '#DCFCE7', color: '#166534' }
+    : { bg: '#FEF3C7', color: '#92400E' };
+  return (
+    <span style={{ background: style.bg, color: style.color, display: 'inline-block', padding: '2px 8px', borderRadius: 12, fontSize: 11, fontWeight: 700, letterSpacing: '0.04em' }}>
+      {provider.toUpperCase()}
+    </span>
+  );
+}
+
 // ── Draft card ────────────────────────────────────────────────────────────────
 
 function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filters; redirectTo: string }) {
@@ -124,6 +138,12 @@ function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filter
             {awaitingGeneration && (
               <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 12, background: '#FEF9C3', color: '#854D0E', textTransform: 'uppercase' }}>
                 Awaiting Generation
+              </span>
+            )}
+            <ProviderBadge provider={draft.provider} />
+            {draft.requires_manual_approval && (
+              <span style={{ fontSize: 11, fontWeight: 700, padding: '1px 8px', borderRadius: 12, background: '#FEF3C7', color: '#92400E', textTransform: 'uppercase', border: '1px solid #F59E0B' }}>
+                Manual Review Required
               </span>
             )}
           </div>
@@ -235,7 +255,7 @@ export default async function AdminPendingPage({ searchParams }: Props) {
   // ── Main query ──
   let q = supabase
     .from('pending_drafts')
-    .select('id, source_url, source_title, source_excerpt, source_published_at, draft_title, draft_body, draft_format, status, created_at')
+    .select('id, source_url, source_title, source_excerpt, source_published_at, draft_title, draft_body, draft_format, status, created_at, provider, requires_manual_approval')
     .eq('status', statusFilter)
     .is('iteration_label', null)
     .order('created_at', { ascending: false });
