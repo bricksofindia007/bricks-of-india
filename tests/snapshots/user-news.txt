@@ -1,0 +1,14 @@
+Write a BOI-voice news article about the source below. Target: minimum 300, target 320–420 words in body.
+
+Your entire response must be wrapped in the BOI_DRAFT markers exactly as specified in your instructions. No text before or after the markers.
+
+INDIA PRICE DATA — use these exact figures, do not calculate:
+  MyBrickHouse: ₹8,999
+  Toycra: ₹8,499
+
+SOURCE:
+Title     : LEGO Technic Bugatti Bolide (42151) Announced for 2026
+URL       : https://www.brothers-brick.com/2026/06/01/lego-technic-bugatti-bolide-42151
+Published : 2026-06-01
+Set number: 42151 (include in title)
+Excerpt: LEGO has announced the new Technic Bugatti Bolide set for 2026, featuring 905 pieces.

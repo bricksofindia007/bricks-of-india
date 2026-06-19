@@ -1,0 +1,14 @@
+Write a BOI-voice review article about the source below. Target: 500–700 words in body.
+
+Your entire response must be wrapped in the BOI_DRAFT markers exactly as specified in your instructions. No text before or after the markers.
+
+INDIA PRICE DATA — use these exact figures, do not calculate:
+  MyBrickHouse: ₹65,999
+  Toycra: ₹61,500
+
+SOURCE:
+Title     : LEGO Creator Expert Eiffel Tower 10307 Review
+URL       : https://www.jaysbrickblog.com/2026/05/lego-eiffel-tower-10307-review
+Published : 2026-05-15
+Set number: 10307 (include in title)
+Full article body: The LEGO Eiffel Tower 10307 is one of the most impressive sets ever released. With 10,001 pieces and standing nearly 5 feet tall when built, it commands attention from any room.

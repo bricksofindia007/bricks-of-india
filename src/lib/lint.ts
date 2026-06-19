@@ -1,0 +1,363 @@
+// WEB-01 lint gates — run before every publish.
+// Non-throwing: returns LintResult with overallPass + per-gate details.
+// actions.ts catches !overallPass and throws to preserve the existing publish flow.
+// Gate 5 (factuality) and Gate 6 (sourceFidelity) require a Supabase client.
+
+import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+
+export const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: [number, number] }> = {
+  news    : { pass: [270,  440], fail: [225,  500] },  // target 300–400
+  review  : { pass: [450,  770], fail: [375,  875] },  // target 500–700
+  opinion : { pass: [360,  550], fail: [300,  625] },  // target 400–500
+  guide   : { pass: [630, 1100], fail: [525, 1250] },  // target 700–1000
+};
+
+export const VALID_VERDICTS = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID']);
+
+export const INDIA_COMPARISON_RE = /\b(biryani|chai|EMI|Spotify|Netflix|petrol|samosa|litre|liter|movie.?ticket|PVR|butter.?chicken|Swiggy|Zomato|iPhone|months? of|weeks? of|auto.?rickshaw|mango)\b/i;
+export const INDIA_STORE_RE      = /\b(Toycra|MyBrickHouse|Amazon|Flipkart|import.?only)\b/i;
+
+// Numbers that are years — excluded from set-number candidates
+const YEAR_MIN = 1932;
+const YEAR_MAX = 2030;
+
+export type LintGateResult = {
+  pass: boolean;
+  severity: 'ok' | 'warn' | 'fail';
+  reason?: string;
+};
+
+export type SourceContext = {
+  source_url: string;
+  source_title: string | null;
+  source_excerpt: string | null;
+};
+
+export type LintResult = {
+  overallPass: boolean;
+  warnings: string[];
+  gates: {
+    wordCount:      LintGateResult;
+    indiaParagraph: LintGateResult;
+    verdict:        LintGateResult | null;
+    factuality:     LintGateResult | null;
+    sourceFidelity: LintGateResult | null;
+  };
+};
+
+export type LintInput = {
+  format: string;
+  body: string;
+  word_count?: number | null;
+  verdict?: string | null;
+  source?: SourceContext;   // required for sourceFidelity gate; optional for backward compat
+};
+
+export type LintOptions = {
+  skipHeroImage?: boolean;   // reserved — hero image gate lives in publishOneDraft
+  skipFactuality?: boolean;  // skip Gates 5 + 6; use when testing voice/structure only
+  supabase?: SupabaseClient; // pass existing client to avoid creating a second one
+};
+
+// ── Set reference extraction ──────────────────────────────────────────────────
+
+// LEGO theme names — skip as stand-alone roots, but keep if followed by a specific product name
+const THEME_NAME_RE = /^(Ideas?|City|Star Wars|Architecture|Friends|Technic|Creator|Disney|Marvel|Harry Potter|Speed Champions|Ninjago|Minecraft|Duplo|Jurassic|Batman|Avengers|Icons|Classic)\b/;
+
+// Extract 4–7 digit numbers that appear in LEGO set-reference context.
+// Excludes: 4-digit years (1932–2030), numbers immediately after currency symbols.
+export function extractSetNumberCandidates(body: string): string[] {
+  const candidates = new Set<string>();
+
+  const explicitRe = /\b(?:LEGO|set)\s+(\d{4,7})\b/gi;
+  let m: RegExpExecArray | null;
+  while ((m = explicitRe.exec(body)) !== null) candidates.add(m[1]);
+
+  const hashRe = /#(\d{4,7})\b/g;
+  while ((m = hashRe.exec(body)) !== null) candidates.add(m[1]);
+
+  const titleRe = /\b(\d{4,7})\s+(?=[A-Z][a-z])/g;
+  while ((m = titleRe.exec(body)) !== null) candidates.add(m[1]);
+
+  const parenRe = /\((\d{4,7})\)/g;
+  while ((m = parenRe.exec(body)) !== null) candidates.add(m[1]);
+
+  return Array.from(candidates).filter(n => {
+    const num = parseInt(n, 10);
+    if (n.length === 4 && num >= YEAR_MIN && num <= YEAR_MAX) return false;
+    const escaped = n.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp(`[₹$£€]\\s*${escaped}\\b`).test(body)) return false;
+    return true;
+  });
+}
+
+// Extract "LEGO [ProperNoun phrase]" candidates (product names, not bare theme names).
+export function extractSetNameCandidates(body: string): string[] {
+  const candidates = new Set<string>();
+  const legoNameRe = /\bLEGO\s+([A-Z][a-zA-Z]+(?:\s+[A-Z][a-zA-Z'-]+){1,4})\b/g;
+  let m: RegExpExecArray | null;
+  while ((m = legoNameRe.exec(body)) !== null) {
+    const phrase = m[1].trim();
+    if (THEME_NAME_RE.test(phrase)) {
+      const stripped = phrase.replace(THEME_NAME_RE, '').trim();
+      if (stripped && stripped !== phrase) candidates.add(phrase);
+    } else {
+      candidates.add(phrase);
+    }
+  }
+  return Array.from(candidates);
+}
+
+// ── Gate 5: factuality ────────────────────────────────────────────────────────
+
+async function gateFactuality(
+  body: string,
+  sb: SupabaseClient,
+  warnings: string[],
+): Promise<LintGateResult> {
+  const numberCandidates = extractSetNumberCandidates(body);
+  const nameCandidates   = extractSetNameCandidates(body);
+
+  if (numberCandidates.length === 0 && nameCandidates.length === 0) {
+    return { pass: true, severity: 'ok' };
+  }
+
+  const unrecognized: string[] = [];
+
+  // Check set numbers — single batched IN query
+  if (numberCandidates.length > 0) {
+    const { data, error } = await sb
+      .from('sets')
+      .select('set_number')
+      .in('set_number', numberCandidates);
+    if (error) {
+      const msg = `factuality: sets table query failed: ${error.message}`;
+      warnings.push(msg);
+      return { pass: false, severity: 'fail', reason: msg };
+    }
+    const found = new Set((data ?? []).map((r: { set_number: string }) => r.set_number));
+    for (const n of numberCandidates) {
+      if (!found.has(n)) unrecognized.push(`#${n}`);
+    }
+  }
+
+  // Check set names — Phase 7b AND-match approach:
+  // First try direct substring, then require ALL significant words in the SAME set name.
+  // Prevents "Mumbai Skyline Architecture" passing because individual words exist in real sets.
+  for (const name of nameCandidates) {
+    // Direct substring match against any set name (catches exact and prefix cases)
+    const { data: directMatch } = await sb
+      .from('sets')
+      .select('name')
+      .ilike('name', `%${name}%`)
+      .limit(1);
+    if (directMatch && directMatch.length > 0) continue;
+
+    // No direct match: require ALL significant words (>2 chars, uppercase-initial)
+    // to appear in the SAME candidate set name.
+    const words = name
+      .split(/\s+/)
+      .filter(w => w.length > 2 && /^[A-Z]/.test(w));
+
+    if (words.length === 0) {
+      unrecognized.push(`"${name}"`);
+      continue;
+    }
+
+    // Narrow candidates using the most distinctive (longest) word
+    const distinctive = words.slice().sort((a, b) => b.length - a.length)[0];
+    const { data: narrowed } = await sb
+      .from('sets')
+      .select('name')
+      .ilike('name', `%${distinctive}%`)
+      .limit(200);
+
+    // AND-check: does any narrowed candidate contain ALL significant words?
+    const lowercased = words.map(w => w.toLowerCase());
+    const matched = (narrowed ?? []).some((c: { name: string }) => {
+      const lcName = c.name.toLowerCase();
+      return lowercased.every(w => lcName.includes(w));
+    });
+
+    if (!matched) unrecognized.push(`"${name}"`);
+  }
+
+  if (unrecognized.length > 0) {
+    const msg = `unrecognized LEGO references: ${unrecognized.join(', ')}`;
+    warnings.push(msg);
+    return { pass: false, severity: 'fail', reason: msg };
+  }
+
+  return { pass: true, severity: 'ok' };
+}
+
+// ── Gate 6: source fidelity (LOW-confidence sources only) ────────────────────
+
+// Extracts the <!-- INDIA_PARAGRAPH --> ... <!-- /INDIA_PARAGRAPH --> block from body.
+// Returns the India block content and the body with that block removed.
+// If no closing marker exists, bodyWithoutIndia === body (graceful — gate still works
+// because set extractors don't fire on Indian prices/stores).
+function extractIndiaParagraph(body: string): { content: string; bodyWithoutIndia: string } {
+  const startMarker = '<!-- INDIA_PARAGRAPH -->';
+  const endMarker   = '<!-- /INDIA_PARAGRAPH -->';
+  const startIdx    = body.indexOf(startMarker);
+  const endIdx      = body.indexOf(endMarker);
+  if (startIdx === -1 || endIdx === -1 || endIdx <= startIdx) {
+    return { content: '', bodyWithoutIndia: body };
+  }
+  return {
+    content:           body.slice(startIdx + startMarker.length, endIdx),
+    bodyWithoutIndia:  body.slice(0, startIdx) + body.slice(endIdx + endMarker.length),
+  };
+}
+
+// A source is LOW confidence when the excerpt is short or missing, or the source is YouTube.
+function sourceConfidence(source: SourceContext): 'high' | 'low' {
+  const excerpt = source.source_excerpt ?? '';
+  if (excerpt.length < 200) return 'low';
+  const url = source.source_url.toLowerCase();
+  if (url.includes('youtube.com') || url.includes('youtu.be')) return 'low';
+  return 'high';
+}
+
+async function gateSourceFidelity(
+  body: string,
+  source: SourceContext,
+  warnings: string[],
+): Promise<LintGateResult> {
+  // Gate only activates for LOW-confidence sources
+  if (sourceConfidence(source) === 'high') return { pass: true, severity: 'ok' };
+
+  // Exclude the India Paragraph block (prices/stores are allowed to be inferred)
+  const { bodyWithoutIndia } = extractIndiaParagraph(body);
+
+  const setNumbers = extractSetNumberCandidates(bodyWithoutIndia);
+  const setNames   = extractSetNameCandidates(bodyWithoutIndia);
+
+  if (setNumbers.length === 0 && setNames.length === 0) {
+    return { pass: true, severity: 'ok' };
+  }
+
+  // Build trusted source text from title + excerpt + URL
+  const sourceText = [
+    source.source_title ?? '',
+    source.source_excerpt ?? '',
+    source.source_url,
+  ].join(' ').toLowerCase();
+
+  const ungrounded: string[] = [];
+
+  for (const n of setNumbers) {
+    if (!sourceText.includes(n)) ungrounded.push(`#${n} (not in source)`);
+  }
+
+  for (const name of setNames) {
+    if (!sourceText.includes(name.toLowerCase())) {
+      ungrounded.push(`"${name}" (not in source)`);
+    }
+  }
+
+  if (ungrounded.length > 0) {
+    const msg = `source fidelity (LOW confidence source): ungrounded specifics: ${ungrounded.join(', ')}`;
+    warnings.push(msg);
+    return { pass: false, severity: 'fail', reason: msg };
+  }
+
+  return { pass: true, severity: 'ok' };
+}
+
+// ── Main lint function ────────────────────────────────────────────────────────
+
+export async function lintDraft(draft: LintInput, options: LintOptions = {}): Promise<LintResult> {
+  const body      = draft.body || '';
+  const format    = draft.format || 'news';
+  const wordCount = draft.word_count ?? body.split(/\s+/).filter(Boolean).length;
+  const warnings: string[] = [];
+  let overallPass = true;
+
+  // Gate 1: Word count
+  const targets      = WORD_COUNT_TARGETS[format] ?? WORD_COUNT_TARGETS.news;
+  const [pMin, pMax] = targets.pass;
+  const [fMin, fMax] = targets.fail;
+
+  let wordCountGate: LintGateResult;
+  if (wordCount < fMin || wordCount > fMax) {
+    wordCountGate = { pass: false, severity: 'fail', reason: `${wordCount} words — hard limit ${fMin}–${fMax} for '${format}'` };
+    overallPass = false;
+  } else if (wordCount < pMin || wordCount > pMax) {
+    wordCountGate = { pass: false, severity: 'warn', reason: `${wordCount} words — outside target ${pMin}–${pMax} for '${format}'` };
+    warnings.push(`[Gate 1 WARN] Word count ${wordCount} outside target ${pMin}–${pMax} for '${format}'.`);
+  } else {
+    wordCountGate = { pass: true, severity: 'ok' };
+  }
+
+  // Gate 2: India paragraph
+  const markerIdx = body.indexOf('<!-- INDIA_PARAGRAPH -->');
+  let indiaParagraphGate: LintGateResult;
+  if (markerIdx === -1) {
+    indiaParagraphGate = { pass: false, severity: 'fail', reason: '<!-- INDIA_PARAGRAPH --> marker missing' };
+    overallPass = false;
+  } else {
+    const indiaSeg = body.slice(markerIdx);
+    if (!/₹[\d,]+/.test(indiaSeg)) {
+      indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No ₹ price found in India paragraph' };
+      overallPass = false;
+    } else if (!INDIA_STORE_RE.test(indiaSeg)) {
+      indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No store mention (Toycra / MyBrickHouse / Amazon / Flipkart / import-only)' };
+      overallPass = false;
+    } else if (!INDIA_COMPARISON_RE.test(indiaSeg)) {
+      indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No relatable Indian comparison (biryani, EMI, Spotify, etc.)' };
+      overallPass = false;
+    } else {
+      indiaParagraphGate = { pass: true, severity: 'ok' };
+    }
+  }
+
+  // Gate 3: Verdict (non-news only)
+  let verdictGate: LintGateResult | null = null;
+  if (format !== 'news') {
+    const v = (draft.verdict || '').trim().toUpperCase();
+    if (!VALID_VERDICTS.has(v)) {
+      verdictGate = { pass: false, severity: 'fail', reason: `Invalid verdict: '${draft.verdict ?? 'none'}'` };
+      overallPass = false;
+    } else {
+      verdictGate = { pass: true, severity: 'ok' };
+    }
+  }
+
+  // Gates 5 + 6: Factuality and source fidelity
+  let factualityGate: LintGateResult | null     = null;
+  let sourceFidelityGate: LintGateResult | null = null;
+
+  if (!options.skipFactuality) {
+    // Gate 6: Source fidelity — pure text comparison, no DB needed
+    if (draft.source) {
+      sourceFidelityGate = await gateSourceFidelity(body, draft.source, warnings);
+      if (!sourceFidelityGate.pass) overallPass = false;
+    }
+
+    // Gate 5: Factuality — requires Supabase (checks set numbers/names against DB)
+    let sb: SupabaseClient | null = options.supabase ?? null;
+    if (!sb) {
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      if (url && key) sb = createClient(url, key, { auth: { persistSession: false } });
+    }
+    if (sb) {
+      factualityGate = await gateFactuality(body, sb, warnings);
+      if (!factualityGate.pass) overallPass = false;
+    }
+  }
+
+  return {
+    overallPass,
+    warnings,
+    gates: {
+      wordCount:      wordCountGate,
+      indiaParagraph: indiaParagraphGate,
+      verdict:        verdictGate,
+      factuality:     factualityGate,
+      sourceFidelity: sourceFidelityGate,
+    },
+  };
+}
