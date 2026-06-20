@@ -408,7 +408,7 @@ async function publishOneDraft(
     throw new Error(`Insert failed (${table}): ${insertErr.message}`);
   }
 
-  const { error: markPublishedErr } = await supabase.from('pending_drafts').update({ status: 'published', published_url: `${path}/${slug}` }).eq('id', draft.id);
+  const { error: markPublishedErr } = await supabase.from('pending_drafts').update({ status: 'published', published_url: `${path}/${slug}`, published_at: now }).eq('id', draft.id);
   if (markPublishedErr) {
     console.error('[supabase-write] admin-action table=pending_drafts op=update(markPublished) draft_id=', draft.id, 'error:', markPublishedErr);
     throw new Error(`Draft published to ${path}/${slug} but status update failed: ${markPublishedErr.message}`);

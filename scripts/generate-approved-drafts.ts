@@ -211,9 +211,11 @@ async function autoPublish(draft: any, outcome: GenerationOutcome): Promise<stri
     throw error;
   }
   const { error: markErr } = await sb.from('pending_drafts').update({
-    status: 'published',
-    provider: outcome.provider,
+    status:                   'published',
+    provider:                 outcome.provider,
     requires_manual_approval: false,
+    published_url:            `/news/${slug}`,
+    published_at:             new Date().toISOString(),
   }).eq('id', draft.id);
   if (markErr) {
     console.error('[supabase-write] table=pending_drafts op=update(autoPublish) error:', markErr);
@@ -386,6 +388,7 @@ if (IS_MAIN) (async () => {
         drafts_lint_failed:      geminiLintFailed + cerebrasLintFailed,
         drafts_deferred:         deferred,
         drafts_routed_to_review: 0,
+        drafts_failed:           failed,
         provider_stats:          providerStats,
       })
       .eq('id', runId);

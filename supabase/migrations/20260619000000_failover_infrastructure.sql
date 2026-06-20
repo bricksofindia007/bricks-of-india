@@ -1,6 +1,12 @@
--- PR-2b-3: Failover infrastructure
+-- PR-2b-3 / PR-2b-3.6: Failover infrastructure + schema reconciliation
 -- Adds provider tracking, manual review flag, lint result to pending_drafts.
--- Creates generator_runs table for cron health monitoring.
+-- Creates generator_runs table matching live schema as of 2026-06-20.
+--
+-- NOTE: The original migration file contained fantasy column names
+-- (total_attempted, gemini_ok, cerebras_ok, failed, skipped, finished_at)
+-- that never matched the live DB. This file is rewritten to reflect the
+-- actual live schema. See 20260620120000_phase_b_reconciliation.sql for
+-- the ALTER TABLE statements that brought the live DB to this state.
 
 -- ── pending_drafts additions ──────────────────────────────────────────────────
 
@@ -13,18 +19,21 @@ COMMENT ON COLUMN pending_drafts.provider IS 'LLM provider: gemini | cerebras | 
 COMMENT ON COLUMN pending_drafts.requires_manual_approval IS 'True during Cerebras probation — auto-publish skipped, operator must publish manually';
 COMMENT ON COLUMN pending_drafts.lint_result IS 'Serialised LintResult from the last generation run (diagnostic, nullable)';
 
--- ── generator_runs ────────────────────────────────────────────────────────────
+-- ── generator_runs — live schema as of 2026-06-20 ────────────────────────────
 
 CREATE TABLE IF NOT EXISTS generator_runs (
-  id               uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
-  started_at       timestamptz NOT NULL DEFAULT now(),
-  finished_at      timestamptz,
-  total_attempted  int         NOT NULL DEFAULT 0,
-  gemini_ok        int         NOT NULL DEFAULT 0,
-  cerebras_ok      int         NOT NULL DEFAULT 0,
-  failed           int         NOT NULL DEFAULT 0,
-  skipped          int         NOT NULL DEFAULT 0,
-  notes            text
+  id                       uuid        PRIMARY KEY DEFAULT gen_random_uuid(),
+  started_at               timestamptz NOT NULL DEFAULT now(),
+  ended_at                 timestamptz,
+  trigger                  text        NOT NULL,
+  drafts_attempted         integer     NOT NULL DEFAULT 0,
+  drafts_succeeded         integer     NOT NULL DEFAULT 0,
+  drafts_lint_failed       integer     NOT NULL DEFAULT 0,
+  drafts_deferred          integer     NOT NULL DEFAULT 0,
+  drafts_routed_to_review  integer     NOT NULL DEFAULT 0,
+  drafts_failed            integer     NOT NULL DEFAULT 0,
+  provider_stats           jsonb,
+  notes                    text
 );
 
 ALTER TABLE generator_runs ENABLE ROW LEVEL SECURITY;
