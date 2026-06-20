@@ -32,6 +32,7 @@
 
 require('dotenv').config({ path: '.env.local' });
 const { createClient } = require('@supabase/supabase-js');
+const { isFillerPattern } = require('./filler-patterns');
 
 // ── CLI flags ─────────────────────────────────────────────────────────────────
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -158,6 +159,7 @@ async function writeDrafts(drafts) {
   let countSkippedExisting = 0;
   let countCommunity       = 0;
   let countBelowThreshold  = 0;
+  let countSkippedFiller   = 0;
   let countQueued          = 0;
   const byFormat           = { news: 0, review: 0, opinion: 0 };
   const drafts             = [];
@@ -184,6 +186,14 @@ async function writeDrafts(drafts) {
       countBelowThreshold++;
       if (VERBOSE) {
         console.log(`  [SKIP:score=${pts}] T${sig.source_tier} ${sig.source_name} | "${sig.title.slice(0, 70)}"`);
+      }
+      continue;
+    }
+
+    if (isFillerPattern(sig.title)) {
+      countSkippedFiller++;
+      if (VERBOSE || DRY_RUN) {
+        console.log(`  [SKIP:filler] T${sig.source_tier} ${sig.source_name} | "${sig.title.slice(0, 70)}"`);
       }
       continue;
     }
@@ -219,6 +229,7 @@ async function writeDrafts(drafts) {
     ` skipped_existing=${countSkippedExisting}` +
     ` skipped_community=${countCommunity}` +
     ` below_threshold=${countBelowThreshold}` +
+    ` skipped_filler=${countSkippedFiller}` +
     ` queued=${countQueued}` +
     ` (news=${byFormat.news} review=${byFormat.review} opinion=${byFormat.opinion})` +
     ` duration=${dur}s` +
