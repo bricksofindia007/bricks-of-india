@@ -37,7 +37,7 @@ export async function approveDraft(formData: FormData) {
     .update({ status: 'approved', approved_at: new Date().toISOString(), approved_by: 'admin' })
     .eq('id', id);
   if (approveErr) {
-    console.error('[supabase-write] table=pending_drafts op=update(approve) error:', approveErr);
+    console.error('[supabase-write] admin-action table=pending_drafts op=update(approve) draft_id=', id, 'error:', approveErr);
     throw approveErr;
   }
   redirect(redirectTo);
@@ -52,7 +52,7 @@ export async function rejectDraft(formData: FormData) {
     .update({ status: 'rejected' })
     .eq('id', id);
   if (rejectErr) {
-    console.error('[supabase-write] table=pending_drafts op=update(reject) error:', rejectErr);
+    console.error('[supabase-write] admin-action table=pending_drafts op=update(reject) draft_id=', id, 'error:', rejectErr);
     throw rejectErr;
   }
   redirect(redirectTo);
@@ -77,12 +77,14 @@ export async function approveAll(formData: FormData) {
   const ids = (data ?? []).map((r: any) => r.id);
 
   for (let i = 0; i < ids.length; i += 100) {
+    const batch = ids.slice(i, i + 100);
     const { error: batchErr } = await supabase
       .from('pending_drafts')
       .update({ status: 'approved', approved_at: new Date().toISOString(), approved_by: 'admin' })
-      .in('id', ids.slice(i, i + 100));
+      .in('id', batch);
     if (batchErr) {
-      console.error('[supabase-write] table=pending_drafts op=update(approveAll) error:', batchErr);
+      const batchPreview = batch.length > 3 ? `${batch.slice(0, 3).join(',')}...` : batch.join(',');
+      console.error('[supabase-write] admin-action table=pending_drafts op=update(approveAll) batch_start=', i, 'batch_size=', batch.length, 'ids=', batchPreview, 'error:', batchErr);
       throw batchErr;
     }
   }
@@ -113,7 +115,7 @@ export async function generateArticle(formData: FormData) {
       .update({ draft_title: title, draft_body: body, draft_verdict: verdict, draft_format: format, word_count: wordCount, status: 'draft' })
       .eq('id', id);
     if (saveErr) {
-      console.error('[supabase-write] table=pending_drafts op=update(generateArticle) error:', saveErr);
+      console.error('[supabase-write] admin-action table=pending_drafts op=update(generateArticle) draft_id=', id, 'error:', saveErr);
       throw saveErr;
     }
 
@@ -402,13 +404,13 @@ async function publishOneDraft(
     ...(heroImage ? { hero_image: heroImage } : {}),
   });
   if (insertErr) {
-    console.error(`[supabase-write] table=${table} op=insert(publish) error:`, insertErr);
+    console.error(`[supabase-write] admin-action table=${table} op=insert(publish) draft_id=`, draft.id, 'error:', insertErr);
     throw new Error(`Insert failed (${table}): ${insertErr.message}`);
   }
 
   const { error: markPublishedErr } = await supabase.from('pending_drafts').update({ status: 'published', published_url: `${path}/${slug}` }).eq('id', draft.id);
   if (markPublishedErr) {
-    console.error('[supabase-write] table=pending_drafts op=update(markPublished) error:', markPublishedErr);
+    console.error('[supabase-write] admin-action table=pending_drafts op=update(markPublished) draft_id=', draft.id, 'error:', markPublishedErr);
     throw new Error(`Draft published to ${path}/${slug} but status update failed: ${markPublishedErr.message}`);
   }
   revalidatePath(path);
