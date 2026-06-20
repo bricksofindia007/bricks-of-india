@@ -304,7 +304,9 @@ if (IS_MAIN) (async () => {
   }
   runId = runRow?.id ?? null;
 
-  let geminiOk = 0, cerebrasOk = 0, failed = 0, skipped = 0;
+  let geminiAttempted = 0, geminiOk = 0, geminiLintFailed = 0;
+  let cerebrasAttempted = 0, cerebrasOk = 0, cerebrasLintFailed = 0;
+  let deferred = 0, failed = 0;
 
   for (let i = 0; i < queue.length; i++) {
     if (i > 0) await new Promise(r => setTimeout(r, DELAY_MS));
@@ -318,7 +320,8 @@ if (IS_MAIN) (async () => {
 
       if (outcome.format === 'news' && !outcome.requiresManualApproval && passesAutoPublishGates(outcome)) {
         const publishedSlug = await autoPublish(draft, outcome);
-        if (outcome.provider === 'gemini') geminiOk++; else cerebrasOk++;
+        geminiAttempted++;
+        if (outcome.failoverUsed) { cerebrasAttempted++; cerebrasOk++; } else { geminiOk++; }
         const failoverNote = outcome.failoverUsed ? ' [CEREBRAS FAILOVER]' : '';
         console.log(`AUTO-PUBLISHED -> /news/${publishedSlug} (${outcome.wordCount}w, provider=${outcome.provider}${failoverNote})`);
       } else {
@@ -341,7 +344,8 @@ if (IS_MAIN) (async () => {
           throw upErr;
         }
 
-        if (outcome.provider === 'gemini') geminiOk++; else cerebrasOk++;
+        geminiAttempted++;
+        if (outcome.failoverUsed) { cerebrasAttempted++; cerebrasLintFailed++; } else { geminiLintFailed++; }
         const failoverNote = outcome.failoverUsed ? ' [CEREBRAS FAILOVER]' : '';
         const manualNote   = outcome.requiresManualApproval ? ' [MANUAL REVIEW REQUIRED]' : '';
         const lintNote     = outcome.lintResult && !outcome.lintResult.overallPass ? ' [LINT WARN]' : '';
@@ -352,11 +356,13 @@ if (IS_MAIN) (async () => {
 
       // Gemini retryable + Cerebras ineligible → deferred (excerpt too short)
       if (msg.includes('Cerebras not eligible')) {
-        skipped++;
+        geminiAttempted++;  // Gemini was tried (retryable fail); Cerebras ineligible
+        deferred++;
         console.log(`DEFERRED: ${msg.slice(0, 200)}`);
         continue;
       }
 
+      geminiAttempted++;
       failed++;
       console.log(`FAIL: ${msg.slice(0, 200)}`);
       if (msg.includes('[429')) {
@@ -368,22 +374,30 @@ if (IS_MAIN) (async () => {
 
   // ── Update generator_runs row ──────────────────────────────────────────────
   if (runId) {
-    const { error: runUpdateErr } = await sb.from('generator_runs').update({
-      finished_at:     new Date().toISOString(),
-      gemini_ok:       geminiOk,
-      cerebras_ok:     cerebrasOk,
-      failed,
-      skipped,
-    }).eq('id', runId);
-    if (runUpdateErr) {
-      console.error('[supabase-write] table=generator_runs op=update error:', runUpdateErr);
+    const providerStats = {
+      gemini:   { attempted: geminiAttempted,   ok: geminiOk,   lint_failed: geminiLintFailed },
+      cerebras: { attempted: cerebrasAttempted, ok: cerebrasOk, lint_failed: cerebrasLintFailed },
+    };
+    const { error: updateErr } = await sb
+      .from('generator_runs')
+      .update({
+        ended_at:                new Date().toISOString(),
+        drafts_succeeded:        geminiOk + cerebrasOk,
+        drafts_lint_failed:      geminiLintFailed + cerebrasLintFailed,
+        drafts_deferred:         deferred,
+        drafts_routed_to_review: 0,
+        provider_stats:          providerStats,
+      })
+      .eq('id', runId);
+    if (updateErr) {
+      console.error('[generator] generator_runs update failed:', updateErr);
       // Telemetry failure — run completed; do not re-throw
     }
   }
 
   const total = geminiOk + cerebrasOk;
   const dur   = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`\nSUMMARY: ${total} ok (${geminiOk} gemini, ${cerebrasOk} cerebras), ${failed} failed, ${skipped} deferred of ${queue.length} — ${dur}s total`);
+  console.log(`\nSUMMARY: ${total} ok (${geminiOk} gemini, ${cerebrasOk} cerebras), ${geminiLintFailed + cerebrasLintFailed} lint-routed, ${failed} failed, ${deferred} deferred of ${queue.length} — ${dur}s total`);
 })().catch(err => {
   console.error('FATAL:', err);
   process.exit(1);
