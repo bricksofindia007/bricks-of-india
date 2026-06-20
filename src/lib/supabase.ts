@@ -17,8 +17,11 @@ export const supabase = supabaseUrl
 
 export function createServerClient() {
   if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set — check Netlify environment variables');
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? supabaseAnonKey;
-  return createClient(supabaseUrl, key);
+  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!serviceKey) {
+    throw new Error('SUPABASE_SERVICE_ROLE_KEY required for server client — refusing to fall back to anon key');
+  }
+  return createClient(supabaseUrl, serviceKey);
 }
 
 // Types matching our schema
