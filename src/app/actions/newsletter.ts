@@ -14,7 +14,10 @@ export async function subscribeNewsletter(email: string): Promise<{ ok: boolean;
     .insert({ email });
 
   const duplicate = error?.code === '23505';
-  if (error && !duplicate) return { ok: false };
+  if (error && !duplicate) {
+    console.error('[supabase-write] table=newsletter_subscribers op=insert error:', error);
+    return { ok: false };
+  }
 
   // Send confirmation only on new subscribers (not duplicates)
   if (!duplicate) {

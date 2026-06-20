@@ -206,12 +206,19 @@ async function autoPublish(draft: any, outcome: GenerationOutcome): Promise<stri
     excerpt, hero_image: heroImage || null,
     published_at: new Date().toISOString(),
   });
-  if (error) throw error;
-  await sb.from('pending_drafts').update({
+  if (error) {
+    console.error('[supabase-write] table=news_articles op=insert error:', error);
+    throw error;
+  }
+  const { error: markErr } = await sb.from('pending_drafts').update({
     status: 'published',
     provider: outcome.provider,
     requires_manual_approval: false,
   }).eq('id', draft.id);
+  if (markErr) {
+    console.error('[supabase-write] table=pending_drafts op=update(autoPublish) error:', markErr);
+    // Article already inserted into news_articles — continue; draft state will be stale
+  }
   return slug;
 }
 
@@ -278,11 +285,23 @@ if (IS_MAIN) (async () => {
 
   // ── Insert generator_runs row ──────────────────────────────────────────────
   let runId: string | null = null;
-  const { data: runRow } = await sb
+  const trigger = process.env.GITHUB_ACTIONS === 'true'
+    ? (process.env.GITHUB_EVENT_NAME ?? 'github_action')
+    : 'manual';
+
+  const { data: runRow, error: insertErr } = await sb
     .from('generator_runs')
-    .insert({ total_attempted: queue.length })
+    .insert({
+      trigger,
+      drafts_attempted: queue.length,
+    })
     .select('id')
     .maybeSingle();
+
+  if (insertErr) {
+    console.error('[generator] generator_runs insert failed:', insertErr);
+    // Continue run anyway — telemetry failure should not block draft processing
+  }
   runId = runRow?.id ?? null;
 
   let geminiOk = 0, cerebrasOk = 0, failed = 0, skipped = 0;
@@ -317,7 +336,10 @@ if (IS_MAIN) (async () => {
             lint_result:               outcome.lintResult ? JSON.parse(JSON.stringify(outcome.lintResult)) : null,
           })
           .eq('id', draft.id);
-        if (upErr) throw upErr;
+        if (upErr) {
+          console.error('[supabase-write] table=pending_drafts op=update(manualRoute) error:', upErr);
+          throw upErr;
+        }
 
         if (outcome.provider === 'gemini') geminiOk++; else cerebrasOk++;
         const failoverNote = outcome.failoverUsed ? ' [CEREBRAS FAILOVER]' : '';
@@ -346,13 +368,17 @@ if (IS_MAIN) (async () => {
 
   // ── Update generator_runs row ──────────────────────────────────────────────
   if (runId) {
-    await sb.from('generator_runs').update({
+    const { error: runUpdateErr } = await sb.from('generator_runs').update({
       finished_at:     new Date().toISOString(),
       gemini_ok:       geminiOk,
       cerebras_ok:     cerebrasOk,
       failed,
       skipped,
     }).eq('id', runId);
+    if (runUpdateErr) {
+      console.error('[supabase-write] table=generator_runs op=update error:', runUpdateErr);
+      // Telemetry failure — run completed; do not re-throw
+    }
   }
 
   const total = geminiOk + cerebrasOk;
