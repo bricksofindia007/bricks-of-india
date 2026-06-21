@@ -2,7 +2,7 @@
 
 > YouTube long-form, Shorts / Reels, DaVinci Resolve workflow, ElevenLabs voice clone, script-to-video pipeline.
 >
-> **Last updated:** 2026-05-02
+> **Last updated:** 2026-06-21 (audit header refresh — body unchanged; Phase 4 video production intentionally not started, gated by ElevenLabs voice clone test)
 
 ---
 

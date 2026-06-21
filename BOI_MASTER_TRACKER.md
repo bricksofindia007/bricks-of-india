@@ -1166,6 +1166,14 @@ Decision deferred to Day 3 open.
 - **Target window:** unscheduled (Google-controlled); step (a) can be done immediately
 - **Dependencies:** none (video recording is independent of Google decision)
 
+#### CE-01: Builder Spotlight ×2 — outreach response
+- **What:** Two Builder Spotlights for publication. Outreach sent 2026-05-29. Check inbox for replies; if none by 2026-07-01 send a second outreach. Capture name, featured set, bio excerpt, confirm publication slot.
+- **Source:** GAP-08; CE-01 programme; outreach posted Day 28
+- **Status:** pending — Abhinav action required (email inbox check)
+- **Owner:** A
+- **Target window:** by 2026-07-15 (hard deadline for published spotlights)
+- **Dependencies:** none
+
 ---
 
 ### CRITICAL — Credibility / Fan CoLab blocker
@@ -1328,7 +1336,7 @@ Decision deferred to Day 3 open.
 - **Status:** not started
 - **Owner:** C + A (A: retailer selection; C: scraper implementation)
 - **Target window:** post-PR-2b-5
-- **Dependencies:** PR-2b-5 family (HIGH-5 through HIGH-11)
+- **Dependencies:** none
 
 ---
 
