@@ -163,6 +163,7 @@ async function writeDrafts(drafts) {
   let countQueued          = 0;
   const byFormat           = { news: 0, review: 0, opinion: 0 };
   const drafts             = [];
+  const fillerDrafts       = [];
 
   for (const sig of limited) {
     if (existingUrls.has(sig.url)) {
@@ -192,6 +193,15 @@ async function writeDrafts(drafts) {
 
     if (isFillerPattern(sig.title)) {
       countSkippedFiller++;
+      fillerDrafts.push({
+        source_url          : sig.url,
+        source_title        : sig.title,
+        source_excerpt      : sig.body ? sig.body.slice(0, 500).trim() : null,
+        source_published_at : sig.published_at || null,
+        draft_format        : format,
+        status              : 'rejected',
+        discard_reason      : 'filler_pattern_skipped: title matches Brickset "Random <type> of the (day|week)" recurring filler pattern.',
+      });
       if (VERBOSE || DRY_RUN) {
         console.log(`  [SKIP:filler] T${sig.source_tier} ${sig.source_name} | "${sig.title.slice(0, 70)}"`);
       }
@@ -220,6 +230,13 @@ async function writeDrafts(drafts) {
     console.log(`Wrote ${drafts.length} rows to pending_drafts.`);
   } else if (DRY_RUN) {
     console.log(`[DRY-RUN] Would write ${drafts.length} rows to pending_drafts.`);
+  }
+
+  if (!DRY_RUN && fillerDrafts.length > 0) {
+    await writeDrafts(fillerDrafts);
+    console.log(`Wrote ${fillerDrafts.length} filler-rejected rows to pending_drafts (status=rejected, discard_reason=filler_pattern_skipped).`);
+  } else if (DRY_RUN && fillerDrafts.length > 0) {
+    console.log(`[DRY-RUN] Would write ${fillerDrafts.length} filler-rejected rows to pending_drafts.`);
   }
 
   const dur = ((Date.now() - t0) / 1000).toFixed(1);
