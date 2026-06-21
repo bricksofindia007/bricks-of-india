@@ -16,35 +16,21 @@ describe('isFillerPattern — should block', () => {
     expect(isFillerPattern('Random set of the day')).toBe(true);
   });
 
-  it('blocks "Set of the Day: 10332"', () => {
-    expect(isFillerPattern('Set of the Day: 10332')).toBe(true);
+  it('blocks "Random minifigure of the day"', () => {
+    expect(isFillerPattern('Random minifigure of the day')).toBe(true);
   });
 
-  it('blocks "Figure of the Day — frnd0701"', () => {
-    expect(isFillerPattern('Figure of the Day — frnd0701')).toBe(true);
+  it('blocks "Random build of the week"', () => {
+    expect(isFillerPattern('Random build of the week')).toBe(true);
   });
 
-  it('blocks "Figure-of-the-Day post" (hyphen variant)', () => {
-    expect(isFillerPattern('Figure-of-the-Day post')).toBe(true);
-  });
-
-  it('blocks titles starting with "Random " (any suffix)', () => {
-    expect(isFillerPattern('Random build spotlight')).toBe(true);
-    expect(isFillerPattern('Random mosaic from the community')).toBe(true);
-  });
-
-  it('blocks "Daily LEGO deals roundup"', () => {
-    expect(isFillerPattern('Daily LEGO deals roundup')).toBe(true);
-  });
-
-  it('blocks "daily " anywhere in title (intentionally broad, same logic as COMMUNITY_RE for weekly)', () => {
-    expect(isFillerPattern('Brickset daily picks')).toBe(true);
+  it('blocks "Random theme of the day"', () => {
+    expect(isFillerPattern('Random theme of the day')).toBe(true);
   });
 
   it('is case-insensitive', () => {
-    expect(isFillerPattern('RANDOM Figure Of The Day')).toBe(true);
-    expect(isFillerPattern('random build')).toBe(true);
-    expect(isFillerPattern('SET OF THE DAY')).toBe(true);
+    expect(isFillerPattern('RANDOM FIGURE OF THE DAY')).toBe(true);
+    expect(isFillerPattern('random set of the week')).toBe(true);
   });
 });
 
@@ -59,15 +45,30 @@ describe('isFillerPattern — should pass through', () => {
     expect(isFillerPattern('Brickset review: 42151 Bugatti Bolide')).toBe(false);
   });
 
-  it('passes "Today\'s best LEGO deals" (today ≠ daily )', () => {
-    expect(isFillerPattern("Today's best LEGO deals")).toBe(false);
+  // Regression anchor: real LEGO set name 76342. Must NOT match filler filter.
+  // This test exists to prevent a regression where the regex broadens (e.g. re-adding
+  // \bdaily\s which would incorrectly flag this set title as filler content).
+  it('passes "The LEGO Daily Bugle (76342)" — real set name, must never be filtered', () => {
+    expect(isFillerPattern('The LEGO Daily Bugle (76342)')).toBe(false);
   });
 
-  it('passes titles containing "random" mid-sentence', () => {
+  it('passes "Random build spotlight" — has "random" but not "of the day/week"', () => {
+    expect(isFillerPattern('Random build spotlight')).toBe(false);
+  });
+
+  it('passes "Set of the Day: 10332" — does not start with "Random <type>"', () => {
+    expect(isFillerPattern('Set of the Day: 10332')).toBe(false);
+  });
+
+  it('passes "Figure of the Day — frnd0701" — does not start with "Random <type>"', () => {
+    expect(isFillerPattern('Figure of the Day — frnd0701')).toBe(false);
+  });
+
+  it('passes "LEGO picks random charities to support in 2026" — "random" mid-sentence', () => {
     expect(isFillerPattern('LEGO picks random charities to support in 2026')).toBe(false);
   });
 
-  it('passes null/undefined without throwing', () => {
+  it('passes null/undefined/empty without throwing', () => {
     expect(isFillerPattern(null)).toBe(false);
     expect(isFillerPattern(undefined)).toBe(false);
     expect(isFillerPattern('')).toBe(false);

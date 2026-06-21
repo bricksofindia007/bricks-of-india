@@ -1,11 +1,10 @@
 'use strict';
 
-// Filler-content patterns: recurring low-editorial-value post formats that
-// slip past the score threshold but shouldn't become BOI articles.
-// "of the day" catches "Random figure of the day", "Set of the Day", etc.
-// "^random " catches Brickset "Random X" filler posts.
-// "daily " is deliberately narrow (trailing space) to avoid matching "today".
-const FILLER_RE = /^random\s+|\bof[\s-]the[\s-]day\b|\bdaily\s/i;
+// Targets Brickset "Random <type> of the day/week" recurring filler posts.
+// Deliberately narrow: only the exact head-of-title pattern qualifies.
+// "Random build spotlight", "Set of the Day", "\bdaily\s" are intentionally
+// NOT matched — see filler-filter.test.js for regression anchors.
+const FILLER_RE = /^random (set|figure|minifigure|build|theme) of the (day|week)/i;
 
 function isFillerPattern(title) {
   return FILLER_RE.test(title || '');
