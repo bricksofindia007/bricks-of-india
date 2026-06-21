@@ -2,9 +2,9 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-06-03 (Day 34 — CQS spike resolved, fallback hero system complete, social automation hardened, YouTube re-auth in progress, 98 news articles live)
-> **Health Score: 97** — GSC verified. 98 news articles live. 9 of 9 Lab tools live. Checks 1–23 + secrets manifest audit. CQS false-positive spike resolved. Fallback hero on 41 articles. YouTube Shorts degraded (OAuth re-auth blocked on Google verification); IG unaffected.
-> **Audit log:** `audit-block1.log`
+> **Last updated:** 2026-06-21 (consolidation audit — Days 35-N state captured through PR-2b-3.7 merge; HEAD=128d536)
+> **Health Score: 96** — store_prices drop (2,600→1,512) UNVERIFIED. YouTube OAuth blocked (Google review, submitted 2026-06-02). Cerebras failover live. Schema reconciled (PR-2b-3.6). Filler filter (PR-2b-3.7). Social heartbeat table live. IG unaffected.
+> **Audit log:** `audit-block1.log` | Consolidation audit 2026-06-21: see §Consolidation Audit at file end
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
 ---
@@ -130,10 +130,10 @@ JSON parses. If it doesn't, fix before doing anything else.
 
 ## Current blockers (top 3)
 
-1. **IG System User Token** — current 60-day token expires ~2026-07-23. Manual re-exchange required by **2026-07-16** (hard deadline). Permanent fix (Meta Business Manager System User) deferred.
-2. **YouTube OAuth re-auth** — refresh token expired (`invalid_grant`). Full re-auth required via `social-automation/youtube_oauth_helper.py`. Blocked: Google OAuth app under verification review (4–6 weeks); `bricksofindia007@gmail.com` added as test user but `access_denied` persisting. YouTube Shorts skipped gracefully (pipeline continues to post IG). Health Check 6b will alert nightly.
-3. **CE-01 Builder Spotlights ×2** — deadline **2026-07-15**. Outreach posted 2026-05-29. Awaiting respondents. Check Reddit/FB inbox mid-June; escalate to direct outreach if no responses.
-4. **store_prices drop** — 2,600 → 1,512 rows between Day 33 close and Day 34 open. Likely a scraper run with reduced match rate. Investigate next session: check scrape-prices.yml last run log and SCRAPE-03 alert for zero-row condition.
+1. **IG System User Token** — current 60-day token expires ~2026-07-23. Manual re-exchange required by **2026-07-16** (hard deadline, 25 days from 2026-06-21). Permanent fix (Meta Business Manager System User) deferred. [status unchanged as of 2026-06-21]
+2. **YouTube OAuth re-auth** — refresh token expired (`invalid_grant`). Google OAuth app under verification (submitted 2026-06-02, 4–6 week review). As of 2026-06-21, 19 days elapsed — within stated review window. YouTube Shorts skipped gracefully via `try/except RefreshError`; IG unaffected. Health Check 6b (token expiry) + 6c (heartbeat table) alert nightly. `social-automation/youtube_oauth_helper.py` ready to run post-review.
+3. **CE-01 Builder Spotlights ×2** — deadline **2026-07-15**. Outreach posted 2026-05-29. Jun 15 inbox check threshold has passed (today 2026-06-21). Escalation status: UNVERIFIED.
+4. **store_prices drop** — 2,600 → 1,512 rows first confirmed Day 34 open. SCRAPE-INVESTIGATE-01 resolution: UNVERIFIED (no terminal confirmation in session logs).
 
 > CE-01 outreach ✅ DONE 2026-05-29 — r/IndiaLEGO + AFOL India Facebook posted. Awaiting respondents.
 > McLaren voice test ✅ DONE — 12 articles published 2026-05-29, voice test passed implicitly.
@@ -246,6 +246,66 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### Days 35-N — 2026-06-03 to 2026-06-21 — social heartbeat, security hardening, Cerebras failover, schema reconciliation, filler filter
+
+**HEAD:** `128d536` | **Health:** 96 | **news_articles:** UNVERIFIED (last confirmed: 98 at Day 34 close)
+
+> This consolidation entry captures 6 PRs / feature branches merged after Day 34 close. Per-PR detail is in the GitHub PR descriptions. Pure status-capture; no forward recommendations.
+
+**feat/social-heartbeat** (commits `24e7e5b`→`ed20404`, merged `7c8ffc8`):
+- `social_automation_heartbeat` table added: columns `platform` (PK), `last_attempt_at`, `last_success_at`, `last_failure_at`, `last_error`, `updated_at`. Migration: `20260617000000_social_automation_heartbeat.sql`. Seeded with 2 rows: instagram, youtube.
+- `pipeline.py`: writes heartbeat on every run (attempt timestamp on entry; success/failure on exit).
+- `health-check.mjs` Check 6c: reads heartbeat table for stale pipeline detection.
+- `youtube_oauth_helper.py`: emoji→ASCII for Windows cp1252 compatibility (commit `3bc2a6e`). `last_attempt_at` column + None-success path + no-content signal fixed (commit `ed20404`).
+
+**Security hardening** (commits `3bd4058`, `98e0958`, `e8d7192`):
+- `v_published_articles_public` view created: `security_invoker=true`; UNION of `news_articles` + `blog_posts` WHERE `published_at IS NOT NULL`; `GRANT SELECT TO anon`; `REVOKE INSERT/UPDATE/DELETE FROM PUBLIC`. Migration: `20260606000000_v_published_articles_public.sql`. Note: neither source table has `updated_at` column — `NULL::timestamptz` used as placeholder.
+- `X-Robots-Tag: noindex` headers on admin routes; `Content-Security-Policy-Report-Only` header added (commit `3bd4058`).
+- `robots.ts`: 22 AI crawlers allowed with explicit disallows + crawl-delay (commit `e8d7192`).
+- technical-hygiene.mjs Group 16 checks added (commit `3bd4058`; exact check descriptions not recorded in commit message — UNVERIFIED).
+
+**PR-2b-3: Cerebras failover** (commits `2b19223`, `8e3f915`, merged `aded950`):
+- `generate-approved-drafts.ts`: Cerebras (`gpt-oss-120b @ temp 0.7`) added as Gemini failover provider. Triggers on Gemini `RESOURCE_EXHAUSTED`/`RATE_LIMIT_EXCEEDED`.
+- Cerebras probation dropped (`requires_manual_approval` not set for Cerebras articles); gates-only auto-publish applies uniformly.
+- `docs/cerebras-pilot-report.md`: 5 bodies, 80% lint pass (4/5). Manual voice read sign-off checkboxes empty as of 2026-06-21 — UNVERIFIED whether Abhinav reviewed.
+
+**PR-2b-3.5: generator_runs write fix** (commits `c36248e`, `0ba1dea`, `352bd5d`, merged `293027b`):
+- `generate-approved-drafts.ts`: generator_runs UPDATE column names corrected to live schema (`ended_at`, `drafts_succeeded`, `drafts_lint_failed`, `drafts_deferred`, `drafts_routed_to_review`, `drafts_failed`, `provider_stats`). Was writing to fantasy column names — silent no-op in production.
+- Migration `20260619000000_failover_infrastructure.sql`: rewritten to live schema (original had `total_attempted`, `gemini_ok`, `cerebras_ok`, `failed`, `skipped`, `finished_at` — none existed in live DB).
+- Admin Server Actions: `draft_id` added to all error log messages (commit `352bd5d`).
+
+**PR-2b-3.6: Schema drift audit + reconciliation** (commits `d06d37d`, `746cdaf`, `7e22036`, no explicit merge commit):
+- `docs/schema-live-2026-06-20.md`: 21-table live schema snapshot.
+- Migration `20260620120000_phase_b_reconciliation.sql` (idempotent): `generator_runs` +`drafts_failed`; `guides` +`hero_image`, +`seo_title`, +`seo_description` + backfill; `pending_drafts` +`discard_reason`, +`published_at`, -`lint_results` (plural); `published_at` backfilled from `news_articles` + `blog_posts`; CHECK constraint `pending_drafts_published_has_url` (`status != 'published' OR published_url IS NOT NULL`) applied and validated.
+- `generate-approved-drafts.ts` `autoPublish()` bug: was writing `status='published'` without `published_url` or `published_at` — fixed to write all three.
+- `src/app/admin/pending/actions.ts` `publishOneDraft`: `published_at: now` added.
+- Smoke test article `lego-friends-sonia-figure-frnd0869-a-playground-mystery` retracted: `news_articles` row deleted; `pending_drafts` row 657d36b6 set to `rejected` with editorial `discard_reason`.
+- Historical dedup-miss cleanup: rows `c1ee6ede`, `a00876f0` deleted (pending_drafts without source_url).
+
+**PR-2b-3.7: Filler pattern filter in RADAR-03** (commits `e160e39`, `aa73190`, `6aa31a4`, merged `128d536`):
+- `scripts/radar/filler-patterns.js` (new CJS module): `FILLER_RE = /^random (set|figure|minifigure|build|theme) of the (day|week)/i`; exports `isFillerPattern()`.
+- `scripts/radar/classify-signals.js`: `isFillerPattern()` check after score threshold; matched signals pushed to `fillerDrafts[]` with `status: 'rejected'` and `discard_reason: 'filler_pattern_skipped:...'` then written via `writeDrafts(fillerDrafts)`. NOT silently skipped — audit trail in DB.
+- `scripts/radar/__tests__/filler-filter.test.js` (14 vitest tests): 6 block cases, 8 pass-through cases. Daily Bugle (`76342 Spider-Man vs. Mysterio: The Daily Bugle`) regression anchor prevents broadening of `FILLER_RE`.
+- CLASSIFY SUMMARY log includes `skipped_filler=` count.
+- 4 pre-existing snapshot test failures (trailing space vs empty line in baseline files) deferred to separate PR.
+
+**DB schema changes since Day 35 close:**
+- `pending_drafts`: +`published_at` (timestamptz), +`discard_reason` (text), -`lint_results` (plural dropped), +CHECK `pending_drafts_published_has_url`
+- `guides`: +`hero_image`, +`seo_title`, +`seo_description`
+- `generator_runs`: +`drafts_failed` (integer)
+- `social_automation_heartbeat`: NEW TABLE (service_role only, RLS enabled, no anon policies)
+- `v_published_articles_public`: NEW VIEW (security_invoker, anon SELECT)
+
+**DB row counts (2026-06-21 — partially UNVERIFIED):**
+- news_articles: UNVERIFIED (last confirmed 98 at Day 34 close; scheduled pipeline ran since)
+- store_prices: UNVERIFIED (last confirmed 1,512 at Day 34 close ⚠️)
+- posted_sets: UNVERIFIED (last confirmed 9)
+- pending_drafts: published count increased by autoPublish bug fix; exact current count UNVERIFIED
+
+**Key commits (Days 35-N):** `2b19223` → `8e3f915` → `aded950` → `24e7e5b` → `7c8ffc8` → `3bd4058` → `98e0958` → `e8d7192` → `c36248e` → `0ba1dea` → `352bd5d` → `293027b` → `d06d37d` → `746cdaf` → `7e22036` → `e160e39` → `aa73190` → `6aa31a4` → `128d536` (HEAD)
+
+---
 
 ### Day 34 — 2026-06-03 — CQS spike resolved, fallback hero system, social automation hardened
 
@@ -1072,3 +1132,473 @@ Decision deferred to Day 3 open.
 - star-wars-lego-will-bankrupt-you
 
 **Status:** ✅ Closed 2026-05-31 — commit `8e1dce2`. blog/[slug] queries now filter `.neq('category','Opinion')`. Opinion slugs 404 from /blog/, only accessible at /opinion/[slug]. Pipeline routing unchanged — structural fix, not cosmetic. GSC will drop /blog duplicates on next crawl. Safe to publish opinion articles.
+
+## Security: RLS Hardening — 2026-06-03
+- Enabled Row Level Security across all 18 public schema tables
+- Public read policy (anon SELECT) on: blog_posts, cmf_figures, community_spotlights, guides, news_articles, price_history, price_snapshots, prices, reviews, sets, store_prices
+- No anon access (service_role only) on: content_fix_log, content_image_registry, content_quality_issues, newsletter_subscribers, pending_drafts, posted_lego_sets, posted_sets, raw_signals
+- Triggered by Supabase security alert flagging posted_lego_sets as UNRESTRICTED
+- Verified: red UNRESTRICTED badge cleared in Table Editor
+
+---
+
+## Pending — Next Up (as of 2026-06-21)
+
+> Priority tiers: **CRITICAL** (deadline-class or Fan CoLab blocker) → **HIGH** (PR-2b-5 credibility hardening) → **MEDIUM** (operational) → **LOW** (cleanup) → **TRIVIAL** (informational). Owner codes: C = Claude (terminal), A = Abhinav (manual/decision), C+A = both.
+
+---
+
+### CRITICAL — Time-bound (hard deadlines)
+
+#### IG-TOK-01: Instagram System User Token re-exchange
+- **What:** Re-exchange IG System User Token before expiry — pipeline breaks for all IG posts on expiry
+- **Source:** Current blockers § — 25 days remaining as of 2026-06-21
+- **Status:** pending — Abhinav action required (Meta Graph API portal)
+- **Owner:** A
+- **Target window:** by 2026-07-16 (hard deadline)
+- **Dependencies:** Meta for Developers account access
+
+#### YT-OAUTH-01: YouTube OAuth sensitive scope Google verification
+- **What:** (a) Record OAuth scope justification video per Google requirements — not yet recorded. (b) Await Google reviewer response (submitted 2026-06-02, ~4–6 week review)
+- **Source:** Current blockers § — 19 days elapsed as of 2026-06-21
+- **Status:** pending — Abhinav action required (step a); Google review external (step b)
+- **Owner:** A (video recording); Google (external)
+- **Target window:** unscheduled (Google-controlled); step (a) can be done immediately
+- **Dependencies:** none (video recording is independent of Google decision)
+
+#### CE-01: Builder Spotlight ×2 — outreach response
+- **What:** Two Builder Spotlights for publication. Outreach sent 2026-05-29. Check inbox for replies; if none by 2026-07-01 send a second outreach. Capture name, featured set, bio excerpt, confirm publication slot.
+- **Source:** GAP-08; CE-01 programme; outreach posted Day 28
+- **Status:** pending — Abhinav action required (email inbox check)
+- **Owner:** A
+- **Target window:** by 2026-07-15 (hard deadline for published spotlights)
+- **Dependencies:** none
+
+---
+
+### CRITICAL — Credibility / Fan CoLab blocker
+
+#### CRITICAL-1: publish-drafts.yml full audit
+- **What:** Audit scheduled publish workflow — selection logic, retention policy, error handling. Deferred mid-investigation.
+- **Source:** Deferred during Days 35-N investigation
+- **Status:** not started
+- **Owner:** C + A
+- **Target window:** this week
+- **Dependencies:** none
+
+#### CRITICAL-2: RADAR-01 dedup audit
+- **What:** Find all duplicate-source-URL drafts beyond known cases (BrickNerd, Amazon Ancient Ruins)
+- **Source:** PR-2b-3.7 session — dedup anomalies surfaced but not fully resolved
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this week
+- **Dependencies:** none
+
+#### CRITICAL-3: url_hash normalization audit
+- **What:** Verify url_hash normalization is consistent across all RADAR-01/02 sources; confirm no dedup misses due to trailing slash or scheme variants
+- **Source:** PR-2b-3.7 session
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this week
+- **Dependencies:** CRITICAL-2
+
+#### CRITICAL-4: Voice scorer (PR-2b-5a)
+- **What:** Automated voice consistency scorer — direct response to Sonia incident (wrong tone, not caught by lint)
+- **Source:** PR-2b-5 roadmap
+- **Status:** in design (not built)
+- **Owner:** C
+- **Target window:** this month
+- **Dependencies:** none
+
+---
+
+### HIGH — PR-2b-5 credibility hardening
+
+#### HIGH-5: Source fidelity gate v2 (PR-2b-5b)
+- **What:** Extend source fidelity check to ALL drafts; cross-check article claims against cited source URL content
+- **Source:** PR-2b-5 roadmap
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month
+- **Dependencies:** CRITICAL-4
+
+#### HIGH-6: Factuality gate v2
+- **What:** Verify piece count, theme, MSRP, year for every draft — not just set number existence
+- **Source:** PR-2b-5 roadmap; Sonia incident exposed gap
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month
+- **Dependencies:** HIGH-5
+
+#### HIGH-7: Cross-provider fact-check on reviews
+- **What:** Second model fact-checks first model's claims on all review-format drafts before approval
+- **Source:** PR-2b-5 roadmap
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month
+- **Dependencies:** HIGH-6
+
+#### HIGH-8: /corrections public log page
+- **What:** Public-facing corrections and retractions page — credibility signal for Fan CoLab application
+- **Source:** Fan CoLab credibility requirements
+- **Status:** not started
+- **Owner:** C + A
+- **Target window:** pre-Fan-CoLab (Aug 2026)
+- **Dependencies:** HIGH-10 (retracted_articles table)
+
+#### HIGH-9: Article footer attribution copy
+- **What:** Sitewide footer on every article: "AI-assisted, reviewed by Abhinav Bhargav, spot an error [link]"
+- **Source:** PR-2b-5 roadmap
+- **Status:** not started
+- **Owner:** C
+- **Target window:** pre-Fan-CoLab (Aug 2026)
+- **Dependencies:** none
+
+#### HIGH-10: retracted_articles audit table
+- **What:** Proper DB provenance for retractions (slug, reason, date, retracted_by) — replaces ad-hoc audit_log approach
+- **Source:** Amazon Ancient Ruins + Sonia retraction sessions
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month
+- **Dependencies:** none
+
+#### HIGH-11: news_articles.provider column
+- **What:** Track which model produced each article (gemini / cerebras / unknown) — audit trail going forward; closes GAP-13 retroactive gap for future publishes
+- **Source:** PR-2b-3 + PR-2b-3.5; GAP-13 (74 historical publishes have no telemetry)
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month
+- **Dependencies:** none
+
+---
+
+### MEDIUM — Operational hardening
+
+#### MEDIUM-12: Weekly audit cron
+- **What:** Sample 10 published articles weekly, factuality re-check, surface discrepancies to admin digest
+- **Source:** PR-2b-5 roadmap
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month
+- **Dependencies:** HIGH-6
+
+#### MEDIUM-13: Review-format routing investigation
+- **What:** Why do review-format drafts publish to /news/ instead of /reviews/? Fix or document as intentional.
+- **Source:** Session observation during review pipeline work
+- **Status:** not started
+- **Owner:** C + A
+- **Target window:** this month
+- **Dependencies:** none
+
+#### MEDIUM-14: YouTube 14-day auto-discard policy
+- **What:** Auto-discard YouTube Shorts drafts older than 14 days (Option B from earlier handoff) — prevents stale video content from publishing
+- **Source:** Earlier handoff notes
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month
+- **Dependencies:** none
+
+#### MEDIUM-15: Scheduled cron + monitors + admin digest (PR-2b-4)
+- **What:** Full PR-2b-4 scope: admin digest emails, monitoring alerts, run summaries
+- **Source:** PR-2b-4 roadmap (deferred from main branch work)
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month
+- **Dependencies:** none
+
+#### MEDIUM-16: Migration directory consolidation
+- **What:** Consolidate 4 migration directories into single canonical `supabase/migrations/`
+- **Source:** PR-2b-3.6 schema audit (4 dirs discovered)
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month
+- **Dependencies:** none
+
+#### MEDIUM-17: Supabase CLI proper adoption
+- **What:** `supabase db pull` baseline, link project, enable mechanical migration tracking
+- **Source:** PR-2b-3.6 schema audit
+- **Status:** not started
+- **Owner:** C + A
+- **Target window:** this month
+- **Dependencies:** MEDIUM-16
+
+#### MEDIUM-18: CI drift detection
+- **What:** Weekly schema audit cron or PR-time check to catch live DB / migration divergence before it accumulates
+- **Source:** PR-2b-3.6 (6-week drift discovered before audit)
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month
+- **Dependencies:** MEDIUM-17
+
+#### STORE-01: Additional Indian LEGO retailer scraping
+- **What:** Add Hamleys India (and other Indian retailers) to store_prices scraping pipeline
+- **Source:** Scope expansion request
+- **Status:** not started
+- **Owner:** C + A (A: retailer selection; C: scraper implementation)
+- **Target window:** post-PR-2b-5
+- **Dependencies:** none
+
+---
+
+### LOW — Cleanup
+
+#### LOW-19: posted_lego_sets table drop
+- **What:** Drop orphan table (0 code refs confirmed) — pending GAP-10 resolution
+- **Source:** RLS hardening session + GAP-10
+- **Status:** not started
+- **Owner:** C
+- **Target window:** unscheduled
+- **Dependencies:** GAP-10 resolved
+
+#### LOW-20: prices table drop
+- **What:** Drop legacy price table (1 defensive `/deals` fallback ref only); migrate to store_prices-only
+- **Source:** CLAUDE.md price data rules
+- **Status:** not started
+- **Owner:** C + A
+- **Target window:** unscheduled
+- **Dependencies:** none
+
+#### LOW-21: price_history vs price_snapshots redundancy
+- **What:** Investigate if both tables serve distinct purposes; consolidate if redundant
+- **Source:** Schema audit
+- **Status:** not started
+- **Owner:** C
+- **Target window:** unscheduled
+- **Dependencies:** none
+
+#### LOW-22: featured_image_url deprecation on guides
+- **What:** Drop `featured_image_url` from guides table — confirmed orphan column
+- **Source:** PR-2b-3.6 schema audit
+- **Status:** not started
+- **Owner:** C
+- **Target window:** post-Fan-CoLab
+- **Dependencies:** HIGH-5 (PR-2b-5 family)
+
+#### LOW-23: makeSlug() truncation bug
+- **What:** Fix slug truncation that cuts mid-word (truncates at character limit, not word boundary)
+- **Source:** Session observation
+- **Status:** not started
+- **Owner:** C
+- **Target window:** unscheduled
+- **Dependencies:** none
+
+#### LOW-24: Admin Server Actions → useActionState
+- **What:** Convert admin Server Actions to useActionState for graceful error UI (currently silent fails on error)
+- **Source:** Session observation
+- **Status:** not started
+- **Owner:** C
+- **Target window:** unscheduled
+- **Dependencies:** none
+
+#### LOW-25: getCerebrasStats() analytics function
+- **What:** Build `getCerebrasStats()` paired with MEDIUM-12 weekly audit cron for Cerebras failover tracking
+- **Source:** PR-2b-3 session
+- **Status:** not started
+- **Owner:** C
+- **Target window:** unscheduled
+- **Dependencies:** MEDIUM-12
+
+#### LOW-26: Counter semantic decision — generator_runs
+- **What:** Decide: should `gemini.attempted + cerebras.attempted == drafts_attempted`? Document constraint or fix counters.
+- **Source:** PR-2b-3.5 session
+- **Status:** not started
+- **Owner:** A (decision) + C (implementation)
+- **Target window:** unscheduled
+- **Dependencies:** none
+
+#### LOW-27: Vitest snapshot test failures (4 pre-existing)
+- **What:** Regenerate baselines or fix prompts — trailing space vs empty line in `tests/snapshots/*.txt`
+- **Source:** GAP-11; deferred in PR-2b-3.7
+- **Status:** deferred (separate PR)
+- **Owner:** C
+- **Target window:** unscheduled
+- **Dependencies:** none
+
+#### LOW-28: continue-on-error masking in content-quality.yml
+- **What:** Audit whether `continue-on-error: true` masks real failures in content-quality.yml
+- **Source:** Workflow audit during Days 35-N
+- **Status:** not started
+- **Owner:** C
+- **Target window:** unscheduled
+- **Dependencies:** none
+
+#### LOW-29: env var naming drift in youtube-backfill.yml / social-automation.yml
+- **What:** Standardize env var names across workflow files — drift detected between youtube-backfill and social-automation
+- **Source:** Workflow audit
+- **Status:** not started
+- **Owner:** C
+- **Target window:** unscheduled
+- **Dependencies:** none
+
+#### LOW-30: Hardcoded requires_manual_approval: false comment
+- **What:** Remove or contextualize misleading hardcoded comment in `autoPublish()`
+- **Source:** Code review during PR-2b-3.5
+- **Status:** not started
+- **Owner:** C
+- **Target window:** unscheduled
+- **Dependencies:** none
+
+#### LOW-31: Supabase MCP → read-only mode
+- **What:** Move Supabase MCP from write-capable to read-only (Option A preferred; Option B accepted as interim)
+- **Source:** Security session; GAP-04 (MCP installation unconfirmed)
+- **Status:** not started
+- **Owner:** A + C
+- **Target window:** unscheduled
+- **Dependencies:** GAP-04 confirmed
+
+#### LOW-32: LAB-05 CMF tracker verification
+- **What:** Verify LAB-05 (CMF tracker) actual code status vs tracker claim — confirm live or update status
+- **Source:** Consolidation audit Part B (not read in this audit)
+- **Status:** not started
+- **Owner:** C
+- **Target window:** unscheduled
+- **Dependencies:** none
+
+---
+
+### TRIVIAL — Informational / already resolved in documentation
+
+#### TRIVIAL-33: raw_signals migration formalization (CONTRA-01 follow-up)
+- **What:** CONTRA-01 resolved — migration exists, correct, created 2026-05-09 in `e5b71b1`. No code action needed.
+- **Source:** CONTRA-01 resolution (this audit)
+- **Status:** resolved in this commit
+- **Owner:** —
+- **Target window:** done
+- **Dependencies:** none
+
+#### TRIVIAL-34: lint_result vs lint_results historical note
+- **What:** Confirm `lint_results` → `lint_result` rename (dropped plural) is captured in migration log — already handled in PR-2b-3.6
+- **Source:** PR-2b-3.6 session
+- **Status:** resolved in PR-2b-3.6
+- **Owner:** —
+- **Target window:** done
+- **Dependencies:** none
+
+---
+
+## Consolidation Audit — 2026-06-21
+
+> **Branch:** `chore/consolidation-audit-2026-06-21` (DRAFT PR — do not merge pending Claude+Abhinav review)
+> **Scope:** Days 35-N (2026-06-03 through 2026-06-21). Captures repo state, migration inventory, workflow inventory, sub-tracker drift, and known contradictions.
+
+### Part A — Discovery
+
+#### A1. Migration inventory (18 files as of 2026-06-21)
+
+| File | Table / Object | Status |
+|------|----------------|--------|
+| `20260503000000_pending_drafts.sql` | pending_drafts | Applied (schema.sql baseline) |
+| `20260503120000_pending_drafts_iteration.sql` | pending_drafts unique index dropped | Applied |
+| `20260503140000_create_raw_signals.sql` | raw_signals | Applied |
+| `20260510000000_newsletter_rls_hardening.sql` | newsletter_subscribers RLS | Applied |
+| `20260514000000_reviews_schema_hardening.sql` | reviews schema | Applied |
+| `20260524000000_posted_sets.sql` | posted_sets | Applied |
+| `20260525000000_guides.sql` | guides | Applied |
+| `20260525120000_community_spotlights.sql` | community_spotlights | Applied |
+| `20260528000000_sets_retirement_columns.sql` | sets retirement columns | Applied |
+| `20260528120000_content_quality_issues.sql` | content_quality_issues + tables | Applied |
+| `20260528130000_pending_drafts_verdict_fix.sql` | pending_drafts verdict | Applied |
+| `20260529000000_content_quality_system_v2.sql` | CQS v2 tables | Applied |
+| `20260530000000_get_distinct_themes.sql` | get_distinct_themes RPC | Applied |
+| `20260531000000_cmf_figures.sql` | cmf_figures | Applied |
+| `20260606000000_v_published_articles_public.sql` | v_published_articles_public view | Applied |
+| `20260617000000_social_automation_heartbeat.sql` | social_automation_heartbeat | Applied |
+| `20260619000000_failover_infrastructure.sql` | generator_runs + pending_drafts additions | Applied (rewritten from fantasy schema) |
+| `20260620120000_phase_b_reconciliation.sql` | pending_drafts + guides + generator_runs drift fixes | Applied |
+
+**Note:** `scripts/schema.sql` (baseline) covers `blog_posts`, `news_articles`, `prices`, `price_history`, `price_snapshots`, `reviews`, `sets`, `store_prices`. Not in `supabase/migrations/` directory.
+
+#### A2. Workflow inventory (17 files as of 2026-06-21)
+
+| File | Schedule | Purpose |
+|------|----------|---------|
+| `deploy.yml` | push to main | Build + deploy |
+| `sync-catalogue.yml` | Sun 02:00 UTC | Rebrickable sync |
+| `snapshot-prices.yml` | daily 08:30 IST | Price snapshots (LAB-03) |
+| `catalogue-audit.yml` | Mon 03:30 UTC | Catalogue health |
+| `radar.yml` | daily 17:30 UTC | RADAR-01→02→03 |
+| `brief.yml` | daily 01:30 UTC | Morning brief (BRIEF-01) |
+| `retiring-soon.yml` | Sun 02:00 UTC | Retirement radar refresh |
+| `content-quality.yml` | daily 03:00 UTC | CQS pipeline |
+| `social-automation.yml` | daily 06:30 UTC | SOC-AUTO-01 (IG Feed + Reels + YT Shorts) |
+| `scrape-prices.yml` | daily (3×/day) | Store price scrape |
+| `technical-hygiene.yml` | Mon 04:00 UTC | Weekly hygiene (23+ checks) |
+| `code-audit.yml` | Mon 05:00 UTC | ESLint + tsc + npm audit |
+| `health-check.yml` | daily 02:30 UTC | 11 health checks |
+| `youtube-backfill.yml` | manual dispatch | One-shot YouTube hero backfill |
+| `publish-drafts.yml` | 3×/day (19:00/07:30/12:30 UTC) | Batch publish 15 drafts/run |
+| `ci.yml` | PR trigger | CI checks |
+| `generate-drafts.yml` | manual dispatch | GHA batch generation |
+
+---
+
+### Part B — Reconciliation audit table
+
+> Scope: items shipped since Day 34 close (2026-06-03) not yet reflected in any tracker file before this audit.
+
+| Item | Shipped? (repo evidence) | In tracker? | Sub-tracker |
+|------|--------------------------|-------------|-------------|
+| social_automation_heartbeat table | ✅ Migration 20260617 + commit `7c8ffc8` | ❌ Not in any tracker | SOCIAL, CONTENT |
+| health-check Check 6c (heartbeat) | ✅ commit `ed20404` | ❌ Not in any tracker | WEB |
+| v_published_articles_public view | ✅ Migration 20260606 | ❌ Not in any tracker | WEB |
+| X-Robots-Tag admin headers | ✅ commit `3bd4058` | ❌ Not in any tracker | WEB |
+| CSP-Report-Only header | ✅ commit `3bd4058` | ❌ Not in any tracker | WEB |
+| robots.ts 22 AI crawlers + crawl-delay | ✅ commit `e8d7192` | ❌ Not in any tracker | WEB |
+| technical-hygiene Group 16 checks | ✅ commit `3bd4058` | ❌ Not in any tracker | WEB |
+| Cerebras failover (PR-2b-3) | ✅ commits `2b19223`, `aded950` | ❌ Not in any tracker | CONTENT |
+| generator_runs write fix (PR-2b-3.5) | ✅ commits `0ba1dea`, `293027b` | ❌ Not in any tracker | CONTENT |
+| Schema drift audit (PR-2b-3.6) | ✅ commits `d06d37d`, `746cdaf`, `7e22036` | ❌ Not in any tracker | WEB, CONTENT |
+| pending_drafts published_at + discard_reason | ✅ Migration 20260620 | ❌ Not in any tracker | CONTENT |
+| pending_drafts CHECK constraint | ✅ Migration 20260620 validated | ❌ Not in any tracker | CONTENT |
+| autoPublish() published_url + published_at bug fix | ✅ commit `746cdaf` | ❌ Not in any tracker | CONTENT |
+| Filler pattern filter (PR-2b-3.7) | ✅ commits `e160e39`–`128d536` | ❌ Not in any tracker | CONTENT |
+| filler-patterns.js + filler-filter.test.js | ✅ files on main | ❌ Not in any tracker | CONTENT |
+| smoke test article retracted | ✅ DB-only (no code commit) | ❌ Not in any tracker | CONTENT |
+| Cerebras pilot report | ✅ `docs/cerebras-pilot-report.md` | ❌ Not in any tracker | CONTENT |
+| 4 pre-existing vitest snapshot failures | ✅ Known, deferred | ❌ Not in any tracker | CONTENT |
+
+**Sub-tracker drift summary:**
+- `BOI_SOCIAL_TRACKER.md` — Last updated: 2026-05-02. SOC-AUTO-01 shipped, social heartbeat table added. Tracker shows all cross-post tasks as 🔴 but pipeline has been live since Day 24.
+- `BOI_CONTENT_TRACKER.md` — Last updated: 2026-05-10 (Day 9 session 3). RADAR-03 shows "Last run: 997 candidates, 50 queued, 349 total pending_drafts" — all stale. BRIEF-01 listed as 🔴 but shipped Day 27.
+- `BOI_WEB_TRACKER.md` — Last updated: 2026-05-09. WEB-01→04 shown as 🔴 Not started; SCRAPE-03 shown as 🔴 Not started; store_prices shown as 492 rows. All stale.
+- `BOI_VIDEO_TRACKER.md` — Not read in this audit (Phase 4 is 🔴 Not started; no significant changes expected). UNVERIFIED.
+
+---
+
+### Part D — Known gaps and contradictions
+
+> Under-claiming required. "UNVERIFIED" is a valid status.
+
+#### D1. Contradictions
+
+| ID | Item | Contradiction | Source A | Source B |
+|----|------|---------------|----------|----------|
+| CONTRA-01 | raw_signals migration | **RESOLVED — case (a):** File `20260503140000_create_raw_signals.sql` created 2026-05-09 in commit `e5b71b1` ("Content pipeline foundation: RADAR-01 fetcher + RADAR-02 deduper + daily cron (#2)") — 6 weeks before the 2026-06-20 PR-2b-3.6 Phase A audit. Phase A grep missed the file (procedural gap — `supabase/migrations/` likely outside grep scope). Both source documents are correct: `docs/schema-live-2026-06-20.md` accurately reflects live DB state; migration file is complete and correct on disk. Contradiction was in the Phase A audit grep, not in either document. Confirmed via `git log --follow --diff-filter=A` run 2026-06-21. | `git log` result: commit `e5b71b1`, 2026-05-09 | `supabase/migrations/20260503140000_create_raw_signals.sql` (on disk, complete) |
+| CONTRA-02 | pending_drafts source_url uniqueness | CLAUDE.md says unique index was dropped by `20260503120000`. classify-signals.js uses `fetchExistingUrls()` for application-level dedup. These are consistent — but any code that uses `.upsert(onConflict: 'source_url')` would throw `42P10` because no constraint exists. Verified no such call in current codebase at audit time. |
+| CONTRA-03 | generator_runs original migration | `20260619000000_failover_infrastructure.sql` was rewritten in PR-2b-3.6 to match live schema. The original file (before rewrite) had fantasy column names that never matched the DB. Schema-of-record is live DB per CLAUDE.md; migration file is now reconciled. No contradiction post-PR-2b-3.6. |
+| CONTRA-04 | BOI_CONTENT_TRACKER.md BRIEF-01 status | Tracker shows BRIEF-01 as 🔴 Not started. `scripts/morning-brief.mjs` and `.github/workflows/brief.yml` shipped Day 27. Memory file `project_brief01_spec.md` marks COMPLETE. Tracker entry is stale — UNUPDATED, not contradictory. |
+
+#### D2. Known unknowns (UNVERIFIED)
+
+| ID | Item | Last known state | Why UNVERIFIED |
+|----|------|------------------|----------------|
+| GAP-01 | store_prices row count | 1,512 at Day 34 open (was 2,600 at Day 33) | SCRAPE-INVESTIGATE-01 resolution never confirmed in terminal output |
+| GAP-02 | news_articles current count | 98 at Day 34 close | Scheduled publish-drafts.yml has run 3×/day since; count UNVERIFIED |
+| GAP-03 | Amazon Ancient Ruins retraction | ✅ **RESOLVED 2026-06-21** — 5 articles confirmed 404 by Abhinav: `/news/1999s-amazon-ancient-ruins-a-10000-relic-or-just-more-plasti`, `/news/1999-lego-adventurers-amazon-ancient-ruins-in-india-a-relic-`, `/news/lego-amazon-ancient-ruins-5986-nostalgia-trip-or-wallet-drai`, `/news/lego-adventurers-amazon-ancient-ruins-5986-1-nostalgia-or-ov`, `/news/lego-friends-sonia-figure-frnd0869-a-playground-mystery` | Verified by Abhinav 2026-06-21; closed |
+| GAP-04 | Supabase MCP installation | Mentioned by user as installed | Never confirmed in terminal output |
+| GAP-05 | 74-row filler backlog | Expected 74 rows matching filler patterns; 0 rows found in scope during verification run | Whether rows were processed by cron, previously rejected, or never existed is UNVERIFIED |
+| GAP-06 | Cerebras pilot voice sign-off | `docs/cerebras-pilot-report.md` has 5 empty sign-off checkboxes | File checked 2026-06-21; checkboxes still empty |
+| GAP-07 | Google OAuth review completion | Submitted 2026-06-02; 4–6 week estimate | 19 days elapsed as of 2026-06-21; no confirmation email in scope |
+| GAP-08 | CE-01 Builder Spotlight responses | Outreach sent 2026-05-29; Jun 15 inbox-check threshold passed; CE-01 deadline 2026-07-15 | **ABHINAV-ACTION REQUIRED** — Claude cannot access email inbox. Abhinav must check `abhinav@bricksofindia.com` for builder spotlight replies. If responses received: capture name, set, bio, confirm publication slot. If no response by 2026-07-01: escalate via a second outreach. Report result to close this gap. |
+| GAP-09 | BOI_VIDEO_TRACKER.md state | **RESOLVED (case a)** — `BOI_VIDEO_TRACKER.md` EXISTS. Last updated 2026-05-02. Covers: ElevenLabs voice clone test (EL-01→05, all 🔴), YouTube long-form pipeline (YT-01→05, all 🔴), Shorts/Reels section (all 🔴), DaVinci Resolve workflow. This is the video *production* tracker (script → edit → publish pipeline) — distinct from `social-automation/pipeline.py` (automated set gallery posting). File is stale but structurally accurate: Phase 4 genuinely has not started. No separate video DB table exists. No new tracker file needed. | Read 2026-06-21; case (a) confirmed |
+| GAP-10 | posted_lego_sets table | Referenced in RLS hardening (2026-06-03) as separate from posted_sets | No migration file found for this table; may predate migration tracking |
+| GAP-11 | 4 vitest snapshot test failures | Pre-existing trailing space vs empty line in tests/snapshots/*.txt baselines | Deferred to separate PR; exact files not listed in session notes |
+| GAP-12 | technical-hygiene Group 16 checks | Added in commit `3bd4058` | Exact check descriptions not in commit message; source file not read in this audit |
+| GAP-13 | Historical generator_runs telemetry | **UNVERIFIABLE-PERMANENTLY** — generator_runs has only 3 rows for entire project lifetime; pending_drafts has ~77 rows with status='published'. ~74 historical publishes predating PR-2b-3.5 (silent-write fix, commit `293027b`) have no telemetry trace. Provenance (model used, lint pass detail, failover invoked) cannot be reconstructed retroactively. All publishes from 2026-06-20 onward have full telemetry via the fixed write path. | PR-2b-3.5 session | Permanent — no remediation possible; document only |
+
+#### INFRA-03 / Phase 8 status (checked 2026-06-21)
+
+Searched all `.md` files for `INFRA-03`, `Phase 8`, and `LEGO Search Pulse`:
+- **INFRA-03** (GHA migration): ✅ Done — commit `8992aef`. Netlify is origin host only; GHA handles all builds. No unresolved Netlify constraint exists. BOI_WEB_TRACKER.md line 73 confirms Done status.
+- **Phase 8** (LEGO Search Pulse / LAB-07): ✅ Live at `/lab/heat-map` since Day 10 (commit `d5d1641`). `BOI_WEB_TRACKER.md` §E shows PULSE-02 as `🟡 Status uncertain` (stale from 2026-05-02 audit) but master tracker §Phase status overrides: Phase 8 ✅ Live.
+- **Finding:** No undocumented Phase 8 / INFRA-03 blocker exists in any tracker file. No D2 gap added.

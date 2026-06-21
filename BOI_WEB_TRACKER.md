@@ -3,6 +3,8 @@
 > Infra, site integrity, scrapers, GEO/AI readiness, deploys, article pipeline, LEGO Search Pulse.
 >
 > **Last updated:** 2026-05-09
+>
+> **Addendum 2026-06-21 (consolidation audit):** This sub-tracker is significantly stale. Items below reflect state as of 2026-05-09. Completed items since then tracked in BOI_MASTER_TRACKER.md. Key drift: WEB-01→04 shown as 🔴 below but completed by Day 14 (2026-05-14). SCRAPE-03 shown as 🔴 but shipped Day 30. store_prices shown as 492 rows; current count UNVERIFIED. Section B.1 page statuses correct for launch state but do not reflect subsequent additions.
 
 ---
 
