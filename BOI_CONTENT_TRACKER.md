@@ -3,6 +3,8 @@
 > Voice Codex, RSS ingestion, article publishing operations, morning brief.
 >
 > **Last updated:** 2026-05-10 (Day 9 session 3: pipeline fully operational end-to-end, 4 articles published via pipeline, 15 sources, newsletter Resend confirmed, BRIEF-02 resolved)
+>
+> **Addendum 2026-06-21 (consolidation audit):** Sub-tracker is significantly stale. Key items shipped since last update are tracked in BOI_MASTER_TRACKER.md §Days 35-N and §Consolidation Audit. See below for targeted addenda.
 
 ---
 
@@ -80,11 +82,12 @@
 |----|------|--------|------------|
 | RADAR-01 | RSS/API/scrape/reddit/youtube fetcher | ✅ Done — 14 sources active (up from 11). Jay's Brick Blog added Tier 1, Brickset re-enabled at correct URL, Blocks Magazine re-enabled. sanitizeXml() added. Last run: 322 signals fetched. `scripts/radar/fetch-rss.js`. | — |
 | RADAR-02 | De-dup across sources | ✅ Done — 4-pass design. Last run: 322 in, 280 unique. `scripts/radar/dedupe-signals.js`. | RADAR-01 |
-| RADAR-03 | Classify signals → pending_drafts | ✅ Done 2026-05-09 — `scripts/radar/classify-signals.js` (commit `db1dd2d`). Threshold score ≥4. Last run: 997 candidates, 50 queued. 349 total pending_drafts. | RADAR-02 |
-| RADAR-04 | Gemini 2.5 Flash-Lite article generation — on-demand only | ✅ Done 2026-05-09 — **removed from cron**. `generate-drafts.js` kept for manual bulk use. `generateArticle()` Server Action in /admin/pending triggers per-draft on operator click. Full-text fetch live (JBB 1607 chars, Brickset 4000 chars). Zero Gemini waste. | RADAR-03 |
+| RADAR-03 | Classify signals → pending_drafts | ✅ Done 2026-05-09 — `scripts/radar/classify-signals.js` (commit `db1dd2d`). Threshold score ≥4. Last run: 997 candidates, 50 queued. 349 total pending_drafts. **Addendum 2026-06-21:** PR-2b-3.7 (commit `128d536`) added `isFillerPattern()` check (Brickset "Random X of the day/week" pattern). Filler signals now inserted as `status='rejected'` + `discard_reason='filler_pattern_skipped:...'` — audit trail in DB. `filler-patterns.js` (CJS) + 14 vitest tests + Daily Bugle regression anchor. | RADAR-02 |
+| RADAR-04 | Gemini 2.5 Flash-Lite article generation — on-demand only | ✅ Done 2026-05-09 — **removed from cron**. `generate-drafts.js` kept for manual bulk use. `generateArticle()` Server Action in /admin/pending triggers per-draft on operator click. Full-text fetch live (JBB 1607 chars, Brickset 4000 chars). Zero Gemini waste. **Addendum 2026-06-21:** Cerebras (`gpt-oss-120b`) added as failover provider in `generate-approved-drafts.ts` (PR-2b-3, commit `aded950`). Triggers on Gemini 429/503. Gates-only auto-publish applies to Cerebras same as Gemini. | RADAR-03 |
 | RADAR-05 | /admin/pending — four-state review+publish UI | ✅ Done 2026-05-09 — (1) draft+no-body → Approve signal/Reject, (2) draft+body → Approve article/Reject, (3) approved+no-body → Generate Article button, (4) approved+body → Publish button. Publish inserts to news_articles/blog_posts. | RADAR-04 |
-| RADAR-06 | Email morning brief at 08:00 IST | 🔴 | RADAR-05 |
+| RADAR-06 | Email morning brief at 08:00 IST | ✅ Done 2026-05-27 — `scripts/morning-brief.mjs` (6-section HTML email) + `.github/workflows/brief.yml` (01:30 UTC / 07:00 IST). Sender: hello@bricksofindia.com. Resend ID e78409af confirmed. | RADAR-05 |
 | RADAR-07 | Lock full radar cron (RADAR-01→02→03) | ✅ Done — radar.yml chains RADAR-01 → RADAR-02 → RADAR-03 daily 17:30 UTC. RADAR-04 removed from cron — on-demand only. | All above |
+| RADAR-08 | Automated reviews generation pipeline | ✅ Done 2026-05-26 — `scripts/radar-08-reviews.js`. Queries store_prices for in-stock sets, deduplicates against reviews + pending_drafts. Integrated into radar.yml after RADAR-03. | RADAR-03 |
 
 **Nothing in this pipeline auto-publishes.** Drafts land in `/admin/pending` and require manual approve-and-merge.
 
@@ -146,7 +149,7 @@ GA4 wired in src/app/layout.tsx via gtag (NEXT_PUBLIC_GA_MEASUREMENT_ID).
 
 | ID | Task | Status |
 |----|------|--------|
-| BRIEF-01 | Email template — top stories, classifier buckets, suggested angles | 🔴 |
+| BRIEF-01 | Email template — top stories, classifier buckets, suggested angles | ✅ Done 2026-05-27 — `scripts/morning-brief.mjs` + `.github/workflows/brief.yml`. 6 sections. Sender: hello@bricksofindia.com. See BOI_MASTER_TRACKER.md §Day 27. |
 | BRIEF-02 | Sender infrastructure (SMTP / Resend / similar) | ✅ Done 2026-05-10 — Resend SDK (`resend@6.12.3`), from `abhinav@bricksofindia.com`, RESEND_API_KEY in all env stores. Newsletter confirmation live. See `src/app/actions/newsletter.ts`. |
 | BRIEF-03 | Unsubscribe / delivery compliance | 🔴 (only needed if list expands) |
 
