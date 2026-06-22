@@ -1241,6 +1241,12 @@ Decision deferred to Day 3 open.
 - **What:** Verify piece count, theme, MSRP, year for every draft — not just set number existence
 - **Source:** PR-2b-5 roadmap; Sonia incident exposed gap
 - **Status:** **partially folded into CRITICAL-1** (2026-06-22) — cron wiring fixes "Gate 5 doesn't run on the cron path at all," but Gate 5 as implemented only checks set existence, not piece count/theme/MSRP/year. The deeper verification this item actually asks for is unbuilt anywhere and remains open.
+  **Partial resolution 2026-06-22 (commit 71f2a92):** matcher-precision
+  sub-scope addressed via extractSetNameCandidates bug fix (theme prefix
+  was being retained in the candidate, blocking AND-word-match against
+  sets.name). 5 of 12 HIGH-35 fail cases resolved by this single fix.
+  Residual HIGH-6 scope (piece count / theme / MSRP / year verification
+  beyond existence check) still open and unchanged.
 - **Owner:** C
 - **Target window:** this month
 - **Dependencies:** HIGH-5
