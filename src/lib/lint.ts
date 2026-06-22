@@ -292,6 +292,10 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
   }
 
   // Gate 2: India paragraph
+  // isCommunity (null verdict) mirrors the carve-out previously local to
+  // publish-drafts.mjs — community/MOC content may legitimately have no
+  // price or Indian comparison. Store mention stays a hard fail either way.
+  const isCommunity = draft.verdict === null;
   const markerIdx = body.indexOf('<!-- INDIA_PARAGRAPH -->');
   let indiaParagraphGate: LintGateResult;
   if (markerIdx === -1) {
@@ -300,14 +304,24 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
   } else {
     const indiaSeg = body.slice(markerIdx);
     if (!/₹[\d,]+/.test(indiaSeg)) {
-      indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No ₹ price found in India paragraph' };
-      overallPass = false;
+      if (isCommunity) {
+        indiaParagraphGate = { pass: false, severity: 'warn', reason: 'No ₹ price found in India paragraph (community content)' };
+        warnings.push('[Gate 2 WARN] No INR price in India Paragraph (community content)');
+      } else {
+        indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No ₹ price found in India paragraph' };
+        overallPass = false;
+      }
     } else if (!INDIA_STORE_RE.test(indiaSeg)) {
       indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No store mention (Toycra / MyBrickHouse / Amazon / Flipkart / import-only)' };
       overallPass = false;
     } else if (!INDIA_COMPARISON_RE.test(indiaSeg)) {
-      indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No relatable Indian comparison (biryani, EMI, Spotify, etc.)' };
-      overallPass = false;
+      if (isCommunity) {
+        indiaParagraphGate = { pass: false, severity: 'warn', reason: 'No relatable Indian comparison (community content)' };
+        warnings.push('[Gate 2 WARN] No Indian comparison in India Paragraph (community content)');
+      } else {
+        indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No relatable Indian comparison (biryani, EMI, Spotify, etc.)' };
+        overallPass = false;
+      }
     } else {
       indiaParagraphGate = { pass: true, severity: 'ok' };
     }
@@ -316,12 +330,17 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
   // Gate 3: Verdict (non-news only)
   let verdictGate: LintGateResult | null = null;
   if (format !== 'news') {
-    const v = (draft.verdict || '').trim().toUpperCase();
-    if (!VALID_VERDICTS.has(v)) {
-      verdictGate = { pass: false, severity: 'fail', reason: `Invalid verdict: '${draft.verdict ?? 'none'}'` };
-      overallPass = false;
+    if (isCommunity) {
+      verdictGate = { pass: true, severity: 'warn', reason: 'community/informational content — no verdict expected' };
+      warnings.push('[Gate 3 WARN] No verdict — publishing as community/informational content');
     } else {
-      verdictGate = { pass: true, severity: 'ok' };
+      const v = (draft.verdict || '').trim().toUpperCase();
+      if (!VALID_VERDICTS.has(v)) {
+        verdictGate = { pass: false, severity: 'fail', reason: `Invalid verdict: '${draft.verdict ?? 'none'}'` };
+        overallPass = false;
+      } else {
+        verdictGate = { pass: true, severity: 'ok' };
+      }
     }
   }
 

@@ -13,6 +13,7 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { lintDraft } from '../src/lib/lint.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
@@ -43,62 +44,12 @@ const IDS     = IDS_I !== -1 ? process.argv[IDS_I + 1].split(',').map(s => s.tri
 
 const UA = 'BricksOfIndia-RadarBot/1.0 (+https://bricksofindia.com)';
 
-// ── Lint gates (mirrors actions.ts) ──────────────────────────────────────────
-
-const WORD_COUNT_TARGETS = {
-  news:    { pass: [270,  440], fail: [225,  500] },
-  review:  { pass: [450,  770], fail: [375,  875] },
-  opinion: { pass: [360,  550], fail: [300,  625] },
-  guide:   { pass: [630, 1100], fail: [525, 1250] },
-};
-const VALID_VERDICTS   = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID']);
-const INDIA_COMPARE_RE = /\b(biryani|chai|EMI|Spotify|Netflix|petrol|samosa|litre|liter|movie.?ticket|PVR|butter.?chicken|Swiggy|Zomato|iPhone|months? of|weeks? of|auto.?rickshaw|pizza|pizzas|thali|dosa|subscription|streaming|Jio|Airtel|OTT|paneer|vada|rickshaw|salary|rent)\b/i;
-const INDIA_STORE_RE   = /\b(Toycra|MyBrickHouse|Amazon|Flipkart|import.?only)\b/i;
-
-function lintDraft(draft) {
-  const body      = draft.draft_body || '';
-  const format    = draft.draft_format || 'news';
-  const wordCount = draft.word_count ?? body.split(/\s+/).filter(Boolean).length;
-  const warnings  = [];
-  const isCommunity = draft.draft_verdict === null;
-
-  // Gate 1: word count
-  const t = WORD_COUNT_TARGETS[format] ?? WORD_COUNT_TARGETS.news;
-  if (wordCount < t.fail[0] || wordCount > t.fail[1]) {
-    throw new Error(`[Gate 1 FAIL] Word count ${wordCount} outside hard limit ${t.fail[0]}–${t.fail[1]} for '${format}'`);
-  }
-  if (wordCount < t.pass[0] || wordCount > t.pass[1]) {
-    warnings.push(`[Gate 1 WARN] Word count ${wordCount} outside target ${t.pass[0]}–${t.pass[1]}`);
-  }
-
-  // Gate 2: India Paragraph
-  const markerIdx = body.indexOf('<!-- INDIA_PARAGRAPH -->');
-  if (markerIdx === -1) throw new Error('[Gate 2 FAIL] <!-- INDIA_PARAGRAPH --> marker missing');
-  const seg = body.slice(markerIdx);
-  if (!INDIA_STORE_RE.test(seg))     throw new Error('[Gate 2 FAIL] No store mention in India Paragraph');
-  // Community/MOC content (null verdict) may have no set price — downgrade price+comparison to warnings
-  if (!/₹[\d,]+/.test(seg)) {
-    if (isCommunity) warnings.push('[Gate 2 WARN] No INR price in India Paragraph (community content)');
-    else throw new Error('[Gate 2 FAIL] No INR price in India Paragraph');
-  }
-  if (!INDIA_COMPARE_RE.test(seg)) {
-    if (isCommunity) warnings.push('[Gate 2 WARN] No Indian comparison in India Paragraph (community content)');
-    else throw new Error('[Gate 2 FAIL] No Indian comparison in India Paragraph');
-  }
-
-  // Gate 3: verdict — required for review and opinion only; news skips this gate
-  if (format !== 'news') {
-    const v = (draft.draft_verdict || '').trim().toUpperCase();
-    if (draft.draft_verdict !== null && !VALID_VERDICTS.has(v)) {
-      throw new Error(`[Gate 3 FAIL] Verdict '${draft.draft_verdict}' not in [BUY NOW, WAIT, IMPORT ONLY, AVOID]`);
-    }
-    if (draft.draft_verdict === null) {
-      warnings.push('[Gate 3 WARN] No verdict — publishing as community/informational content');
-    }
-  }
-
-  return { warnings };
-}
+// ── Lint gates ────────────────────────────────────────────────────────────────
+// Lint now runs via the shared lintDraft() from src/lib/lint.ts (Gates 1, 2, 3,
+// 5 factuality, 6 source fidelity) — see CRITICAL-1. The local 3-gate
+// reimplementation that used to live here is gone; this script and the admin
+// manual-publish path (src/app/admin/pending/actions.ts) now share one
+// implementation instead of two that could drift apart.
 
 // ── Hero image CDN blocklist + fallback chain ─────────────────────────────────
 // Editorial CDNs (Brothers Brick/Squarespace, Jay's Brick Blog, Flickr) use
@@ -301,7 +252,7 @@ async function fetchOgImage(url) {
 // ── Fetch drafts ──────────────────────────────────────────────────────────────
 
 let q = sb.from('pending_drafts')
-  .select('id, draft_title, draft_body, draft_verdict, draft_format, word_count, source_url, source_title, updated_at')
+  .select('id, draft_title, draft_body, draft_verdict, draft_format, word_count, source_url, source_title, source_excerpt, lint_result, updated_at')
   .eq('status', 'draft')
   .not('draft_body', 'is', null)
   .order('updated_at', { ascending: false });
@@ -318,6 +269,22 @@ console.log(`Drafts to process: ${queue.length} (from ${drafts?.length ?? 0} fet
 
 // ── Process each draft ────────────────────────────────────────────────────────
 
+const LINT_RESULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
+
+// Mirrors the fail-reason summary in actions.ts::publishOneDraft.
+function summarizeFailReasons(lintResult) {
+  return [
+    lintResult.gates.wordCount,
+    lintResult.gates.indiaParagraph,
+    lintResult.gates.verdict,
+    lintResult.gates.factuality,
+    lintResult.gates.sourceFidelity,
+  ]
+    .filter(g => g && g.severity === 'fail')
+    .map(g => g.reason ?? 'gate failure')
+    .join('; ') || 'lint failed';
+}
+
 let published = 0, failed = 0, skipped = 0;
 const failures = [];
 
@@ -325,17 +292,51 @@ for (const draft of queue) {
   const label = (draft.draft_title || draft.source_title || draft.id).slice(0, 65);
   process.stdout.write(`  ${label}… `);
 
-  // Lint
-  let warnings = [];
-  try {
-    ({ warnings } = lintDraft(draft));
-  } catch (e) {
+  // Lint — trust a stored lint_result if it's fresh (<24h) and passing;
+  // otherwise re-derive via the shared gate set (factuality needs a live DB read).
+  const storedFresh = draft.lint_result?.overallPass === true
+    && draft.updated_at
+    && (Date.now() - new Date(draft.updated_at).getTime()) < LINT_RESULT_MAX_AGE_MS;
+
+  let lintResult;
+  if (storedFresh) {
+    lintResult = draft.lint_result;
+    console.log('(stored lint_result, fresh + passing — skipping re-lint)');
+  } else {
+    lintResult = await lintDraft(
+      {
+        format:     draft.draft_format || 'news',
+        body:       draft.draft_body || '',
+        word_count: draft.word_count,
+        verdict:    draft.draft_verdict,
+        source: {
+          source_url:     draft.source_url,
+          source_title:   draft.source_title,
+          source_excerpt: draft.source_excerpt,
+        },
+      },
+      { supabase: sb },
+    );
+  }
+
+  if (lintResult.warnings.length > 0) console.log(`\n    WARN: ${lintResult.warnings.join(' | ')}`);
+
+  if (!lintResult.overallPass) {
+    const reason = summarizeFailReasons(lintResult);
     failed++;
-    failures.push({ title: label, reason: e.message });
-    console.log(`FAIL: ${e.message}`);
+    failures.push({ title: label, reason });
+    console.log(`FAIL: ${reason}`);
+    if (!DRY_RUN) {
+      await sb.from('pending_drafts').update({
+        status: 'failed_lint',
+        lint_result: lintResult,
+        updated_at: new Date().toISOString(),
+      }).eq('id', draft.id);
+    } else {
+      console.log('  [DRY-RUN] would mark status=failed_lint (no write)');
+    }
     continue;
   }
-  if (warnings.length > 0) console.log(`\n    WARN: ${warnings.join(' | ')}`);
 
   const format             = draft.draft_format || 'news';
   const { table, path, category } = resolveTarget(format);
@@ -392,7 +393,7 @@ for (const draft of queue) {
     failures.push({ title: label, reason: `[CQS REJECT] ${cqsErr}` });
     console.log(`\n  CQS REJECT: ${cqsErr} — resetting to approved`);
     await sb.from('pending_drafts').update({
-      status: 'approved', draft_body: null, draft_verdict: null, word_count: null,
+      status: 'approved', draft_body: null, draft_verdict: null, word_count: null, lint_result: null,
     }).eq('id', draft.id);
     continue;
   }
@@ -414,7 +415,7 @@ for (const draft of queue) {
     continue;
   }
 
-  await sb.from('pending_drafts').update({ status: 'published', published_url: `${path}/${slug}` }).eq('id', draft.id);
+  await sb.from('pending_drafts').update({ status: 'published', published_url: `${path}/${slug}`, lint_result: lintResult }).eq('id', draft.id);
 
   published++;
   console.log(`OK → ${SITE_URL}${path}/${slug}`);

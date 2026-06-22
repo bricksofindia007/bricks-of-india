@@ -38,4 +38,4 @@ jobs:
         run: npm ci
 
       - name: Publish approved drafts
-        run: node scripts/publish-drafts.mjs --limit ${{ inputs.limit || '30' }}
+        run: npx tsx scripts/publish-drafts.mjs --limit ${{ inputs.limit || '30' }}
