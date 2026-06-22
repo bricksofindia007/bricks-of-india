@@ -1,23 +1,23 @@
 {
   "summary": {
-    "generated_at": "2026-06-22T19:35:55.920Z",
+    "generated_at": "2026-06-22T19:47:21.083Z",
     "population_total": 76,
     "by_bucket": {
-      "PASS": 64,
-      "FAIL_FACTUALITY": 12,
+      "PASS": 69,
+      "FAIL_FACTUALITY": 7,
       "FAIL_VERDICT_ON_NON_CANONICAL": 0,
       "SKIP": 0
     },
     "by_format": {
       "news": {
-        "PASS": 53,
-        "FAIL_FACTUALITY": 9,
+        "PASS": 56,
+        "FAIL_FACTUALITY": 6,
         "FAIL_VERDICT_ON_NON_CANONICAL": 0,
         "SKIP": 0
       },
       "review": {
-        "PASS": 10,
-        "FAIL_FACTUALITY": 3,
+        "PASS": 12,
+        "FAIL_FACTUALITY": 1,
         "FAIL_VERDICT_ON_NON_CANONICAL": 0,
         "SKIP": 0
       },
@@ -30,14 +30,14 @@
     },
     "by_community": {
       "community": {
-        "PASS": 43,
-        "FAIL_FACTUALITY": 3,
+        "PASS": 44,
+        "FAIL_FACTUALITY": 2,
         "FAIL_VERDICT_ON_NON_CANONICAL": 0,
         "SKIP": 0
       },
       "non_community": {
-        "PASS": 21,
-        "FAIL_FACTUALITY": 9,
+        "PASS": 25,
+        "FAIL_FACTUALITY": 5,
         "FAIL_VERDICT_ON_NON_CANONICAL": 0,
         "SKIP": 0
       }
@@ -55,23 +55,20 @@
       "is_community": true,
       "phase1_candidates_count": 1,
       "draft_verdict_raw": null,
-      "bucket": "FAIL_FACTUALITY",
-      "fail_reasons": [
-        "unrecognized LEGO references: \"Technic Aston Martin\""
-      ],
+      "bucket": "PASS",
+      "fail_reasons": [],
       "factuality": {
-        "pass": false,
-        "severity": "fail",
-        "reason": "unrecognized LEGO references: \"Technic Aston Martin\""
+        "pass": true,
+        "severity": "ok"
       },
-      "factuality_warnings": [
-        "unrecognized LEGO references: \"Technic Aston Martin\""
-      ],
+      "factuality_warnings": [],
       "verdict_on_non_canonical_check": {
         "triggered": false,
         "raw_verdict": null
       },
-      "notes": []
+      "notes": [
+        "phase1 surfaced 1 candidates that gateFactuality did not flag — extraction pattern divergence"
+      ]
     },
     {
       "draft_id": "d7c7c0be-68f9-4999-b3d4-0154b566d1f4",
@@ -204,23 +201,20 @@
       "is_community": false,
       "phase1_candidates_count": 2,
       "draft_verdict_raw": "WAIT",
-      "bucket": "FAIL_FACTUALITY",
-      "fail_reasons": [
-        "unrecognized LEGO references: \"Icons Sega Genesis\""
-      ],
+      "bucket": "PASS",
+      "fail_reasons": [],
       "factuality": {
-        "pass": false,
-        "severity": "fail",
-        "reason": "unrecognized LEGO references: \"Icons Sega Genesis\""
+        "pass": true,
+        "severity": "ok"
       },
-      "factuality_warnings": [
-        "unrecognized LEGO references: \"Icons Sega Genesis\""
-      ],
+      "factuality_warnings": [],
       "verdict_on_non_canonical_check": {
         "triggered": false,
         "raw_verdict": "WAIT"
       },
-      "notes": []
+      "notes": [
+        "phase1 surfaced 2 candidates that gateFactuality did not flag — extraction pattern divergence"
+      ]
     },
     {
       "draft_id": "42144d94-40a9-45bf-989a-a5ffb44cf170",
@@ -585,23 +579,20 @@
       "is_community": false,
       "phase1_candidates_count": 1,
       "draft_verdict_raw": "WAIT",
-      "bucket": "FAIL_FACTUALITY",
-      "fail_reasons": [
-        "unrecognized LEGO references: \"Star Wars Jabba's Sail Barge\""
-      ],
+      "bucket": "PASS",
+      "fail_reasons": [],
       "factuality": {
-        "pass": false,
-        "severity": "fail",
-        "reason": "unrecognized LEGO references: \"Star Wars Jabba's Sail Barge\""
+        "pass": true,
+        "severity": "ok"
       },
-      "factuality_warnings": [
-        "unrecognized LEGO references: \"Star Wars Jabba's Sail Barge\""
-      ],
+      "factuality_warnings": [],
       "verdict_on_non_canonical_check": {
         "triggered": false,
         "raw_verdict": "WAIT"
       },
-      "notes": []
+      "notes": [
+        "phase1 surfaced 1 candidates that gateFactuality did not flag — extraction pattern divergence"
+      ]
     },
     {
       "draft_id": "f5d15d33-9051-44e5-8e07-ad4198191117",
@@ -711,15 +702,15 @@
       "draft_verdict_raw": "IMPORT ONLY",
       "bucket": "FAIL_FACTUALITY",
       "fail_reasons": [
-        "unrecognized LEGO references: \"Disney Main Street USA\""
+        "unrecognized LEGO references: \"Main Street USA\""
       ],
       "factuality": {
         "pass": false,
         "severity": "fail",
-        "reason": "unrecognized LEGO references: \"Disney Main Street USA\""
+        "reason": "unrecognized LEGO references: \"Main Street USA\""
       },
       "factuality_warnings": [
-        "unrecognized LEGO references: \"Disney Main Street USA\""
+        "unrecognized LEGO references: \"Main Street USA\""
       ],
       "verdict_on_non_canonical_check": {
         "triggered": false,
@@ -762,18 +753,13 @@
       "is_community": false,
       "phase1_candidates_count": 0,
       "draft_verdict_raw": "WAIT",
-      "bucket": "FAIL_FACTUALITY",
-      "fail_reasons": [
-        "unrecognized LEGO references: \"Icons Road Bike\""
-      ],
+      "bucket": "PASS",
+      "fail_reasons": [],
       "factuality": {
-        "pass": false,
-        "severity": "fail",
-        "reason": "unrecognized LEGO references: \"Icons Road Bike\""
+        "pass": true,
+        "severity": "ok"
       },
-      "factuality_warnings": [
-        "unrecognized LEGO references: \"Icons Road Bike\""
-      ],
+      "factuality_warnings": [],
       "verdict_on_non_canonical_check": {
         "triggered": false,
         "raw_verdict": "WAIT"
@@ -1197,23 +1183,20 @@
       "is_community": false,
       "phase1_candidates_count": 1,
       "draft_verdict_raw": "WAIT",
-      "bucket": "FAIL_FACTUALITY",
-      "fail_reasons": [
-        "unrecognized LEGO references: \"Technic McLaren\""
-      ],
+      "bucket": "PASS",
+      "fail_reasons": [],
       "factuality": {
-        "pass": false,
-        "severity": "fail",
-        "reason": "unrecognized LEGO references: \"Technic McLaren\""
+        "pass": true,
+        "severity": "ok"
       },
-      "factuality_warnings": [
-        "unrecognized LEGO references: \"Technic McLaren\""
-      ],
+      "factuality_warnings": [],
       "verdict_on_non_canonical_check": {
         "triggered": false,
         "raw_verdict": "WAIT"
       },
-      "notes": []
+      "notes": [
+        "phase1 surfaced 1 candidates that gateFactuality did not flag — extraction pattern divergence"
+      ]
     },
     {
       "draft_id": "77658fef-4016-439d-a786-f17af08c6f8c",

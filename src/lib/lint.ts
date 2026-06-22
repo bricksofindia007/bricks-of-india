@@ -100,7 +100,7 @@ export function extractSetNameCandidates(body: string): string[] {
     const phrase = m[1].trim();
     if (THEME_NAME_RE.test(phrase)) {
       const stripped = phrase.replace(THEME_NAME_RE, '').trim();
-      if (stripped && stripped !== phrase) candidates.add(phrase);
+      if (stripped && stripped !== phrase) candidates.add(stripped);
     } else {
       candidates.add(phrase);
     }
