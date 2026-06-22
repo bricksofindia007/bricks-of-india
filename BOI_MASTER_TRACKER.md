@@ -1380,6 +1380,15 @@ Decision deferred to Day 3 open.
 - **Target window:** this month
 - **Dependencies:** none — but consolidation should align with MEDIUM-13's review-routing decision (single source of truth for format → {table, path} mapping)
 
+#### MEDIUM-39: Next.js 14 → 16 major version migration
+- **What:** Production framework currently on 14.2.35; `npm audit` lists 14 CVEs in the 14.x line, fixes require major bump to 16 (`isSemVerMajor: true`). Applicability assessment (2026-06-22): no i18n, no CSP nonces, middleware is a 6-line pass-through — several listed CVEs don't apply, but DoS-via-Image-Optimizer and request-smuggling-in-rewrites plausibly do.
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month — security CVEs in production framework, don't let it linger
+- **Risk:** moderate. App Router migration story between 14 and 16 needs review; test surface is the full site.
+- **Dependencies:** none. Standalone migration.
+- **Source:** Surfaced during npm audit triage following weekly hygiene alerts, 2026-06-22
+
 #### STORE-01: Additional Indian LEGO retailer scraping
 - **What:** Add Hamleys India (and other Indian retailers) to store_prices scraping pipeline
 - **Source:** Scope expansion request
@@ -1464,9 +1473,9 @@ Decision deferred to Day 3 open.
 - **Target window:** unscheduled
 - **Dependencies:** none
 
-#### LOW-28: continue-on-error masking in content-quality.yml
-- **What:** Audit whether `continue-on-error: true` masks real failures in content-quality.yml
-- **Source:** Workflow audit during Days 35-N
+#### LOW-28: continue-on-error masking in content-quality.yml (extended scope)
+- **What:** Audit whether `continue-on-error: true` masks real failures. Original scope: `content-quality.yml`. **Extended 2026-06-22:** same pattern confirmed in `code-audit.yml` during npm audit triage — the `audit` and `secrets` steps both carry `continue-on-error: true`, so `gh run list` showed 4 consecutive weeks of "success" while `npm audit --audit-level=high` was genuinely failing every run (9 advisories, since reduced to 5 by the 2026-06-22 dependency cleanup). The job's separate alert step (`code-audit-notify.mjs`, gated on `steps.audit.outcome == 'failure'`) did fire correctly — so this isn't a silent-failure case, it's a misleading-run-conclusion case. Fix pattern (applies to both files): remove `continue-on-error` and rely on the explicit notification step for alerting, OR keep `continue-on-error` but add a final fail-the-job step gated on prior step outcomes.
+- **Source:** Workflow audit during Days 35-N; extended scope surfaced during npm audit triage, 2026-06-22
 - **Status:** not started
 - **Owner:** C
 - **Target window:** unscheduled
