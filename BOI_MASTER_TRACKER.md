@@ -1293,6 +1293,7 @@ Decision deferred to Day 3 open.
 - **Priority note:** filed at HIGH tier per project convention, but should be actioned before or alongside CRITICAL-1's forward-looking fix — this is a credibility-lock breach already live in production (some subset of 77 articles may reference nonexistent sets), not a future-prevention task. Independent of CRITICAL-1's code change — uses Gate 5 logic against live published content, not pending_drafts.
 - **Target window:** this week
 - **Dependencies:** none (related: MEDIUM-12's weekly audit cron is the ongoing/future-facing version of this same check, scoped to 10 articles/week going forward — this item is the one-time full backlog catch-up)
+- **Verification (2026-06-22):** checked whether the dropped `lint_results` (plural) column has any reconcilable historical data via its backup table (`pending_drafts_lint_results_backup_20260620`, created by migration `20260620120000` before the drop). Backup table is 0 rows — the plural column was never written to by any code path, matching the migration's own "zero code references" note. Confirms no hidden lint data exists anywhere under either column name; the 76-row unchecked population stands as the true audit scope, not an overcount.
 
 ---
 
