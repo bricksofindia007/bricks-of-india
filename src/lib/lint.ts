@@ -110,7 +110,7 @@ export function extractSetNameCandidates(body: string): string[] {
 
 // ── Gate 5: factuality ────────────────────────────────────────────────────────
 
-async function gateFactuality(
+export async function gateFactuality(
   body: string,
   sb: SupabaseClient,
   warnings: string[],
