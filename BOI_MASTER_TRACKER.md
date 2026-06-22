@@ -1314,6 +1314,7 @@ Decision deferred to Day 3 open.
 - **Owner:** C + A
 - **Target window:** this month
 - **Dependencies:** none
+- **Cross-reference (2026-06-22):** HIGH-35's audit population includes 13 review-format articles published to `news_articles`, which has no FK to `sets`. The `reviews` table (`scripts/schema.sql:39`) has `set_id UUID REFERENCES sets(id) ON DELETE SET NULL` — had these 13 routed there as designed, the FK itself would have caught any nonexistent-set reference at insert time. This routing decision has direct factuality-coverage consequences, not just URL-aesthetic ones — weigh that when resolving this item.
 
 #### MEDIUM-14: YouTube 14-day auto-discard policy
 - **What:** Auto-discard YouTube Shorts drafts older than 14 days (Option B from earlier handoff) — prevents stale video content from publishing
@@ -1370,6 +1371,14 @@ Decision deferred to Day 3 open.
 - **Owner:** C
 - **Target window:** unscheduled
 - **Dependencies:** CRITICAL-1
+
+#### MEDIUM-38: resolveTarget() opinion-format URL divergence between cron and admin publishers
+- **What:** `scripts/publish-drafts.mjs::resolveTarget()` maps opinion-format drafts to path `/opinion/<slug>`, while `src/app/admin/pending/actions.ts::resolveTarget()` maps the same format to `/blog/<slug>`. Same target table (`blog_posts`), divergent URL convention depending on which code path published the row. Live consequence: 1 row in `pending_drafts` (the lone opinion-format row in HIGH-35's population) is at `/opinion/...`; any future opinion published via admin will land at `/blog/...`.
+- **Source:** Surfaced during HIGH-35 pre-script verification, 2026-06-22
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month
+- **Dependencies:** none — but consolidation should align with MEDIUM-13's review-routing decision (single source of truth for format → {table, path} mapping)
 
 #### STORE-01: Additional Indian LEGO retailer scraping
 - **What:** Add Hamleys India (and other Indian retailers) to store_prices scraping pipeline
