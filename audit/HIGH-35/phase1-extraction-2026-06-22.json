@@ -1,0 +1,2137 @@
+{
+  "summary": {
+    "generated_at": "2026-06-22T04:51:06.035Z",
+    "population_total": 76,
+    "by_format": {
+      "news": 62,
+      "review": 13,
+      "opinion": 1
+    },
+    "by_linkage_status": {
+      "ok": 76
+    },
+    "by_candidate_count": {
+      "0": 36,
+      "1": 32,
+      "2-5": 7,
+      "6-10": 1,
+      "11+": 0
+    },
+    "by_community": {
+      "community": 46,
+      "non_community": 30
+    },
+    "zero_candidates_by_community": {
+      "community": 30,
+      "non_community": 6
+    },
+    "top_20_candidate_set_numbers": [
+      {
+        "set_number": "2026",
+        "occurrences": 7
+      },
+      {
+        "set_number": "21066",
+        "occurrences": 3
+      },
+      {
+        "set_number": "75397",
+        "occurrences": 3
+      },
+      {
+        "set_number": "11380",
+        "occurrences": 3
+      },
+      {
+        "set_number": "42240",
+        "occurrences": 2
+      },
+      {
+        "set_number": "6322719",
+        "occurrences": 2
+      },
+      {
+        "set_number": "42228",
+        "occurrences": 2
+      },
+      {
+        "set_number": "2025",
+        "occurrences": 1
+      },
+      {
+        "set_number": "11377",
+        "occurrences": 1
+      },
+      {
+        "set_number": "21368",
+        "occurrences": 1
+      },
+      {
+        "set_number": "72423",
+        "occurrences": 1
+      },
+      {
+        "set_number": "40893",
+        "occurrences": 1
+      },
+      {
+        "set_number": "10333",
+        "occurrences": 1
+      },
+      {
+        "set_number": "10316",
+        "occurrences": 1
+      },
+      {
+        "set_number": "10354",
+        "occurrences": 1
+      },
+      {
+        "set_number": "3500",
+        "occurrences": 1
+      },
+      {
+        "set_number": "1988",
+        "occurrences": 1
+      },
+      {
+        "set_number": "42215",
+        "occurrences": 1
+      },
+      {
+        "set_number": "21365",
+        "occurrences": 1
+      },
+      {
+        "set_number": "171528",
+        "occurrences": 1
+      }
+    ]
+  },
+  "results": [
+    {
+      "draft_id": "7d48f5a5-d9bb-4d9d-b7c4-5a5c6b665556",
+      "format": "news",
+      "published_url": "/news/lego-technic-aston-martin-amr25-f1-car-revealed-another-one-",
+      "source_title": "LEGO Technic Aston Martin AMR25 F1 Car revealed!",
+      "drafted_at": "2026-06-01T21:08:14.938757+00:00",
+      "published_at": "2026-06-20T13:32:28.44703+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "6eb039c6-b463-4485-b109-28cb2f371990",
+      "slug": "lego-technic-aston-martin-amr25-f1-car-revealed-another-one-",
+      "title": "LEGO Technic Aston Martin AMR25 F1 Car Revealed: Another One for the Collection?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "42240",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "tinues. LEGO has revealed the 42240 Aston Martin Aramco AMR25 F1",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 2
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "d7c7c0be-68f9-4999-b3d4-0154b566d1f4",
+      "format": "news",
+      "published_url": "/news/lego-42240-aston-martin-aramco-amr25-worth-29200",
+      "source_title": "LEGO 42240 Aston Martin Aramco AMR25 is the latest 1:8 Technic F1 car to join the grid!",
+      "drafted_at": "2026-06-01T21:08:14.938757+00:00",
+      "published_at": "2026-06-20T13:32:28.050044+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "651221bb-4a8b-43eb-85a8-9a6b623f2b83",
+      "slug": "lego-42240-aston-martin-aramco-amr25-worth-29200",
+      "title": "LEGO 42240 Aston Martin Aramco AMR25: Worth ₹29,200?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "42240",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "LEGO 42240 Aston Martin Aramco AMR25: Wo",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 2
+        },
+        {
+          "set_number": "2025",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "ula 1 series. It captures the 2025 challenger that ended the sea",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        },
+        {
+          "set_number": "2026",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "g is also odd. Aston Martin’s 2026 season is a nightmare, with a",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "1dfb292c-6c24-4270-b439-8b43751485e8",
+      "format": "news",
+      "published_url": "/news/lego-minas-tirith-11377-a-siege-on-your-wallet-begins-june-2",
+      "source_title": "LEGO Minas Tirith, Snoopy, Shrek and over 100 new June 2026 releases now available!",
+      "drafted_at": "2026-06-01T21:08:14.938757+00:00",
+      "published_at": "2026-06-20T13:32:26.733048+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "92c7adba-2bf5-442f-b141-3ba4bc9011dd",
+      "slug": "lego-minas-tirith-11377-a-siege-on-your-wallet-begins-june-2",
+      "title": "LEGO Minas Tirith (11377): A Siege on Your Wallet Begins June 2026",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "11377",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "LEGO Minas Tirith (11377): A Siege on Your Wallet Begi",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 4
+        },
+        {
+          "set_number": "2026",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "ge on Your Wallet Begins June 2026",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 4
+        },
+        {
+          "set_number": "21368",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "e Peanuts: Snoopy’s Doghouse (21368), Shrek, Donkey & Puss (72423",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        },
+        {
+          "set_number": "72423",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "21368), Shrek, Donkey & Puss (72423), and the New York City – The",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        },
+        {
+          "set_number": "21066",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "ew York City – The Big Apple (21066) Architecture set. Star Wars,",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        },
+        {
+          "set_number": "40893",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "eetening the deal with a free 40893 Grond GWP (gift with purchase",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        },
+        {
+          "set_number": "10333",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "gs Icons sets like Barad-Dur (10333), Rivendell (10316), and The",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        },
+        {
+          "set_number": "10316",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "Barad-Dur (10333), Rivendell (10316), and The Shire (10354) until",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        },
+        {
+          "set_number": "10354",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "ndell (10316), and The Shire (10354) until June 7th, 2026. This p",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "6d3e97c7-dc14-4e02-ae97-b3301b2ce677",
+      "format": "news",
+      "published_url": "/news/50-new-lego-sets-leaked-for-india-icons-star-wars-f1-more-pr",
+      "source_title": "50+ NEW LEGO SETS LEAKED! (Icons, Star Wars, F1 & MORE!)",
+      "drafted_at": "2026-05-09T13:45:36.197387+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "f07ca27e-30aa-40a8-aede-36777d416ebf",
+      "slug": "50-new-lego-sets-leaked-for-india-icons-star-wars-f1-more-pr",
+      "title": "50+ New LEGO Sets Leaked for India: Icons, Star Wars, F1 & More! Prepare Your Wallets.",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "98fef2be-688a-438c-a249-242140fc7c88",
+      "format": "news",
+      "published_url": "/news/reviving-your-lego-9v-train-motors-diy-guide-released",
+      "source_title": "This Old Motor Bogie: How To Refurbish LEGO 9V Train Motors",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "22ee55ed-0827-4781-bc09-7976e10ed202",
+      "slug": "reviving-your-lego-9v-train-motors-diy-guide-released",
+      "title": "Reviving Your LEGO 9V Train Motors: DIY Guide Released",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "881f80a5-1107-4288-b445-c1d417047e13",
+      "format": "news",
+      "published_url": "/news/woah-an-alternate-bossks-houndstooth-from-the-ucs-sailbarge-",
+      "source_title": "HOW is this POSSIBLE?! LEGO Bossk's Hounds Tooth | Alternate Build of UCS Sailbarge Set 75397",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "5d44d00f-b15f-49d0-b512-930766f7f95a",
+      "slug": "woah-an-alternate-bossks-houndstooth-from-the-ucs-sailbarge-",
+      "title": "Woah! An Alternate Bossk's Houndstooth from the UCS Sailbarge? Set 75397!",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "75397",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "h from the UCS Sailbarge? Set 75397!",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 4
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "28ecbbb3-9a5f-4cbd-8132-523776d9b3c2",
+      "format": "news",
+      "published_url": "/news/lego-sega-genesis-mini-console-3500-or-a-painful-surprise",
+      "source_title": "LEGO May 2 reveals pt. 4! Sega Genesis mini-console set is only $40 USD! 🎮",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "b9c3c7c7-e1da-43d3-aa37-316937a42e4f",
+      "slug": "lego-sega-genesis-mini-console-3500-or-a-painful-surprise",
+      "title": "LEGO Sega Genesis Mini-Console: ₹3,500 or a Painful Surprise?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "3500",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/3500-1/121225.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        },
+        {
+          "set_number": "1988",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "led recreation of the classic 1988 console. It’s not just a bric",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "42144d94-40a9-45bf-989a-a5ffb44cf170",
+      "format": "news",
+      "published_url": "/news/lego-ebon-hawk-your-wallet-remains-safe-for-now",
+      "source_title": "The Knights of the Old Republic’s Ebon Hawk returns in LEGO",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "3616e8f3-bae5-4be5-a380-0c53f5182ab6",
+      "slug": "lego-ebon-hawk-your-wallet-remains-safe-for-now",
+      "title": "LEGO Ebon Hawk: Your Wallet Remains Safe… For Now",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "e8766bb9-17ff-4bc6-9f42-1eb49921ad04",
+      "format": "news",
+      "published_url": "/news/50-new-lego-sets-leaked-for-india-icons-star-wars-f1-your-wa",
+      "source_title": "50+ NEW LEGO SETS LEAKED! (Icons, Star Wars, F1 & MORE!)",
+      "drafted_at": "2026-05-09T13:45:36.452966+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "1c33800b-c04c-4df0-bda8-18247b96e917",
+      "slug": "50-new-lego-sets-leaked-for-india-icons-star-wars-f1-your-wa",
+      "title": "50+ New LEGO Sets Leaked for India: Icons, Star Wars, F1 — Your Wallet Needs to Brace Itself",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "93a23b18-25f4-49a5-b144-0a6c8c795844",
+      "format": "news",
+      "published_url": "/news/lego-architecture-21066-new-york-city-in-india-the-big-apple",
+      "source_title": "LEGO Architecture 21066 New York City – The Big Apple official images!",
+      "drafted_at": "2026-05-09T16:41:32.296039+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "367e7483-2d4d-46c1-82bf-4c4b67b88bc7",
+      "slug": "lego-architecture-21066-new-york-city-in-india-the-big-apple",
+      "title": "LEGO Architecture 21066 New York City in India: The Big Apple Costs How Much?!",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "21066",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "LEGO Architecture 21066 New York City in India: The B",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 2
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "f930c06d-3355-456c-9eb5-ac722f80237f",
+      "format": "review",
+      "published_url": "/news/the-lego-volvo-ec500-hybrid-excavator-42215-big-machine-big-",
+      "source_title": "LEGO Volvo EC500 Hybrid Excavator (42215) — Brickset",
+      "drafted_at": "2026-05-26T05:22:31.787557+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "ad444e65-f0cf-4fb2-88b8-cf8afdbd7b06",
+      "slug": "the-lego-volvo-ec500-hybrid-excavator-42215-big-machine-big-",
+      "title": "The LEGO Volvo EC500 Hybrid Excavator (42215): Big Machine, Big Wallet Pain?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "42215",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "Volvo EC500 Hybrid Excavator (42215): Big Machine, Big Wallet Pai",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 3
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "c9e5a3cf-54ff-48c1-9592-ac4c960ca337",
+      "format": "news",
+      "published_url": "/news/lego-world-netherlands-train-builders-connect-for-massive-di",
+      "source_title": "Model Trains in a Miniature World: Exploring LEGO World in the Netherlands",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "50a086ac-3e5d-4927-a4d8-7dde6e0d076e",
+      "slug": "lego-world-netherlands-train-builders-connect-for-massive-di",
+      "title": "LEGO World Netherlands: Train Builders Connect for Massive Display",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "db10ae67-0e68-4b71-8037-b3ad4f78ebcd",
+      "format": "review",
+      "published_url": "/news/lego-ideas-21365-love-birds-cute-but-does-it-make-sense-for-",
+      "source_title": "LEGO Ideas 21365 Love Birds: Seeing the birds for the tree [Review]",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "2aaa6081-c08a-4d1d-a282-4e9ee3514a6b",
+      "slug": "lego-ideas-21365-love-birds-cute-but-does-it-make-sense-for-",
+      "title": "LEGO Ideas 21365 Love Birds: Cute, but does it make sense for your wallet?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "21365",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "LEGO Ideas 21365 Love Birds: Cute, but does it",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 4
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "91433319-fc48-4086-8f2d-05495580fceb",
+      "format": "news",
+      "published_url": "/news/lego-ninjago-fortnite-may-reveals-hit-india-like-a-truck-wal",
+      "source_title": "LEGO May 2 reveals pt. 2! Ninjago & Fortnite, with Titan Mechs & Legends, Supply Drop, Land Bounty",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "8578b5d8-b266-48e5-ad3c-57f89810ae7f",
+      "slug": "lego-ninjago-fortnite-may-reveals-hit-india-like-a-truck-wal",
+      "title": "LEGO Ninjago & Fortnite May Reveals Hit India Like a Truck, Wallet Beware",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "171528",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/9780241838389-1/171528.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "55fe22d4-54de-4c17-bd56-ba3e21088462",
+      "format": "review",
+      "published_url": "/news/lego-hogsmeade-village-collectors-edition-76457-is-it-worth-",
+      "source_title": "LEGO Hogsmeade Village – Collectors' Edition (76457) — Brickset",
+      "drafted_at": "2026-05-26T05:22:31.787557+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "25a8783d-ab6a-4926-876c-664a7210150f",
+      "slug": "lego-hogsmeade-village-collectors-edition-76457-is-it-worth-",
+      "title": "LEGO Hogsmeade Village – Collectors' Edition (76457): Is It Worth the Galleons?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "76457",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "illage – Collectors' Edition (76457): Is It Worth the Galleons?",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 2
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "63fa8983-e772-4528-9328-19f378c7df47",
+      "format": "review",
+      "published_url": "/news/lego-death-star-75419-is-this-galactic-fortress-worth-your-h",
+      "source_title": "LEGO Death Star (75419) — Brickset",
+      "drafted_at": "2026-05-26T05:22:31.787557+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "3d9df5d8-5841-4022-a2dd-1c3c01855ccf",
+      "slug": "lego-death-star-75419-is-this-galactic-fortress-worth-your-h",
+      "title": "LEGO Death Star (75419): Is This Galactic Fortress Worth Your Hard-Earned Rupees?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "75419",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "LEGO Death Star (75419): Is This Galactic Fortress W",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 4
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "aa253a2b-f9a2-4a4c-99c1-5bc55583f00e",
+      "format": "news",
+      "published_url": "/news/lego-megatron-brickheadz-a-tiny-transformer-for-your-shelf-n",
+      "source_title": "LEGO made Megatron! The Transformer that should be a gun, or a tank, is a BrickHead..z #NotSponsored",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "698c8add-d25f-4958-85fe-6db8cc74bd18",
+      "slug": "lego-megatron-brickheadz-a-tiny-transformer-for-your-shelf-n",
+      "title": "LEGO Megatron BrickHeadz: A Tiny Transformer for Your Shelf (No Set Number Yet)",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "6322719",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/6322719-1/70139.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "11bf1d8e-3de2-4d0f-8d47-1e05ae8554b6",
+      "format": "news",
+      "published_url": "/news/bionicles-tahu-celebrates-25-years-with-fan-creations",
+      "source_title": "Into the Tahu-Verse with hotdog_waffles [Bionicle25]",
+      "drafted_at": "2026-05-09T13:45:36.197387+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "3b075cce-b649-4ee0-aecf-c1cb05e9fd61",
+      "slug": "bionicles-tahu-celebrates-25-years-with-fan-creations",
+      "title": "Bionicle's Tahu Celebrates 25 Years with Fan Creations",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "20ac0b9b-88b1-4c24-ade4-02b613f767e3",
+      "format": "review",
+      "published_url": "/news/lego-venator-class-republic-attack-cruiser-75367-worth-your-",
+      "source_title": "LEGO Venator-Class Republic Attack Cruiser (75367) — Brickset",
+      "drafted_at": "2026-05-26T05:22:31.787557+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "1401d8c8-0ee4-4f26-8ba7-062c03792464",
+      "slug": "lego-venator-class-republic-attack-cruiser-75367-worth-your-",
+      "title": "LEGO Venator-Class Republic Attack Cruiser (75367): Worth Your Hard-Earned Rupees?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "75367",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "lass Republic Attack Cruiser (75367): Worth Your Hard-Earned Rupe",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 3
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "397ae761-ca03-4f38-ae7a-24d4ee6b802a",
+      "format": "review",
+      "published_url": "/news/review-lego-friends-42688-horse-stable-and-riding-academy-ne",
+      "source_title": "Review: 42688 Horse Stable and Riding Academy",
+      "drafted_at": "2026-05-09T16:41:32.296039+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "1dc0630c-f53b-4783-bf88-eebb4389b116",
+      "slug": "review-lego-friends-42688-horse-stable-and-riding-academy-ne",
+      "title": "Review: LEGO Friends 42688 Horse Stable and Riding Academy – Neigh-sayers beware!",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "42688",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "Review: LEGO Friends 42688 Horse Stable and Riding Acade",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 3
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "2b9f06b2-56d9-40dd-9a61-e09fc55caaa1",
+      "format": "news",
+      "published_url": "/news/build-your-own-mtron-mobile-moon-base-for-free-no-set-number",
+      "source_title": "Build your own M:Tron Mobile Moon Base with free Instructions",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "2ffd9c11-e9f2-40a8-8f05-e52f2f98a69b",
+      "slug": "build-your-own-mtron-mobile-moon-base-for-free-no-set-number",
+      "title": "Build Your Own M:Tron Mobile Moon Base For Free (No Set Number)",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "2648eadd-cf4b-4a45-8d62-a68ce0c41fda",
+      "format": "review",
+      "published_url": "/news/lego-star-wars-jabbas-sail-barge-75397-worth-the-tatooine-tr",
+      "source_title": "LEGO Jabba's Sail Barge (75397) — Brickset",
+      "drafted_at": "2026-05-26T05:22:31.787557+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "329dc4b6-26f6-4836-a56e-6a178e2e7a89",
+      "slug": "lego-star-wars-jabbas-sail-barge-75397-worth-the-tatooine-tr",
+      "title": "LEGO Star Wars Jabba's Sail Barge (75397): Worth the Tatooine Treasure Hunt?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "75397",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "Star Wars Jabba's Sail Barge (75397): Worth the Tatooine Treasure",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 4
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "f5d15d33-9051-44e5-8e07-ad4198191117",
+      "format": "news",
+      "published_url": "/news/lego-imperial-lambda-shuttle-vader-helmet-and-at-rt-driver-h",
+      "source_title": "LEGO Imperial Lambda Shuttle, Up-scaled Darth Vader, AT-RT Driver Helmet thoughts! #NotSponsored",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "fc317ddc-558d-4a59-a319-4e19f143b0ec",
+      "slug": "lego-imperial-lambda-shuttle-vader-helmet-and-at-rt-driver-h",
+      "title": "LEGO Imperial Lambda Shuttle, Vader Helmet and AT-RT Driver Helmet: Are They Coming to India?",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "ef4a8960-8a95-442b-aa50-6397c3671206",
+      "format": "news",
+      "published_url": "/news/bo-katans-gauntlet-starfighter-is-here-unofficially",
+      "source_title": "LEGO Star Wars UCCS Bo-Katan's Mandalorian Gauntlet Starfighter | Minifig Scale Custom Build",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "93d0e64a-558d-4322-856d-96bdc9de94db",
+      "slug": "bo-katans-gauntlet-starfighter-is-here-unofficially",
+      "title": "Bo-Katan's Gauntlet Starfighter is Here (Unofficially)",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "c4ffc1c6-9ff9-469f-b440-4764d09ea610",
+      "format": "review",
+      "published_url": "/news/lego-10365-captain-jack-sparrows-pirate-ship-is-it-worth-the",
+      "source_title": "LEGO Captain Jack Sparrow's Pirate Ship (10365) — Brickset",
+      "drafted_at": "2026-05-26T05:22:31.787557+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "4b14cd89-ae8d-488d-b03c-00d863212eb3",
+      "slug": "lego-10365-captain-jack-sparrows-pirate-ship-is-it-worth-the",
+      "title": "LEGO 10365: Captain Jack Sparrow's Pirate Ship - Is it Worth the Doubloons?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "10365",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "LEGO 10365: Captain Jack Sparrow's Pirat",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 4
+        },
+        {
+          "set_number": "1215",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "price, you could enjoy about 1215 cups of chai, or perhaps 730",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "99ec8150-b853-4de2-8eb8-be24d01b1ad0",
+      "format": "news",
+      "published_url": "/news/summer-fun-or-wallet-pain-new-lego-friends-sets-land-in-indi",
+      "source_title": "Summer 2026 LEGO Friends sets are all about the great outdoors and theme parks vibes",
+      "drafted_at": "2026-05-09T16:41:32.296039+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "9143e8ee-38de-4ccb-9054-b848f3e78173",
+      "slug": "summer-fun-or-wallet-pain-new-lego-friends-sets-land-in-indi",
+      "title": "Summer Fun or Wallet Pain? New LEGO Friends Sets Land in India This August",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "42698",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/42698-1/173461.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        },
+        {
+          "set_number": "2026",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "has just unveiled its Summer 2026 Friends lineup, and while the",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "ad24cfb4-179f-432f-8d2d-aff83061930b",
+      "format": "news",
+      "published_url": "/news/lego-disney-main-street-usa-43302-revealed-charming-but-pric",
+      "source_title": "LEGO Disney Main Street USA revealed & it's shallow & expensive, but charming! #NotSponsored 43302",
+      "drafted_at": "2026-05-19T19:27:24.395115+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "79c2bcc9-ba37-4e4e-b0f3-6e52d40ab6b6",
+      "slug": "lego-disney-main-street-usa-43302-revealed-charming-but-pric",
+      "title": "LEGO Disney Main Street USA (43302) Revealed: Charming but Pricey?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "43302",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "LEGO Disney Main Street USA (43302) Revealed: Charming but Price",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 4
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "ae318908-5dd7-466a-b651-b78fd08e01d2",
+      "format": "news",
+      "published_url": "/news/the-lego-road-bike-11380-worth-your-emi-in-india",
+      "source_title": "LEGO 11380 Road Bike is a 60cm long brick-built bicycle coming in June 2026",
+      "drafted_at": "2026-05-09T16:41:32.296039+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "b651a7ac-59f1-44bd-8d0e-92962a2673e8",
+      "slug": "the-lego-road-bike-11380-worth-your-emi-in-india",
+      "title": "The LEGO Road Bike (11380): Worth Your EMI in India?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "11380",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "The LEGO Road Bike (11380): Worth Your EMI in India?",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 3
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "1c011fc4-720c-46de-8b2e-d8bbdbddd15b",
+      "format": "news",
+      "published_url": "/news/lego-icons-road-bike-rolls-into-india-a-17500-test-of-patien",
+      "source_title": "LEGO Icons 11380 Road Bike revealed!",
+      "drafted_at": "2026-05-09T16:41:32.296039+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "e1417251-a2e4-46b6-a69c-9e6c1b7e7453",
+      "slug": "lego-icons-road-bike-rolls-into-india-a-17500-test-of-patien",
+      "title": "LEGO Icons Road Bike Rolls into India: A ₹17,500 Test of Patience and Plastic",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "51d9d08f-44d7-4b83-af66-3b67c5a3a16c",
+      "format": "news",
+      "published_url": "/news/forget-emi-this-lego-nyc-apple-costs-more-than-100-plates-of",
+      "source_title": "LEGO 21066 New York City – The Big Apple introduces a creative spin to LEGO Architecture",
+      "drafted_at": "2026-05-09T16:41:32.296039+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "0b75f8a7-4ac6-46b3-987a-55ce574fe0b8",
+      "slug": "forget-emi-this-lego-nyc-apple-costs-more-than-100-plates-of",
+      "title": "Forget EMI, This LEGO NYC Apple Costs More Than 100 Plates of Pani Puri",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "21066",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/21066-1/173513.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 2
+        },
+        {
+          "set_number": "2026",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "t to land globally on June 1, 2026. Now, let’s talk about what t",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "db916ca8-1b19-4755-9276-3ff5f9403f72",
+      "format": "news",
+      "published_url": "/news/italys-own-lego-brick-unpacking-the-mystery-of-minitalia",
+      "source_title": "The Mystery of LEGO Minitalia: Italy’s Forgotten LEGO Brick",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "ea17a4a4-374d-4223-8dca-eb2883d6790a",
+      "slug": "italys-own-lego-brick-unpacking-the-mystery-of-minitalia",
+      "title": "Italy's Own LEGO Brick? Unpacking the Mystery of Minitalia!",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "2f4d0692-b6aa-4f32-b09d-5e7d2c23ef12",
+      "format": "news",
+      "published_url": "/news/porco-rossos-hideout-your-wallet-needs-this-miyazaki-lego-bu",
+      "source_title": "Porco Rosso’s Beach Hideout in LEGO is the perfect getaway",
+      "drafted_at": "2026-05-09T13:45:36.197387+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "a5c7f119-3586-4385-848a-35541d5192dc",
+      "slug": "porco-rossos-hideout-your-wallet-needs-this-miyazaki-lego-bu",
+      "title": "Porco Rosso's Hideout: Your Wallet Needs This Miyazaki LEGO Build",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "21341",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/21341-1/132009.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 2
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "395d745a-2f99-435e-8b46-0496e5fdbf3f",
+      "format": "news",
+      "published_url": "/news/lego-may-reveals-a-supra-an-unimog-and-a-village-walk-into-a",
+      "source_title": "LEGO May 2 reveals pt. 3! More Technic, Speed Champions, Minecraft -- Brian's Supra, Unimog, Village",
+      "drafted_at": "2026-05-09T13:45:36.197387+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "d23bcc9d-b857-4799-8b1c-05874a2761f3",
+      "slug": "lego-may-reveals-a-supra-an-unimog-and-a-village-walk-into-a",
+      "title": "LEGO May Reveals: A Supra, An Unimog, and A Village Walk Into a Store",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "76919",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/76919-1/137105.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 2
+        },
+        {
+          "set_number": "42177",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "Technic Mercedes-Benz Unimog (42177). This is a 2056-piece beast.",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        },
+        {
+          "set_number": "2056",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "enz Unimog (42177). This is a 2056-piece beast. Details are stil",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        },
+        {
+          "set_number": "21242",
+          "source": "body",
+          "confidence": "LOW",
+          "context": "nally, the Minecraft Village (21242). This is aimed at the younge",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "2c118999-9b11-42d7-8ac2-c6b1feb56402",
+      "format": "news",
+      "published_url": "/news/lego-sega-genesis-mini-console-3500-or-a-wallet-meltdown",
+      "source_title": "LEGO May 2 reveals pt. 4! Sega Genesis mini-console set is only $40 USD! 🎮",
+      "drafted_at": "2026-05-09T13:45:36.197387+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "706b0c7a-3b6c-4a36-8dfd-f1f36811393c",
+      "slug": "lego-sega-genesis-mini-console-3500-or-a-wallet-meltdown",
+      "title": "LEGO Sega Genesis Mini-Console: ₹3,500 or a Wallet Meltdown?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "40926",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/40926-1/172402.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "ef90d1ce-9ea7-4b47-8f70-14be6eba2501",
+      "format": "review",
+      "published_url": "/news/lego-titanic-10294-sailing-into-your-living-room-and-your-wa",
+      "source_title": "LEGO Titanic (10294) — Brickset",
+      "drafted_at": "2026-05-26T05:22:31.787557+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "8e691b7b-8907-401d-83ce-31a37719973b",
+      "slug": "lego-titanic-10294-sailing-into-your-living-room-and-your-wa",
+      "title": "LEGO Titanic (10294): Sailing into Your Living Room (and Your Wallet!)",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "10294",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "LEGO Titanic (10294): Sailing into Your Living Ro",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 3
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "af05bd64-596b-4515-84eb-a3ea86e04954",
+      "format": "news",
+      "published_url": "/news/lego-gears-more-than-just-teeth",
+      "source_title": "Everything You Want To Know About LEGO Gears",
+      "drafted_at": "2026-05-09T13:45:36.197387+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "6c177889-f703-47e3-9aee-357408859fff",
+      "slug": "lego-gears-more-than-just-teeth",
+      "title": "LEGO Gears: More Than Just Teeth?",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "76476d96-f925-4a4b-b2ba-666c21fbfb6b",
+      "format": "news",
+      "published_url": "/news/lego-leaks-galore-whats-coming-to-our-shelves-maybe-soon",
+      "source_title": "NEW LEGO LEAKS! (Ideas, Pokemon, DC, Architecture & MORE!)",
+      "drafted_at": "2026-05-20T19:41:03.819486+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "5d5f0a1f-78d7-40ad-bb46-d867f0cb7572",
+      "slug": "lego-leaks-galore-whats-coming-to-our-shelves-maybe-soon",
+      "title": "LEGO Leaks Galore: What's Coming to Our Shelves (Maybe Soon!)",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "e45d5c01-1193-4293-bef3-677ab77fad5e",
+      "format": "news",
+      "published_url": "/news/giant-lego-ship-donated-is-this-brick-masterpiece-heading-to",
+      "source_title": "My Ship Has Sailed: Donating a $10,000 LEGO Build to Creations for Charity",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "4239bf5b-93a8-422d-8c75-4b4db72d41f8",
+      "slug": "giant-lego-ship-donated-is-this-brick-masterpiece-heading-to",
+      "title": "Giant LEGO Ship Donated: Is This Brick Masterpiece Heading to India?",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "45aa7ab5-24c3-4b20-aeda-d9b5000715b8",
+      "format": "news",
+      "published_url": "/news/unplanned-lego-photos-finding-creativity-in-chaos",
+      "source_title": "Happy Accidents: Finding Inspiration in Unplanned LEGO Photos",
+      "drafted_at": "2026-05-09T13:45:36.197387+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "286aa510-b58a-4329-ba7c-3116ea20958b",
+      "slug": "unplanned-lego-photos-finding-creativity-in-chaos",
+      "title": "Unplanned LEGO Photos: Finding Creativity in Chaos",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "9ac27b78-e7bd-4957-b80a-569b7fa1fc7b",
+      "format": "news",
+      "published_url": "/news/build-your-dream-lego-studio-instructions-available-now",
+      "source_title": "Instructions to Create a LEGO Builder's Studio",
+      "drafted_at": "2026-05-09T13:45:36.197387+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "650ec0cb-a256-4da2-9a9d-feaa188b5e6b",
+      "slug": "build-your-dream-lego-studio-instructions-available-now",
+      "title": "Build Your Dream LEGO Studio: Instructions Available Now!",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "e48e819f-1ee2-4c59-a1a6-0f1b74a85969",
+      "format": "news",
+      "published_url": "/news/reviving-your-lego-9v-train-motors-a-guide-for-indian-collec",
+      "source_title": "This Old Motor Bogie: How To Refurbish LEGO 9V Train Motors",
+      "drafted_at": "2026-05-09T13:45:36.197387+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "1846326d-1cd7-4381-9857-1a616b0f0e8b",
+      "slug": "reviving-your-lego-9v-train-motors-a-guide-for-indian-collec",
+      "title": "Reviving Your LEGO 9V Train Motors: A Guide for Indian Collectors",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "881d1c20-6272-4371-8797-d101b2cb70df",
+      "format": "news",
+      "published_url": "/news/lego-castle-factions-what-kids-call-them-might-surprise-you",
+      "source_title": "LEGO Castle Faction Names According To Kids",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "e8d7aba7-7d89-4eb0-85f5-6e3901edf119",
+      "slug": "lego-castle-factions-what-kids-call-them-might-surprise-you",
+      "title": "LEGO Castle Factions: What Kids Call Them Might Surprise You",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "9578a955-ef64-414e-9a1e-1328462bff2b",
+      "format": "news",
+      "published_url": "/news/big-bike-energy-lego-set-11380-road-bike-rolls-in",
+      "source_title": "LEGO made a 2 ft. / 60 cm buildable... Bicycle 🚲 And I'm OK with it #NotSponsored 11380 Road Bike",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "9e1a10b8-3572-45bd-a7a1-6e6ea1ff30f0",
+      "slug": "big-bike-energy-lego-set-11380-road-bike-rolls-in",
+      "title": "Big Bike Energy: LEGO Set 11380 Road Bike Rolls In!",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "11380",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "Big Bike Energy: LEGO Set 11380 Road Bike Rolls In!",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 3
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "aced2cfb-dae7-450c-ad80-fabd93e6f2b9",
+      "format": "news",
+      "published_url": "/news/diy-lego-builders-studio-instructions-available-now",
+      "source_title": "Instructions to Create a LEGO Builder's Studio",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "76f3a0d4-5ac6-4723-89f7-030ed40ceb27",
+      "slug": "diy-lego-builders-studio-instructions-available-now",
+      "title": "DIY LEGO Builder's Studio: Instructions Available Now",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "e3930d5f-4185-454c-ad5e-890b9e253679",
+      "format": "news",
+      "published_url": "/news/bossks-houndstooth-from-jabbas-sailbarge-set-75397-gets-a-cr",
+      "source_title": "HOW is this POSSIBLE?! LEGO Bossk's Hounds Tooth | Alternate Build of UCS Sailbarge Set 75397",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "b96b8ace-dcec-460e-a227-ba7eeee82667",
+      "slug": "bossks-houndstooth-from-jabbas-sailbarge-set-75397-gets-a-cr",
+      "title": "Bossk's Houndstooth from Jabba's Sailbarge? Set 75397 Gets a Crazy Alternate Build!",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "75397",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "h from Jabba's Sailbarge? Set 75397 Gets a Crazy Alternate Build!",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 4
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "8c95935e-6783-4e8a-aef4-968cfd335cf6",
+      "format": "review",
+      "published_url": "/news/lego-technic-42228-mclaren-f1-team-mcl39-review-too-many-car",
+      "source_title": "LEGO Technic 42228 McLaren F1 Team MCL39: winning streak or F1 fatigue? [Review]",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "ca78a950-781a-48b7-99db-70be4519b138",
+      "slug": "lego-technic-42228-mclaren-f1-team-mcl39-review-too-many-car",
+      "title": "LEGO Technic 42228 McLaren F1 Team MCL39 Review: Too Many Cars, Too Little Spark?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "42228",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "LEGO Technic 42228 McLaren F1 Team MCL39 Review:",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 5
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "f9cb0916-64be-4bad-9ae1-add1256e380d",
+      "format": "review",
+      "published_url": "/news/lego-technic-42228-mclaren-f1-team-mcl39-worth-24999",
+      "source_title": "LEGO Technic 42228 McLaren F1 Team MCL39: winning streak or F1 fatigue? [Review]",
+      "drafted_at": "2026-05-09T13:45:36.197387+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "5ed51492-75de-4bf2-96be-2fea0807b954",
+      "slug": "lego-technic-42228-mclaren-f1-team-mcl39-worth-24999",
+      "title": "LEGO Technic 42228 McLaren F1 Team MCL39: Worth ₹24,999?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "42228",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "LEGO Technic 42228 McLaren F1 Team MCL39: Worth",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 3
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "77658fef-4016-439d-a786-f17af08c6f8c",
+      "format": "news",
+      "published_url": "/news/lego-contest-round-up-for-may-2026-2026",
+      "source_title": "LEGO Contest Round-Up for May 2026",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "9e2f98f8-c38d-4fce-9950-a354c26ce0ad",
+      "slug": "lego-contest-round-up-for-may-2026-2026",
+      "title": "LEGO Contest Round-Up for May 2026 (2026)",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "2026",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "LEGO Contest Round-Up for May 2026 (2026)",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 3
+        },
+        {
+          "set_number": "1000",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/1000-1/10763.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "dde8683f-7750-4628-acb5-6458220f8514",
+      "format": "news",
+      "published_url": "/news/febrovery-2026-a-celebration-of-lego-space-rovers-set-2026",
+      "source_title": "Febrovery 2026 – Merrily we roll along with our mid-month Febrovery round-up",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "4ba22a36-87e5-4b8c-97df-a767856ba004",
+      "slug": "febrovery-2026-a-celebration-of-lego-space-rovers-set-2026",
+      "title": "Febrovery 2026: A Celebration of LEGO Space Rovers (Set 2026)",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "2026",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "Febrovery 2026: A Celebration of LEGO Space",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 2
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "d6ca984f-3581-4901-b9b0-67f932ea7880",
+      "format": "news",
+      "published_url": "/news/fallout-lego-mocs-wasteland-wonders-for-your-shelf",
+      "source_title": "These MOCs Are S.P.E.C.I.A.L.: Fallout LEGO Builds with Stories to Tell",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "dcc96bca-8d22-4913-8085-b0d97f8d9d73",
+      "slug": "fallout-lego-mocs-wasteland-wonders-for-your-shelf",
+      "title": "Fallout LEGO MOCs: Wasteland Wonders for Your Shelf",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "005881c5-08c8-48af-8235-932aa77ac65c",
+      "format": "news",
+      "published_url": "/news/lego-imperial-lambda-shuttle-and-new-helmets-your-wallet-is-",
+      "source_title": "LEGO Imperial Lambda Shuttle, Up-scaled Darth Vader, AT-RT Driver Helmet thoughts! #NotSponsored",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "7117e97e-b26c-47ed-8d59-690898b2ce26",
+      "slug": "lego-imperial-lambda-shuttle-and-new-helmets-your-wallet-is-",
+      "title": "LEGO Imperial Lambda Shuttle and New Helmets: Your Wallet is Already Worried",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "32713eba-b8ad-4e95-9361-e3215686dae7",
+      "format": "news",
+      "published_url": "/news/lego-year-of-the-horse-moc-galloping-into-your-imagination",
+      "source_title": "Leaping into the Year of the Horse",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "3012ea8e-52a2-4520-8ce8-2cf967b3608a",
+      "slug": "lego-year-of-the-horse-moc-galloping-into-your-imagination",
+      "title": "LEGO Year of the Horse MOC: Galloping into Your Imagination",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "babc160d-eaa5-49f1-bfbc-0fb1b626678b",
+      "format": "news",
+      "published_url": "/news/lego-volvo-fh-truck-a-heavy-haulage-masterpiece",
+      "source_title": "Machine-moving machine",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "dae00793-cb0c-4b49-8f1a-2ac032b0377e",
+      "slug": "lego-volvo-fh-truck-a-heavy-haulage-masterpiece",
+      "title": "LEGO Volvo FH Truck: A Heavy Haulage Masterpiece?",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "29ba607e-85f0-4fc3-befb-d80e94d1ee8c",
+      "format": "news",
+      "published_url": "/news/lego-dream-kitchen-is-this-real-life",
+      "source_title": "Step right into this dreamy LEGO kitchen",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "522296b4-223f-4b47-965e-adda26f6ac1c",
+      "slug": "lego-dream-kitchen-is-this-real-life",
+      "title": "LEGO Dream Kitchen: Is This Real Life?",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "b7937fb8-30e6-464b-931f-9181f0a53863",
+      "format": "news",
+      "published_url": "/news/the-adorabuild-contest-your-last-chance-to-win-bricks",
+      "source_title": "Last Call for Cute: Two Weeks Left in The AdoraBuild",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "e0140bde-b9cb-4a71-8402-4f0ac01b5ec7",
+      "slug": "the-adorabuild-contest-your-last-chance-to-win-bricks",
+      "title": "The AdoraBuild Contest: Your Last Chance to Win Bricks",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "84dc3c23-100e-4602-ade8-52475397e830",
+      "format": "news",
+      "published_url": "/news/lego-city-trains-and-pirates-coming-to-india-will-your-walle",
+      "source_title": "LEGO May 2 reveals pt. 1! City, Creator, & Chinese Festival thoughts - Trains, Pirates, Van, Coaster",
+      "drafted_at": "2026-05-09T13:45:36.197387+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "b3dc4480-ebd0-418d-b09e-aa7730c6b720",
+      "slug": "lego-city-trains-and-pirates-coming-to-india-will-your-walle",
+      "title": "LEGO City Trains and Pirates Coming to India: Will Your Wallet Survive?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "163476",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/9781837251759-1/163476.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "d65cacc8-8741-46dd-a16b-d9b9cb3c6888",
+      "format": "news",
+      "published_url": "/news/lego-wheels-tires-not-just-for-cars-anymore",
+      "source_title": "LEGO NPU: Wheels & Tires Edition",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "c89ce833-2ed5-4d3e-9547-58a4d2082cdb",
+      "slug": "lego-wheels-tires-not-just-for-cars-anymore",
+      "title": "LEGO Wheels & Tires: Not Just for Cars Anymore",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "cdd11363-6ef0-48f9-a0b1-5f5089d01c50",
+      "format": "news",
+      "published_url": "/news/lego-gears-a-deep-dive-into-interlocking-plastic-cogs",
+      "source_title": "Everything You Want To Know About LEGO Gears",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "406ca6ba-ced1-4f5c-8e5a-9e39fcc66942",
+      "slug": "lego-gears-a-deep-dive-into-interlocking-plastic-cogs",
+      "title": "LEGO Gears: A Deep Dive into Interlocking Plastic Cogs",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "0b955254-3c6b-4304-9215-93d69abfa32e",
+      "format": "review",
+      "published_url": "/news/lego-mario-kart-luigi-mach-8-72050-worth-18999",
+      "source_title": "LEGO Mario Kart – Luigi & Mach 8 (72050) — Brickset",
+      "drafted_at": "2026-05-30T18:41:28.156168+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "2823b957-9582-4376-bdcd-4ed1f4917b73",
+      "slug": "lego-mario-kart-luigi-mach-8-72050-worth-18999",
+      "title": "LEGO Mario Kart – Luigi & Mach 8 (72050): Worth ₹18,999?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "72050",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "Mario Kart – Luigi & Mach 8 (72050): Worth ₹18,999?",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 3
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "c96a15e7-a6c2-483c-8c59-03982be72d35",
+      "format": "news",
+      "published_url": "/news/pinterest-for-lego-mocs-your-digital-inspiration-board",
+      "source_title": "Organized Inspiration: How to Use Pinterest for LEGO Inspiration",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "37b17b54-4a35-4418-828d-8f07a7a3414d",
+      "slug": "pinterest-for-lego-mocs-your-digital-inspiration-board",
+      "title": "Pinterest for LEGO MOCs: Your Digital Inspiration Board",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "076627e7-871d-4fcd-a1d3-cdd63d7eb15b",
+      "format": "news",
+      "published_url": "/news/weapon-wednesday-tiny-lego-weapons-find-a-home",
+      "source_title": "Weapon Wednesday and the joy of LEGO rituals [Guest Feature]",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "28bb1f64-8e11-43c7-ab99-60ba953a4861",
+      "slug": "weapon-wednesday-tiny-lego-weapons-find-a-home",
+      "title": "Weapon Wednesday: Tiny LEGO Weapons Find a Home",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "5106",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/5106-1/6242.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 2
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "a21499d8-8af9-4835-94e2-f6e8102f790d",
+      "format": "news",
+      "published_url": "/news/microscale-moonshot-is-this-fan-build-worth-the-wait",
+      "source_title": "Microscale moonshot is a stellar creation",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "2c3ecb88-1be0-4170-85f2-8ae9a15c2979",
+      "slug": "microscale-moonshot-is-this-fan-build-worth-the-wait",
+      "title": "Microscale Moonshot: Is This Fan Build Worth the Wait?",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "447d79cb-3984-46c9-88e0-53defe1ed649",
+      "format": "news",
+      "published_url": "/news/bionicles-tahu-celebrates-25-years-with-epic-fan-builds",
+      "source_title": "Into the Tahu-Verse with hotdog_waffles [Bionicle25]",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "59746983-7f1d-47fa-bd24-65a0ff8926d2",
+      "slug": "bionicles-tahu-celebrates-25-years-with-epic-fan-builds",
+      "title": "Bionicle’s Tahu Celebrates 25 Years with Epic Fan Builds",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "0e0e6cde-8dd0-436f-93a3-b854ae1c5d26",
+      "format": "news",
+      "published_url": "/news/lego-megatron-brickheadz-your-wallet-is-safe-for-now",
+      "source_title": "LEGO made Megatron! The Transformer that should be a gun, or a tank, is a BrickHead..z #NotSponsored",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "da5516a9-d376-4fcd-84df-2487442b1921",
+      "slug": "lego-megatron-brickheadz-your-wallet-is-safe-for-now",
+      "title": "LEGO Megatron BrickHeadz: Your Wallet is Safe (For Now)",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "6322719",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/6322719-1/70139.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "2eaf9c92-1d76-4acf-a573-91015a87003e",
+      "format": "news",
+      "published_url": "/news/lego-kitchen-moc-a-dream-build-but-will-it-break-the-bank",
+      "source_title": "Step right into this dreamy LEGO kitchen",
+      "drafted_at": "2026-05-09T13:45:36.197387+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "46f2c0bd-8a79-4815-8576-74ea837ac4d1",
+      "slug": "lego-kitchen-moc-a-dream-build-but-will-it-break-the-bank",
+      "title": "LEGO Kitchen MOC: A Dream Build, But Will It Break The Bank?",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "171db09c-32b8-49e8-9083-baf01d3b8e00",
+      "format": "news",
+      "published_url": "/news/lego-star-wars-bo-katans-gauntlet-starfighter-custom-build-f",
+      "source_title": "LEGO Star Wars UCCS Bo-Katan's Mandalorian Gauntlet Starfighter | Minifig Scale Custom Build",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "518bbf30-5013-4f39-af61-961cb360ac03",
+      "slug": "lego-star-wars-bo-katans-gauntlet-starfighter-custom-build-f",
+      "title": "LEGO Star Wars Bo-Katan's Gauntlet Starfighter: Custom Build Fires Up Desire",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "7bc358d4-3931-48d2-b748-5a7637405a22",
+      "format": "review",
+      "published_url": "/news/lego-smart-brick-a-star-wars-showdown-who-is-this-for",
+      "source_title": "Hands-On with the LEGO Smart Brick: A Kid vs. AFOL Star Wars Showdown",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "67729c61-6bf2-4b08-8859-b43f65785ca7",
+      "slug": "lego-smart-brick-a-star-wars-showdown-who-is-this-for",
+      "title": "LEGO Smart Brick: A Star Wars Showdown. Who is This For?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "75373",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/75373-1/140393.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "b4bd07ef-7174-4311-b866-36773f40f6f8",
+      "format": "news",
+      "published_url": "/news/lego-may-reveals-brians-supra-unimog-and-a-minecraft-village",
+      "source_title": "LEGO May 2 reveals pt. 3! More Technic, Speed Champions, Minecraft -- Brian's Supra, Unimog, Village",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "2b12bece-9ea2-4ee5-837f-16ca45bc1f5f",
+      "slug": "lego-may-reveals-brians-supra-unimog-and-a-minecraft-village",
+      "title": "LEGO May Reveals: Brian's Supra, Unimog, and a Minecraft Village Hit Shelves Soon",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "170088",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/9781837252008-1/170088.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "3ae45fc3-4c03-4796-8077-7945a1e49269",
+      "format": "news",
+      "published_url": "/news/lego-may-2-reveals-city-creator-and-festival-sets-land-in-in",
+      "source_title": "LEGO May 2 reveals pt. 1! City, Creator, & Chinese Festival thoughts - Trains, Pirates, Van, Coaster",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "3fa219c2-6641-4f42-aa36-a5fc7b58d167",
+      "slug": "lego-may-2-reveals-city-creator-and-festival-sets-land-in-in",
+      "title": "LEGO May 2 Reveals: City, Creator, and Festival Sets Land in India Soon?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "60510",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/60510-1/171840.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "cdebbd30-748c-4f43-9ed6-fecd2f535f29",
+      "format": "news",
+      "published_url": "/news/black-falcons-friday-is-this-a-new-lego-set-or-just-a-fan-ce",
+      "source_title": "It's Not Just Friday, It's #blackfalconsfriday!",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "1e375cc8-4e57-465c-bded-e1ef5e2ce71a",
+      "slug": "black-falcons-friday-is-this-a-new-lego-set-or-just-a-fan-ce",
+      "title": "Black Falcons Friday: Is This a New LEGO Set or Just a Fan Celebration?",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "aa0a43ee-6f13-4bea-b6ec-e9d405fa2347",
+      "format": "news",
+      "published_url": "/news/lego-community-headlines-and-highlights-april-2026-whats-new",
+      "source_title": "LEGO Community Headlines and Highlights for April 2026",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "ac3e3ee8-19b4-4125-95c6-821e7cfd043a",
+      "slug": "lego-community-headlines-and-highlights-april-2026-whats-new",
+      "title": "LEGO Community Headlines and Highlights (April 2026): What's New in Bricks?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "2026",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "adlines and Highlights (April 2026): What's New in Bricks?",
+          "flags": {
+            "year_flag": true,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 2
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "86fc3004-a1df-4a61-98ed-4e901f6be574",
+      "format": "news",
+      "published_url": "/news/giant-lego-ship-donated-will-it-ever-sail-to-india",
+      "source_title": "My Ship Has Sailed: Donating a $10,000 LEGO Build to Creations for Charity",
+      "drafted_at": "2026-05-09T13:45:36.197387+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "f36f744f-9702-4b88-8f59-fd20e61c9922",
+      "slug": "giant-lego-ship-donated-will-it-ever-sail-to-india",
+      "title": "Giant LEGO Ship Donated: Will It Ever Sail to India?",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "f62b89c4-2684-49d9-9692-d5050355de7d",
+      "format": "opinion",
+      "published_url": "/opinion/afols-with-kids-sharing-bricks-sharing-pain",
+      "source_title": "AFOLs With Kids: Should You Combine Your Collections?",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "blog_posts",
+      "article_id": "ed5f916a-6ebd-4ad0-a2a6-e46f49298a72",
+      "slug": "afols-with-kids-sharing-bricks-sharing-pain",
+      "title": "AFOLs With Kids: Sharing Bricks, Sharing Pain?",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "8cef9cba-e6ac-4a31-b462-591e3097a381",
+      "format": "news",
+      "published_url": "/news/lego-themes-from-ideas-to-art-how-they-change",
+      "source_title": "Divergent Ideas: How LEGO Themes Evolve",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "fc9c1248-e35f-47fc-b934-b5f599397590",
+      "slug": "lego-themes-from-ideas-to-art-how-they-change",
+      "title": "LEGO Themes: From Ideas to Art, How They Change",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "169545",
+          "source": "hero_image",
+          "confidence": "HIGH",
+          "context": "https://cdn.rebrickable.com/media/sets/9780241785942-1/169545.jpg",
+          "flags": {
+            "year_flag": false,
+            "set_flag": true,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 1
+        }
+      ],
+      "warnings": []
+    },
+    {
+      "draft_id": "5121cf10-bb9d-414b-91c6-38e39f758bb7",
+      "format": "news",
+      "published_url": "/news/lego-conventions-are-back-how-to-avoid-the-dreaded-con-crud",
+      "source_title": "How to Avoid Con Crud: Staying Healthy at LEGO Conventions",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": true,
+      "target_table": "news_articles",
+      "article_id": "91962831-7564-4a6d-b0a4-e5ea808142d9",
+      "slug": "lego-conventions-are-back-how-to-avoid-the-dreaded-con-crud",
+      "title": "LEGO Conventions Are Back: How to Avoid the Dreaded \"Con Crud\"",
+      "linkage": "ok",
+      "candidates": [],
+      "warnings": [
+        "zero candidates extracted — likely opinion/roundup with no set reference"
+      ]
+    },
+    {
+      "draft_id": "b7a74573-d7eb-469f-81de-35daa75c55de",
+      "format": "news",
+      "published_url": "/news/lego-11380-road-bike-a-2-foot-bicycle-that-costs-12400",
+      "source_title": "LEGO made a 2 ft. / 60 cm buildable... Bicycle 🚲 And I'm OK with it #NotSponsored 11380 Road Bike",
+      "drafted_at": "2026-05-09T13:45:35.929617+00:00",
+      "published_at": "2026-06-20T13:24:19.059513+00:00",
+      "is_community": false,
+      "target_table": "news_articles",
+      "article_id": "7d9c7d07-db87-403b-b49a-88312f3780e2",
+      "slug": "lego-11380-road-bike-a-2-foot-bicycle-that-costs-12400",
+      "title": "LEGO 11380 Road Bike: A 2-Foot Bicycle That Costs ₹12,400?",
+      "linkage": "ok",
+      "candidates": [
+        {
+          "set_number": "11380",
+          "source": "title",
+          "confidence": "HIGH",
+          "context": "LEGO 11380 Road Bike: A 2-Foot Bicycle T",
+          "flags": {
+            "year_flag": false,
+            "set_flag": false,
+            "piece_count_flag": false
+          },
+          "occurrence_count": 4
+        }
+      ],
+      "warnings": []
+    }
+  ]
+}
