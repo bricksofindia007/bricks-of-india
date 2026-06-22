@@ -1181,10 +1181,25 @@ Decision deferred to Day 3 open.
 #### CRITICAL-1: publish-drafts.yml full audit
 - **What:** Audit scheduled publish workflow — selection logic, retention policy, error handling. Deferred mid-investigation.
 - **Source:** Deferred during Days 35-N investigation
-- **Status:** not started
+- **Status:** findings documented; scope locked 2026-06-22; implementation not started
 - **Owner:** C + A
 - **Target window:** this week
 - **Dependencies:** none
+
+**Findings (audit completed 2026-06-22):**
+- Cron `scripts/publish-drafts.mjs` runs Gates 1–3 only (word count, India paragraph, verdict) via a local reimplementation. It never imports `@/lib/lint` and never reads the stored `pending_drafts.lint_result` column before re-deriving its own, weaker check.
+- Admin manual publish (`publishDraft` action, `src/app/admin/pending/actions.ts:423`) runs the full shared `lintDraft()` from `@/lib/lint` — Gates 1, 2, 3, 5 (factuality), 6 (source fidelity).
+- Drafter paths split: bulk generation (`scripts/generate-approved-drafts.ts` → `src/lib/generate-with-failover.ts`, manual GHA dispatch) runs full lint at draft time and stores the result in `lint_result`. On-demand single generation (`generateBody()`, the admin "Generate Article" button) runs **no lint at all** at generation time.
+- Net effect: any article drafted via the on-demand button and published via the cron path has had **zero factuality or source-fidelity checking at any point in its lifecycle**.
+- Verified against live DB (2026-06-22): of 77 `status='published'` rows, only 1 has a non-null `lint_result`. 73 predate the `provider`/`lint_result` columns entirely (added in migration `20260619000000`, so their absence there is structural, not a skip). The remaining 4 postdate that migration (`provider` is set to gemini/cerebras) — and even so, 3 of those 4 still have no `lint_result`, meaning the bulk path's lint-and-store doesn't fire 100% of the time either.
+- `lint_result` is never deleted or archived on publish (`publish-drafts.mjs:417`, `actions.ts:411` only touch `status`/`published_url`/`published_at`) — so where it exists, it's recoverable as-is; where it's null, there is no historical verdict to recover and factuality must be re-derived fresh from the live published content. See HIGH-35 below.
+- Stuck-draft symptom: "Random Set of the Day: Amazon Ancient Ruins (1999)" (`pending_drafts.id = 1ead3a79-53e5-4424-979b-4ef2eaa0bfd1`), created 2026-05-03, has failed Gate 1 (word count 528, hard limit 500) identically on 6+ consecutive scheduled runs (2026-06-20 through 2026-06-21) and will continue indefinitely. Root cause: lint-gate failures in the cron script `continue` without writing to `status` — the `'failed_lint'` value has existed in the `status` CHECK constraint since the original migration (`20260503000000_pending_drafts.sql`) but has **never once been written** by any code path (0 rows in DB carry it, verified 2026-06-22).
+
+**Scope decision (locked 2026-06-22):**
+- CRITICAL-1 = (a) unify cron `publish-drafts.mjs` on the shared `@/lib/lint` module (Gates 1, 2, 3, 5, 6) instead of its local reimplementation; (b) read stored `lint_result` before re-deriving a fresh check; (c) wire the `failed_lint` terminal status on rejection so failing drafts stop retrying forever.
+- HIGH-5 folded into CRITICAL-1 — cron is the highest-volume publish path, so wiring Gate 6 there closes the bulk of HIGH-5's stated gap. (Residual: Gate 6 itself still only activates for LOW-confidence sources — see MEDIUM-37.)
+- HIGH-6 **partially** folded into CRITICAL-1: wiring Gate 5 into cron closes the "doesn't run there at all" gap, but Gate 5 as implemented (`src/lib/lint.ts` `gateFactuality`) only checks set-number/set-name *existence* against the `sets` table — it does not verify piece count, theme, MSRP, or year, which is HIGH-6's full stated scope. That deeper verification is unbuilt anywhere in the codebase and remains open as residual HIGH-6 scope after CRITICAL-1 ships.
+- Tracker housekeeping: Part A2 workflow inventory — "Batch publish 15 drafts/run" → 30 (changed by commit `0b59a52`, 2026-06-06; tracker note has been stale since then).
 
 #### CRITICAL-2: RADAR-01 dedup audit
 - **What:** Find all duplicate-source-URL drafts beyond known cases (BrickNerd, Amazon Ancient Ruins)
@@ -1217,7 +1232,7 @@ Decision deferred to Day 3 open.
 #### HIGH-5: Source fidelity gate v2 (PR-2b-5b)
 - **What:** Extend source fidelity check to ALL drafts; cross-check article claims against cited source URL content
 - **Source:** PR-2b-5 roadmap
-- **Status:** not started
+- **Status:** **folded into CRITICAL-1** (2026-06-22) — cron wiring closes the bulk of this gap. Residual: Gate 6 still only activates for LOW-confidence sources, not literally all drafts — tracked separately as MEDIUM-37.
 - **Owner:** C
 - **Target window:** this month
 - **Dependencies:** CRITICAL-4
@@ -1225,7 +1240,7 @@ Decision deferred to Day 3 open.
 #### HIGH-6: Factuality gate v2
 - **What:** Verify piece count, theme, MSRP, year for every draft — not just set number existence
 - **Source:** PR-2b-5 roadmap; Sonia incident exposed gap
-- **Status:** not started
+- **Status:** **partially folded into CRITICAL-1** (2026-06-22) — cron wiring fixes "Gate 5 doesn't run on the cron path at all," but Gate 5 as implemented only checks set existence, not piece count/theme/MSRP/year. The deeper verification this item actually asks for is unbuilt anywhere and remains open.
 - **Owner:** C
 - **Target window:** this month
 - **Dependencies:** HIGH-5
@@ -1269,6 +1284,15 @@ Decision deferred to Day 3 open.
 - **Owner:** C
 - **Target window:** this month
 - **Dependencies:** none
+
+#### HIGH-35: Retroactive factuality audit on published articles (AUDIT-RETRO-01)
+- **What:** Audit all 77 `pending_drafts.status='published'` rows for factuality. Verified 2026-06-22: only 1 of 77 has a stored `lint_result` — the other 76 were never lint-checked at any lifecycle stage (73 predate the lint infrastructure entirely — migration `20260619000000`; 3 postdate it but still missing `lint_result` despite the bulk path supposedly always storing one). For each unchecked row: extract set number(s)/name(s) from the live published article (`news_articles`/`blog_posts`, matched via `pending_drafts.published_url`), verify existence against the `sets` table using the same logic as Gate 5 `gateFactuality` (`src/lib/lint.ts:113`), and retract under the CONTRA-01/GAP-03 pattern any article referencing a set that doesn't exist. This is a from-scratch re-check against live content, not a recoverable backfill — `lint_result` was structurally never populated for these rows, not deleted.
+- **Source:** Surfaced during CRITICAL-1 audit, 2026-06-22
+- **Status:** not started
+- **Owner:** C
+- **Priority note:** filed at HIGH tier per project convention, but should be actioned before or alongside CRITICAL-1's forward-looking fix — this is a credibility-lock breach already live in production (some subset of 77 articles may reference nonexistent sets), not a future-prevention task. Independent of CRITICAL-1's code change — uses Gate 5 logic against live published content, not pending_drafts.
+- **Target window:** this week
+- **Dependencies:** none (related: MEDIUM-12's weekly audit cron is the ongoing/future-facing version of this same check, scoped to 10 articles/week going forward — this item is the one-time full backlog catch-up)
 
 ---
 
@@ -1329,6 +1353,22 @@ Decision deferred to Day 3 open.
 - **Owner:** C
 - **Target window:** this month
 - **Dependencies:** MEDIUM-17
+
+#### MEDIUM-36: On-demand single generation skips lint entirely
+- **What:** `generateBody()` (called by the admin "Generate Article" button via `generateArticle()`, `src/app/admin/pending/actions.ts:97`) writes `draft_title`/`draft_body`/`draft_verdict`/`word_count` and sets `status: 'draft'` with no call to `lintDraft()` anywhere in the path. Should at minimum run the full gate set at generation time and persist to `lint_result`, matching what the bulk generator (`generate-approved-drafts.ts`) already does — so cron/manual publish reads a real verdict instead of finding `lint_result IS NULL`.
+- **Source:** Surfaced during CRITICAL-1 audit, 2026-06-22
+- **Status:** not started
+- **Owner:** C
+- **Target window:** unscheduled
+- **Dependencies:** CRITICAL-1 (lint_result read path should land first, so this has something to feed)
+
+#### MEDIUM-37: Gate 6 (source fidelity) scope — extend beyond LOW-confidence sources
+- **What:** `gateSourceFidelity` (`src/lib/lint.ts:194`) only activates for LOW-confidence sources today. HIGH-5's "extend source fidelity check to ALL drafts" is not satisfied merely by CRITICAL-1 wiring cron to *call* Gate 6 — Gate 6 itself still skips non-LOW-confidence sources regardless of caller. Real scope extension (all drafts, all confidence tiers) is separate, residual work.
+- **Source:** Surfaced during CRITICAL-1 audit, 2026-06-22
+- **Status:** not started
+- **Owner:** C
+- **Target window:** unscheduled
+- **Dependencies:** CRITICAL-1
 
 #### STORE-01: Additional Indian LEGO retailer scraping
 - **What:** Add Hamleys India (and other Indian retailers) to store_prices scraping pipeline
@@ -1526,7 +1566,7 @@ Decision deferred to Day 3 open.
 | `code-audit.yml` | Mon 05:00 UTC | ESLint + tsc + npm audit |
 | `health-check.yml` | daily 02:30 UTC | 11 health checks |
 | `youtube-backfill.yml` | manual dispatch | One-shot YouTube hero backfill |
-| `publish-drafts.yml` | 3×/day (19:00/07:30/12:30 UTC) | Batch publish 15 drafts/run |
+| `publish-drafts.yml` | 3×/day (19:00/07:30/12:30 UTC) | Batch publish 30 drafts/run (was 15; commit `0b59a52`, 2026-06-06) |
 | `ci.yml` | PR trigger | CI checks |
 | `generate-drafts.yml` | manual dispatch | GHA batch generation |
 
