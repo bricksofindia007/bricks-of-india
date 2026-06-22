@@ -1513,6 +1513,16 @@ Decision deferred to Day 3 open.
 - **Target window:** unscheduled
 - **Dependencies:** none
 
+#### LOW-40: Monitoring false positives on hero image health checks
+- **What:** Two independent monitoring systems report broken hero images for live, working articles. Both verified 2026-06-22:
+  - **`technical-hygiene.mjs` ImageHealth** (`scripts/technical-hygiene.mjs:717`/`739`): calls `fetch(a.hero_image, ...)` directly with no base URL. For relative paths like the intentional `/fallback-hero.png` fallback, Node's `fetch()` throws `TypeError: Failed to parse URL from /fallback-hero.png` (reproduced directly) — the catch block records this as a broken image, when `/fallback-hero.png` is a working local asset on the live site.
+  - **CQS `image_render_broken`** (`scripts/visual-renderer.mjs:142-146`): reads `document.querySelector('img[src]').naturalWidth` — selects the *first* `<img>` on the page, not necessarily the hero image, with no wait for the image's `load` event before reading `naturalWidth`. Confirmed via DB query: exactly 60 distinct `article_slug` values flagged with `check_name='image_render_broken'` on 2026-06-22 in `content_quality_issues` (1174 total rows all-time, unresolved, table accumulates per check-run rather than deduping per article). Spot-checked 3 of the 60 (`lego-ebon-hawk-your-wallet-remains-safe-for-now`, `lego-11380-road-bike-...`, the megatron-brickheadz rows) — all three `hero_image` URLs resolve HTTP 200 and the component (`ImageWithFallback.tsx`) correctly bypasses Next/Image optimization for external URLs. No actual rendering defect found.
+- **Why it matters:** False positives at this volume desensitize the team to real alerts.
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this week
+- **Source:** Weekly hygiene report investigation, 2026-06-22
+
 ---
 
 ### TRIVIAL — Informational / already resolved in documentation
