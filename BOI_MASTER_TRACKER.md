@@ -1315,6 +1315,15 @@ Decision deferred to Day 3 open.
 - **Final outcome:** Zero retractions. One real production bug found and fixed (commit `71f2a92`). Audit verified catalogue integrity rather than discovering fabrications.
 - **Sub-findings spawned (filed below):** MEDIUM-41 (theme stripper trailing-token gap), MEDIUM-42 (Gate 5 non-set product handling), MEDIUM-43 (extraction artifacts from non-product text), MEDIUM-44 (`is_community` signal gap — community content with stray backend verdict metadata, instances: BrickHeadz ×2, Ebon Hawk).
 
+#### HIGH-45: Generation pipeline dormant — Stage 1 has not fired in 22+ days
+- **What:** `generate-drafts.yml` last ran 2026-05-31 — processed 20 of 335 queued drafts, then hit Gemini's documented rate-limit circuit breaker (`[429 Too Many Requests]... Rate limit (429) — stopping batch to avoid quota waste`, per CLAUDE.md's "on 429, stop immediately, do not retry" policy) and exited cleanly (run conclusion: success). The workflow is `workflow_dispatch`-only — confirmed via direct read of `.github/workflows/generate-drafts.yml`, no `schedule:` trigger exists at all — so nothing has re-triggered it since. Diagnostic complete, ruled out: not a secrets issue (`GEMINI_API_KEY`, `CEREBRAS_API_KEY` both present in repo secrets); not a missing/misconfigured workflow (no other generator-shaped `.yml` file exists). `generator_runs` shows only 3 lifetime rows, all 2026-06-20, 1-draft manual/`manual_test` invocations — the 2026-05-31 batch run predates the table's creation (migration `20260619000000`), same structural telemetry gap as the already-documented GAP-13, not evidence of anything else having run since. Meanwhile RADAR ingests 15–25 candidates/day; backlog now stands at 521 rows awaiting generation (46 never-started + 475 CQS-reset awaiting regeneration). CRITICAL-1 fixed the publish stage; without Stage 1 firing, the publish stage has nothing to publish.
+- **Why it matters:** Blocks the end goal of authentic content flowing to the website. Fan CoLab application (Aug 2026) requires demonstrated publishing cadence; 22+ days of silence undermines that evidence base. Backlog growing means harder cleanup later.
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this week — operationally urgent, every day of inaction grows the backlog
+- **Dependencies:** none; independent of CRITICAL-1 (which closes the publish side). Root cause is design (manual-dispatch-only trigger + quota circuit breaker + no re-trigger), not a crash or missing config — the fix is a scope decision (add a schedule? raise quota/add backoff-and-resume? operator re-triggers manually on a cadence?), not a diagnostic task.
+- **Source:** Surfaced 2026-06-22 during post-CRITICAL-1 holistic pipeline review.
+
 ---
 
 ### MEDIUM — Operational hardening
