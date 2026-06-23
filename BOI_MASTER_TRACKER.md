@@ -1291,15 +1291,29 @@ Decision deferred to Day 3 open.
 - **Target window:** this month
 - **Dependencies:** none
 
-#### HIGH-35: Retroactive factuality audit on published articles (AUDIT-RETRO-01)
+#### HIGH-35: AUDIT-RETRO-01 — retroactive factuality audit of 76 unchecked published articles
 - **What:** Audit all 77 `pending_drafts.status='published'` rows for factuality. Verified 2026-06-22: only 1 of 77 has a stored `lint_result` — the other 76 were never lint-checked at any lifecycle stage (73 predate the lint infrastructure entirely — migration `20260619000000`; 3 postdate it but still missing `lint_result` despite the bulk path supposedly always storing one). For each unchecked row: extract set number(s)/name(s) from the live published article (`news_articles`/`blog_posts`, matched via `pending_drafts.published_url`), verify existence against the `sets` table using the same logic as Gate 5 `gateFactuality` (`src/lib/lint.ts:113`), and retract under the CONTRA-01/GAP-03 pattern any article referencing a set that doesn't exist. This is a from-scratch re-check against live content, not a recoverable backfill — `lint_result` was structurally never populated for these rows, not deleted.
 - **Source:** Surfaced during CRITICAL-1 audit, 2026-06-22
-- **Status:** not started
+- **Status:** **closed 2026-06-22**
 - **Owner:** C
 - **Priority note:** filed at HIGH tier per project convention, but should be actioned before or alongside CRITICAL-1's forward-looking fix — this is a credibility-lock breach already live in production (some subset of 77 articles may reference nonexistent sets), not a future-prevention task. Independent of CRITICAL-1's code change — uses Gate 5 logic against live published content, not pending_drafts.
 - **Target window:** this week
 - **Dependencies:** none (related: MEDIUM-12's weekly audit cron is the ongoing/future-facing version of this same check, scoped to 10 articles/week going forward — this item is the one-time full backlog catch-up)
 - **Verification (2026-06-22):** checked whether the dropped `lint_results` (plural) column has any reconcilable historical data via its backup table (`pending_drafts_lint_results_backup_20260620`, created by migration `20260620120000` before the drop). Backup table is 0 rows — the plural column was never written to by any code path, matching the migration's own "zero code references" note. Confirms no hidden lint data exists anywhere under either column name; the 76-row unchecked population stands as the true audit scope, not an overcount.
+- **Population:** 76 articles published via cron without `lint_result`, identified in Phase 1.
+- **Method:** Phase 1 extraction (`audit/HIGH-35/phase1-extraction-2026-06-22.json`) → Phase 2 verification calling production `gateFactuality` against each article's published content (commit `48d0885`).
+- **Result:**
+  - 64 PASS at first Phase 2 run.
+  - 5 additional PASS after fixing the `extractSetNameCandidates` theme-stripper bug (commit `71f2a92`) — Technic Aston Martin, Icons Sega Genesis, Star Wars Jabba's Sail Barge, Icons Road Bike, Technic McLaren all resolved to real catalogue sets.
+  - 7 remaining `FAIL_FACTUALITY` cases triaged via direct catalogue lookup + body inspection + external verification:
+    - **Main Street USA** — matcher trailing-token gap; real set "Main Street" (43302) exists; article PASS.
+    - **Megatron BrickHeadz ×2** — real catalogue set 40924; matcher gap class; article PASS.
+    - **Ebon Hawk** — MOC correctly disclosed in prose; no live verdict rendered; stray backend `draft_verdict='WAIT'` never reached the page; article PASS.
+    - **World Netherlands** — convention/event name, not a product; article PASS.
+    - **Smart Brick** — real LEGO product (LEGO SMART Brick, launched 2026-03-01, verified via LEGO.com press release, Wikipedia, Brickset); platform component, not a numbered set; article PASS.
+    - **India MRP** — extraction artifact from pricing text "LEGO India MRP ₹X"; article PASS.
+- **Final outcome:** Zero retractions. One real production bug found and fixed (commit `71f2a92`). Audit verified catalogue integrity rather than discovering fabrications.
+- **Sub-findings spawned (filed below):** MEDIUM-41 (theme stripper trailing-token gap), MEDIUM-42 (Gate 5 non-set product handling), MEDIUM-43 (extraction artifacts from non-product text), MEDIUM-44 (`is_community` signal gap — community content with stray backend verdict metadata, instances: BrickHeadz ×2, Ebon Hawk).
 
 ---
 
@@ -1394,6 +1408,36 @@ Decision deferred to Day 3 open.
 - **Risk:** moderate. App Router migration story between 14 and 16 needs review; test surface is the full site.
 - **Dependencies:** none. Standalone migration.
 - **Source:** Surfaced during npm audit triage following weekly hygiene alerts, 2026-06-22
+
+#### MEDIUM-41: extractSetNameCandidates theme stripper retains trailing tokens
+- **What:** Theme-prefix stripping (e.g., "Disney Main Street USA" → "Main Street USA") doesn't handle trailing geo/region tokens. Real set name "Main Street" fails AND-word-match because "USA" survives stripping.
+- **Source:** HIGH-35 final triage, 2026-06-22
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month
+- **Cross-ref:** HIGH-6 residual matcher-precision scope
+
+#### MEDIUM-42: Gate 5 has no concept of non-set LEGO products
+- **What:** Real LEGO products that aren't numbered consumer sets (platform components like LEGO SMART Brick, accessories, GWPs) cannot be verified by Gate 5 because `sets.set_number` is the only catalogue surface. Articles referencing such products will always FAIL_FACTUALITY despite being factually correct.
+- **Source:** HIGH-35 final triage (Smart Brick case), 2026-06-22
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this quarter
+- **Cross-ref:** HIGH-6 residual deeper-verification scope
+
+#### MEDIUM-43: extractSetNameCandidates pulls non-product text as candidates
+- **What:** Regex matches "LEGO [Title Case]" without distinguishing product names from event names ("LEGO World Netherlands"), pricing terminology ("LEGO India MRP"), or other non-product capitalized phrases. Surfaces as false FAIL_FACTUALITY in audits and could cause real publish-time rejections.
+- **Source:** HIGH-35 final triage (World Netherlands, India MRP), 2026-06-22
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month
+
+#### MEDIUM-44: is_community signal gap — stray backend verdict metadata
+- **What:** Phase 1's `is_community` heuristic (`draft_verdict IS NULL`) fails when the drafter assigns a buy/wait verdict to community/MOC content that gets retained in `pending_drafts.draft_verdict` even though it never reaches the published page (no structured verdict column in `news_articles`). Confirmed instances: 2 BrickHeadz articles, 1 Ebon Hawk article. Customer-facing impact: zero. Backend metadata cleanup + drafter-side fix needed.
+- **Source:** HIGH-35 Phase 1 (BrickHeadz finding) + final triage (Ebon Hawk confirmation), 2026-06-22
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month
 
 #### STORE-01: Additional Indian LEGO retailer scraping
 - **What:** Add Hamleys India (and other Indian retailers) to store_prices scraping pipeline
