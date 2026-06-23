@@ -1,10 +1,14 @@
 name: generate-drafts
 
 on:
+  schedule:
+    # Daily at 08:30 UTC (02:00 PT) — 90min after Gemini quota reset (07:00 UTC summer / PT 00:00).
+    # Does not collide with publish-drafts cron times.
+    - cron: '30 8 * * *'
   workflow_dispatch:
     inputs:
       limit:
-        description: 'Max drafts to generate (default 50)'
+        description: 'Max drafts to generate (default 50 manual, 20 scheduled)'
         required: false
         default: '50'
 
@@ -33,9 +37,9 @@ jobs:
         run: npm ci
 
       - name: Generate approved drafts
+        env:
+          # Manual dispatch supplies inputs.limit (default 50 from input default).
+          # Schedule trigger has no inputs context → fall through to RUN_LIMIT default of 20.
+          RUN_LIMIT: ${{ inputs.limit || '20' }}
         run: |
-          if [ -n "${{ inputs.limit }}" ]; then
-            npx tsx scripts/generate-approved-drafts.ts --limit ${{ inputs.limit }}
-          else
-            npx tsx scripts/generate-approved-drafts.ts
-          fi
+          npx tsx scripts/generate-approved-drafts.ts --limit "$RUN_LIMIT"
