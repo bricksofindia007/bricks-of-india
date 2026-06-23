@@ -1448,6 +1448,14 @@ Decision deferred to Day 3 open.
 - **Owner:** C
 - **Target window:** this month
 
+#### MEDIUM-47: pending_drafts.requires_manual_approval column is structurally dead
+- **What:** Column exists in schema and is displayed as a badge in `/admin/pending` (`page.tsx:144`), but `publish-drafts.mjs`'s SELECT (line 255 — confirmed by direct read 2026-06-22) never reads it — the cron cannot gate on a value it doesn't fetch. Originally set by Cerebras-probation logic that was removed in `8e3f915`, so it's always `false` today. Dead safety mechanism creates false confidence.
+- **Decision needed:** Either wire it into the cron filter (revives a meaningful safety hatch) OR drop the column (removes the false confidence). Don't leave dead.
+- **Source:** Surfaced 2026-06-22 during auto-publish policy verification.
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this week
+
 #### STORE-01: Additional Indian LEGO retailer scraping
 - **What:** Add Hamleys India (and other Indian retailers) to store_prices scraping pipeline
 - **Source:** Scope expansion request

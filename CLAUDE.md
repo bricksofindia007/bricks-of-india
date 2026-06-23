@@ -79,11 +79,11 @@ When adding price display to any new page, always use `store_prices`, never `pri
 
 **RADAR-04 is on-demand only — NOT in the nightly cron.** The `generateArticle()` Server Action in `/admin/pending` runs Gemini for one draft at a time when the operator clicks the amber "Generate Article" button. `generate-drafts.js` exists for manual bulk use only. Never re-add RADAR-04 to `radar.yml` without explicit operator instruction — auto-generation burns Gemini quota on every approved signal indiscriminately (DEFECT-012).
 
-**Nightly cron (radar.yml) = RADAR-01 → RADAR-02 → RADAR-03 only.** Signals are fetched, deduped, and classified automatically. Generation and publishing are always operator-initiated.
+**Nightly cron (radar.yml) = RADAR-01 → RADAR-02 → RADAR-03 only.** Signals are fetched, deduped, and classified automatically. Generation is operator-initiated (manual GHA dispatch or the on-demand admin button); publishing is automatic — see Publishing policy below.
 
-**Pipeline order:** RADAR-01 (fetch) → RADAR-02 (dedupe) → RADAR-03 (classify → pending_drafts) → RADAR-04 (generate bodies for approved rows) → /admin/pending (manual operator review) → publish.
+**Pipeline order:** RADAR-01 (fetch) → RADAR-02 (dedupe) → RADAR-03 (classify → pending_drafts) → RADAR-04 (generate bodies for approved rows) → publish-drafts.yml cron (auto-publish on full lint pass) or `/admin/pending` (manual approve/reject for `failed_lint` rows).
 
-**Nothing auto-publishes.** Every draft requires explicit operator approval at `/admin/pending` before any article goes live.
+**Publishing policy (locked 2026-06-20, code-verified 2026-06-22):** Drafts that pass all 6 lint gates (word count, India Paragraph, verdict, hero image, factuality against master sets DB, source fidelity for low-confidence sources) auto-publish via the `publish-drafts.yml` cron 3×/day. Drafts that fail any gate move to `status='failed_lint'`, trigger an email alert, and surface in `/admin/pending` for manual review — operator either approves (publishes the row) or rejects (deletes it). There is no manual-approval gate on the happy path; the lint gates are the gate.
 
 **RADAR-03 qualifying threshold:** score ≥ 4 (Tier 1=5pts, Tier 2=4pts, Tier 3=3pts; has body +2pts; freshness +2/+1pts). Tier 4/5 almost never qualify unless they have body content.
 
