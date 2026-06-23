@@ -306,8 +306,8 @@ if (IS_MAIN) (async () => {
   }
   runId = runRow?.id ?? null;
 
-  let geminiAttempted = 0, geminiOk = 0, geminiLintFailed = 0;
-  let cerebrasAttempted = 0, cerebrasOk = 0, cerebrasLintFailed = 0;
+  let geminiAttempted = 0, geminiOk = 0, geminiLintFailed = 0, geminiRoutedToReview = 0;
+  let cerebrasAttempted = 0, cerebrasOk = 0, cerebrasLintFailed = 0, cerebrasRoutedToReview = 0;
   let deferred = 0, failed = 0;
 
   for (let i = 0; i < queue.length; i++) {
@@ -347,7 +347,16 @@ if (IS_MAIN) (async () => {
         }
 
         geminiAttempted++;
-        if (outcome.failoverUsed) { cerebrasAttempted++; cerebrasLintFailed++; } else { geminiLintFailed++; }
+        // Discriminate: genuine lint failure vs format-routed-to-review (opinion/review/guide).
+        // outcome.lintResult.overallPass=true means lint passed but format requires manual review.
+        // overallPass=false means lint genuinely failed gates.
+        const lintActuallyFailed = outcome.lintResult && !outcome.lintResult.overallPass;
+        if (outcome.failoverUsed) {
+          cerebrasAttempted++;
+          if (lintActuallyFailed) cerebrasLintFailed++; else cerebrasRoutedToReview++;
+        } else {
+          if (lintActuallyFailed) geminiLintFailed++; else geminiRoutedToReview++;
+        }
         const failoverNote = outcome.failoverUsed ? ' [CEREBRAS FAILOVER]' : '';
         const manualNote   = outcome.requiresManualApproval ? ' [MANUAL REVIEW REQUIRED]' : '';
         const lintNote     = outcome.lintResult && !outcome.lintResult.overallPass ? ' [LINT WARN]' : '';
@@ -377,8 +386,8 @@ if (IS_MAIN) (async () => {
   // ── Update generator_runs row ──────────────────────────────────────────────
   if (runId) {
     const providerStats = {
-      gemini:   { attempted: geminiAttempted,   ok: geminiOk,   lint_failed: geminiLintFailed },
-      cerebras: { attempted: cerebrasAttempted, ok: cerebrasOk, lint_failed: cerebrasLintFailed },
+      gemini:   { attempted: geminiAttempted,   ok: geminiOk,   lint_failed: geminiLintFailed,   routed_to_review: geminiRoutedToReview },
+      cerebras: { attempted: cerebrasAttempted, ok: cerebrasOk, lint_failed: cerebrasLintFailed, routed_to_review: cerebrasRoutedToReview },
     };
     const { error: updateErr } = await sb
       .from('generator_runs')
@@ -387,7 +396,7 @@ if (IS_MAIN) (async () => {
         drafts_succeeded:        geminiOk + cerebrasOk,
         drafts_lint_failed:      geminiLintFailed + cerebrasLintFailed,
         drafts_deferred:         deferred,
-        drafts_routed_to_review: 0,
+        drafts_routed_to_review: geminiRoutedToReview + cerebrasRoutedToReview,
         drafts_failed:           failed,
         provider_stats:          providerStats,
       })
@@ -399,8 +408,10 @@ if (IS_MAIN) (async () => {
   }
 
   const total = geminiOk + cerebrasOk;
+  const routed = geminiRoutedToReview + cerebrasRoutedToReview;
+  const lintFailed = geminiLintFailed + cerebrasLintFailed;
   const dur   = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`\nSUMMARY: ${total} ok (${geminiOk} gemini, ${cerebrasOk} cerebras), ${geminiLintFailed + cerebrasLintFailed} lint-routed, ${failed} failed, ${deferred} deferred of ${queue.length} — ${dur}s total`);
+  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${cerebrasOk} cerebras), ${routed} routed to review, ${lintFailed} lint failed, ${failed} failed, ${deferred} deferred of ${queue.length} — ${dur}s total`);
 })().catch(err => {
   console.error('FATAL:', err);
   process.exit(1);
