@@ -1325,12 +1325,14 @@ Decision deferred to Day 3 open.
 - **Source:** Surfaced 2026-06-22 during post-CRITICAL-1 holistic pipeline review.
 
 #### HIGH-46: Rebrickable API returning HTTP 401 for set lookups
-- **What:** technical-hygiene.yml 2026-06-22 run logged `[ExtP1] FAIL: Rebrickable API: HTTP 401 for 42172-1 — image fallback chain will fail` (line 820 of run log) and `[ExtDependencies] FAIL: Rebrickable API: HTTP 401 for set 42172-1` (line 851). Auth failure suggests REBRICKABLE_API_KEY either expired, revoked, or rate-limited beyond 401-recoverable state. Breaks the image fallback chain for any set without a working Brickset image, and blocks HIGH-6's planned piece/theme/MSRP/year verification (Rebrickable is the canonical data source for those fields).
+- **What:** technical-hygiene.yml 2026-06-22 run logged `[ExtP1] FAIL: Rebrickable API: HTTP 401 for 42172-1 — image fallback chain will fail` (line 820 of run log) and `[ExtDependencies] FAIL: Rebrickable API: HTTP 401 for set 42172-1` (line 851).
+- **Root cause (diagnosed 2026-06-25):** Not a key problem. `technical-hygiene.mjs` reads `process.env.REBRICKABLE_API_KEY` (same header format as the working `sync-rebrickable.js`), but `technical-hygiene.yml`'s env block never declared the secret — confirmed via grep, zero matches, while all 5 sibling workflows (`radar.yml`, `sync-catalogue.yml`, `scrape-prices.yml`, `publish-drafts.yml`, `deploy.yml`) wire it correctly. So `rbKey` was `undefined` in CI, the Authorization header was omitted entirely, and Rebrickable correctly 401'd with "Authentication credentials were not provided." Confirmed by live baseline test (unauthenticated request reproduces the identical 401) and by production evidence the real key works: `sync-catalogue.yml` run `27896212758` (2026-06-21T06:40Z, one day before the failing hygiene run) synced 12,000+ entries with 0 failed requests using the same key. Same Bucket D pattern as the `NEXT_PUBLIC_SUPABASE_ANON_KEY` fix (commit `1a1c051`). Also confirmed Rebrickable is not in the Cerebras/Gemini draft-generation path — this item never actually blocked Tier B.
+- **Fix:** Added `REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}` to `technical-hygiene.yml`'s env block; added `technical-hygiene.yml` to `REBRICKABLE_API_KEY.required_by` in `.github/secrets-manifest.json`.
 - **Source:** hygiene run 2026-06-22T09:42:39Z, lines 820 + 851
-- **Status:** Open. Root cause not yet diagnosed (key rotation, quota, scope, set-specific defect — unknown).
-- **Owner:** Abhinav (terminal to diagnose with read-only curl test first; no code change until cause is known).
-- **Target window:** Before HIGH-6 deeper verification work begins — HIGH-6 cannot ship without a working Rebrickable client.
-- **Dependencies:** Blocks HIGH-6 residual.
+- **Status:** Closed 2026-06-25, pending next scheduled hygiene run for live confirmation (Monday 04:00 UTC).
+- **Owner:** Abhinav (terminal)
+- **Target window:** Done.
+- **Dependencies:** None — confirmed not a blocker for HIGH-6 or Tier B; HIGH-6 residual still needs HIGH-48 (piece data coverage) separately.
 
 #### HIGH-47: Homepage HTML contains literal `mailto:` link (CI guard bypass or regression)
 - **What:** technical-hygiene.yml 2026-06-22 run logged `[SecurityPosture] FAIL: homepage HTML contains mailto: — email address exposed to harvesters` (line 909). Per BOI_MASTER_TRACKER.md prior context, a CI guard was added during the contact-route migration explicitly to prevent literal email in client-rendered HTML. Either (a) the guard regressed silently, (b) the homepage was modified after the guard and the guard's coverage misses the homepage, or (c) the guard runs in a workflow that's not blocking merges. Email exposed to harvesters is a credibility and spam-risk problem with Fan CoLab implications.
