@@ -1324,6 +1324,46 @@ Decision deferred to Day 3 open.
 - **Dependencies:** none; independent of CRITICAL-1 (which closes the publish side). Root cause is design (manual-dispatch-only trigger + quota circuit breaker + no re-trigger), not a crash or missing config — the fix is a scope decision (add a schedule? raise quota/add backoff-and-resume? operator re-triggers manually on a cadence?), not a diagnostic task.
 - **Source:** Surfaced 2026-06-22 during post-CRITICAL-1 holistic pipeline review.
 
+#### HIGH-46: Rebrickable API returning HTTP 401 for set lookups
+- **What:** technical-hygiene.yml 2026-06-22 run logged `[ExtP1] FAIL: Rebrickable API: HTTP 401 for 42172-1 — image fallback chain will fail` (line 820 of run log) and `[ExtDependencies] FAIL: Rebrickable API: HTTP 401 for set 42172-1` (line 851). Auth failure suggests REBRICKABLE_API_KEY either expired, revoked, or rate-limited beyond 401-recoverable state. Breaks the image fallback chain for any set without a working Brickset image, and blocks HIGH-6's planned piece/theme/MSRP/year verification (Rebrickable is the canonical data source for those fields).
+- **Source:** hygiene run 2026-06-22T09:42:39Z, lines 820 + 851
+- **Status:** Open. Root cause not yet diagnosed (key rotation, quota, scope, set-specific defect — unknown).
+- **Owner:** Abhinav (terminal to diagnose with read-only curl test first; no code change until cause is known).
+- **Target window:** Before HIGH-6 deeper verification work begins — HIGH-6 cannot ship without a working Rebrickable client.
+- **Dependencies:** Blocks HIGH-6 residual.
+
+#### HIGH-47: Homepage HTML contains literal `mailto:` link (CI guard bypass or regression)
+- **What:** technical-hygiene.yml 2026-06-22 run logged `[SecurityPosture] FAIL: homepage HTML contains mailto: — email address exposed to harvesters` (line 909). Per BOI_MASTER_TRACKER.md prior context, a CI guard was added during the contact-route migration explicitly to prevent literal email in client-rendered HTML. Either (a) the guard regressed silently, (b) the homepage was modified after the guard and the guard's coverage misses the homepage, or (c) the guard runs in a workflow that's not blocking merges. Email exposed to harvesters is a credibility and spam-risk problem with Fan CoLab implications.
+- **Source:** hygiene run 2026-06-22T09:43:08Z, line 909
+- **Status:** Open. Diagnosis required: identify the literal `mailto:` location in homepage, then determine why the CI guard didn't catch it.
+- **Owner:** Abhinav (terminal to diagnose, prescribe back).
+- **Target window:** ASAP — credibility-visible.
+- **Dependencies:** None.
+
+#### HIGH-48: 27% of sets missing pieces data — catalog credibility gap + blocks HIGH-6
+- **What:** technical-hygiene.yml 2026-06-22 run logged `[CatalogCoverage] FAIL: 27% of sets missing pieces data — catalogue may be degraded` (line 811). Piece count is a core attribute users expect; absence at 27% scale is a visible credibility hit. Also directly blocks HIGH-6 deeper verification — Gate 5 cannot verify "claimed piece count matches catalog" against 27% of the catalog.
+- **Source:** hygiene run 2026-06-22T09:42:37Z, line 811
+- **Status:** Open. Need to determine: is the 27% concentrated in a specific source (Brickset vs Rebrickable vs manual), theme, or era, or is it spread evenly?
+- **Owner:** Abhinav (terminal SELECT-only query to characterize the gap before prescribing backfill).
+- **Target window:** Before HIGH-6 deeper verification ships.
+- **Dependencies:** Blocks HIGH-6 residual (partial — verification can run on the 73% that have piece data; full coverage needs this).
+
+#### HIGH-49: Article mentions Toycra without ABHINAV12 affiliate code
+- **What:** technical-hygiene.yml 2026-06-22 run logged `[ContentIntegrity] FAIL: 1 article(s) mention Toycra without ABHINAV12: lego-technic-aston-martin-amr25-f1-car-revealed-another-one-` (line 870). Article mentions the affiliate partner without including the discount code obligated under the Toycra affiliate relationship — both a missed credibility signal (readers don't get the discount) and a partner-obligation gap.
+- **Source:** hygiene run 2026-06-22T09:42:50Z, line 870
+- **Status:** Open. Article needs to be amended to include ABHINAV12 wherever Toycra is mentioned, or the mention should be removed if not appropriate.
+- **Owner:** Abhinav (editorial fix).
+- **Target window:** This week.
+- **Dependencies:** None.
+
+#### HIGH-50: Generator skips 46 approved drafts with null draft_title
+- **What:** technical-hygiene.yml 2026-06-22 run logged `[DraftTitleNull] FAIL: 46 approved drafts have null draft_title and will be skipped by generator` (line 895), with full UUID list. These 46 rows sit in pending_drafts.status='approved' but are structurally invisible to the generator because the generator query filters out null draft_title. They're a permanent, silent leak in the backlog drain — until draft_title is populated, the daily cron (now scheduled per HIGH-45 fix) will never touch them. A prior bulk fix existed for 251 such rows (commit context in tracker line 373); the current 46 are a fresh accumulation since that fix, indicating draft_title can become null again post-approval and needs a structural fix, not just another one-off backfill.
+- **Source:** hygiene run 2026-06-22T09:43:02Z, line 895; full UUID list in run log
+- **Status:** Open. Two-part fix needed: (1) backfill the 46 from source_title (same approach as the prior 251-row fix), (2) identify why draft_title goes null post-approval and prevent recurrence.
+- **Owner:** Abhinav (terminal to diagnose root cause before backfill).
+- **Target window:** Before scheduled generator hits its first full cadence — otherwise these 46 are dead weight in every backlog count.
+- **Dependencies:** None blocking, but adjacent to HIGH-45 (the scheduled generator will surface this pattern more frequently).
+
 ---
 
 ### MEDIUM — Operational hardening
@@ -1455,6 +1495,30 @@ Decision deferred to Day 3 open.
 - **Status:** not started
 - **Owner:** C
 - **Target window:** this week
+
+#### MEDIUM-48: store_prices table has no rows for City theme sets
+- **What:** technical-hygiene.yml 2026-06-22 run logged `[DataIntegrity] FAIL: No store_prices rows for City sets — related set cards will show no prices` (line 788). City is a flagship LEGO theme; absence of price data means related-set cards on City-themed articles will render without prices, degrading the comparison-shopping value proposition that is the platform's core differentiator.
+- **Source:** hygiene run 2026-06-22T09:42:32Z, line 788
+- **Status:** Open. Unknown whether this is a price-pipeline gap (City sets never got scraped) or a theme-classification gap (City sets have prices but joined under a different theme key).
+- **Owner:** Abhinav (terminal SELECT-only diagnostic before fix).
+- **Target window:** This sprint.
+- **Dependencies:** None.
+
+#### MEDIUM-49: 2 articles have store data but missing store name(s)
+- **What:** technical-hygiene.yml 2026-06-22 run logged `[ContentIntegrity] FAIL: 2 article(s) have data but missing store name(s): lego-disney-main-street-usa-43302-revealed-charming-but-pric, lego-architecture-21066-new-york-city-in-india-the-big-apple` (line 878). Articles have price data attached but the store name field is empty, meaning users see prices without knowing which retailer to buy from — credibility hit on the comparison shopping promise.
+- **Source:** hygiene run 2026-06-22T09:42:52Z, line 878
+- **Status:** Open. Likely a data-association bug at price-ingestion time, not editorial.
+- **Owner:** Abhinav (terminal to diagnose).
+- **Target window:** This sprint.
+- **Dependencies:** None.
+
+#### MEDIUM-50: Brickset API key validation returns malformed "success" response shape
+- **What:** technical-hygiene.yml 2026-06-22 run logged `[ExtDependencies] FAIL: Brickset API: key returned "{"status":"success"}"` (line 852). Two possibilities: (a) the check-script's expected response shape is wrong (Brickset legitimately returns `{"status":"success"}` and the check's validation regex was written against a stale schema), or (b) the response is malformed — the API returned bare "success" without the expected sets/data payload, indicating a real auth or call-shape issue masquerading as success.
+- **Source:** hygiene run 2026-06-22T09:42:47Z, line 852
+- **Status:** Open. Diagnostic curl against Brickset with the current key needed before deciding whether to fix the check-script or the API client.
+- **Owner:** Abhinav (terminal to run read-only diagnostic).
+- **Target window:** This sprint.
+- **Dependencies:** None.
 
 #### STORE-01: Additional Indian LEGO retailer scraping
 - **What:** Add Hamleys India (and other Indian retailers) to store_prices scraping pipeline
