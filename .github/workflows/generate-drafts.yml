@@ -11,6 +11,11 @@ on:
         description: 'Max drafts to generate (default 50 manual, 20 scheduled)'
         required: false
         default: '50'
+      smoke_test:
+        description: 'Force Gemini failure to verify Cerebras failover (sets SMOKE_TEST=1, overrides GEMINI_API_KEY with invalid value, forces RUN_LIMIT=1)'
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   generate:
@@ -38,8 +43,10 @@ jobs:
 
       - name: Generate approved drafts
         env:
-          # Manual dispatch supplies inputs.limit (default 50 from input default).
+          # smoke_test=true forces RUN_LIMIT=1 regardless of inputs.limit.
           # Schedule trigger has no inputs context → fall through to RUN_LIMIT default of 20.
-          RUN_LIMIT: ${{ inputs.limit || '20' }}
+          RUN_LIMIT: ${{ inputs.smoke_test == 'true' && '1' || inputs.limit || '20' }}
+          SMOKE_TEST: ${{ inputs.smoke_test == 'true' && '1' || '' }}
+          GEMINI_API_KEY: ${{ inputs.smoke_test == 'true' && 'smoke_test_invalid_key_force_400' || secrets.GEMINI_API_KEY }}
         run: |
           npx tsx scripts/generate-approved-drafts.ts --limit "$RUN_LIMIT"
