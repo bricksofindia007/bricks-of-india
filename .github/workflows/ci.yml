@@ -1,0 +1,68 @@
+name: email-guard
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  verify-no-email-in-client-bundle:
+    runs-on: ubuntu-latest
+    env:
+      CONTACT_EMAIL:                  ${{ secrets.CONTACT_EMAIL }}
+      RESEND_API_KEY:                 ${{ secrets.RESEND_API_KEY }}
+      NEXT_PUBLIC_SUPABASE_URL:       ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY:  ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_SITE_URL:           https://bricksofindia.com
+      NEXT_PUBLIC_GA_MEASUREMENT_ID:  ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - run: npm run build
+
+      - name: Scan client bundle for email leak
+        run: |
+          if grep -r "abhinav@bricksofindia.com" .next/static/ 2>/dev/null; then
+            echo "::error::email literal found in client static bundle"
+            exit 1
+          fi
+          echo "PASS: email not in client static bundle"
+
+      - name: Scan rendered HTML for email leak
+        run: |
+          npm run start &
+          SERVER_PID=$!
+          sleep 8
+          FAIL=0
+          for route in / /about /community /community/test-slug /contact; do
+            if curl -sf "http://localhost:3000$route" | grep -q "abhinav@bricksofindia.com"; then
+              echo "::error::email literal found in rendered HTML at $route"
+              FAIL=1
+            fi
+          done
+          kill $SERVER_PID
+          exit $FAIL
+
+  snapshot-tests:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Run prompt snapshot tests
+        run: npm test

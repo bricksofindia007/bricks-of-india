@@ -131,13 +131,13 @@ export default async function SpotlightPage({ params }: Props) {
           <p className="font-body text-gray-600 mb-4">
             We&apos;re looking for remarkable Indian AFOLs to feature. If you build, collect, or create MOCs and you&apos;re based in India — we want to hear from you. Your wallet&apos;s suffering deserves to be documented.
           </p>
-          <a
-            href="mailto:abhinav@bricksofindia.com?subject=Builder Spotlight Feature"
+          <Link
+            href="/contact?subject=Builder+Spotlight+Feature"
             className="inline-block font-bold px-6 py-3 rounded-xl text-white text-sm"
             style={{ background: 'var(--boi-navy)' }}
           >
-            Get in touch →
-          </a>
+            Get in touch
+          </Link>
         </div>
 
         <div className="mt-8">

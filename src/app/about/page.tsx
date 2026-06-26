@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Image from 'next/image';
+import Link from 'next/link';
 import { JsonLd } from '@/components/JsonLd';
 import { personSchema } from '@/lib/schemas';
 import { BRAND, MASCOTS } from '@/lib/brand';
@@ -308,8 +309,8 @@ export default function AboutPage() {
                 <InstagramIcon />
                 @bricksofindia on Instagram
               </a>
-              <a
-                href="mailto:abhinav@bricksofindia.com"
+              <Link
+                href="/contact"
                 className="inline-flex items-center gap-3 text-sm font-semibold px-5 py-3 rounded-xl transition-opacity hover:opacity-80 max-w-xs"
                 style={{
                   background: 'var(--boi-navy)',
@@ -318,8 +319,8 @@ export default function AboutPage() {
                 }}
               >
                 <MailIcon />
-                abhinav@bricksofindia.com
-              </a>
+                Contact us
+              </Link>
             </div>
           </section>
 

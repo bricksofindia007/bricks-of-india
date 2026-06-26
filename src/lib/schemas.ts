@@ -4,7 +4,12 @@ export const organizationSchema = {
   name: 'Bricks of India',
   url: 'https://www.bricksofindia.com',
   logo: 'https://www.bricksofindia.com/brand/hero-banner.png',
-  email: 'abhinav@bricksofindia.com',
+  contactPoint: {
+    '@type': 'ContactPoint',
+    contactType: 'customer support',
+    url: 'https://bricksofindia.com/contact',
+    availableLanguage: ['English', 'Hindi'],
+  },
   founder: {
     '@type': 'Person',
     name: 'Abhinav Bhargav',
@@ -33,7 +38,12 @@ export const personSchema = {
   '@type': 'Person',
   name: 'Abhinav Bhargav',
   jobTitle: 'Founder, Bricks of India',
-  email: 'abhinav@bricksofindia.com',
+  contactPoint: {
+    '@type': 'ContactPoint',
+    contactType: 'customer support',
+    url: 'https://bricksofindia.com/contact',
+    availableLanguage: ['English', 'Hindi'],
+  },
   url: 'https://www.bricksofindia.com/about',
   description:
     '20+ years in enterprise sales, marketing, and account management. Cornell University. Founder of Bricks of India.',

@@ -193,14 +193,14 @@ export function Footer() {
                 <InstagramIcon />
                 @bricksofindia
               </a>
-              <a
-                href="mailto:abhinav@bricksofindia.com"
+              <Link
+                href="/contact"
                 className="inline-flex items-center gap-2 hover:text-white transition-colors"
                 style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(255,247,220,0.85)' }}
               >
                 <MailIcon />
-                abhinav@bricksofindia.com
-              </a>
+                Contact
+              </Link>
             </div>
           </div>
         </div>

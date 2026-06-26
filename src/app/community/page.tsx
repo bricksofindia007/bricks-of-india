@@ -67,13 +67,13 @@ export default async function CommunityPage() {
               We&apos;re in the field, identifying and mildly interrogating India&apos;s most remarkable LEGO builders.
               First spotlights landing June 2026.
             </p>
-            <a
-              href="mailto:abhinav@bricksofindia.com?subject=Builder Spotlight Feature"
+            <Link
+              href="/contact?subject=Builder+Spotlight+Feature"
               className="inline-block font-bold px-6 py-3 rounded-xl text-white text-sm"
               style={{ background: 'var(--boi-navy)' }}
             >
-              Are you an Indian AFOL? Get in touch →
-            </a>
+              Are you an Indian AFOL? Get in touch
+            </Link>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
