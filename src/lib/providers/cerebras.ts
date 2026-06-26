@@ -19,9 +19,12 @@ export class CerebrasProvider implements Provider {
       temperature: 0.7,
     });
 
+    // Strip BOM (﻿) — secrets pasted from some editors prepend one, which causes a
+    // "Cannot convert to ByteString" error when the key lands in the Authorization header.
+    const key = this.apiKey.replace(/^﻿/, '');
     const attempt = () => fetch(CEREBRAS_API_URL, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${key}` },
       body,
       signal: AbortSignal.timeout(60_000),
     });
