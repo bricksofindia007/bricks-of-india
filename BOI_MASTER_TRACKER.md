@@ -2,8 +2,8 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-06-21 (consolidation audit — Days 35-N state captured through PR-2b-3.7 merge; HEAD=128d536)
-> **Health Score: 96** — store_prices drop (2,600→1,512) UNVERIFIED. YouTube OAuth blocked (Google review, submitted 2026-06-02). Cerebras failover live. Schema reconciled (PR-2b-3.6). Filler filter (PR-2b-3.7). Social heartbeat table live. IG unaffected.
+> **Last updated:** 2026-06-26 (HIGH-47 closed, MEDIUM-51 closed, MEDIUM-53 filed, Cerebras B2 smoke test proved; HEAD=1dfef88)
+> **Health Score: 96** — store_prices drop (2,600→1,512) UNVERIFIED. YouTube OAuth blocked (Google review, submitted 2026-06-02). Cerebras failover proven end-to-end (smoke run 28256415673: 1 article auto-published via Cerebras). Email-guard green. IG unaffected.
 > **Audit log:** `audit-block1.log` | Consolidation audit 2026-06-21: see §Consolidation Audit at file end
 > Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
 
@@ -1336,9 +1336,9 @@ Decision deferred to Day 3 open.
 #### HIGH-47: Homepage HTML contains literal `mailto:` link (CI guard bypass or regression)
 - **What:** technical-hygiene.yml 2026-06-22 run logged `[SecurityPosture] FAIL: homepage HTML contains mailto: — email address exposed to harvesters` (line 909). Per BOI_MASTER_TRACKER.md prior context, a CI guard was added during the contact-route migration explicitly to prevent literal email in client-rendered HTML. Either (a) the guard regressed silently, (b) the homepage was modified after the guard and the guard's coverage misses the homepage, or (c) the guard runs in a workflow that's not blocking merges. Email exposed to harvesters is a credibility and spam-risk problem with Fan CoLab implications.
 - **Source:** hygiene run 2026-06-22T09:43:08Z, line 909
-- **Status:** Diagnosed 2026-06-23 via R1 reconciliation. Root cause is **none of the three original hypotheses (a/b/c)** but a fourth case: the CI guard was never committed to origin. The homepage's `mailto:` originates from `src/components/layout/Footer.tsx` (rendered site-wide). The guard workflow (`.github/workflows/ci.yml`, named "email-guard", scans built client bundle + 5 rendered routes including `/`) exists uncommitted in the Windows checkout at `C:\Users\bharg\Documents\BricksofIndia\website`. The secrets manifest already references `ci.yml` in `CONTACT_EMAIL.required_by` ("Enforced by CI guard verify-no-email-in-client-bundle") and the `CONTACT_EMAIL` secret exists in GitHub (rotated 2026-06-17) — so the documentation shipped, the workflow that the documentation describes never did. **Candidate fix uncommitted in Windows checkout** (6 files: `Footer.tsx`, `contact/page.tsx`, `about/page.tsx`, `community/page.tsx`, `community/[slug]/page.tsx`, `schemas.ts` modified; `actions/contact.ts`, `contact-email.ts`, `.github/workflows/ci.yml` untracked). Pending R2 review dispatch: verify each file's diff, verify the guard's scan logic would actually catch the leak it claims to, then commit. See also MEDIUM-51 (manifest drift) filed alongside.
-- **Owner:** Abhinav (R2 review dispatch).
-- **Target window:** ASAP — credibility-visible. Should ship before Tier B work resumes.
+- **Status:** ✅ CLOSED 2026-06-26 via origin commit `deaf982` (cherry-pick from Windows `61c3847`). R2 committed 9 files: `Footer.tsx` (mailto→Link /contact), `contact/page.tsx` (real Server Action replacing setTimeout stub), `about/page.tsx`, `community/page.tsx`, `community/[slug]/page.tsx`, `schemas.ts` (email → contactPoint schema), `actions/contact.ts`, `contact-email.ts`, `.github/workflows/ci.yml` (email-guard). ci.yml missing `SUPABASE_SERVICE_ROLE_KEY` fixed in follow-up commit `16ace63`. Email-guard run `28255741099` completed success — email not found in built bundle or any of 5 rendered routes. See MEDIUM-51 (closed alongside).
+- **Owner:** Abhinav (closed).
+- **Target window:** Done.
 - **Dependencies:** None.
 
 #### HIGH-48: 27% of sets missing pieces data — catalog credibility gap + blocks HIGH-6
@@ -1524,10 +1524,18 @@ Decision deferred to Day 3 open.
 #### MEDIUM-51: secrets-manifest references CI guard workflow that does not exist on origin
 - **What:** `.github/secrets-manifest.json` declares `CONTACT_EMAIL.required_by: ["ci.yml"]` with the description "Enforced by CI guard verify-no-email-in-client-bundle". On origin/main, no `.github/workflows/ci.yml` file exists (16 workflows present, none named ci.yml). The manifest documents a guard that was never shipped. Same shape as the Bucket D anon-key issue earlier this session (script wiring correct, workflow wiring incomplete) — but inverted: here the documentation is correct and complete, the workflow it references is the missing piece. The candidate workflow file exists uncommitted in the Windows checkout (see HIGH-47). Manifest drift of this kind erodes trust in the manifest as a source of truth.
 - **Source:** R1 reconciliation 2026-06-23; `find . -name ci.yml -not -path "./node_modules/*"` returns nothing on origin.
-- **Status:** Open. Will be resolved as a side effect of R2 shipping HIGH-47's fix (the ci.yml workflow gets committed). Filing separately so the manifest-vs-reality discipline is tracked even after R2 closes.
-- **Owner:** Abhinav (resolved by R2 if R2 ships the uncommitted ci.yml; verify post-R2).
-- **Target window:** Closes with HIGH-47.
-- **Dependencies:** Resolved by HIGH-47.
+- **Status:** ✅ CLOSED 2026-06-26. ci.yml committed in R2 (commit `deaf982`); `SUPABASE_SERVICE_ROLE_KEY` added to ci.yml env block in `16ace63`; email-guard green on run `28255741099`. Manifest correctly reflects deployed reality.
+- **Owner:** Abhinav (closed).
+- **Target window:** Done.
+- **Dependencies:** Resolved by HIGH-47 (closed).
+
+#### MEDIUM-53: email-guard regex catches only `abhinav@bricksofindia.com`, not other `@bricksofindia.com` addresses
+- **What:** `.github/workflows/ci.yml` scans `.next/static/` and 5 rendered routes with the literal pattern `abhinav@bricksofindia.com`. If a future address (e.g. `support@bricksofindia.com`, `news@bricksofindia.com`) leaks into the client bundle, the guard would not catch it. The guard's correctness is coupled to the current single verified Resend address rather than the domain.
+- **Source:** R2 post-review, 2026-06-26.
+- **Status:** Open. Low urgency — there is currently only one `@bricksofindia.com` address in use. Fix when email-guard is next edited: widen pattern to `@bricksofindia\.com` (grep -E).
+- **Owner:** C (code-only change, no approval needed).
+- **Target window:** Next edit to ci.yml.
+- **Dependencies:** None.
 
 #### MEDIUM-52: Windows checkout has 5 unexamined local-only branches
 - **What:** During R1 reconciliation (2026-06-23), fetching from the Windows checkout at `C:\Users\bharg\Documents\BricksofIndia\website` surfaced 5 local-only branches never pushed to origin: `chore/lab-05-gate-note`, `chore/pr-2b-3.6-schema-drift-audit`, `feat/content-pipeline-foundation`, `feat/social-heartbeat`, `feat/pr-2b-3-failover-orchestration`. Two of these (`pr-2b-3.6-schema-drift-audit`, `pr-2b-3-failover-orchestration`) reference work memory describes as completed and merged; the others reference work whose status is unverified. Risk: real engineering work may be sitting in those branches unreachable from origin, same shape as the HIGH-45 phantom-commit issue just resolved in R1.
