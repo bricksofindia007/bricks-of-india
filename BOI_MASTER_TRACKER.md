@@ -1318,11 +1318,10 @@ Decision deferred to Day 3 open.
 #### HIGH-45: Generation pipeline dormant — Stage 1 has not fired in 22+ days
 - **What:** `generate-drafts.yml` last ran 2026-05-31 — processed 20 of 335 queued drafts, then hit Gemini's documented rate-limit circuit breaker (`[429 Too Many Requests]... Rate limit (429) — stopping batch to avoid quota waste`, per CLAUDE.md's "on 429, stop immediately, do not retry" policy) and exited cleanly (run conclusion: success). The workflow is `workflow_dispatch`-only — confirmed via direct read of `.github/workflows/generate-drafts.yml`, no `schedule:` trigger exists at all — so nothing has re-triggered it since. Diagnostic complete, ruled out: not a secrets issue (`GEMINI_API_KEY`, `CEREBRAS_API_KEY` both present in repo secrets); not a missing/misconfigured workflow (no other generator-shaped `.yml` file exists). `generator_runs` shows only 3 lifetime rows, all 2026-06-20, 1-draft manual/`manual_test` invocations — the 2026-05-31 batch run predates the table's creation (migration `20260619000000`), same structural telemetry gap as the already-documented GAP-13, not evidence of anything else having run since. Meanwhile RADAR ingests 15–25 candidates/day; backlog now stands at 521 rows awaiting generation (46 never-started + 475 CQS-reset awaiting regeneration). CRITICAL-1 fixed the publish stage; without Stage 1 firing, the publish stage has nothing to publish.
 - **Why it matters:** Blocks the end goal of authentic content flowing to the website. Fan CoLab application (Aug 2026) requires demonstrated publishing cadence; 22+ days of silence undermines that evidence base. Backlog growing means harder cleanup later.
-- **Status:** not started
-- **Owner:** C
-- **Target window:** this week — operationally urgent, every day of inaction grows the backlog
-- **Dependencies:** none; independent of CRITICAL-1 (which closes the publish side). Root cause is design (manual-dispatch-only trigger + quota circuit breaker + no re-trigger), not a crash or missing config — the fix is a scope decision (add a schedule? raise quota/add backoff-and-resume? operator re-triggers manually on a cadence?), not a diagnostic task.
-- **Source:** Surfaced 2026-06-22 during post-CRITICAL-1 holistic pipeline review.
+- **Status:** ✅ CLOSED 2026-06-23 via origin commit `3d5e3b9` (`ci(generate-drafts): add daily schedule + fix limit default for scheduled runs`). Fix adds `schedule: cron: '30 8 * * *'` (08:30 UTC daily — 90min after Gemini quota reset at 07:00 UTC summer) and a `RUN_LIMIT` env override (20 drafts for scheduled runs, 50 for manual dispatches). First scheduled run fires 2026-06-24T08:30Z. LOW-26 telemetry-discriminator fix landed alongside as `6e11116`.
+- **Resolution note:** An earlier session reported HIGH-45 closed via commit `84a5571` — that SHA never existed on origin (verified via `git log --all` 2026-06-23). The fix had been committed in a separate local checkout at `C:\Users\bharg\Documents\BricksofIndia\website` but never pushed; the synced checkout at `~/bricks-of-india` was unaware. R1 reconciliation (2026-06-23) added the Windows checkout as a temporary remote, fetched, verified both commits via `git show <sha> -- <file>`, cherry-picked onto origin/main (new SHAs `3d5e3b9` + `6e11116`), and removed the temporary remote. Post-push verification: `cat .github/workflows/generate-drafts.yml` confirmed schedule block present, `grep` confirmed RUN_LIMIT override, `git rev-list --left-right --count` confirmed 0/0 divergence. Tracker note preserved as a lesson against trusting commit-message-only confirmations going forward.
+- **Owner:** Abhinav (now closed).
+- **Source:** Surfaced 2026-06-22 during post-CRITICAL-1 holistic pipeline review. Closed 2026-06-23 via R1 reconciliation.
 
 #### HIGH-46: Rebrickable API returning HTTP 401 for set lookups
 - **What:** technical-hygiene.yml 2026-06-22 run logged `[ExtP1] FAIL: Rebrickable API: HTTP 401 for 42172-1 — image fallback chain will fail` (line 820 of run log) and `[ExtDependencies] FAIL: Rebrickable API: HTTP 401 for set 42172-1` (line 851).
@@ -1337,9 +1336,9 @@ Decision deferred to Day 3 open.
 #### HIGH-47: Homepage HTML contains literal `mailto:` link (CI guard bypass or regression)
 - **What:** technical-hygiene.yml 2026-06-22 run logged `[SecurityPosture] FAIL: homepage HTML contains mailto: — email address exposed to harvesters` (line 909). Per BOI_MASTER_TRACKER.md prior context, a CI guard was added during the contact-route migration explicitly to prevent literal email in client-rendered HTML. Either (a) the guard regressed silently, (b) the homepage was modified after the guard and the guard's coverage misses the homepage, or (c) the guard runs in a workflow that's not blocking merges. Email exposed to harvesters is a credibility and spam-risk problem with Fan CoLab implications.
 - **Source:** hygiene run 2026-06-22T09:43:08Z, line 909
-- **Status:** Open. Diagnosis required: identify the literal `mailto:` location in homepage, then determine why the CI guard didn't catch it.
-- **Owner:** Abhinav (terminal to diagnose, prescribe back).
-- **Target window:** ASAP — credibility-visible.
+- **Status:** Diagnosed 2026-06-23 via R1 reconciliation. Root cause is **none of the three original hypotheses (a/b/c)** but a fourth case: the CI guard was never committed to origin. The homepage's `mailto:` originates from `src/components/layout/Footer.tsx` (rendered site-wide). The guard workflow (`.github/workflows/ci.yml`, named "email-guard", scans built client bundle + 5 rendered routes including `/`) exists uncommitted in the Windows checkout at `C:\Users\bharg\Documents\BricksofIndia\website`. The secrets manifest already references `ci.yml` in `CONTACT_EMAIL.required_by` ("Enforced by CI guard verify-no-email-in-client-bundle") and the `CONTACT_EMAIL` secret exists in GitHub (rotated 2026-06-17) — so the documentation shipped, the workflow that the documentation describes never did. **Candidate fix uncommitted in Windows checkout** (6 files: `Footer.tsx`, `contact/page.tsx`, `about/page.tsx`, `community/page.tsx`, `community/[slug]/page.tsx`, `schemas.ts` modified; `actions/contact.ts`, `contact-email.ts`, `.github/workflows/ci.yml` untracked). Pending R2 review dispatch: verify each file's diff, verify the guard's scan logic would actually catch the leak it claims to, then commit. See also MEDIUM-51 (manifest drift) filed alongside.
+- **Owner:** Abhinav (R2 review dispatch).
+- **Target window:** ASAP — credibility-visible. Should ship before Tier B work resumes.
 - **Dependencies:** None.
 
 #### HIGH-48: 27% of sets missing pieces data — catalog credibility gap + blocks HIGH-6
@@ -1520,6 +1519,22 @@ Decision deferred to Day 3 open.
 - **Status:** Open. Diagnostic curl against Brickset with the current key needed before deciding whether to fix the check-script or the API client.
 - **Owner:** Abhinav (terminal to run read-only diagnostic).
 - **Target window:** This sprint.
+- **Dependencies:** None.
+
+#### MEDIUM-51: secrets-manifest references CI guard workflow that does not exist on origin
+- **What:** `.github/secrets-manifest.json` declares `CONTACT_EMAIL.required_by: ["ci.yml"]` with the description "Enforced by CI guard verify-no-email-in-client-bundle". On origin/main, no `.github/workflows/ci.yml` file exists (16 workflows present, none named ci.yml). The manifest documents a guard that was never shipped. Same shape as the Bucket D anon-key issue earlier this session (script wiring correct, workflow wiring incomplete) — but inverted: here the documentation is correct and complete, the workflow it references is the missing piece. The candidate workflow file exists uncommitted in the Windows checkout (see HIGH-47). Manifest drift of this kind erodes trust in the manifest as a source of truth.
+- **Source:** R1 reconciliation 2026-06-23; `find . -name ci.yml -not -path "./node_modules/*"` returns nothing on origin.
+- **Status:** Open. Will be resolved as a side effect of R2 shipping HIGH-47's fix (the ci.yml workflow gets committed). Filing separately so the manifest-vs-reality discipline is tracked even after R2 closes.
+- **Owner:** Abhinav (resolved by R2 if R2 ships the uncommitted ci.yml; verify post-R2).
+- **Target window:** Closes with HIGH-47.
+- **Dependencies:** Resolved by HIGH-47.
+
+#### MEDIUM-52: Windows checkout has 5 unexamined local-only branches
+- **What:** During R1 reconciliation (2026-06-23), fetching from the Windows checkout at `C:\Users\bharg\Documents\BricksofIndia\website` surfaced 5 local-only branches never pushed to origin: `chore/lab-05-gate-note`, `chore/pr-2b-3.6-schema-drift-audit`, `feat/content-pipeline-foundation`, `feat/social-heartbeat`, `feat/pr-2b-3-failover-orchestration`. Two of these (`pr-2b-3.6-schema-drift-audit`, `pr-2b-3-failover-orchestration`) reference work memory describes as completed and merged; the others reference work whose status is unverified. Risk: real engineering work may be sitting in those branches unreachable from origin, same shape as the HIGH-45 phantom-commit issue just resolved in R1.
+- **Source:** R1 reconciliation 2026-06-23, terminal fetch from windows-local remote.
+- **Status:** Open. Each branch needs: (1) inventory of unique commits not on origin (`git log <branch> --not origin/main --oneline`), (2) per-commit decision (cherry-pick / discard / verify-already-merged), (3) once reconciled, branch deletion. Read-only diagnostic dispatch first; per-commit disposition prescribed back before any cherry-pick.
+- **Owner:** Abhinav (terminal to inventory branches read-only, prescribe disposition).
+- **Target window:** Before any further work touches the Windows checkout — risk of repeating the HIGH-45 phantom-commit pattern grows the longer this sits.
 - **Dependencies:** None.
 
 #### STORE-01: Additional Indian LEGO retailer scraping
