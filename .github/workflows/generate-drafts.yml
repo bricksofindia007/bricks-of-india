@@ -45,8 +45,8 @@ jobs:
         env:
           # smoke_test=true forces RUN_LIMIT=1 regardless of inputs.limit.
           # Schedule trigger has no inputs context → fall through to RUN_LIMIT default of 20.
-          RUN_LIMIT: ${{ inputs.smoke_test == 'true' && '1' || inputs.limit || '20' }}
-          SMOKE_TEST: ${{ inputs.smoke_test == 'true' && '1' || '' }}
-          GEMINI_API_KEY: ${{ inputs.smoke_test == 'true' && 'smoke_test_invalid_key_force_400' || secrets.GEMINI_API_KEY }}
+          RUN_LIMIT: ${{ inputs.smoke_test && '1' || inputs.limit || '20' }}
+          SMOKE_TEST: ${{ inputs.smoke_test && '1' || '' }}
+          GEMINI_API_KEY: ${{ inputs.smoke_test && 'smoke_test_invalid_key_force_400' || secrets.GEMINI_API_KEY }}
         run: |
           npx tsx scripts/generate-approved-drafts.ts --limit "$RUN_LIMIT"
