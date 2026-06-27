@@ -1545,6 +1545,22 @@ Decision deferred to Day 3 open.
 - **Target window:** Before any further work touches the Windows checkout — risk of repeating the HIGH-45 phantom-commit pattern grows the longer this sits.
 - **Dependencies:** None.
 
+#### MEDIUM-54: Centralize secret loading via getSecret()
+- **What:** Inline BOM stripping appeared at two independent sites within two weeks: `cerebras.ts` in `1dfef88`, `generate-approved-drafts.ts` in `ceb130b`. Same failure class, same fix, second occurrence. Centralized as `src/lib/get-secret.ts` — `getSecret(name)` strips BOM before returning any env secret. Protocol going forward: all Bearer-bound secrets route through `getSecret()`, not `process.env` directly.
+- **Source:** Bug A root cause session 2026-06-27; two BOM incidents in 14 days triggered defensive centralization. Source commits: `1dfef88` (cerebras inline strip), `ceb130b` (centralized).
+- **Status:** Closed — shipped in `ceb130b` (2026-06-27). Covers `SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `CEREBRAS_API_KEY`.
+- **Owner:** —
+- **Target window:** Done.
+- **Dependencies:** None.
+
+#### MEDIUM-55: Checkout inventory is incomplete — third checkout discovered
+- **What:** Handoff documents list two checkouts: `/root/bricks-of-india` (Linux/authoritative) and `C:\Users\bharg\Documents\BricksofIndia\website` (Windows/stale). Session 2026-06-27 revealed a third — `C:\Users\bharg\bricks-of-india` (`/c/Users/bharg/bricks-of-india` in Git Bash) — which is the actual working tree for Git Bash operations and was at clean parity with origin/main before session work. `ceb130b` was produced from this checkout. The "Linux/authoritative" label for `/root/` is at minimum misleading: Git Bash work lands on the Windows-side checkout, not the Linux one. Risk: handoffs that prescribe `~/bricks-of-india` without specifying shell context are ambiguous, and `/root/` will silently fall behind origin between sessions.
+- **Source:** Post-commit provenance check, session 2026-06-27.
+- **Status:** Open. Next handoff update must inventory all three paths: (1) full path, (2) HEAD at inventory time, (3) remote URL, (4) authoritative-for-what-kind-of-work. `/root/bricks-of-india` should be verified or pruned.
+- **Owner:** Abhinav.
+- **Target window:** Next handoff update.
+- **Dependencies:** MEDIUM-52 (same class — checkout drift risks).
+
 #### STORE-01: Additional Indian LEGO retailer scraping
 - **What:** Add Hamleys India (and other Indian retailers) to store_prices scraping pipeline
 - **Source:** Scope expansion request
@@ -1678,6 +1694,14 @@ Decision deferred to Day 3 open.
 - **Owner:** C
 - **Target window:** this week
 - **Source:** Weekly hygiene report investigation, 2026-06-22
+
+#### LOW-41: Dead artifact at /root/bricks-of-india/src/lib/get-secret.ts
+- **What:** Session 2026-06-27 Write tool created `src/lib/get-secret.ts` at `/root/bricks-of-india/src/lib/get-secret.ts` (Linux checkout) before being superseded by a Bash heredoc at the correct working checkout (`/c/Users/bharg/bricks-of-india`). The `/root/` copy was never staged or committed — it is an untracked file. Risk: next `git pull` into `/root/bricks-of-india` will fail with "untracked working tree file would be overwritten" because `ceb130b` introduces that file at the same path.
+- **Source:** Checkout provenance analysis, session 2026-06-27.
+- **Status:** Open. Fix: `rm /root/bricks-of-india/src/lib/get-secret.ts` before pulling into that checkout.
+- **Owner:** Abhinav (requires Linux/WSL terminal).
+- **Target window:** Before next pull into /root/ checkout.
+- **Dependencies:** MEDIUM-55 (checkout inventory).
 
 ---
 
