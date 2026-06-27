@@ -1194,10 +1194,11 @@ Decision deferred to Day 3 open.
 
 ### CRITICAL — Credibility / Fan CoLab blocker
 
-#### CRITICAL-1: publish-drafts.yml full audit
+#### CRITICAL-1: publish-drafts.yml full audit (closed — already shipped)
 - **What:** Audit scheduled publish workflow — selection logic, retention policy, error handling. Deferred mid-investigation.
 - **Source:** Deferred during Days 35-N investigation
-- **Status:** findings documented; scope locked 2026-06-22; implementation not started
+- **Status:** ✅ Closed. Implementation landed 2026-06-23 (commit `baaf930`) — one day after scope lock, before this tracker entry was ever updated to reflect it. Verified 2026-06-27: `publish-drafts.mjs` imports the shared `lintDraft()`, trusts fresh stored `lint_result`, and writes `status='failed_lint'` on rejection. Confirmed against live DB — `failed_lint` rows now exist for both `news` and `review` formats (none existed at original audit time), and publishes are landing alongside them same-day.
+- **Residual scope still open:** HIGH-6 (Gate 5 only checks set existence, not piece count/theme/MSRP/year) and MEDIUM-37 (Gate 6 only activates for low-confidence sources) remain as originally scoped — CRITICAL-1 closed the cron-wiring gap, not the deeper verification depth.
 - **Owner:** C + A
 - **Target window:** this week
 - **Dependencies:** none
@@ -1847,12 +1848,12 @@ Decision deferred to Day 3 open.
 - **Dependencies:** MEDIUM-61 (EL-05 voice decision) — soft dependency only; can proceed without it
 
 #### MEDIUM-59: Review volume target — 20 reviews by 2026-07-31
-- **What:** RADAR-08 auto-review pipeline is live. `generate-approved-drafts.yml` runs daily at 08:30 UTC (HIGH-45 fix). Current state: 3 published reviews. Backlog: 521 approved rows. Target: 20 reviews published by 2026-07-31 as RLFM portfolio evidence. Track weekly: if < 3 new reviews/week for 2 consecutive weeks, trigger a manual GHA `generate-drafts.yml` dispatch. Note: HIGH-50 (46 null draft_title rows) is dead weight in the backlog — fix it before relying on backlog counts.
+- **What:** RADAR-08 auto-review pipeline is live. `generate-approved-drafts.yml` runs daily at 08:30 UTC (HIGH-45 fix). Current state: 3 published reviews. Backlog: 533 approved rows (HIGH-52). Target: 20 reviews published by 2026-07-31 as RLFM portfolio evidence. Track weekly: if < 3 new reviews/week for 2 consecutive weeks, trigger a manual GHA `generate-drafts.yml` dispatch.
 - **Source:** E9; BOI_PROJECT_STATUS_2026-05-25 §P2 review target; absent from tracker
-- **Status:** tracking only — pipeline exists; execution depends on HIGH-50 fix and daily cron health
+- **Status:** tracking only — pipeline exists; execution depends on daily cron health and HIGH-52 capacity resolution
 - **Owner:** A (monitor weekly count) + C (manual dispatch if cadence drops)
 - **Target window:** 2026-07-31
-- **Dependencies:** HIGH-45 (✅ closed); HIGH-50 (null draft_title backfill); CRITICAL-1 (lint gates healthy)
+- **Dependencies:** HIGH-45 (✅ closed); HIGH-50 (✅ closed — null draft_title is expected, not a skip); CRITICAL-1 (✅ closed 2026-06-23 baaf930)
 
 ---
 
