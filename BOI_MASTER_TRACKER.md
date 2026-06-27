@@ -2,10 +2,10 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-06-26 (HIGH-47 closed, MEDIUM-51 closed, MEDIUM-53 filed, Cerebras B2 smoke test proved; HEAD=1dfef88)
-> **Health Score: 96** — store_prices drop (2,600→1,512) UNVERIFIED. YouTube OAuth blocked (Google review, submitted 2026-06-02). Cerebras failover proven end-to-end (smoke run 28256415673: 1 article auto-published via Cerebras). Email-guard green. IG unaffected.
-> **Audit log:** `audit-block1.log` | Consolidation audit 2026-06-21: see §Consolidation Audit at file end
-> Sub-trackers (Web, Content, Video, Social) refreshed 2026-05-02 to current state via TRACK-HYGIENE-01.
+> **Last updated:** 2026-06-27 (consolidation audit complete — Phase 1: 20 new B/E items backfilled; Phase 2: DEPLOYMENT.md, DATA_SOURCES.md, CLAUDE.md corrected; Phase 3: 42 stale files archived to docs/archive/; HEAD=9da6bf9)
+> **Health Score: 96** — YouTube OAuth blocked (Google review, submitted 2026-06-02, MEDIUM-56 verify heartbeat). IG token re-exchange by 2026-07-16 (IG-TOK-01). BOM bug fixed (ceb130b). Store_prices drop explained (Jaiman removed Day 33 — 2 stores, ~1,512 rows).
+> **Audit log:** `audit-block1.log` | Consolidation audit 2026-06-27: §Social Automation, §SEO/GEO, §Content Engine, §Web/Technical Hygiene, §Video Phase 4, §Monetization, §THE LAB Deferred added to §Pending
+> Sub-trackers (Web, Content, Video, Social) archived to docs/archive/ 2026-06-27 — BOI_MASTER_TRACKER.md is the sole living tracker.
 
 ---
 
