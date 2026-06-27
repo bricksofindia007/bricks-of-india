@@ -1847,11 +1847,14 @@ Decision deferred to Day 3 open.
 - **Target window:** before 2026-08-01
 - **Dependencies:** MEDIUM-61 (EL-05 voice decision) — soft dependency only; can proceed without it
 
-#### MEDIUM-59: Review volume target — 20 reviews by 2026-07-31
-- **What:** RADAR-08 auto-review pipeline is live. `generate-approved-drafts.yml` runs daily at 08:30 UTC (HIGH-45 fix). Current state: 3 published reviews. Backlog: 533 approved rows (HIGH-52). Target: 20 reviews published by 2026-07-31 as RLFM portfolio evidence. Track weekly: if < 3 new reviews/week for 2 consecutive weeks, trigger a manual GHA `generate-drafts.yml` dispatch.
-- **Source:** E9; BOI_PROJECT_STATUS_2026-05-25 §P2 review target; absent from tracker
-- **Status:** tracking only — pipeline exists; execution depends on daily cron health and HIGH-52 capacity resolution
-- **Owner:** A (monitor weekly count) + C (manual dispatch if cadence drops)
+#### MEDIUM-59: Review volume target — 20 reviews by 2026-07-31 (target metric ambiguous — needs Abhinav decision)
+- **What:** Two separate "review" streams exist on the site and this item's "20 reviews" target doesn't specify which one it's counting:
+  (a) **`reviews` table** — 3 hand-curated long-form reviews (McLaren P1, Rivendell, NHM), live at `/reviews/[slug]`, with full Review+Product JSON-LD schema via `buildReviewSchema()` (only called from that route — verified 2026-06-28).
+  (b) **RADAR-08 auto-review pipeline** — `pending_drafts.draft_format='review'` → auto-published into `news_articles` (category="Review"), live at `/news/[slug]`. 14 published as of 2026-06-28. **No Review/Product schema** — same generic Article markup as any news post.
+  If the RLFM application needs structured review evidence (the schema GEO-01-FU1 was built for), the real count is still 3, not trending toward 20. If it just needs review-flavored content anywhere on site, 14 is real progress. Open question for Abhinav: which one does the application actually need?
+- **Source:** E9; BOI_PROJECT_STATUS_2026-05-25 §P2 review target; absent from tracker. Stream ambiguity surfaced 2026-06-28.
+- **Status:** blocked on target clarification — pipeline itself is healthy (14 RADAR-08 publishes, cadence active); the open question is which number to report for RLFM, not whether the pipeline works.
+- **Owner:** A (decide which stream counts) + C (re-baseline tracking once decided)
 - **Target window:** 2026-07-31
 - **Dependencies:** HIGH-45 (✅ closed); HIGH-50 (✅ closed — null draft_title is expected, not a skip); CRITICAL-1 (✅ closed 2026-06-23 baaf930)
 
