@@ -1327,21 +1327,29 @@ try {
   }
 } catch (e) { alertFail('ReviewedSetMRP', `check failed: ${e.message.slice(0, 80)}`); }
 
-// ── Check 19: Pending drafts — unpublishable approved rows ────────────────────
-// 19a. Any draft with status='approved' but null draft_title cannot be
-//      processed by generate-approved-drafts.js — it will silently skip.
-//      These are RADAR-08 seeds with incomplete data.
+// ── Check 19: Pending drafts — generation backlog health ─────────────────────
+// 19a. The generator filters on draft_body, not draft_title — null draft_title
+//      pre-generation is expected, not a defect (corrected 2026-06-27, see
+//      HIGH-50). Real signal is backlog age: rows that have outlived one full
+//      worst-case FIFO cycle at current throughput without being picked up.
 try {
-  const { data: badDrafts } = await sb.from('pending_drafts')
-    .select('id, draft_format, source_url')
+  const { data: backlog } = await sb.from('pending_drafts')
+    .select('id, created_at')
     .eq('status', 'approved')
-    .is('draft_title', null);
-  if ((badDrafts ?? []).length > 0) {
-    alertFail('DraftTitleNull', `${badDrafts.length} approved draft(s) have null draft_title and will be skipped by generator: ${badDrafts.map(d => d.id.slice(0, 8)).join(', ')}`);
+    .is('draft_body', null);
+
+  const total = (backlog ?? []).length;
+  const staleCutoff = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+  const stale = (backlog ?? []).filter(d => d.created_at < staleCutoff);
+
+  log('GenerationBacklog', `${total} approved row(s) awaiting generation (informational, FIFO by created_at)`);
+
+  if (stale.length > 0) {
+    alertFail('GenerationBacklogStale', `${stale.length} approved row(s) have waited 30+ days for generation: ${stale.slice(0, 3).map(d => d.id.slice(0, 8)).join(', ')}`);
   } else {
-    log('DraftTitleNull', `all approved drafts have draft_title ✓`);
+    log('GenerationBacklogStale', `no rows older than 30 days awaiting generation ✓`);
   }
-} catch (e) { alertFail('DraftTitleNull', `check failed: ${e.message.slice(0, 80)}`); }
+} catch (e) { alertFail('GenerationBacklog', `check failed: ${e.message.slice(0, 80)}`); }
 
 // ── Check 20: Per-store price row count regression ────────────────────────────
 // 20a. If any store drops below its known baseline, the scraper has regressed

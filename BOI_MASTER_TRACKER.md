@@ -1373,13 +1373,22 @@ Decision deferred to Day 3 open.
 - **Target window:** This week.
 - **Dependencies:** None.
 
-#### HIGH-50: Generator skips 46 approved drafts with null draft_title
-- **What:** technical-hygiene.yml 2026-06-22 run logged `[DraftTitleNull] FAIL: 46 approved drafts have null draft_title and will be skipped by generator` (line 895), with full UUID list. These 46 rows sit in pending_drafts.status='approved' but are structurally invisible to the generator because the generator query filters out null draft_title. They're a permanent, silent leak in the backlog drain — until draft_title is populated, the daily cron (now scheduled per HIGH-45 fix) will never touch them. A prior bulk fix existed for 251 such rows (commit context in tracker line 373); the current 46 are a fresh accumulation since that fix, indicating draft_title can become null again post-approval and needs a structural fix, not just another one-off backfill.
-- **Source:** hygiene run 2026-06-22T09:43:02Z, line 895; full UUID list in run log
-- **Status:** Open. Two-part fix needed: (1) backfill the 46 from source_title (same approach as the prior 251-row fix), (2) identify why draft_title goes null post-approval and prevent recurrence.
-- **Owner:** Abhinav (terminal to diagnose root cause before backfill).
-- **Target window:** Before scheduled generator hits its first full cadence — otherwise these 46 are dead weight in every backlog count.
-- **Dependencies:** None blocking, but adjacent to HIGH-45 (the scheduled generator will surface this pattern more frequently).
+#### HIGH-50: 46 approved drafts had null draft_title (mischaracterized — closed)
+- **What:** technical-hygiene.yml 2026-06-22 run logged `[DraftTitleNull] FAIL: 46 approved drafts have null draft_title and will be skipped by generator` (line 895). **Original framing was incorrect.** Verified 2026-06-27 against `scripts/generate-approved-drafts.ts` (the script `generate-drafts.yml` actually runs) and every other generator variant in the repo, including the deprecated `scripts/radar/generate-drafts.js`: all of them filter on `status='approved' AND draft_body IS NULL`, never on `draft_title`. These rows were never skipped — they were sitting normally in the generation backlog (533 approved rows with `draft_body IS NULL` as of 2026-06-27; 178 of those are older and ahead of these 46 in FIFO order, oldest dating to 2026-05-09). Mechanism: rows ingested via RADAR-08's review pipeline get `draft_title` pre-seeded at insert; rows from plain RADAR-03 bulk-approve don't — title is set by the generator alongside `draft_body`. Both paths process identically.
+- **Resolution:** Backfilled all 46 live via Supabase (`UPDATE pending_drafts SET draft_title = left(source_title, 200) WHERE status='approved' AND draft_title IS NULL`), verified 0 remaining. Clears the hygiene false positive; changes nothing about generation order or timing.
+- **Real follow-up filed separately:** HIGH-52 (backlog growth) and the Check 19a redesign — the alert was asserting a skip mechanism that doesn't exist in any generator version.
+- **Source:** hygiene run 2026-06-22T09:43:02Z, line 895. Root-caused and closed 2026-06-27.
+- **Status:** ✅ Closed 2026-06-27 — corrected root cause, not the originally diagnosed one.
+- **Owner:** Claude (chat session, via Supabase MCP) for the DB fix; terminal for this doc + Check 19a correction.
+- **Dependencies:** None. Supersedes the "structural fix to prevent recurrence" framing — null draft_title pre-generation is expected, not a defect.
+
+#### HIGH-52: Generation backlog growing faster than throughput
+- **What:** Approved rows awaiting generation (`draft_body IS NULL`) measured at 533 on 2026-06-27, up from 521 noted 2026-06-22 — despite `generate-drafts.yml` running daily at 08:30 UTC since 2026-06-24 (RUN_LIMIT=20/day scheduled, 50/day manual). Ingestion (RADAR-03 + RADAR-08) is outpacing generation.
+- **Source:** Surfaced 2026-06-27 during HIGH-50 root-cause investigation.
+- **Status:** Open, not yet sized. Need: (1) daily ingestion vs generation rate over last 7 days, (2) whether RUN_LIMIT should rise, Gemini RPM allows it, or ingestion should throttle.
+- **Owner:** Terminal (pull the numbers) → Abhinav (capacity call).
+- **Target window:** Before backlog depth reads as a stale-pipeline signal for Fan CoLab evidence.
+- **Dependencies:** Gemini 2.5 Flash-Lite free-tier 10 RPM ceiling; Cerebras failover capacity.
 
 #### HIGH-51: GEO-05b — auto-link set mentions in articles
 - **What:** 98 news + 23 blog articles published with zero `/sets/[slug]` internal links. Gemini prompt does not instruct the model to link set mentions to their catalog pages. Fix: add instruction to system prompt in `scripts/generate-approved-drafts.ts` (and `generateBody()` in `src/app/admin/pending/actions.ts`) to link the first mention of any LEGO set to `/sets/<slug>`. Slug derivation reuses the same set-number extraction already in Gate 5 (`src/lib/lint.ts:113`) — don't reimplement. Verify post-fix by checking a sample of newly generated articles for `href="/sets/` links.
@@ -1900,6 +1909,14 @@ Decision deferred to Day 3 open.
 - **Owner:** A (outreach email)
 - **Target window:** after RLFM application — use post-Aug stats as leverage
 - **Dependencies:** none
+
+#### MEDIUM-63: admin/dashboard.html health score out of sync with tracker (Auto-update protocol violation)
+- **What:** `admin/dashboard.html` `kpis.healthScore` is 85 with a `healthScoreNote` referencing stale `/news 16d` data. Tracker header reads 96. The Auto-update protocol (§Auto-update protocol, rule 1) requires both files update in the same commit; they have diverged. Pre-dates 2026-06-27 session — this is an existing violation, not introduced today.
+- **Source:** Observed 2026-06-27 during Phase 3 archival; not introduced in consolidation audit.
+- **Status:** Open. Dashboard needs full reconciliation against current tracker state (health score, KPIs, pipeline status, issue list). Scope is larger than a one-line fix — reconcile in a dedicated commit.
+- **Owner:** C (reconcile dashboard JSON against current tracker)
+- **Target window:** before next external review (Fan CoLab application, RLFM outreach)
+- **Dependencies:** none — dashboard is a standalone JSON blob in `admin/dashboard.html`
 
 ---
 
