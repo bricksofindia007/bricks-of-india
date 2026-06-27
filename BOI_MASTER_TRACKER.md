@@ -1174,6 +1174,22 @@ Decision deferred to Day 3 open.
 - **Target window:** by 2026-07-15 (hard deadline for published spotlights)
 - **Dependencies:** none
 
+#### FAN-COLAB-PROOF-01: Fan CoLab application proofs (operator actions)
+- **What:** Two evidence items required for RLFM application: (a) Screenshot 30+ consecutive daily IG posts — capture between 2026-07-20 and 2026-07-25 (IG app shows ~30 days back). (b) Full-site 200 OK check — verify all main routes (/, /news, /sets, /lab, /guides, /community, /opinion, /compare) return HTTP 200 week before application (≈2026-07-25).
+- **Source:** B13; FAN_COLAB_TIMELINE.md application checklist; absent from master tracker prior to consolidation audit 2026-06-27
+- **Status:** pending — Abhinav action required
+- **Owner:** A
+- **Target window:** capture by 2026-07-25; application 2026-08-01
+- **Dependencies:** IG-TOK-01 (social pipeline must not go dark before the capture window closes)
+
+#### RLFM-RUNWAY-01: RLFM runway metrics snapshot (monthly)
+- **What:** Log monthly snapshot for RLFM application evidence: IG followers, YT subscribers, monthly site visitors (GA4 / Netlify analytics), posts published that month, total published articles. Target: 3 snapshots (Jul 1, Aug 1 for application). Paste numbers in a comment on this item — do not commit a separate file.
+- **Source:** E5; BOI_SOCIAL_TRACKER.md LAN-01/02/03; not previously in tracker
+- **Status:** first snapshot due 2026-07-01
+- **Owner:** A
+- **Target window:** 2026-07-01 (first snapshot); 2026-08-01 (application month)
+- **Dependencies:** none
+
 ---
 
 ### CRITICAL — Credibility / Fan CoLab blocker
@@ -1364,6 +1380,14 @@ Decision deferred to Day 3 open.
 - **Owner:** Abhinav (terminal to diagnose root cause before backfill).
 - **Target window:** Before scheduled generator hits its first full cadence — otherwise these 46 are dead weight in every backlog count.
 - **Dependencies:** None blocking, but adjacent to HIGH-45 (the scheduled generator will surface this pattern more frequently).
+
+#### HIGH-51: GEO-05b — auto-link set mentions in articles
+- **What:** 98 news + 23 blog articles published with zero `/sets/[slug]` internal links. Gemini prompt does not instruct the model to link set mentions to their catalog pages. Fix: add instruction to system prompt in `scripts/generate-approved-drafts.ts` (and `generateBody()` in `src/app/admin/pending/actions.ts`) to link the first mention of any LEGO set to `/sets/<slug>`. Slug derivation reuses the same set-number extraction already in Gate 5 (`src/lib/lint.ts:113`) — don't reimplement. Verify post-fix by checking a sample of newly generated articles for `href="/sets/` links.
+- **Source:** B4; Day 35 Ground Truth P1 open items; absent from master tracker prior to consolidation audit 2026-06-27
+- **Status:** not started
+- **Owner:** C
+- **Target window:** this month — internal linking is a direct SEO signal and AEO structured-data win
+- **Dependencies:** Gate 5 extraction logic at `src/lib/lint.ts:113` (reuse, do not reimplement)
 
 ---
 
@@ -1721,6 +1745,172 @@ Decision deferred to Day 3 open.
 - **Status:** resolved in PR-2b-3.6
 - **Owner:** —
 - **Target window:** done
+- **Dependencies:** none
+
+---
+
+### Social Automation
+
+> Items from the 2026-06-27 consolidation audit. Not blocking Fan CoLab deadline unless IG-TOK-01 slips.
+
+#### LOW-43: IG System User Token — permanent non-expiring setup
+- **What:** Replace the 60-day long-lived token with a permanent non-expiring token via Meta Business Manager → System User → Token Generator. One-time setup eliminates the annual IG-TOK-01 re-exchange cycle forever. Currently deferred behind IG-TOK-01 (re-exchange by 2026-07-16). Once IG-TOK-01 is complete, proceed with System User token setup.
+- **Source:** B1 + E1 consolidated; SOCIAL_AUTOMATION_STATUS.md §Token calendar; absent from master tracker prior to consolidation audit
+- **Status:** deferred — do after IG-TOK-01 completes
+- **Owner:** A
+- **Target window:** 2026-07-20 to 2026-08-01 (after IG-TOK-01, before RLFM application)
+- **Dependencies:** IG-TOK-01 (if re-exchange extends to permanent token setup directly, this item closes simultaneously)
+
+#### LOW-44: CE-06 — Deals Alert IG Story
+- **What:** Weekly IG Story summarising top 5 deals from /lab/deals. LAB-06 (/lab/deals) is live — data exists. Canva template approach: pull top-5 `store_prices` rows by discount from MRP, export to Story format, post every Monday. No code needed.
+- **Source:** B2; CE-06 from CONTENT_ENGINE_STATUS.md; LAB-06 unblocks this
+- **Status:** not started
+- **Owner:** A (Canva template + weekly post)
+- **Target window:** unscheduled — strong RLFM portfolio evidence (data → content pipeline)
+- **Dependencies:** LAB-06 live (✅ done)
+
+#### MEDIUM-56: YouTube OAuth state — verify heartbeat vs known invalid_grant
+- **What:** `social_automation_heartbeat` recorded a YouTube `status='success'` at 2026-06-27T09:19Z. Day 35 Ground Truth documented YouTube as `invalid_grant`-blocked since Day 34 (Google verification review submitted 2026-06-02). Either (a) OAuth was silently resolved, or (b) the heartbeat records "success" even when YouTube posts are gracefully skipped. Diagnostic: `SELECT * FROM social_automation_heartbeat WHERE platform='youtube' ORDER BY last_attempt_at DESC LIMIT 5` and cross-check against the GHA social-automation run log for that timestamp. Update YT-OAUTH-01 with current actual state.
+- **Source:** B3; heartbeat-vs-INVALID_GRANT discrepancy surfaced in consolidation audit 2026-06-27
+- **Status:** needs verification — Abhinav terminal diagnostic
+- **Owner:** A
+- **Target window:** this week
+- **Dependencies:** none
+
+#### MEDIUM-57: Cross-posting system for editorial content
+- **What:** Social automation handles IG/YouTube for video/carousel content. No systematic social distribution exists for editorial text (news articles, guides, opinion pieces). Scope decision: (1) which content types get social posts, (2) per-platform format rules (IG caption with link, Reddit post), (3) duplicate-prevention tracking log. Operator decides scope; code follows.
+- **Source:** E4; BOI_SOCIAL_TRACKER.md XPOST-01/02/03
+- **Status:** not started — scope decision required before implementation
+- **Owner:** A (scope decision) + C (automation if applicable)
+- **Target window:** post-Fan-CoLab
+- **Dependencies:** none
+
+#### LOW-46: Newsletter platform decision + community engagement
+- **What:** Newsletter subscribe form is live (Resend SDK, `newsletter_subscribers` table) but no broadcast platform is chosen. Decision: (a) Resend broadcast, (b) Buttondown, (c) Beehiiv, (d) defer. Community engagement layer not yet defined (comment system, DM cadence, Q&A format — BOI_SOCIAL_TRACKER.md COMM-01/02/03). Scope decision only — no implementation until decided.
+- **Source:** E7; BOI_SOCIAL_TRACKER.md COMM-01/02/03
+- **Status:** deferred — post-RLFM scope decision
+- **Owner:** A
+- **Target window:** post-2026-08-01
+- **Dependencies:** none
+
+---
+
+### SEO / GEO
+
+> Items from the 2026-06-27 consolidation audit. SEO/GEO sprint (Days 31–33) shipped all code-side changes; these are the remaining operator actions and one code extension.
+
+#### MEDIUM-58: GSC verification — operator confirmation needed
+- **What:** Google Search Console property verification and sitemap submission are manual operator steps. Days 29/30 show these as pending. Day 31 Addendum 10 says "GEO sprint (schema, robots, GSC)" — ambiguous whether this means code changes to robots.txt/schema only, or actual GSC property verification. If the property is unverified, all code-side schema markup and sitemap improvements have zero discoverability impact. Operator: log in to GSC (search.google.com/search-console), verify bricksofindia.com property, submit sitemap.xml, request indexing for 10 priority pages. ~15 min. Confirm here when done.
+- **Source:** B5; SEO_ACTION_PLAN.md §Week 1; Day 30 Ground Truth §P2
+- **Status:** unconfirmed — Abhinav verify and confirm
+- **Owner:** A
+- **Target window:** this week — prerequisite for any organic growth evidence before RLFM application
+- **Dependencies:** none (sitemap.xml live, robots.txt correct, DNS set)
+
+#### LOW-47: Reddit / AFOL community outreach for backlinks
+- **What:** Post on r/IndiaLEGO and r/lego introducing bricksofindia.com. Suggested angle: "I built an India MRP tracker for LEGO sets — here's how prices compare to USD MSRP." Cheapest backlink source available. SEO_ACTION_PLAN.md listed this as a Week 1 action — check if already done.
+- **Source:** B6; SEO_ACTION_PLAN.md §Immediate actions
+- **Status:** unconfirmed — check if already done; if not, do before 2026-08-01
+- **Owner:** A
+- **Target window:** before 2026-08-01
+- **Dependencies:** none
+
+---
+
+### Content Engine
+
+> Items from the 2026-06-27 consolidation audit. CE-01 (Builder Spotlights) and CE-02/05 (guides + history) already done. These are remaining unstarted CE items.
+
+#### LOW-48: CE-03 — Build Debate (opinion column)
+- **What:** Monthly opinion piece debating a LEGO design, pricing, or community question. /opinion route live since Day 28. Format: 500–800 words, FOR / AGAINST / VERDICT. 3 opinion posts already published (Day 28 batch). Goal: 1 new post per month.
+- **Source:** B7; CE-03 from CONTENT_ENGINE_STATUS.md; /opinion route now unblocks this
+- **Status:** not started (format ready; editorial calendar not set)
+- **Owner:** A (editorial brief) + C (drafting from brief)
+- **Target window:** first post by 2026-07-15 strengthens RLFM portfolio
+- **Dependencies:** none
+
+#### LOW-49: CE-04 — Blind Bag Reel (India retail video)
+- **What:** Bi-monthly IG Reel + YouTube Short filmed at Toycra or MyBrickHouse — buy a blind bag on camera, open, mini-review. Authentic India retail content; strong RLFM differentiator. No code dependency. Can record silent or natural audio before EL-05 voice decision is made.
+- **Source:** B8; CE-04 from CONTENT_ENGINE_STATUS.md
+- **Status:** not started
+- **Owner:** A (filming)
+- **Target window:** before 2026-08-01
+- **Dependencies:** MEDIUM-61 (EL-05 voice decision) — soft dependency only; can proceed without it
+
+#### MEDIUM-59: Review volume target — 20 reviews by 2026-07-31
+- **What:** RADAR-08 auto-review pipeline is live. `generate-approved-drafts.yml` runs daily at 08:30 UTC (HIGH-45 fix). Current state: 3 published reviews. Backlog: 521 approved rows. Target: 20 reviews published by 2026-07-31 as RLFM portfolio evidence. Track weekly: if < 3 new reviews/week for 2 consecutive weeks, trigger a manual GHA `generate-drafts.yml` dispatch. Note: HIGH-50 (46 null draft_title rows) is dead weight in the backlog — fix it before relying on backlog counts.
+- **Source:** E9; BOI_PROJECT_STATUS_2026-05-25 §P2 review target; absent from tracker
+- **Status:** tracking only — pipeline exists; execution depends on HIGH-50 fix and daily cron health
+- **Owner:** A (monitor weekly count) + C (manual dispatch if cadence drops)
+- **Target window:** 2026-07-31
+- **Dependencies:** HIGH-45 (✅ closed); HIGH-50 (null draft_title backfill); CRITICAL-1 (lint gates healthy)
+
+---
+
+### Web / Technical Hygiene
+
+> Items from the 2026-06-27 consolidation audit. None blocking RLFM or Fan CoLab deadline.
+
+#### LOW-45: CONTENT-RENDER-02 — /blog markdown rendering
+- **What:** `/blog/[slug]/page.tsx` renders `{post.content}` as raw escaped text — markdown asterisks, hyphens, and link syntax appear as literal characters. Same fix applied to /news (markdown-it renderer) needs porting to the /blog route. Low traffic currently but a credibility issue when blog posts are reviewed for Fan CoLab.
+- **Source:** B9; BOI_WEB_TRACKER.md CONTENT-RENDER-02; Day 28 Known Issues P3
+- **Status:** not started
+- **Owner:** C
+- **Target window:** unscheduled
+- **Dependencies:** none
+
+#### MEDIUM-60: PROCESS-RLS-02 — audit pre-Day-6 tables for RLS gaps
+- **What:** 9 tables existed before Day 6's PROCESS-RLS-01 mandate (ENABLE ROW LEVEL SECURITY on every new table). Tables created before that mandate may have permissive defaults. Diagnostic first: for each candidate table (`raw_signals`, `community_spotlights`, `social_posts`, `social_automation_heartbeat`, `generator_runs`, `content_quality_issues`, `content_image_registry`, `content_fix_log`), run `SELECT relrowsecurity FROM pg_class WHERE relname='<table>'` and verify policies exist for expected access patterns (service-role write, anon blocked). No DDL until diagnostic is reviewed.
+- **Source:** B11; Day 6 §F.3 PROCESS-RLS-02; Day 28 Known Issues P2; absent from master tracker
+- **Status:** not started — read-only diagnostic first
+- **Owner:** A (terminal diagnostic) + C (migration if gaps found)
+- **Target window:** this month
+- **Dependencies:** none
+
+#### LOW-50: LEGO Insiders escalation (INSIDER-01)
+- **What:** Abhinav's LEGO Insiders account #811205769 shows zero points despite 100+ set purchase history across Toycra and MyBrickHouse. Steps: INSIDER-01 escalation to LEGO India CS; INSIDER-02 follow-up to US CS if unresponsive. INSIDER-03 content angle: if unresolved after 30 days, publish "LEGO Insiders doesn't work in India — here's the evidence" (high search intent, authentic AFOL grievance, RLFM credibility signal).
+- **Source:** E8; BOI_PROJECT_STATUS_2026-05-25 P3; BOI_SOCIAL_TRACKER.md INSIDER-01/02/03
+- **Status:** not started
+- **Owner:** A (CS escalation)
+- **Target window:** unscheduled — do before RLFM application; INSIDER-03 is the content angle if unresolved
+- **Dependencies:** none
+
+---
+
+### Video — Phase 4
+
+> Full Phase 4 spec (22 tasks: EL-01→05, YT-01→05, SHORT-01→04, FLOW-01→04, EQUIP-01→04) is in `docs/archive/BOI_VIDEO_TRACKER.md`. This single gate entry is the only master tracker item needed — all Phase 4 tasks flow from the EL-05 decision.
+
+#### MEDIUM-61: Phase 4 video gate — EL-05 voice clone decision
+- **What:** All video production is gated on EL-05: operator decision on ElevenLabs AI voice clone after completing EL-01 (record voice sample) → EL-02 (clone on ElevenLabs) → EL-03 (test vs Codex v2 rubric) → EL-04 (cost-benefit review) → EL-05 (decision: full AI clone / hybrid / natural voice only). DaVinci Resolve confirmed as editor (EQUIP-01 done). Full breakdown in `docs/archive/BOI_VIDEO_TRACKER.md`.
+- **Source:** E3; BOI_VIDEO_TRACKER.md Phase 4 spec; absent from master tracker prior to consolidation audit
+- **Status:** not started — intentionally gated on EL-05 decision
+- **Owner:** A (EL-05 decision — all other Phase 4 tasks follow)
+- **Target window:** unscheduled — before RLFM renewal if not achievable for 2026 application
+- **Dependencies:** EQUIP-01 (✅ DaVinci Resolve confirmed); all other Phase 4 tasks block on this
+
+---
+
+### Monetization
+
+#### MEDIUM-62: MyBrickHouse coupon-code affiliate arrangement
+- **What:** Approach MyBrickHouse (lego.mybrickhouse.com — 2nd active store in `store_prices`) for an affiliate coupon-code deal equivalent to Toycra's ABHINAV12. MBH already appears on every price-comparison page — a code converts existing traffic into commissions without additional content work. Template: email with monthly traffic stats + article count mentioning MBH prices. Toycra arrangement is the precedent.
+- **Source:** E6; BOI_PROJECT_STATUS_2026-05-25 P2 MONETIZE-01; absent from master tracker
+- **Status:** not started
+- **Owner:** A (outreach email)
+- **Target window:** after RLFM application — use post-Aug stats as leverage
+- **Dependencies:** none
+
+---
+
+### THE LAB — Deferred
+
+#### LOW-51: Google Trends ingestion (PULSE-01 through PULSE-09) — explicitly deferred
+- **What:** Full spec for a Google Trends data layer exists in `docs/archive/BOI_WEB_TRACKER.md` §Section E (PULSE-01→09): daily Trends API cron → `search_trends` table → `/pulse` route → state-level drilldown → Dataset JSON-LD. The shipped `/lab/heat-map` uses static demographic data and is the simplified placeholder. This item is **explicitly deferred** — not an accidental omission. /lab/heat-map satisfies the "trend popularity" user story at zero ongoing cost; full Trends ingestion requires GCP quota management and a new table. Revisit post-2026-08-01 if heat-map engagement warrants it.
+- **Source:** E2; BOI_WEB_TRACKER.md PULSE-01/09; /lab/heat-map shipped as simplification
+- **Status:** deferred indefinitely — explicit decision
+- **Owner:** A (revisit post-RLFM)
+- **Target window:** post-2026-08-01
 - **Dependencies:** none
 
 ---

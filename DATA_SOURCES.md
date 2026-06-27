@@ -2,7 +2,7 @@
 
 > **Purpose:** Authoritative record of what data powers bricksofindia.com, where it comes from, how it refreshes, and what breaks if a source goes down.
 >
-> **Last updated:** 2026-04-25 (CATALOG-FIX-01 v2 + DIAGNOSE-02 dedup clarification)
+> **Last updated:** 2026-06-27 (consolidation audit: Jaiman removed Day 33, usd_msrp column exists at ~45% coverage, article pipeline automated, YouTube RSS live, store_prices ~1,512 rows across 2 stores)
 
 ---
 
@@ -12,14 +12,14 @@
 |------|--------|-----------------|---------------|-----------------|
 | Set catalogue (metadata) | Rebrickable API | Weekly Sun 02:00 UTC | `scripts/sync-rebrickable.js` | `catalogue-sync-failed` issue |
 | Set images | Rebrickable CDN | On catalogue sync | Part of sync script | `catalogue-audit-failed` issue |
-| Indian retail prices | Toycra, MyBrickHouse, Jaiman (Shopify) | Every 6h | `scripts/scrape-now.mjs` | `catalogue-audit-failed` issue |
+| Indian retail prices | Toycra, MyBrickHouse | Every 6h | `scripts/scrape-now.mjs` | `catalogue-audit-failed` issue |
 | INR derived price (MRP) | USD MSRP × 1.35 × USD/INR | On catalogue sync | Part of sync script | None yet — TODO |
 | USD MSRP | Not yet populated — TODO | — | — | — |
 | Exchange rate (USD/INR) | frankfurter.app | On catalogue sync | Part of sync script | Falls back to 83.0 |
-| Article content | Supabase (`news_articles`, `blog_posts`) | Manual publish | n/a | n/a |
-| Review content | Supabase (`reviews`) | Manual publish | n/a | n/a |
+| Article content | Supabase (`news_articles`, `blog_posts`) | Daily cron (`generate-drafts.yml` 08:30 UTC) + manual | `scripts/generate-approved-drafts.ts` | n/a |
+| Review content | Supabase (`reviews`) | RADAR-08 pipeline + manual | `scripts/generate-approved-drafts.ts` | n/a |
 | Theme images | Rebrickable CDN (same as set images) | On catalogue sync | `scripts/fetch-theme-images.mjs` (read-only audit) | n/a |
-| Videos | TODO: confirm with Abhinav | — | — | — |
+| Videos (BOI channel) | Bricks of India YouTube channel RSS (Tier 4, RADAR-01) | Daily | `scripts/fetch-rss.js` | n/a |
 
 ---
 
@@ -47,12 +47,12 @@
 | `year` | Rebrickable |
 | `pieces` | Rebrickable `num_parts` |
 | `image_url` | Rebrickable `set_img_url` (CDN: `cdn.rebrickable.com/media/sets/...`) |
-| `lego_mrp_inr` | Derived: `ROUND(usd_msrp × 1.35 × USD/INR)` — **currently 0 rows** because `usd_msrp` column does not yet exist |
+| `lego_mrp_inr` | Derived: `ROUND(usd_msrp × 1.35 × USD/INR)` — populated since Day 28 (`scripts/populate-mrp.js`). Coverage: ~45% of sets with year ≥ 2020. |
 
 **Fields NOT populated by sync (must come from other sources):**
 | Column | Status |
 |--------|--------|
-| `usd_msrp` | Column does not exist yet. TODO: add column + ingest from Brickset (`BRICKSET_API_KEY` in secrets). Brickset field: `LEGOCom.US.retailPrice`. |
+| `usd_msrp` | Column exists (added Day 28). Populated by `scripts/populate-mrp.js` from Brickset API (`BRICKSET_API_KEY`). Field: `LEGOCom.US.retailPrice`. Coverage: ~45% of sets with year ≥ 2020; older/niche sets remain NULL. |
 | `description` | NULL for all rows. TODO: source from Brickset or LEGO website. |
 | `age_range` | NULL for all rows. TODO: source from Brickset. |
 | `minifigs` | NULL for all rows. TODO: source from Rebrickable `/lego/sets/{id}/minifigs/`. |
@@ -65,16 +65,16 @@
 ## 2. Indian retail prices
 
 **Table:** `store_prices`
-**Sources:** Toycra, MyBrickHouse, Jaiman Toys — Shopify `products.json` API (no auth required)
+**Sources:** Toycra, MyBrickHouse — Shopify `products.json` API (no auth required). Jaiman Toys (previously active) was removed Day 33; may return if Hamleys or a replacement retailer is added under STORE-01.
 **Ingest script:** `scripts/scrape-now.mjs`
 **Refresh cadence:** Every 6 hours (00:00, 06:00, 12:00, 18:00 UTC) via `.github/workflows/scrape-prices.yml`
-**Coverage:** ~492 rows across 3 stores (live LEGO products only — Toycra via `/collections/lego/products.json`, others via general `/products.json`)
+**Coverage:** ~1,512 rows across 2 stores (live LEGO products only — Toycra via `/collections/lego/products.json`, MBH via `/collections/lego/products.json`)
 
 **Schema (store_prices):**
 | Column | Notes |
 |--------|-------|
 | `set_id` | Set number as string (e.g. `"75192"`) — NOT a UUID foreign key |
-| `store_id` | `toycra` / `mybrickhouse` / `jaiman` |
+| `store_id` | `toycra` / `mybrickhouse` |
 | `price_inr` | Scraped live price |
 | `in_stock` | Boolean |
 | `product_url` | Direct buy link |
@@ -92,12 +92,9 @@
 - USD/INR rate sourced from `api.frankfurter.app/latest?from=USD&to=INR` (ECB-backed, free, no auth)
 - Fallback rate if API unavailable: **83.0** (hardcoded, logged as warning)
 
-**Current status:** 0 rows have `lego_mrp_inr` populated.
-**Blocker:** `usd_msrp` column does not exist in `sets` table. No MSRP ingest source is wired.
-**To fix:**
-1. Add `usd_msrp NUMERIC` column to `sets` table (schema migration)
-2. Ingest USD MSRP from Brickset API (key: `BRICKSET_API_KEY` in GH secrets). Field: `LEGOCom.US.retailPrice`.
-3. Re-run `sync-rebrickable.js` — the derivation step will populate `lego_mrp_inr` automatically.
+**Current status:** `lego_mrp_inr` populated for ~45% of sets with year ≥ 2020. `usd_msrp` column exists and is partially filled.
+**Remaining gap:** Sets pre-2020 or with no Brickset MSRP listing have `usd_msrp = NULL` and therefore `lego_mrp_inr = NULL`.
+**To improve coverage:** Re-run `scripts/populate-mrp.js` after additional Brickset MSRP data is available for older/niche sets. The derivation step runs automatically on each populate run.
 
 ---
 
@@ -126,15 +123,15 @@ Stored as `sets.image_url` during catalogue sync. No separate image pipeline.
 ## 6. Article and review content
 
 **Tables:** `news_articles`, `blog_posts`, `reviews`
-**Source:** Manually authored and inserted via Supabase dashboard or seed scripts
+**Source:** Primarily pipeline-generated via `scripts/generate-approved-drafts.ts` (Gemini 2.5 Flash-Lite primary; Cerebras gpt-oss-120b failover). Operator reviews signals in `/admin/pending` and approves for generation. Some content (guides, opinion posts, manual reviews) is hand-authored by Abhinav.
 **Format:** Markdown (stored as plain text — rendered server-side via `react-markdown`)
-**Refresh:** On demand — no automated pipeline
+**Refresh:** `generate-approved-drafts.ts` runs daily at 08:30 UTC on approved `pending_drafts` rows. `publish-drafts.yml` auto-publishes lint-passing drafts 3×/day or operator publishes manually via `/admin/pending`.
 
 ---
 
 ## 7. Videos
 
-TODO: confirm with Abhinav. Planned: YouTube channel RSS feeds (Phase 3, Content OS — not yet built).
+**BOI YouTube channel** RSS is ingested daily via RADAR-01 (`scripts/fetch-rss.js`, Tier 4 source, channel_id: `UC1CCrLlp4XnOoxVzAftFwfQ`, added Day 9). Signals surface in `raw_signals` and proceed through the RADAR pipeline. Social automation pipeline (`social-automation/pipeline.py`) posts to IG and YouTube Shorts daily at 06:30 UTC. YouTube Shorts posting blocked since Day 34 (`invalid_grant`) — Google verification review submitted 2026-06-02; see YT-OAUTH-01 in master tracker.
 
 ---
 
@@ -158,9 +155,9 @@ TODO: confirm with Abhinav. Planned: YouTube channel RSS feeds (Phase 3, Content
 
 | # | Gap | Owner |
 |---|-----|-------|
-| 1 | `usd_msrp` column missing — INR derivation can't run | TODO: confirm MSRP source with Abhinav |
-| 2 | Brickset API key present in secrets — confirm if it's used and for what | TODO: confirm with Abhinav. Known: `LEGOCom.US.retailPrice` is the MSRP field. |
-| 3 | `store_prices` ↔ `prices` table disconnect (DATA-01) — scraper data not in compare page | See BOI_WEB_TRACKER.md DATA-01 |
+| 1 | `usd_msrp` coverage at ~45% — older/niche sets missing | Backfill via additional `populate-mrp.js` runs; field `LEGOCom.US.retailPrice` from Brickset |
+| 2 | Brickset API key used for MSRP ingest (`populate-mrp.js`) | Confirmed — `LEGOCom.US.retailPrice` is the field |
+| 3 | `store_prices` ↔ `prices` table disconnect (DATA-01) — scraper data not in compare page | Legacy `prices` table still exists; /compare reads from it. Cleanup tracked as LOW-20 |
 | 4 | `minifigs`, `age_range`, `description`, `subtheme` all NULL — sets metadata incomplete | Source from Rebrickable minifigs endpoint + Brickset |
-| 5 | Video data source — no pipeline exists | TODO: confirm with Abhinav (YouTube RSS feeds planned) |
+| 5 | YouTube Shorts OAuth blocked since Day 34 (`invalid_grant`) | Google verification review submitted 2026-06-02; see YT-OAUTH-01 in master tracker |
 | 6 | Theme page freshness — pre-rendered at build time, stale until next deploy | Refresh after each catalogue sync triggers a deploy |

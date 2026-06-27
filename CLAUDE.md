@@ -6,7 +6,7 @@
 
 ## Session discipline
 
-SESSION START: Always read docs/SESSION_START_CHECKLIST.md before any execution. Run Steps 1–3 and paste summary to strategic layer.
+SESSION START: Read `BOI_MASTER_TRACKER.md` — header block (metadata, current blockers, carry-overs, lab status, deadlines). Confirm the HEAD commit field matches `git log -1 --format="%H"`. Paste summary to strategic layer. Do not use `docs/SESSION_START_CHECKLIST.md` — that file's handover-doc protocol was abandoned after Day 35 and is queued for archival.
 
 **Dashboard sync:** see `BOI_MASTER_TRACKER.md` § Auto-update protocol — every state change updates `admin/dashboard.html` in the same commit.
 
@@ -18,7 +18,7 @@ SESSION START: Always read docs/SESSION_START_CHECKLIST.md before any execution.
 
 **Defect log:** `docs/BRIEF_DEFECTS.md` — log every defect found during execution. Never reuse a defect ID.
 
-**Handover docs:** `docs/handover/Day_N_Ground_Truth.md` — write at end of every session. Anchor every claim in verified terminal evidence.
+**Handover docs:** Pattern retired after Day 35. Write a changelog entry in `BOI_MASTER_TRACKER.md` §Sprint changelog instead. No new Day_N_Ground_Truth files — `docs/handover/` is frozen.
 
 ---
 
@@ -51,6 +51,16 @@ if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set — check
 
 ---
 
+## Known Netlify Gotchas
+
+**`toLocaleString('en-IN')` is not ICU-safe on Netlify serverless.** Netlify's Node.js runtime uses a minimal ICU build that does not include the `en-IN` locale. Calling `.toLocaleString('en-IN')` in any Server Action or server component throws `RangeError: Incorrect locale information provided` (error digest `1117754790`). Always use the `fmtInr()` helper (defined in `src/app/admin/pending/actions.ts`) or an equivalent regex-based Indian number formatter.
+
+**BOM characters silently corrupt env vars from GitHub Secrets.** GitHub Secrets copied from BOM-encoded source files include a leading U+FEFF byte — invisible in the UI but breaks `Authorization: Bearer <key>` headers with `TypeError: Cannot convert argument to a ByteString`. Always read secrets via `getSecret(name)` from `src/lib/get-secret.ts`, not `process.env` directly. Applies to all Bearer-bound keys (`SUPABASE_SERVICE_ROLE_KEY`, `GEMINI_API_KEY`, `CEREBRAS_API_KEY`). Two incidents in 14 days before centralization (commits `1dfef88`, `ceb130b`).
+
+**Live page verification is mandatory before closing any content fix.** TypeScript compilation and CI green verify code correctness, not that content renders correctly on the deployed page. After any fix touching rendered content (HTML comment stripping, markdown processing, price display), fetch the live URL and confirm the symptom is absent in the response body before marking the issue closed.
+
+---
+
 ## Supabase rules
 
 **Service role key:** always use `createServerClient()` (service role key) for server-side writes and admin queries. The anon client (`supabase`) is for public reads only.
@@ -77,9 +87,11 @@ When adding price display to any new page, always use `store_prices`, never `pri
 
 ## RADAR pipeline rules
 
-**RADAR-04 is on-demand only — NOT in the nightly cron.** The `generateArticle()` Server Action in `/admin/pending` runs Gemini for one draft at a time when the operator clicks the amber "Generate Article" button. `generate-drafts.js` exists for manual bulk use only. Never re-add RADAR-04 to `radar.yml` without explicit operator instruction — auto-generation burns Gemini quota on every approved signal indiscriminately (DEFECT-012).
+**RADAR-04 does NOT run inside `radar.yml`.** Never add generation to `radar.yml` — that workflow is RADAR-01/02/03 only (fetch → dedupe → classify). Mixing generation into the ingestion cron burns Gemini quota on unreviewed signals indiscriminately (DEFECT-012).
 
-**Nightly cron (radar.yml) = RADAR-01 → RADAR-02 → RADAR-03 only.** Signals are fetched, deduped, and classified automatically. Generation is operator-initiated (manual GHA dispatch or the on-demand admin button); publishing is automatic — see Publishing policy below.
+**Generation runs in `generate-drafts.yml`** — a separate workflow on a daily schedule (08:30 UTC, 90 min after Gemini quota reset at 07:00 UTC). Script: `scripts/generate-approved-drafts.ts` (TypeScript, Gemini 2.5 Flash-Lite primary → Cerebras gpt-oss-120b failover, 6 lint gates, auto-publish on full gate pass). Also triggerable via `workflow_dispatch` or the `/admin/pending` "Generate Article" button (one draft at a time). `generate-drafts.js` (older Node script) is deprecated — do not use for new work.
+
+**`radar.yml` cron = RADAR-01 → RADAR-02 → RADAR-03 only.** Signals are fetched, deduped, and classified automatically. Generation and publishing run on separate schedules.
 
 **Pipeline order:** RADAR-01 (fetch) → RADAR-02 (dedupe) → RADAR-03 (classify → pending_drafts) → RADAR-04 (generate bodies for approved rows) → publish-drafts.yml cron (auto-publish on full lint pass) or `/admin/pending` (manual approve/reject for `failed_lint` rows).
 

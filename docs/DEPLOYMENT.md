@@ -50,9 +50,12 @@ succeeds in GitHub Actions (where `.env.local` does not exist).
 | `RESEND_API_KEY` | Resend API key — same as newsletter. Already in GitHub Secrets if newsletter email is working. |
 | `BRIEF_EMAIL` | Email address to receive health alerts. Set to `abhinav@bricksofindia.com` or any address you monitor. |
 
-### Required for batch article generation (1 secret)
+### Required for batch article generation (2 secrets)
 
-This secret is NOT used by GitHub Actions — it lives only in Netlify. Add it in the Netlify UI (see below), not here.
+| Secret name | Notes |
+|-------------|-------|
+| `GEMINI_API_KEY` | Primary generator — `scripts/generate-approved-drafts.ts` reads this via `getSecret('GEMINI_API_KEY')` in the GHA daily cron (08:30 UTC). **Also add to Netlify** (see below) — `generateArticle()` Server Action uses it at runtime for on-demand single-draft generation. |
+| `CEREBRAS_API_KEY` | Cerebras failover (gpt-oss-120b) — used by `generate-approved-drafts.ts` when Gemini returns 429 or 5xx. GHA secret only — the failover path runs inside the scheduled cron, not at Netlify request time. |
 
 ### Required for content-quality.yml — daily content quality pipeline (5 secrets)
 
@@ -85,7 +88,7 @@ Schedule: daily `03:00 UTC` (08:30 IST). 5-step pipeline: linter → auto-fixer 
 
 All 5 secrets are already in GitHub Secrets from prior setup. No new secrets required.
 
-**Total: 11 secrets to add (unchanged — brief.yml reuses existing secrets).**
+**Total: 13 secrets to add (brief.yml reuses existing secrets; GEMINI_API_KEY and CEREBRAS_API_KEY added for generation workflow — 2 new since original setup).**
 
 ---
 
