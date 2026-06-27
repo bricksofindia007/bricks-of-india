@@ -17,6 +17,7 @@ dotenv.config({ path: '.env.local' });
 
 import { createClient } from '@supabase/supabase-js';
 import { generateWithFailover, type DraftGenerationInput, type GenerationOutcome } from '../src/lib/generate-with-failover';
+import { getSecret } from '../src/lib/get-secret';
 
 // ── CLI flags ─────────────────────────────────────────────────────────────────
 
@@ -35,9 +36,9 @@ const DELAY_MS = 7000; // 7 s between Gemini calls — stays under 10 RPM free t
 // ── Env ───────────────────────────────────────────────────────────────────────
 
 const SUPABASE_URL    = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY     = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const GEMINI_KEY      = process.env.GEMINI_API_KEY;
-const CEREBRAS_KEY    = process.env.CEREBRAS_API_KEY;
+const SERVICE_KEY     = getSecret('SUPABASE_SERVICE_ROLE_KEY');
+const GEMINI_KEY      = getSecret('GEMINI_API_KEY');
+const CEREBRAS_KEY    = getSecret('CEREBRAS_API_KEY');
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
   console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
