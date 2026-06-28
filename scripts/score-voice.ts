@@ -4,13 +4,10 @@
 // in full: Part A (8 deterministic hard rules) + Part B (LLM-as-judge soft scoring,
 // Gemini primary / Cerebras failover, same eligibility rule as the main generator).
 //
-// STATUS (2026-06-28): Part A + Part B implemented and exported. NOT wired into
-// generate-approved-drafts.ts. Per rubric §Part C, calibration (Steps 1-5 — score
-// the 76-article known-good corpus, score the 6 known-weak drafts, tune the
-// threshold, dry-run against the approved queue, get Abhinav's sign-off) is
-// explicitly "non-skippable before Gate 7 goes live." That calibration requires
-// live Gemini API access this sandbox doesn't have — do not import this into the
-// generator or treat it as an active gate until calibration has actually run.
+// STATUS (2026-06-28): Part A hard rules extracted to src/lib/hard-rules.ts and
+// wired into generate-with-failover.ts as Gate 7 (commit 3606911). Part B soft
+// score is advisory only — not a hard gate, per Step 5 sign-off. Calibration
+// complete: docs/voice-scorer-calibration.md (STRONG n=49, WEAK n=1, 0 errors).
 
 import { GeminiProvider, CerebrasProvider } from '../src/lib/providers';
 import { isCerebrasEligible } from '../src/lib/source-quality';
