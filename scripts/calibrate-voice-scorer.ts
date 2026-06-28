@@ -24,7 +24,7 @@ const SUPABASE_URL  = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const SERVICE_KEY   = getSecret('SUPABASE_SERVICE_ROLE_KEY')!;
 const GEMINI_KEY    = getSecret('GEMINI_API_KEY')!;
 const CEREBRAS_KEY  = getSecret('CEREBRAS_API_KEY');
-const DELAY_MS      = 5000; // stay under 10 RPM Gemini free tier
+const DELAY_MS      = 8000; // 7.5 calls/min — under Gemini 10 RPM; burst 429s handled by backoff in scoreVoiceJudge
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 

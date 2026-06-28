@@ -248,19 +248,54 @@ function buildJudgePrompt(content: string, format: DraftFormat): { systemPrompt:
   return { systemPrompt, userPrompt };
 }
 
+function sleep(ms: number): Promise<void> {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+async function callWithBackoff<T>(fn: () => Promise<T>, label: string, maxRetries = 3): Promise<T> {
+  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      const isRateLimit = /\[429/.test(msg) || /rate.?limit/i.test(msg)
+        || /\b429\b/.test(msg) || /too_many_requests/i.test(msg);
+      if (!isRateLimit || attempt === maxRetries) throw err;
+      const backoffMs = 15000 * Math.pow(2, attempt); // 15s, 30s, 60s
+      console.log(`  [${label}] 429 hit, retry ${attempt + 1}/${maxRetries} after ${backoffMs / 1000}s`);
+      await sleep(backoffMs);
+    }
+  }
+  throw new Error('unreachable');
+}
+
 function isRetryableProviderError(err: unknown): boolean {
   const msg = err instanceof Error ? err.message : String(err);
   // Mirrors generate-with-failover.ts's isRetryableGeminiError (not exported from
   // that module) — kept as a 1-line regex rather than a cross-module import to
   // avoid coupling the scorer's failover decision to the generator's internals.
-  return /\[429/.test(msg) || /\[5\d\d/.test(msg);
+  return /\[429/.test(msg) || /\[5\d\d/.test(msg) || /\b429\b/.test(msg) || /too_many_requests/i.test(msg);
 }
+
+const SCORE_KEYS: ReadonlyArray<keyof VoiceScores> = [
+  'voice_anchor', 'wallet_craft', 'india_paragraph_rhythm',
+  'opening_hook', 'humour_engine', 'signoff_craft',
+];
 
 function parseJudgeResponse(text: string): { scores: VoiceScores; flags: string[]; rationale: string } {
   const cleaned = text.trim().replace(/^```json\s*/i, '').replace(/```\s*$/, '');
   const parsed = JSON.parse(cleaned);
   const s = parsed.scores ?? {};
-  const clamp = (n: unknown) => Math.max(0, Math.min(10, Math.round(Number(n) || 0)));
+  // Validate before clamping: null/undefined/NaN silently produce 0 via Number(n)||0,
+  // making a malformed response indistinguishable from a genuine all-zero score.
+  // Throw here so the caller's catch block surfaces this as judgeError instead.
+  for (const k of SCORE_KEYS) {
+    const raw = s[k];
+    if (raw === null || raw === undefined || !isFinite(Number(raw))) {
+      throw new Error(`Malformed judge response: score "${k}" = ${JSON.stringify(raw)}`);
+    }
+  }
+  const clamp = (n: unknown) => Math.max(0, Math.min(10, Math.round(Number(n))));
   const scores: VoiceScores = {
     voice_anchor: clamp(s.voice_anchor),
     wallet_craft: clamp(s.wallet_craft),
@@ -290,8 +325,9 @@ export async function scoreVoiceJudge(
   const { systemPrompt, userPrompt } = buildJudgePrompt(content, format);
 
   try {
+    const geminiMaxRetries = parseInt(process.env.VOICE_GEMINI_MAX_RETRIES ?? '3', 10);
     const gemini = new GeminiProvider(geminiKey);
-    const { text } = await gemini.call({ systemPrompt, userPrompt });
+    const { text } = await callWithBackoff(() => gemini.call({ systemPrompt, userPrompt }), 'gemini', geminiMaxRetries);
     const { scores, flags, rationale } = parseJudgeResponse(text);
     return { scores, total: weightedTotal(scores), flags, rationale, judgeProvider: 'gemini', judgeError: null };
   } catch (geminiErr) {
@@ -301,7 +337,7 @@ export async function scoreVoiceJudge(
     }
     try {
       const cerebras = new CerebrasProvider(cerebrasKey);
-      const { text } = await cerebras.call({ systemPrompt, userPrompt });
+      const { text } = await callWithBackoff(() => cerebras.call({ systemPrompt, userPrompt }), 'cerebras');
       const { scores, flags, rationale } = parseJudgeResponse(text);
       return { scores, total: weightedTotal(scores), flags, rationale, judgeProvider: 'cerebras', judgeError: null };
     } catch (cerebrasErr) {
