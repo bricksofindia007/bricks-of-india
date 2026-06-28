@@ -1224,8 +1224,8 @@ Decision deferred to Day 3 open.
 - **Status:** ✅ Closed 2026-06-28. Root cause confirmed + fixed.
   - **Root cause A** (`dedupe-signals.js`): Pass 1/2/3 only compared rows within the current batch of `pending` signals. Any URL that stayed in a source's RSS feed across multiple fetch cycles was re-inserted as a fresh `pending` row each time `fetch-rss.js` ran — and since the prior instance was already marked `unique` (no longer `pending`), Pass 1 never saw it as a duplicate. Verified: one Brothers Brick URL fetched 63 times over 7 weeks, marked `unique` all 63 times, producing 4 separately-published duplicate articles on the live site.
   - **Root cause B** (`classify-signals.js`): `existingUrls` was a static snapshot taken once before the classification loop. Two candidates for the same URL within a single run both passed `existingUrls.has()` and were both queued.
-  - **Fix A** (commit `baaf930`, 2026-06-28): Pass 0 added to `dedupe-signals.js` — fetches full `raw_signals` history (all non-pending rows) for url_hash + title_hash before running Passes 1–3. Any pending row whose hash matches historical data is immediately marked `duplicate`. DEDUPE SUMMARY log now includes `historical_url_dupes=` and `historical_title_dupes=` counts.
-  - **Fix B** (commit `baaf930`, 2026-06-28): `existingUrls.add(sig.url)` added after each queue push in `classify-signals.js` — within-run defense in depth.
+  - **Fix A** (commit `370abbf`, 2026-06-28): Pass 0 added to `dedupe-signals.js` — fetches full `raw_signals` history (all non-pending rows) for url_hash + title_hash before running Passes 1–3. Any pending row whose hash matches historical data is immediately marked `duplicate`. DEDUPE SUMMARY log now includes `historical_url_dupes=` and `historical_title_dupes=` counts.
+  - **Fix B** (commit `370abbf`, 2026-06-28): `existingUrls.add(sig.url)` added after each queue push in `classify-signals.js` — within-run defense in depth.
   - **Leave-as-is decision:** Retroactive cleanup of already-published duplicate articles was handled separately in prior sessions (BrickNerd, Amazon Ancient Ruins). No automated re-dedupe of the full historical `raw_signals` table is being attempted — the 63-resubmission case is the structural extreme; Pass 0 closes it going forward. Any residual duplicate `pending_drafts` rows that haven't been published yet are blocked by `existingUrls` on the classify path; any that were already published are an editorial concern, not a new code task.
 - **Owner:** C
 - **Target window:** Done
@@ -1236,7 +1236,7 @@ Decision deferred to Day 3 open.
 - **Source:** PR-2b-3.7 session
 - **Status:** ✅ Closed 2026-06-28. Root cause confirmed + fixed.
   - **Root cause:** `hashUrl()` in `fetch-rss.js` called `new URL(rawUrl.toLowerCase())` but never normalized scheme (http vs https) or hostname prefix (www vs bare domain). Verified live: 35 articles exist in `raw_signals` under both `http://` and `https://` variants with different url_hash values, both marked `unique`.
-  - **Fix** (commit `baaf930`, 2026-06-28): Added `u.protocol = 'https:'` and `u.hostname = u.hostname.replace(/^www\./, '')` to `hashUrl()` before hashing. New fetch runs produce consistent hashes for http/https and www/bare variants. Combined with Pass 0 in CRITICAL-2, these previously-duplicated URLs will now be caught as historical duplicates on the next dedupe run.
+  - **Fix** (commit `370abbf`, 2026-06-28): Added `u.protocol = 'https:'` and `u.hostname = u.hostname.replace(/^www\./, '')` to `hashUrl()` before hashing. New fetch runs produce consistent hashes for http/https and www/bare variants. Combined with Pass 0 in CRITICAL-2, these previously-duplicated URLs will now be caught as historical duplicates on the next dedupe run.
 - **Owner:** C
 - **Target window:** Done
 - **Dependencies:** CRITICAL-2
