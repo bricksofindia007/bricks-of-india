@@ -2,8 +2,8 @@
 
 > **Purpose:** One-page index of phase status, blockers, and deadlines. Task-level detail lives in the four sub-trackers below.
 >
-> **Last updated:** 2026-06-27 (consolidation audit complete — Phase 1: 20 new B/E items backfilled; Phase 2: DEPLOYMENT.md, DATA_SOURCES.md, CLAUDE.md corrected; Phase 3: 42 stale files archived to docs/archive/; HEAD=9da6bf9)
-> **Health Score: 96** — YouTube OAuth blocked (Google review, submitted 2026-06-02, MEDIUM-56 verify heartbeat). IG token re-exchange by 2026-07-16 (IG-TOK-01). BOM bug fixed (ceb130b). Store_prices drop explained (Jaiman removed Day 33 — 2 stores, ~1,512 rows).
+> **Last updated:** 2026-06-28 (chat-session close — CRITICAL-2/3/4 closed, Gate 7 live, HIGH-50/52 root-caused, checkout fork resolved; HEAD=6c2deec)
+> **Health Score: 96 (unrecomputed — see MEDIUM-63)** — score not bumped despite 3 CRITICALs closing today; formula needs re-running against current state, not guessed. YouTube OAuth blocked (Google review, submitted 2026-06-02, MEDIUM-56 verify heartbeat). IG token re-exchange by 2026-07-16 (IG-TOK-01) — 18 days remaining as of 2026-06-28. RLFM-RUNWAY-01 first snapshot due 2026-07-01 — 3 days remaining.
 > **Audit log:** `audit-block1.log` | Consolidation audit 2026-06-27: §Social Automation, §SEO/GEO, §Content Engine, §Web/Technical Hygiene, §Video Phase 4, §Monetization, §THE LAB Deferred added to §Pending
 > Sub-trackers (Web, Content, Video, Social) archived to docs/archive/ 2026-06-27 — BOI_MASTER_TRACKER.md is the sole living tracker.
 
@@ -246,6 +246,38 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### 2026-06-28 — Chat-session close: CRITICAL-2/3/4 closed, Gate 7 live, checkout fork resolved
+
+**HEAD:** `6c2deec` | **Health:** 96 (unrecomputed) | All claims below verified against live commits/DB by chat-session Claude before being recorded here — not transcribed from terminal summaries uncritically.
+
+**HIGH-50** — Mischaracterized as "generator skips null draft_title"; actual cause: 46 rows from RADAR-03 bulk-approve simply never had a title pre-seeded, generator filters on `draft_body` not `draft_title`. Backfilled live via Supabase, 0 remaining. Closed.
+
+**CRITICAL-1** — Discovered already fixed 5 days earlier (`baaf930`, 2026-06-23); tracker had never been updated to reflect it. Doc corrected.
+
+**Review schema** — `buildReviewSchema()` wired onto `/news/[slug]` for `category='Review'` articles. Migration + backfill (13/14 reviews, verdict+set_number) applied live. Commit `72bde43`.
+
+**CRITICAL-2 (RADAR-01 dedup audit)** — Root cause: `dedupe-signals.js` only ever compared signals within a single run's batch, never against history. One Brothers Brick URL was fetched 63× over 7 weeks, marked `'unique'` every time. 17,183/19,323 `raw_signals` rows (89%) were re-fetch noise. **36 excess duplicate articles are live published** across 33 source stories — found, decision made to leave as-is (no redirect/unpublish), only the forward-leak closed. Fixed: Pass 0 historical check in `dedupe-signals.js`, incremental `existingUrls` update in `classify-signals.js`. Commit `370abbf`. Closed.
+
+**CRITICAL-3 (url_hash normalization)** — `hashUrl()` didn't normalize scheme (http/https) or www-prefix; 35 articles confirmed duplicated across protocol variants. Fixed in `fetch-rss.js`. Commit `370abbf`. Closed.
+
+**CRITICAL-4 (Voice scorer / Gate 7)** — Built from `docs/voice-scorer-rubric.md` v1.0: Part A (8 deterministic hard rules) + Part B (LLM-as-judge, Gemini/Cerebras failover). Found and fixed two real bugs during testing: A2 word-wrap false-positive on the rubric's own known-good example; A1's `\bwallet\b` never matched the plural "wallets" (word-boundary issue), widened vocab, then downgraded to WARN after confirming ~79% of real published articles don't reuse wallet language post-opener. Calibrated against 65+ real articles (10-article Cerebras pilot corpus + 49-article live STRONG corpus) — zero false positives on A2/A3/A4/A7/A8. Part B soft score showed a 19-point within-provider variance and a 40-point cross-provider variance on the same article (one Cerebras run produced a pathological all-zeros score that the parser was silently coercing instead of erroring — hardened). **Step 5 sign-off: ship hard rules only (A2/A3/A4/A6-review/A7/A8) as a real gate; soft score advisory-only, logged not blocking.** Extracted to `src/lib/hard-rules.ts`, wired into `generate-with-failover.ts` — `requiresManualApproval` now driven by `hardFail`, confirmed gating the `news` auto-publish path. Commits `5e2095b`, `a91c7c8`, `3606911`. Closed and **live** — not just signed off on paper.
+
+**HIGH-52 (generation backlog)** — Real root cause: a BOM character (U+FEFF) at position 7 of the `GEMINI_API_KEY` GitHub Secret, causing `undici` to reject it as an invalid HTTP header value (`ByteString` error) on ~45-66% of requests per run — independently corroborated against `generator_runs` telemetry pulled directly from Supabase (exact failure counts matched before the BOM theory was ever mentioned). Fixed: `getSecret()` now strips BOM globally, not just leading position. Commit `cd8bfbc`. **Still open:** ingestion-vs-generation throughput capacity sizing never done.
+
+**MEDIUM-59** — Resolved by reading `docs/archive/FAN_COLAB_TIMELINE.md` directly: RLFM needs 3+ Codex-compliant reviews (already satisfied since 2026-05-14's REVIEWS-FIRST-3), not 20. RADAR-08's 14 auto-published "Review"-tagged news articles explicitly documented as "not required." Status: BLOCKED_EXT, not time-critical.
+
+**Checkout fork, investigated and resolved** — `Documents\BricksofIndia\website` (Windows) had diverged 3 commits from origin (`84a5571`, `32833f6`, `61c3847`). Initial terminal assessment called this "real, irreplaceable work" (the HIGH-47 contact-form fix specifically). Verified false two ways: (1) author-timestamp on `61c3847` matched origin's `deaf982` to the exact second — the signature of a prior cherry-pick, not independent authorship; (2) byte-for-byte `diff` across all 5 changed files (`contact.ts`, `contact-email.ts`, `schemas.ts`, `Footer.tsx`, `ci.yml`) confirmed identical content already on origin. All 3 commits were stale duplicates of work already merged via earlier cherry-picks/reconciliations. Resolved via `git reset --hard origin/main` in `website` (backup branch `backup-pre-reset-2026-06-28` kept, points at old `61c3847`), **not** a rebase, which would have replayed superseded code over a working, already-deployed feature. Both checkouts now confirmed at matching HEAD.
+
+**Still pending from today, not closed:**
+- `social-automation/.env`, `client_secrets.json`, `youtube_token.json` exist **only** in `website` (gitignored, never sync via git) — not yet copied to `bricks-of-india`. Until they are, `website` is not safe to fully retire.
+- `website` needs one more `git pull` to pick up `6c2deec` (the score-voice.ts comment fix) — was 1 commit behind at last check.
+- HIGH-52 capacity sizing (ingestion vs generation rate).
+- 2 newly-discovered near-duplicate articles (`lego-castle-factions-*-no-set-number-yet` / `*-might-surprise-you`) — found during calibration spot-checks, not yet filed as a ticket, different shape of duplicate than CRITICAL-2 (same story, different source_url, not caught by the url_hash-based fix).
+- MEDIUM-63 (dashboard reconciliation) — untouched, stale since 2026-05-25.
+- Full backlog audit performed this session (~50 open items across CRITICAL/HIGH/MEDIUM/LOW plus deadline-driven items IG-TOK-01, YT-OAUTH-01, CE-01, FAN-COLAB-PROOF-01, RLFM-RUNWAY-01) — no new closures from the audit itself, just visibility. See tracker body for full current list rather than trusting any chat summary of it, including this one.
+
+---
 
 ### Days 35-N — 2026-06-03 to 2026-06-21 — social heartbeat, security hardening, Cerebras failover, schema reconciliation, filler filter
 
