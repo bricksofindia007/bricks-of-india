@@ -68,6 +68,12 @@ function sha256(str) {
 function hashUrl(rawUrl) {
   try {
     const u = new URL(rawUrl.toLowerCase());
+    // Normalize scheme and www-prefix — same article reached via http vs https,
+    // or www vs bare domain, must hash identically. Verified live: 35 articles
+    // exist in raw_signals under both http:// and https:// with different
+    // hashes, both marked 'unique' (CRITICAL-3, 2026-06-28).
+    u.protocol = 'https:';
+    u.hostname = u.hostname.replace(/^www\./, '');
     // Strip trailing slash from non-root paths
     if (u.pathname.length > 1 && u.pathname.endsWith('/')) {
       u.pathname = u.pathname.slice(0, -1);

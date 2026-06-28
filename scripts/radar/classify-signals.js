@@ -210,6 +210,12 @@ async function writeDrafts(drafts) {
 
     countQueued++;
     byFormat[format]++;
+    // Incremental update (CRITICAL-2, 2026-06-28) — existingUrls was a static
+    // snapshot taken once before this loop. Without this line, two candidates
+    // for the same URL within one run both pass the existingUrls.has() check
+    // above and both get queued, producing duplicate published_drafts rows.
+    // Primary fix is in dedupe-signals.js (Pass 0); this is defense in depth.
+    existingUrls.add(sig.url);
 
     if (DRY_RUN || VERBOSE) {
       console.log(`  [QUEUE format=${format} score=${pts}] T${sig.source_tier} ${sig.source_name} | "${sig.title.slice(0, 70)}"`);

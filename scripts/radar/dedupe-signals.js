@@ -100,11 +100,41 @@ function newGroupId() {
   // Track row state in memory
   const rows = all.map(r => ({ ...r, _status: 'pending', _group: null }));
 
-  // Pass 1 — exact URL hash dedupe
+  // Pass 0 — historical dedup (CRITICAL-2/3 fix, 2026-06-28)
+  // Pass 1/2 below only ever compared rows within THIS batch of currently-pending
+  // signals. Any URL that stays in a source's RSS feed across multiple fetch
+  // cycles gets re-inserted as a fresh 'pending' row each time fetch-rss.js runs —
+  // and since the previous instance was already marked 'unique' (no longer
+  // 'pending'), Pass 1 never saw it as a duplicate. Verified against live data:
+  // one Brothers Brick URL was fetched 63 times over 7 weeks and marked 'unique'
+  // all 63 times, producing 4 separately-published duplicate articles on the
+  // live site. This pass closes that gap by checking against full history first.
+  let historicalUrlDupes = 0, historicalTitleDupes = 0;
+  {
+    const { data: historical, error: histErr } = await sb
+      .from('raw_signals')
+      .select('url_hash, title_hash')
+      .neq('dedup_status', 'pending');
+    if (histErr) throw histErr;
+    const seenUrlHashes = new Set((historical ?? []).map(h => h.url_hash));
+    const seenTitleHashes = new Set((historical ?? []).map(h => h.title_hash).filter(Boolean));
+    for (const r of rows) {
+      if (seenUrlHashes.has(r.url_hash)) {
+        r._status = 'duplicate';
+        historicalUrlDupes++;
+      } else if (r.title_hash && seenTitleHashes.has(r.title_hash)) {
+        r._status = 'duplicate';
+        historicalTitleDupes++;
+      }
+    }
+  }
+
+  // Pass 1 — exact URL hash dedupe (within still-pending, post Pass 0)
   let exactUrlDupes = 0;
   {
     const buckets = new Map();
     for (const r of rows) {
+      if (r._status !== 'pending') continue; // already resolved by Pass 0
       if (!buckets.has(r.url_hash)) buckets.set(r.url_hash, []);
       buckets.get(r.url_hash).push(r);
     }
@@ -263,6 +293,8 @@ function newGroupId() {
 
   console.log(
     `DEDUPE SUMMARY: total=${rows.length} ` +
+    `historical_url_dupes=${historicalUrlDupes} ` +
+    `historical_title_dupes=${historicalTitleDupes} ` +
     `exact_url_dupes=${exactUrlDupes} ` +
     `title_dupes=${titleDupes} ` +
     `cross_source_groups=${crossSourceGroups} ` +

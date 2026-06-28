@@ -1221,25 +1221,35 @@ Decision deferred to Day 3 open.
 #### CRITICAL-2: RADAR-01 dedup audit
 - **What:** Find all duplicate-source-URL drafts beyond known cases (BrickNerd, Amazon Ancient Ruins)
 - **Source:** PR-2b-3.7 session — dedup anomalies surfaced but not fully resolved
-- **Status:** not started
+- **Status:** ✅ Closed 2026-06-28. Root cause confirmed + fixed.
+  - **Root cause A** (`dedupe-signals.js`): Pass 1/2/3 only compared rows within the current batch of `pending` signals. Any URL that stayed in a source's RSS feed across multiple fetch cycles was re-inserted as a fresh `pending` row each time `fetch-rss.js` ran — and since the prior instance was already marked `unique` (no longer `pending`), Pass 1 never saw it as a duplicate. Verified: one Brothers Brick URL fetched 63 times over 7 weeks, marked `unique` all 63 times, producing 4 separately-published duplicate articles on the live site.
+  - **Root cause B** (`classify-signals.js`): `existingUrls` was a static snapshot taken once before the classification loop. Two candidates for the same URL within a single run both passed `existingUrls.has()` and were both queued.
+  - **Fix A** (commit `baaf930`, 2026-06-28): Pass 0 added to `dedupe-signals.js` — fetches full `raw_signals` history (all non-pending rows) for url_hash + title_hash before running Passes 1–3. Any pending row whose hash matches historical data is immediately marked `duplicate`. DEDUPE SUMMARY log now includes `historical_url_dupes=` and `historical_title_dupes=` counts.
+  - **Fix B** (commit `baaf930`, 2026-06-28): `existingUrls.add(sig.url)` added after each queue push in `classify-signals.js` — within-run defense in depth.
+  - **Leave-as-is decision:** Retroactive cleanup of already-published duplicate articles was handled separately in prior sessions (BrickNerd, Amazon Ancient Ruins). No automated re-dedupe of the full historical `raw_signals` table is being attempted — the 63-resubmission case is the structural extreme; Pass 0 closes it going forward. Any residual duplicate `pending_drafts` rows that haven't been published yet are blocked by `existingUrls` on the classify path; any that were already published are an editorial concern, not a new code task.
 - **Owner:** C
-- **Target window:** this week
+- **Target window:** Done
 - **Dependencies:** none
 
 #### CRITICAL-3: url_hash normalization audit
 - **What:** Verify url_hash normalization is consistent across all RADAR-01/02 sources; confirm no dedup misses due to trailing slash or scheme variants
 - **Source:** PR-2b-3.7 session
-- **Status:** not started
+- **Status:** ✅ Closed 2026-06-28. Root cause confirmed + fixed.
+  - **Root cause:** `hashUrl()` in `fetch-rss.js` called `new URL(rawUrl.toLowerCase())` but never normalized scheme (http vs https) or hostname prefix (www vs bare domain). Verified live: 35 articles exist in `raw_signals` under both `http://` and `https://` variants with different url_hash values, both marked `unique`.
+  - **Fix** (commit `baaf930`, 2026-06-28): Added `u.protocol = 'https:'` and `u.hostname = u.hostname.replace(/^www\./, '')` to `hashUrl()` before hashing. New fetch runs produce consistent hashes for http/https and www/bare variants. Combined with Pass 0 in CRITICAL-2, these previously-duplicated URLs will now be caught as historical duplicates on the next dedupe run.
 - **Owner:** C
-- **Target window:** this week
+- **Target window:** Done
 - **Dependencies:** CRITICAL-2
 
 #### CRITICAL-4: Voice scorer (PR-2b-5a)
 - **What:** Automated voice consistency scorer — direct response to Sonia incident (wrong tone, not caught by lint)
 - **Source:** PR-2b-5 roadmap
-- **Status:** in design (not built)
-- **Owner:** C
-- **Target window:** this month
+- **Status:** 🟡 Part A + Part B implemented 2026-06-28 in `scripts/score-voice.ts`. **Not wired into the generation pipeline.** Calibration required before Gate 7 goes live.
+  - **Part A** (8 deterministic hard rules): A1 wallet continuity, A2 India paragraph prose (no bullet lists), A3 banned LLM tells (6 phrases + "in conclusion" exception + source-paraphrase rule 8), A4 paragraph-2 PR-paraphrase detection, A5 verdict tag (deferred to Gate 3), A6 sign-off line, A7 affiliate discipline (ABHINAV12 ≤2 occurrences), A8 no hallucinated first-person build in non-review pieces.
+  - **Part B** (LLM-as-judge soft scoring): 6 dimensions (voice_anchor 30pts, india_paragraph_rhythm 20pts, wallet_craft 15pts, signoff_craft 15pts, opening_hook 10pts, humour_engine 10pts). Gemini primary, Cerebras failover (same eligibility rule as main generator). Structured JSON response, clamped 0–10 per dimension, weighted total out of 100.
+  - **Calibration required (Part C, Steps 1–5 — non-skippable):** Step 1: score 76-article known-good corpus; Step 2: score 6 known-weak drafts; Step 3: tune pass threshold against Step 1/2 results; Step 4: dry-run against current approved queue; Step 5: Abhinav sign-off. Steps 1–4 require live Gemini API calls — run from terminal after this commit lands. Do not import `score-voice.ts` into the generator until Step 5 is complete.
+- **Owner:** C (implementation done) → Abhinav (calibration sign-off, Step 5)
+- **Target window:** Calibration this week; wire-in after sign-off
 - **Dependencies:** none
 
 ---
@@ -1386,7 +1396,7 @@ Decision deferred to Day 3 open.
 #### HIGH-52: Generation backlog growing faster than throughput
 - **What:** Approved rows awaiting generation (`draft_body IS NULL`) measured at 533 on 2026-06-27, up from 521 noted 2026-06-22 — despite `generate-drafts.yml` running daily at 08:30 UTC since 2026-06-24 (RUN_LIMIT=20/day scheduled, 50/day manual). Ingestion (RADAR-03 + RADAR-08) is outpacing generation.
 - **Source:** Surfaced 2026-06-27 during HIGH-50 root-cause investigation.
-- **Status:** Open, not yet sized. Need: (1) daily ingestion vs generation rate over last 7 days, (2) whether RUN_LIMIT should rise, Gemini RPM allows it, or ingestion should throttle.
+- **Status:** Open. Partial mitigation landed 2026-06-28 via CRITICAL-2/3 fixes — duplicate URLs no longer enter the approved queue, which reduces the ingestion rate slightly. Core capacity gap (generation throughput < ingestion rate) unchanged. Sizing still needed: (1) daily ingestion vs generation rate over last 7 days, (2) whether RUN_LIMIT should rise to 30+, Gemini RPM allows it, or ingestion should throttle at RADAR-03 qualification threshold.
 - **Owner:** Terminal (pull the numbers) → Abhinav (capacity call).
 - **Target window:** Before backlog depth reads as a stale-pipeline signal for Fan CoLab evidence.
 - **Dependencies:** Gemini 2.5 Flash-Lite free-tier 10 RPM ceiling; Cerebras failover capacity.
