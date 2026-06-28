@@ -2,6 +2,7 @@ import { buildSystemPrompt, buildUserPrompt, parseDraftResponse } from './prompt
 import { GeminiProvider, CerebrasProvider } from './providers';
 import { isCerebrasEligible } from './source-quality';
 import { lintDraft, type LintResult } from './lint';
+import { runHardRules, type HardRuleResult, type DraftFormat } from './hard-rules';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type DraftGenerationInput = {
@@ -25,6 +26,8 @@ export type GenerationOutcome = {
   requiresManualApproval: boolean;
   failoverUsed: boolean;
   lintResult: LintResult | null;
+  hardRules: HardRuleResult[];
+  hardFail: boolean;
 };
 
 // Determines whether a Gemini error should trigger Cerebras failover.
@@ -88,11 +91,14 @@ export async function generateWithFailover(
   vlog('Attempting Gemini...');
   try {
     const { text } = await gemini.call({ systemPrompt, userPrompt });
-    vlog('Gemini succeeded — running lint');
-    const parsed   = parseDraftResponse(text, input.format);
-    const lint     = await runLint(parsed.body, parsed.verdict, parsed.wordCount).catch(() => null);
+    vlog('Gemini succeeded — running lint + Gate 7');
+    const parsed    = parseDraftResponse(text, input.format);
+    const lint      = await runLint(parsed.body, parsed.verdict, parsed.wordCount).catch(() => null);
+    const hardRules = runHardRules(parsed.body, input.format as DraftFormat, input.sourceUrl);
+    const hardFail  = hardRules.some(r => !r.pass);
     lintSummary(lint);
-    vlog(`Routing: provider=gemini requiresManualApproval=false failoverUsed=false`);
+    vlog(`Gate 7: hardFail=${hardFail} failures=${hardRules.filter(r => !r.pass).map(r => r.id).join(',') || 'none'}`);
+    vlog(`Routing: provider=gemini requiresManualApproval=${hardFail} failoverUsed=false`);
     return {
       title: parsed.title,
       body:  parsed.body,
@@ -100,9 +106,11 @@ export async function generateWithFailover(
       format:  parsed.format,
       wordCount: parsed.wordCount,
       provider: 'gemini',
-      requiresManualApproval: false,
+      requiresManualApproval: hardFail,
       failoverUsed: false,
       lintResult: lint,
+      hardRules,
+      hardFail,
     };
   } catch (err) {
     geminiErr = err;
@@ -136,12 +144,15 @@ export async function generateWithFailover(
   const { text } = await cerebras.call({ systemPrompt, userPrompt });
   vlog(`Cerebras returned ${text.length} chars — parsing...`);
 
-  const parsed   = parseDraftResponse(text, input.format);
+  const parsed    = parseDraftResponse(text, input.format);
   vlog(`Parsed: title="${parsed.title.slice(0, 60)}" wordCount=${parsed.wordCount} verdict=${parsed.verdict}`);
 
-  const lint = await runLint(parsed.body, parsed.verdict, parsed.wordCount).catch(() => null);
+  const lint      = await runLint(parsed.body, parsed.verdict, parsed.wordCount).catch(() => null);
+  const hardRules = runHardRules(parsed.body, input.format as DraftFormat, input.sourceUrl);
+  const hardFail  = hardRules.some(r => !r.pass);
   lintSummary(lint);
-  vlog('Routing: provider=cerebras requiresManualApproval=false failoverUsed=true');
+  vlog(`Gate 7: hardFail=${hardFail} failures=${hardRules.filter(r => !r.pass).map(r => r.id).join(',') || 'none'}`);
+  vlog(`Routing: provider=cerebras requiresManualApproval=${hardFail} failoverUsed=true`);
 
   return {
     title:   parsed.title,
@@ -150,8 +161,10 @@ export async function generateWithFailover(
     format:  parsed.format,
     wordCount: parsed.wordCount,
     provider: 'cerebras',
-    requiresManualApproval: false,
+    requiresManualApproval: hardFail,
     failoverUsed: true,
     lintResult: lint,
+    hardRules,
+    hardFail,
   };
 }

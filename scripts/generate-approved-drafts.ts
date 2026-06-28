@@ -359,9 +359,10 @@ if (IS_MAIN) (async () => {
           if (lintActuallyFailed) geminiLintFailed++; else geminiRoutedToReview++;
         }
         const failoverNote = outcome.failoverUsed ? ' [CEREBRAS FAILOVER]' : '';
-        const manualNote   = outcome.requiresManualApproval ? ' [MANUAL REVIEW REQUIRED]' : '';
+        const gate7Failures = outcome.hardRules.filter(r => !r.pass).map(r => r.id);
+        const gate7Note    = gate7Failures.length ? ` [GATE7 FAIL: ${gate7Failures.join(',')}]` : '';
         const lintNote     = outcome.lintResult && !outcome.lintResult.overallPass ? ' [LINT WARN]' : '';
-        console.log(`OK -> pending review (${outcome.wordCount}w, verdict=${outcome.verdict ?? 'none'}, provider=${outcome.provider}${failoverNote}${manualNote}${lintNote})`);
+        console.log(`OK -> pending review (${outcome.wordCount}w, verdict=${outcome.verdict ?? 'none'}, provider=${outcome.provider}${failoverNote}${gate7Note}${lintNote})`);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
