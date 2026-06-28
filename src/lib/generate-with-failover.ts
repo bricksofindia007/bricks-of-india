@@ -126,13 +126,14 @@ export async function generateWithFailover(
     throw geminiErr;
   }
 
-  const excerptLen = (input.sourceExcerpt ?? '').length;
-  const eligible   = isCerebrasEligible({ source_excerpt: input.sourceExcerpt });
-  vlog(`Cerebras eligibility: excerpt_len=${excerptLen} → ${eligible ? 'ELIGIBLE' : 'INELIGIBLE (< 200 chars)'}`);
+  const fullBodyLen = (input.fullBody ?? '').length;
+  const excerptLen  = (input.sourceExcerpt ?? '').length;
+  const eligible    = isCerebrasEligible({ source_excerpt: input.sourceExcerpt, fullBody: input.fullBody });
+  vlog(`Cerebras eligibility: fullBody_len=${fullBodyLen} excerpt_len=${excerptLen} → ${eligible ? 'ELIGIBLE' : 'INELIGIBLE (both < 200 chars)'}`);
 
   if (!eligible) {
     throw new Error(
-      `Gemini failed (retryable) and Cerebras not eligible (excerpt < 200 chars): ${(geminiErr as Error).message}`,
+      `Gemini failed (retryable) and Cerebras not eligible (fullBody and excerpt both < 200 chars): ${(geminiErr as Error).message}`,
     );
   }
 

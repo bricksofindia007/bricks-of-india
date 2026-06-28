@@ -13,6 +13,8 @@ import { describe, it, expect } from 'vitest';
 import { buildSystemPrompt, buildUserPrompt, VOICE_EXAMPLES, OUTPUT_FORMAT } from '../src/lib/prompts/draft-prompt';
 import { extractSetNumberCandidates, extractSetNameCandidates, lintDraft } from '../src/lib/lint';
 import { isCerebrasEligible } from '../src/lib/source-quality';
+import { passesAutoPublishGates } from '../src/lib/auto-publish-gate';
+import type { GenerationOutcome } from '../src/lib/generate-with-failover';
 
 const SNAP = join(__dirname, 'snapshots');
 const read = (name: string) => readFileSync(join(SNAP, name), 'utf8');
@@ -197,6 +199,36 @@ describe('isCerebrasEligible', () => {
   it('returns false when source_excerpt is undefined', () => {
     expect(isCerebrasEligible({})).toBe(false);
   });
+
+  // ── fullBody fallback (bug fix 2026-06-28, HIGH-52) ──────────────────────────
+  // The prompt builder (draft-prompt.ts) prefers fullBody over source_excerpt:
+  // `content = fullBody || sourceExcerpt || sourceTitle`. Eligibility must check
+  // the same content the model actually receives, not source_excerpt alone —
+  // otherwise rows with no stored excerpt but a successful live fetch were
+  // wrongly blocked from Cerebras failover.
+
+  it('returns true when source_excerpt is null but fullBody is long enough', () => {
+    expect(isCerebrasEligible({ source_excerpt: null, fullBody: 'x'.repeat(300) })).toBe(true);
+  });
+
+  it('returns true when source_excerpt is short but fullBody is long enough', () => {
+    expect(isCerebrasEligible({ source_excerpt: 'Short.', fullBody: 'x'.repeat(300) })).toBe(true);
+  });
+
+  it('returns false when both source_excerpt and fullBody are null/absent', () => {
+    expect(isCerebrasEligible({ source_excerpt: null, fullBody: null })).toBe(false);
+  });
+
+  it('returns false when fullBody is empty string (failed fetch) and excerpt is short', () => {
+    expect(isCerebrasEligible({ source_excerpt: 'Short.', fullBody: '' })).toBe(false);
+  });
+
+  it('is eligible via source_excerpt even when fullBody is short/failed', () => {
+    // fullBody alone is too short, but source_excerpt alone clears the bar —
+    // eligibility checks both signals independently, so a thin/failed fullBody
+    // fetch must not shadow a perfectly good stored excerpt.
+    expect(isCerebrasEligible({ source_excerpt: 'x'.repeat(500), fullBody: 'short' })).toBe(true);
+  });
 });
 
 // ── Prompt hardening — Phase 7a (comparison discipline) ──────────────────────
@@ -322,5 +354,62 @@ describe('factuality AND-match — set name extraction (pure regex)', () => {
     const body = 'LEGO Hogsmeade Village is available now.';
     const names = extractSetNameCandidates(body);
     expect(names.some(n => n.includes('Hogsmeade'))).toBe(true);
+  });
+});
+
+// ── passesAutoPublishGates — factuality wiring fix (2026-06-28, HIGH-52) ──────
+//
+// Bug: factuality (Gate 5) and source fidelity (Gate 6) were computed via
+// lintDraft() and stored in outcome.lintResult, but never checked at the
+// auto-publish decision point — only format checks (word count, India
+// paragraph, verdict) and Gate 7 (voice/tone) could block auto-publish.
+// A factually wrong article could auto-publish if it had the right word
+// count and a price. Fixed to require outcome.lintResult.overallPass,
+// fail-closed (null lintResult = lint runner threw, not "no issues found").
+//
+// Logic lives in src/lib/auto-publish-gate.ts (extracted from
+// scripts/generate-approved-drafts.ts) so it can be statically imported here
+// without pulling in that script's module-scope process.exit(1) env guard
+// or its Supabase/Gemini/Cerebras client setup.
+describe('passesAutoPublishGates', () => {
+  const baseOutcome = (): GenerationOutcome => ({
+    title: 'Test title',
+    body: 'Some intro text.\n\n<!-- INDIA_PARAGRAPH -->\nAvailable at Toycra for ₹4,999.\n<!-- /INDIA_PARAGRAPH -->',
+    verdict: 'BUY NOW',
+    format: 'news',
+    wordCount: 400,
+    provider: 'gemini',
+    requiresManualApproval: false,
+    failoverUsed: false,
+    lintResult: {
+      overallPass: true,
+      warnings: [],
+      gates: { wordCount: { pass: true, severity: 'ok' }, indiaParagraph: { pass: true, severity: 'ok' }, verdict: null, factuality: { pass: true, severity: 'ok' }, sourceFidelity: { pass: true, severity: 'ok' } },
+    },
+    hardRules: [],
+    hardFail: false,
+  });
+
+  it('passes when all format checks and lintResult.overallPass are true', () => {
+    expect(passesAutoPublishGates(baseOutcome())).toBe(true);
+  });
+
+  it('fails when lintResult.overallPass is false (e.g. factuality gate failed) even if format checks pass', () => {
+    const outcome = baseOutcome();
+    outcome.lintResult!.overallPass = false;
+    outcome.lintResult!.gates.factuality = { pass: false, severity: 'fail', reason: 'unrecognized set number' };
+    expect(passesAutoPublishGates(outcome)).toBe(false);
+  });
+
+  it('fails closed when lintResult is null (lint runner threw, not "no issues found")', () => {
+    const outcome = baseOutcome();
+    outcome.lintResult = null;
+    expect(passesAutoPublishGates(outcome)).toBe(false);
+  });
+
+  it('still fails on pre-existing format checks regardless of lintResult', () => {
+    const outcome = baseOutcome();
+    outcome.wordCount = 100; // outside 300-500 range
+    expect(passesAutoPublishGates(outcome)).toBe(false);
   });
 });

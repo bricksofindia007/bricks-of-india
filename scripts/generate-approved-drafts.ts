@@ -18,6 +18,7 @@ dotenv.config({ path: '.env.local' });
 import { createClient } from '@supabase/supabase-js';
 import { generateWithFailover, type DraftGenerationInput, type GenerationOutcome } from '../src/lib/generate-with-failover';
 import { getSecret } from '../src/lib/get-secret';
+import { passesAutoPublishGates } from '../src/lib/auto-publish-gate';
 
 // ── CLI flags ─────────────────────────────────────────────────────────────────
 
@@ -178,17 +179,6 @@ async function fetchOgImage(url: string): Promise<string | null> {
   } catch { return null; }
 }
 
-function passesAutoPublishGates(outcome: GenerationOutcome): boolean {
-  const { body, verdict, wordCount } = outcome;
-  if (wordCount < 300 || wordCount > 500) return false;
-  if (!body.includes('<!-- INDIA_PARAGRAPH -->')) return false;
-  const seg = body.slice(body.indexOf('<!-- INDIA_PARAGRAPH -->'));
-  if (!/\b(MyBrickHouse|Toycra)\b/i.test(seg)) return false;
-  if (!/₹[\d,]+/.test(seg)) return false;
-  if (!['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID'].includes(verdict ?? '')) return false;
-  return true;
-}
-
 async function autoPublish(draft: any, outcome: GenerationOutcome): Promise<string> {
   const cleanBody = outcome.body
     .replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '')
@@ -328,6 +318,42 @@ if (IS_MAIN) (async () => {
         const failoverNote = outcome.failoverUsed ? ' [CEREBRAS FAILOVER]' : '';
         console.log(`AUTO-PUBLISHED -> /news/${publishedSlug} (${outcome.wordCount}w, provider=${outcome.provider}${failoverNote})`);
       } else {
+        // Discriminate: genuine quality-gate failure vs format-routed-to-review
+        // (opinion/review/guide are always manual by design, MEDIUM-13 — pass/fail
+        // doesn't change that). Only the genuine-failure, news-format population is
+        // eligible for the reject-and-delete policy below.
+        const lintActuallyFailed = !outcome.lintResult || !outcome.lintResult.overallPass || outcome.requiresManualApproval;
+        const isGenuineNewsFail  = outcome.format === 'news' && lintActuallyFailed;
+
+        if (isGenuineNewsFail) {
+          // Policy locked 2026-06-28 (Abhinav, this session): a news-format draft that
+          // completes generation but genuinely fails quality gates (factuality, source
+          // fidelity, lint, or Gate 7 voice/tone) is rejected and deleted outright rather
+          // than parked in pending_drafts indefinitely. Rationale: a row sitting in
+          // failed_lint/draft forever provides no value and was the dominant contributor
+          // to the unbounded backlog growth — see HIGH-52. This does NOT apply to
+          // non-news formats, which are routed to manual review by design regardless of
+          // pass/fail (MEDIUM-13), nor to DEFERRED rows (Cerebras-ineligible + Gemini
+          // retryable), which retry automatically and are not failures.
+          const failureReasons = [
+            ...outcome.hardRules.filter(r => !r.pass).map(r => `gate7:${r.id}`),
+            ...(outcome.lintResult?.warnings ?? []),
+            !outcome.lintResult ? 'lint_runner_threw' : null,
+          ].filter(Boolean).join('; ').slice(0, 500);
+
+          const { error: delErr } = await sb.from('pending_drafts').delete().eq('id', draft.id);
+          if (delErr) {
+            console.error('[supabase-write] table=pending_drafts op=delete(rejectFailed) error:', delErr);
+            throw delErr;
+          }
+
+          geminiAttempted++;
+          if (outcome.failoverUsed) { cerebrasAttempted++; cerebrasLintFailed++; } else { geminiLintFailed++; }
+          const failoverNote = outcome.failoverUsed ? ' [CEREBRAS FAILOVER]' : '';
+          console.log(`REJECTED+DELETED (${outcome.wordCount}w, provider=${outcome.provider}${failoverNote}) — ${failureReasons || 'gate failure'}`);
+          continue;
+        }
+
         const { error: upErr } = await sb
           .from('pending_drafts')
           .update({
@@ -348,15 +374,11 @@ if (IS_MAIN) (async () => {
         }
 
         geminiAttempted++;
-        // Discriminate: genuine lint failure vs format-routed-to-review (opinion/review/guide).
-        // outcome.lintResult.overallPass=true means lint passed but format requires manual review.
-        // overallPass=false means lint genuinely failed gates.
-        const lintActuallyFailed = outcome.lintResult && !outcome.lintResult.overallPass;
         if (outcome.failoverUsed) {
           cerebrasAttempted++;
-          if (lintActuallyFailed) cerebrasLintFailed++; else cerebrasRoutedToReview++;
+          cerebrasRoutedToReview++;
         } else {
-          if (lintActuallyFailed) geminiLintFailed++; else geminiRoutedToReview++;
+          geminiRoutedToReview++;
         }
         const failoverNote = outcome.failoverUsed ? ' [CEREBRAS FAILOVER]' : '';
         const gate7Failures = outcome.hardRules.filter(r => !r.pass).map(r => r.id);
