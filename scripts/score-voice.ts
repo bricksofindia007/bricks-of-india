@@ -64,13 +64,20 @@ function extractIndiaParagraph(content: string): string | null {
 // in every India paragraph regardless of voice) — including them would make this
 // rule nearly impossible to fail and defeat its purpose. Flagged here, not silently
 // dropped: if false negatives show up in Step 1/2 calibration, revisit.
-const WALLET_VOCAB = /\b(wallet|bank balance|bank account|savings|financially devastating)\b/i;
+// Widened 2026-06-28: EMI, financially, purse strings, broke the bank added after
+// 10-article pilot showed approved Gemini baselines using these forms. Plural fix:
+// original \bwallet\b never matched "wallets" — corrected to wallets?.
+// Downgraded to WARN (was FAIL): even after widening, some approved Gemini baselines
+// don't reuse wallet language post-opener — pending full 76-article corpus (Part C Step 1).
+const WALLET_VOCAB = /\b(wallets?|bank balance|bank account|savings|financially devastating|EMI|financially|purse strings|broke the bank)\b/i;
 
 export function ruleA1_walletContinuity(content: string): HardRuleResult {
   const paras = paragraphs(content);
   const afterHook = paras.slice(1).join('\n\n');
   const pass = WALLET_VOCAB.test(afterHook);
-  return { id: 'A1_wallet_continuity', pass, reason: pass ? undefined : 'no wallet vocabulary found after paragraph 1' };
+  // WARN not FAIL — downgraded pending calibration. Even the widened vocab misses
+  // some approved Gemini baselines; threshold needs the full corpus (Part C Step 1).
+  return { id: 'A1_wallet_continuity', pass: true, reason: pass ? undefined : 'WARN: no wallet vocabulary found after paragraph 1 (non-blocking pending calibration)' };
 }
 
 // A2: India Paragraph Must Be Prose — bullets forbidden.
