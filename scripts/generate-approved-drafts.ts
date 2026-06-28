@@ -19,6 +19,7 @@ import { createClient } from '@supabase/supabase-js';
 import { generateWithFailover, type DraftGenerationInput, type GenerationOutcome } from '../src/lib/generate-with-failover';
 import { getSecret } from '../src/lib/get-secret';
 import { passesAutoPublishGates } from '../src/lib/auto-publish-gate';
+import { publishOneDraft } from '../src/lib/publish-draft';
 
 // ── CLI flags ─────────────────────────────────────────────────────────────────
 
@@ -160,59 +161,59 @@ export async function buildIndiaPriceContext(setNumber: string | null): Promise<
   return 'INDIA PRICE DATA: no price data available. Use IMPORT ONLY verdict. State the set is not currently available at any official India retailer, and omit a specific price figure.';
 }
 
-// ── Auto-publish helpers (news only) ─────────────────────────────────────────
+// ── Auto-publish ──────────────────────────────────────────────────────────────
+// makeSlug() and the local fetchOgImage() were removed 2026-06-28 — superseded
+// by generateSlug() and the full hero-image resolution chain in
+// src/lib/publish-draft.ts, used via publishOneDraft() below.
 
-function makeSlug(title: string): string {
-  return (title || 'untitled')
-    .toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')
-    .replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
-}
+// Unified 2026-06-28 (full merge with publish-drafts.mjs / actions.ts):
+// autoPublish() now delegates to the shared publishOneDraft() in
+// src/lib/publish-draft.ts instead of its own news-only, no-hero-fallback-
+// guarantee, no-review-schema implementation. This is what actually lets
+// review/opinion/guide drafts auto-publish on a clean gate pass (Abhinav,
+// this session: "let review/opinion/guide auto-publish too, IF they pass
+// the exact same gates as news") — passesAutoPublishGates() already checks
+// outcome.lintResult.overallPass uniformly per format; this function used
+// to only know how to write to news_articles regardless of format, which
+// would have silently mislabeled review/opinion/guide content. Now it uses
+// the same resolveTarget()/insert/hero-fallback path as every other publish
+// call site, including the verdict+set_number columns for review-format
+// (feeds buildReviewSchema()).
+//
+// The outcome's lintResult was already computed moments ago by
+// generateBodyWithFailover() — constructing updated_at as "now" makes
+// publishOneDraft's freshness check correctly skip a redundant live re-lint
+// of something this process just linted itself.
+async function autoPublish(draft: any, outcome: GenerationOutcome): Promise<{ path: string; slug: string }> {
+  const publishable = {
+    id:               draft.id,
+    draft_title:      outcome.title,
+    draft_body:       outcome.body,
+    draft_verdict:    outcome.verdict,
+    draft_format:     outcome.format,
+    word_count:       outcome.wordCount,
+    source_url:       draft.source_url,
+    source_title:     draft.source_title,
+    source_excerpt:   draft.source_excerpt,
+    lint_result:      outcome.lintResult,
+    updated_at:       new Date().toISOString(),
+  };
 
-async function fetchOgImage(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(6000) });
-    if (!res.ok) return null;
-    const html = await res.text();
-    return html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)?.[1]
-        || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i)?.[1]
-        || null;
-  } catch { return null; }
-}
+  const { path, slug } = await publishOneDraft(publishable, sb);
 
-async function autoPublish(draft: any, outcome: GenerationOutcome): Promise<string> {
-  const cleanBody = outcome.body
-    .replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '')
-    .replace(/<!--\s*\/INDIAN?_PARAGRAPH\s*-->\n?/g, '')  // /INDIAN_PARAGRAPH is a known model typo
-    .trim();
-  let baseSlug = makeSlug(outcome.title), slug = baseSlug, attempt = 2;
-  while (true) {
-    const { data: ex } = await sb.from('news_articles').select('id').eq('slug', slug).maybeSingle();
-    if (!ex) break;
-    slug = `${baseSlug.slice(0, 57)}-${attempt++}`;
-  }
-  const excerpt   = cleanBody.replace(/[#*\n]+/g, ' ').trim().slice(0, 160);
-  const heroImage = await fetchOgImage(draft.source_url);
-  const { error } = await sb.from('news_articles').insert({
-    title: outcome.title, slug, content: cleanBody, category: 'News',
-    excerpt, hero_image: heroImage || null,
-    published_at: new Date().toISOString(),
-  });
-  if (error) {
-    console.error('[supabase-write] table=news_articles op=insert error:', error);
-    throw error;
-  }
   const { error: markErr } = await sb.from('pending_drafts').update({
-    status:                   'published',
     provider:                 outcome.provider,
     requires_manual_approval: false,
-    published_url:            `/news/${slug}`,
-    published_at:             new Date().toISOString(),
   }).eq('id', draft.id);
   if (markErr) {
-    console.error('[supabase-write] table=pending_drafts op=update(autoPublish) error:', markErr);
-    // Article already inserted into news_articles — continue; draft state will be stale
+    // publishOneDraft already wrote status='published' + published_url —
+    // this second update only adds provider/requires_manual_approval, which
+    // are specific to the generation pipeline's telemetry, not something
+    // publishOneDraft's shared callers (cron, admin button) need to know.
+    console.error('[supabase-write] table=pending_drafts op=update(autoPublish-provider) error:', markErr);
   }
-  return slug;
+
+  return { path, slug };
 }
 
 // ── Per-draft generation wrapper ──────────────────────────────────────────────
@@ -297,8 +298,8 @@ if (IS_MAIN) (async () => {
   }
   runId = runRow?.id ?? null;
 
-  let geminiAttempted = 0, geminiOk = 0, geminiLintFailed = 0, geminiRoutedToReview = 0;
-  let cerebrasAttempted = 0, cerebrasOk = 0, cerebrasLintFailed = 0, cerebrasRoutedToReview = 0;
+  let geminiAttempted = 0, geminiOk = 0, geminiLintFailed = 0;
+  let cerebrasAttempted = 0, cerebrasOk = 0, cerebrasLintFailed = 0;
   let deferred = 0, failed = 0;
 
   for (let i = 0; i < queue.length; i++) {
@@ -311,80 +312,60 @@ if (IS_MAIN) (async () => {
     try {
       const outcome = await generateBodyWithFailover(draft);
 
-      if (outcome.format === 'news' && !outcome.requiresManualApproval && passesAutoPublishGates(outcome)) {
-        const publishedSlug = await autoPublish(draft, outcome);
+      // Policy change 2026-06-28 (Abhinav, this session): "let review/opinion/
+      // guide auto-publish too, IF they pass the exact same gates as news (no
+      // extra human gate)". Previously this condition was format === 'news'
+      // only — MEDIUM-13's deliberate human-gate-regardless-of-pass-fail for
+      // other formats is superseded by this decision. passesAutoPublishGates()
+      // already checks outcome.lintResult.overallPass uniformly per format
+      // (factuality, source fidelity, word count, India paragraph, verdict —
+      // see src/lib/auto-publish-gate.ts); Gate 7's hard rules (hard-rules.ts)
+      // are also already format-aware on their own merits (e.g. A8 correctly
+      // allows first-person build claims for review format). So removing the
+      // format restriction here doesn't weaken anything — it just lets every
+      // format reach the same already-rigorous gate news always had.
+      if (!outcome.requiresManualApproval && passesAutoPublishGates(outcome)) {
+        const { path, slug } = await autoPublish(draft, outcome);
         geminiAttempted++;
         if (outcome.failoverUsed) { cerebrasAttempted++; cerebrasOk++; } else { geminiOk++; }
         const failoverNote = outcome.failoverUsed ? ' [CEREBRAS FAILOVER]' : '';
-        console.log(`AUTO-PUBLISHED -> /news/${publishedSlug} (${outcome.wordCount}w, provider=${outcome.provider}${failoverNote})`);
+        console.log(`AUTO-PUBLISHED -> ${path}/${slug} (${outcome.wordCount}w, format=${outcome.format}, provider=${outcome.provider}${failoverNote})`);
       } else {
-        // Discriminate: genuine quality-gate failure vs format-routed-to-review
-        // (opinion/review/guide are always manual by design, MEDIUM-13 — pass/fail
-        // doesn't change that). Only the genuine-failure, news-format population is
-        // eligible for the reject-and-delete policy below.
-        const lintActuallyFailed = !outcome.lintResult || !outcome.lintResult.overallPass || outcome.requiresManualApproval;
-        const isGenuineNewsFail  = outcome.format === 'news' && lintActuallyFailed;
+        // Reaching this branch means !(if-condition) above, which by De
+        // Morgan's law is exactly: requiresManualApproval ||
+        // !passesAutoPublishGates(outcome). Every reachable case here is a
+        // genuine quality-gate failure — there is no remaining "format
+        // requires manual review regardless of pass/fail" population now
+        // that today's policy change (auto-publish extended to review/
+        // opinion/guide) removed MEDIUM-13's carve-out on one side of this
+        // if/else, and the reject+delete policy (also today) removed the
+        // "park in status=draft forever" destination on the other side.
+        // DEFERRED rows (Cerebras-ineligible + Gemini retryable) never reach
+        // this branch at all — they're handled in the catch block below.
+        //
+        // Policy locked 2026-06-28 (Abhinav, this session): a draft that
+        // completes generation but genuinely fails quality gates (factuality,
+        // source fidelity, lint, or Gate 7 voice/tone) is rejected and deleted
+        // outright rather than parked in pending_drafts indefinitely.
+        // Rationale: a row sitting in failed_lint/draft forever provides no
+        // value and was the dominant contributor to the unbounded backlog
+        // growth — see HIGH-52.
+        const failureReasons = [
+          ...outcome.hardRules.filter(r => !r.pass).map(r => `gate7:${r.id}`),
+          ...(outcome.lintResult?.warnings ?? []),
+          !outcome.lintResult ? 'lint_runner_threw' : null,
+        ].filter(Boolean).join('; ').slice(0, 500);
 
-        if (isGenuineNewsFail) {
-          // Policy locked 2026-06-28 (Abhinav, this session): a news-format draft that
-          // completes generation but genuinely fails quality gates (factuality, source
-          // fidelity, lint, or Gate 7 voice/tone) is rejected and deleted outright rather
-          // than parked in pending_drafts indefinitely. Rationale: a row sitting in
-          // failed_lint/draft forever provides no value and was the dominant contributor
-          // to the unbounded backlog growth — see HIGH-52. This does NOT apply to
-          // non-news formats, which are routed to manual review by design regardless of
-          // pass/fail (MEDIUM-13), nor to DEFERRED rows (Cerebras-ineligible + Gemini
-          // retryable), which retry automatically and are not failures.
-          const failureReasons = [
-            ...outcome.hardRules.filter(r => !r.pass).map(r => `gate7:${r.id}`),
-            ...(outcome.lintResult?.warnings ?? []),
-            !outcome.lintResult ? 'lint_runner_threw' : null,
-          ].filter(Boolean).join('; ').slice(0, 500);
-
-          const { error: delErr } = await sb.from('pending_drafts').delete().eq('id', draft.id);
-          if (delErr) {
-            console.error('[supabase-write] table=pending_drafts op=delete(rejectFailed) error:', delErr);
-            throw delErr;
-          }
-
-          geminiAttempted++;
-          if (outcome.failoverUsed) { cerebrasAttempted++; cerebrasLintFailed++; } else { geminiLintFailed++; }
-          const failoverNote = outcome.failoverUsed ? ' [CEREBRAS FAILOVER]' : '';
-          console.log(`REJECTED+DELETED (${outcome.wordCount}w, provider=${outcome.provider}${failoverNote}) — ${failureReasons || 'gate failure'}`);
-          continue;
-        }
-
-        const { error: upErr } = await sb
-          .from('pending_drafts')
-          .update({
-            draft_title:               outcome.title,
-            draft_body:                outcome.body,
-            draft_verdict:             outcome.verdict,
-            draft_format:              outcome.format,
-            word_count:                outcome.wordCount,
-            status:                    'draft',
-            provider:                  outcome.provider,
-            requires_manual_approval:  outcome.requiresManualApproval,
-            lint_result:               outcome.lintResult ? JSON.parse(JSON.stringify(outcome.lintResult)) : null,
-          })
-          .eq('id', draft.id);
-        if (upErr) {
-          console.error('[supabase-write] table=pending_drafts op=update(manualRoute) error:', upErr);
-          throw upErr;
+        const { error: delErr } = await sb.from('pending_drafts').delete().eq('id', draft.id);
+        if (delErr) {
+          console.error('[supabase-write] table=pending_drafts op=delete(rejectFailed) error:', delErr);
+          throw delErr;
         }
 
         geminiAttempted++;
-        if (outcome.failoverUsed) {
-          cerebrasAttempted++;
-          cerebrasRoutedToReview++;
-        } else {
-          geminiRoutedToReview++;
-        }
+        if (outcome.failoverUsed) { cerebrasAttempted++; cerebrasLintFailed++; } else { geminiLintFailed++; }
         const failoverNote = outcome.failoverUsed ? ' [CEREBRAS FAILOVER]' : '';
-        const gate7Failures = outcome.hardRules.filter(r => !r.pass).map(r => r.id);
-        const gate7Note    = gate7Failures.length ? ` [GATE7 FAIL: ${gate7Failures.join(',')}]` : '';
-        const lintNote     = outcome.lintResult && !outcome.lintResult.overallPass ? ' [LINT WARN]' : '';
-        console.log(`OK -> pending review (${outcome.wordCount}w, verdict=${outcome.verdict ?? 'none'}, provider=${outcome.provider}${failoverNote}${gate7Note}${lintNote})`);
+        console.log(`REJECTED+DELETED (${outcome.wordCount}w, format=${outcome.format}, provider=${outcome.provider}${failoverNote}) — ${failureReasons || 'gate failure'}`);
       }
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -409,9 +390,16 @@ if (IS_MAIN) (async () => {
 
   // ── Update generator_runs row ──────────────────────────────────────────────
   if (runId) {
+    // routed_to_review removed from provider_stats and the drafts_routed_to_review
+    // column omitted from this update 2026-06-28 — that outcome is now structurally
+    // impossible (see the removed manual-review branch above): every generated
+    // draft either auto-publishes or is rejected+deleted. The DB column itself
+    // (NOT NULL DEFAULT 0) is left in place — it's part of the schema's history
+    // and other tooling may reference it — but this script no longer writes a
+    // fake "always zero" value into it; it simply keeps its default.
     const providerStats = {
-      gemini:   { attempted: geminiAttempted,   ok: geminiOk,   lint_failed: geminiLintFailed,   routed_to_review: geminiRoutedToReview },
-      cerebras: { attempted: cerebrasAttempted, ok: cerebrasOk, lint_failed: cerebrasLintFailed, routed_to_review: cerebrasRoutedToReview },
+      gemini:   { attempted: geminiAttempted,   ok: geminiOk,   lint_failed: geminiLintFailed },
+      cerebras: { attempted: cerebrasAttempted, ok: cerebrasOk, lint_failed: cerebrasLintFailed },
     };
     const { error: updateErr } = await sb
       .from('generator_runs')
@@ -420,7 +408,6 @@ if (IS_MAIN) (async () => {
         drafts_succeeded:        geminiOk + cerebrasOk,
         drafts_lint_failed:      geminiLintFailed + cerebrasLintFailed,
         drafts_deferred:         deferred,
-        drafts_routed_to_review: geminiRoutedToReview + cerebrasRoutedToReview,
         drafts_failed:           failed,
         provider_stats:          providerStats,
       })
@@ -432,10 +419,9 @@ if (IS_MAIN) (async () => {
   }
 
   const total = geminiOk + cerebrasOk;
-  const routed = geminiRoutedToReview + cerebrasRoutedToReview;
   const lintFailed = geminiLintFailed + cerebrasLintFailed;
   const dur   = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${cerebrasOk} cerebras), ${routed} routed to review, ${lintFailed} lint failed, ${failed} failed, ${deferred} deferred of ${queue.length} — ${dur}s total`);
+  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${cerebrasOk} cerebras), ${lintFailed} rejected+deleted, ${failed} failed, ${deferred} deferred of ${queue.length} — ${dur}s total`);
 })().catch(err => {
   console.error('FATAL:', err);
   process.exit(1);

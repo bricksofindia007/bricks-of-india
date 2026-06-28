@@ -407,9 +407,82 @@ describe('passesAutoPublishGates', () => {
     expect(passesAutoPublishGates(outcome)).toBe(false);
   });
 
-  it('still fails on pre-existing format checks regardless of lintResult', () => {
+  // Rewritten 2026-06-28 (full merge): word count is no longer checked
+  // independently here — it's deferred entirely to lintResult.overallPass
+  // (computed by lintDraft() using the correct per-format WORD_COUNT_TARGETS
+  // range). Setting outcome.wordCount alone, without the mock lintResult
+  // reflecting that failure, now correctly has NO effect — this test was
+  // previously passing for the wrong reason (the old hardcoded news-shaped
+  // 300-500 check), which the merge intentionally removed so other formats
+  // aren't held to news's literal numeric thresholds.
+  it('word count alone (without a failing lintResult) no longer blocks auto-publish — deferred to lintDraft', () => {
     const outcome = baseOutcome();
-    outcome.wordCount = 100; // outside 300-500 range
+    outcome.wordCount = 100; // would have failed the old hardcoded 300-500 news check
+    // lintResult.overallPass is still true in this fixture — in real usage,
+    // lintDraft() would have already set overallPass=false for a genuinely
+    // out-of-range word count. This test documents that passesAutoPublishGates
+    // trusts lintResult rather than re-deriving word count validity itself.
+    expect(passesAutoPublishGates(outcome)).toBe(true);
+  });
+
+  it('fails when lintResult correctly reflects a word-count gate failure', () => {
+    const outcome = baseOutcome();
+    outcome.lintResult!.overallPass = false;
+    outcome.lintResult!.gates.wordCount = { pass: false, severity: 'fail', reason: '100 words — hard limit 225-500 for news' };
     expect(passesAutoPublishGates(outcome)).toBe(false);
+  });
+
+  // New 2026-06-28 (Abhinav policy decision): review/opinion/guide can now
+  // reach and pass this function — previously the call site in
+  // generate-approved-drafts.ts restricted format === 'news' before this
+  // function was ever called (MEDIUM-13). This function itself was always
+  // format-agnostic in principle; these tests confirm it actually behaves
+  // that way for the formats that newly rely on it.
+  it('passes for a review-format draft with overallPass=true and a valid verdict', () => {
+    const outcome = baseOutcome();
+    outcome.format = 'review';
+    outcome.verdict = 'BUY NOW';
+    expect(passesAutoPublishGates(outcome)).toBe(true);
+  });
+
+  it('passes for an opinion-format draft with overallPass=true and a null (community) verdict', () => {
+    const outcome = baseOutcome();
+    outcome.format = 'opinion';
+    outcome.verdict = null;
+    expect(passesAutoPublishGates(outcome)).toBe(true);
+  });
+
+  it('passes for a guide-format draft with overallPass=true and an invalid-looking verdict string — verdict gate is non-news\u2019s lintDraft responsibility, not this function\u2019s', () => {
+    // lintDraft() gates verdict for non-news formats (verdictGate, format !== 'news').
+    // This function's own verdict check only applies to format === 'news' —
+    // for other formats, an invalid verdict would already have been caught
+    // by lintResult.overallPass=false in real usage. This fixture keeps
+    // overallPass=true to isolate and confirm this function's own news-only
+    // verdict-check scope, not to claim a real guide draft could have a
+    // garbage verdict and still pass end-to-end.
+    const outcome = baseOutcome();
+    outcome.format = 'guide';
+    outcome.verdict = 'NOT_A_REAL_VERDICT';
+    expect(passesAutoPublishGates(outcome)).toBe(true);
+  });
+
+  it('fails for a news-format draft with an invalid (non-null, non-valid-enum) verdict, even if lintResult.overallPass is true', () => {
+    // This is the one gate this function still checks directly: lintDraft()
+    // deliberately skips verdict validation when format === 'news'
+    // (verdictGate stays null), so this function must catch it. This is also
+    // the exact edge case that motivated isGenuineFail in
+    // generate-approved-drafts.ts being the precise logical negation of this
+    // function's result, rather than a hand-maintained approximation.
+    const outcome = baseOutcome();
+    outcome.format = 'news';
+    outcome.verdict = 'MAYBE BUY IT IDK';
+    expect(passesAutoPublishGates(outcome)).toBe(false);
+  });
+
+  it('passes for a news-format draft with a null (community/MOC) verdict', () => {
+    const outcome = baseOutcome();
+    outcome.format = 'news';
+    outcome.verdict = null;
+    expect(passesAutoPublishGates(outcome)).toBe(true);
   });
 });

@@ -1,0 +1,494 @@
+import { lintDraft, extractSetNumberCandidates, type LintResult } from './lint';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+// ── Unified publish-a-draft logic (2026-06-28) ────────────────────────────────
+//
+// Extracted and merged from two independently-drifted implementations:
+//   - scripts/publish-drafts.mjs (cron, 3x/day)
+//   - src/app/admin/pending/actions.ts::publishOneDraft (manual "Publish" button)
+//
+// MEDIUM-38 (opinion path: /blog vs /opinion) was the first symptom found of
+// these diverging; a closer read found more: publish-drafts.mjs had
+// prePublishAutoFix(), cqsHardCheck(), EDITORIAL_CDN_BLOCKLIST, review-format
+// verdict/set_number columns (feeds buildReviewSchema() JSON-LD), and a
+// lint_result freshness cache that actions.ts lacked entirely. actions.ts had
+// sendLintAlert() email alerting, a stricter Gate 4 hero-image check, and a
+// more complete YouTube hero-image fallback chain (theme-keyword search +
+// image-conflict re-resolution via sets.image_url) that publish-drafts.mjs
+// lacked. Neither file was strictly more complete — each had gained real,
+// independent improvements the other never received. This module merges both
+// rather than picking one as canonical.
+//
+// Decisions made resolving the conflicts (confirmed with Abhinav):
+//   - Hero image: NEVER block publish on a missing/broken image, and NEVER
+//     publish with no image. The old Gate-4-hard-fail behavior (actions.ts)
+//     and old silent-null behavior (publish-drafts.mjs) are both replaced:
+//     every resolution path ends in applyHeroFallback(), which guarantees a
+//     non-null hero_image (falling back to '/fallback-hero.png', the same
+//     asset already used as the universal fallback in ImageWithFallback.tsx
+//     and the news/blog detail pages) before the row is ever inserted.
+//   - Opinion path: '/opinion' (MEDIUM-38 fix), not '/blog' — see resolveTarget.
+//   - Review verdict/set_number columns: always populated for review-format
+//     drafts (publish-drafts.mjs's behavior — actions.ts was missing this).
+//   - lint_result freshness cache: kept (publish-drafts.mjs's behavior) —
+//     skip re-lint if a stored, passing lint_result is <24h old; avoids a
+//     redundant live factuality DB query on every publish.
+//   - sendLintAlert and revalidatePath are both OPTIONAL callbacks (not hard
+//     dependencies of this module), since: (a) sendLintAlert uses Resend and
+//     is only meaningful for a single manual publish, not a generation-loop
+//     reject+delete (would spam email on every batch failure); (b)
+//     revalidatePath only works inside a Next.js Server Action request
+//     context — calling it from a standalone script throws. Callers that
+//     have these available (actions.ts) pass them in; callers that don't
+//     (publish-drafts.mjs, generate-approved-drafts.ts) omit them and get a
+//     no-op.
+
+export const UA = 'BricksOfIndia-RadarBot/1.0 (+https://bricksofindia.com)';
+
+const YOUTUBE_SRC_RE = /youtube\.com|youtu\.be/i;
+const YOUTUBE_IMG_RE = /ytimg\.com|yt3\.ggpht\.com|youtube\.com\/vi\//i;
+const HERO_FALLBACK   = '/fallback-hero.png';
+
+const EDITORIAL_CDN_BLOCKLIST = new Set([
+  'static1.squarespace.com',       // New Elementary
+  'media-cdn.brothers-brick.com',  // Brothers Brick
+  'live.staticflickr.com',         // Flickr embeds
+  'jaysbrickblog.com',             // Jay's Brick Blog
+  'cdn.bricklink.com',             // BrickLink
+  'i.imgur.com',                   // Imgur
+  'external-preview.redd.it',      // Reddit preview
+  'preview.redd.it',               // Reddit preview
+]);
+
+const LEGO_THEME_KEYWORDS = [
+  'Technic', 'City', 'Star Wars', 'Harry Potter', 'Ideas', 'Icons', 'Creator', 'Ninjago',
+  'Friends', 'Marvel', 'DC', 'Disney', 'Minecraft', 'Speed Champions', 'Architecture',
+  'Botanical', 'BrickHeadz', 'Duplo', 'Monkie Kid', 'Jurassic World', 'Super Mario',
+  'Dreamzzz', 'Classic', 'Seasonal', 'DOTS', 'Dimensions', 'Hidden Side',
+];
+
+// ── Pre-publish auto-fix + CQS gate (from publish-drafts.mjs; actions.ts had neither) ──
+
+const FORBIDDEN_SUBS: [RegExp, string][] = [
+  [/\ba testament to\b/gi,         'proof of'],
+  [/\ba testament\b/gi,            'a sign'],
+  [/\btestament\b/gi,              'proof'],
+  [/\bwhimsical\b/gi,              'playful'],
+  [/\bpinnacle\b/gi,               'peak'],
+  [/\baficionados\b/gi,            'fans'],
+  [/\benthusiasts\b/gi,            'fans'],
+  [/\bdelve\b/gi,                  'dig into'],
+  [/\butilize\b/gi,                'use'],
+  [/\bat the end of the day\b/gi,  'ultimately'],
+  [/\bunadulterated\b/gi,          'pure'],
+  [/\bsiren call\b/gi,             'pull'],
+  [/\bfever dreams\b/gi,           'wild visions'],
+  [/\bbloke\b/gi,                  'person'],
+  [/\bcognoscenti\b/gi,            'experts'],
+];
+
+const JAIMAN_SUBS: [RegExp, string][] = [
+  [/MyBrickHouse,\s*Toycra,\s*and\s*Jaiman\s*Toys/gi, 'MyBrickHouse and Toycra'],
+  [/Toycra,\s*and\s*Jaiman\s*Toys/gi,                 'Toycra'],
+  [/MyBrickHouse\s*and\s*Jaiman\s*Toys/gi,             'MyBrickHouse and Toycra'],
+  [/,?\s*and\s*Jaiman\s*Toys/gi,                       ''],
+  [/Jaiman\s*Toys/gi,                                  'Toycra'],
+];
+
+const SIGNOFF_TEXT = 'On that bombshell, bubyee.';
+
+const BAD_OPENER_PATTERNS = [
+  /^(Okay,\s*[^.!?]*[.!?])\s*/i,
+  /^(Alright,\s*(LEGO\s*)?(fans?|everyone|Potterheads|fellow)[^.!?]*[.!?])\s*/i,
+  /^(So,\s*[a-z][^.!?]*[.!?])\s*/i,
+  /^(Hey\s+everyone[^.!?]*[.!?])\s*/i,
+];
+
+export function prePublishAutoFix(body: string, draft: { source_title?: string | null; draft_title?: string | null }, slug = ''): string {
+  let c = body;
+
+  c = c.replace(/\*\*([^*\n]{1,200})\*\*/g, '$1');
+  c = c.replace(/(?<!\*)\*(?!\*)([^*\n]{1,200})(?<!\*)\*(?!\*)/g, '$1');
+  c = c.replace(/^#{1,6}\s+(.+)$/gm, '$1');
+  c = c.replace(/^(\s*)[-*]\s+/gm, '$1');
+
+  while (c.includes('  ')) c = c.replace(/  /g, ' ');
+
+  for (const [re, sub] of JAIMAN_SUBS) c = c.replace(re, sub);
+  for (const [re, sub] of FORBIDDEN_SUBS) c = c.replace(re, sub);
+
+  for (const pat of BAD_OPENER_PATTERNS) {
+    if (pat.test(c)) {
+      const title = draft?.source_title || draft?.draft_title || '';
+      const setRef = title ? title.replace(/^LEGO\s*/i, '').replace(/[–—-].*$/, '').trim() : 'this set';
+      const replacement = `The ${setRef} has landed — and your wallet already knows what's coming. `;
+      c = c.replace(pat, replacement);
+      break;
+    }
+  }
+
+  if (/Toycra/i.test(c) && !/ABHINAV12/i.test(c)) {
+    c = c.replace(/(Toycra\b[^.\n]*\.)/, '$1 Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra.');
+  }
+
+  const hasPrice = /₹[\d,]+/.test(c);
+  const hasStore = /MyBrickHouse|Toycra/i.test(c);
+  if (hasPrice && !hasStore) {
+    c = c.replace(/(₹[\d,]+[^.\n]*\.)/, '$1 Available at MyBrickHouse and Toycra (use code ABHINAV12 for 12% off above ₹500).');
+  }
+
+  const hasVerdict = /\b(BUY NOW|WAIT|IMPORT ONLY|AVOID)\b/.test(c);
+  const hasSetNum = /\b\d{4,6}\b/.test(slug);
+  if (hasPrice && !hasVerdict && hasSetNum) {
+    c = c.replace(/\s+$/, '') + '\n\n**Verdict: WAIT** — check prices at MyBrickHouse and Toycra before pulling the trigger.';
+  }
+
+  if (!/on that bombshell/i.test(c)) c = c.replace(/\s+$/, '') + '\n\n' + SIGNOFF_TEXT;
+
+  return c;
+}
+
+const CQS_HARD: { re: RegExp; msg: string }[] = [
+  { re: /<script[\s>]|<iframe[\s>]/i, msg: 'script/iframe injection in body' },
+  { re: /BOI_DRAFT_START|BOI_DRAFT_END/, msg: 'draft marker leaked into published body' },
+];
+
+export function cqsHardCheck(body: string): string | null {
+  for (const { re, msg } of CQS_HARD) {
+    if (re.test(body)) return msg;
+  }
+  return null;
+}
+
+// ── Slug + target resolution ──────────────────────────────────────────────────
+
+export function generateSlug(title: string): string {
+  return (title || 'untitled')
+    .toLowerCase()
+    .replace(/[^a-z0-9\s-]/g, '')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+    .slice(0, 60);
+}
+
+// MEDIUM-38 (fixed 2026-06-28): opinion -> '/opinion', not '/blog'. Verified
+// live: src/app/blog/page.tsx excludes category='Opinion' from its own
+// listing; src/app/opinion/page.tsx requires it. '/blog' would have published
+// successfully but been orphaned — unreachable from any listing page.
+export function resolveTarget(format: string): { table: string; path: string; category: string } {
+  if (format === 'guide')   return { table: 'guides',        path: '/guides',  category: 'Guide'   };
+  if (format === 'opinion') return { table: 'blog_posts',    path: '/opinion', category: 'Opinion' };
+  if (format === 'review')  return { table: 'news_articles', path: '/news',    category: 'Review'  };
+  return                           { table: 'news_articles', path: '/news',    category: 'News'    };
+}
+
+// ── Hero image resolution ─────────────────────────────────────────────────────
+
+export function isEditorialCDN(url: string | null): boolean {
+  if (!url) return false;
+  try { return EDITORIAL_CDN_BLOCKLIST.has(new URL(url).hostname); }
+  catch { return false; }
+}
+
+export async function fetchOgImage(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(6000) });
+    if (!res.ok) return null;
+    const html = await res.text();
+    const ogMatch = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
+                 || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
+    const twMatch = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)
+                 || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i);
+    const og = ogMatch?.[1] || twMatch?.[1];
+    return (og && og.startsWith('http')) ? og : null;
+  } catch { return null; }
+}
+
+// 4-step fallback chain, merged from the more complete actions.ts version:
+//   1. Distinct 4-6 digit set numbers from title+body → Rebrickable set lookup
+//   2. (folded into step 1's loop — kept as a separate numbered step in the
+//      original comments, preserved here for continuity with prior logs)
+//   3. Theme-keyword match → Rebrickable search, first result with an image
+//   4. All chains exhausted → null (caller applies HERO_FALLBACK)
+export async function resolveYouTubeHeroImage(
+  title: string | null,
+  body: string | null,
+): Promise<string | null> {
+  const rbKey  = process.env.REBRICKABLE_API_KEY;
+  const rbHdrs: Record<string, string> = { 'User-Agent': UA, ...(rbKey ? { Authorization: `key ${rbKey}` } : {}) };
+  const combined = `${title ?? ''} ${body ?? ''}`;
+
+  const seen = new Set<string>();
+  const setNums: string[] = [];
+  const re = /\b(\d{4,6})\b/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(combined)) !== null) {
+    if (!seen.has(m[1])) { seen.add(m[1]); setNums.push(m[1]); }
+  }
+  for (const num of setNums.slice(0, 5)) {
+    try {
+      const res = await fetch(
+        `https://rebrickable.com/api/v3/lego/sets/${num}-1/`,
+        { headers: rbHdrs, signal: AbortSignal.timeout(5000) },
+      );
+      if (res.ok) {
+        const data = await res.json() as { set_img_url?: string };
+        if (data.set_img_url) {
+          console.log(`[publish:hero] set ${num} → ${data.set_img_url.slice(0, 70)}`);
+          return data.set_img_url;
+        }
+      }
+    } catch { /* try next set number */ }
+  }
+
+  const titleLower = (title ?? '').toLowerCase();
+  const theme = LEGO_THEME_KEYWORDS.find(t => titleLower.includes(t.toLowerCase()));
+  if (theme) {
+    try {
+      const res = await fetch(
+        `https://rebrickable.com/api/v3/lego/sets/?search=${encodeURIComponent(theme)}&ordering=-year&page_size=5`,
+        { headers: rbHdrs, signal: AbortSignal.timeout(5000) },
+      );
+      if (res.ok) {
+        const data = await res.json() as { results?: Array<{ set_img_url?: string }> };
+        const hit = (data.results ?? []).find(s => s.set_img_url);
+        if (hit?.set_img_url) {
+          console.log(`[publish:hero] theme "${theme}" → ${hit.set_img_url.slice(0, 70)}`);
+          return hit.set_img_url;
+        }
+      }
+    } catch { /* fall through */ }
+  }
+
+  console.log('[publish:hero] no image resolved via Rebrickable chain');
+  return null;
+}
+
+// Resolves a hero image through the full chain (OG → YouTube/CDN-block →
+// Rebrickable set/theme lookup → image-conflict re-resolution) and GUARANTEES
+// a non-null result. Policy locked 2026-06-28 (Abhinav): "if there is no
+// publishing image available at source, use the default LEGO hero image,
+// everything has to publish with an image" — no exceptions, no early-return
+// path skips this. This replaces both the old hard-fail-on-broken-image
+// behavior (actions.ts Gate 4) and the old silent-omit-from-insert behavior
+// (both files, when heroImage ended up null/falsy at insert time).
+export async function resolveHeroImage(
+  sourceUrl: string,
+  draftTitle: string | null,
+  sourceTitle: string | null,
+  draftBody: string | null,
+  table: string,
+  supabase: SupabaseClient,
+): Promise<string> {
+  let heroImage = await fetchOgImage(sourceUrl);
+
+  if (YOUTUBE_SRC_RE.test(sourceUrl) || (heroImage !== null && YOUTUBE_IMG_RE.test(heroImage))) {
+    console.log('[publish:hero] YouTube source — running Rebrickable fallback chain');
+    heroImage = await resolveYouTubeHeroImage(draftTitle, draftBody ?? sourceTitle);
+  } else if (isEditorialCDN(heroImage)) {
+    console.log(`[publish:hero] editorial CDN blocked (${heroImage ? new URL(heroImage).hostname : 'unknown'}) — running Rebrickable fallback chain`);
+    heroImage = await resolveYouTubeHeroImage(draftTitle, draftBody ?? sourceTitle);
+  }
+
+  // HTTP check on whatever we have (skip for already-local paths like a
+  // prior fallback). Never hard-fails the publish — a broken image just
+  // continues toward the final fallback below.
+  if (heroImage && !heroImage.startsWith('/')) {
+    try {
+      const imgRes = await fetch(heroImage, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+      if (!imgRes.ok) {
+        console.log(`[publish:hero] HTTP ${imgRes.status} on resolved image — discarding, will fall back`);
+        heroImage = null;
+      }
+    } catch {
+      heroImage = null;
+    }
+  }
+
+  // Image-conflict re-resolution: if the resolved image is already used by
+  // another row in the same table, try the catalogue's own set image before
+  // giving up (merged from actions.ts's more complete chain).
+  if (heroImage && !heroImage.startsWith('/')) {
+    const { data: imgConflict } = await supabase.from(table).select('id').eq('hero_image', heroImage).maybeSingle();
+    if (imgConflict) {
+      heroImage = null;
+      const setNum = extractSetNumberCandidates(`${draftTitle ?? ''} ${sourceTitle ?? ''}`)[0];
+      if (setNum) {
+        const { data: setRow } = await supabase.from('sets').select('image_url').eq('set_number', setNum).maybeSingle();
+        const candidate = (setRow as { image_url?: string } | null)?.image_url ?? null;
+        if (candidate) {
+          const { data: fallbackConflict } = await supabase.from(table).select('id').eq('hero_image', candidate).maybeSingle();
+          if (!fallbackConflict) {
+            try {
+              const fbRes = await fetch(candidate, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
+              if (fbRes.ok) heroImage = candidate;
+            } catch { /* drop to final fallback */ }
+          }
+        }
+      }
+    }
+  }
+
+  // Final, unconditional floor: every published row gets an image.
+  return heroImage || HERO_FALLBACK;
+}
+
+// ── Lint summary (for alerts / logs) ──────────────────────────────────────────
+
+export function summarizeFailReasons(lint: LintResult): string {
+  return [
+    lint.gates.wordCount,
+    lint.gates.indiaParagraph,
+    lint.gates.verdict,
+    lint.gates.factuality,
+    lint.gates.sourceFidelity,
+  ]
+    .filter((g): g is NonNullable<typeof g> => g !== null && g.severity === 'fail')
+    .map(g => g.reason ?? 'gate failure')
+    .join('; ') || 'lint failed';
+}
+
+// ── Core orchestration ────────────────────────────────────────────────────────
+
+export type PublishableDraft = {
+  id: string;
+  draft_title: string | null;
+  draft_body: string | null;
+  draft_verdict: string | null;
+  draft_format: string | null;
+  word_count: number | null;
+  source_url: string;
+  source_title: string | null;
+  source_excerpt: string | null;
+  lint_result?: LintResult | null;
+  updated_at?: string | null;
+};
+
+export type PublishOneDraftOptions = {
+  /** Skip a fresh re-lint if a stored, passing lint_result is younger than this. Default 24h, matches publish-drafts.mjs's prior behavior. Pass 0 to always re-lint. */
+  lintFreshnessMs?: number;
+  /** Called once if lint fails, before throwing. Optional — omit in batch/generation contexts to avoid spamming alerts per-failure. */
+  onLintFail?: (draftTitle: string, gateMessage: string) => Promise<void>;
+  /** Called once after a successful publish, with the published path. Optional — only meaningful inside a Next.js Server Action request context. */
+  onPublished?: (path: string) => void;
+};
+
+export class LintFailedError extends Error {
+  constructor(public readonly gateMessage: string) {
+    super(gateMessage);
+    this.name = 'LintFailedError';
+  }
+}
+
+const DEFAULT_LINT_FRESHNESS_MS = 24 * 60 * 60 * 1000;
+
+// Shared core, called by the cron (publish-drafts.mjs), the admin manual-publish
+// button (actions.ts), and generate-approved-drafts.ts's news auto-publish path.
+// Throws LintFailedError on a genuine lint failure (caller decides what that
+// means for its own draft: failed_lint status, reject+delete, etc.) — never
+// silently skips a draft.
+export async function publishOneDraft(
+  draft: PublishableDraft,
+  supabase: SupabaseClient,
+  options: PublishOneDraftOptions = {},
+): Promise<{ path: string; slug: string; table: string; reviewVerdict: string | null; reviewSetNumber: string | null }> {
+  if (!draft.draft_body) throw new Error('Draft has no generated body');
+
+  const freshnessMs = options.lintFreshnessMs ?? DEFAULT_LINT_FRESHNESS_MS;
+  const storedFresh = freshnessMs > 0
+    && draft.lint_result?.overallPass === true
+    && draft.updated_at
+    && (Date.now() - new Date(draft.updated_at).getTime()) < freshnessMs;
+
+  const lint: LintResult = storedFresh
+    ? draft.lint_result!
+    : await lintDraft(
+        {
+          format:     draft.draft_format || 'news',
+          body:       draft.draft_body || '',
+          word_count: draft.word_count,
+          verdict:    draft.draft_verdict,
+          source: {
+            source_url:     draft.source_url,
+            source_title:   draft.source_title,
+            source_excerpt: draft.source_excerpt,
+          },
+        },
+        { supabase },
+      );
+
+  if (lint.warnings.length > 0) console.warn('[publish lint]', lint.warnings.join(' | '));
+
+  if (!lint.overallPass) {
+    const gateMsg = summarizeFailReasons(lint);
+    if (options.onLintFail) await options.onLintFail(draft.draft_title || draft.source_title || 'Untitled', gateMsg);
+    throw new LintFailedError(gateMsg);
+  }
+
+  const format = draft.draft_format || 'news';
+  const { table, path, category } = resolveTarget(format);
+  const title    = draft.draft_title || draft.source_title || 'Untitled';
+  const baseSlug = generateSlug(title);
+
+  let slug = baseSlug, attempt = 2;
+  while (true) {
+    const { data: existing } = await supabase.from(table).select('id').eq('slug', slug).maybeSingle();
+    if (!existing) break;
+    slug = `${baseSlug.slice(0, 57)}-${attempt++}`;
+  }
+
+  const heroImage = await resolveHeroImage(
+    draft.source_url, draft.draft_title, draft.source_title, draft.draft_body, table, supabase,
+  );
+
+  const rawBody   = draft.draft_body
+    .replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '')
+    .replace(/<!--\s*\/INDIAN?_PARAGRAPH\s*-->\n?/g, '');  // /INDIAN_PARAGRAPH is a known model typo
+  const cleanBody = prePublishAutoFix(rawBody, draft, slug);
+
+  const cqsErr = cqsHardCheck(cleanBody);
+  if (cqsErr) throw new Error(`[CQS REJECT] ${cqsErr}`);
+
+  const excerpt = cleanBody.replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 160);
+  const now     = new Date().toISOString();
+
+  // Review-format articles carry verdict + set_number for Review/Product
+  // JSON-LD (buildReviewSchema()). publish-drafts.mjs had this; actions.ts
+  // did not — manual-button-published reviews were silently missing
+  // structured data. Now populated uniformly regardless of publish path.
+  let reviewVerdict: string | null = null, reviewSetNumber: string | null = null;
+  if (format === 'review') {
+    reviewVerdict = (draft.draft_verdict || '').trim().toUpperCase() || null;
+    const candidates = extractSetNumberCandidates(cleanBody);
+    if (candidates.length > 0) {
+      const { data: matchedSet } = await supabase.from('sets').select('set_number').in('set_number', candidates).limit(1).maybeSingle();
+      reviewSetNumber = (matchedSet as { set_number?: string } | null)?.set_number ?? null;
+    }
+  }
+
+  const row = {
+    title, slug, content: cleanBody, category, excerpt,
+    published_at: now, seo_title: title, seo_description: excerpt,
+    hero_image: heroImage,
+    ...(reviewVerdict ? { verdict: reviewVerdict } : {}),
+    ...(reviewSetNumber ? { set_number: reviewSetNumber } : {}),
+  };
+
+  const { error: insertErr } = await supabase.from(table).insert(row);
+  if (insertErr) {
+    throw new Error(`Insert failed (${table}): ${insertErr.message}`);
+  }
+
+  const { error: markErr } = await supabase.from('pending_drafts').update({
+    status: 'published', published_url: `${path}/${slug}`, published_at: now, lint_result: lint,
+  }).eq('id', draft.id);
+  if (markErr) {
+    // Article already inserted — don't throw, but the draft row will be stale.
+    console.error('[supabase-write] table=pending_drafts op=update(publishOneDraft) error:', markErr);
+  }
+
+  if (options.onPublished) options.onPublished(path);
+
+  return { path, slug, table, reviewVerdict, reviewSetNumber };
+}

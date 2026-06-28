@@ -4,8 +4,8 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase';
-import { generateBody, extractSetNumber } from '@/lib/generate-body';
-import { lintDraft } from '@/lib/lint';
+import { generateBody } from '@/lib/generate-body';
+import { publishOneDraft } from '@/lib/publish-draft';
 
 export async function login(formData: FormData) {
   const pw = (formData.get('password') as string) ?? '';
@@ -160,41 +160,18 @@ export async function triggerBatchGeneration(): Promise<{ ok: boolean; error?: s
 }
 
 // ── Publish helpers ───────────────────────────────────────────────────────────
-
-const UA = 'BricksOfIndia-RadarBot/1.0 (+https://bricksofindia.com)';
-
-function generateSlug(title: string): string {
-  return (title || 'untitled')
-    .toLowerCase()
-    .replace(/[^a-z0-9\s-]/g, '')
-    .replace(/\s+/g, '-')
-    .replace(/-+/g, '-')
-    .replace(/^-|-$/g, '')
-    .slice(0, 60);
-}
-
-function resolveTarget(format: string): { table: string; path: string; category: string } {
-  if (format === 'guide')   return { table: 'guides',        path: '/guides', category: 'Guide'   };
-  if (format === 'opinion') return { table: 'blog_posts',    path: '/blog',   category: 'Opinion' };
-  if (format === 'review')  return { table: 'news_articles', path: '/news',   category: 'Review'  };
-  return                           { table: 'news_articles', path: '/news',   category: 'News'    };
-}
-
-async function fetchOgImage(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, {
-      headers: { 'User-Agent': UA },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) return null;
-    const html = await res.text();
-    const { load } = await import('cheerio');
-    const $ = load(html);
-    const og = $('meta[property="og:image"]').attr('content') ||
-               $('meta[property="twitter:image"]').attr('content');
-    return (og && og.startsWith('http')) ? og : null;
-  } catch { return null; }
-}
+//
+// Unified 2026-06-28 (MEDIUM-38 follow-up, full merge): generateSlug,
+// resolveTarget, fetchOgImage, resolveYouTubeHeroImage, resolveHeroImage,
+// prePublishAutoFix, cqsHardCheck, and the core publishOneDraft orchestration
+// all now live in src/lib/publish-draft.ts, shared with scripts/publish-drafts.mjs
+// (the cron) and scripts/generate-approved-drafts.ts (the news auto-publish
+// path). This file's prior independent implementation had drifted from the
+// cron's in real ways — missing review verdict/set_number columns, a less
+// complete hero-image fallback chain's CDN-block detection, etc. See
+// publish-draft.ts's header comment for the full list of what was merged
+// and how the conflicts (opinion path, hero-image fallback policy) were
+// resolved.
 
 async function sendLintAlert(draftTitle: string, gateMessage: string): Promise<void> {
   try {
@@ -219,205 +196,6 @@ async function sendLintAlert(draftTitle: string, gateMessage: string): Promise<v
   }
 }
 
-// ── YouTube hero image fallback chain ────────────────────────────────────────
-
-const YOUTUBE_SRC_RE = /youtube\.com|youtu\.be/i;
-const YOUTUBE_IMG_RE = /ytimg\.com|yt3\.ggpht\.com|youtube\.com\/vi\//i;
-
-const LEGO_THEME_KEYWORDS = [
-  'Technic','City','Star Wars','Harry Potter','Ideas','Icons','Creator','Ninjago',
-  'Friends','Marvel','DC','Disney','Minecraft','Speed Champions','Architecture',
-  'Botanical','BrickHeadz','Duplo','Monkie Kid','Jurassic World','Super Mario',
-  'Dreamzzz','Classic','Seasonal','DOTS','Dimensions','Hidden Side',
-];
-
-async function resolveYouTubeHeroImage(
-  title: string | null,
-  body: string | null,
-): Promise<string | null> {
-  const rbKey  = process.env.REBRICKABLE_API_KEY;
-  const rbHdrs = { 'User-Agent': UA, ...(rbKey ? { Authorization: `key ${rbKey}` } : {}) };
-  const combined = `${title ?? ''} ${body ?? ''}`;
-
-  // Steps 1+2: extract distinct 4–6 digit set numbers, try Rebrickable for each
-  const seen = new Set<string>();
-  const setNums: string[] = [];
-  const re = /\b(\d{4,6})\b/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(combined)) !== null) {
-    if (!seen.has(m[1])) { seen.add(m[1]); setNums.push(m[1]); }
-  }
-  for (const num of setNums.slice(0, 5)) {
-    try {
-      const res = await fetch(
-        `https://rebrickable.com/api/v3/lego/sets/${num}-1/`,
-        { headers: rbHdrs, signal: AbortSignal.timeout(5000) },
-      );
-      if (res.ok) {
-        const data = await res.json() as { set_img_url?: string };
-        if (data.set_img_url) {
-          console.log(`[publish:yt] set ${num} → ${data.set_img_url.slice(0, 70)}`);
-          return data.set_img_url;
-        }
-      }
-    } catch { /* try next set number */ }
-  }
-
-  // Step 3: theme keyword → Rebrickable search → first set with image
-  const titleLower = (title ?? '').toLowerCase();
-  const theme = LEGO_THEME_KEYWORDS.find(t => titleLower.includes(t.toLowerCase()));
-  if (theme) {
-    try {
-      const res = await fetch(
-        `https://rebrickable.com/api/v3/lego/sets/?search=${encodeURIComponent(theme)}&ordering=-year&page_size=5`,
-        { headers: rbHdrs, signal: AbortSignal.timeout(5000) },
-      );
-      if (res.ok) {
-        const data = await res.json() as { results?: Array<{ set_img_url?: string }> };
-        const hit = (data.results ?? []).find(s => s.set_img_url);
-        if (hit?.set_img_url) {
-          console.log(`[publish:yt] theme "${theme}" → ${hit.set_img_url.slice(0, 70)}`);
-          return hit.set_img_url;
-        }
-      }
-    } catch { /* fall through */ }
-  }
-
-  // Step 4: all chains exhausted — publish without hero image
-  console.log('[publish:yt] no image resolved — hero will be null');
-  return null;
-}
-
-// ── publishOneDraft — shared core, called by publishDraft and publishAll ──────
-
-type PublishableDraft = {
-  id: string;
-  draft_title: string | null;
-  draft_body: string | null;
-  draft_verdict: string | null;
-  draft_format: string | null;
-  word_count: number | null;
-  source_url: string;
-  source_title: string | null;
-  source_excerpt: string | null;
-};
-
-async function publishOneDraft(
-  draft: PublishableDraft,
-  supabase: ReturnType<typeof createServerClient>,
-  sendAlerts: boolean,
-): Promise<{ path: string; slug: string }> {
-  if (!draft.draft_body) throw new Error('Draft has no generated body');
-
-  const lint = await lintDraft(
-    {
-      format:   draft.draft_format || 'news',
-      body:     draft.draft_body || '',
-      word_count: draft.word_count,
-      verdict:  draft.draft_verdict,
-      source: {
-        source_url:     draft.source_url,
-        source_title:   draft.source_title,
-        source_excerpt: draft.source_excerpt,
-      },
-    },
-    { supabase },
-  );
-  if (lint.warnings.length > 0) console.warn('[publish lint]', lint.warnings.join(' | '));
-  if (!lint.overallPass) {
-    const failReasons = [
-      lint.gates.wordCount, lint.gates.indiaParagraph, lint.gates.verdict,
-      lint.gates.factuality, lint.gates.sourceFidelity,
-    ]
-      .filter((g): g is NonNullable<typeof g> => g !== null && g.severity === 'fail')
-      .map(g => g.reason ?? 'gate failure');
-    const gateMsg = failReasons.join('; ') || 'lint failed';
-    if (sendAlerts) await sendLintAlert(draft.draft_title || draft.source_title || 'Untitled', gateMsg);
-    throw new Error(gateMsg);
-  }
-
-  const format             = draft.draft_format || 'news';
-  const { table, path, category } = resolveTarget(format);
-  const title              = draft.draft_title || draft.source_title || 'Untitled';
-  const baseSlug           = generateSlug(title);
-
-  let slug = baseSlug, attempt = 2;
-  while (true) {
-    const { data: existing } = await supabase.from(table).select('id').eq('slug', slug).maybeSingle();
-    if (!existing) break;
-    slug = `${baseSlug.slice(0, 57)}-${attempt++}`;
-  }
-
-  let heroImage = await fetchOgImage(draft.source_url);
-  console.log(`[publish] og=${!!heroImage} url=${draft.source_url.slice(0, 60)}`);
-
-  // YouTube sources: bypass thumbnail CDN, resolve proper set image via Rebrickable chain
-  if (YOUTUBE_SRC_RE.test(draft.source_url) || (heroImage !== null && YOUTUBE_IMG_RE.test(heroImage))) {
-    console.log('[publish] YouTube source detected — running Rebrickable fallback chain');
-    heroImage = await resolveYouTubeHeroImage(draft.draft_title, draft.draft_body);
-  }
-
-  if (heroImage) {
-    try {
-      const imgRes = await fetch(heroImage, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
-      if (!imgRes.ok) {
-        const gate4Err = new Error(`[Gate 4 FAIL] Hero image URL returned HTTP ${imgRes.status}`);
-        if (sendAlerts) await sendLintAlert(draft.draft_title || draft.source_title || 'Untitled', gate4Err.message);
-        throw gate4Err;
-      }
-    } catch (err: any) {
-      if (err.message?.startsWith('[Gate 4 FAIL]')) throw err;
-      console.warn(`[Gate 4 WARN] hero image check failed (${err.message}) — proceeding`);
-    }
-  }
-
-  if (heroImage) {
-    const { data: imgConflict } = await supabase.from(table).select('id').eq('hero_image', heroImage).maybeSingle();
-    if (imgConflict) {
-      heroImage = null;
-      const setNum = extractSetNumber(draft.source_url, draft.source_title ?? null);
-      if (setNum) {
-        const { data: setRow } = await supabase.from('sets').select('image_url').eq('set_number', setNum).maybeSingle();
-        const candidate = setRow?.image_url ?? null;
-        if (candidate) {
-          const { data: fallbackConflict } = await supabase.from(table).select('id').eq('hero_image', candidate).maybeSingle();
-          if (!fallbackConflict) {
-            try {
-              const fbRes = await fetch(candidate, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
-              if (fbRes.ok) heroImage = candidate;
-            } catch { /* drop to null */ }
-          }
-        }
-      }
-    }
-  }
-
-  const cleanBody = draft.draft_body
-    .replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '')
-    .replace(/<!--\s*\/INDIAN?_PARAGRAPH\s*-->\n?/g, '');  // /INDIAN_PARAGRAPH is a known model typo
-  const excerpt   = cleanBody.replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 160);
-  const now       = new Date().toISOString();
-
-  const { error: insertErr } = await supabase.from(table).insert({
-    title, slug, content: cleanBody, category, excerpt,
-    published_at: now, seo_title: title, seo_description: excerpt,
-    ...(heroImage ? { hero_image: heroImage } : {}),
-  });
-  if (insertErr) {
-    console.error(`[supabase-write] admin-action table=${table} op=insert(publish) draft_id=`, draft.id, 'error:', insertErr);
-    throw new Error(`Insert failed (${table}): ${insertErr.message}`);
-  }
-
-  const { error: markPublishedErr } = await supabase.from('pending_drafts').update({ status: 'published', published_url: `${path}/${slug}`, published_at: now }).eq('id', draft.id);
-  if (markPublishedErr) {
-    console.error('[supabase-write] admin-action table=pending_drafts op=update(markPublished) draft_id=', draft.id, 'error:', markPublishedErr);
-    throw new Error(`Draft published to ${path}/${slug} but status update failed: ${markPublishedErr.message}`);
-  }
-  revalidatePath(path);
-
-  return { path, slug };
-}
-
 // ── publishDraft — single draft via Publish button ────────────────────────────
 
 export async function publishDraft(formData: FormData) {
@@ -427,13 +205,15 @@ export async function publishDraft(formData: FormData) {
 
   const { data: draft, error: fetchErr } = await supabase
     .from('pending_drafts')
-    .select('id, draft_title, draft_body, draft_verdict, draft_format, word_count, source_url, source_title, source_excerpt')
+    .select('id, draft_title, draft_body, draft_verdict, draft_format, word_count, source_url, source_title, source_excerpt, lint_result, updated_at')
     .eq('id', id)
     .single();
 
   if (fetchErr || !draft) throw new Error(`Draft not found: ${fetchErr?.message}`);
 
-  await publishOneDraft(draft, supabase, true);
+  const { path } = await publishOneDraft(draft, supabase, {
+    onLintFail:  sendLintAlert,
+    onPublished: (publishedPath) => revalidatePath(publishedPath),
+  });
   redirect(redirectTo);
 }
-

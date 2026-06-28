@@ -1,7 +1,18 @@
 /**
  * Publish pending_drafts in batch.
- * Mirrors the lint gates and insert logic from src/app/admin/pending/actions.ts.
- * Detect-only for lint failures — never auto-fixes content.
+ *
+ * Unified 2026-06-28: lint gates, slug/target resolution, hero-image
+ * resolution, pre-publish auto-fix, and the core publish orchestration all
+ * now live in src/lib/publish-draft.ts — shared with the admin manual-publish
+ * button (src/app/admin/pending/actions.ts::publishDraft) and the generation
+ * pipeline's news auto-publish path (scripts/generate-approved-drafts.ts).
+ * This script's job is purely the batch loop: fetch the queue, call
+ * publishOneDraft() per row, handle the failed_lint/CQS-reject DB writes that
+ * are specific to the cron's retry semantics, print a summary. See
+ * publish-draft.ts's header comment for what was merged from this file's
+ * prior independent implementation (prePublishAutoFix, cqsHardCheck,
+ * EDITORIAL_CDN_BLOCKLIST) and from actions.ts (sendLintAlert is NOT used
+ * here — see options.onLintFail below, intentionally omitted for batch runs).
  *
  * Usage:
  *   node --env-file=.env.local scripts/publish-drafts.mjs --limit 15
@@ -13,7 +24,7 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { lintDraft, extractSetNumberCandidates } from '../src/lib/lint.ts';
+import { generateSlug, resolveTarget, publishOneDraft, LintFailedError } from '../src/lib/publish-draft.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
@@ -42,213 +53,6 @@ const LIMIT   = LIMIT_I !== -1 ? parseInt(process.argv[LIMIT_I + 1], 10) : 50;
 const IDS_I   = process.argv.indexOf('--ids');
 const IDS     = IDS_I !== -1 ? process.argv[IDS_I + 1].split(',').map(s => s.trim()) : null;
 
-const UA = 'BricksOfIndia-RadarBot/1.0 (+https://bricksofindia.com)';
-
-// ── Lint gates ────────────────────────────────────────────────────────────────
-// Lint now runs via the shared lintDraft() from src/lib/lint.ts (Gates 1, 2, 3,
-// 5 factuality, 6 source fidelity) — see CRITICAL-1. The local 3-gate
-// reimplementation that used to live here is gone; this script and the admin
-// manual-publish path (src/app/admin/pending/actions.ts) now share one
-// implementation instead of two that could drift apart.
-
-// ── Hero image CDN blocklist + fallback chain ─────────────────────────────────
-// Editorial CDNs (Brothers Brick/Squarespace, Jay's Brick Blog, Flickr) use
-// hotlink protection and are unreliable in headless renderers. When an OG image
-// resolves to one of these, we run the same Rebrickable fallback as YouTube.
-
-const YOUTUBE_SRC_RE = /youtube\.com|youtu\.be/i;
-const YOUTUBE_IMG_RE = /ytimg\.com|yt3\.ggpht\.com|youtube\.com\/vi\//i;
-const HERO_FALLBACK  = '/fallback-hero.png';
-
-const EDITORIAL_CDN_BLOCKLIST = new Set([
-  'static1.squarespace.com',       // New Elementary
-  'media-cdn.brothers-brick.com',  // Brothers Brick
-  'live.staticflickr.com',         // Flickr embeds
-  'jaysbrickblog.com',             // Jay's Brick Blog
-  'cdn.bricklink.com',             // BrickLink
-  'i.imgur.com',                   // Imgur
-  'external-preview.redd.it',      // Reddit preview
-  'preview.redd.it',               // Reddit preview
-]);
-
-// ── Pre-publish auto-fix + CQS gate ──────────────────────────────────────────
-// Mirrors content-auto-fixer.mjs logic. Runs on every draft before DB insert
-// so nothing publishable today would fail CQS tomorrow.
-// Keep FORBIDDEN_SUBS and JAIMAN_SUBS in sync with content-auto-fixer.mjs.
-
-const FORBIDDEN_SUBS = [
-  [/\ba testament to\b/gi,         'proof of'],
-  [/\ba testament\b/gi,            'a sign'],
-  [/\btestament\b/gi,              'proof'],
-  [/\bwhimsical\b/gi,              'playful'],
-  [/\bpinnacle\b/gi,               'peak'],
-  [/\baficionados\b/gi,            'fans'],
-  [/\benthusiasts\b/gi,            'fans'],
-  [/\bdelve\b/gi,                  'dig into'],
-  [/\butilize\b/gi,                'use'],
-  [/\bat the end of the day\b/gi,  'ultimately'],
-  [/\bunadulterated\b/gi,          'pure'],
-  [/\bsiren call\b/gi,             'pull'],
-  [/\bfever dreams\b/gi,           'wild visions'],
-  [/\bbloke\b/gi,                  'person'],
-  [/\bcognoscenti\b/gi,            'experts'],
-];
-
-const JAIMAN_SUBS = [
-  [/MyBrickHouse,\s*Toycra,\s*and\s*Jaiman\s*Toys/gi, 'MyBrickHouse and Toycra'],
-  [/Toycra,\s*and\s*Jaiman\s*Toys/gi,                 'Toycra'],
-  [/MyBrickHouse\s*and\s*Jaiman\s*Toys/gi,             'MyBrickHouse and Toycra'],
-  [/,?\s*and\s*Jaiman\s*Toys/gi,                       ''],
-  [/Jaiman\s*Toys/gi,                                  'Toycra'],
-];
-
-const SIGNOFF_TEXT = 'On that bombshell, bubyee.';
-
-// Bad opener patterns — replace with neutral BOI-voice opener
-const BAD_OPENER_PATTERNS = [
-  /^(Okay,\s*[^.!?]*[.!?])\s*/i,
-  /^(Alright,\s*(LEGO\s*)?(fans?|everyone|Potterheads|fellow)[^.!?]*[.!?])\s*/i,
-  /^(So,\s*[a-z][^.!?]*[.!?])\s*/i,
-  /^(Hey\s+everyone[^.!?]*[.!?])\s*/i,
-];
-
-function prePublishAutoFix(body, draft, slug = '') {
-  let c = body;
-
-  // Strip markdown artifacts
-  c = c.replace(/\*\*([^*\n]{1,200})\*\*/g, '$1');
-  c = c.replace(/(?<!\*)\*(?!\*)([^*\n]{1,200})(?<!\*)\*(?!\*)/g, '$1');
-  c = c.replace(/^#{1,6}\s+(.+)$/gm, '$1');
-  c = c.replace(/^(\s*)[-*]\s+/gm, '$1');
-
-  // Collapse double spaces
-  while (c.includes('  ')) c = c.replace(/  /g, ' ');
-
-  // Remove Jaiman Toys
-  for (const [re, sub] of JAIMAN_SUBS) c = c.replace(re, sub);
-
-  // Substitute forbidden words
-  for (const [re, sub] of FORBIDDEN_SUBS) c = c.replace(re, sub);
-
-  // Fix bad openers — strip the bad opener sentence, derive title-based replacement
-  for (const pat of BAD_OPENER_PATTERNS) {
-    if (pat.test(c)) {
-      const title = draft?.source_title || draft?.draft_title || '';
-      const setRef = title ? title.replace(/^LEGO\s*/i, '').replace(/[–—-].*$/, '').trim() : 'this set';
-      const replacement = `The ${setRef} has landed — and your wallet already knows what's coming. `;
-      c = c.replace(pat, replacement);
-      break;
-    }
-  }
-
-  // Inject ABHINAV12 if Toycra present without the code
-  if (/Toycra/i.test(c) && !/ABHINAV12/i.test(c)) {
-    c = c.replace(/(Toycra\b[^.\n]*\.)/, '$1 Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra.');
-  }
-
-  // Inject store mention if ₹ price present but neither store mentioned
-  const hasPrice = /₹[\d,]+/.test(c);
-  const hasStore = /MyBrickHouse|Toycra/i.test(c);
-  if (hasPrice && !hasStore) {
-    c = c.replace(/(₹[\d,]+[^.\n]*\.)/, '$1 Available at MyBrickHouse and Toycra (use code ABHINAV12 for 12% off above ₹500).');
-  }
-
-  // Inject verdict if ₹ price present, no verdict, and slug contains a set number
-  const hasVerdict = /\b(BUY NOW|WAIT|IMPORT ONLY|AVOID)\b/.test(c);
-  const hasSetNum = /\b\d{4,6}\b/.test(slug);
-  if (hasPrice && !hasVerdict && hasSetNum) {
-    c = c.replace(/\s+$/, '') + '\n\n**Verdict: WAIT** — check prices at MyBrickHouse and Toycra before pulling the trigger.';
-  }
-
-  // Ensure signoff present
-  if (!/on that bombshell/i.test(c)) c = c.replace(/\s+$/, '') + '\n\n' + SIGNOFF_TEXT;
-
-  return c;
-}
-
-// Hard CQS check — only truly critical issues that cannot be auto-fixed.
-// Returns an error string if the body should be rejected, null if it passes.
-const CQS_HARD = [
-  { re: /<script[\s>]|<iframe[\s>]/i, msg: 'script/iframe injection in body' },
-  { re: /BOI_DRAFT_START|BOI_DRAFT_END/, msg: 'draft marker leaked into published body' },
-];
-
-function cqsHardCheck(body) {
-  for (const { re, msg } of CQS_HARD) {
-    if (re.test(body)) return msg;
-  }
-  return null;
-}
-
-function isEditorialCDN(url) {
-  if (!url) return false;
-  try { return EDITORIAL_CDN_BLOCKLIST.has(new URL(url).hostname); }
-  catch { return false; }
-}
-
-async function resolveYouTubeHeroImage(title, body) {
-  const rbKey  = process.env.REBRICKABLE_API_KEY;
-  const rbHdrs = { 'User-Agent': UA, ...(rbKey ? { Authorization: `key ${rbKey}` } : {}) };
-  const combined = `${title ?? ''} ${body ?? ''}`;
-
-  // Step 1: extract distinct 4–6 digit set numbers, try Rebrickable for each
-  const seen = new Set();
-  const setNums = [];
-  const re = /\b(\d{4,6})\b/g;
-  let m;
-  while ((m = re.exec(combined)) !== null) {
-    if (!seen.has(m[1])) { seen.add(m[1]); setNums.push(m[1]); }
-  }
-  for (const num of setNums.slice(0, 5)) {
-    try {
-      const res = await fetch(
-        `https://rebrickable.com/api/v3/lego/sets/${num}-1/`,
-        { headers: rbHdrs, signal: AbortSignal.timeout(5000) },
-      );
-      if (res.ok) {
-        const data = await res.json();
-        if (data.set_img_url) {
-          console.log(`  [yt-fallback] set ${num} → ${data.set_img_url.slice(0, 70)}`);
-          return data.set_img_url;
-        }
-      }
-    } catch { /* try next */ }
-  }
-
-  // Step 2: no set number matched — return null; caller stores HERO_FALLBACK
-  console.log('  [yt-fallback] no set number matched — returning null for caller to apply HERO_FALLBACK');
-  return null;
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
-function generateSlug(title) {
-  return (title || 'untitled')
-    .toLowerCase().replace(/[^a-z0-9\s-]/g, '').replace(/\s+/g, '-')
-    .replace(/-+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
-}
-
-function resolveTarget(format) {
-  if (format === 'guide')   return { table: 'guides',        path: '/guides', category: 'Guide'   };
-  if (format === 'opinion') return { table: 'blog_posts',    path: '/opinion', category: 'Opinion' };
-  if (format === 'review')  return { table: 'news_articles', path: '/news',   category: 'Review'  };
-  return                           { table: 'news_articles', path: '/news',   category: 'News'    };
-}
-
-async function fetchOgImage(url) {
-  try {
-    const res = await fetch(url, { headers: { 'User-Agent': UA }, signal: AbortSignal.timeout(6000) });
-    if (!res.ok) return null;
-    const html = await res.text();
-    const ogMatch   = html.match(/<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i)
-                   || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']/i);
-    const twMatch   = html.match(/<meta[^>]+name=["']twitter:image["'][^>]+content=["']([^"']+)["']/i)
-                   || html.match(/<meta[^>]+content=["']([^"']+)["'][^>]+name=["']twitter:image["']/i);
-    const og = ogMatch?.[1] || twMatch?.[1];
-    return (og && og.startsWith('http')) ? og : null;
-  } catch { return null; }
-}
-
 // ── Fetch drafts ──────────────────────────────────────────────────────────────
 
 let q = sb.from('pending_drafts')
@@ -269,22 +73,6 @@ console.log(`Drafts to process: ${queue.length} (from ${drafts?.length ?? 0} fet
 
 // ── Process each draft ────────────────────────────────────────────────────────
 
-const LINT_RESULT_MAX_AGE_MS = 24 * 60 * 60 * 1000;
-
-// Mirrors the fail-reason summary in actions.ts::publishOneDraft.
-function summarizeFailReasons(lintResult) {
-  return [
-    lintResult.gates.wordCount,
-    lintResult.gates.indiaParagraph,
-    lintResult.gates.verdict,
-    lintResult.gates.factuality,
-    lintResult.gates.sourceFidelity,
-  ]
-    .filter(g => g && g.severity === 'fail')
-    .map(g => g.reason ?? 'gate failure')
-    .join('; ') || 'lint failed';
-}
-
 let published = 0, failed = 0, skipped = 0;
 const failures = [];
 
@@ -292,148 +80,52 @@ for (const draft of queue) {
   const label = (draft.draft_title || draft.source_title || draft.id).slice(0, 65);
   process.stdout.write(`  ${label}… `);
 
-  // Lint — trust a stored lint_result if it's fresh (<24h) and passing;
-  // otherwise re-derive via the shared gate set (factuality needs a live DB read).
-  const storedFresh = draft.lint_result?.overallPass === true
-    && draft.updated_at
-    && (Date.now() - new Date(draft.updated_at).getTime()) < LINT_RESULT_MAX_AGE_MS;
-
-  let lintResult;
-  if (storedFresh) {
-    lintResult = draft.lint_result;
-    console.log('(stored lint_result, fresh + passing — skipping re-lint)');
-  } else {
-    lintResult = await lintDraft(
-      {
-        format:     draft.draft_format || 'news',
-        body:       draft.draft_body || '',
-        word_count: draft.word_count,
-        verdict:    draft.draft_verdict,
-        source: {
-          source_url:     draft.source_url,
-          source_title:   draft.source_title,
-          source_excerpt: draft.source_excerpt,
-        },
-      },
-      { supabase: sb },
-    );
+  if (DRY_RUN) {
+    // Dry-run still needs to know the target path/slug for a useful preview,
+    // but must not touch the DB (no slug-uniqueness lookups, no inserts).
+    const format   = draft.draft_format || 'news';
+    const { path } = resolveTarget(format);
+    const baseSlug  = generateSlug(draft.draft_title || draft.source_title || 'Untitled');
+    skipped++;
+    console.log(`DRY-RUN → ${path}/${baseSlug} [${format}, verdict=${draft.draft_verdict ?? 'none'}]`);
+    continue;
   }
 
-  if (lintResult.warnings.length > 0) console.log(`\n    WARN: ${lintResult.warnings.join(' | ')}`);
-
-  if (!lintResult.overallPass) {
-    const reason = summarizeFailReasons(lintResult);
-    failed++;
-    failures.push({ title: label, reason });
-    console.log(`FAIL: ${reason}`);
-    if (!DRY_RUN) {
+  try {
+    const { path, slug } = await publishOneDraft(draft, sb, {
+      // No onLintFail callback here — batch runs would spam an email per
+      // failure. The cron's failure visibility is the failed_lint status +
+      // the summary printed at the end of this run, not per-draft alerts.
+    });
+    published++;
+    console.log(`OK → ${SITE_URL}${path}/${slug}`);
+  } catch (err) {
+    if (err instanceof LintFailedError) {
+      failed++;
+      failures.push({ title: label, reason: err.gateMessage });
+      console.log(`FAIL: ${err.gateMessage}`);
       await sb.from('pending_drafts').update({
         status: 'failed_lint',
-        lint_result: lintResult,
         updated_at: new Date().toISOString(),
       }).eq('id', draft.id);
-    } else {
-      console.log('  [DRY-RUN] would mark status=failed_lint (no write)');
+      continue;
     }
-    continue;
-  }
 
-  const format             = draft.draft_format || 'news';
-  const { table, path, category } = resolveTarget(format);
-  const title              = draft.draft_title || draft.source_title || 'Untitled';
-  const baseSlug           = generateSlug(title);
-
-  if (DRY_RUN) {
-    skipped++;
-    console.log(`DRY-RUN → /news/${baseSlug} [${format}, verdict=${draft.draft_verdict ?? 'none'}]`);
-    continue;
-  }
-
-  // Slug uniqueness
-  let slug = baseSlug, attempt = 2;
-  while (true) {
-    const { data: existing } = await sb.from(table).select('id').eq('slug', slug).maybeSingle();
-    if (!existing) break;
-    slug = `${baseSlug.slice(0, 57)}-${attempt++}`;
-  }
-
-  // OG image — with YouTube + editorial CDN fallback chain
-  let heroImage = await fetchOgImage(draft.source_url);
-  if (YOUTUBE_SRC_RE.test(draft.source_url) || (heroImage !== null && YOUTUBE_IMG_RE.test(heroImage))) {
-    console.log('  [yt] YouTube source — running Rebrickable fallback chain');
-    heroImage = await resolveYouTubeHeroImage(draft.draft_title, draft.source_title);
-    if (!heroImage) heroImage = HERO_FALLBACK;
-  } else if (isEditorialCDN(heroImage)) {
-    console.log(`  [cdn-block] Editorial CDN (${new URL(heroImage).hostname}) — running Rebrickable fallback chain`);
-    heroImage = await resolveYouTubeHeroImage(draft.draft_title, draft.source_title);
-    if (!heroImage) heroImage = HERO_FALLBACK;
-  }
-  if (heroImage && !heroImage.startsWith('/')) {
-    try {
-      const imgRes = await fetch(heroImage, { method: 'HEAD', signal: AbortSignal.timeout(5000) });
-      if (!imgRes.ok) heroImage = null;
-    } catch { heroImage = null; }
-  }
-  if (heroImage && !heroImage.startsWith('/')) {
-    const { data: imgConflict } = await sb.from(table).select('id').eq('hero_image', heroImage).maybeSingle();
-    if (imgConflict) heroImage = null;
-  }
-
-  // Clean body: strip processing marker, then run pre-publish auto-fix + CQS gate
-  const rawBody   = draft.draft_body.replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '');
-  const cleanBody = prePublishAutoFix(rawBody, draft, slug);
-  const fixedWords = cleanBody.split(/\s+/).filter(Boolean).length;
-  if (fixedWords !== (draft.word_count ?? 0)) {
-    process.stdout.write(`\n    [pre-fix] ${draft.word_count ?? '?'}w → ${fixedWords}w`);
-  }
-
-  const cqsErr = cqsHardCheck(cleanBody);
-  if (cqsErr) {
-    failed++;
-    failures.push({ title: label, reason: `[CQS REJECT] ${cqsErr}` });
-    console.log(`\n  CQS REJECT: ${cqsErr} — resetting to approved`);
-    await sb.from('pending_drafts').update({
-      status: 'approved', draft_body: null, draft_verdict: null, word_count: null, lint_result: null,
-    }).eq('id', draft.id);
-    continue;
-  }
-
-  const excerpt = cleanBody.replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 160);
-  const now     = new Date().toISOString();
-
-  // Review-format articles carry a verdict + set_number for Review/Product
-  // JSON-LD (see schemas.ts buildReviewSchema). Reuses Gate 5's extractor
-  // and verifies against `sets` rather than trusting the raw candidate.
-  let reviewVerdict = null, reviewSetNumber = null;
-  if (format === 'review') {
-    reviewVerdict = (draft.draft_verdict || '').trim().toUpperCase() || null;
-    const candidates = extractSetNumberCandidates(cleanBody);
-    if (candidates.length > 0) {
-      const { data: matchedSet } = await sb.from('sets').select('set_number').in('set_number', candidates).limit(1).maybeSingle();
-      reviewSetNumber = matchedSet?.set_number ?? null;
+    if (err.message?.startsWith('[CQS REJECT]')) {
+      failed++;
+      failures.push({ title: label, reason: err.message });
+      console.log(`\n  CQS REJECT: ${err.message} — resetting to approved`);
+      await sb.from('pending_drafts').update({
+        status: 'approved', draft_body: null, draft_verdict: null, word_count: null, lint_result: null,
+      }).eq('id', draft.id);
+      continue;
     }
-  }
 
-  const row = {
-    title, slug, content: cleanBody, category, excerpt,
-    published_at: now, seo_title: title, seo_description: excerpt,
-    ...(heroImage ? { hero_image: heroImage } : {}),
-    ...(reviewVerdict ? { verdict: reviewVerdict } : {}),
-    ...(reviewSetNumber ? { set_number: reviewSetNumber } : {}),
-  };
-
-  const { error: insertErr } = await sb.from(table).insert(row);
-  if (insertErr) {
+    // Any other error (insert failure, etc.) — log and move on, don't crash the whole batch.
     failed++;
-    failures.push({ title: label, reason: insertErr.message });
-    console.log(`INSERT FAIL: ${insertErr.message}`);
-    continue;
+    failures.push({ title: label, reason: err.message });
+    console.log(`INSERT FAIL: ${err.message}`);
   }
-
-  await sb.from('pending_drafts').update({ status: 'published', published_url: `${path}/${slug}`, lint_result: lintResult }).eq('id', draft.id);
-
-  published++;
-  console.log(`OK → ${SITE_URL}${path}/${slug}`);
 }
 
 // ── Summary ───────────────────────────────────────────────────────────────────
