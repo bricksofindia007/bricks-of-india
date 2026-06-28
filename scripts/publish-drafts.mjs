@@ -13,7 +13,7 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { lintDraft } from '../src/lib/lint.ts';
+import { lintDraft, extractSetNumberCandidates } from '../src/lib/lint.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
@@ -401,10 +401,25 @@ for (const draft of queue) {
   const excerpt = cleanBody.replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 160);
   const now     = new Date().toISOString();
 
+  // Review-format articles carry a verdict + set_number for Review/Product
+  // JSON-LD (see schemas.ts buildReviewSchema). Reuses Gate 5's extractor
+  // and verifies against `sets` rather than trusting the raw candidate.
+  let reviewVerdict = null, reviewSetNumber = null;
+  if (format === 'review') {
+    reviewVerdict = (draft.draft_verdict || '').trim().toUpperCase() || null;
+    const candidates = extractSetNumberCandidates(cleanBody);
+    if (candidates.length > 0) {
+      const { data: matchedSet } = await sb.from('sets').select('set_number').in('set_number', candidates).limit(1).maybeSingle();
+      reviewSetNumber = matchedSet?.set_number ?? null;
+    }
+  }
+
   const row = {
     title, slug, content: cleanBody, category, excerpt,
     published_at: now, seo_title: title, seo_description: excerpt,
     ...(heroImage ? { hero_image: heroImage } : {}),
+    ...(reviewVerdict ? { verdict: reviewVerdict } : {}),
+    ...(reviewSetNumber ? { set_number: reviewSetNumber } : {}),
   };
 
   const { error: insertErr } = await sb.from(table).insert(row);

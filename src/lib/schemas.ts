@@ -208,6 +208,14 @@ export function buildReviewSchema(review: ReviewData, title: string, set: Review
   };
 }
 
+// Maps BOI's 4-tier editorial verdict (src/lib/lint.ts VALID_VERDICTS) to a
+// 1-5 star scale for Review/Product schema. BUY NOW=5, IMPORT ONLY=4, WAIT=3,
+// AVOID=1. Adjust here if you disagree — it's the only place this mapping lives.
+export function verdictToRating(verdict: string | null): number | null {
+  const map: Record<string, number> = { 'BUY NOW': 5, 'IMPORT ONLY': 4, WAIT: 3, AVOID: 1 };
+  return verdict ? (map[verdict.toUpperCase()] ?? null) : null;
+}
+
 export function buildProductSchema(
   set: SetData,
   activePrices: StorePrice[],

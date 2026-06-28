@@ -11,7 +11,7 @@ import { ArticleCard } from '@/components/content/ArticleCard';
 import { Byline } from '@/components/content/Byline';
 import { CopyLinkButton } from '@/components/ui/CopyLinkButton';
 import { JsonLd } from '@/components/JsonLd';
-import { buildArticleSchema, buildFAQSchema } from '@/lib/schemas';
+import { buildArticleSchema, buildFAQSchema, buildReviewSchema, verdictToRating } from '@/lib/schemas';
 
 interface Props { params: { slug: string } }
 
@@ -29,6 +29,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function NewsArticlePage({ params }: Props) {
   const { data: article } = await supabase.from('news_articles').select('*').eq('slug', params.slug).single();
   if (!article) notFound();
+
+  const reviewSet = article.set_number
+    ? (await supabase.from('sets').select('name, set_number').eq('set_number', article.set_number).maybeSingle()).data
+    : null;
+  const reviewRating = verdictToRating(article.verdict);
+
   const cleanContent = article.content
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/^THE [A-Z\s]+$/gm, '')
@@ -42,6 +48,9 @@ export default async function NewsArticlePage({ params }: Props) {
   return (
     <div className="bg-white min-h-screen">
       <JsonLd data={buildArticleSchema({ ...article, url: `https://bricksofindia.com/news/${params.slug}` })} />
+      {article.category === 'Review' && reviewRating && reviewSet && (
+        <JsonLd data={buildReviewSchema({ published_at: article.published_at, rating: reviewRating }, article.title, reviewSet)} />
+      )}
 
       <div className="max-w-site mx-auto px-4 py-6">
         <nav className="text-sm text-gray-400 flex items-center gap-2 mb-4">
