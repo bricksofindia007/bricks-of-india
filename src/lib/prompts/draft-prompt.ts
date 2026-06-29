@@ -161,7 +161,19 @@ VERDICT LINE DISCIPLINE:
   in the structured block after BODY:.
 - If the body's conclusion paragraph needs to convey the verdict, integrate it
   as prose ("buy it" / "wait this one out" / "import or skip") — not as a
-  labeled verdict line.`;
+  labeled verdict line.
+
+CLOSING LINE — REQUIRED for review and opinion formats (optional for news/guide):
+End the body with one of these exact canonical BOI sign-offs (case-insensitive,
+must appear in the final 200 characters of the body — this is checked
+automatically and articles without one are rejected):
+- "On that bombshell, it's time to say goodbye. I'll see you on the next one. Bubyee."
+- "On that bombshell..." (shorter form, if a fuller closing paragraph precedes it)
+- "Keep building, keep dreaming... and don't let your wallet see your LEGO wishlist."
+Pick whichever fits the piece's closing beat naturally — don't force it in if it
+reads awkwardly, but one of these phrases (or a close variant containing
+"bombshell", "bubyee", "I'll see you on the next one", or "keep building...keep
+dreaming") must be present for review/opinion.`;
 
 export const MODEL_CONFIG = {
   model: 'gemini-2.5-flash-lite',

@@ -247,6 +247,20 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-06-29 — HIGH-54 found and fixed: A6 sign-off prompt gap, via supervised dry-fire
+
+**Found via the post-push verification dry-fire** (`gh workflow run generate-drafts.yml -f limit=3`) that this session's own earlier recommendation led to running — exactly the kind of thing a live smoke-test is for. 1 of 3 rows: a 670-word LEGO Dinosaur Fossils review, generated cleanly by Gemini, immediately rejected+deleted by the new `isGenuineFail` path (working correctly) for failing Gate 7's `A6_sign_off` rule. Confirmed real, not a regression: `ruleA6_signOff` (`src/lib/hard-rules.ts`) requires one of 6 canonical BOI sign-off patterns ("on that bombshell", "bubyee", etc.) in the final 200 characters of the body, hard-failing for `review`/`opinion` formats. Checked `src/lib/prompts/draft-prompt.ts` directly: **zero mention of any sign-off requirement, anywhere in `buildSystemPrompt()` or `buildUserPrompt()`.** The Voice Codex (`docs/codex/BOI_Codex_v2.md`) documents this convention extensively (3 example sign-offs, explicit "The Bombshell" section header) — but nothing in the generation code path reads from that file or injects its content into the live prompt. The model was never told this requirement exists; it wasn't ignoring an instruction, there was no instruction.
+
+**Fix:** added a "CLOSING LINE" section to `OUTPUT_FORMAT` (the second half of `buildSystemPrompt()`) giving the model the 3 most distinctive canonical phrases verbatim, scoped to review/opinion (where A6 hard-fails) with news/guide noted as optional (where A6 only warns). Verified each example phrase against the actual `ruleA6_signOff` regex set in the real TS/JS engine — not assumed — before considering this done.
+
+**Process note:** this was found specifically *because* this session pushed for a small supervised dry-fire before trusting the daily cron, rather than letting the first live run be unsupervised at 6x the row count. A 20-row unattended run hitting this same gap pre-fix would have auto-deleted up to ~20 review/opinion drafts with no human ever seeing why.
+
+- **Status:** Fixed, same day. `system.txt` snapshot regenerated to match (note: `vitest run --update` does NOT work for this — the snapshot tests use bare `readFileSync()` + `toBe()`, not vitest's snapshot API; regenerating requires writing `buildSystemPrompt()`'s actual output to the file directly).
+- **Owner:** Terminal/Claude (done).
+- **Dependencies:** None.
+
+---
+
 ### 2026-06-28 (latest) — 696-row pipeline cleanup executed; BothProvidersFailedError policy added
 
 **Bulk delete executed (Abhinav's explicit instruction):** "bring the content down to last 10 days, any content prior should be deleted from the pipeline, don't publish, just delete." Scoped and confirmed with Abhinav before execution: applies to `approved`, `draft`, `failed_lint`, `rejected` statuses with `created_at` older than 10 days — explicitly **excludes** `published` (all 107 live articles untouched) and anything created in the last 10 days regardless of status.
