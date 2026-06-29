@@ -44,8 +44,20 @@ jobs:
       - name: Generate approved drafts
         env:
           # smoke_test=true forces RUN_LIMIT=1 regardless of inputs.limit.
-          # Schedule trigger has no inputs context → fall through to RUN_LIMIT default of 20.
-          RUN_LIMIT: ${{ inputs.smoke_test && '1' || inputs.limit || '20' }}
+          # Schedule trigger has no inputs context → fall through to RUN_LIMIT
+          # default of 30 (raised from 20 2026-06-29, Abhinav — proactive
+          # capacity buffer matching the manual-dispatch default, now that
+          # the Cerebras eligibility fix is live and should raise the real
+          # success rate among attempts. Confirmed safe against Gemini's
+          # actual free-tier limits before changing: RPM is unaffected by
+          # total row count (the 7s DELAY_MS below is the only RPM throttle,
+          # independent of RUN_LIMIT); RPD ceiling for Flash-Lite is
+          # 1,000-1,500/day per Google's published rate limits as of this
+          # writing — 30/day is nowhere near that ceiling. ~18/day new
+          # content arrives (HIGH-52); revisit this number after 2-3 real
+          # scheduled runs once there's actual post-fix success-rate data,
+          # rather than guessing further from here.
+          RUN_LIMIT: ${{ inputs.smoke_test && '1' || inputs.limit || '30' }}
           SMOKE_TEST: ${{ inputs.smoke_test && '1' || '' }}
           GEMINI_API_KEY: ${{ inputs.smoke_test && 'smoke_test_invalid_key_force_400' || secrets.GEMINI_API_KEY }}
         run: |
