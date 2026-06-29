@@ -18,7 +18,20 @@ import { BothProvidersFailedError } from '../src/lib/generate-with-failover';
 import type { GenerationOutcome } from '../src/lib/generate-with-failover';
 
 const SNAP = join(__dirname, 'snapshots');
-const read = (name: string) => readFileSync(join(SNAP, name), 'utf8');
+// .replace(/\r\n/g, '\n') added 2026-06-29: read() previously compared raw
+// disk bytes against buildSystemPrompt()/buildUserPrompt() output, which is
+// always LF (generated in-memory, never touches disk). On a Windows checkout
+// with core.autocrlf=true, this failed even after adding .gitattributes
+// (eol=lf) -- confirmed live on Abhinav's machine that core.autocrlf still
+// won over .gitattributes on that Git-for-Windows install, so `git checkout --`
+// kept re-materializing CRLF on disk regardless. Rather than keep chasing
+// environment-specific Git config, this removes the actual fragility at its
+// source: the test now compares logical content, not raw bytes, so it's
+// correct on any OS/Git-config combination, not just the ones currently
+// configured correctly. The .gitattributes fix (previous commit) is still
+// worth keeping -- it's the right default for fresh clones -- but this is
+// the fix that makes the test itself robust rather than dependent on it.
+const read = (name: string) => readFileSync(join(SNAP, name), 'utf8').replace(/\r\n/g, '\n');
 
 // ── Fixed fixtures — must match snapshot-capture.mjs exactly ─────────────────
 
