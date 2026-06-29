@@ -137,13 +137,39 @@ for (const art of articles) {
     }
 
     // image_render_broken (desktop only) — skip if hero_image is null (caught by missing_image check)
+    //
+    // Bug fixed 2026-06-30: this check ran immediately after `domcontentloaded`,
+    // which only waits for HTML parsing — it does NOT wait for images to
+    // actually finish downloading. The hero image renders via next/image,
+    // which routes through Next's /_next/image optimization endpoint (real
+    // added latency vs. a raw static file), so reading naturalWidth this
+    // early caught images mid-load far more often than it caught genuinely
+    // broken ones. Confirmed on a live example (lego-ebon-hawk-...): the DB
+    // row's hero_image was already '/fallback-hero.png', the asset exists
+    // on disk and is a valid, non-corrupt PNG — there was nothing actually
+    // broken to find. Root cause was a race in this checker, not the site.
+    //
+    // Fix: poll the image's own `complete` property (true once the browser
+    // has either finished loading it OR given up after a real failure) with
+    // a bounded timeout, instead of reading naturalWidth at an arbitrary
+    // moment. Also narrowed the selector from the page's first `img[src]`
+    // (no guarantee it's the hero image — could be anything rendered above
+    // it in the DOM) to specifically the image inside the article's hero
+    // container, where one exists; falls back to the generic selector only
+    // if that more specific one isn't found, to avoid silently checking
+    // nothing on a page structure this script doesn't yet know about.
     if (vp.name === 'desktop' && art.hero_image) {
-      const heroNaturalWidth = await page.evaluate(() => {
-        const img = document.querySelector('img[src]');
-        return img ? img.naturalWidth : -1;
+      const heroNaturalWidth = await page.evaluate(async () => {
+        const img = document.querySelector('article img[src], main img[src], img[src]');
+        if (!img) return -1;
+        const deadline = Date.now() + 8000;
+        while (!img.complete && Date.now() < deadline) {
+          await new Promise(r => setTimeout(r, 100));
+        }
+        return img.naturalWidth;
       });
       if (heroNaturalWidth === 0) {
-        flag(art, 'image_render_broken', 'critical', 'Hero image failed to render (naturalWidth=0)');
+        flag(art, 'image_render_broken', 'critical', 'Hero image failed to render (naturalWidth=0 after waiting for load completion)');
       }
     }
 

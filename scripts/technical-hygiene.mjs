@@ -202,7 +202,19 @@ if (heroRows && heroRows.length > 0) {
     heroRows.map(async row => {
       if (!row.hero_image) return;
       try {
-        const res = await fetch(row.hero_image, {
+        // Bug fixed 2026-06-30: Node's native fetch requires an absolute
+        // URL — passing a relative path like '/fallback-hero.png' throws
+        // "Failed to parse URL from /fallback-hero.png" immediately, which
+        // the catch block below silently counted as a broken hero image.
+        // The image itself was never actually broken (browsers resolve
+        // relative URLs against the page's own origin automatically); this
+        // was purely the audit script failing to construct a fetchable URL.
+        // Resolve relative paths against SITE_URL, same as every other
+        // route check in this file, before fetching.
+        const heroUrl = row.hero_image.startsWith('/')
+          ? `${SITE_URL}${row.hero_image}`
+          : row.hero_image;
+        const res = await fetch(heroUrl, {
           method: 'HEAD',
           signal: AbortSignal.timeout(8_000),
           headers: { 'User-Agent': 'BOI-TechHygiene/1.0' },
@@ -714,7 +726,10 @@ try {
   const imgFails = [];
   await Promise.allSettled((articles ?? []).map(async a => {
     try {
-      const r = await fetch(a.hero_image, { method: 'HEAD', signal: AbortSignal.timeout(8_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+      // Same relative-path bug as the HeroImages check above — see that
+      // fix's comment for the full explanation. Resolve against SITE_URL.
+      const heroUrl = a.hero_image.startsWith('/') ? `${SITE_URL}${a.hero_image}` : a.hero_image;
+      const r = await fetch(heroUrl, { method: 'HEAD', signal: AbortSignal.timeout(8_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
       if (!r.ok) imgFails.push(`${a.slug}: HTTP ${r.status}`);
     } catch (e) { imgFails.push(`${a.slug}: ${e.message.slice(0, 40)}`); }
   }));
@@ -736,7 +751,12 @@ try {
   const revFails = [];
   await Promise.allSettled(withImg.map(async r => {
     try {
-      const res = await fetch(r.hero_image, { method: 'HEAD', signal: AbortSignal.timeout(8_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+      // Same relative-path bug as the two HeroImages checks above — fixed
+      // proactively here even though all 3 reviews currently have real
+      // external URLs (passes by luck, not by correctness) — this would
+      // misfire the moment any review row gets hero_image='/fallback-hero.png'.
+      const heroUrl = r.hero_image.startsWith('/') ? `${SITE_URL}${r.hero_image}` : r.hero_image;
+      const res = await fetch(heroUrl, { method: 'HEAD', signal: AbortSignal.timeout(8_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
       if (!res.ok) revFails.push(`${r.slug}: HTTP ${res.status}`);
     } catch (e) { revFails.push(`${r.slug}: ${e.message.slice(0, 40)}`); }
   }));
@@ -882,6 +902,14 @@ try {
 } catch (e) { alertFail('ExtDependencies', `Rebrickable API error: ${e.message.slice(0, 80)}`); }
 
 // 12b: Brickset API — connectivity + key present
+//
+// Bug fixed 2026-06-30 (MEDIUM-50): this checked text.includes('OK'), but
+// Brickset's v3 API (confirmed against their own documentation and forum:
+// "checkKey... will return a 'Success' if your API key is valid") responds
+// with JSON {"status":"success"} on a genuinely valid key — there is no
+// "OK" substring in a healthy response, ever. This check was alerting on
+// the documented success case, not on any real key/auth problem. The key
+// itself was never invalid; the check was looking for the wrong string.
 try {
   if (!process.env.BRICKSET_API_KEY) {
     alertFail('ExtDependencies', 'BRICKSET_API_KEY not set');
@@ -892,7 +920,7 @@ try {
     if (!res.ok) { alertFail('ExtDependencies', `Brickset API returned HTTP ${res.status}`); }
     else {
       const text = await res.text();
-      if (text.includes('OK')) log('ExtDependencies', `Brickset API: key valid ✓`);
+      if (/"status"\s*:\s*"success"/i.test(text)) log('ExtDependencies', `Brickset API: key valid ✓`);
       else alertFail('ExtDependencies', `Brickset API: key check returned "${text.slice(0, 60)}"`);
     }
   }

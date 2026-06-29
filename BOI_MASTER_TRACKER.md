@@ -247,6 +247,26 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-06-30 — Real weekly hygiene/content-quality reports investigated; 3 check-script bugs found and fixed; 3 live broken hero images backfilled
+
+Abhinav pasted two real, automated weekly reports (Weekly Technical Hygiene, Content Quality) and asked for a review of what's actually wrong. Investigated each finding against live code/data before acting, rather than reacting to the raw alert counts — several turned out to be bugs in the checking scripts themselves, not real site problems.
+
+**One alert flagged as simply wrong, no fix needed:** "100 approved drafts are waiting to be published, threshold 50" — this monitor checks a stale assumption (that `approved` means "drafted, awaiting a human publish click"). It actually means "ready for the generator to write a body" — there is no manual publish step downstream of that for content that passes gates, especially after this session's auto-publish work. Flagged for a future fix to the monitor's own logic, not acted on as a real backlog.
+
+**MEDIUM-65 (new):** `technical-hygiene.mjs`'s 3 hero-image HEAD-check call sites passed `hero_image` directly to `fetch()` without resolving relative paths (`/fallback-hero.png`) against `SITE_URL` first — Node's native `fetch` requires absolute URLs, so this threw immediately and was silently counted as "image broken." Confirmed live: the 3 flagged articles all had the same already-correct `/fallback-hero.png` value, not a real broken image. Fixed all 3 call sites.
+
+**MEDIUM-66 (new):** `visual-renderer.mjs`'s `image_render_broken` check (~75 articles flagged) read `naturalWidth` immediately after `domcontentloaded`, which doesn't wait for images to finish downloading — a race, not a real defect, almost certainly inflated by `next/image`'s real optimization-endpoint latency. Confirmed on one live example that there was nothing actually broken. Fixed to poll `img.complete` with a bounded timeout instead of reading `naturalWidth` at an arbitrary moment; also narrowed the image selector to specifically target content inside `article`/`main`. **Not yet re-verified at the original ~75-row scale** — flagged in the entry itself as needing a fresh run to confirm the fix actually closes the gap, not just the one example checked.
+
+**MEDIUM-67 (new, closes MEDIUM-50):** root-caused the long-standing "Brickset API key check returns ambiguous success shape" mystery. Confirmed via Brickset's own documentation that `{"status":"success"}` is the correct, healthy response — the check was looking for the substring `"OK"`, which never appears in a real success response. The key was never the problem; the check was checking for the wrong string, every single run, since this check existed.
+
+**Live data fix, not a code change:** 3 published articles (all from before this session's editorial-CDN-block fix existed) had raw `live.staticflickr.com` URLs stored as `hero_image`, now returning HTTP 429 from Flickr. Confirmed exact row IDs immediately before writing, backfilled all 3 to `/fallback-hero.png` per Abhinav's explicit choice (quick and safe, matches what `prePublishAutoFix`'s same fallback already uses elsewhere), verified zero remaining `staticflickr` URLs after.
+
+**Real, already-tracked findings, no new action taken:** `CatalogCoverage` (28% of sets missing piece-count data) verified against live data as genuinely real — this is HIGH-48, already tracked, unchanged by tonight. `missing_store_mention` on the LEGO Disney Main Street USA article verified as the system working correctly, not broken — there genuinely is no Indian store price for that set yet, so the article correctly omits a store mention rather than fabricate one; same category as MEDIUM-48/49 (editorial judgment on sparse-data sets, not a bug).
+
+Verified throughout: 71/71 tests passing, tsc clean (no test/type changes needed — all fixes were in `.mjs` audit scripts outside the test suite's scope, plus one live DB update).
+
+---
+
 ### 2026-06-29 (latest) — Tier 1/2 signal auto-approve shipped; MEDIUM-64 FIFO fix
 
 **Context, recorded plainly because it changed mid-conversation:** Abhinav initially asked to "fix MEDIUM-64" believing the existing manual-approval gate (HIGH-53) was actually a post-generation "approve the finished article" step blocking publication. Clarified it's the opposite — it's a pre-generation "should this topic even be drafted" gate, and clarifying that distinction was necessary before any fix made sense. Abhinav then explicitly restated the actual goal: "I want a system that automates it... I dont want manual dependency anywhere... that is the whole idea and objective."
@@ -1552,6 +1572,27 @@ Decision deferred to Day 3 open.
 - **Owner:** C (done).
 - **Target window:** Closed.
 - **Dependencies:** None
+
+#### MEDIUM-65: technical-hygiene.mjs HeroImages checks pass relative paths directly to fetch(), throwing instead of checking
+- **What:** Surfaced 2026-06-29 from a real weekly hygiene report: `ImageHealth`/`HeroImages` flagged 3 articles as broken with the error `Failed to parse URL from /fallback-hero.png`. Confirmed live: all 3 rows genuinely had `hero_image='/fallback-hero.png'`, a valid relative path the site itself resolves fine in a browser (browsers resolve relative URLs against the page's own origin automatically) — but Node's native `fetch()` requires an absolute URL and throws immediately on a relative one. The script's `catch` block silently counted this thrown error as "image broken," indistinguishable from a genuinely dead external URL. Three separate call sites in `technical-hygiene.mjs` had this same bug (the primary `HeroImages` check, the 10-sample `ImageHealth` check, and the review hero-image check — the third was passing only by luck, since no review row currently uses the fallback path).
+- **Fix:** all three call sites now resolve a leading-`/` path against `SITE_URL` (already defined in the file, used by every other route check) before calling `fetch()`.
+- **Status:** Fixed 2026-06-29.
+- **Owner:** C (done).
+- **Dependencies:** None.
+
+#### MEDIUM-66: visual-renderer.mjs image_render_broken check races against in-flight image loads
+- **What:** Surfaced same hygiene cycle as MEDIUM-65, from the separate Content Quality Report: `image_render_broken` flagged ~75 articles (a implausibly large fraction of the catalogue) with `naturalWidth=0`. Root cause: the check ran `page.evaluate()` reading `naturalWidth` immediately after `page.goto(url, { waitUntil: 'domcontentloaded' })` — `domcontentloaded` only waits for HTML parsing, not for images to finish downloading. The hero image renders via `next/image`, which routes through Next's `/_next/image` optimization endpoint (real added latency vs. a raw static file), so this check was very likely to catch images mid-load, not genuinely broken ones. Confirmed on a live example (the Ebon Hawk article from MEDIUM-65): `hero_image` was already `/fallback-hero.png`, the asset on disk is a valid, non-corrupt 452×457 PNG — there was nothing actually broken to find for that row.
+- **Fix:** the check now polls the image element's own `complete` property (true once the browser has either finished loading it or given up after a real failure) with an 8s bounded timeout, instead of reading `naturalWidth` at an arbitrary moment. Also narrowed the selector from the page's first `img[src]` (no guarantee of being the hero image) to specifically an image inside `article`/`main`, falling back to the generic selector only if neither is found.
+- **Status:** Fixed 2026-06-29. **Not yet re-verified against a live run** — the original ~75-flag count was never independently confirmed as 100% false positive (only the one example above was directly checked); recommend re-running the Content Quality Report after this lands and comparing the new flag count before assuming this fully resolves the scale of the original alert.
+- **Owner:** C (done, pending live re-verification).
+- **Dependencies:** None.
+
+#### MEDIUM-67: Brickset API key check (MEDIUM-50) — root cause confirmed, was checking for the wrong response string
+- **What:** Resolves MEDIUM-50 ("Brickset API key check returns ambiguous 'success' shape — undiagnosed"). Confirmed via Brickset's own API v3 documentation and forum ("checkKey... will return a 'Success' if your API key is valid") that `{"status":"success"}` is the documented, healthy response for a valid key. `technical-hygiene.mjs`'s check was looking for the literal substring `"OK"` in the response text — which never appears in a genuinely successful Brickset v3 response — so this check was alerting on the correct, expected behavior every single time it ran, not on any real key or auth problem.
+- **Fix:** check now matches `/"status"\s*:\s*"success"/i` against the response text.
+- **Status:** Fixed 2026-06-29, closes MEDIUM-50.
+- **Owner:** C (done).
+- **Dependencies:** None.
 
 #### HIGH-51: GEO-05b — auto-link set mentions in articles
 - **What:** 98 news + 23 blog articles published with zero `/sets/[slug]` internal links. Gemini prompt does not instruct the model to link set mentions to their catalog pages. Fix: add instruction to system prompt in `scripts/generate-approved-drafts.ts` (and `generateBody()` in `src/app/admin/pending/actions.ts`) to link the first mention of any LEGO set to `/sets/<slug>`. Slug derivation reuses the same set-number extraction already in Gate 5 (`src/lib/lint.ts:113`) — don't reimplement. Verify post-fix by checking a sample of newly generated articles for `href="/sets/` links.
