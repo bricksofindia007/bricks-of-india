@@ -1,0 +1,20 @@
+# Force LF line endings for all text files, regardless of each developer's
+# local core.autocrlf setting. Added 2026-06-29 — root cause of a real test
+# failure: tests/snapshot.test.ts compares buildSystemPrompt()/buildUserPrompt()
+# output (always LF, generated in-memory) against tests/snapshots/*.txt read
+# via bare readFileSync with no CRLF normalization. On a Windows checkout with
+# core.autocrlf=true, Git silently rewrites the committed LF snapshot files to
+# CRLF on checkout — the test then fails on every blank line (a lone \r renders
+# in terminal diff output as a trailing space, since \r is a cursor-return
+# control character, not a literal character — this masked non-blank-line
+# mismatches by visually overwriting them, leaving only blank lines as visible
+# diffs). The repository's committed files were always correct (confirmed: a
+# fresh Linux clone has clean LF, zero CRLF, all tests pass) — this was a
+# local-checkout artifact, not a content bug. `text=auto` lets Git auto-detect
+# binary files and leave them untouched; `eol=lf` pins the checkout encoding
+# for genuine text files so this can't recur on any platform.
+* text=auto eol=lf
+
+# Explicit for the files that actually broke, so the rule's intent is clear
+# even if the blanket rule above is ever narrowed:
+tests/snapshots/*.txt text eol=lf
