@@ -33,6 +33,7 @@
 require('dotenv').config({ path: '.env.local' });
 const { createClient } = require('@supabase/supabase-js');
 const { isFillerPattern } = require('./filler-patterns');
+const { isAutoApproveTier } = require('./auto-approve-policy');
 
 // ── CLI flags ─────────────────────────────────────────────────────────────────
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -161,6 +162,7 @@ async function writeDrafts(drafts) {
   let countBelowThreshold  = 0;
   let countSkippedFiller   = 0;
   let countQueued          = 0;
+  let countAutoApproved    = 0;
   const byFormat           = { news: 0, review: 0, opinion: 0 };
   const drafts             = [];
   const fillerDrafts       = [];
@@ -217,8 +219,20 @@ async function writeDrafts(drafts) {
     // Primary fix is in dedupe-signals.js (Pass 0); this is defense in depth.
     existingUrls.add(sig.url);
 
+    // Auto-approve policy (2026-06-29, Abhinav, explicit) — see
+    // scripts/radar/auto-approve-policy.js for the full rationale and the
+    // unit-tested decision logic. This does NOT touch any downstream
+    // quality gate (factuality, source fidelity, voice, Gate 7) — those
+    // still run on every draft regardless of tier, exactly as before. This
+    // only removes the human judgment call on whether a TOPIC from a
+    // trusted source is worth covering at all; it does not relax any check
+    // on whether the eventual ARTICLE is accurate or well-written.
+    const autoApprove = isAutoApproveTier(sig.source_tier);
+    if (autoApprove) countAutoApproved++;
+
     if (DRY_RUN || VERBOSE) {
-      console.log(`  [QUEUE format=${format} score=${pts}] T${sig.source_tier} ${sig.source_name} | "${sig.title.slice(0, 70)}"`);
+      const routeLabel = autoApprove ? 'AUTO-APPROVED' : 'QUEUE(needs approval)';
+      console.log(`  [${routeLabel} format=${format} score=${pts}] T${sig.source_tier} ${sig.source_name} | "${sig.title.slice(0, 70)}"`);
     }
 
     drafts.push({
@@ -227,7 +241,14 @@ async function writeDrafts(drafts) {
       source_excerpt      : sig.body ? sig.body.slice(0, 500).trim() : null,
       source_published_at : sig.published_at || null,
       draft_format        : format,
-      status              : 'draft',
+      status              : autoApprove ? 'approved' : 'draft',
+      ...(autoApprove ? {
+        approved_at: new Date().toISOString(),
+        // Distinct from the manual-approval action's approved_by:'admin' —
+        // this was not a human decision, and the audit trail should say so
+        // honestly rather than look identical to a real admin click.
+        approved_by: 'radar-auto-tier1-2',
+      } : {}),
     });
   }
 
@@ -254,6 +275,7 @@ async function writeDrafts(drafts) {
     ` below_threshold=${countBelowThreshold}` +
     ` skipped_filler=${countSkippedFiller}` +
     ` queued=${countQueued}` +
+    ` (auto_approved=${countAutoApproved} needs_approval=${countQueued - countAutoApproved})` +
     ` (news=${byFormat.news} review=${byFormat.review} opinion=${byFormat.opinion})` +
     ` duration=${dur}s` +
     (DRY_RUN ? ' [DRY-RUN]' : '')

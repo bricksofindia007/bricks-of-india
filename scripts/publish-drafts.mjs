@@ -54,12 +54,18 @@ const IDS_I   = process.argv.indexOf('--ids');
 const IDS     = IDS_I !== -1 ? process.argv[IDS_I + 1].split(',').map(s => s.trim()) : null;
 
 // ── Fetch drafts ──────────────────────────────────────────────────────────────
-
+// MEDIUM-64 fixed 2026-06-29: previously ordered by updated_at descending
+// (newest-touched-first) — inconsistent with generate-approved-drafts.ts's
+// true FIFO (created_at ascending, oldest-first). Low impact while this
+// queue stays near-empty (it only holds drafts that completed generation
+// but failed Gate 7/lint, post-2026-06-28's auto-reject-delete policy this
+// should be rare), but a real bug if it ever fills: older rejected drafts
+// would sit behind newer ones indefinitely, unreachable by a --limit raise.
 let q = sb.from('pending_drafts')
-  .select('id, draft_title, draft_body, draft_verdict, draft_format, word_count, source_url, source_title, source_excerpt, lint_result, updated_at')
+  .select('id, draft_title, draft_body, draft_verdict, draft_format, word_count, source_url, source_title, source_excerpt, lint_result, created_at, updated_at')
   .eq('status', 'draft')
   .not('draft_body', 'is', null)
-  .order('updated_at', { ascending: false });
+  .order('created_at', { ascending: true });
 
 if (IDS) q = q.in('id', IDS);
 else     q = q.limit(LIMIT);
