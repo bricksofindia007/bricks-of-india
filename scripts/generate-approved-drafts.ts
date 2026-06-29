@@ -16,7 +16,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 import { createClient } from '@supabase/supabase-js';
-import { generateWithFailover, type DraftGenerationInput, type GenerationOutcome } from '../src/lib/generate-with-failover';
+import { generateWithFailover, BothProvidersFailedError, type DraftGenerationInput, type GenerationOutcome } from '../src/lib/generate-with-failover';
 import { getSecret } from '../src/lib/get-secret';
 import { passesAutoPublishGates } from '../src/lib/auto-publish-gate';
 import { publishOneDraft } from '../src/lib/publish-draft';
@@ -300,7 +300,7 @@ if (IS_MAIN) (async () => {
 
   let geminiAttempted = 0, geminiOk = 0, geminiLintFailed = 0;
   let cerebrasAttempted = 0, cerebrasOk = 0, cerebrasLintFailed = 0;
-  let deferred = 0, failed = 0;
+  let deferred = 0, failed = 0, bothFailed = 0;
 
   for (let i = 0; i < queue.length; i++) {
     if (i > 0) await new Promise(r => setTimeout(r, DELAY_MS));
@@ -368,6 +368,45 @@ if (IS_MAIN) (async () => {
         console.log(`REJECTED+DELETED (${outcome.wordCount}w, format=${outcome.format}, provider=${outcome.provider}${failoverNote}) — ${failureReasons || 'gate failure'}`);
       }
     } catch (err: unknown) {
+      // Policy locked 2026-06-28 (Abhinav, this session): "what fails through
+      // Gemini and Cerebras both should be put in a rejected category and
+      // [then] deleted" (Abhinav clarified "recycled" was a slip for
+      // "deleted" — no ambiguity). Checked via instanceof, not string-
+      // matching error.message, for the same robustness reason
+      // BothProvidersFailedError exists as a dedicated type — distinct from
+      // DEFERRED (Cerebras never attempted, kept retrying) and from a plain
+      // Gemini-non-retryable Error (also kept retrying, per Abhinav: only
+      // the genuinely-both-attempted-both-failed case gets deleted).
+      if (err instanceof BothProvidersFailedError) {
+        geminiAttempted++;
+        cerebrasAttempted++;
+        bothFailed++;
+        const reasonForLog = `gemini="${err.geminiMessage.slice(0, 150)}" cerebras="${err.cerebrasMessage.slice(0, 150)}"`;
+
+        // Two-step (status update, then delete) rather than a single delete:
+        // if the delete itself fails for any reason, the row is left as
+        // status='rejected' with the failure reason recorded, not silently
+        // unchanged with no trace — same rationale as the existing
+        // reject+delete path below for genuine quality-gate failures.
+        const { error: rejErr } = await sb.from('pending_drafts').update({
+          status: 'rejected',
+          discard_reason: `both_providers_failed: ${reasonForLog}`.slice(0, 500),
+        }).eq('id', draft.id);
+        if (rejErr) {
+          console.error('[supabase-write] table=pending_drafts op=update(bothProvidersFailed) error:', rejErr);
+        }
+
+        const { error: delErr } = await sb.from('pending_drafts').delete().eq('id', draft.id);
+        if (delErr) {
+          console.error('[supabase-write] table=pending_drafts op=delete(bothProvidersFailed) error:', delErr);
+          // Row stays as status='rejected' with the reason above — acceptable
+          // degraded state, not silent data loss.
+        } else {
+          console.log(`REJECTED+DELETED (both providers failed) — ${reasonForLog}`);
+        }
+        continue;
+      }
+
       const msg = err instanceof Error ? err.message : String(err);
 
       // Gemini retryable + Cerebras ineligible → deferred (excerpt too short)
@@ -397,9 +436,16 @@ if (IS_MAIN) (async () => {
     // (NOT NULL DEFAULT 0) is left in place — it's part of the schema's history
     // and other tooling may reference it — but this script no longer writes a
     // fake "always zero" value into it; it simply keeps its default.
+    //
+    // bothFailed (both Gemini and Cerebras genuinely attempted and failed,
+    // 2026-06-28 policy) is folded into drafts_failed for the DB column — it
+    // is a real failure, just a more specific one with a different DB outcome
+    // (rejected+deleted vs. left untouched to retry). Kept as its own field
+    // in provider_stats and the console summary for visibility.
     const providerStats = {
-      gemini:   { attempted: geminiAttempted,   ok: geminiOk,   lint_failed: geminiLintFailed },
-      cerebras: { attempted: cerebrasAttempted, ok: cerebrasOk, lint_failed: cerebrasLintFailed },
+      gemini:      { attempted: geminiAttempted,   ok: geminiOk,   lint_failed: geminiLintFailed },
+      cerebras:    { attempted: cerebrasAttempted, ok: cerebrasOk, lint_failed: cerebrasLintFailed },
+      both_failed: bothFailed,
     };
     const { error: updateErr } = await sb
       .from('generator_runs')
@@ -408,7 +454,7 @@ if (IS_MAIN) (async () => {
         drafts_succeeded:        geminiOk + cerebrasOk,
         drafts_lint_failed:      geminiLintFailed + cerebrasLintFailed,
         drafts_deferred:         deferred,
-        drafts_failed:           failed,
+        drafts_failed:           failed + bothFailed,
         provider_stats:          providerStats,
       })
       .eq('id', runId);
@@ -421,7 +467,7 @@ if (IS_MAIN) (async () => {
   const total = geminiOk + cerebrasOk;
   const lintFailed = geminiLintFailed + cerebrasLintFailed;
   const dur   = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${cerebrasOk} cerebras), ${lintFailed} rejected+deleted, ${failed} failed, ${deferred} deferred of ${queue.length} — ${dur}s total`);
+  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${cerebrasOk} cerebras), ${lintFailed} rejected+deleted (quality gates), ${bothFailed} rejected+deleted (both providers failed), ${failed} failed (retrying next run), ${deferred} deferred of ${queue.length} — ${dur}s total`);
 })().catch(err => {
   console.error('FATAL:', err);
   process.exit(1);

@@ -14,6 +14,7 @@ import { buildSystemPrompt, buildUserPrompt, VOICE_EXAMPLES, OUTPUT_FORMAT } fro
 import { extractSetNumberCandidates, extractSetNameCandidates, lintDraft } from '../src/lib/lint';
 import { isCerebrasEligible } from '../src/lib/source-quality';
 import { passesAutoPublishGates } from '../src/lib/auto-publish-gate';
+import { BothProvidersFailedError } from '../src/lib/generate-with-failover';
 import type { GenerationOutcome } from '../src/lib/generate-with-failover';
 
 const SNAP = join(__dirname, 'snapshots');
@@ -484,5 +485,38 @@ describe('passesAutoPublishGates', () => {
     outcome.format = 'news';
     outcome.verdict = null;
     expect(passesAutoPublishGates(outcome)).toBe(true);
+  });
+});
+
+// ── BothProvidersFailedError (2026-06-28, Abhinav policy) ─────────────────────
+// "What fails through Gemini and Cerebras both should be put in a rejected
+// category and [deleted]." Distinguishes the genuinely-both-attempted-both-
+// failed case from (a) DEFERRED — Cerebras never attempted, Gemini retryable —
+// and (b) a plain Gemini non-retryable Error where Cerebras is never tried at
+// all. Both (a) and (b) keep retrying automatically; only this case deletes.
+// Checked via `instanceof` in generate-approved-drafts.ts's catch block, not
+// string-matching error.message — the same robustness reason this is a
+// dedicated class rather than a tagged plain Error.
+describe('BothProvidersFailedError', () => {
+  it('is an instance of Error and carries both provider messages', () => {
+    const err = new BothProvidersFailedError('Gemini 503', 'Cerebras timeout');
+    expect(err).toBeInstanceOf(Error);
+    expect(err).toBeInstanceOf(BothProvidersFailedError);
+    expect(err.geminiMessage).toBe('Gemini 503');
+    expect(err.cerebrasMessage).toBe('Cerebras timeout');
+    expect(err.name).toBe('BothProvidersFailedError');
+  });
+
+  it('builds a combined message including both provider failures', () => {
+    const err = new BothProvidersFailedError('Gemini 503', 'Cerebras timeout');
+    expect(err.message).toContain('Gemini 503');
+    expect(err.message).toContain('Cerebras timeout');
+  });
+
+  it('is distinguishable from a plain Error via instanceof (the actual catch-branch check)', () => {
+    const plainErr = new Error('Gemini failed (retryable) and Cerebras not eligible (fullBody and excerpt both < 200 chars): some gemini error');
+    const bothErr  = new BothProvidersFailedError('gemini msg', 'cerebras msg');
+    expect(plainErr instanceof BothProvidersFailedError).toBe(false);
+    expect(bothErr instanceof BothProvidersFailedError).toBe(true);
   });
 });

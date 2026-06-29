@@ -30,6 +30,25 @@ export type GenerationOutcome = {
   hardFail: boolean;
 };
 
+// Added 2026-06-28 (Abhinav, this session): "what fails through Gemini and
+// Cerebras both should be put in a rejected category and recycled" — recycled
+// clarified by Abhinav to mean deleted, not retried. This needs to be
+// distinguishable from the more common case where Gemini fails non-retryably
+// and Cerebras is never attempted at all (kept as a plain Error, still
+// retried automatically next run — Abhinav confirmed only the genuinely-both-
+// attempted-both-failed case should be deleted). String-matching error
+// messages for this would be fragile; a dedicated error type is the same
+// pattern already used for LintFailedError in publish-draft.ts.
+export class BothProvidersFailedError extends Error {
+  constructor(
+    public readonly geminiMessage: string,
+    public readonly cerebrasMessage: string,
+  ) {
+    super(`Both providers failed — Gemini: ${geminiMessage} | Cerebras: ${cerebrasMessage}`);
+    this.name = 'BothProvidersFailedError';
+  }
+}
+
 // Determines whether a Gemini error should trigger Cerebras failover.
 // Only 429 and 5xx are retryable — parse errors and bad requests are not.
 // SMOKE_TEST=1 widens to include 400 so a bad API key can simulate failover.
@@ -142,10 +161,24 @@ export async function generateWithFailover(
   vlog('Triggering Cerebras failover...');
   const cerebras = new CerebrasProvider(cerebrasKey);
   vlog('Calling Cerebras gpt-oss-120b...');
-  const { text } = await cerebras.call({ systemPrompt, userPrompt });
-  vlog(`Cerebras returned ${text.length} chars — parsing...`);
 
-  const parsed    = parseDraftResponse(text, input.format);
+  let parsed: ReturnType<typeof parseDraftResponse>;
+  try {
+    const { text } = await cerebras.call({ systemPrompt, userPrompt });
+    vlog(`Cerebras returned ${text.length} chars — parsing...`);
+    parsed = parseDraftResponse(text, input.format);
+  } catch (cerebrasErr) {
+    // Both providers genuinely attempted and both failed to produce usable
+    // content — this is the case Abhinav's policy (2026-06-28) targets for
+    // delete, distinct from Gemini-non-retryable-Cerebras-never-tried (which
+    // stays a plain Error, still retried automatically). Covers both a real
+    // Cerebras API/network failure and a malformed/unparseable Cerebras
+    // response (empty output, missing BOI_DRAFT markers) — either way,
+    // Cerebras did not deliver usable content.
+    const cerebrasMsg = cerebrasErr instanceof Error ? cerebrasErr.message : String(cerebrasErr);
+    vlog(`Cerebras also failed: ${cerebrasMsg.slice(0, 120)}`);
+    throw new BothProvidersFailedError((geminiErr as Error).message, cerebrasMsg);
+  }
   vlog(`Parsed: title="${parsed.title.slice(0, 60)}" wordCount=${parsed.wordCount} verdict=${parsed.verdict}`);
 
   const lint      = await runLint(parsed.body, parsed.verdict, parsed.wordCount).catch(() => null);
