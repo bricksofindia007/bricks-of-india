@@ -49,6 +49,7 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
+import { genuinelyAvailableAtToycra } from '../src/lib/toycra-availability.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
@@ -1191,27 +1192,45 @@ const htmlLeaks = news10.filter(a => /<(p|br|strong|em|div|span|h[1-6])\b/i.test
 if (htmlLeaks.length > 0) alertFail('ContentIntegrity', `HTML tags leaking in ${htmlLeaks.length} article(s): ${htmlLeaks.map(a => a.slug).join(', ')}`);
 else log('ContentIntegrity', `HTML leak check: clean ✓`);
 
-// 14c: ABHINAV12 present when Toycra is mentioned (HIGH-49)
+// 14c: ABHINAV12 present when the set is genuinely, currently purchasable
+// at Toycra (HIGH-49)
 //
-// Bug fixed 2026-06-30: this previously ran against news10 (the same
-// 10-most-recent-articles sample used for word-count/HTML-leak spot-checks),
-// which is the wrong scope for a partner-obligation compliance check --
-// an article that mentions Toycra without the discount code is just as real
-// a gap on day 8 as it is on day 1; it doesn't become acceptable once 10
-// newer articles get published. Confirmed live before fixing: the original
-// HIGH-49 finding (lego-technic-aston-martin-amr25...) was STILL unfixed
-// 8 days later, and 7 more articles had the same gap -- but the nightly
-// check had been silently reporting "clean" every run since, because the
-// flagged article aged out of the 10-row window. Now scans the full
-// news_articles table.
+// Policy locked 2026-06-30 (Abhinav, explicit): "my code abhinav12 should
+// only be mentioned if and when the set is available on toycra. if it is
+// not available only there is absolutely no point in mentioning that.
+// also, sets which will be import also do not need that message either."
+//
+// Bug fixed same day, two layers: (1) this previously ran against news10
+// (the 10-most-recent-articles sample shared with unrelated spot-checks),
+// the wrong scope for a partner-obligation compliance check -- a real gap
+// doesn't become acceptable once 10 newer articles publish. Now scans the
+// full table. (2) The original rule ("any Toycra mention requires the
+// code") was too blunt and would have been WRONG to auto-fix against --
+// manually classified all 8 originally-flagged articles against Abhinav's
+// rule above and found only 2 of 8 actually need the code added
+// (bossks-houndstooth..., lego-titanic-10294... -- both state a real,
+// present-tense ₹ price at Toycra right now). The other 6 correctly
+// describe sets as not-yet-available ("Toycra... will be the primary
+// sources to watch for availability"), never carried ("MyBrickHouse and
+// Toycra do not carry custom creations of this scale"), or possibly
+// import-only ("potentially available at Toycra... or it might be an
+// import-only affair") -- adding the code to those would have been a
+// content error, not a fix. This check now implements that same
+// distinction: only flags when a ₹ price figure appears within the same
+// sentence as a Toycra mention AND that sentence contains no hedging/
+// future-availability/import language. Verified against all 8 original
+// real article texts -- correctly reproduces the manual classification
+// 8/8 (2 genuine gaps, 6 correctly not flagged) before shipping.
 try {
   const { data: allToycraArticles } = await sb.from('news_articles')
     .select('slug, content').ilike('content', '%toycra%');
-  const toycraWithoutCode = (allToycraArticles ?? []).filter(a => !/ABHINAV12/i.test(a.content || ''));
+  const toycraWithoutCode = (allToycraArticles ?? []).filter(a =>
+    !/ABHINAV12/i.test(a.content || '') && genuinelyAvailableAtToycra(a.content || '')
+  );
   if (toycraWithoutCode.length > 0) {
-    alertFail('ContentIntegrity', `${toycraWithoutCode.length} article(s) mention Toycra without ABHINAV12 (full-table scan): ${toycraWithoutCode.map(a => a.slug).join(', ')}`);
+    alertFail('ContentIntegrity', `${toycraWithoutCode.length} article(s) state a real Toycra price without ABHINAV12 (full-table scan): ${toycraWithoutCode.map(a => a.slug).join(', ')}`);
   } else {
-    log('ContentIntegrity', `ABHINAV12 code: present in all ${(allToycraArticles ?? []).length} Toycra-mentioning articles (full-table scan) ✓`);
+    log('ContentIntegrity', `ABHINAV12 code: present on all genuinely-available-at-Toycra articles (full-table scan, ${(allToycraArticles ?? []).length} total Toycra mentions checked) ✓`);
   }
 } catch (e) {
   alertFail('ContentIntegrity', `ABHINAV12 check failed: ${e.message.slice(0, 80)}`);

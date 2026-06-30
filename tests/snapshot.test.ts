@@ -15,6 +15,7 @@ import { extractSetNumberCandidates, extractSetNameCandidates, lintDraft } from 
 import { isCerebrasEligible } from '../src/lib/source-quality';
 import { passesAutoPublishGates } from '../src/lib/auto-publish-gate';
 import { BothProvidersFailedError } from '../src/lib/generate-with-failover';
+import { genuinelyAvailableAtToycra } from '../src/lib/toycra-availability';
 import type { GenerationOutcome } from '../src/lib/generate-with-failover';
 
 const SNAP = join(__dirname, 'snapshots');
@@ -531,5 +532,63 @@ describe('BothProvidersFailedError', () => {
     const bothErr  = new BothProvidersFailedError('gemini msg', 'cerebras msg');
     expect(plainErr instanceof BothProvidersFailedError).toBe(false);
     expect(bothErr instanceof BothProvidersFailedError).toBe(true);
+  });
+});
+
+// ── genuinelyAvailableAtToycra (HIGH-49, 2026-06-30) ──────────────────────────
+// Abhinav: "my code abhinav12 should only be mentioned if and when the set
+// is available on toycra. if it is not available only there is absolutely
+// no point in mentioning that. also, sets which will be import also do not
+// need that message either." These 8 test cases are drawn directly from the
+// 8 real articles that originally triggered HIGH-49 -- manually classified
+// against Abhinav's rule before writing this function, then verified the
+// function reproduces that classification exactly (8/8) before shipping.
+describe('genuinelyAvailableAtToycra', () => {
+  it('returns false for "will be the primary sources to watch for availability" (not yet stocked)', () => {
+    expect(genuinelyAvailableAtToycra('No specific Indian pricing has been confirmed yet. MyBrickHouse and Toycra will be the primary sources to watch for availability.')).toBe(false);
+  });
+
+  it('returns true for the real bossks-houndstooth text, including a later unrelated stock caveat ("might be out of stock") that must NOT be mistaken for an availability hedge', () => {
+    // This exact text caught a real bug in an earlier draft of this function:
+    // a whole-sentence hedge check incorrectly flagged this because "might be"
+    // appears later in the sentence as a STOCK-level caveat, not a price/
+    // availability hedge. Scoping the hedge check to the toycra+price match
+    // window itself (not the full sentence) fixed it -- this test guards
+    // against that regression.
+    expect(genuinelyAvailableAtToycra('MyBrickHouse has it for ₹51,999, Toycra is selling it at ₹41,599 lists it at ₹50,999, though it might be out of stock.')).toBe(true);
+  });
+
+  it('returns false for "usually list new sets within 4-6 weeks" (generic future-tense)', () => {
+    expect(genuinelyAvailableAtToycra('Keep an eye on retailers like Toycra, MyBrickHouse, and Jaiman, as they usually list new sets within 4-6 weeks of the international launch.')).toBe(false);
+  });
+
+  it('returns false for "do not carry custom creations of this scale" (never available)', () => {
+    expect(genuinelyAvailableAtToycra('MyBrickHouse and Toycra do not carry custom creations of this scale.')).toBe(false);
+  });
+
+  it('returns true for "You\'ll find it at MyBrickHouse for ₹63,999 and at Toycra for ₹61,000" (real prices, both stores)', () => {
+    expect(genuinelyAvailableAtToycra('Here in India, the LEGO Titanic is a serious commitment. You\'ll find it at MyBrickHouse for ₹63,999 and at Toycra for ₹61,000.')).toBe(true);
+  });
+
+  it('returns false for "potentially available at Toycra... or it might be an import-only affair" (hedged/possibly import)', () => {
+    expect(genuinelyAvailableAtToycra('It will likely land in India with a 4-6 week lag, potentially available at Toycra or MyBrickHouse, or it might be an import-only affair given the creative liberties taken.')).toBe(false);
+  });
+
+  it('returns false for "expect them to appear... shortly after" (not yet launched)', () => {
+    expect(genuinelyAvailableAtToycra('While they officially launch on August 1st, expect them to appear at major retailers like Toycra and MyBrickHouse shortly after.')).toBe(false);
+  });
+
+  it('returns false for "expect local retailers... to stock it eventually" (future tense)', () => {
+    expect(genuinelyAvailableAtToycra('While officially available at LEGO.com, expect local retailers like Toycra and MyBrickHouse to stock it eventually.')).toBe(false);
+  });
+
+  it('returns false when there is no ₹ price near the Toycra mention at all', () => {
+    expect(genuinelyAvailableAtToycra('Toycra is a popular retailer for LEGO sets in India.')).toBe(false);
+  });
+
+  it('returns false for empty/null/undefined content (fail closed)', () => {
+    expect(genuinelyAvailableAtToycra('')).toBe(false);
+    expect(genuinelyAvailableAtToycra(null)).toBe(false);
+    expect(genuinelyAvailableAtToycra(undefined)).toBe(false);
   });
 });
