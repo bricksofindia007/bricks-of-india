@@ -1094,19 +1094,43 @@ try {
 
 // ── Check 14: Content integrity ────────────────────────────────────────────────
 
-const { data: last10News } = await sb.from('news_articles').select('slug, title, content, published_at')
+const { data: last10News } = await sb.from('news_articles').select('slug, title, content, category, published_at')
   .not('content', 'is', null).order('published_at', { ascending: false }).limit(10);
 const news10 = last10News ?? [];
 
-// 14a: Word count 250–500 for news articles
+// 14a: Word count, per-category range.
+//
+// Bug fixed 2026-06-30: this query pulls the 10 most recent news_articles
+// rows with no category filter, but applies a single news-shaped 150-600
+// range to all of them. category='Review' rows (RADAR-08's intentional
+// routing -- reviews publish into news_articles, not just the 3 hand-
+// curated /reviews/ pages) are correctly, deliberately longer: the same
+// per-format targets already enforced at generation time
+// (src/lib/lint.ts WORD_COUNT_TARGETS) put review's real fail-boundary at
+// 375-875 words, not 150-600. Confirmed live: both articles this check
+// flagged (668w, 762w) are genuine category='Review' rows comfortably
+// inside the real 375-875 range -- not a content defect, a check-script
+// bug applying the wrong category's rule. Mirrors WORD_COUNT_TARGETS'
+// fail-boundary values directly rather than reimplementing/guessing new
+// numbers, so the two checks can't drift apart again.
+const WORD_COUNT_RANGES = {
+  news:    [225,  500],
+  review:  [375,  875],
+  opinion: [300,  625],
+  guide:   [525, 1250],
+};
 const wordCountFails = news10.filter(a => {
   const wc = (a.content || '').split(/\s+/).filter(Boolean).length;
-  return wc < 150 || wc > 600;
+  const [min, max] = WORD_COUNT_RANGES[(a.category || '').toLowerCase()] ?? WORD_COUNT_RANGES.news;
+  return wc < min || wc > max;
 });
 if (wordCountFails.length > 0) {
-  alertFail('ContentIntegrity', `${wordCountFails.length} article(s) outside 150–600 word range: ${wordCountFails.map(a => `${a.slug}(${(a.content||'').split(/\s+/).filter(Boolean).length}w)`).join(', ')}`);
+  alertFail('ContentIntegrity', `${wordCountFails.length} article(s) outside their category's word range: ${wordCountFails.map(a => {
+    const [min, max] = WORD_COUNT_RANGES[(a.category || '').toLowerCase()] ?? WORD_COUNT_RANGES.news;
+    return `${a.slug}(${(a.content||'').split(/\s+/).filter(Boolean).length}w, category=${a.category}, range=${min}-${max})`;
+  }).join(', ')}`);
 } else {
-  log('ContentIntegrity', `Word count: all ${news10.length} recent articles within 150–600 words ✓`);
+  log('ContentIntegrity', `Word count: all ${news10.length} recent articles within their category's word range ✓`);
 }
 
 // 14b: HTML tags leaking in content

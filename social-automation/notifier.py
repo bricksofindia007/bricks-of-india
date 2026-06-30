@@ -58,8 +58,27 @@ def send_failure(error: Exception, traceback_str: str, module_name: str = 'unkno
 
 
 def send_success(set_data: dict, platforms: dict, row_id: int = None) -> None:
-    set_num = set_data.get('set_num', 'unknown')
-    set_name = set_data.get('set_name') or set_data.get('name', 'unknown')
+    # Bug fixed 2026-06-30: this function built its HTML email from raw
+    # set_name/set_num values with no BOM stripping. A BOM character
+    # (\ufeff) in a scraped set_name (LEGO.com/Rebrickable source data,
+    # outside our control) crashes the underlying email send with
+    # "'latin-1' codec can't encode character '\ufeff'" -- confirmed live
+    # from a real pipeline run's log (2026-06-14, run 27495416112). This
+    # doesn't block the actual social posts (notify runs at Step 12, after
+    # the real IG/YouTube posting and the posted_sets DB write at Step 10
+    # already completed) -- but it does mean the "it worked" confirmation
+    # email silently never arrives, which from the outside looks
+    # indistinguishable from the pipeline not having run at all that day.
+    #
+    # Deliberately NOT using the existing _sanitize() helper here (used by
+    # send_failure() above) -- that function does a full ASCII-only
+    # encode/decode round-trip, which would mangle this email's intentional
+    # emoji (✅/⏭️) and em-dash into literal '?' characters. The actual bug
+    # is narrower than that: only the untrusted, scraped fields (set_name)
+    # need BOM stripping; the static HTML template's own formatting should
+    # stay exactly as authored.
+    set_num = str(set_data.get('set_num', 'unknown')).replace('\ufeff', '')
+    set_name = str(set_data.get('set_name') or set_data.get('name', 'unknown')).replace('\ufeff', '')
     subject = f'✅ BOI Posted — {set_name} ({set_num})'
 
     platform_rows = ''
