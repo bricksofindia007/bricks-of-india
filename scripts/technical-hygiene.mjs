@@ -587,17 +587,70 @@ await Promise.allSettled(ERROR_CHECK_ROUTES.map(async route => {
 }));
 
 // 8f. Sets missing pieces or year data (flag if >5%)
+//
+// Bug fixed 2026-06-30 (HIGH-48): this measured missing pieces across the
+// ENTIRE sets table, including non-buildable merchandise themes (Plush
+// Toys, Key Chain, Bags/Totes, Story Books, Gear, Stationery, Clocks, etc.)
+// and multi-set bundle/pack/advent-calendar products, neither of which has
+// a meaningful single piece count to report -- their absence is correct
+// data, not a gap. Confirmed live before changing this: HIGH-48's own open
+// question ("is the 27% concentrated in a specific theme, or spread
+// evenly?") had a clean, verifiable answer -- real flagship building
+// themes (Ninjago 1.3%, Technic 3.0%, Creator 3.0%, Icons 2.5%,
+// Architecture 2.0%) were all in single digits the whole time; the 27.6%
+// headline figure was almost entirely the non-buildable categories above.
+// Excluding both brings the genuine gap to ~6% (verified directly against
+// Supabase: 1,053/17,558), just over the existing 5% threshold for
+// legitimate reasons (older/rare sets, regional exclusives, incomplete
+// upstream Rebrickable/Brickset data) -- a real, small, worth-monitoring
+// gap, not a 27% "catalogue may be degraded" false alarm.
+//
+// Implementation note: deliberately NOT using a server-side PostgREST
+// `.not('theme', 'in', '(...)')` filter here, even though one was drafted
+// and the equivalent raw SQL was verified correct against live data. The
+// generated filter string requires precise quoting for theme names
+// containing commas (e.g. "Bags, Totes, & Luggage") and the exact
+// supabase-js request this produces could not be executed from the
+// sandbox used to write this fix (no live credentials) to confirm it's
+// not malformed -- and a known supabase-js bug exists for a related
+// `.not(col, 'in', array)` array-argument form (om itting parentheses
+// entirely). Rather than ship a query whose correctness is unverified by
+// actual execution, this fetches only the columns needed (theme, name,
+// pieces, year -- not select('*'), to keep the payload small even at
+// ~25k rows) and does the exclusion filtering in plain JS, which can be
+// reasoned about with certainty.
+const NON_BUILDABLE_THEMES = new Set([
+  'Role Play Toys and Costumes', 'Plush Toys', 'Bags, Totes, & Luggage',
+  'Bag and Luggage Tags', 'Houseware', 'Video Games and Accessories',
+  'Key Chain', 'Story Books', 'Gear', 'Stationery and Office Supplies',
+  'Storage', 'Non-fiction Books', 'Ideas Books', 'Clocks and Watches',
+]);
+const BUNDLE_NAME_RE = /\b(bundle|pack|advent|gift set|collection|kit)\b/i;
+
+function isBuildableSet(row) {
+  if (NON_BUILDABLE_THEMES.has(row.theme)) return false;
+  if (BUNDLE_NAME_RE.test(row.name || '')) return false;
+  return true;
+}
+
 try {
-  const [{ count: total }, { count: missingPieces }, { count: missingYear }] = await Promise.all([
-    sb.from('sets').select('*', { count: 'exact', head: true }),
-    sb.from('sets').select('*', { count: 'exact', head: true }).or('pieces.is.null,pieces.eq.0'),
-    sb.from('sets').select('*', { count: 'exact', head: true }).is('year', null),
-  ]);
+  let allSets = [];
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await sb.from('sets').select('theme, name, pieces, year').range(offset, offset + PAGE - 1);
+    if (error) throw error;
+    allSets = allSets.concat(data ?? []);
+    if ((data ?? []).length < PAGE) break;
+  }
+  const buildable = allSets.filter(isBuildableSet);
+  const total = buildable.length;
+  const missingPieces = buildable.filter(s => s.pieces == null || s.pieces === 0).length;
+  const missingYear   = buildable.filter(s => s.year == null).length;
   const pctPieces = total ? Math.round((missingPieces / total) * 100) : 0;
   const pctYear   = total ? Math.round((missingYear   / total) * 100) : 0;
-  log('CatalogCoverage', `Sets missing pieces: ${missingPieces}/${total} (${pctPieces}%) | missing year: ${missingYear}/${total} (${pctYear}%)`);
-  if (pctPieces > 5) alertFail('CatalogCoverage', `${pctPieces}% of sets missing pieces data — catalogue may be degraded`);
-  if (pctYear   > 5) alertFail('CatalogCoverage', `${pctYear}% of sets missing year data — catalogue may be degraded`);
+  log('CatalogCoverage', `Buildable sets missing pieces: ${missingPieces}/${total} (${pctPieces}%) | missing year: ${missingYear}/${total} (${pctYear}%) [${allSets.length - total} non-buildable merch/bundle products excluded]`);
+  if (pctPieces > 5) alertFail('CatalogCoverage', `${pctPieces}% of buildable sets missing pieces data — catalogue may be degraded`);
+  if (pctYear   > 5) alertFail('CatalogCoverage', `${pctYear}% of buildable sets missing year data — catalogue may be degraded`);
 } catch (e) {
   alertFail('CatalogCoverage', `Sets coverage check failed: ${e.message.slice(0, 80)}`);
 }
@@ -1138,12 +1191,68 @@ const htmlLeaks = news10.filter(a => /<(p|br|strong|em|div|span|h[1-6])\b/i.test
 if (htmlLeaks.length > 0) alertFail('ContentIntegrity', `HTML tags leaking in ${htmlLeaks.length} article(s): ${htmlLeaks.map(a => a.slug).join(', ')}`);
 else log('ContentIntegrity', `HTML leak check: clean ✓`);
 
-// 14c: ABHINAV12 present when Toycra is mentioned
-const toycraWithoutCode = news10.filter(a =>
-  /toycra/i.test(a.content || '') && !/ABHINAV12/i.test(a.content || '')
-);
-if (toycraWithoutCode.length > 0) alertFail('ContentIntegrity', `${toycraWithoutCode.length} article(s) mention Toycra without ABHINAV12: ${toycraWithoutCode.map(a => a.slug).join(', ')}`);
-else log('ContentIntegrity', `ABHINAV12 code: present in all Toycra-mentioning articles ✓`);
+// 14c: ABHINAV12 present when Toycra is mentioned (HIGH-49)
+//
+// Bug fixed 2026-06-30: this previously ran against news10 (the same
+// 10-most-recent-articles sample used for word-count/HTML-leak spot-checks),
+// which is the wrong scope for a partner-obligation compliance check --
+// an article that mentions Toycra without the discount code is just as real
+// a gap on day 8 as it is on day 1; it doesn't become acceptable once 10
+// newer articles get published. Confirmed live before fixing: the original
+// HIGH-49 finding (lego-technic-aston-martin-amr25...) was STILL unfixed
+// 8 days later, and 7 more articles had the same gap -- but the nightly
+// check had been silently reporting "clean" every run since, because the
+// flagged article aged out of the 10-row window. Now scans the full
+// news_articles table.
+try {
+  const { data: allToycraArticles } = await sb.from('news_articles')
+    .select('slug, content').ilike('content', '%toycra%');
+  const toycraWithoutCode = (allToycraArticles ?? []).filter(a => !/ABHINAV12/i.test(a.content || ''));
+  if (toycraWithoutCode.length > 0) {
+    alertFail('ContentIntegrity', `${toycraWithoutCode.length} article(s) mention Toycra without ABHINAV12 (full-table scan): ${toycraWithoutCode.map(a => a.slug).join(', ')}`);
+  } else {
+    log('ContentIntegrity', `ABHINAV12 code: present in all ${(allToycraArticles ?? []).length} Toycra-mentioning articles (full-table scan) ✓`);
+  }
+} catch (e) {
+  alertFail('ContentIntegrity', `ABHINAV12 check failed: ${e.message.slice(0, 80)}`);
+}
+
+// 14c2: India Paragraph store coverage (MEDIUM-49) — moved here from 14k
+// below and rescoped to full-table for the same reason as 14c above.
+//
+// Bug fixed 2026-06-30: previously required BOTH 'toycra' AND 'mybrickhouse'
+// to appear whenever any ₹ figure was present in the content, on the
+// news10 sample only. Two real problems: (1) the same recency-window gap
+// as 14c -- a real single-store-only article wouldn't be caught after
+// aging out of the sample; (2) confirmed live the rule itself was wrong --
+// an article correctly stating "no official Indian store price, import-
+// only" can still contain a ₹ figure (a calculated import-price estimate,
+// not a real store price), which the old regex couldn't distinguish from
+// an actual missing-store-name bug. Example confirmed live:
+// lego-disney-main-street-usa-43302... explicitly says "no official store
+// prices... import only" while still quoting an estimated ₹12,349 --
+// correct, honest content, not a defect. Fixed: only flag when a ₹ figure
+// appears WITHOUT any of (a) a real store name, (b) explicit import/
+// no-official-price language acknowledging the absence.
+try {
+  const { data: allPricedArticles } = await sb.from('news_articles')
+    .select('slug, content').filter('content', 'not.is', null);
+  const NO_STORE_LANGUAGE_RE = /import.only|no official store price|no.+(official|indian).+price|not.+(officially|yet).+available.+india/i;
+  const missingStores = (allPricedArticles ?? []).filter(a => {
+    const c = a.content || '';
+    if (!/₹[\d,]+/.test(c)) return false;          // no price at all -- not in scope
+    if (/toycra/i.test(c) || /mybrickhouse/i.test(c)) return false;  // has at least one real store -- fine
+    if (NO_STORE_LANGUAGE_RE.test(c)) return false; // explicitly acknowledges import-only/no-store -- fine, honest
+    return true;  // has a ₹ figure, no store name, no acknowledgement -- genuine gap
+  });
+  if (missingStores.length > 0) {
+    alertFail('ContentIntegrity', `${missingStores.length} article(s) have price data but no store name and no import/no-price acknowledgement (full-table scan): ${missingStores.map(a => a.slug).join(', ')}`);
+  } else {
+    log('ContentIntegrity', `India Paragraph store coverage: clean (full-table scan) ✓`);
+  }
+} catch (e) {
+  alertFail('ContentIntegrity', `Store coverage check failed: ${e.message.slice(0, 80)}`);
+}
 
 // 14d: Store names spelled correctly
 // "My Brick House" (spaced) is flagged — brand name is "MyBrickHouse" (no spaces).
@@ -1225,15 +1334,9 @@ const capsArticles = news10.filter(a => {
 if (capsArticles.length > 0) alertFail('ContentIntegrity', `ALL CAPS words in ${capsArticles.length} article(s): ${capsArticles.map(a => a.slug).join(', ')}`);
 else log('ContentIntegrity', `ALL CAPS check: clean ✓`);
 
-// 14k: India Paragraph mentions both stores (check via content proxy — marker stripped at publish)
-const missingStores = news10.filter(a => {
-  const c = a.content || '';
-  return /₹[\d,]+/.test(c) && (
-    !/toycra/i.test(c) || !/mybrickhouse/i.test(c)
-  );
-});
-if (missingStores.length > 0) alertFail('ContentIntegrity', `${missingStores.length} article(s) have price data but missing store name(s): ${missingStores.map(a => a.slug).join(', ')}`);
-else log('ContentIntegrity', `India Paragraph store coverage: all priced articles mention both stores ✓`);
+// 14k removed 2026-06-30: superseded by the full-table-scoped MEDIUM-49 fix
+// at 14c2 above (right after 14c/HIGH-49) -- see that block's comment for
+// the full rationale. Running both would double-report the same finding.
 
 // 14l: blog_posts hero_image null rate >20%
 try {

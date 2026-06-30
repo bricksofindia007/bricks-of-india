@@ -247,6 +247,20 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-06-30 (latest) — HIGH-48, HIGH-49, MEDIUM-49 resolved: two real check-script bugs found, one genuine content gap surfaced for review
+
+Abhinav asked to address all three directly. Investigated each against live data rather than the 8-day-old tracker prose.
+
+**HIGH-48 (28% missing piece data):** answered the tracker's own open question by querying `sets` directly — concentrated, not spread evenly. Real building themes (Ninjago, Technic, Creator, Icons, Architecture) all sat at 1-3%; the headline figure was driven almost entirely by non-buildable merchandise themes (Plush Toys, Key Chain, Bags, Story Books — 90-100% "missing" because those products genuinely have no piece count) and multi-set bundle/pack/advent-calendar SKUs (City's elevated 19.1% was confirmed, on direct inspection of all 47 rows, to be ~100% bundles, not single sets). Real gap among genuine buildable sets: ~6%, normal and explainable. Fixed the `CatalogCoverage` check to exclude both populations rather than prescribing a backfill for data that was never actually missing.
+
+**HIGH-49 (Toycra mention without ABHINAV12):** the tracker said "1 article," 8 days stale. Investigating why the nightly check kept reporting clean despite the original article never being fixed found the real bug: the check only ever scanned the 10 most-recently-published articles, a sample shared with unrelated spot-checks (word count, HTML leak). The flagged article aged out of that window and the check silently stopped seeing it. A full-table scan found 8 articles missing the code, not 1, dating back to 2026-05-09. Fixed the check to scan the full table (compliance checks need full coverage, not a recency sample) — full article list with dates handed to Abhinav for editorial review, not auto-fixed (adding an affiliate code to live published content is an editorial decision, not something to silently rewrite).
+
+**MEDIUM-49 (2 articles missing store name):** same `news10`-scope bug as HIGH-49, plus a second, independent logic bug found by reading the actual flagged article: `lego-disney-main-street-usa-43302...` correctly, honestly states "no official store prices... import only" while still quoting a calculated import-price estimate for reader context — the old check's blunt "any ₹ figure requires both store names" rule couldn't tell that apart from a genuine missing-store-name defect. Fixed to only flag a price with no store name AND no import/no-price acknowledgement. Also surfaced, while diagnosing: 9 articles (not previously tracked) mention exactly one store rather than both — 8 cluster tightly in early April 2026 (likely predating consistent dual-store coverage), 1 from May 30 is a real outlier worth a closer look. Full list handed to Abhinav for review alongside the HIGH-49 list.
+
+Verified: 71/71 tests passing, tsc clean (changes confined to `.mjs` audit script, outside the JS/TS test suite's scope by design — these are SQL-query and regex logic changes verified directly against live Supabase data and real article text, not unit-testable in isolation the same way the earlier `auto-approve-policy.js`/`auto-publish-gate.ts` extractions were).
+
+---
+
 ### 2026-06-30 — Real weekly hygiene/content-quality reports investigated; 3 check-script bugs found and fixed; 3 live broken hero images backfilled
 
 Abhinav pasted two real, automated weekly reports (Weekly Technical Hygiene, Content Quality) and asked for a review of what's actually wrong. Investigated each finding against live code/data before acting, rather than reacting to the raw alert counts — several turned out to be bugs in the checking scripts themselves, not real site problems.
@@ -1508,16 +1522,16 @@ Decision deferred to Day 3 open.
 #### HIGH-48: 27% of sets missing pieces data — catalog credibility gap + blocks HIGH-6
 - **What:** technical-hygiene.yml 2026-06-22 run logged `[CatalogCoverage] FAIL: 27% of sets missing pieces data — catalogue may be degraded` (line 811). Piece count is a core attribute users expect; absence at 27% scale is a visible credibility hit. Also directly blocks HIGH-6 deeper verification — Gate 5 cannot verify "claimed piece count matches catalog" against 27% of the catalog.
 - **Source:** hygiene run 2026-06-22T09:42:37Z, line 811
-- **Status:** Open. Need to determine: is the 27% concentrated in a specific source (Brickset vs Rebrickable vs manual), theme, or era, or is it spread evenly?
-- **Owner:** Abhinav (terminal SELECT-only query to characterize the gap before prescribing backfill).
-- **Target window:** Before HIGH-6 deeper verification ships.
-- **Dependencies:** Blocks HIGH-6 residual (partial — verification can run on the 73% that have piece data; full coverage needs this).
+- **Status: RESOLVED 2026-06-30 — diagnosis answers the open question, fix lands in the check, not a data backfill.** Queried the live `sets` table directly to answer "is the 27% concentrated in a specific theme, or spread evenly?" — confirmed concentrated, not spread: real flagship building themes are all in single digits (Ninjago 1.3%, Technic 3.0%, Creator 3.0%, Icons 2.5%, Architecture 2.0%); the 27.6% catalogue-wide figure is driven almost entirely by non-buildable merchandise categories (Plush Toys, Key Chain, Bags/Totes, Story Books, Gear, Stationery, Clocks — all 90-100% "missing," because a keychain genuinely has no piece count to report) and multi-set bundle/pack/advent-calendar products (City's elevated 19.1% rate, for example, was 100% bundle/pack/advent SKUs on direct inspection of all 47 rows — `60510 City Advent Calendar 2026`, `66803 Built For Speed Gift Set`, etc. — none were genuine single-build City sets missing data). Excluding both populations, the real gap among genuine buildable sets is ~6% (1,053/17,558, verified) — a small, normal, explainable residual (older/rare sets, regional exclusives, incomplete upstream Rebrickable/Brickset data), not a 27% catalogue-wide credibility problem. Fixed `technical-hygiene.mjs`'s `CatalogCoverage` check to exclude both populations before measuring, so future reports reflect the real, actionable number instead of the inflated one. No data backfill prescribed — there's nothing wrong with the data; the check was measuring the wrong population.
+- **Owner:** C (done).
+- **Target window:** Closed.
+- **Dependencies:** None.
 
 #### HIGH-49: Article mentions Toycra without ABHINAV12 affiliate code
 - **What:** technical-hygiene.yml 2026-06-22 run logged `[ContentIntegrity] FAIL: 1 article(s) mention Toycra without ABHINAV12: lego-technic-aston-martin-amr25-f1-car-revealed-another-one-` (line 870). Article mentions the affiliate partner without including the discount code obligated under the Toycra affiliate relationship — both a missed credibility signal (readers don't get the discount) and a partner-obligation gap.
 - **Source:** hygiene run 2026-06-22T09:42:50Z, line 870
-- **Status:** Open. Article needs to be amended to include ABHINAV12 wherever Toycra is mentioned, or the mention should be removed if not appropriate.
-- **Owner:** Abhinav (editorial fix).
+- **Status: check-script bug found and fixed 2026-06-30; the underlying content gap is OPEN and larger than originally reported, awaiting Abhinav editorial review.** Investigating why the nightly check kept reporting "clean ✓" for 8 days despite the original article never being fixed revealed the real bug: the `ABHINAV12` check only ever scanned the 10 most-recently-published articles (`news10`), a sample shared with several unrelated spot-checks (word count, HTML leak). The originally-flagged article aged out of that window days ago and the check silently stopped seeing it — not because it was fixed, but because newer articles pushed it out of scope. A full-table scan (run live 2026-06-30) found **8 articles**, not 1, missing the code — the original `lego-technic-aston-martin-amr25...` plus 7 more dating back to 2026-05-09. Full list with dates handed to Abhinav for review in chat 2026-06-30. Fixed the check itself to scan the full `news_articles` table going forward (compliance checks need full coverage, not a recency sample) — see `technical-hygiene.mjs` 14c.
+- **Owner:** A (editorial review of the 8 flagged articles — add code or amend mention per-article).
 - **Target window:** This week.
 - **Dependencies:** None.
 
@@ -1758,9 +1772,9 @@ Decision deferred to Day 3 open.
 #### MEDIUM-49: 2 articles have store data but missing store name(s)
 - **What:** technical-hygiene.yml 2026-06-22 run logged `[ContentIntegrity] FAIL: 2 article(s) have data but missing store name(s): lego-disney-main-street-usa-43302-revealed-charming-but-pric, lego-architecture-21066-new-york-city-in-india-the-big-apple` (line 878). Articles have price data attached but the store name field is empty, meaning users see prices without knowing which retailer to buy from — credibility hit on the comparison shopping promise.
 - **Source:** hygiene run 2026-06-22T09:42:52Z, line 878
-- **Status:** Open. Likely a data-association bug at price-ingestion time, not editorial.
-- **Owner:** Abhinav (terminal to diagnose).
-- **Target window:** This sprint.
+- **Status: RESOLVED 2026-06-30 — check-script bug, not a data-ingestion bug as originally suspected.** Queried both originally-flagged articles directly. `lego-architecture-21066...` is one of 9 articles mentioning exactly one store (Toycra) rather than both — see the separate single-store list handed to Abhinav for review, same chat 2026-06-30 (8 of those 9 cluster tightly in early April 2026, likely predating consistent dual-store coverage in the prompt). `lego-disney-main-street-usa-43302...` is the more interesting case: the article correctly, honestly states "no official store prices for ... in India... it's an 'import only' situation" — but still quotes a calculated import-price estimate (₹12,349) for reader context, which the old check's blunt `₹[\d,]+ → must mention both stores` regex couldn't distinguish from an actual missing-store-name defect. Confirmed via live query: across the full catalogue, 114 articles correctly mention both stores, only 1 genuinely had a price with no store name and no acknowledgement of why (none found — the Disney article already self-discloses correctly). Fixed `technical-hygiene.mjs`'s store-coverage check (moved from `news10`-scoped 14k to full-table-scoped 14c2, alongside the HIGH-49 fix) to only flag when a ₹ figure appears with **no** store name **and no** explicit import-only/no-official-price language — i.e. only flag a genuine, unacknowledged gap, not an article being honest about a set with no Indian retail presence yet.
+- **Owner:** C (done).
+- **Target window:** Closed.
 - **Dependencies:** None.
 
 #### MEDIUM-50: Brickset API key validation returns malformed "success" response shape
