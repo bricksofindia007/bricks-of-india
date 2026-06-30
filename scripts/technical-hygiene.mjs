@@ -214,10 +214,26 @@ if (heroRows && heroRows.length > 0) {
         const heroUrl = row.hero_image.startsWith('/')
           ? `${SITE_URL}${row.hero_image}`
           : row.hero_image;
+        // HEAD -> GET + Range fixed 2026-06-30: 2 external hero_image URLs
+        // (jaysbrickblog.com) returned HTTP 415 from this check's HEAD
+        // request specifically when run on the GitHub Actions runner --
+        // confirmed NOT reproducible via curl, an isolated Node fetch, or a
+        // 51-request concurrent burst, all run from outside the runner.
+        // Root cause not fully pinned down (most likely the runner's
+        // network path hitting a different CDN/WAF edge rule than local
+        // traffic, since Node version was ruled out -- this workflow's
+        // setup-node step requests Node 20, not 24). Rather than keep
+        // chasing an external server's exact behavior, switched to GET with
+        // Range: bytes=0-0 -- downloads at most 1 byte, confirms
+        // reachability, sidesteps whatever specifically dislikes a bare
+        // HEAD from this runner. A server that honors the Range header
+        // returns 206 Partial Content (res.ok is still true for 206); a
+        // server that ignores it returns a normal 200 with the full body,
+        // which is also fine since we only check status, not body length.
         const res = await fetch(heroUrl, {
-          method: 'HEAD',
+          method: 'GET',
+          headers: { 'User-Agent': 'BOI-TechHygiene/1.0', Range: 'bytes=0-0' },
           signal: AbortSignal.timeout(8_000),
-          headers: { 'User-Agent': 'BOI-TechHygiene/1.0' },
         });
         if (!res.ok) {
           heroFails.push(`/news/${row.slug}: ${res.status}`);
@@ -728,8 +744,9 @@ try {
     try {
       // Same relative-path bug as the HeroImages check above — see that
       // fix's comment for the full explanation. Resolve against SITE_URL.
+      // Also same HEAD->GET+Range fix — see that comment for why.
       const heroUrl = a.hero_image.startsWith('/') ? `${SITE_URL}${a.hero_image}` : a.hero_image;
-      const r = await fetch(heroUrl, { method: 'HEAD', signal: AbortSignal.timeout(8_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+      const r = await fetch(heroUrl, { method: 'GET', headers: { 'User-Agent': 'BOI-TechHygiene/1.0', Range: 'bytes=0-0' }, signal: AbortSignal.timeout(8_000) });
       if (!r.ok) imgFails.push(`${a.slug}: HTTP ${r.status}`);
     } catch (e) { imgFails.push(`${a.slug}: ${e.message.slice(0, 40)}`); }
   }));
@@ -755,8 +772,9 @@ try {
       // proactively here even though all 3 reviews currently have real
       // external URLs (passes by luck, not by correctness) — this would
       // misfire the moment any review row gets hero_image='/fallback-hero.png'.
+      // Also same HEAD->GET+Range fix — see HeroImages check's comment.
       const heroUrl = r.hero_image.startsWith('/') ? `${SITE_URL}${r.hero_image}` : r.hero_image;
-      const res = await fetch(heroUrl, { method: 'HEAD', signal: AbortSignal.timeout(8_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' } });
+      const res = await fetch(heroUrl, { method: 'GET', headers: { 'User-Agent': 'BOI-TechHygiene/1.0', Range: 'bytes=0-0' }, signal: AbortSignal.timeout(8_000) });
       if (!res.ok) revFails.push(`${r.slug}: HTTP ${res.status}`);
     } catch (e) { revFails.push(`${r.slug}: ${e.message.slice(0, 40)}`); }
   }));
