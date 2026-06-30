@@ -247,6 +247,18 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-06-30 (latest) — MEDIUM-48 resolved: flaky unordered-sample check, not a real City coverage gap
+
+Last of the three items (HIGH-48, MEDIUM-48, MEDIUM-49) Abhinav asked to be addressed. Both originally-proposed hypotheses (price-pipeline gap vs. theme-classification gap) were wrong — the real cause was a third thing: the check sampled 20 City sets with no `ORDER BY`, so the "first 20" were effectively random storage order each run. Confirmed live: real City price coverage is 28/261 sets (10.7%), more than double the catalogue-wide average (4.38%) — City was never under-covered. The check's pass/fail outcome was luck of which 20 rows landed in an unlucky vs. lucky batch (one sampled batch was dominated by old/bundle SKUs and only matched 4; this matches exactly the "4 ✓" seen passing in tonight's earlier hygiene reports — same flakiness, not a fix that had landed). Rewrote to query deterministically instead of sampling.
+
+Caught a real syntax risk in the first draft of the fix before shipping it: tried a PostgREST embedded join (`sets!inner(theme)`), then checked `information_schema.table_constraints` directly and found there's no actual foreign key between `store_prices` and `sets` — PostgREST's embedded-resource syntax requires one to exist; without it the query would have failed outright, not just been imprecise. Rewrote using two independent plain queries intersected in JS instead, avoiding the unverifiable-from-this-sandbox PostgREST syntax risk the same way HIGH-48's fix did earlier in this session.
+
+Verified: 81/81 tests passing (no new tests — this fix is a deterministic two-query/JS-intersection rewrite, verified directly against live Supabase data rather than needing new unit coverage), tsc clean, node --check valid.
+
+This closes out the original 3-item request (HIGH-48, MEDIUM-48, MEDIUM-49) plus HIGH-49, which was addressed alongside HIGH-48/MEDIUM-49 in the same investigation.
+
+---
+
 ### 2026-06-30 (latest) — HIGH-49 rule corrected per Abhinav's explicit policy; real bug caught and fixed in the new heuristic before shipping
 
 Abhinav, after seeing the 8-article HIGH-49 list from the previous session: "my code abhinav12 should only be mentioned if and when the set is available on toycra. if it is not available only there is absolutely no point in mentioning that. also, sets which will be import also do not need that message either." This meaningfully narrows HIGH-49's scope — manually re-classified all 8 originally-flagged articles against this rule and found only 2 of 8 actually need the code (both state a real, present-tense ₹ price at Toycra). Implemented as `src/lib/toycra-availability.ts::genuinelyAvailableAtToycra()` — a real price near a Toycra mention, no hedging/future/import language in that window.
@@ -1776,9 +1788,9 @@ Decision deferred to Day 3 open.
 #### MEDIUM-48: store_prices table has no rows for City theme sets
 - **What:** technical-hygiene.yml 2026-06-22 run logged `[DataIntegrity] FAIL: No store_prices rows for City sets — related set cards will show no prices` (line 788). City is a flagship LEGO theme; absence of price data means related-set cards on City-themed articles will render without prices, degrading the comparison-shopping value proposition that is the platform's core differentiator.
 - **Source:** hygiene run 2026-06-22T09:42:32Z, line 788
-- **Status:** Open. Unknown whether this is a price-pipeline gap (City sets never got scraped) or a theme-classification gap (City sets have prices but joined under a different theme key).
-- **Owner:** Abhinav (terminal SELECT-only diagnostic before fix).
-- **Target window:** This sprint.
+- **Status: RESOLVED 2026-06-30 — neither of the two originally proposed hypotheses was correct; root cause was a third thing, a flaky check.** Original entry asked: price-pipeline gap, or theme-classification gap? Neither. The check sampled `sets.select('set_number').eq('theme','City').limit(20)` with **no `ORDER BY`** — Postgres makes no row-ordering guarantee without one, so the "first 20" City sets returned are effectively random storage order each run. Confirmed live: one such unordered sample landed on a batch dominated by old/bundle/non-buildable SKUs (a 2013 advent calendar, a "City Playmat," several "Super Pack 4-in-1" bundles, a 2003-era polybag) — only 4 of those 20 specific IDs had any price. Queried real coverage directly instead of sampling: **City has prices for 28/261 sets (10.7%)** — more than double the catalogue-wide average of 4.38% (1,091/24,909 total sets have any price at all; `store_prices` only covers what Toycra/MyBrickHouse actually stock, a small slice of LEGO's full historical catalogue across all themes, so a low raw percentage is the norm everywhere, not City-specific). City was never under-covered — the check's pass/fail outcome on any given run was just luck of unordered row storage. (This is exactly why tonight's earlier hygiene reports showed `4 store_prices rows for City sets ✓` passing — same flaky check, different lucky sample, not a sign anything had actually changed.) Fixed: query `store_prices` and City `set_number`s as two independent, deterministic queries and intersect in JS, rather than sampling 20 and hoping. (An earlier draft tried a PostgREST embedded join — `store_prices.select('set_id, sets!inner(theme)')` — caught before shipping that this requires a real foreign key between the two tables, which doesn't exist: verified directly against `information_schema.table_constraints`, zero FK rows. PostgREST's `!inner` syntax cannot infer a join from matching column values alone; that version would have failed outright.)
+- **Owner:** C (done).
+- **Target window:** Closed.
 - **Dependencies:** None.
 
 #### MEDIUM-49: 2 articles have store data but missing store name(s)

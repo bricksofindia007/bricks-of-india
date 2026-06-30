@@ -365,20 +365,57 @@ try {
 
 // 7a. Related sets have live prices — verifies store_prices join (not dead prices table)
 // Uses City theme (Technic is not stocked by Toycra/MBH — acceptable, not a regression)
+//
+// Bug fixed 2026-06-30 (MEDIUM-48): this previously sampled the first 20
+// `sets` rows for theme='City' with NO ordering, then checked whether ANY
+// of those 20 specific IDs had a store_prices row. Postgres makes no
+// ordering guarantee without ORDER BY, so the sample was effectively
+// random row-storage order each run -- confirmed live: one unordered
+// LIMIT 20 returned a batch dominated by old/bundle/non-buildable SKUs
+// (a 2013 advent calendar, a "City Playmat", several "Super Pack 4 in 1"
+// bundles, a 2003-era polybag) with only 4 of those 20 specific IDs
+// having any price -- not because City has a real coverage gap, but
+// because that specific unlucky sample mostly missed the sets that
+// actually carry prices. Verified the real picture by querying coverage
+// directly instead of sampling: City has prices for 28/261 sets (10.7%)
+// -- more than double the catalogue-wide average of 4.38% (1,091/24,909
+// total sets have any price at all; store_prices only covers what
+// Toycra/MyBrickHouse actually stock, a small slice of LEGO's full
+// historical catalogue, so a low raw percentage is normal everywhere,
+// not City-specific). City was never under-covered; the check's PASS/FAIL
+// outcome was just luck-of-row-order on an unordered sample.
+//
+// Fix: query City set_numbers and store_prices set_ids as two plain
+// queries, intersect in JS. Originally drafted as a PostgREST embedded
+// join (`store_prices.select('set_id, sets!inner(theme)')`), but verified
+// against information_schema.table_constraints first -- there is NO
+// foreign key relationship between store_prices and sets (confirmed: zero
+// rows returned for an FK lookup on store_prices). PostgREST's `!inner`
+// embedded-resource syntax requires a declared FK to know how to join two
+// tables; it cannot infer one from matching column values alone, so that
+// version would have failed outright rather than working. This version
+// makes no such assumption -- it fetches City set_numbers and all
+// store_prices.set_id values as two independent, well-understood queries
+// and checks for overlap in JS, which is correct regardless of whether a
+// FK exists.
 try {
-  const { data: themeSets } = await sb
-    .from('sets').select('set_number').eq('theme', 'City').limit(20);
-  const nums = (themeSets ?? []).map(s => s.set_number);
-  if (nums.length === 0) {
-    alertFail('DataIntegrity', 'No City sets found — cannot verify related-set prices');
+  const { data: citySets } = await sb.from('sets').select('set_number').eq('theme', 'City');
+  const cityNums = new Set((citySets ?? []).map(s => s.set_number));
+
+  let allPricedIds = [];
+  const PAGE = 1000;
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await sb.from('store_prices').select('set_id').range(offset, offset + PAGE - 1);
+    if (error) throw error;
+    allPricedIds = allPricedIds.concat((data ?? []).map(r => r.set_id));
+    if ((data ?? []).length < PAGE) break;
+  }
+  const cityPriceCount = allPricedIds.filter(id => cityNums.has(id)).length;
+
+  if (!cityPriceCount) {
+    alertFail('DataIntegrity', 'No store_prices rows for any City set — related set cards will show no prices');
   } else {
-    const { count: priceCount } = await sb
-      .from('store_prices').select('*', { count: 'exact', head: true }).in('set_id', nums);
-    if (!priceCount || priceCount === 0) {
-      alertFail('DataIntegrity', 'No store_prices rows for City sets — related set cards will show no prices');
-    } else {
-      log('DataIntegrity', `Related-set prices: ${priceCount} store_prices rows for City sets ✓`);
-    }
+    log('DataIntegrity', `Related-set prices: ${cityPriceCount} store_prices rows across City sets ✓`);
   }
 } catch (e) {
   alertFail('DataIntegrity', `Related-set price check failed: ${e.message.slice(0, 80)}`);
