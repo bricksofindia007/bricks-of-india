@@ -343,6 +343,7 @@ export function summarizeFailReasons(lint: LintResult): string {
     lint.gates.verdict,
     lint.gates.factuality,
     lint.gates.sourceFidelity,
+    lint.gates.openerUniqueness,
   ]
     .filter((g): g is NonNullable<typeof g> => g !== null && g.severity === 'fail')
     .map(g => g.reason ?? 'gate failure')

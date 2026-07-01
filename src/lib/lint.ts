@@ -37,11 +37,12 @@ export type LintResult = {
   overallPass: boolean;
   warnings: string[];
   gates: {
-    wordCount:      LintGateResult;
-    indiaParagraph: LintGateResult;
-    verdict:        LintGateResult | null;
-    factuality:     LintGateResult | null;
-    sourceFidelity: LintGateResult | null;
+    wordCount:        LintGateResult;
+    indiaParagraph:   LintGateResult;
+    verdict:          LintGateResult | null;
+    factuality:       LintGateResult | null;
+    sourceFidelity:   LintGateResult | null;
+    openerUniqueness: LintGateResult | null;
   };
 };
 
@@ -106,6 +107,86 @@ export function extractSetNameCandidates(body: string): string[] {
     }
   }
   return Array.from(candidates);
+}
+
+// ── Gate 8: opener uniqueness ─────────────────────────────────────────────────
+// Detects LLM template recurrence: when the model reuses the same opener
+// sentence with only the product name swapped (e.g. "Your wallet called. It
+// wants to discuss the LEGO [X]." across 4 articles). Per-gate checks pass
+// because they evaluate each article in isolation — this gate compares against
+// the last 30 published rows to catch cross-article template fingerprinting.
+//
+// Normalization: lowercase → strip set numbers → strip all digits → strip
+// punctuation → collapse whitespace → take first 55 chars. Product names are
+// long enough that they push content outside the 55-char window, leaving only
+// the shared template prefix for comparison. Levenshtein similarity >= 85%
+// against any recent article's normalized opener is a hard gate failure.
+
+function _levenshtein(a: string, b: string): number {
+  const m = a.length, n = b.length;
+  const dp: number[][] = Array.from({ length: m + 1 }, (_, i) => [i]);
+  for (let j = 0; j <= n; j++) dp[0][j] = j;
+  for (let i = 1; i <= m; i++) {
+    for (let j = 1; j <= n; j++) {
+      dp[i][j] = a[i - 1] === b[j - 1]
+        ? dp[i - 1][j - 1]
+        : 1 + Math.min(dp[i - 1][j - 1], dp[i - 1][j], dp[i][j - 1]);
+    }
+  }
+  return dp[m][n];
+}
+
+function _normalizeOpener(body: string): string {
+  return (body.split(/\n\n/)[0] ?? body)
+    .slice(0, 150)
+    .toLowerCase()
+    .replace(/\b\d{4,6}\b/g, '')   // strip set numbers first
+    .replace(/\d+/g, '')            // strip remaining digits
+    .replace(/[^\w\s]/g, ' ')       // strip punctuation
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 55);
+}
+
+export const OPENER_SIMILARITY_THRESHOLD = 0.85;
+
+export async function gateOpenerUniqueness(
+  body: string,
+  sb: SupabaseClient,
+): Promise<LintGateResult> {
+  const candidate = _normalizeOpener(body);
+  if (candidate.length < 20) return { pass: true, severity: 'ok' };
+
+  try {
+    const [newsRes, blogRes] = await Promise.all([
+      sb.from('news_articles').select('content').order('created_at', { ascending: false }).limit(30),
+      sb.from('blog_posts').select('content').order('created_at', { ascending: false }).limit(30),
+    ]);
+
+    const rows: string[] = [
+      ...((newsRes.data ?? []).map((r: { content: string }) => r.content)),
+      ...((blogRes.data ?? []).map((r: { content: string }) => r.content)),
+    ];
+
+    for (const row of rows) {
+      const existing = _normalizeOpener(row ?? '');
+      if (existing.length < 20) continue;
+      const maxLen = Math.max(candidate.length, existing.length);
+      const dist = _levenshtein(candidate, existing);
+      const sim = 1 - dist / maxLen;
+      if (sim >= OPENER_SIMILARITY_THRESHOLD) {
+        return {
+          pass: false,
+          severity: 'fail',
+          reason: `opener template reuse detected (${(sim * 100).toFixed(0)}% similar to recent article): "${candidate.slice(0, 40)}…"`,
+        };
+      }
+    }
+  } catch {
+    return { pass: true, severity: 'ok' };
+  }
+
+  return { pass: true, severity: 'ok' };
 }
 
 // ── Gate 5: factuality ────────────────────────────────────────────────────────
@@ -345,8 +426,9 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
   }
 
   // Gates 5 + 6: Factuality and source fidelity
-  let factualityGate: LintGateResult | null     = null;
-  let sourceFidelityGate: LintGateResult | null = null;
+  let factualityGate: LintGateResult | null       = null;
+  let sourceFidelityGate: LintGateResult | null   = null;
+  let openerUniquenessGate: LintGateResult | null = null;
 
   if (!options.skipFactuality) {
     // Gate 6: Source fidelity — pure text comparison, no DB needed
@@ -365,6 +447,11 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
     if (sb) {
       factualityGate = await gateFactuality(body, sb, warnings);
       if (!factualityGate.pass) overallPass = false;
+
+      // Gate 8: Opener uniqueness — hard fail if opener template reused across
+      // recent articles (catches "Your wallet called. It wants to discuss…" family).
+      openerUniquenessGate = await gateOpenerUniqueness(body, sb);
+      if (!openerUniquenessGate.pass) overallPass = false;
     }
   }
 
@@ -372,11 +459,12 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
     overallPass,
     warnings,
     gates: {
-      wordCount:      wordCountGate,
-      indiaParagraph: indiaParagraphGate,
-      verdict:        verdictGate,
-      factuality:     factualityGate,
-      sourceFidelity: sourceFidelityGate,
+      wordCount:        wordCountGate,
+      indiaParagraph:   indiaParagraphGate,
+      verdict:          verdictGate,
+      factuality:       factualityGate,
+      sourceFidelity:   sourceFidelityGate,
+      openerUniqueness: openerUniquenessGate,
     },
   };
 }

@@ -33,7 +33,32 @@ const DRAFT_ID = (() => {
   return i !== -1 ? process.argv[i + 1] : null;
 })();
 
-const DELAY_MS = 7000; // 7 s between Gemini calls — stays under 10 RPM free tier
+// Token-bucket rate limiter: tracks the wall-clock timestamp of each Gemini
+// slot acquisition. Before each call we ensure fewer than GEMINI_RPM_LIMIT
+// slots have been taken within the rolling GEMINI_WINDOW_MS window.
+// This is more precise than the old fixed DELAY_MS approach: a fixed pre-call
+// sleep can't account for cases where many calls fail quickly (< 1 s each),
+// which could put 8-9 calls into a single 60 s window and trigger Gemini's
+// rolling-window rate limit even though each individual inter-call gap was ≥ 7 s.
+const GEMINI_RPM_LIMIT = 10;
+const GEMINI_WINDOW_MS = 60_000;
+const _geminiCallLog: number[] = [];
+
+async function acquireGeminiSlot(): Promise<void> {
+  while (true) {
+    const now = Date.now();
+    while (_geminiCallLog.length > 0 && now - _geminiCallLog[0] >= GEMINI_WINDOW_MS) {
+      _geminiCallLog.shift();
+    }
+    if (_geminiCallLog.length < GEMINI_RPM_LIMIT) {
+      _geminiCallLog.push(now);
+      return;
+    }
+    const waitMs = GEMINI_WINDOW_MS - (now - _geminiCallLog[0]) + 150;
+    console.log(`  [rate-limit] ${_geminiCallLog.length}/10 slots used in last 60 s — waiting ${(waitMs / 1000).toFixed(1)} s`);
+    await new Promise<void>(r => setTimeout(r, waitMs));
+  }
+}
 
 // ── Env ───────────────────────────────────────────────────────────────────────
 
@@ -303,7 +328,7 @@ if (IS_MAIN) (async () => {
   let deferred = 0, failed = 0, bothFailed = 0;
 
   for (let i = 0; i < queue.length; i++) {
-    if (i > 0) await new Promise(r => setTimeout(r, DELAY_MS));
+    await acquireGeminiSlot();
 
     const draft = queue[i];
     const label = (draft.draft_title || draft.source_title || draft.id).slice(0, 70);

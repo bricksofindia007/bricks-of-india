@@ -93,7 +93,7 @@ function newGroupId() {
   const all = await fetchPending();
   console.log(`Fetched ${all.length} pending signals.`);
   if (all.length === 0) {
-    console.log('DEDUPE SUMMARY: total=0 exact_url_dupes=0 title_dupes=0 cross_source_groups=0 cross_source_secondary=0 final_unique=0');
+    console.log('DEDUPE SUMMARY: total=0 historical_url_dupes=0 historical_title_dupes=0 historical_jaccard_dupes=0 exact_url_dupes=0 title_dupes=0 cross_source_groups=0 cross_source_secondary=0 final_unique=0');
     return;
   }
 
@@ -110,14 +110,16 @@ function newGroupId() {
   // all 63 times, producing 4 separately-published duplicate articles on the
   // live site. This pass closes that gap by checking against full history first.
   let historicalUrlDupes = 0, historicalTitleDupes = 0;
+  let historicalTokens = []; // reused in Pass 0.5 below
   {
     const { data: historical, error: histErr } = await sb
       .from('raw_signals')
-      .select('url_hash, title_hash')
+      .select('url_hash, title_hash, title')
       .neq('dedup_status', 'pending');
     if (histErr) throw histErr;
     const seenUrlHashes = new Set((historical ?? []).map(h => h.url_hash));
     const seenTitleHashes = new Set((historical ?? []).map(h => h.title_hash).filter(Boolean));
+    historicalTokens = (historical ?? []).map(h => ({ tokens: tokenize(h.title), title: h.title }));
     for (const r of rows) {
       if (seenUrlHashes.has(r.url_hash)) {
         r._status = 'duplicate';
@@ -125,6 +127,32 @@ function newGroupId() {
       } else if (r.title_hash && seenTitleHashes.has(r.title_hash)) {
         r._status = 'duplicate';
         historicalTitleDupes++;
+      }
+    }
+  }
+
+  // Pass 0.5 — cross-day Jaccard dedup against historical unique/primary signals
+  // Pass 0 (above) catches exact URL/title-hash repeats from prior runs. But the
+  // same topic covered by different source sites on different days produces signals
+  // with different URLs and different (but similar) titles — e.g. the M:Tron MOC
+  // published 4 times from 4 different source articles across 4 different daily
+  // runs (May 28, Jun 26, Jun 27, Jun 28), each passing Pass 0 because they had
+  // distinct URLs and were already 'unique' in raw_signals. Pass 3 (cross-source
+  // fuzzy) only runs within the current batch, so it could not catch them.
+  // This pass applies the same Jaccard >= 0.75 threshold against the full
+  // historical token set, before in-batch dedup runs.
+  let historicalJaccardDupes = 0;
+  {
+    const stillPending0_5 = rows.filter(r => r._status === 'pending');
+    for (const r of stillPending0_5) {
+      const rTokens = tokenize(r.title);
+      for (const h of historicalTokens) {
+        if (jaccard(rTokens, h.tokens) >= 0.75) {
+          r._status = 'duplicate';
+          historicalJaccardDupes++;
+          if (VERBOSE) console.log(`  [Pass 0.5] DUPLICATE: "${r.title}" ~ "${h.title}"`);
+          break;
+        }
       }
     }
   }
@@ -295,6 +323,7 @@ function newGroupId() {
     `DEDUPE SUMMARY: total=${rows.length} ` +
     `historical_url_dupes=${historicalUrlDupes} ` +
     `historical_title_dupes=${historicalTitleDupes} ` +
+    `historical_jaccard_dupes=${historicalJaccardDupes} ` +
     `exact_url_dupes=${exactUrlDupes} ` +
     `title_dupes=${titleDupes} ` +
     `cross_source_groups=${crossSourceGroups} ` +
