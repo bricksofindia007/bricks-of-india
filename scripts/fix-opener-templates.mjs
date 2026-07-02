@@ -189,7 +189,7 @@ for (const article of rewriteTargets) {
   }
   acceptedNorms.push(normalizeOpener(accepted));
   fixed++;
-  await new Promise(r => setTimeout(r, 1200)); // pace Gemini
+  await new Promise(r => setTimeout(r, 7000)); // pace Gemini
 }
 
 console.log(`\n${APPLY ? 'APPLIED' : 'DRY RUN'} — rewritten: ${fixed}, skipped: ${skipped}, keepers untouched: ${clusters.length}`);
