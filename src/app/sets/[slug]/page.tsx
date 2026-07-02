@@ -11,6 +11,11 @@ import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { SetCard } from '@/components/sets/SetCard';
 import { JsonLd } from '@/components/JsonLd';
 import { buildProductSchema, buildFAQSchema } from '@/lib/schemas';
+// Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
+// pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
+// served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
+export const revalidate = 3600;
+
 
 interface Props {
   params: { slug: string };
