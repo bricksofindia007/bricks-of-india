@@ -61,7 +61,7 @@ async function fetchAll(table, select, filter) {
   return rows;
 }
 
-const sets = await fetchAll('sets', 'id,set_number,name,lego_mrp_inr', q => q.not('lego_mrp_inr', 'is', null));
+const sets = await fetchAll('sets', 'id,set_number,name,lego_mrp_inr,retired,is_retiring_soon', q => q.not('lego_mrp_inr', 'is', null));
 const prices = await fetchAll('store_prices', 'set_id,store_id,price_inr,in_stock,scraped_at');
 // DATA-01: store_prices.set_id is the plain set_number string, not a UUID FK to sets.id — join on set_number.
 
@@ -110,11 +110,13 @@ console.log(`  Report: ${csvPath}`);
 
 if (FIX_A) {
   const fixable = tierA.filter(r => {
+    if (r.retired || r.is_retiring_soon) return false; // scarcity markup near EOL can mimic store agreement — needs manual eyes
     const active = (bySet.get(r.set_number) ?? []).filter(p => p.in_stock !== false);
     const uniq = new Set(active.map(p => Number(p.price_inr)));
     return active.length >= 2 && uniq.size === 1; // both stores agree — strongest signal
   });
-  console.log(`\n--fix-a: ${fixable.length} of ${tierA.length} TIER A rows have >=2 agreeing stores; updating those only.`);
+  const retiredSkipped = tierA.filter(r => (r.retired || r.is_retiring_soon)).length;
+  console.log(`\n--fix-a: ${fixable.length} of ${tierA.length} TIER A rows have >=2 agreeing stores (excluding ${retiredSkipped} retired/retiring-soon rows held out for manual review); updating those only.`);
   let ok = 0;
   for (const r of fixable) {
     const { error } = await sb.from('sets').update({ lego_mrp_inr: r.suggested }).eq('id', r.id);
