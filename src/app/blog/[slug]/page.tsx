@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import ReactMarkdown from 'react-markdown';
-import { formatDate, readingTime, whatsappShareUrl, twitterShareUrl } from '@/lib/utils';
+import { formatDate, readingTime, whatsappShareUrl, twitterShareUrl, socialCardImage } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { ArticleCard } from '@/components/content/ArticleCard';
@@ -21,7 +21,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: post.seo_title || `${post.title} | Bricks of India`,
     description: post.seo_description || post.excerpt,
     alternates: { canonical: `https://bricksofindia.com/blog/${params.slug}` },
-    openGraph: { title: post.title, description: post.excerpt, images: post.hero_image ? [{ url: post.hero_image }] : [] },
+    openGraph: { title: post.title, description: post.excerpt, images: socialCardImage(post.hero_image) ? [{ url: socialCardImage(post.hero_image)! }] : [] },
+    twitter: {
+      card: post.hero_image ? 'summary_large_image' : 'summary',
+      title: post.title,
+      description: post.seo_description || post.excerpt,
+      images: socialCardImage(post.hero_image) ? [socialCardImage(post.hero_image)!] : undefined,
+    },
   };
 }
 

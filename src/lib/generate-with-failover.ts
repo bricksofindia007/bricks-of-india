@@ -82,6 +82,7 @@ export async function generateWithFailover(
   sb: SupabaseClient,
   geminiKey: string,
   cerebrasKey: string | undefined,
+  batchOpeners?: string[],   // bodies accepted earlier in this same batch run (Gate 8 same-batch race fix, 2026-07-02)
 ): Promise<GenerationOutcome> {
   const systemPrompt = buildSystemPrompt();
   const userPrompt   = buildUserPrompt(input);
@@ -99,7 +100,7 @@ export async function generateWithFailover(
           source_excerpt: input.sourceExcerpt,
         },
       },
-      { supabase: sb, skipHeroImage: true },
+      { supabase: sb, skipHeroImage: true, batchOpeners },
     );
   }
 

@@ -130,7 +130,7 @@ export async function buildIndiaPriceContext(
     .eq('set_number', setNumber)
     .maybeSingle();
   if (setRow?.lego_mrp_inr) {
-    return `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices). Use this figure. Mention Toycra / MyBrickHouse may list it within 4–6 weeks.`;
+    return `INDIA PRICE DATA: Estimated India price ₹${fmtInr(Number(setRow.lego_mrp_inr))} (converted from US retail; no live store prices, no confirmed India MRP). Present this as an estimate — "expect around ₹X" — NEVER as the official MRP. Mention Toycra / MyBrickHouse may list it within 4–6 weeks.`;
   }
 
   const rate = await fetchLiveUsdInr();

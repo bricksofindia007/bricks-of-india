@@ -243,7 +243,7 @@ async function autoPublish(draft: any, outcome: GenerationOutcome): Promise<{ pa
 
 // ── Per-draft generation wrapper ──────────────────────────────────────────────
 
-async function generateBodyWithFailover(draft: any): Promise<GenerationOutcome> {
+async function generateBodyWithFailover(draft: any, batchOpeners?: string[]): Promise<GenerationOutcome> {
   if (!draft.draft_format) throw new Error('Draft has no format — re-run RADAR-03');
 
   const setNumber = extractSetNumber(draft.source_url, draft.source_title ?? null);
@@ -265,7 +265,7 @@ async function generateBodyWithFailover(draft: any): Promise<GenerationOutcome> 
     indiaPriceContext,
   };
 
-  return generateWithFailover(input, sb, GEMINI_KEY!, CEREBRAS_KEY ?? undefined);
+  return generateWithFailover(input, sb, GEMINI_KEY!, CEREBRAS_KEY ?? undefined, batchOpeners);
 }
 
 // ── Main (entry-point guard — skipped when imported as a module) ──────────────
@@ -327,6 +327,12 @@ if (IS_MAIN) (async () => {
   let cerebrasAttempted = 0, cerebrasOk = 0, cerebrasLintFailed = 0;
   let deferred = 0, failed = 0, bothFailed = 0;
 
+  // Gate 8 same-batch race fix (2026-07-02): bodies published earlier in THIS
+  // run, so a later draft in the same batch can't reuse an opener the DB
+  // hasn't been queried for yet (both Jul-1 "Your wallet called…" articles
+  // shipped in one batch precisely this way).
+  const batchOpeners: string[] = [];
+
   for (let i = 0; i < queue.length; i++) {
     await acquireGeminiSlot();
 
@@ -335,7 +341,7 @@ if (IS_MAIN) (async () => {
     process.stdout.write(`[${i + 1}/${queue.length}] ${label}... `);
 
     try {
-      const outcome = await generateBodyWithFailover(draft);
+      const outcome = await generateBodyWithFailover(draft, batchOpeners);
 
       // Policy change 2026-06-28 (Abhinav, this session): "let review/opinion/
       // guide auto-publish too, IF they pass the exact same gates as news (no
@@ -351,6 +357,7 @@ if (IS_MAIN) (async () => {
       // format reach the same already-rigorous gate news always had.
       if (!outcome.requiresManualApproval && passesAutoPublishGates(outcome)) {
         const { path, slug } = await autoPublish(draft, outcome);
+        batchOpeners.push(outcome.body);
         geminiAttempted++;
         if (outcome.failoverUsed) { cerebrasAttempted++; cerebrasOk++; } else { geminiOk++; }
         const failoverNote = outcome.failoverUsed ? ' [CEREBRAS FAILOVER]' : '';

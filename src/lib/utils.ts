@@ -66,3 +66,21 @@ export function readingTime(content: string): string {
   const minutes = Math.ceil(words / 200);
   return `${minutes} min read`;
 }
+
+// Route third-party CDN images through /api/img for og:image / twitter:image
+// (social crawlers have no client-side fallback — see src/app/api/img/route.ts).
+// Local paths and unknown hosts pass through untouched.
+const PROXIED_IMG_HOSTS = new Set([
+  'images.brickset.com', 'cdn.rebrickable.com', 'rebrickable.com',
+  'i.ytimg.com', 'img.youtube.com', 'www.lego.com',
+]);
+export function socialCardImage(src: string | null | undefined): string | null {
+  if (!src) return null;
+  try {
+    const u = new URL(src);
+    if (PROXIED_IMG_HOSTS.has(u.hostname)) {
+      return `https://bricksofindia.com/api/img?src=${encodeURIComponent(src)}`;
+    }
+  } catch { /* relative/local path — leave as-is */ }
+  return src;
+}

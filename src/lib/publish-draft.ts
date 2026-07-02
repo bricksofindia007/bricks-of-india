@@ -451,7 +451,12 @@ export async function publishOneDraft(
   const cqsErr = cqsHardCheck(cleanBody);
   if (cqsErr) throw new Error(`[CQS REJECT] ${cqsErr}`);
 
-  const excerpt = cleanBody.replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim().slice(0, 160);
+  // Word-boundary truncation — the old hard .slice(0, 160) cut mid-word
+  // ("…vehicle can p") in live meta descriptions (2026-07-02 audit).
+  const excerptRaw = cleanBody.replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim();
+  const excerpt = excerptRaw.length <= 160
+    ? excerptRaw
+    : `${excerptRaw.slice(0, 156).replace(/\s+\S*$/, '')}…`;
   const now     = new Date().toISOString();
 
   // Review-format articles carry verdict + set_number for Review/Product

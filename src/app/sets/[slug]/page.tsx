@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
 import { getSet } from '@/lib/rebrickable';
-import { formatPrice, slugify, whatsappShareUrl } from '@/lib/utils';
+import { formatPrice, slugify, whatsappShareUrl, socialCardImage } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
 import { Badge, BestPriceBadge, OutOfStockBadge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
@@ -70,7 +70,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: `${set.name} (${set.set_number}) — Best Price in India`,
       description: `Compare ${set.name} prices across Indian stores. Best deal updated every 6 hours.`,
-      images: set.image_url ? [{ url: set.image_url }] : [],
+      images: socialCardImage(set.image_url) ? [{ url: socialCardImage(set.image_url)! }] : [],
+    },
+    twitter: {
+      card: set.image_url ? 'summary_large_image' : 'summary',
+      title: `${set.name} (${set.set_number}) — Best Price in India`,
+      description: `Compare ${set.name} prices across Indian stores. Best deal updated every 6 hours.`,
+      images: socialCardImage(set.image_url) ? [socialCardImage(set.image_url)!] : undefined,
     },
   };
 }
@@ -231,7 +237,7 @@ export default async function SetPage({ params }: Props) {
             {set.lego_mrp_inr && (
               <div className="bg-light-grey rounded-xl p-4 mb-6 flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide font-bold">Official LEGO India MRP</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide font-bold">Est. MRP (from US price)</p>
                   <p className="font-price text-2xl font-bold text-dark">{formatPrice(set.lego_mrp_inr)}</p>
                 </div>
                 <span className="text-3xl">🏷️</span>
@@ -248,7 +254,10 @@ export default async function SetPage({ params }: Props) {
                 {/* Tracked stores — always shown, even if no data */}
                 {TRACKED_STORES.map((store, i) => {
                   const sp = storePriceMap.get(store.id);
-                  const isBest = hasPrices && sp?.price_inr === bestStorePrice?.price_inr && sp?.price_inr != null;
+                  // Tie handling (2026-07-02): exactly ONE badge. On equal prices the
+                  // sorted-lowest row (bestStorePrice) wins; price-equality matching gave
+                  // every tied store a 🏆 simultaneously, which read as a bug on live.
+                  const isBest = hasPrices && sp?.price_inr != null && sp?.store_id === bestStorePrice?.store_id;
                   const isToycra = store.id === 'toycra';
 
                   if (!sp) {
@@ -398,7 +407,7 @@ export default async function SetPage({ params }: Props) {
                   {
                     q: `What is the official MRP of ${set.name} in India?`,
                     a: set.lego_mrp_inr
-                      ? `The official LEGO India MRP for ${set.name} is ${formatPrice(set.lego_mrp_inr)}.`
+                      ? `Based on the US retail price, ${set.name} works out to roughly ${formatPrice(set.lego_mrp_inr)} in India before local pricing adjustments. Check lego.com/en-in for the official MRP.`
                       : `The official India MRP for ${set.name} hasn't been confirmed. Check lego.com/en-in for the latest official pricing.`,
                   },
                   {

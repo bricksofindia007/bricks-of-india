@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import { supabase } from '@/lib/supabase';
-import { formatDate, whatsappShareUrl, twitterShareUrl } from '@/lib/utils';
+import { formatDate, whatsappShareUrl, twitterShareUrl, socialCardImage } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { ArticleCard } from '@/components/content/ArticleCard';
@@ -22,7 +22,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: article.seo_title || article.title,
     description: article.seo_description || article.excerpt,
     alternates: { canonical: `https://bricksofindia.com/news/${params.slug}` },
-    openGraph: { title: article.title, description: article.excerpt, images: article.hero_image ? [{ url: article.hero_image }] : [] },
+    openGraph: { title: article.title, description: article.excerpt, images: socialCardImage(article.hero_image) ? [{ url: socialCardImage(article.hero_image)! }] : [] },
+    twitter: {
+      card: article.hero_image ? 'summary_large_image' : 'summary',
+      title: article.title,
+      description: article.seo_description || article.excerpt,
+      images: socialCardImage(article.hero_image) ? [socialCardImage(article.hero_image)!] : undefined,
+    },
   };
 }
 

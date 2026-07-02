@@ -1,0 +1,95 @@
+# IG-TOK auto-refresh — makes IG-TOK-01-style manual re-exchanges permanent history.
+#
+# Facebook Graph long-lived tokens (~60 days) can be exchanged for a fresh
+# 60-day token any time before expiry via oauth/access_token with
+# grant_type=fb_exchange_token. Running this on the 1st and 15th means the
+# token is never more than ~15 days old — expiry becomes unreachable.
+#
+# REQUIRED SECRETS (one-time setup, see runbook in workflow summary):
+#   FB_APP_ID        — Meta app ID (from developers.facebook.com app dashboard)
+#   FB_APP_SECRET    — Meta app secret
+#   IG_ACCESS_TOKEN  — the current long-lived token (already exists)
+#   ADMIN_PAT        — fine-grained PAT, this repo only, "Secrets: read/write"
+#                      (GITHUB_TOKEN cannot update repo secrets — PAT required)
+#
+# Failure mode: any step failing sends the standard failure email via the
+# social-automation notifier so it never dies silently.
+
+name: ig-token-refresh
+
+on:
+  schedule:
+    - cron: '0 5 1,15 * *'   # 1st + 15th, 10:30 IST
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Exchange for fresh 60-day token
+        id: exchange
+        env:
+          FB_APP_ID: ${{ secrets.FB_APP_ID }}
+          FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -z "$FB_APP_ID" ] || [ -z "$FB_APP_SECRET" ]; then
+            echo "::error::FB_APP_ID / FB_APP_SECRET secrets not set — see workflow header runbook"
+            exit 1
+          fi
+          RESP=$(curl -sf "https://graph.facebook.com/v19.0/oauth/access_token" \
+            --data-urlencode "grant_type=fb_exchange_token" \
+            --data-urlencode "client_id=${FB_APP_ID}" \
+            --data-urlencode "client_secret=${FB_APP_SECRET}" \
+            --data-urlencode "fb_exchange_token=${IG_ACCESS_TOKEN}")
+          NEW_TOKEN=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))")
+          if [ -z "$NEW_TOKEN" ]; then
+            echo "::error::Exchange returned no access_token: $(echo "$RESP" | head -c 200)"
+            exit 1
+          fi
+          echo "::add-mask::$NEW_TOKEN"
+          echo "new_token=$NEW_TOKEN" >> "$GITHUB_OUTPUT"
+
+      - name: Validate new token against Graph /me
+        env:
+          NEW_TOKEN: ${{ steps.exchange.outputs.new_token }}
+        run: |
+          set -euo pipefail
+          curl -sf "https://graph.facebook.com/v19.0/me?access_token=${NEW_TOKEN}" > /dev/null \
+            || { echo "::error::New token failed /me validation — NOT updating secret"; exit 1; }
+
+      - name: Update IG_ACCESS_TOKEN repo secret
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+          NEW_TOKEN: ${{ steps.exchange.outputs.new_token }}
+        run: |
+          set -euo pipefail
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::ADMIN_PAT secret not set — cannot update IG_ACCESS_TOKEN. See workflow header runbook."
+            exit 1
+          fi
+          gh secret set IG_ACCESS_TOKEN --repo "$GITHUB_REPOSITORY" --body "$NEW_TOKEN"
+          echo "IG_ACCESS_TOKEN rotated OK — next refresh in <=15 days."
+
+      - name: Alert on failure
+        if: failure()
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          pip install -q resend
+          python3 - <<'PY'
+          import os, resend
+          resend.api_key = os.environ['RESEND_API_KEY']
+          resend.Emails.send({
+            'from': 'BOI Alerts <alerts@bricksofindia.com>',
+            'to': ['abhinav@bricksofindia.com'],
+            'subject': '[BOI] IG token auto-refresh FAILED — manual action needed before expiry',
+            'html': '<p>ig-token-refresh workflow failed. Check the run logs. If not fixed, Instagram posting stops when the current token expires (60 days from last successful exchange).</p>',
+          })
+          PY

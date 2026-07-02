@@ -58,6 +58,11 @@ export type LintOptions = {
   skipHeroImage?: boolean;   // reserved — hero image gate lives in publishOneDraft
   skipFactuality?: boolean;  // skip Gates 5 + 6; use when testing voice/structure only
   supabase?: SupabaseClient; // pass existing client to avoid creating a second one
+  batchOpeners?: string[];   // Gate 8: raw bodies of drafts already accepted EARLIER IN THIS
+                             // SAME RUN. The DB query only sees rows already inserted, so two
+                             // drafts linted in one batch before either is written can share an
+                             // opener and both pass (same-batch race, found in 2026-07-02 audit).
+                             // Callers looping over a batch should push each accepted body here.
 };
 
 // ── Set reference extraction ──────────────────────────────────────────────────
@@ -153,9 +158,33 @@ export const OPENER_SIMILARITY_THRESHOLD = 0.85;
 export async function gateOpenerUniqueness(
   body: string,
   sb: SupabaseClient,
+  batchOpeners?: string[],
 ): Promise<LintGateResult> {
   const candidate = _normalizeOpener(body);
   if (candidate.length < 20) return { pass: true, severity: 'ok' };
+
+  const compare = (existingRaw: string, origin: string): LintGateResult | null => {
+    const existing = _normalizeOpener(existingRaw ?? '');
+    if (existing.length < 20) return null;
+    const maxLen = Math.max(candidate.length, existing.length);
+    const dist = _levenshtein(candidate, existing);
+    const sim = 1 - dist / maxLen;
+    if (sim >= OPENER_SIMILARITY_THRESHOLD) {
+      return {
+        pass: false,
+        severity: 'fail',
+        reason: `opener template reuse detected (${(sim * 100).toFixed(0)}% similar to ${origin}): "${candidate.slice(0, 40)}…"`,
+      };
+    }
+    return null;
+  };
+
+  // Same-batch comparison FIRST — no DB round trip, and it closes the race
+  // where two drafts in one run are both linted before either is inserted.
+  for (const prior of batchOpeners ?? []) {
+    const hit = compare(prior, 'a draft accepted earlier in this run');
+    if (hit) return hit;
+  }
 
   try {
     const [newsRes, blogRes] = await Promise.all([
@@ -163,27 +192,28 @@ export async function gateOpenerUniqueness(
       sb.from('blog_posts').select('content').order('created_at', { ascending: false }).limit(30),
     ]);
 
+    // A query error is infrastructure failure, not "no duplicates". Do not
+    // hard-fail the draft on infra (that would block publishing on a flaky
+    // read), but do NOT silently pass either — surface a warn so the gate
+    // state is visible in lint_result telemetry. (Was: bare catch → pass:ok,
+    // i.e. fully fail-open and invisible. 2026-07-02 audit item.)
+    if (newsRes.error || blogRes.error) {
+      const msg = newsRes.error?.message ?? blogRes.error?.message ?? 'unknown';
+      return { pass: true, severity: 'warn', reason: `gate 8 corpus query failed — duplicate check DEGRADED to batch-only: ${msg}` };
+    }
+
     const rows: string[] = [
       ...((newsRes.data ?? []).map((r: { content: string }) => r.content)),
       ...((blogRes.data ?? []).map((r: { content: string }) => r.content)),
     ];
 
     for (const row of rows) {
-      const existing = _normalizeOpener(row ?? '');
-      if (existing.length < 20) continue;
-      const maxLen = Math.max(candidate.length, existing.length);
-      const dist = _levenshtein(candidate, existing);
-      const sim = 1 - dist / maxLen;
-      if (sim >= OPENER_SIMILARITY_THRESHOLD) {
-        return {
-          pass: false,
-          severity: 'fail',
-          reason: `opener template reuse detected (${(sim * 100).toFixed(0)}% similar to recent article): "${candidate.slice(0, 40)}…"`,
-        };
-      }
+      const hit = compare(row, 'recent published article');
+      if (hit) return hit;
     }
-  } catch {
-    return { pass: true, severity: 'ok' };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { pass: true, severity: 'warn', reason: `gate 8 threw — duplicate check DEGRADED to batch-only: ${msg}` };
   }
 
   return { pass: true, severity: 'ok' };
@@ -450,7 +480,7 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
 
       // Gate 8: Opener uniqueness — hard fail if opener template reused across
       // recent articles (catches "Your wallet called. It wants to discuss…" family).
-      openerUniquenessGate = await gateOpenerUniqueness(body, sb);
+      openerUniquenessGate = await gateOpenerUniqueness(body, sb, options.batchOpeners);
       if (!openerUniquenessGate.pass) overallPass = false;
     }
   }

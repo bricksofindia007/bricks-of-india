@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import { createServerClient, supabase } from '@/lib/supabase';
-import { formatDate, formatPrice, whatsappShareUrl, twitterShareUrl } from '@/lib/utils';
+import { formatDate, formatPrice, whatsappShareUrl, twitterShareUrl, socialCardImage } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { Byline } from '@/components/content/Byline';
@@ -28,7 +28,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: `LEGO ${review.sets?.name || review.title} Review — Bricks of India`,
       description: `${review.rating}/5 stars. Honest verdict with live India price comparison.`,
-      images: review.hero_image ? [{ url: review.hero_image }] : [],
+      images: socialCardImage(review.hero_image) ? [{ url: socialCardImage(review.hero_image)! }] : [],
+    },
+    twitter: {
+      card: review.hero_image ? 'summary_large_image' : 'summary',
+      title: `LEGO ${review.sets?.name || review.title} Review — Bricks of India`,
+      description: `${review.rating}/5 stars. Honest verdict with live India price comparison.`,
+      images: socialCardImage(review.hero_image) ? [socialCardImage(review.hero_image)!] : undefined,
     },
   };
 }
