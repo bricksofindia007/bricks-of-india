@@ -247,6 +247,18 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-07-03 (latest) — Brand Guide v1.0 published at `/brand/guide.html`, PDF snapshot filed
+
+Published the v1.0 brand guidelines (logo/wordmark, color, typography, mascots, voice/taglines, social templates, UI components) as a live static page: `public/brand/guide.html`, plus a PDF snapshot at `docs/brand/BOI_Brand_Guide_v1.0_July2026.pdf`.
+
+**Found before committing, not after:** the source file handed off (`Brand Guide.dc.html`, root of repo) was a raw claude.ai artifact export — non-standard `<x-dc>`/`<sc-for>` tags, unresolved `{{ }}` template placeholders, and a `class Component extends DCLogic` script, plus a `<script src="./support.js">` reference to a runtime file that does not exist in this repo. Committed as-is, it would have rendered as broken markup at the live URL, not a brand guide — CLAUDE.md's live-page-verification rule exists precisely to catch this class of thing before it's called done. Rewrote it into standalone HTML: expanded the `sc-for` color (8) and pose (first 8, matching the artifact's own `showAllPoses: false` default) loops into static markup, fixed image paths from relative (`public/brand/...`) to root-absolute (`/brand/...`) so they resolve once served from Next's `public/` folder, and dropped the artifact runtime tags/scripts. Also repaired the footer contact link — the original had been mangled into an unreadable Cloudflare email-obfuscation span during export; replaced with `hello@bricksofindia.com`.
+
+**Asset verification:** all 18 image assets the design references — 16 mascot poses (8 rendered by default, 8 held in reserve behind the artifact's `showAllPoses` flag) plus `hero-banner.png` and `android-chrome-512x512.png` — confirmed present in `public/brand/` and `public/mascots/`. None missing.
+
+**Verified live-rendered**, not just committed: served `public/` locally and walked the full page — fonts, gradients, color swatches, mascot images, and the corrected footer link all confirmed rendering correctly before commit, per CLAUDE.md's live-page-verification rule.
+
+**Dashboard sync not attempted, same reason as 2026-07-02 entry below:** `admin/dashboard.html`'s JSON block parses cleanly (session-start gate passes) but is already known-stale per MEDIUM-63. Not bolting an unrelated addition onto a file that needs its own reconciliation pass.
+
 ### 2026-07-02 (latest) — Health-audit patch applied: HIGH-55 closed, HIGH-56 mitigated, IG token automation shipped, opener retro-fix dry-run finds a live join bug
 
 Applied `boi-health-fixes-2026-07-02.patch` (prepared by chat-layer Claude, base `a32b8a6`) via terminal Claude: Gate 8 same-batch opener race + fail-open (HIGH-55, closed), meta-description word-boundary truncation, per-page Twitter cards on news/blog/reviews/sets, MRP honesty labeling + generator prompt guard (HIGH-56, mitigated — see below), single best-price badge on ties, `/api/img` allowlisted caching proxy for og:image/twitter:image (stops hotlinking Brickset/Rebrickable directly), IG token auto-refresh workflow (`.github/workflows/ig-token-refresh.yml`, 1st+15th monthly), and two new one-time scripts (`audit-mrp.mjs`, `fix-opener-templates.mjs`). Pre-commit verification matched what the patch claimed: `tsc --noEmit` clean, 59/59 vitest passing, both new `.mjs` scripts `node --check` clean.
