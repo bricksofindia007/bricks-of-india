@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { BRAND, MASCOTS } from '@/lib/brand';
+import { MASCOTS } from '@/lib/brand';
+import { TaglineWink } from '@/components/ui/Taglines';
 import { subscribeNewsletter } from '@/app/actions/newsletter';
 
 export function NewsletterSignup() {
@@ -49,8 +50,8 @@ export function NewsletterSignup() {
             <p className="text-gray-300 text-lg mb-2 font-body">
               Delivered before your wallet finds out. No spam. Unsubscribe anytime.
             </p>
-            <p className="text-sm mb-6" style={{ fontFamily: 'var(--font-fredoka)', color: 'var(--boi-sky)' }}>
-              {BRAND.taglineSecondary}
+            <p className="mb-6">
+              <TaglineWink />
             </p>
 
             {status === 'success' ? (

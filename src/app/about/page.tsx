@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { JsonLd } from '@/components/JsonLd';
 import { personSchema } from '@/lib/schemas';
 import { BRAND, MASCOTS } from '@/lib/brand';
+import { TaglineChip, TaglineWink } from '@/components/ui/Taglines';
 
 export const metadata: Metadata = {
   title: 'About Abhinav Bhargav — Founder, Bricks of India',
@@ -96,17 +97,9 @@ export default function AboutPage() {
             >
               Founder, Bricks of India
             </p>
-            <p
-              style={{
-                fontFamily: 'var(--font-fredoka)',
-                fontWeight: 500,
-                fontSize: '1rem',
-                color: 'var(--boi-blue)',
-                marginBottom: '20px',
-              }}
-            >
-              {BRAND.tagline}
-            </p>
+            <div className="mb-5">
+              <TaglineChip />
+            </div>
             <div className="flex flex-wrap gap-3">
               <a
                 href={BRAND.youtube}
@@ -333,6 +326,9 @@ export default function AboutPage() {
                 Contact us
               </Link>
             </div>
+            <p className="mt-8">
+              <TaglineWink />
+            </p>
           </section>
 
         </div>

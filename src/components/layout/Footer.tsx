@@ -75,7 +75,7 @@ export function Footer() {
                 fontFamily: 'var(--font-fredoka)',
                 fontWeight: 500,
                 fontSize: '13px',
-                color: 'var(--boi-sky)',
+                color: '#FFFFFF',
                 marginBottom: '10px',
               }}
             >

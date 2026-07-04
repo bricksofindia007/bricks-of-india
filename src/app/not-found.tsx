@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { BRAND, MASCOTS } from '@/lib/brand';
+import { MASCOTS } from '@/lib/brand';
+import { TaglineWink } from '@/components/ui/Taglines';
 
 export default function NotFound() {
   return (
@@ -19,9 +20,9 @@ export default function NotFound() {
           The page you want either doesn&apos;t exist or has wandered off somewhere.
           Let&apos;s get you back on track.
         </p>
-        <p className="font-body text-sm mb-8" style={{ fontFamily: 'var(--font-fredoka)', color: 'var(--boi-blue)' }}>
-          {BRAND.taglineSecondary}
-        </p>
+        <div className="mb-8">
+          <TaglineWink />
+        </div>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link href="/" className="bg-primary text-dark font-bold px-6 py-3 rounded-xl hover:bg-yellow-400 transition-colors">
             Go Home

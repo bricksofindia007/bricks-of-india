@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import { Menu, X, Search, ChevronDown } from 'lucide-react';
 import { TricolourStripe } from '@/components/ui/TricolourStripe';
 import { LAB_TOOLS } from '@/lib/lab-tools';
+import { BRAND } from '@/lib/brand';
 
 const NAV_LINKS = [
   { href: '/sets',       label: 'Sets'       },
@@ -52,6 +53,22 @@ function Wordmark({ size = 'md' }: { size?: 'sm' | 'md' }) {
       >
         OF INDIA
       </div>
+      {size === 'md' && (
+        <div
+          style={{
+            fontFamily: 'var(--font-fredoka)',
+            fontWeight: 500,
+            fontSize: '9px',
+            letterSpacing: '0.3px',
+            color: 'var(--boi-blue)',
+            marginTop: '4px',
+            whiteSpace: 'nowrap',
+            lineHeight: 1,
+          }}
+        >
+          {BRAND.tagline}
+        </div>
+      )}
     </Link>
   );
 }

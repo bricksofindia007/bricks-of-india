@@ -10,6 +10,7 @@ import { ArticleCard, ReviewCard } from '@/components/content/ArticleCard';
 import { YoutubeStrip } from '@/components/content/YoutubeStrip';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { TricolourStripe } from '@/components/ui/TricolourStripe';
+import { TaglineChip } from '@/components/ui/Taglines';
 import { LabStrip } from '@/components/ui/LabStrip';
 import { BRAND, MASCOTS, THEMES } from '@/lib/brand';
 import { supabase, createServerClient } from '@/lib/supabase';
@@ -131,17 +132,7 @@ export default async function HomePage() {
           className="relative z-10 flex flex-col items-center justify-end px-4 pb-12 text-center w-full"
           style={{ minHeight: 'clamp(420px, 50vw, 560px)' }}
         >
-          <p
-            className="mb-1"
-            style={{
-              fontFamily: 'var(--font-fredoka)',
-              fontWeight: 500,
-              fontSize: 'clamp(0.95rem, 2vw, 1.15rem)',
-              color: 'var(--boi-blue)',
-            }}
-          >
-            {BRAND.tagline}
-          </p>
+          <TaglineChip className="mb-3" />
           <h1
             className="mb-2 leading-tight"
             style={{

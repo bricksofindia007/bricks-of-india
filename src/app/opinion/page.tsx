@@ -3,7 +3,8 @@ import Image from 'next/image';
 import type { Metadata } from 'next';
 import { supabase } from '@/lib/supabase';
 import { formatDate } from '@/lib/utils';
-import { BRAND, MASCOTS } from '@/lib/brand';
+import { MASCOTS } from '@/lib/brand';
+import { TaglineWink } from '@/components/ui/Taglines';
 
 export const metadata: Metadata = {
   title: 'LEGO Opinion & Hot Takes India 2026 | Bricks of India',
@@ -38,15 +39,8 @@ export default async function OpinionPage() {
             <p className="font-body text-lg mb-2" style={{ color: 'var(--boi-navy)', opacity: 0.75 }}>
               Honest takes on LEGO sets, Indian pricing, and the hobby. No fluff. No PR speak. Just whether it&apos;s worth your money.
             </p>
-            <p
-              style={{
-                fontFamily: 'var(--font-fredoka)',
-                fontWeight: 500,
-                fontSize: '0.9rem',
-                color: 'var(--boi-red)',
-              }}
-            >
-              {BRAND.taglineSecondary}
+            <p className="mt-1">
+              <TaglineWink />
             </p>
           </div>
           <Image src={MASCOTS.blue.pointing} alt="Opinion" width={160} height={160} className="object-contain shrink-0 hidden md:block" />

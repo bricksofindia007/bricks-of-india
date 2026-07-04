@@ -247,6 +247,22 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-07-04 (even later) — Tagline rendering unified into a shared component (design fix on top of the sitewide rollout)
+
+Follow-up to this same day's tagline rollout: the initial rollout put both taglines on the page as ad-hoc inline-styled `<p>` tags per call site — 4 different colors for the same secondary tagline (`var(--boi-red)`, `var(--boi-saffron)`, `var(--boi-blue)`, `var(--boi-sky)` across opinion/deals/404/newsletter), no tagline in the header at all, and the homepage hero kicker floating in plain text over the banner artwork with no legibility treatment. Chat-layer Claude built and type-checked the fix against a clone of the repo at `4918dc4`; applied here verbatim after confirming every anchor (Navbar's Wordmark closing tags, all four ad-hoc secondary blocks, Footer's tagline `<p>`, the hero kicker, the codex Taglines block) matched exactly — no improvisation needed.
+
+- **New `src/components/ui/Taglines.tsx`** — `TaglineChip` (primary, navy pill, brick-yellow text) and `TaglineWink` (secondary, brick-yellow marker-highlight, navy italic text). One rendering path each, everywhere.
+- **`Navbar.tsx`** — tagline appears under the wordmark, gated on `size === 'md'`.
+- **Homepage hero** — the floating kicker `<p>` replaced with `<TaglineChip />`; the navy pill now sits legibly over the hero banner art regardless of what's underneath.
+- **Footer** — tagline color fixed from `var(--boi-sky)` to `#FFFFFF` for contrast against the blue footer background (found during this pass, not the original ask, but the same class of bug this whole fix is closing).
+- **Opinion, Deals, 404, Newsletter** — all four ad-hoc secondary blocks replaced with `<TaglineWink />`. `BRAND` import dropped from all four files (taglineSecondary was its only use in each); `MASCOTS` import kept where still needed.
+- **About** — added both: `<TaglineChip />` in the hero (replacing the same ad-hoc `<p>{BRAND.tagline}</p>` pattern as the other primary placements) and `<TaglineWink />` after the "Find me here" social-link column — the only page carrying both, chip opens the bio, wink signs it off, separate viewports so the one-tagline-per-surface rule holds. `BRAND` import kept (still used for youtube/instagram URLs).
+- **Codex** — added an Implementation line to the Taglines block: both taglines render only via `Taglines.tsx`, never as ad-hoc styled text.
+
+**Verified:** `tsc --noEmit` clean; real `npm run build`; local render check confirmed the header lockup tagline, hero chip, all four `TaglineWink` placements, and both About-page taglines render as expected. Grep confirmed `BRAND.taglineSecondary` now appears in exactly one `.tsx` file — `Taglines.tsx` itself.
+
+**Mobile-header check did NOT pass as specced — flagging rather than asserting a false pass:** the task asked me to confirm the mobile header does not show the tagline via the `size === 'sm'` gate. Checked the actual DOM: `Navbar.tsx` has exactly one `<Wordmark size="md" />` call site (the single sticky header used at every viewport width — there is no separate mobile invocation, and no responsive CSS class hides the new tagline `<div>` at narrow widths). So `size` is never `'sm'` in this codebase today, and the tagline renders in the header at mobile widths too, not just desktop. The `size === 'md'` gate is real code, correctly implemented as specced, but it's currently a no-op guard — there's no code path that would ever render `size="sm"` for it to matter. Left as-is pending direction: either this is intentional future-proofing (a smaller Wordmark variant may get added later) or the mobile header is expected to actually hide it, which would need a responsive class on the tagline `<div>` itself, not just the `size` prop.
+
 ### 2026-07-04 (later) — Sitewide tagline rollout: "Every Brick Tells a Story" is now the single source of truth
 
 Rolled the v1.0 brand guide's taglines off the guide page and onto the live site. `BRAND.tagline` (`src/lib/brand.ts`) is now `"Every Brick Tells a Story"` (was `"More Bricks. Less Nonsense."`), plus a new `BRAND.taglineSecondary` (`"Where Everything Is Awesome, Except Financial Advice"`). Every placement below reads from these two constants — no second hardcoded copy of either string anywhere in `src/`.

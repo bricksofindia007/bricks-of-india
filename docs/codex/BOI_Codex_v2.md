@@ -53,6 +53,7 @@ The audience stays with you not because you are right, but because you are magni
 - **Primary:** "Every Brick Tells a Story" — the brand line. Logo lockups, hero, footer, press material. This is the line, not a line.
 - **Secondary:** "Where Everything Is Awesome, Except Financial Advice" — the wink. YouTube banners, section headers, merch, the 404 page. Never the main lockup, never adjacent to a price verdict (BUY NOW / WAIT / IMPORT ONLY / AVOID) — the joke must never read as disclaiming the verdict itself.
 - **Retired:** "More Bricks. Less Nonsense." — the launch-era line (pre-v1.0 brand guidelines, 2026-07-04). Not in lockups or metadata anymore, but still fine to reach for in casual copy or old-guard callbacks — it's retired, not disowned.
+- **Implementation:** both taglines render only via `src/components/ui/Taglines.tsx` (`TaglineChip` / `TaglineWink`) — never as ad-hoc styled text.
 
 # PAGE 2: THE VOICE DNA
 

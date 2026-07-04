@@ -4,7 +4,8 @@ import type { Metadata } from 'next';
 import { createServerClient } from '@/lib/supabase';
 import { SetCard } from '@/components/sets/SetCard';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
-import { BRAND, MASCOTS } from '@/lib/brand';
+import { MASCOTS } from '@/lib/brand';
+import { TaglineWink } from '@/components/ui/Taglines';
 import { formatPrice } from '@/lib/utils';
 
 export const metadata: Metadata = {
@@ -123,15 +124,8 @@ export default async function DealsPage() {
               Updated every 6 hours. These are the best prices right now across all Indian stores.
               Your wallet is about to have a very complicated day.
             </p>
-            <p
-              style={{
-                fontFamily: 'var(--font-fredoka)',
-                fontWeight: 500,
-                fontSize: '0.9rem',
-                color: 'var(--boi-saffron)',
-              }}
-            >
-              {BRAND.taglineSecondary}
+            <p className="mt-1">
+              <TaglineWink />
             </p>
           </div>
           <Image
