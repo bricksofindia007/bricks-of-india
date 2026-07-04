@@ -330,7 +330,7 @@ const res = await fetch('https://api.resend.com/emails', {
   method: 'POST',
   headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
   body: JSON.stringify({
-    from: 'Bricks of India <hello@bricksofindia.com>',
+    from: 'Bricks of India <abhinav@bricksofindia.com>',
     to: [BRIEF_EMAIL],
     subject: `BOI Morning Brief — ${today}`,
     html,

@@ -30,26 +30,56 @@ jobs:
 
       - run: npm run build
 
-      - name: Scan client bundle for email leak
+      - name: Scan client bundle and static public files for email leak
         run: |
-          if grep -r "abhinav@bricksofindia.com" .next/static/ 2>/dev/null; then
+          # MEDIUM-53: widened from the literal "abhinav@bricksofindia.com" to any
+          # local-part @bricksofindia.com — the old literal-only regex missed a
+          # hello@bricksofindia.com mailto link shipped in public/brand/guide.html
+          # (never caught because public/ static files were also outside scan scope).
+          EMAIL_REGEX='[A-Za-z0-9._%+-]+@bricksofindia\.com'
+          FAIL=0
+          if grep -rE "$EMAIL_REGEX" .next/static/ 2>/dev/null; then
             echo "::error::email literal found in client static bundle"
-            exit 1
+            FAIL=1
           fi
-          echo "PASS: email not in client static bundle"
+          if grep -rE "$EMAIL_REGEX" public/*.txt 2>/dev/null; then
+            echo "::error::email literal found in public/*.txt"
+            FAIL=1
+          fi
+          if grep -rE "$EMAIL_REGEX" public/brand/ 2>/dev/null; then
+            echo "::error::email literal found in public/brand/"
+            FAIL=1
+          fi
+          if [ "$FAIL" -eq 0 ]; then
+            echo "PASS: no email literal in client bundle or static public files"
+          fi
+          exit $FAIL
 
-      - name: Scan rendered HTML for email leak
+      - name: Scan rendered HTML for email leak (all built routes)
         run: |
+          EMAIL_REGEX='[A-Za-z0-9._%+-]+@bricksofindia\.com'
+          # MEDIUM-53: enumerate every static (non-dynamic-segment) app route from
+          # the build's own route manifest instead of a hand-maintained shortlist —
+          # a hardcoded 5-route list is exactly the kind of scope gap that let
+          # public/brand/guide.html ship an email address undetected.
+          node -e "
+            const routes = Object.values(require('./.next/app-path-routes-manifest.json'))
+              .filter(r => !r.includes('[') && !r.startsWith('/api/'));
+            console.log(routes.join('\n'));
+          " > /tmp/routes.txt
+          echo "Scanning $(wc -l < /tmp/routes.txt) routes:"
+          cat /tmp/routes.txt
+
           npm run start &
           SERVER_PID=$!
           sleep 8
           FAIL=0
-          for route in / /about /community /community/test-slug /contact; do
-            if curl -sf "http://localhost:3000$route" | grep -q "abhinav@bricksofindia.com"; then
+          while IFS= read -r route; do
+            if curl -sf "http://localhost:3000$route" | grep -qE "$EMAIL_REGEX"; then
               echo "::error::email literal found in rendered HTML at $route"
               FAIL=1
             fi
-          done
+          done < /tmp/routes.txt
           kill $SERVER_PID
           exit $FAIL
 
