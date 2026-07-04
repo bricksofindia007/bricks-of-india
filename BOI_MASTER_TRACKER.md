@@ -247,6 +247,33 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-07-04 (later) — Sitewide tagline rollout: "Every Brick Tells a Story" is now the single source of truth
+
+Rolled the v1.0 brand guide's taglines off the guide page and onto the live site. `BRAND.tagline` (`src/lib/brand.ts`) is now `"Every Brick Tells a Story"` (was `"More Bricks. Less Nonsense."`), plus a new `BRAND.taglineSecondary` (`"Where Everything Is Awesome, Except Financial Advice"`). Every placement below reads from these two constants — no second hardcoded copy of either string anywhere in `src/`.
+
+**Discovery first, per standing protocol:** `git grep` for both taglines before touching anything — neither existed anywhere outside `public/brand/guide.html`, so this was a clean greenfield rollout, not a dedup exercise. Discovery also surfaced that the site already had a different live tagline (`"More Bricks. Less Nonsense."`, hardcoded 4× across `layout.tsx`/`page.tsx` metadata plus a dead unused `BRAND.tagline` carrying the same string) — flagged to Abhinav before touching SEO copy rather than silently overwriting it. Direction received: replace it outright, keep it as a named "retired" line in the codex for casual-copy use.
+
+**Primary placements** (`BRAND.tagline`):
+- `src/components/layout/Footer.tsx` — under the wordmark, column 1 (sitewide, every page).
+- `src/app/page.tsx` — homepage hero, kicker line above the h1.
+- `src/app/layout.tsx` — default `description`, OG `description`, Twitter `description` (previously all three carried "More Bricks. Less Nonsense.").
+- `src/app/page.tsx` — homepage `metadata.description`, same swap.
+- `src/lib/schemas.ts` — `organizationSchema.slogan`, reads `BRAND.tagline` directly (JSON-LD).
+- `public/llms.txt` — added to the top blockquote line.
+- `src/app/about/page.tsx` — under "Founder, Bricks of India" in the hero.
+
+**Secondary placements** (`BRAND.taglineSecondary`, personality surfaces only):
+- `src/app/opinion/page.tsx` — index header, below the intro paragraph.
+- `src/app/deals/page.tsx` — header banner, below the "wallet" joke line.
+- `src/app/not-found.tsx` — below the existing copy, pairs with the Blue Confused mascot already there.
+- `src/components/ui/NewsletterSignup.tsx` — below the subscribe copy.
+
+**Verdict-adjacency check:** none of the four secondary placements sit near a BUY NOW/WAIT/IMPORT ONLY/AVOID verdict — confirmed by grepping `SetCard.tsx` (rendered on the deals page) for verdict text before placing anything there: no matches, verdicts only render on individual review pages, not deal-listing cards. Same-viewport check: the homepage carries both a primary (hero) and, further down the page, a secondary (`NewsletterSignup`) — they're far enough apart on scroll to never share a viewport, so the "one tagline per surface" rule isn't in tension here.
+
+`docs/codex/BOI_Codex_v2.md` — new `## Taglines` block under the Manifesto/persona section (Section 1), recording primary, secondary, and "More Bricks. Less Nonsense." explicitly as the retired launch-era line — usable in casual copy, never in lockups or metadata again.
+
+**Verified live-rendered**, not just committed: real `npm run build` + `npm run start` (real Supabase data via `.env.local`), confirmed in-browser that the footer tagline, `/opinion` secondary line, `/deals` secondary line, `/404` secondary line, and the homepage hero kicker all render as expected before committing.
+
 ### 2026-07-04 (latest) — Dead hello@ address removed; email-guard closed MEDIUM-53
 
 Follow-up to yesterday's brand-guide entry: Abhinav flagged that `hello@bricksofindia.com` (introduced in the guide.html footer fix, and already live as the BRIEF-01 sender) is not a real mailbox. Discovery (`git grep hello@bricksofindia` / `abhinav@bricksofindia`) before any edit, per standing protocol:

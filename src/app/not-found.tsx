@@ -1,6 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { MASCOTS } from '@/lib/brand';
+import { BRAND, MASCOTS } from '@/lib/brand';
 
 export default function NotFound() {
   return (
@@ -14,10 +14,13 @@ export default function NotFound() {
           className="mx-auto mb-6 object-contain"
         />
         <h1 className="font-heading text-dark text-6xl md:text-7xl mb-4">WELL. THIS IS AWKWARD.</h1>
-        <p className="text-gray-500 font-body text-lg mb-8">
+        <p className="text-gray-500 font-body text-lg mb-3">
           Even LEGO can&apos;t build what you&apos;re looking for.
           The page you want either doesn&apos;t exist or has wandered off somewhere.
           Let&apos;s get you back on track.
+        </p>
+        <p className="font-body text-sm mb-8" style={{ fontFamily: 'var(--font-fredoka)', color: 'var(--boi-blue)' }}>
+          {BRAND.taglineSecondary}
         </p>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
           <Link href="/" className="bg-primary text-dark font-bold px-6 py-3 rounded-xl hover:bg-yellow-400 transition-colors">

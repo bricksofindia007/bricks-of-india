@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { createServerClient } from '@/lib/supabase';
 import { SetCard } from '@/components/sets/SetCard';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
-import { MASCOTS } from '@/lib/brand';
+import { BRAND, MASCOTS } from '@/lib/brand';
 import { formatPrice } from '@/lib/utils';
 
 export const metadata: Metadata = {
@@ -119,9 +119,19 @@ export default async function DealsPage() {
         <div className="max-w-site mx-auto flex items-center gap-6">
           <div className="flex-1">
             <h1 className="font-heading text-white text-6xl mb-2">BEST LEGO DEALS IN INDIA</h1>
-            <p className="text-white/70 font-body text-lg">
+            <p className="text-white/70 font-body text-lg mb-2">
               Updated every 6 hours. These are the best prices right now across all Indian stores.
               Your wallet is about to have a very complicated day.
+            </p>
+            <p
+              style={{
+                fontFamily: 'var(--font-fredoka)',
+                fontWeight: 500,
+                fontSize: '0.9rem',
+                color: 'var(--boi-saffron)',
+              }}
+            >
+              {BRAND.taglineSecondary}
             </p>
           </div>
           <Image

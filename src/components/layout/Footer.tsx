@@ -67,9 +67,20 @@ export function Footer() {
 
           {/* Column 1 — wordmark + tagline */}
           <div className="col-span-2 md:col-span-1">
-            <Link href="/" className="inline-block mb-4">
+            <Link href="/" className="inline-block mb-2">
               <FooterWordmark />
             </Link>
+            <p
+              style={{
+                fontFamily: 'var(--font-fredoka)',
+                fontWeight: 500,
+                fontSize: '13px',
+                color: 'var(--boi-sky)',
+                marginBottom: '10px',
+              }}
+            >
+              {BRAND.tagline}
+            </p>
             <p
               style={{
                 fontFamily: 'var(--font-inter)',

@@ -91,10 +91,21 @@ export default function AboutPage() {
                 fontWeight: 700,
                 fontSize: '1.2rem',
                 color: 'var(--boi-red)',
-                marginBottom: '20px',
+                marginBottom: '6px',
               }}
             >
               Founder, Bricks of India
+            </p>
+            <p
+              style={{
+                fontFamily: 'var(--font-fredoka)',
+                fontWeight: 500,
+                fontSize: '1rem',
+                color: 'var(--boi-blue)',
+                marginBottom: '20px',
+              }}
+            >
+              {BRAND.tagline}
             </p>
             <div className="flex flex-wrap gap-3">
               <a

@@ -1,7 +1,10 @@
+import { BRAND } from './brand';
+
 export const organizationSchema = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: 'Bricks of India',
+  slogan: BRAND.tagline,
   url: 'https://www.bricksofindia.com',
   logo: 'https://www.bricksofindia.com/brand/hero-banner.png',
   contactPoint: {

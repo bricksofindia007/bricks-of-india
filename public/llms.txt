@@ -1,5 +1,5 @@
 # Bricks of India
-> India's only LEGO® price comparison, review, and news platform. Live prices across Indian retailers, honest set reviews with India price context, and LEGO news written for Indian fans.
+> Every Brick Tells a Story — India's only LEGO® price comparison, review, and news platform. Live prices across Indian retailers, honest set reviews with India price context, and LEGO news written for Indian fans.
 
 ## What this site does
 - Tracks daily LEGO prices across 2 Indian stores: Toycra, MyBrickHouse

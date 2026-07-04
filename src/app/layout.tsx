@@ -7,6 +7,7 @@ import { Footer } from "@/components/layout/Footer";
 import { JsonLd } from "@/components/JsonLd";
 import { BreadcrumbSchema } from "@/components/BreadcrumbSchema";
 import { organizationSchema, websiteSchema } from "@/lib/schemas";
+import { BRAND } from "@/lib/brand";
 
 const poppins = Poppins({
   subsets: ["latin"],
@@ -38,7 +39,7 @@ export const metadata: Metadata = {
     template: "%s | Bricks of India",
   },
   description:
-    "Compare LEGO prices across India's top stores. Updated every 6 hours. Plus honest reviews and guides. More Bricks. Less Nonsense.",
+    `Compare LEGO prices across India's top stores. Updated every 6 hours. Plus honest reviews and guides. ${BRAND.tagline}.`,
   keywords: [
     "LEGO India",
     "LEGO price comparison India",
@@ -56,7 +57,7 @@ export const metadata: Metadata = {
     siteName: "Bricks of India",
     title: "Bricks of India — LEGO Price Comparison & Reviews in India 2026",
     description:
-      "Compare LEGO prices across India's top stores. Updated every 6 hours. More Bricks. Less Nonsense.",
+      `Compare LEGO prices across India's top stores. Updated every 6 hours. ${BRAND.tagline}.`,
     images: [
       {
         url: "/assets/og-image.jpg",
@@ -69,7 +70,7 @@ export const metadata: Metadata = {
   twitter: {
     card: "summary_large_image",
     title: "Bricks of India — LEGO Price Comparison India",
-    description: "Compare LEGO prices across India's top stores. More Bricks. Less Nonsense.",
+    description: `Compare LEGO prices across India's top stores. ${BRAND.tagline}.`,
     images: ["/assets/og-image.jpg"],
   },
   robots: {

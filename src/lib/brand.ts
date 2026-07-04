@@ -1,6 +1,7 @@
 export const BRAND = {
   name: "Bricks of India",
-  tagline: "More Bricks. Less Nonsense.",
+  tagline: "Every Brick Tells a Story",
+  taglineSecondary: "Where Everything Is Awesome, Except Financial Advice",
   seoSubtitle: "India's Honest Guide to LEGO — Prices, Reviews & Where to Buy",
   domain: "https://bricksofindia.com",
   youtube: "https://www.youtube.com/@BricksofIndia",

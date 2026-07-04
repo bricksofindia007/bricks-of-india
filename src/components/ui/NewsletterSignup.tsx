@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { MASCOTS } from '@/lib/brand';
+import { BRAND, MASCOTS } from '@/lib/brand';
 import { subscribeNewsletter } from '@/app/actions/newsletter';
 
 export function NewsletterSignup() {
@@ -46,8 +46,11 @@ export function NewsletterSignup() {
             <h2 className="font-heading text-primary text-4xl md:text-5xl mb-3">
               GET INDIA'S BEST LEGO DEALS
             </h2>
-            <p className="text-gray-300 text-lg mb-6 font-body">
+            <p className="text-gray-300 text-lg mb-2 font-body">
               Delivered before your wallet finds out. No spam. Unsubscribe anytime.
+            </p>
+            <p className="text-sm mb-6" style={{ fontFamily: 'var(--font-fredoka)', color: 'var(--boi-sky)' }}>
+              {BRAND.taglineSecondary}
             </p>
 
             {status === 'success' ? (

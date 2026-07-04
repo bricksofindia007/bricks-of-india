@@ -19,7 +19,7 @@ export const revalidate = 3600; // re-fetch from Supabase at most every hour
 export const metadata: Metadata = {
   title: 'Bricks of India — LEGO Price Comparison & Reviews in India 2026',
   description:
-    "Compare LEGO prices across India's top stores. Updated every 6 hours. Plus honest reviews and guides. More Bricks. Less Nonsense.",
+    `Compare LEGO prices across India's top stores. Updated every 6 hours. Plus honest reviews and guides. ${BRAND.tagline}.`,
   alternates: { canonical: 'https://bricksofindia.com' },
 };
 
@@ -131,6 +131,17 @@ export default async function HomePage() {
           className="relative z-10 flex flex-col items-center justify-end px-4 pb-12 text-center w-full"
           style={{ minHeight: 'clamp(420px, 50vw, 560px)' }}
         >
+          <p
+            className="mb-1"
+            style={{
+              fontFamily: 'var(--font-fredoka)',
+              fontWeight: 500,
+              fontSize: 'clamp(0.95rem, 2vw, 1.15rem)',
+              color: 'var(--boi-blue)',
+            }}
+          >
+            {BRAND.tagline}
+          </p>
           <h1
             className="mb-2 leading-tight"
             style={{

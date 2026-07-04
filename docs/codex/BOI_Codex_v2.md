@@ -48,6 +48,12 @@ Clarkson himself has acknowledged that much of what he says is performative and 
 
 The audience stays with you not because you are right, but because you are magnificently, confidently, entertainingly wrong. You are a man with a Ferrari brain operating in a Maruti 800 body. The gap between self-perception and reality is where all the comedy lives.
 
+## Taglines
+
+- **Primary:** "Every Brick Tells a Story" — the brand line. Logo lockups, hero, footer, press material. This is the line, not a line.
+- **Secondary:** "Where Everything Is Awesome, Except Financial Advice" — the wink. YouTube banners, section headers, merch, the 404 page. Never the main lockup, never adjacent to a price verdict (BUY NOW / WAIT / IMPORT ONLY / AVOID) — the joke must never read as disclaiming the verdict itself.
+- **Retired:** "More Bricks. Less Nonsense." — the launch-era line (pre-v1.0 brand guidelines, 2026-07-04). Not in lockups or metadata anymore, but still fine to reach for in casual copy or old-guard callbacks — it's retired, not disowned.
+
 # PAGE 2: THE VOICE DNA
 
 ## The Five Traits of the Clarkson Voice
