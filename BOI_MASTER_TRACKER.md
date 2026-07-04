@@ -252,6 +252,21 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-07-05 — Comprehensive 360° evidence audit; monthly runbook + reminder workflow shipped
+
+Full read-only audit across GitHub Actions run history, live Supabase data, the actual production site, and repo hygiene — every finding evidence-tagged ([RUN-LOG]/[GH-API]/[DB-QUERY]/[LIVE-FETCH]/[REPO-GREP]), tracker prose treated as claims under test rather than as evidence. Full report: `docs/audits/BOI_360_AUDIT_2026-07-04.md`. Standing monthly procedure: `docs/AUDIT_RUNBOOK.md`. New `.github/workflows/monthly-audit-reminder.yml` (cron `0 3 1 * *`) emails a reminder pointing at the runbook — it does not run the audit itself.
+
+**Headline findings** (full detail and raw evidence in the report):
+- **IG-TOK-01:** one successful run exists (`ig-token-refresh.yml`, 2026-07-02, manual dispatch) — per the tracker's own stated closing bar ("a confirmed green run"), this item should close. Caveat: the cron itself (1st/15th) has never fired; first real unattended test is 2026-07-15.
+- **Generation pipeline:** materially worse than HIGH-52's last note. Three consecutive `generate-drafts.yml` runs (2026-07-03 through 2026-07-04 10:31) had **zero** successful generations (0/30, 0/50, 0/30) — not "gap not yet closed," a total stall. Partially recovered mid-audit (3/50 at 19:31 UTC same day). All 192 `approved` `pending_drafts` rows have `draft_body IS NULL`.
+- **Social posting gaps:** confirmed **not a reliability bug**. Every sampled gap day (and the DB's full 35-day posting record) ends on the same verbatim log line, "No candidates met the gallery image requirement" — a deterministic ≥10-gallery-image eligibility filter, working as designed, just infrequently satisfied.
+- **Title-tag duplication:** far more widespread than previously known — 26 of 40 swept live routes show "X | Bricks of India | Bricks of India," not just `/compare`. Two distinct root causes found: 16+ pages hardcoding the suffix in source, plus 41 content rows (`news_articles`/`blog_posts`/`reviews`) whose stored `seo_title` column already has the suffix baked into the data itself.
+- **SSL:** renewal confirmed live, valid until 2026-09-19 — closes the open question of whether the Jul 2 cert-crisis fix actually renewed.
+- **HIGH-53 and MEDIUM-50 are DRIFTED** — tracker text is stale/self-contradictory on both; see report for the exact evidence.
+- **MEDIUM-63 confirmed, understated:** `admin/dashboard.html` is 6 weeks stale (last updated 2026-05-25) against a tracker that itself flags its own health score as unrecomputed.
+
+**No §Pending item's status was changed in this pass**, per the audit's own read-only scope — the report's OPERATOR-CONFIRM list (RLFM snapshot, CE-01 replies, YT-OAUTH-01 video, GSC verification, MyBrickHouse affiliate, and others) needs Abhinav's answers before any closures happen.
+
 ### 2026-07-04 (even later) — Tagline rendering unified into a shared component (design fix on top of the sitewide rollout)
 
 Follow-up to this same day's tagline rollout: the initial rollout put both taglines on the page as ad-hoc inline-styled `<p>` tags per call site — 4 different colors for the same secondary tagline (`var(--boi-red)`, `var(--boi-saffron)`, `var(--boi-blue)`, `var(--boi-sky)` across opinion/deals/404/newsletter), no tagline in the header at all, and the homepage hero kicker floating in plain text over the banner artwork with no legibility treatment. Chat-layer Claude built and type-checked the fix against a clone of the repo at `4918dc4`; applied here verbatim after confirming every anchor (Navbar's Wordmark closing tags, all four ad-hoc secondary blocks, Footer's tagline `<p>`, the hero kicker, the codex Taglines block) matched exactly — no improvisation needed.
