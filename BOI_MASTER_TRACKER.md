@@ -19,6 +19,11 @@ the tracker wins and the dashboard must be reconciled to match.
 status moved, audit run, KPI changed, new tool added, cadence modified — MUST update
 both files in the same commit. Never one without the other.
 
+**No self-referencing commit hashes:** Entries never reference their own commit's hash —
+impossible by construction, since the hash depends on the commit's content, including
+the entry itself. Use "this commit" for self-references; explicit hashes only for prior
+commits.
+
 **Triggering events that require dashboard update:**
 1. A bug is closed (update `issues[].status` → `closed`, set `deployedOn`)
 2. A new bug is filed (add to `issues[]` with next BUG-NNN ID)
@@ -261,7 +266,7 @@ Follow-up to this same day's tagline rollout: the initial rollout put both tagli
 
 **Verified:** `tsc --noEmit` clean; real `npm run build`; local render check confirmed the header lockup tagline, hero chip, all four `TaglineWink` placements, and both About-page taglines render as expected. Grep confirmed `BRAND.taglineSecondary` now appears in exactly one `.tsx` file — `Taglines.tsx` itself.
 
-**Mobile-header gap — CLOSED 2026-07-04, commit 268315a.** Confirmed as a real gap: the `size === 'sm'` gate was specced against an invocation pattern that doesn't exist in this codebase (`Navbar.tsx` only ever calls `<Wordmark size="md" />` — no mobile-specific invocation), so the gate was a no-op and the tagline showed at every viewport width. Ruling: tagline hidden below the `md` breakpoint. Fix: added `className="hidden md:block"` to the tagline `<div>` itself — the responsive class does the real work at viewport level; the `size === 'md'` gate stays as harmless future-proofing in case a drawer wordmark ever passes `'sm'`. Verified via the compiled CSS (not a forced browser resize — the browser tool's viewport-resize didn't take effect in this environment, confirmed stuck at 1280px regardless of requested size): `.hidden{display:none}` is the unconditional base rule, and `@media (min-width:768px){.md\:block{display:block}}` is the only override, and the rendered DOM confirms the tagline `<div>` carries both classes. `tsc --noEmit` clean, `npm run build` clean.
+**Mobile-header gap — CLOSED 2026-07-04, commit 511cf80.** Confirmed as a real gap: the `size === 'sm'` gate was specced against an invocation pattern that doesn't exist in this codebase (`Navbar.tsx` only ever calls `<Wordmark size="md" />` — no mobile-specific invocation), so the gate was a no-op and the tagline showed at every viewport width. Ruling: tagline hidden below the `md` breakpoint. Fix: added `className="hidden md:block"` to the tagline `<div>` itself — the responsive class does the real work at viewport level; the `size === 'md'` gate stays as harmless future-proofing in case a drawer wordmark ever passes `'sm'`. Verified via the compiled CSS (not a forced browser resize — the browser tool's viewport-resize didn't take effect in this environment, confirmed stuck at 1280px regardless of requested size): `.hidden{display:none}` is the unconditional base rule, and `@media (min-width:768px){.md\:block{display:block}}` is the only override, and the rendered DOM confirms the tagline `<div>` carries both classes. `tsc --noEmit` clean, `npm run build` clean.
 
 ### 2026-07-04 (later) — Sitewide tagline rollout: "Every Brick Tells a Story" is now the single source of truth
 
