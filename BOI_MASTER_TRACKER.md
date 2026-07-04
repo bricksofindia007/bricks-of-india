@@ -820,7 +820,7 @@ Shipped:
 ### Day 27 — 2026-05-27 (included in Day 28 close)
 
 Items shipped in Day 27 session (prior context window — included in Day 28 close commit):
-- BRIEF-01 daily digest live: `scripts/morning-brief.mjs` (6-section HTML email) + `.github/workflows/brief.yml` (01:30 UTC / 07:00 IST). Sender: hello@bricksofindia.com. Resend ID e78409af confirmed.
+- BRIEF-01 daily digest live: `scripts/morning-brief.mjs` (6-section HTML email) + `.github/workflows/brief.yml` (01:30 UTC / 07:00 IST). Sender: hello@bricksofindia.com. Resend ID e78409af confirmed. [sender changed to abhinav@ on 2026-07-04, commit d3b016f]
 - generate-drafts 429 bail fix — script breaks immediately on first 429.
 - RESEND_API_KEY fixed (Day 26/27 carryover).
 - health-check.yml: 11 checks, email working.
