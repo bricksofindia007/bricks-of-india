@@ -55,6 +55,7 @@ function Wordmark({ size = 'md' }: { size?: 'sm' | 'md' }) {
       </div>
       {size === 'md' && (
         <div
+          className="hidden md:block"
           style={{
             fontFamily: 'var(--font-fredoka)',
             fontWeight: 500,
