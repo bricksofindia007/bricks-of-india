@@ -76,3 +76,4 @@ export const PRICE_RANGES = [
   { label: "₹5,000–₹15,000", min: 5000, max: 15000 },
   { label: "₹15,000+", min: 15000, max: Infinity },
 ] as const;
+
