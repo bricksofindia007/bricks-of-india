@@ -16,6 +16,8 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass, field
 
+from num2words import num2words
+
 BANNED_PATTERNS = [
     r"today we'?re looking",
     r"lego has announced",
@@ -60,6 +62,30 @@ _MARKDOWN_STRIP_RE = re.compile(r"[*_#`]+")
 def sanitize_script(raw: str) -> str:
     stripped = _MARKDOWN_STRIP_RE.sub("", raw)
     return re.sub(r"[ \t]+", " ", stripped).strip()
+
+
+# TTS-only transform, applied after sanitize_script but never to the stored
+# script (video_posts.script, captions) -- ElevenLabs doesn't reliably speak
+# the ₹ glyph or an "Rs" shorthand as "rupees", verified live 2026-07-05 (a
+# real render said the literal letters "R S"). Humans read "₹26,999"
+# instantly; only the audio layer needs it spelled out.
+# Digit-groups only (each comma must be followed by 2-3 more digits) -- a
+# bare [\d,]+ also swallows a sentence's trailing punctuation comma right
+# after the number ("₹26,999, roughly" -> matched "26,999," including the
+# comma that belongs to the sentence, not the number). Verified live.
+_RUPEE_AMOUNT_RE = re.compile(r"₹\s*(\d{1,3}(?:,\d{2,3})*)(?:\.(\d+))?")
+
+
+def normalize_currency_for_tts(script: str) -> str:
+    def replace(m: re.Match) -> str:
+        whole = int(m.group(1).replace(",", ""))
+        words = num2words(whole, lang="en")
+        if m.group(2):
+            paise_words = num2words(int(m.group(2)), lang="en")
+            return f"{words} rupees and {paise_words} paise"
+        return f"{words} rupees"
+
+    return _RUPEE_AMOUNT_RE.sub(replace, script)
 
 CTA_OR_SIGNOFF_RE = re.compile(
     r"(follow|like|subscribe|comment|see you|until next time|that'?s (it|all) for (today|now))",

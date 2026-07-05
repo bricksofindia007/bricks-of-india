@@ -5,3 +5,4 @@ moviepy<2.0
 requests
 python-dotenv
 supabase
+num2words

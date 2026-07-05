@@ -370,8 +370,16 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
 # ── STEP 6: TTS ─────────────────────────────────────────────────────────────────
 
 def generate_tts(script: str, output_path: Path) -> None:
-    if len(script) > ELEVENLABS_MAX_SCRIPT_CHARS:
-        print(f"ERROR: script is {len(script)} chars, over the {ELEVENLABS_MAX_SCRIPT_CHARS}-char hard guard. Refusing to call ElevenLabs.", file=sys.stderr)
+    # Currency spoken-word expansion happens here, at the TTS boundary only --
+    # the stored script (video_posts.script, captions) keeps the ₹ numeral
+    # form; humans read "₹26,999" instantly, only the audio layer needs
+    # "twenty-six thousand, nine hundred and ninety-nine rupees". The char
+    # guard must check the EXPANDED text, since that's what's actually sent
+    # to (and billed by) ElevenLabs -- expansion makes the payload longer
+    # than the stored script.
+    tts_text = gates.normalize_currency_for_tts(script)
+    if len(tts_text) > ELEVENLABS_MAX_SCRIPT_CHARS:
+        print(f"ERROR: TTS text is {len(tts_text)} chars after currency expansion, over the {ELEVENLABS_MAX_SCRIPT_CHARS}-char hard guard. Refusing to call ElevenLabs.", file=sys.stderr)
         sys.exit(1)
 
     api_key = os.environ.get("ELEVENLABS_API_KEY")
@@ -384,7 +392,7 @@ def generate_tts(script: str, output_path: Path) -> None:
     client = ElevenLabs(api_key=api_key)
     audio_chunks = client.text_to_speech.convert(
         voice_id,
-        text=script,
+        text=tts_text,
         # Verified live 2026-07-05: the brief's "eleven_flash_v2.5" (period)
         # 400s with "invalid_uid" -- ElevenLabs' real model ID uses an
         # underscore, confirmed against their own docs.
@@ -435,13 +443,29 @@ def make_ken_burns_clip(image_path: Path, duration_s: float, zoom: float = KEN_B
 
 
 def download_images(urls: list[str], max_images: int = 6) -> list[Path]:
+    # Verified 2026-07-05 on a real run: Shopify serves some product images as
+    # transparent cutout PNGs (this candidate: 5 of 6, ~52% transparent
+    # pixels), despite the file being saved with a ".jpg" extension here.
+    # moviepy's ImageClip drops the alpha channel and reads the raw RGB
+    # values underneath -- PNGs conventionally store RGB=(0,0,0) in fully
+    # transparent regions, so those areas rendered as solid black in the
+    # final video. Flatten onto white here, once, at download time, so every
+    # downstream consumer (Ken Burns, gates, everything) always sees a plain
+    # opaque JPEG regardless of what format the source actually was.
     paths = []
     for i, url in enumerate(urls[:max_images]):
         resp = requests.get(url, timeout=20)
         resp.raise_for_status()
-        ext = ".jpg"
-        path = TEMP_DOWNLOAD / f"product_{i}{ext}"
-        path.write_bytes(resp.content)
+        path = TEMP_DOWNLOAD / f"product_{i}.jpg"
+        img = Image.open(io.BytesIO(resp.content))
+        if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
+            img = img.convert("RGBA")
+            flattened = Image.new("RGB", img.size, (255, 255, 255))
+            flattened.paste(img, mask=img.split()[3])
+            img = flattened
+        else:
+            img = img.convert("RGB")
+        img.save(path, "JPEG", quality=95)
         paths.append(path)
     return paths
 
