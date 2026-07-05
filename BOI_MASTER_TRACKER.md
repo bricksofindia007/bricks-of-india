@@ -87,7 +87,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 | Phase 1 | Voice Codex | ✅ Done — `docs/codex/BOI_Codex_v2.docx` committed 2026-05-01 | CONTENT |
 | Phase 2 | Claude Project workbench | 🟡 Unblocked — pending setup | CONTENT |
 | Phase 3 | Topical Radar (RSS ingestion) | 🟡 In progress — RADAR-01–05/CRON ✅ Done. WEB-01–04 ✅ Done. DEFECT-005 ✅ closed. REVIEWS-FIRST-3 ✅ Done Day 14. RADAR-08 ✅ Done Day 26 (automated reviews pipeline). GHA batch generation ✅ Done Day 26 (generate-drafts.yml + dispatch button). 338 approved drafts awaiting bodies — first GHA run in progress 2026-05-27 03:51 UTC. | CONTENT |
-| Phase 4 | Shorts / Reels workflow (DaVinci + ElevenLabs) | 🔴 Not started | VIDEO |
+| Phase 4 | Shorts / Reels workflow (DaVinci + ElevenLabs) | 🟡 In progress — VID-P4-01 engine built 2026-07-05 (candidate selector, Codex script gen, pre-TTS gates, assembly). VID-P4-02 (first supervised live run) pending operator keys + recorded clips. | VIDEO |
 | Phase 5 | Social automation (carousel + Reels + YouTube Shorts) | ✅ Done — SOC-AUTO-01 shipped. Daily cron 12:00 IST. First live run 2026-05-24: 76342-1 Daily Bugle posted to IG Feed (8-image carousel) + IG Reels (8s) + YouTube Shorts (45s). Gallery via Brickset API. | SOCIAL |
 | Phase 8 | LEGO Search Pulse | ✅ Live — LAB-07 /lab/heat-map shipped 2026-05-10. D3 choropleth India + world view, 23 states, city drill-down. | WEB (PULSE-01→N) |
 
@@ -251,6 +251,18 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### 2026-07-05 (latest) — VID-P4: daily video pipeline built and verified without spending
+
+Phase 4 moves 🔴→🟡. Built `scripts/video/{engine.py,gates.py,prompts.py}` per the operator's adapted project brief — candidate selection from Toycra + MyBrickHouse, Gemini/Cerebras script generation against the fixed Codex video-voice system prompt, 7 pre-TTS quality gates, ElevenLabs TTS, moviepy Ken Burns assembly, `video_posts` DB logging. New `video_posts` table (RLS enabled, service-role-only, matching the `generator_runs`/`pending_drafts` admin-table pattern). Full detail and every verified correction in VID-P4-01 above; headline items:
+
+- **Two real gate bugs found and fixed via live testing, not assumed correct from spec:** G7 opener-uniqueness's "first-sentence" window missed the exact multi-sentence template-reuse incident it exists to catch (widened to first-150-chars, matching the original web-pipeline Gate 8); G2's bare `\blike\b` banned pattern failed real scripts using "like" as normal conversational English the system prompt itself requires.
+- **Cerebras model corrected:** brief said `llama3.1-8b` (404s on this account) → `gpt-oss-120b`, matching the main site's already-proven failover model.
+- **moviepy 1.0.3 + Pillow 10.3.0 incompatibility found and patched:** `PIL.Image.ANTIALIAS` removed in Pillow ≥10; monkeypatched to `Image.LANCZOS` before importing moviepy.
+- **Real operational finding, not fixed (system prompt left untouched per "do not dilute"):** 6 live Gemini generations during verification, all over the 110-125 word target (132-165 words, 0 in range). Documented as an expected daily-workflow reality in the runbook, not silently worked around.
+- **Full dry-run, real data throughout:** live Shopify candidate fetch, live Gemini/Cerebras script attempts, real gate runs, real image downloads, real placeholder audio, real moviepy/ffmpeg render (`ffprobe`-confirmed 1080x1920 h264/aac, 54.0s), real `video_posts` insert + `--posted` update. Zero ElevenLabs spend — TTS is the one call gated on the operator's real keys.
+- New `docs/runbooks/VIDEO_PIPELINE.md` (daily flow) and `scripts/video/README.md` (setup, including the ffmpeg-not-on-PATH gotcha and the moviepy-pin rationale).
+- MEDIUM-61 (EL-05 voice decision) closed: ElevenLabs Instant Voice Clone, Starter tier, decided 2026-07-05 — skipped the full EL-01→04 sequence, went straight to build.
 
 ### 2026-07-05 (even later) — Gemini call pacing; IMPORT ONLY rating fix; Fan CoLab timeline unarchived
 
@@ -2303,15 +2315,41 @@ Decision deferred to Day 3 open.
 
 ### Video — Phase 4
 
-> Full Phase 4 spec (22 tasks: EL-01→05, YT-01→05, SHORT-01→04, FLOW-01→04, EQUIP-01→04) is in `docs/archive/BOI_VIDEO_TRACKER.md`. This single gate entry is the only master tracker item needed — all Phase 4 tasks flow from the EL-05 decision.
+> Full Phase 4 spec (22 tasks: EL-01→05, YT-01→05, SHORT-01→04, FLOW-01→04, EQUIP-01→04) is in `docs/archive/BOI_VIDEO_TRACKER.md`. VID-P4-01/02 below are the new build-tracking items layered on top of that spec — they don't replace it.
 
 #### MEDIUM-61: Phase 4 video gate — EL-05 voice clone decision
 - **What:** All video production is gated on EL-05: operator decision on ElevenLabs AI voice clone after completing EL-01 (record voice sample) → EL-02 (clone on ElevenLabs) → EL-03 (test vs Codex v2 rubric) → EL-04 (cost-benefit review) → EL-05 (decision: full AI clone / hybrid / natural voice only). DaVinci Resolve confirmed as editor (EQUIP-01 done). Full breakdown in `docs/archive/BOI_VIDEO_TRACKER.md`.
 - **Source:** E3; BOI_VIDEO_TRACKER.md Phase 4 spec; absent from master tracker prior to consolidation audit
-- **Status:** not started — intentionally gated on EL-05 decision
-- **Owner:** A (EL-05 decision — all other Phase 4 tasks follow)
-- **Target window:** unscheduled — before RLFM renewal if not achievable for 2026 application
-- **Dependencies:** EQUIP-01 (✅ DaVinci Resolve confirmed); all other Phase 4 tasks block on this
+- **Status: ✅ DECIDED 2026-07-05.** EL-05 = ElevenLabs Instant Voice Clone (IVC), Starter tier. Not the full EL-01→04 sequence (natural-voice-only or a from-scratch cost-benefit review) — decided directly, moving straight to build. This unblocks VID-P4-01/02 below.
+- **Owner:** A (decided).
+- **Target window:** Done.
+- **Dependencies:** EQUIP-01 (✅ DaVinci Resolve confirmed).
+
+#### VID-P4-01: Daily video pipeline engine (candidate selector, script gen, gates, assembly)
+- **What:** `scripts/video/{engine.py,gates.py,prompts.py}` — Shopify candidate selection (Toycra + MyBrickHouse), Gemini script generation (Cerebras failover, 4-6s paced) against the fixed Codex video-voice system prompt, 7 pre-TTS quality gates, ElevenLabs TTS, moviepy assembly (Ken Burns over product images between the operator's recorded intro/outro), `video_posts` DB logging.
+- **Source:** Operator project brief, adapted 2026-07-05.
+- **Status: ✅ CLOSED 2026-07-05 — built and verified end-to-end without spending on TTS** (`--no-tts`). Real corrections made during verification, not assumed correct from the brief:
+  - **Set-number range:** brief said 4-5 digits; the existing web-pipeline convention (`scripts/scrape-now.mjs`) uses 4-6 — verified against a real 6-digit catalog set (`853653`) that a 4-5-digit rule would have missed. Used 4-6.
+  - **G5 factuality extraction:** a bare 4-6-digit regex would false-positive on years mentioned in a script ("since 2016") — ported the web pipeline's actual structural-context extraction (`extractSetNumberCandidates`, LEGO/set-prefixed, `#`-prefixed, parenthetical, or title-adjacent numbers, with year-range and currency-adjacency exclusions) instead of a weaker from-scratch version.
+  - **G7 opener uniqueness:** brief said "first-sentence similarity"; tested literally against the exact motivating incident ("Your wallet called. It wants to discuss the LEGO ___.") and found a single-sentence cut misses it entirely, since the repeating template spans two sentences. Widened to the original web-pipeline Gate 8's actual window (first 150 chars, not sentence-bounded) — confirmed catches the real incident and doesn't false-positive on genuinely different openers.
+  - **G2 banned patterns:** an initial bare `\blike\b` match failed real generated scripts using "like" as a normal preposition ("feels like", "told like a friend at a chai stall" — the latter literally quoted in the system prompt itself). Narrowed to the actual CTA-phrase sense (`like and subscribe`, `hit like`, `like this video`, `like button`) — bare `follow`/`subscribe`/`comment` kept as-is per the brief, no false positives observed there.
+  - **Cerebras model name:** brief said `llama3.1-8b` — returns `404 model_not_found` on this account (`client.models.list()` shows only `gemma-4-31b`/`zai-glm-4.7`/`gpt-oss-120b`). Used `gpt-oss-120b`, matching the main site's already-proven Cerebras failover model.
+  - **moviepy/Pillow incompatibility:** moviepy 1.0.3's resize path calls `PIL.Image.ANTIALIAS`, removed in Pillow >=10 (installed: 10.3.0) — raises `AttributeError` on any `.resize()` call. Monkeypatched `Image.ANTIALIAS = Image.LANCZOS` (same algorithm, renamed) at the top of `engine.py` before importing moviepy.
+  - **Real, reproducible finding, not a bug:** across 6 live Gemini generations during verification, word count was over the 110-125 target every single time (132, 150, 142, 165, 149, 143). System prompt left untouched per "do not dilute" — flagged as an operational reality in `docs/runbooks/VIDEO_PIPELINE.md`'s troubleshooting section, expect the word-count gate to be the most common failure and more than one `--pick` attempt some days.
+  - **Full dry-run verification:** real candidate fetch (live Shopify JSON, both stores), real Gemini/gate cycle (6 real generation attempts, 2 real gate bugs found and fixed), real image download, real placeholder audio, real moviepy/ffmpeg render to 1080x1920 h264/aac (`ffprobe`-confirmed, 54.0s), real `video_posts` insert and `--posted` status update. All test DB rows and rendered test artifacts deleted/cleaned after verification.
+- **Owner:** C (built).
+- **Target window:** Done.
+- **Dependencies:** MEDIUM-61 (decided).
+
+#### VID-P4-02: First supervised live run
+- **What:** First real end-to-end run with real ElevenLabs TTS (spending Starter-tier credits) and the operator's actual recorded `intro_hook.mp4`/`outro_signoff.mp4` in `scripts/video/master_assets/`. Confirms voice-clone quality, real render duration/pacing, and the manual IG Reels + YT Shorts upload flow before this becomes a daily habit.
+- **Source:** VID-P4-01 follow-on.
+- **Status:** pending — blocked on the operator setting up the `Bricks-of-India-Social` Google AI Studio project (`GEMINI_SOCIAL_API_KEY`) and ElevenLabs Starter account (`ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID`), plus dropping the two recorded clips into `master_assets/`.
+- **Owner:** A (accounts + clips) → C (run once unblocked).
+- **Target window:** Whenever the operator's accounts/clips are ready — no hard deadline set.
+- **Dependencies:** VID-P4-01 (done); operator keys; operator clips.
+
+**Lane separation, VID-P4 vs. SOC-AUTO-01 (existing daily social automation):** distinct DB tables (`video_posts` vs `posted_sets`), distinct trigger (manual `--pick` vs. automatic daily cron), distinct format (full voiceover video vs. static preview card), distinct caption/voice register (review/opinion Clarkson-voice vs. preview/announcement tone). Both log independently — a set can legitimately have both a `posted_sets` row (automatic preview card) and a `video_posts` row (manual review video) with neither pipeline aware of the other. Full detail in `docs/runbooks/VIDEO_PIPELINE.md`.
 
 ---
 
