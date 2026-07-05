@@ -9,7 +9,10 @@
  *
  * Prompt and lint logic lives in src/lib/prompts/draft-prompt.ts and src/lib/lint.ts.
  * Generation with Gemini→Cerebras failover lives in src/lib/generate-with-failover.ts.
- * Rate: 7 s delay between Gemini calls (free tier: 10 RPM).
+ * Rate: rolling 10-calls/60s window (free tier RPM) plus a 4-6s minimum gap
+ * between consecutive calls — the window alone permits bursting all 10 calls
+ * in under a second, which is correct for total-volume RPM but still looks
+ * like a burst/QPS spike server-side. Pacing applies at any billing tier.
  */
 
 import dotenv from 'dotenv';
@@ -44,19 +47,42 @@ const GEMINI_RPM_LIMIT = 10;
 const GEMINI_WINDOW_MS = 60_000;
 const _geminiCallLog: number[] = [];
 
+// Inter-request pacing (2026-07-05): the rolling-window limiter above bounds
+// total calls per minute but not their spacing — it will happily let all 10
+// through in under a second if the window is otherwise empty. That's correct
+// for RPM accounting but still bursty enough to look like a QPS spike to
+// Gemini's servers, independent of which billing tier/quota applies. Enforce
+// a minimum 4-6s (randomized, not a fixed cadence) gap between consecutive
+// calls on top of the window check.
+const GEMINI_MIN_GAP_MS = 4_000;
+const GEMINI_MAX_GAP_MS = 6_000;
+let _lastGeminiCallAt = 0;
+
 async function acquireGeminiSlot(): Promise<void> {
   while (true) {
     const now = Date.now();
     while (_geminiCallLog.length > 0 && now - _geminiCallLog[0] >= GEMINI_WINDOW_MS) {
       _geminiCallLog.shift();
     }
-    if (_geminiCallLog.length < GEMINI_RPM_LIMIT) {
-      _geminiCallLog.push(now);
-      return;
+    if (_geminiCallLog.length >= GEMINI_RPM_LIMIT) {
+      const waitMs = GEMINI_WINDOW_MS - (now - _geminiCallLog[0]) + 150;
+      console.log(`  [rate-limit] ${_geminiCallLog.length}/10 slots used in last 60 s — waiting ${(waitMs / 1000).toFixed(1)} s`);
+      await new Promise<void>(r => setTimeout(r, waitMs));
+      continue;
     }
-    const waitMs = GEMINI_WINDOW_MS - (now - _geminiCallLog[0]) + 150;
-    console.log(`  [rate-limit] ${_geminiCallLog.length}/10 slots used in last 60 s — waiting ${(waitMs / 1000).toFixed(1)} s`);
-    await new Promise<void>(r => setTimeout(r, waitMs));
+
+    const targetGap = GEMINI_MIN_GAP_MS + Math.random() * (GEMINI_MAX_GAP_MS - GEMINI_MIN_GAP_MS);
+    const sinceLastCall = now - _lastGeminiCallAt;
+    if (_lastGeminiCallAt > 0 && sinceLastCall < targetGap) {
+      const waitMs = targetGap - sinceLastCall;
+      console.log(`  [pacing] ${(sinceLastCall / 1000).toFixed(1)} s since last call — waiting ${(waitMs / 1000).toFixed(1)} s more`);
+      await new Promise<void>(r => setTimeout(r, waitMs));
+      continue;
+    }
+
+    _geminiCallLog.push(now);
+    _lastGeminiCallAt = now;
+    return;
   }
 }
 
