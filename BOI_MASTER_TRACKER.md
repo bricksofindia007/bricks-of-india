@@ -252,6 +252,30 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-07-05 (VID-P4-01 follow-up) — Two root-cause fixes: char guard recomputed from evidence, markdown sanitized not gate-leniently tolerated
+
+**✅ CLOSED.** Both fixes address false failures on already-*compliant* content — G1's word range (105-135) was correctly retuned earlier this session from real data and was NOT touched again here.
+
+**Fix 1 — `ELEVENLABS_MAX_SCRIPT_CHARS` recomputed from evidence, not re-guessed:**
+- Verified `eleven_flash_v2_5`'s real billing rate against ElevenLabs' own pricing docs: 0.5 credits/char (Flash/Turbo discounted rate, vs 1 credit/char for Multilingual v2).
+- Observed chars/word this session, two real gate-passing scripts that were then wrongly refused by the old 800-char guess: 827/131 = 6.31 chars/word, 810/128 = 6.33 chars/word.
+- New guard: 135 words (G1 ceiling) × 6.5 chars/word (above both real samples) = 877.5, +15% safety margin = 1009 → **1000 chars.**
+- Cost check, worst case (every script hits exactly 1000 chars, 30 scripts/month = one/day): 1000 × 0.5 = 500 credits/script × 30 = **15,000 credits/month vs. the Starter plan's 30,000/month allowance — 50% utilization, 2x headroom** even in the absolute worst case.
+- Old 800-char figure was never derived from this arithmetic — it was a guess that collided with G1's own range, refusing two scripts this session that had already cleared word-count cleanly.
+
+**Fix 2 — Markdown sanitization, not gate leniency:**
+- `gates.sanitize_script()` strips `*`, `_`, `#`, and backtick immediately after raw Gemini output, before any gate runs. Does not touch ₹, apostrophes, or any other punctuation. Verified: 3 of 6 real generations this session hit the asterisk hard-fail — a persistent Gemini tendency for this voice/content type, not a fluke.
+- Gates now run against the *sanitized* text, and the sanitized text (not raw) is what's stored as `video_posts.script` and sent to TTS — gates must judge what TTS actually speaks.
+- `GateReport.as_dict()` now includes a `_sanitization` block (`raw_script`, `sanitized_script`, `markdown_stripped`) in every `video_posts.gate_results` row going forward — a standing metric for how often Gemini still tries markdown, not just a one-time fix.
+
+**Real end-to-end verification, first actual ElevenLabs spend:**
+- Fresh `--pick 1` run cleared all 7 gates organically on attempt 2 (129 words, no markdown, no char-guard refusal) and reached ElevenLabs for the first time this project.
+- Real render with the operator's actual `master_assets` clips (not placeholders): intro 14.32s + outro 12.11s + real-TTS middle, **81.47s total** (`ffprobe`-confirmed: h264 1080x1920 30fps + AAC 44100Hz stereo, `probe_score=100`).
+- `video_posts` row `4d15041b-f5e4-4b1f-93d7-23bde6074402` inserted, `status='rendered'`. **Not posted anywhere — saved locally for operator review per instruction.**
+- Exact credits consumed: could not pull a literal real-time balance/usage confirmation from ElevenLabs' API — this key's scope is missing both `user_read` (subscription/usage endpoint) and `speech_history_read` (history endpoint), both returned 401. Reported instead as an exact computation: the real script sent was precisely 826 characters (from the DB row) × the confirmed 0.5 credits/char rate = **413 credits** for this one video. Flagged to the operator as a real API-scope limitation, not glossed over as "verified" when it wasn't.
+
+**Also fixed in this pass (found during the real run, not assumed):** `eleven_flash_v2.5` (period) 400s as `invalid_uid` — ElevenLabs' real model ID uses an underscore, `eleven_flash_v2_5`. Corrected in `generate_tts()`.
+
 ### 2026-07-05 (even later still) — Netlify build-skip guard: fixes the real mechanism, not the one first suspected
 
 **✅ CLOSED.** Repeatedly-raised operator concern ("stop unnecessary Netlify builds") that had never actually been enforced. Real root cause was not where the initial fix request pointed:

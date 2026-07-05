@@ -39,7 +39,27 @@ BANNED_PATTERNS = [
 ]
 
 # TTS reads these characters aloud if present — hard-fail, don't just strip.
-FORBIDDEN_CHARS_RE = re.compile(r"[\U0001F300-\U0001FAFF\U00002600-\U000027BF*#\[\]]")
+# *, #, and backtick are NOT in this list (see _MARKDOWN_STRIP_RE below) --
+# those are Gemini markdown habits, not genuinely TTS-unsafe content, and
+# get sanitized out before any gate sees the script. Emoji and brackets stay
+# hard-failed: unlike stray asterisks, they're not a "formatting tic" to
+# silently clean up, and hard-failing surfaces a real prompt-compliance
+# problem rather than papering over it.
+FORBIDDEN_CHARS_RE = re.compile(r"[\U0001F300-\U0001FAFF\U00002600-\U000027BF\[\]]")
+
+# Markdown-only formatting characters Gemini adds despite the system prompt's
+# explicit "no markdown, no asterisks" rule -- verified live 2026-07-05: 3 of
+# 6 real generations this session hit this, a persistent tendency, not a
+# fluke. Stripped before any gate runs (not gate leniency -- the *sanitized*
+# text is what actually reaches TTS, so gates must see what TTS sees).
+# Deliberately narrow: only *, _, #, and backtick. Never touches ₹,
+# apostrophes, or any other legitimate punctuation.
+_MARKDOWN_STRIP_RE = re.compile(r"[*_#`]+")
+
+
+def sanitize_script(raw: str) -> str:
+    stripped = _MARKDOWN_STRIP_RE.sub("", raw)
+    return re.sub(r"[ \t]+", " ", stripped).strip()
 
 CTA_OR_SIGNOFF_RE = re.compile(
     r"(follow|like|subscribe|comment|see you|until next time|that'?s (it|all) for (today|now))",
@@ -94,13 +114,25 @@ class GateResult:
 @dataclass
 class GateReport:
     results: list[GateResult] = field(default_factory=list)
+    raw_script: str = ""
+    sanitized_script: str = ""
 
     @property
     def all_passed(self) -> bool:
         return all(r.passed for r in self.results)
 
     def as_dict(self) -> dict:
-        return {r.gate: {"pass": r.passed, "reason": r.reason} for r in self.results}
+        d = {r.gate: {"pass": r.passed, "reason": r.reason} for r in self.results}
+        # Standing metric, not a gate result: how often Gemini still tries
+        # markdown despite the system prompt forbidding it, even after the
+        # sanitization fix. Kept here (not a separate column) so it rides
+        # along with every video_posts row for free.
+        d["_sanitization"] = {
+            "raw_script": self.raw_script,
+            "sanitized_script": self.sanitized_script,
+            "markdown_stripped": self.raw_script != self.sanitized_script,
+        }
+        return d
 
 
 def _word_count(script: str) -> int:
@@ -108,10 +140,14 @@ def _word_count(script: str) -> int:
 
 
 def gate_word_count(script: str) -> GateResult:
+    # Widened 2026-07-05 (Abhinav, explicit) from 100-130 to 105-135 after 6
+    # live Gemini generations all landed 132-165 words -- 105-135 maps to
+    # ~42-54s at conversational pace, still close to the ~50s sandwich-video
+    # target even at the top of the range.
     n = _word_count(script)
-    if 100 <= n <= 130:
+    if 105 <= n <= 135:
         return GateResult("G1_word_count", True, f"{n} words")
-    return GateResult("G1_word_count", False, f"{n} words, outside 100-130")
+    return GateResult("G1_word_count", False, f"{n} words, outside 105-135")
 
 
 def gate_banned_patterns(script: str) -> GateResult:
@@ -239,12 +275,16 @@ def gate_opener_uniqueness(script: str, recent_scripts: list[str]) -> GateResult
 
 
 def run_all_gates(
-    script: str,
+    raw_script: str,
     pieces: int | None,
     sets_lookup,
     recent_scripts: list[str],
 ) -> GateReport:
-    report = GateReport()
+    # Sanitize before any gate runs, not after -- the sanitized text is what
+    # actually reaches TTS, so every gate (word count, banned patterns, the
+    # rest) must judge the same text that will be spoken, not the raw draft.
+    script = sanitize_script(raw_script)
+    report = GateReport(raw_script=raw_script, sanitized_script=script)
     report.results.append(gate_word_count(script))
     report.results.append(gate_banned_patterns(script))
     report.results.append(gate_contains_rupee(script))

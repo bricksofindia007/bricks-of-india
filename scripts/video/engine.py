@@ -77,7 +77,27 @@ GEMINI_MIN_GAP_S = 4.0
 GEMINI_MAX_GAP_S = 6.0
 _last_gemini_call_at = 0.0
 
-ELEVENLABS_MAX_SCRIPT_CHARS = 800
+# Recomputed 2026-07-05 from real ElevenLabs rate + observed chars/word ratio
+# -- see commit for the fix that introduced this. Do not reset without
+# recomputing.
+#
+# Rate: eleven_flash_v2_5 costs 0.5 credits/char (confirmed against
+# ElevenLabs' own pricing docs -- Flash/Turbo models get the discounted
+# 0.5x rate, vs 1 credit/char for Multilingual v2).
+# Observed chars/word this session (two real gate-passing scripts, before
+# this fix): 827 chars / 131 words = 6.31 chars/word; 810 chars / 128 words
+# = 6.33 chars/word. Using 6.5 chars/word (above both real samples) at
+# G1's 135-word ceiling: 135 * 6.5 = 877.5 chars, +15% safety margin for
+# word-length variance on scripts not yet seen = 1009 -> round to 1000.
+# Cost check, worst case (every script hits exactly 1000 chars, 30
+# scripts/month = one per day): 1000 * 0.5 credits/char = 500 credits/script
+# * 30 = 15,000 credits/month, vs the Starter plan's 30,000 credits/month
+# allowance -- 50% utilization, 2x headroom even in the absolute worst case.
+# (Old 800-char guard was never derived from this arithmetic -- it was a
+# guess, and it collided with G1's own 105-135 word range: two real scripts
+# this session passed G1 cleanly at 131 and 128 words and still got refused
+# at the char guard, which is the bug this recompute fixes.)
+ELEVENLABS_MAX_SCRIPT_CHARS = 1000
 
 
 # ── Env / clients ─────────────────────────────────────────────────────────────
@@ -253,8 +273,10 @@ def _gemini_pace() -> None:
     _last_gemini_call_at = time.time()
 
 
-def generate_script(title: str, price_inr: float, store_name: str, pieces: int | None, theme: str | None) -> str:
+def generate_script(title: str, price_inr: float, store_name: str, pieces: int | None, theme: str | None, retry_note: str | None = None) -> str:
     task_prompt = prompts.build_task_prompt(title, price_inr, store_name, pieces, theme)
+    if retry_note:
+        task_prompt = f"{task_prompt}\n\n{retry_note}"
 
     gemini_key = os.environ.get("GEMINI_SOCIAL_API_KEY")
     if gemini_key:
@@ -312,6 +334,10 @@ def get_recent_scripts(sb, n: int = 30) -> list[str]:
     return [row["script"] for row in res.data if row.get("script")]
 
 
+MAX_GENERATION_ATTEMPTS = 4  # initial + 3 retries, per 2026-07-05 word-count fix
+RETRY_NOTE = "Your last attempt was too long. This one must be under 125 words. Cut ruthlessly."
+
+
 def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport]:
     recent = get_recent_scripts(sb)
 
@@ -319,19 +345,22 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
         res = sb.table("sets").select("pieces, theme").eq("set_number", set_number).limit(1).execute()
         return res.data[0] if res.data else None
 
-    for attempt in (1, 2):
-        script = generate_script(candidate["title"], candidate["price_inr"], candidate["store_name"], candidate.get("pieces"), candidate.get("theme"))
-        report = gates.run_all_gates(script, candidate.get("pieces"), sets_lookup, recent)
+    for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
+        retry_note = RETRY_NOTE if attempt > 1 else None
+        raw_script = generate_script(candidate["title"], candidate["price_inr"], candidate["store_name"], candidate.get("pieces"), candidate.get("theme"), retry_note=retry_note)
+        report = gates.run_all_gates(raw_script, candidate.get("pieces"), sets_lookup, recent)
         if report.all_passed:
-            return script, report
+            # Sanitized text, not raw -- this is what actually reaches TTS
+            # and gets stored as the canonical script (see gates.sanitize_script).
+            return report.sanitized_script, report
         print(f"Gate failure on attempt {attempt}:", file=sys.stderr)
         for r in report.results:
             if not r.passed:
                 print(f"  {r.gate}: {r.reason}", file=sys.stderr)
-        if attempt == 1:
-            print("Regenerating once...", file=sys.stderr)
+        if attempt < MAX_GENERATION_ATTEMPTS:
+            print(f"Regenerating (attempt {attempt + 1}/{MAX_GENERATION_ATTEMPTS})...", file=sys.stderr)
 
-    print("ERROR: script failed gates twice. Aborting, not publishing.", file=sys.stderr)
+    print(f"ERROR: script failed gates {MAX_GENERATION_ATTEMPTS} times. Aborting, not publishing.", file=sys.stderr)
     for r in report.results:
         status = "PASS" if r.passed else "FAIL"
         print(f"  [{status}] {r.gate}: {r.reason}", file=sys.stderr)
@@ -356,7 +385,10 @@ def generate_tts(script: str, output_path: Path) -> None:
     audio_chunks = client.text_to_speech.convert(
         voice_id,
         text=script,
-        model_id="eleven_flash_v2.5",
+        # Verified live 2026-07-05: the brief's "eleven_flash_v2.5" (period)
+        # 400s with "invalid_uid" -- ElevenLabs' real model ID uses an
+        # underscore, confirmed against their own docs.
+        model_id="eleven_flash_v2_5",
         output_format="mp3_44100_128",
     )
     with open(output_path, "wb") as f:
