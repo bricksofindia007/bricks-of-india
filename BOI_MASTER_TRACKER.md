@@ -2522,3 +2522,4 @@ Searched all `.md` files for `INFRA-03`, `Phase 8`, and `LEGO Search Pulse`:
 - **INFRA-03** (GHA migration): ✅ Done — commit `8992aef`. Netlify is origin host only; GHA handles all builds. No unresolved Netlify constraint exists. BOI_WEB_TRACKER.md line 73 confirms Done status.
 - **Phase 8** (LEGO Search Pulse / LAB-07): ✅ Live at `/lab/heat-map` since Day 10 (commit `d5d1641`). `BOI_WEB_TRACKER.md` §E shows PULSE-02 as `🟡 Status uncertain` (stale from 2026-05-02 audit) but master tracker §Phase status overrides: Phase 8 ✅ Live.
 - **Finding:** No undocumented Phase 8 / INFRA-03 blocker exists in any tracker file. No D2 gap added.
+
