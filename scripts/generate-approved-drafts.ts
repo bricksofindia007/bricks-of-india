@@ -440,18 +440,20 @@ if (IS_MAIN) (async () => {
       }
 
       const msg = err instanceof Error ? err.message : String(err);
+      const statusMatch = msg.match(/\[(\d{3})/);
+      const status = statusMatch ? statusMatch[1] : 'unknown';
 
       // Gemini retryable + Cerebras ineligible → deferred (excerpt too short)
       if (msg.includes('Cerebras not eligible')) {
         geminiAttempted++;  // Gemini was tried (retryable fail); Cerebras ineligible
         deferred++;
-        console.log(`DEFERRED: ${msg.slice(0, 200)}`);
+        console.log(`DEFERRED (status=${status}): ${msg}`);
         continue;
       }
 
       geminiAttempted++;
       failed++;
-      console.log(`FAIL: ${msg.slice(0, 200)}`);
+      console.log(`FAIL (status=${status}): ${msg}`);
       if (msg.includes('[429')) {
         console.log('Rate limit (429) — stopping batch to avoid quota waste.');
         break;
