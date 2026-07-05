@@ -23,22 +23,36 @@ const TRACKED_STORES = [
   { id: 'mybrickhouse', name: 'MyBrickHouse' },
 ];
 
+// Verdict-driven badge — NOT rating-driven. A null rating (IMPORT ONLY: an
+// availability call, not a quality score) still needs a badge that reflects
+// what the review actually says. WAIT is deliberately neutral (no badge) —
+// it's neither a recommendation nor a rejection.
+function verdictBadge(verdict: string | null): { emoji: string; label: string; className: string } | null {
+  switch ((verdict || '').trim().toUpperCase()) {
+    case 'BUY NOW':      return { emoji: '👍', label: 'Recommended', className: 'bg-deal-green text-white' };
+    case 'AVOID':        return { emoji: '👎', label: 'Skip It',     className: 'bg-warning-orange text-white' };
+    case 'IMPORT ONLY':  return { emoji: '🌍', label: 'Import Only', className: 'bg-accent text-dark' };
+    default:              return null; // WAIT, or anything unrecognized — neutral, no badge
+  }
+}
+
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { data: review } = await supabase.from('reviews').select('*, sets(name)').eq('slug', params.slug).single();
   if (!review) return { title: 'Review Not Found' };
+  const ratingBlurb = review.rating != null ? `${review.rating}/5 stars. ` : '';
   return {
     title: `LEGO ${review.sets?.name || review.title} Review — Is It Worth Buying in India?`,
-    description: `Our honest verdict on the LEGO ${review.sets?.name}. ${review.rating}/5 stars. Read the full review including price comparison and buying advice for India.`,
+    description: `Our honest verdict on the LEGO ${review.sets?.name}. ${ratingBlurb}Read the full review including price comparison and buying advice for India.`,
     alternates: { canonical: `https://bricksofindia.com/reviews/${params.slug}` },
     openGraph: {
       title: `LEGO ${review.sets?.name || review.title} Review — Bricks of India`,
-      description: `${review.rating}/5 stars. Honest verdict with live India price comparison.`,
+      description: `${ratingBlurb}Honest verdict with live India price comparison.`,
       images: socialCardImage(review.hero_image) ? [{ url: socialCardImage(review.hero_image)! }] : [],
     },
     twitter: {
       card: review.hero_image ? 'summary_large_image' : 'summary',
       title: `LEGO ${review.sets?.name || review.title} Review — Bricks of India`,
-      description: `${review.rating}/5 stars. Honest verdict with live India price comparison.`,
+      description: `${ratingBlurb}Honest verdict with live India price comparison.`,
       images: socialCardImage(review.hero_image) ? [socialCardImage(review.hero_image)!] : undefined,
     },
   };
@@ -81,7 +95,8 @@ export default async function ReviewPage({ params }: Props) {
     ?? activePrices.sort((a, b) => a.price_inr - b.price_inr)[0]
     ?? null;
 
-  const stars = '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating);
+  const stars = review.rating != null ? '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating) : null;
+  const badge = verdictBadge(review.verdict);
   const shareUrl = `https://bricksofindia.com/reviews/${params.slug}`;
   const waText = `Just read this LEGO review on Bricks of India — use ABHINAV12 for 12% off at Toycra!`;
 
@@ -99,11 +114,17 @@ export default async function ReviewPage({ params }: Props) {
             <span className="text-gray-200">{review.title}</span>
           </nav>
           <div className="flex items-center gap-3 mb-3">
-            <span className="text-primary text-2xl">{stars}</span>
-            <span className="text-gray-400">({review.rating}/5)</span>
-            <span className={`font-bold text-sm px-3 py-1 rounded-full ${review.rating >= 4 ? 'bg-deal-green text-white' : 'bg-warning-orange text-white'}`}>
-              {review.rating >= 4 ? '👍 Recommended' : '👎 Skip It'}
-            </span>
+            {stars != null && (
+              <>
+                <span className="text-primary text-2xl">{stars}</span>
+                <span className="text-gray-400">({review.rating}/5)</span>
+              </>
+            )}
+            {badge && (
+              <span className={`font-bold text-sm px-3 py-1 rounded-full ${badge.className}`}>
+                {badge.emoji} {badge.label}
+              </span>
+            )}
           </div>
           <h1 className="font-heading text-white text-5xl md:text-6xl mb-2">{review.title}</h1>
           <Byline publishedAt={review.published_at} updatedAt={review.updated_at} />
@@ -134,14 +155,26 @@ export default async function ReviewPage({ params }: Props) {
             {/* Verdict */}
             <div className="border-2 border-dark rounded-2xl p-6 mb-8">
               <div className="flex items-start gap-4">
-                <Image src={review.rating >= 4 ? MASCOTS.red.thumbsUp : MASCOTS.red.thumbsDown} alt="Verdict" width={80} height={80} className="object-contain shrink-0" />
+                <Image
+                  src={
+                    badge?.label === 'Recommended' ? MASCOTS.red.thumbsUp
+                    : badge?.label === 'Skip It'    ? MASCOTS.red.thumbsDown
+                    : MASCOTS.red.judging // WAIT, IMPORT ONLY, or no rating — neutral/evaluating pose, not a thumbs verdict
+                  }
+                  alt="Verdict"
+                  width={80}
+                  height={80}
+                  className="object-contain shrink-0"
+                />
                 <div>
                   <h3 className="font-heading text-dark text-2xl mb-1">BRICKS OF INDIA SAYS:</h3>
                   <p className="font-bold text-lg text-dark">{review.verdict}</p>
-                  <div className="mt-2 flex items-center gap-2">
-                    <span className="text-primary text-xl">{stars}</span>
-                    <span className="font-price font-bold text-dark">{review.rating}/5</span>
-                  </div>
+                  {stars != null && (
+                    <div className="mt-2 flex items-center gap-2">
+                      <span className="text-primary text-xl">{stars}</span>
+                      <span className="font-price font-bold text-dark">{review.rating}/5</span>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -250,7 +283,14 @@ export default async function ReviewPage({ params }: Props) {
             {[
               {
                 q: `Is ${set?.name || 'this set'} worth buying in India in 2026?`,
-                a: `${review.verdict} Our rating: ${review.rating}/5. ${review.rating >= 4 ? "Yes, we think it's a solid purchase." : "We'd recommend waiting for a better deal or considering alternatives."}`,
+                a: [
+                  review.verdict,
+                  review.rating != null ? `Our rating: ${review.rating}/5.` : null,
+                  badge?.label === 'Recommended' ? "Yes, we think it's a solid purchase."
+                    : badge?.label === 'Skip It' ? "We'd recommend waiting for a better deal or considering alternatives."
+                    : badge?.label === 'Import Only' ? "It's not officially sold in India yet, so factor in import costs and timelines before buying."
+                    : "We'd suggest waiting for a better price before buying.",
+                ].filter(Boolean).join(' '),
               },
               {
                 q: `Where can I buy ${set?.name || 'this set'} cheapest in India?`,

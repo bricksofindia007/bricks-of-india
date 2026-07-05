@@ -178,7 +178,7 @@ export function buildFAQSchema(items: FAQItem[]) {
 
 type ReviewData = {
   published_at: string;
-  rating: number;
+  rating: number | null;
 };
 
 type ReviewedSet = {
@@ -187,6 +187,10 @@ type ReviewedSet = {
 } | null;
 
 export function buildReviewSchema(review: ReviewData, title: string, set: ReviewedSet) {
+  // A null rating (e.g. an IMPORT ONLY verdict — an availability call, not a
+  // quality score) must not emit reviewRating at all. A `null`/`0` ratingValue
+  // is invalid structured data Google will flag in Search Console, and it's
+  // not even a plausible fallback — there is no rating to report.
   return {
     '@context': 'https://schema.org',
     '@type': 'Review',
@@ -197,11 +201,15 @@ export function buildReviewSchema(review: ReviewData, title: string, set: Review
       name: 'Bricks of India',
       url: 'https://www.bricksofindia.com',
     },
-    reviewRating: {
-      '@type': 'Rating',
-      ratingValue: String(review.rating),
-      bestRating: '5',
-    },
+    ...(review.rating != null
+      ? {
+          reviewRating: {
+            '@type': 'Rating',
+            ratingValue: String(review.rating),
+            bestRating: '5',
+          },
+        }
+      : {}),
     itemReviewed: {
       '@type': 'Product',
       name: set?.name || title,
