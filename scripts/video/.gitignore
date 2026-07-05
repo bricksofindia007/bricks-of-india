@@ -1,0 +1,9 @@
+.env
+temp_download/*
+!temp_download/.gitkeep
+output/*
+!output/.gitkeep
+master_assets/*.mp4
+master_assets/*.png
+__pycache__/
+*.pyc

@@ -1,0 +1,586 @@
+#!/usr/bin/env python3
+"""
+VID-P4 — Daily video pipeline engine.
+
+Sandwich video: operator's recorded intro clip + AI middle (Ken Burns over
+product images + Gemini script read by an ElevenLabs voice clone) +
+operator's recorded outro. Daily, manual upload to IG Reels + YT Shorts.
+
+Usage:
+  python engine.py --suggest                 # show top 3 candidates
+  python engine.py --pick 1                  # generate + assemble candidate #1
+  python engine.py --pick 1 --no-tts         # dry run: silent placeholder audio, no ElevenLabs call
+  python engine.py --url <product_url>       # manual override instead of --pick
+  python engine.py --posted <video_posts.id> ig|yt|both   # mark posted
+"""
+
+from __future__ import annotations
+
+import argparse
+import io
+import json
+import os
+import random
+import sys
+import time
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+import requests
+from dotenv import load_dotenv
+
+load_dotenv()
+
+# moviepy 1.x calls PIL.Image.ANTIALIAS, removed in Pillow >=10. Verified
+# live 2026-07-05: moviepy 1.0.3 + Pillow 10.3.0 raises
+# `AttributeError: module 'PIL.Image' has no attribute 'ANTIALIAS'` on any
+# .resize() call without this patch. LANCZOS is the same algorithm under the
+# old name (Pillow renamed it in 9.1, removed the alias in 10.0).
+from PIL import Image
+if not hasattr(Image, "ANTIALIAS"):
+    Image.ANTIALIAS = Image.LANCZOS
+
+from moviepy.editor import (  # noqa: E402
+    AudioFileClip,
+    ImageClip,
+    VideoFileClip,
+    concatenate_videoclips,
+)
+
+from supabase import create_client  # noqa: E402
+
+import gates  # noqa: E402
+import prompts  # noqa: E402
+
+BASE_DIR = Path(__file__).parent
+MASTER_ASSETS = BASE_DIR / "master_assets"
+TEMP_DOWNLOAD = BASE_DIR / "temp_download"
+OUTPUT_DIR = BASE_DIR / "output"
+for d in (MASTER_ASSETS, TEMP_DOWNLOAD, OUTPUT_DIR):
+    d.mkdir(exist_ok=True)
+
+# STEP 0 verified 2026-07-05: bare toycra.com works, but www.toycra.com
+# matches the existing scraper's (scripts/scrape-now.mjs) established
+# convention -- using that domain for consistency with real product URLs
+# already in the DB.
+TOYCRA_URL = "https://www.toycra.com/collections/lego/products.json"
+TOYCRA_DOMAIN = "www.toycra.com"
+MBH_URL = "https://lego.mybrickhouse.com/collections/lego-sets/products.json"
+MBH_DOMAIN = "lego.mybrickhouse.com"
+
+TARGET_W, TARGET_H = 1080, 1920
+KEN_BURNS_ZOOM = 0.04
+FPS = 30
+
+GEMINI_MIN_GAP_S = 4.0
+GEMINI_MAX_GAP_S = 6.0
+_last_gemini_call_at = 0.0
+
+ELEVENLABS_MAX_SCRIPT_CHARS = 800
+
+
+# ── Env / clients ─────────────────────────────────────────────────────────────
+
+def get_supabase():
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    if not url or not key:
+        print("ERROR: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set in .env", file=sys.stderr)
+        sys.exit(1)
+    return create_client(url, key)
+
+
+# ── STEP 3: candidate selection ────────────────────────────────────────────────
+
+import re  # noqa: E402
+
+_SET_NUMBER_RE = re.compile(r"(?<!\d)(\d{4,6})(?!\d)")
+
+
+def extract_set_number(title: str | None, handle: str | None) -> str | None:
+    """Same 4-6 digit convention as scripts/scrape-now.mjs::extractSetNumber
+    (verified 2026-07-05 against a real catalog set, 853653, a 6-digit
+    number -- the brief said 4-5 digits, but that would miss real sets)."""
+    from_handle = _SET_NUMBER_RE.findall(handle or "")
+    from_title = _SET_NUMBER_RE.findall(title or "")
+    seen = []
+    for n in from_handle + from_title:
+        if n not in seen:
+            seen.append(n)
+    return seen[0] if seen else None
+
+
+def fetch_shopify_products(base_url: str, page_size: int = 250, max_pages: int = 2) -> list[dict]:
+    """Paginate a Shopify /products.json endpoint. Verified 2026-07-05: this
+    endpoint ignores sort_by entirely (identical order with/without it) --
+    sorting must happen client-side, never trust a URL sort param here."""
+    all_products: list[dict] = []
+    for page in range(1, max_pages + 1):
+        resp = requests.get(base_url, params={"limit": page_size, "page": page}, timeout=20)
+        resp.raise_for_status()
+        products = resp.json().get("products", [])
+        if not products:
+            break
+        all_products.extend(products)
+        if len(products) < page_size:
+            break
+    return all_products
+
+
+def cheapest_variant(product: dict) -> dict | None:
+    variants = product.get("variants") or []
+    if not variants:
+        return None
+    in_stock = [v for v in variants if v.get("available")]
+    pool = in_stock if in_stock else variants
+    priced = [v for v in pool if v.get("price") is not None]
+    if not priced:
+        return None
+    return min(priced, key=lambda v: float(v["price"]))
+
+
+def build_candidate(product: dict, store_id: str, store_name: str, domain: str) -> dict | None:
+    images = product.get("images") or []
+    if len(images) < 5:
+        return None
+    variant = cheapest_variant(product)
+    if variant is None:
+        return None
+    return {
+        "title": product.get("title") or "",
+        "store": store_id,
+        "store_name": store_name,
+        "product_url": f"https://{domain}/products/{product.get('handle')}",
+        "price_inr": float(variant["price"]),
+        "image_urls": [img.get("src") for img in images if img.get("src")],
+        "set_number": extract_set_number(product.get("title"), product.get("handle")),
+        "published_at": product.get("published_at") or "",
+    }
+
+
+def already_used(sb, product_url: str, set_number: str | None) -> bool:
+    if set_number:
+        by_set = sb.table("video_posts").select("id").eq("set_number", set_number).limit(1).execute()
+        if by_set.data:
+            return True
+    by_url = sb.table("video_posts").select("id").eq("product_url", product_url).limit(1).execute()
+    return bool(by_url.data)
+
+
+def enrich_with_catalog(sb, set_number: str | None) -> tuple[int | None, str | None]:
+    """Returns (pieces, theme) if set_number exists in our catalog, else (None, None)."""
+    if not set_number:
+        return None, None
+    res = sb.table("sets").select("pieces, theme").eq("set_number", set_number).limit(1).execute()
+    if not res.data:
+        return None, None
+    row = res.data[0]
+    return row.get("pieces"), row.get("theme")
+
+
+def get_candidates(sb, limit_per_store: int = 10) -> list[dict]:
+    toycra_products = fetch_shopify_products(TOYCRA_URL)
+    mbh_products = fetch_shopify_products(MBH_URL)
+
+    # Client-side sort, per STEP 0 verification: sort_by is ignored server-side.
+    toycra_sorted = sorted(toycra_products, key=lambda p: p.get("published_at") or "", reverse=True)
+
+    def mbh_price_key(p: dict) -> float:
+        v = cheapest_variant(p)
+        return float(v["price"]) if v else -1.0
+
+    mbh_sorted = sorted(mbh_products, key=mbh_price_key, reverse=True)
+
+    candidates: list[dict] = []
+    for p in toycra_sorted:
+        c = build_candidate(p, "toycra", "Toycra", TOYCRA_DOMAIN)
+        if c:
+            candidates.append(c)
+        if len(candidates) >= limit_per_store:
+            break
+
+    mbh_added = 0
+    for p in mbh_sorted:
+        c = build_candidate(p, "mybrickhouse", "MyBrickHouse", MBH_DOMAIN)
+        if c:
+            candidates.append(c)
+            mbh_added += 1
+        if mbh_added >= limit_per_store:
+            break
+
+    # Filter: not already used, price present (guaranteed by build_candidate).
+    fresh = [c for c in candidates if not already_used(sb, c["product_url"], c["set_number"])]
+
+    # Attach catalog enrichment + a one-line reason.
+    for c in fresh:
+        pieces, theme = enrich_with_catalog(sb, c["set_number"])
+        c["pieces"] = pieces
+        c["theme"] = theme
+        if c["store"] == "toycra":
+            reason = f"newest on Toycra (published {c['published_at'][:10] if c['published_at'] else 'unknown'})"
+        else:
+            reason = f"highest-priced on MyBrickHouse (₹{c['price_inr']:,.0f})"
+        if pieces:
+            reason += f", catalog match: {c['theme']} theme, {pieces} pieces"
+        c["reason"] = reason
+
+    return fresh[:10]
+
+
+def print_suggestions(candidates: list[dict]) -> None:
+    top3 = candidates[:3]
+    if not top3:
+        print("No eligible candidates found (all filtered by image count, price, or already used).")
+        return
+    for i, c in enumerate(top3, 1):
+        print(f"[{i}] {c['title']} — {c['store_name']} — ₹{c['price_inr']:,.0f}")
+        print(f"    {c['reason']}")
+        print(f"    {c['product_url']}")
+
+
+# ── STEP 4: script generation ──────────────────────────────────────────────────
+
+def _gemini_pace() -> None:
+    """4-6s randomized minimum gap between Gemini calls, same rationale as
+    the web pipeline's 2026-07-05 pacing fix (scripts/generate-approved-drafts.ts) --
+    a bursty rate limiter still reads as a QPS spike server-side."""
+    global _last_gemini_call_at
+    target_gap = random.uniform(GEMINI_MIN_GAP_S, GEMINI_MAX_GAP_S)
+    since_last = time.time() - _last_gemini_call_at
+    if _last_gemini_call_at > 0 and since_last < target_gap:
+        time.sleep(target_gap - since_last)
+    _last_gemini_call_at = time.time()
+
+
+def generate_script(title: str, price_inr: float, store_name: str, pieces: int | None, theme: str | None) -> str:
+    task_prompt = prompts.build_task_prompt(title, price_inr, store_name, pieces, theme)
+
+    gemini_key = os.environ.get("GEMINI_SOCIAL_API_KEY")
+    if gemini_key:
+        try:
+            _gemini_pace()
+            from google import genai
+            from google.genai import types
+            client = genai.Client(api_key=gemini_key)
+            resp = client.models.generate_content(
+                model="gemini-2.5-flash",
+                contents=task_prompt,
+                config=types.GenerateContentConfig(system_instruction=prompts.SYSTEM_PROMPT),
+            )
+            if resp.text and resp.text.strip():
+                return resp.text.strip()
+            print("WARN: Gemini returned empty text, falling back to Cerebras.", file=sys.stderr)
+        except Exception as e:
+            print(f"WARN: Gemini failed ({e}), falling back to Cerebras.", file=sys.stderr)
+    else:
+        print("WARN: GEMINI_SOCIAL_API_KEY not set, going straight to Cerebras.", file=sys.stderr)
+
+    cerebras_key = os.environ.get("CEREBRAS_API_KEY")
+    if not cerebras_key:
+        print("ERROR: Both Gemini and Cerebras unavailable (no CEREBRAS_API_KEY). Cannot generate script.", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        from cerebras.cloud.sdk import Cerebras
+        client = Cerebras(api_key=cerebras_key)
+        # Model verified live 2026-07-05: the brief said "llama3.1-8b", which
+        # returns 404 model_not_found on this account. client.models.list()
+        # showed only gemma-4-31b / zai-glm-4.7 / gpt-oss-120b -- gpt-oss-120b
+        # matches the main site's already-proven Cerebras failover model
+        # (see CLAUDE.md's RADAR pipeline rules), so used that instead.
+        resp = client.chat.completions.create(
+            model="gpt-oss-120b",
+            messages=[
+                {"role": "system", "content": prompts.SYSTEM_PROMPT},
+                {"role": "user", "content": task_prompt},
+            ],
+        )
+        content = resp.choices[0].message.content
+        if content and content.strip():
+            return content.strip()
+    except Exception as e:
+        print(f"ERROR: Cerebras also failed: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    print("ERROR: Both providers returned empty content.", file=sys.stderr)
+    sys.exit(1)
+
+
+def get_recent_scripts(sb, n: int = 30) -> list[str]:
+    res = sb.table("video_posts").select("script").order("created_at", desc=True).limit(n).execute()
+    return [row["script"] for row in res.data if row.get("script")]
+
+
+def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport]:
+    recent = get_recent_scripts(sb)
+
+    def sets_lookup(set_number: str) -> dict | None:
+        res = sb.table("sets").select("pieces, theme").eq("set_number", set_number).limit(1).execute()
+        return res.data[0] if res.data else None
+
+    for attempt in (1, 2):
+        script = generate_script(candidate["title"], candidate["price_inr"], candidate["store_name"], candidate.get("pieces"), candidate.get("theme"))
+        report = gates.run_all_gates(script, candidate.get("pieces"), sets_lookup, recent)
+        if report.all_passed:
+            return script, report
+        print(f"Gate failure on attempt {attempt}:", file=sys.stderr)
+        for r in report.results:
+            if not r.passed:
+                print(f"  {r.gate}: {r.reason}", file=sys.stderr)
+        if attempt == 1:
+            print("Regenerating once...", file=sys.stderr)
+
+    print("ERROR: script failed gates twice. Aborting, not publishing.", file=sys.stderr)
+    for r in report.results:
+        status = "PASS" if r.passed else "FAIL"
+        print(f"  [{status}] {r.gate}: {r.reason}", file=sys.stderr)
+    sys.exit(1)
+
+
+# ── STEP 6: TTS ─────────────────────────────────────────────────────────────────
+
+def generate_tts(script: str, output_path: Path) -> None:
+    if len(script) > ELEVENLABS_MAX_SCRIPT_CHARS:
+        print(f"ERROR: script is {len(script)} chars, over the {ELEVENLABS_MAX_SCRIPT_CHARS}-char hard guard. Refusing to call ElevenLabs.", file=sys.stderr)
+        sys.exit(1)
+
+    api_key = os.environ.get("ELEVENLABS_API_KEY")
+    voice_id = os.environ.get("ELEVENLABS_VOICE_ID")
+    if not api_key or not voice_id:
+        print("ERROR: ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID not set.", file=sys.stderr)
+        sys.exit(1)
+
+    from elevenlabs.client import ElevenLabs
+    client = ElevenLabs(api_key=api_key)
+    audio_chunks = client.text_to_speech.convert(
+        voice_id,
+        text=script,
+        model_id="eleven_flash_v2.5",
+        output_format="mp3_44100_128",
+    )
+    with open(output_path, "wb") as f:
+        for chunk in audio_chunks:
+            f.write(chunk)
+
+
+def generate_silent_placeholder_audio(output_path: Path, duration_s: float) -> None:
+    """--no-tts path: a silent audio track of the estimated voiceover length,
+    so assembly can be verified end-to-end without spending ElevenLabs credits."""
+    import subprocess
+    subprocess.run(
+        [
+            "ffmpeg", "-y", "-f", "lavfi", "-i", f"anullsrc=r=44100:cl=mono",
+            "-t", str(duration_s), "-q:a", "9", str(output_path),
+        ],
+        check=True, capture_output=True,
+    )
+
+
+def estimate_voiceover_duration_s(script: str) -> float:
+    """~150 wpm conversational speaking rate -- used only for --no-tts
+    placeholder audio length; the real pipeline reads the actual ElevenLabs
+    output's duration via ffprobe once TTS is live."""
+    words = len(script.split())
+    return (words / 150.0) * 60.0
+
+
+# ── STEP 7: assembly ────────────────────────────────────────────────────────────
+
+def get_clip_duration(path: Path) -> float:
+    with VideoFileClip(str(path)) as clip:
+        return clip.duration
+
+
+def make_ken_burns_clip(image_path: Path, duration_s: float, zoom: float = KEN_BURNS_ZOOM):
+    clip = ImageClip(str(image_path))
+    w, h = clip.size
+    scale = max(TARGET_W / w, TARGET_H / h)
+    cover_w, cover_h = int(w * scale) + 4, int(h * scale) + 4  # cover 1080x1920, +4px slop for rounding
+    clip = clip.resize((cover_w, cover_h)).set_duration(duration_s)
+    zoomed = clip.resize(lambda t: 1 + zoom * (t / duration_s))
+    return zoomed.crop(x_center=zoomed.w / 2, y_center=zoomed.h / 2, width=TARGET_W, height=TARGET_H)
+
+
+def download_images(urls: list[str], max_images: int = 6) -> list[Path]:
+    paths = []
+    for i, url in enumerate(urls[:max_images]):
+        resp = requests.get(url, timeout=20)
+        resp.raise_for_status()
+        ext = ".jpg"
+        path = TEMP_DOWNLOAD / f"product_{i}{ext}"
+        path.write_bytes(resp.content)
+        paths.append(path)
+    return paths
+
+
+def slugify(title: str) -> str:
+    s = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
+    return s[:60]
+
+
+def assemble_video(image_paths: list[Path], audio_path: Path, output_path: Path, placeholder_anchors: bool) -> float:
+    intro_path = MASTER_ASSETS / "intro_hook.mp4"
+    outro_path = MASTER_ASSETS / "outro_signoff.mp4"
+
+    if not intro_path.exists() or not outro_path.exists():
+        if not placeholder_anchors:
+            print(f"ERROR: {intro_path} and/or {outro_path} missing, and placeholder anchors not requested.", file=sys.stderr)
+            sys.exit(1)
+        print("WARN: master_assets clips absent — generating 2 solid-color 5s placeholder anchors for this dry run only.", file=sys.stderr)
+        _make_placeholder_anchor(intro_path, (30, 60, 120), "INTRO PLACEHOLDER")
+        _make_placeholder_anchor(outro_path, (120, 60, 30), "OUTRO PLACEHOLDER")
+
+    intro_duration = get_clip_duration(intro_path)
+    outro_duration = get_clip_duration(outro_path)
+    print(f"Intro actual duration: {intro_duration:.2f}s | Outro actual duration: {outro_duration:.2f}s")
+
+    with AudioFileClip(str(audio_path)) as audio:
+        voiceover_duration = audio.duration
+        per_image = voiceover_duration / len(image_paths)
+        middle_clips = [make_ken_burns_clip(p, per_image) for p in image_paths]
+        middle = concatenate_videoclips(middle_clips, method="compose").set_audio(audio.set_duration(voiceover_duration))
+        middle = middle.set_duration(voiceover_duration)
+
+        intro = VideoFileClip(str(intro_path)).resize(height=TARGET_H)
+        outro = VideoFileClip(str(outro_path)).resize(height=TARGET_H)
+
+        final = concatenate_videoclips([intro, middle, outro], method="compose")
+        final.write_videofile(
+            str(output_path),
+            fps=FPS,
+            codec="libx264",
+            audio_codec="aac",
+            logger=None,
+        )
+        total_duration = final.duration
+        intro.close()
+        outro.close()
+
+    return total_duration
+
+
+def _make_placeholder_anchor(path: Path, color: tuple[int, int, int], label: str) -> None:
+    from PIL import ImageDraw
+    img = Image.new("RGB", (TARGET_W, TARGET_H), color=color)
+    draw = ImageDraw.Draw(img)
+    draw.text((TARGET_W // 2 - 150, TARGET_H // 2), label, fill=(255, 255, 255))
+    img_path = path.with_suffix(".png")
+    img.save(img_path)
+    clip = ImageClip(str(img_path)).set_duration(5).set_fps(FPS)
+    clip.write_videofile(str(path), fps=FPS, codec="libx264", audio=False, logger=None)
+
+
+# ── DB write ────────────────────────────────────────────────────────────────────
+
+def insert_video_post(sb, candidate: dict, script: str, gate_report: gates.GateReport, video_path: Path) -> str:
+    row = {
+        "set_title": candidate["title"],
+        "set_number": candidate.get("set_number"),
+        "store": candidate["store"],
+        "product_url": candidate["product_url"],
+        "price_inr": candidate["price_inr"],
+        "script": script,
+        "script_chars": len(script),
+        "gate_results": gate_report.as_dict(),
+        "video_path": str(video_path),
+        "status": "rendered",
+    }
+    res = sb.table("video_posts").insert(row).execute()
+    return res.data[0]["id"]
+
+
+def mark_posted(sb, video_id: str, platform: str) -> None:
+    status_map = {"ig": "posted_ig", "yt": "posted_yt", "both": "posted_both"}
+    if platform not in status_map:
+        print(f"ERROR: platform must be one of ig|yt|both, got {platform!r}", file=sys.stderr)
+        sys.exit(1)
+    sb.table("video_posts").update({
+        "status": status_map[platform],
+        "posted_at": datetime.now(timezone.utc).isoformat(),
+    }).eq("id", video_id).execute()
+    print(f"Marked {video_id} as {status_map[platform]}.")
+
+
+# ── CLI ──────────────────────────────────────────────────────────────────────────
+
+def main() -> None:
+    parser = argparse.ArgumentParser(description="VID-P4 daily video pipeline")
+    parser.add_argument("--suggest", action="store_true", help="show top 3 candidates")
+    parser.add_argument("--pick", type=int, help="select candidate N (1-indexed) from --suggest order")
+    parser.add_argument("--url", type=str, help="manual override: use this product URL instead of --pick")
+    parser.add_argument("--no-tts", action="store_true", help="dry run: silent placeholder audio, no ElevenLabs call")
+    parser.add_argument("--placeholder-anchors", action="store_true", help="generate solid-color test anchors if master_assets clips are absent (dry-run only)")
+    parser.add_argument("--posted", type=str, help="video_posts.id to mark as posted")
+    parser.add_argument("--platform", type=str, choices=["ig", "yt", "both"], help="platform for --posted")
+    args = parser.parse_args()
+
+    sb = get_supabase()
+
+    if args.posted:
+        if not args.platform:
+            print("ERROR: --posted requires --platform ig|yt|both", file=sys.stderr)
+            sys.exit(1)
+        mark_posted(sb, args.posted, args.platform)
+        return
+
+    if args.suggest:
+        candidates = get_candidates(sb)
+        print_suggestions(candidates)
+        return
+
+    if args.pick or args.url:
+        if args.url:
+            candidates = get_candidates(sb)
+            match = next((c for c in candidates if c["product_url"] == args.url), None)
+            if not match:
+                print(f"ERROR: {args.url} not found among current eligible candidates.", file=sys.stderr)
+                sys.exit(1)
+            candidate = match
+        else:
+            candidates = get_candidates(sb)
+            if args.pick < 1 or args.pick > len(candidates):
+                print(f"ERROR: --pick {args.pick} out of range (1-{len(candidates)} available).", file=sys.stderr)
+                sys.exit(1)
+            candidate = candidates[args.pick - 1]
+
+        print(f"Selected: {candidate['title']} ({candidate['product_url']})")
+
+        script, report = run_gates_with_one_retry(sb, candidate)
+        print("\n--- SCRIPT ---")
+        print(script)
+        print("--- END SCRIPT ---\n")
+        print("Gate results:")
+        for r in report.results:
+            print(f"  [{'PASS' if r.passed else 'FAIL'}] {r.gate}: {r.reason}")
+
+        image_paths = download_images(candidate["image_urls"])
+
+        audio_path = TEMP_DOWNLOAD / "voiceover.mp3"
+        if args.no_tts:
+            est_duration = estimate_voiceover_duration_s(script)
+            audio_path = TEMP_DOWNLOAD / "voiceover_silent.wav"
+            generate_silent_placeholder_audio(audio_path, est_duration)
+            print(f"--no-tts: silent placeholder audio, estimated duration {est_duration:.1f}s")
+        else:
+            generate_tts(script, audio_path)
+
+        slug = slugify(candidate["title"])
+        date_str = datetime.now().strftime("%Y-%m-%d")
+        output_path = OUTPUT_DIR / f"{date_str}_{slug}.mp4"
+
+        total_duration = assemble_video(image_paths, audio_path, output_path, placeholder_anchors=args.placeholder_anchors)
+        print(f"\nRendered: {output_path}")
+        print(f"Total duration: {total_duration:.1f}s")
+        if total_duration > 90:
+            print("WARNING: video exceeds 90s — IG Reels/YT Shorts may reject or truncate.")
+
+        video_id = insert_video_post(sb, candidate, script, report, output_path)
+        print(f"video_posts row inserted: {video_id}")
+        return
+
+    parser.print_help()
+
+
+if __name__ == "__main__":
+    main()
