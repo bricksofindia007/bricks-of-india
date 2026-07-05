@@ -190,10 +190,20 @@ export function resolveTarget(format: string): { table: string; path: string; ca
 // change. Only BUY NOW reads as >=4 ("Recommended" in the reviews UI) — WAIT
 // is deliberately kept below that threshold since it's not a rejection but
 // isn't a recommendation to buy right now either.
-const VERDICT_TO_RATING: Record<string, number> = {
+//
+// IMPORT ONLY -> null (amended 2026-07-05, reviews.rating confirmed nullable):
+// that verdict is about India retail/import availability, not the set's
+// build quality — a numeric star rating derived from it would misstate the
+// thing rating actually claims to measure, and this value feeds the Review
+// schema Google indexes directly. Downstream consequence, not hidden here:
+// reviews/[slug]/page.tsx's '★'.repeat(rating) and the rating>=4 Recommended/
+// Skip-It badge both treat null as 0 (no crash, but renders as 0 filled stars
+// and a "Skip It" badge) — that page was not changed as part of this fix;
+// revisit if IMPORT ONLY reviews need their own null-rating presentation.
+const VERDICT_TO_RATING: Record<string, number | null> = {
   'BUY NOW': 5,
   'WAIT': 3,
-  'IMPORT ONLY': 2,
+  'IMPORT ONLY': null,
   'AVOID': 1,
 };
 
