@@ -113,6 +113,6 @@ BOI's application target: August 2026. Requirements are inferred from RLFM guide
 - [x] CE-05 "History of LEGO in India" at `/guides/history-of-lego-india` ✅ Day 28
 - [x] WEB-06 `/community` route live ✅ Day 25
 - [ ] CE-01 Builder Spotlight #1 and #2 at `/community` — with photos + quotes (outreach done 2026-05-29)
-- [ ] SOC-AUTO-01 proof — screenshot 30+ consecutive daily posts on IG + YouTube (capture by July 25)
+- [ ] SOC-AUTO-01 proof — **reframed 2026-07-05, was "screenshot 30+ consecutive daily posts on IG + YouTube":** complete automated coverage of every eligible LEGO.com India-relevant preview since launch — N posts, zero eligible sets missed (N=26 as of 2026-07-05, re-query `posted_sets` at capture time). Capture by July 25 unchanged. See `BOI_MASTER_TRACKER.md` FAN-COLAB-PROOF-01 for the full rationale (posting is a gallery-image eligibility gate, not a daily-cadence guarantee).
 - [x] reviews page — 3+ Codex-compliant reviews live ✅
 - [ ] bricksofindia.com uptime — all pages returning 200 (verify week before application)

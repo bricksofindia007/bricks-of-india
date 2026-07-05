@@ -177,11 +177,25 @@ export function generateSlug(title: string): string {
 // listing; src/app/opinion/page.tsx requires it. '/blog' would have published
 // successfully but been orphaned — unreachable from any listing page.
 export function resolveTarget(format: string): { table: string; path: string; category: string } {
-  if (format === 'guide')   return { table: 'guides',        path: '/guides',  category: 'Guide'   };
-  if (format === 'opinion') return { table: 'blog_posts',    path: '/opinion', category: 'Opinion' };
-  if (format === 'review')  return { table: 'news_articles', path: '/news',    category: 'Review'  };
-  return                           { table: 'news_articles', path: '/news',    category: 'News'    };
+  if (format === 'guide')   return { table: 'guides',   path: '/guides',  category: 'Guide'   };
+  if (format === 'opinion') return { table: 'blog_posts', path: '/opinion', category: 'Opinion' };
+  // MEDIUM-13/AUDIT-NEW-3 (decided 2026-07-05): future review-format drafts
+  // route to the dedicated `reviews` table + /reviews/[slug], not /news. The
+  // 36 already-published /news reviews stay where they are — not migrated.
+  if (format === 'review')  return { table: 'reviews',   path: '/reviews', category: 'Review'  };
+  return                           { table: 'news_articles', path: '/news', category: 'News'    };
 }
+
+// Verdict -> star rating, decided 2026-07-05 alongside the reviews-routing
+// change. Only BUY NOW reads as >=4 ("Recommended" in the reviews UI) — WAIT
+// is deliberately kept below that threshold since it's not a rejection but
+// isn't a recommendation to buy right now either.
+const VERDICT_TO_RATING: Record<string, number> = {
+  'BUY NOW': 5,
+  'WAIT': 3,
+  'IMPORT ONLY': 2,
+  'AVOID': 1,
+};
 
 // ── Hero image resolution ─────────────────────────────────────────────────────
 
@@ -459,27 +473,41 @@ export async function publishOneDraft(
     : `${excerptRaw.slice(0, 156).replace(/\s+\S*$/, '')}…`;
   const now     = new Date().toISOString();
 
-  // Review-format articles carry verdict + set_number for Review/Product
-  // JSON-LD (buildReviewSchema()). publish-drafts.mjs had this; actions.ts
-  // did not — manual-button-published reviews were silently missing
-  // structured data. Now populated uniformly regardless of publish path.
-  let reviewVerdict: string | null = null, reviewSetNumber: string | null = null;
+  // Review-format articles carry verdict + a matched set reference for
+  // Review/Product JSON-LD (buildReviewSchema()) and, as of 2026-07-05, for
+  // the dedicated `reviews` table itself (set_id, a uuid FK — distinct from
+  // the set_number text column news_articles carries for the same purpose).
+  let reviewVerdict: string | null = null, reviewSetNumber: string | null = null, reviewSetId: string | null = null;
   if (format === 'review') {
     reviewVerdict = (draft.draft_verdict || '').trim().toUpperCase() || null;
     const candidates = extractSetNumberCandidates(cleanBody);
     if (candidates.length > 0) {
-      const { data: matchedSet } = await supabase.from('sets').select('set_number').in('set_number', candidates).limit(1).maybeSingle();
-      reviewSetNumber = (matchedSet as { set_number?: string } | null)?.set_number ?? null;
+      const { data: matchedSet } = await supabase.from('sets').select('id, set_number').in('set_number', candidates).limit(1).maybeSingle();
+      const matched = matchedSet as { id?: string; set_number?: string } | null;
+      reviewSetNumber = matched?.set_number ?? null;
+      reviewSetId     = matched?.id ?? null;
     }
   }
 
-  const row = {
-    title, slug, content: cleanBody, category, excerpt,
-    published_at: now, seo_title: title, seo_description: excerpt,
-    hero_image: heroImage,
-    ...(reviewVerdict ? { verdict: reviewVerdict } : {}),
-    ...(reviewSetNumber ? { set_number: reviewSetNumber } : {}),
-  };
+  // `reviews` has a distinct schema from news_articles/blog_posts/guides — no
+  // `category` column, but `verdict` (NOT NULL), `rating`, and `set_id` (uuid,
+  // not the text `set_number` the other tables use) that they don't have.
+  const row = table === 'reviews'
+    ? {
+        title, slug, content: cleanBody, excerpt,
+        published_at: now, seo_title: title, seo_description: excerpt,
+        hero_image: heroImage,
+        verdict: reviewVerdict,
+        rating: reviewVerdict ? VERDICT_TO_RATING[reviewVerdict] ?? null : null,
+        ...(reviewSetId ? { set_id: reviewSetId } : {}),
+      }
+    : {
+        title, slug, content: cleanBody, category, excerpt,
+        published_at: now, seo_title: title, seo_description: excerpt,
+        hero_image: heroImage,
+        ...(reviewVerdict ? { verdict: reviewVerdict } : {}),
+        ...(reviewSetNumber ? { set_number: reviewSetNumber } : {}),
+      };
 
   const { error: insertErr } = await supabase.from(table).insert(row);
   if (insertErr) {
