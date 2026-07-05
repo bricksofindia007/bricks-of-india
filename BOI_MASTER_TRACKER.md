@@ -252,6 +252,17 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-07-05 (even later still) — Netlify build-skip guard: fixes the real mechanism, not the one first suspected
+
+**✅ CLOSED.** Repeatedly-raised operator concern ("stop unnecessary Netlify builds") that had never actually been enforced. Real root cause was not where the initial fix request pointed:
+
+- **Requested fix:** add a conditional `ignore` command to `netlify.toml` (Netlify's own git-integration build-skip mechanism).
+- **Verified before implementing, not assumed:** `netlify.toml` already has `ignore = "exit 0"` (unconditional skip) — and per netlify-cli's own `--help` output and docs, `netlify deploy --build` (the exact command `.github/workflows/deploy.yml` runs on every push) **always builds unless `--no-build` is passed, completely independent of the `ignore` field**. That field only governs Netlify's own webhook-triggered git-integration builds — which this repo already disabled (line 212/multiple `Netlify minutes: unlimited (GHA builds) -> 0` entries elsewhere in this file confirm a prior, deliberate move off Netlify's native build pipeline after a past quota exhaustion incident). Changing the `ignore` field as literally requested would have fixed nothing — the actual cost driver, GitHub Actions minutes spent on `npm ci` + `next build` + Netlify CLI deploy for every push regardless of relevance, lives entirely in `deploy.yml`'s trigger, not in `netlify.toml`.
+- **Real fix:** added a `paths:` inclusion filter to `deploy.yml`'s `on.push` trigger — `src/**`, `public/**`, `package.json`, `package-lock.json`, `next.config.mjs`, `tailwind.config.ts`, `postcss.config.mjs`, `tsconfig.json`, `netlify.toml`, `.github/workflows/deploy.yml`. Deliberately an inclusion list, not `paths-ignore` — new non-site directories added later (another `scripts/<tool>/`, another `docs/` file) are safe by default rather than needing to be remembered and added to an exclusion list.
+- **`netlify.toml`'s `ignore = "exit 0"` left unchanged**, with a comment explaining why: if Netlify's git integration is still connected to this repo at all (even if currently silenced), switching that field to a conditional check would *reactivate* Netlify's own build-on-push behavior for site-relevant commits — running alongside the GH-Actions-triggered deploy and doubling builds on exactly the commits that matter, the opposite of the goal.
+- **Verified both directions with real test commits** (not assumed from the trigger syntax alone) — see the immediately following changelog entries for the actual before/after evidence.
+- CLAUDE.md: added a "Netlify is deploy-only" line under Known Netlify Gotchas.
+
 ### 2026-07-05 (latest) — VID-P4: daily video pipeline built and verified without spending
 
 Phase 4 moves 🔴→🟡. Built `scripts/video/{engine.py,gates.py,prompts.py}` per the operator's adapted project brief — candidate selection from Toycra + MyBrickHouse, Gemini/Cerebras script generation against the fixed Codex video-voice system prompt, 7 pre-TTS quality gates, ElevenLabs TTS, moviepy Ken Burns assembly, `video_posts` DB logging. New `video_posts` table (RLS enabled, service-role-only, matching the `generator_runs`/`pending_drafts` admin-table pattern). Full detail and every verified correction in VID-P4-01 above; headline items:

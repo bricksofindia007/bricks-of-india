@@ -59,6 +59,8 @@ if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set — check
 
 **Live page verification is mandatory before closing any content fix.** TypeScript compilation and CI green verify code correctness, not that content renders correctly on the deployed page. After any fix touching rendered content (HTML comment stripping, markdown processing, price display), fetch the live URL and confirm the symptom is absent in the response body before marking the issue closed.
 
+**Netlify is deploy-only, reserved for final site changes.** All testing/verification happens via GitHub Actions CI, local builds, or Supabase — never by pushing to trigger a Netlify build. The `paths:` guard on `.github/workflows/deploy.yml` enforces this at the infrastructure level; do not bypass or remove it without explicit operator approval.
+
 ---
 
 ## Supabase rules

@@ -1,6 +1,18 @@
 [build]
   command = "npm run build"
   publish = ".next"
+  # `ignore = "exit 0"` means "always skip" -- deliberately left as-is, not
+  # changed to a conditional path check, 2026-07-05. This field only governs
+  # Netlify's OWN git-integration builds; the actual deploy mechanism is
+  # .github/workflows/deploy.yml's explicit `netlify-cli deploy --build --prod`
+  # call. If Netlify's git integration is connected to this repo at all,
+  # switching this to a conditional (path-aware) check would REACTIVATE
+  # Netlify's own build-on-push behavior alongside the GH-Actions-triggered
+  # one -- doubling builds on exactly the site-relevant commits that matter,
+  # the opposite of the goal. The real fix lives in deploy.yml's `paths:`
+  # filter. Do not change this value without first confirming (Netlify
+  # dashboard -> Site configuration -> Build & deploy -> whether a GitHub
+  # deploy trigger is actually connected) that no second build path exists.
   ignore = "exit 0"
 
 [build.environment]

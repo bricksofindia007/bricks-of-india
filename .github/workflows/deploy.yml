@@ -4,6 +4,31 @@ on:
   push:
     branches:
       - main
+    # Real fix for repeatedly-raised "unnecessary Netlify builds" (2026-07-05):
+    # netlify.toml's `ignore` field does NOT govern this -- verified against
+    # netlify-cli's own docs and --help output that `netlify deploy --build`
+    # is a manual command that always builds unless --no-build is passed,
+    # completely independent of Netlify's git-integration build-skip engine
+    # (which `ignore` controls, and which this repo already disables via
+    # `ignore = "exit 0"` -- meaning that field currently does nothing at
+    # all, since deploys happen through this workflow's explicit CLI call,
+    # not through Netlify's own webhook-triggered builds). This `paths:`
+    # filter is what actually controls whether a real build+deploy runs.
+    # Inclusion list (not paths-ignore) deliberately -- new non-site
+    # directories added later (another scripts/<tool>/ subtree, another
+    # docs/ file) are safe by default and never accidentally trigger a
+    # deploy unless someone explicitly adds them here.
+    paths:
+      - "src/**"
+      - "public/**"
+      - "package.json"
+      - "package-lock.json"
+      - "next.config.mjs"
+      - "tailwind.config.ts"
+      - "postcss.config.mjs"
+      - "tsconfig.json"
+      - "netlify.toml"
+      - ".github/workflows/deploy.yml"
   workflow_dispatch:
 
 jobs:
