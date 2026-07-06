@@ -36,6 +36,7 @@ import time
 from pathlib import Path
 
 import requests
+from PIL import Image
 from dotenv import load_dotenv
 
 from secrets_util import get_secret
@@ -75,6 +76,112 @@ def assert_all_gates_passed(gate_results: dict) -> None:
     ]
     if failed:
         raise GateFailureError(f'Refusing to publish: gate(s) failed: {", ".join(failed)}')
+
+
+class CaptionsMissingError(Exception):
+    """Raised by assert_captions_present() -- never caught silently by callers."""
+
+
+# Must match burn_captions() in engine.py: 1080x1920 canvas, caption band
+# centered at y = 0.78 * height. Captions are burned into the pixels (no
+# subtitle track exists), so a sampled-frame check is the only way to verify
+# their presence on an arbitrary final file.
+#
+# First attempt at this check was a pixel-color heuristic (count near-white
+# fill pixels adjacent to near-black outline pixels in the band). Confirmed
+# live it does NOT work: real LEGO studio product photography sits on a
+# near-pure-white backdrop and routinely contains near-pure-black brick
+# detail/shadows, at massive scale (tens of thousands of pixels), including
+# adjacency between the two -- this is genuinely indistinguishable from text
+# by color/adjacency alone. Tested against today's actual uncaptioned Minas
+# Tirith render, which the heuristic incorrectly passed as "captioned."
+#
+# Switched to real OCR (pytesseract/tesseract) instead of a color heuristic
+# -- but plain OCR alone is STILL not enough. Confirmed live: the Ken-Burns
+# source images include a "stats card" graphic (set number, piece count)
+# with real embedded text of its own, which pans through this exact band
+# and gets correctly OCR'd as real text ("sgn77| 278" / "4ge(11377| 8278
+# ors") -- genuine text, just not a caption. Bare "OCR found some text" is
+# not a caption-specific signal; both the uncaptioned and captioned Minas
+# Tirith renders produce OCR text somewhere in this band.
+#
+# Fix: cross-check OCR output against the actual script text (ground truth
+# -- captions are Whisper's transcription of the same TTS audio the script
+# produced, so real caption text shares real words with the script; stats-
+# card noise does not). Require a minimum count of real word overlaps, not
+# just "OCR found characters."
+_CAPTION_FRAME_W, _CAPTION_FRAME_H = 1080, 1920
+_CAPTION_BAND_TOP = int(_CAPTION_FRAME_H * 0.68)
+_CAPTION_BAND_BOTTOM = int(_CAPTION_FRAME_H * 0.88)
+_MIN_SCRIPT_WORD_OVERLAP = 3
+
+
+def _ensure_tesseract_configured() -> None:
+    import shutil
+    import pytesseract
+    if shutil.which('tesseract'):
+        return
+    for candidate in (r'C:\Program Files\Tesseract-OCR\tesseract.exe',):
+        if Path(candidate).exists():
+            pytesseract.pytesseract.tesseract_cmd = candidate
+            return
+
+
+def _normalize_words(text: str) -> set[str]:
+    import re
+    return {w for w in re.sub(r'[^a-z0-9\s]', ' ', text.lower()).split() if len(w) >= 3}
+
+
+def _frame_matches_script(frame, script_words: set[str]) -> bool:
+    """frame: HxWx3 numpy array (RGB) from one sampled timestamp."""
+    import pytesseract
+    _ensure_tesseract_configured()
+    band = frame[_CAPTION_BAND_TOP:_CAPTION_BAND_BOTTOM, :, :]
+    text = pytesseract.image_to_string(Image.fromarray(band)).strip()
+    ocr_words = _normalize_words(text)
+    overlap = ocr_words & script_words
+    return len(overlap) >= _MIN_SCRIPT_WORD_OVERLAP
+
+
+def assert_captions_present(video_path: str, script: str, sample_count: int = 10) -> None:
+    """
+    Hard pre-publish guard (same tier as assert_all_gates_passed -- this
+    function must be called before any IG/YouTube API call, on every publish
+    path: today's manual trigger, the Tue/Wed approval trigger, and
+    Thursday's autonomous trigger). Added 2026-07-06 after the first live
+    post went out with no burned-in captions (a wrong-file-referenced bug,
+    since fixed) -- captions are now verified structurally at publish time
+    rather than trusted from upstream.
+
+    script: the video_posts.script text (ground truth). Samples
+    `sample_count` evenly-spaced frames (skipping the very first/last 5% of
+    the timeline, where a caption segment is least likely to be active) and
+    OCRs the known caption band, checking for a real word overlap with the
+    script -- not just "OCR found some text" (the Ken-Burns source images
+    include a stats-card graphic with its own real embedded text, which OCRs
+    as text without being a caption; word-overlap against the script is what
+    actually distinguishes the two). Passes if ANY sampled frame overlaps
+    enough (captions have gaps between speech segments, so not every frame
+    will) -- fails hard if NONE do.
+    """
+    from moviepy.editor import VideoFileClip
+
+    script_words = _normalize_words(script)
+    clip = VideoFileClip(video_path)
+    try:
+        duration = clip.duration
+        margin = duration * 0.05
+        timestamps = [margin + i * (duration - 2 * margin) / (sample_count - 1) for i in range(sample_count)]
+        for t in timestamps:
+            frame = clip.get_frame(t)
+            if _frame_matches_script(frame, script_words):
+                return
+    finally:
+        clip.close()
+
+    raise CaptionsMissingError(
+        f'Refusing to publish: no burned-in caption text matching the script found in any of {sample_count} sampled frames of {video_path!r}.'
+    )
 
 
 # ── Storage ──────────────────────────────────────────────────────────────────
@@ -340,8 +447,8 @@ def publish_video_post(sb, video_post: dict) -> dict:
     function -- the caller needs the partial results dict even when
     something failed (e.g. to still send a notification showing what
     succeeded), so failure is signaled via the 'errors' key, not an
-    exception. Only assert_all_gates_passed() above raises -- that's the one
-    case where nothing should be attempted at all.
+    exception. Only assert_all_gates_passed() and assert_captions_present()
+    raise -- those are the two cases where nothing should be attempted at all.
     """
     assert_all_gates_passed(video_post['gate_results'])
 
@@ -369,6 +476,12 @@ def publish_video_post(sb, video_post: dict) -> dict:
             for chunk in resp.iter_content(chunk_size=1 << 20):
                 f.write(chunk)
         local_video_path = str(tmp_path)
+
+    # Hard guard, same tier as assert_all_gates_passed above: captions are
+    # burned into the pixels with no separate track to trust, so verify the
+    # actual file about to be posted has them, structurally, every time --
+    # not just on the render side where the wrong-file bug actually occurred.
+    assert_captions_present(local_video_path, video_post['script'])
 
     if not storage_url:
         filename = f"{video_post['id']}.mp4"

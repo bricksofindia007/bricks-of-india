@@ -33,7 +33,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install system dependencies
-        run: sudo apt-get update -y && sudo apt-get install -y ffmpeg
+        run: sudo apt-get update -y && sudo apt-get install -y ffmpeg tesseract-ocr
 
       - name: Install Python dependencies
         run: pip install -r scripts/video/requirements.txt

@@ -1170,8 +1170,8 @@ def main() -> None:
 
         try:
             results = publish_mod.publish_video_post(sb, video_post)
-        except publish_mod.GateFailureError as exc:
-            # The one case where nothing was attempted at all -- no partial
+        except (publish_mod.GateFailureError, publish_mod.CaptionsMissingError) as exc:
+            # The two cases where nothing was attempted at all -- no partial
             # results exist, no notification to send (there's nothing to show).
             print(f"ERROR: {exc}", file=sys.stderr)
             sys.exit(1)
@@ -1284,22 +1284,33 @@ def main() -> None:
         segments = transcribe_for_captions(output_path)
         captioned_path = output_path.with_name(output_path.stem + "_captioned.mp4")
         burn_captions(output_path, segments, captioned_path)
-        print(f"Captioned: {captioned_path}")
 
-        # Bug found 2026-07-06 (evidence: both files existed locally for the
-        # Minas Tirith render, but video_posts.video_path pointed at
-        # output_path, the pre-caption file -- meaning the first live post
-        # actually went out with no burned-in captions despite this step
-        # existing). The captioned file is the real deliverable; store that.
-        video_id = insert_video_post(sb, candidate, script, report, captioned_path)
+        # Bug found 2026-07-06, confirmed via SHA256 (not just file size):
+        # the pre-caption render (output_path) and the captioned render
+        # (captioned_path) coexisted as two files after every run, and
+        # video_posts.video_path pointed at output_path -- the file actually
+        # uploaded and posted to both IG and YouTube for the first live post
+        # was byte-identical to the pre-caption intermediate, not the
+        # captioned one, despite the caption-burn step running successfully
+        # in that same invocation.
+        #
+        # Fix: collapse to exactly one artifact per run. Delete the
+        # pre-caption intermediate and have captioned_path take over
+        # output_path's name -- there is no second file left on disk that
+        # could ever be mistakenly referenced as "the" video for this run.
+        output_path.unlink()
+        captioned_path.rename(output_path)
+        print(f"Captioned (sole output for this run): {output_path}")
+
+        video_id = insert_video_post(sb, candidate, script, report, output_path)
         print(f"video_posts row inserted: {video_id}")
 
         if args.cloud_generate:
             import publish as publish_mod
 
             print("Stage 2: uploading captioned video + QC frames to storage...")
-            storage_url = publish_mod.upload_video_to_storage(sb, str(captioned_path), f"{video_id}.mp4")
-            qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(captioned_path), video_id)
+            storage_url = publish_mod.upload_video_to_storage(sb, str(output_path), f"{video_id}.mp4")
+            qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(output_path), video_id)
             sb.table("video_posts").update({
                 "storage_url": storage_url,
                 "qc_frame_urls": qc_urls,

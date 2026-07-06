@@ -252,6 +252,24 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-07-06 (VID-P4 first live post shipped with no burned-in captions — root cause, fix, and new hard guard) — ✅ CLOSED
+
+**Incident:** the first-ever live VID-P4 post (Minas Tirith 11377, both IG Reels and YouTube Shorts) went out with no burned-in captions, despite the pipeline's Stage 6 caption-burn step running successfully in that same invocation and producing a correct captioned file.
+
+**Root cause, confirmed via SHA256 (not file size or assumption):** `insert_video_post()` stored `output_path` (the pre-caption render) as `video_posts.video_path`, not `captioned_path` (the actual caption-burn output) — a simple wrong-variable bug, not a missing/broken caption-burn step. Verified the exact file that was uploaded to Supabase Storage and posted to both platforms is byte-identical (`sha256 92d684c5...`) to the local pre-caption file, and different from the captioned file (`sha256 8b830da6...`).
+
+**Fix (single-artifact rule):** after `burn_captions()` succeeds, the pre-caption intermediate is deleted and the captioned file takes over the original output filename — exactly one file exists per run from that point on, so there is no second path any future code could mistakenly reference as "the" video for a run.
+
+**New hard guard (`publish.py::assert_captions_present()`), same tier as the existing gate-failure guardrail — called before ANY IG/YouTube API call, on every publish path (today's manual trigger, the Tue/Wed approval trigger, and Thursday's autonomous trigger):**
+- First attempt was a pixel-color heuristic (white fill + black outline adjacency in the known caption band). **Failed real verification** — LEGO studio product photography sits on a near-pure-white backdrop with substantial black brick/shadow detail, producing the same color adjacency at massive scale with zero actual caption text. Confirmed by testing directly against today's real uncaptioned Minas Tirith file, which the heuristic incorrectly passed.
+- Second attempt used real OCR (pytesseract/tesseract) instead of color. **Also insufficient alone** — the Ken-Burns source images include a "stats card" graphic with real embedded text (set number, piece count) that pans through the same band and genuinely OCRs as text, without being a caption.
+- **Final version:** OCR the caption band, then cross-check the extracted words against the actual `video_posts.script` text (ground truth — captions are Whisper's transcription of the same TTS audio the script produced, so real captions share real words with the script; stats-card noise does not). Requires a minimum real word overlap, not just "OCR found characters."
+- **Verified both directions against the same two real production files** (not synthetic mocks): the real captioned Minas Tirith file correctly PASSES; the real uncaptioned Minas Tirith file (the one actually posted) correctly BLOCKS with `CaptionsMissingError`.
+
+**Operator decision:** the two already-live posts (IG + YouTube) stay as-is, no delete/repost — accepted as a one-time first-post learning cost. All effort went into the fix and the guard above so it cannot recur.
+
+**Separate same-day finding, also verified via evidence:** the ElevenLabs voice config used for this same Minas Tirith render predates the "Test B" lock (`similarity_boost=0.9`) — the locking commit (`3cc2360`) landed at 08:54:37 UTC, 9 minutes *after* this render's `video_posts` row was created (08:45:42 UTC). Confirmed the current `main` HEAD correctly calls `generate_tts()` with `TTS_MODEL_ID`/`TTS_VOICE_SETTINGS` (Test B) for all future renders — Tuesday onward is unaffected.
+
 ### 2026-07-06 (vocabulary list extended + buyer-persona decision recorded) — ✅ CLOSED
 
 Added "undeniable statement", "a testament to", "makes a statement", "commands attention" to the banned review-language list in the video system prompt -- matching a real phrase from the Stage 7 E2E script itself ("it's an undeniable statement", Minas Tirith). Re-tested on 2 fresh real generations (Mandalorian N-1 Starfighter candidate): zero banned phrases in either (95 and 124 words). One of the two scripts' price-math also checked out independently by hand (3 years of Netflix Premium + Prime = ₹27,864 vs a ₹26,999 set -- within the 0.5x-1.5x band).
