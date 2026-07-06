@@ -336,11 +336,7 @@ export default async function HomePage() {
                 {/* Cover image */}
                 <div className="relative overflow-hidden" style={{ aspectRatio: '4/3' }}>
                   <ImageWithFallback
-                    srcs={[
-                      theme.image,
-                      `https://images.brickset.com/sets/images/${theme.slug}-1.jpg`,
-                      '/images/lego-placeholder.svg',
-                    ]}
+                    srcs={[theme.image, '/theme-cards/_default.webp']}
                     alt={theme.name}
                     fill
                     className="object-cover group-hover:scale-105 transition-transform duration-300"

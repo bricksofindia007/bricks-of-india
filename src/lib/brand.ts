@@ -42,32 +42,37 @@ export const ASSETS = {
   ogImage: "/assets/og-image.jpg",
 } as const;
 
+// image: local static theme-card asset (webp) -- migrated off Rebrickable
+// 2026-07-06. Path is deterministic (/theme-cards/<slug>.webp), matching
+// getThemeCardUrl() in src/lib/themeCard.ts, but inlined directly here
+// rather than calling that helper -- themeCard.ts imports THEMES from this
+// file, so calling back into it here would be a circular import.
 export const THEMES = [
-  { name: "Technic",         slug: "technic",         emoji: "⚙️",  image: "https://cdn.rebrickable.com/media/sets/30735-1/165347.jpg",   accentColor: "#CC0000" },
-  { name: "City",            slug: "city",            emoji: "🏙️", image: "https://cdn.rebrickable.com/media/sets/60483-1/164897.jpg",   accentColor: "#1A56DB" },
-  { name: "Star Wars",       slug: "star-wars",       emoji: "⭐",  image: "https://cdn.rebrickable.com/media/sets/75436-1/164313.jpg",   accentColor: "#854D0E" },
-  { name: "Harry Potter",    slug: "harry-potter",    emoji: "🧙",  image: "https://cdn.rebrickable.com/media/sets/76463-1/164119.jpg",   accentColor: "#7C3AED" },
-  { name: "Speed Champions", slug: "speed-champions", emoji: "🏎️", image: "https://cdn.rebrickable.com/media/sets/76919-1/137105.jpg",   accentColor: "#EA580C" },
-  { name: "Creator",         slug: "creator",         emoji: "🏗️", image: "https://cdn.rebrickable.com/media/sets/30715-1/165350.jpg",   accentColor: "#0D9488" },
-  { name: "Icons",           slug: "icons",           emoji: "🏛️", image: "https://cdn.rebrickable.com/media/sets/11376-1/168267.jpg",   accentColor: "#F59E0B" },
-  { name: "Botanical",       slug: "botanical",       emoji: "🌸",  image: "https://cdn.rebrickable.com/media/sets/10314-1/132374.jpg",   accentColor: "#16A34A" },
-  { name: "Minecraft",       slug: "minecraft",       emoji: "⛏️", image: "https://cdn.rebrickable.com/media/sets/l0002246-1/166564.jpg", accentColor: "#65A30D" },
-  { name: "Friends",         slug: "friends",         emoji: "💜",  image: "https://cdn.rebrickable.com/media/sets/41726-1/131601.jpg",   accentColor: "#EC4899" },
-  { name: "Ninjago",         slug: "ninjago",         emoji: "🥷",  image: "https://cdn.rebrickable.com/media/sets/71858-1/163011.jpg",   accentColor: "#DC2626" },
-  { name: "Marvel",          slug: "marvel",          emoji: "🕷️", image: "https://cdn.rebrickable.com/media/sets/76269-1/129297.jpg",   accentColor: "#B91C1C" },
-  { name: "DC",              slug: "dc",              emoji: "🦇",  image: "https://cdn.rebrickable.com/media/sets/76240-1/91494.jpg",    accentColor: "#1E3A8A" },
-  { name: "Ideas",           slug: "ideas",           emoji: "💡",  image: "https://cdn.rebrickable.com/media/sets/6614222-1/168228.jpg", accentColor: "#0EA5E9" },
-  { name: "Architecture",    slug: "architecture",    emoji: "🗼",  image: "https://cdn.rebrickable.com/media/sets/21064-1/163415.jpg",   accentColor: "#78716C" },
-  { name: "Disney",          slug: "disney",          emoji: "🏰",  image: "https://cdn.rebrickable.com/media/sets/43222-1/130721.jpg",   accentColor: "#9333EA" },
-  { name: "BrickHeadz",      slug: "brickheadz",      emoji: "🟨",  image: "https://cdn.rebrickable.com/media/sets/75691-1/158654.jpg",   accentColor: "#F59E0B" },
-  { name: "Jurassic World",  slug: "jurassic-world",  emoji: "🦕",  image: "https://cdn.rebrickable.com/media/sets/77984-1/171190.jpg",   accentColor: "#4D7C0F" },
-  { name: "Super Mario",     slug: "super-mario",     emoji: "🍄",  image: "https://cdn.rebrickable.com/media/sets/72050-1/169873.jpg",   accentColor: "#DC2626" },
-  { name: "Duplo",           slug: "duplo",           emoji: "🧸",  image: "https://cdn.rebrickable.com/media/sets/10478-1/168606.jpg",   accentColor: "#EA580C" },
-  { name: "Art",             slug: "art",             emoji: "🎨",  image: "https://cdn.rebrickable.com/media/sets/71050-4/159669.jpg",   accentColor: "#111827" },
-  { name: "Dots",            slug: "dots",            emoji: "🔴",  image: "https://cdn.rebrickable.com/media/sets/6513792-1/145911.jpg", accentColor: "#DB2777" },
-  { name: "Dreamzzz",        slug: "dreamzzz",        emoji: "🌙",  image: "https://cdn.rebrickable.com/media/sets/71508-1/164789.jpg",   accentColor: "#4F46E5" },
-  { name: "Classic",         slug: "classic",         emoji: "🧱",  image: "https://cdn.rebrickable.com/media/sets/11037-1/133275.jpg",   accentColor: "#F59E0B" },
-  { name: "Seasonal",        slug: "seasonal",        emoji: "🎄",  image: "https://cdn.rebrickable.com/media/sets/5009470-1/165655.jpg", accentColor: "#DC2626" },
+  { name: "Technic",         slug: "technic",         emoji: "⚙️",  image: "/theme-cards/technic.webp",         accentColor: "#CC0000" },
+  { name: "City",            slug: "city",            emoji: "🏙️", image: "/theme-cards/city.webp",            accentColor: "#1A56DB" },
+  { name: "Star Wars",       slug: "star-wars",       emoji: "⭐",  image: "/theme-cards/star-wars.webp",       accentColor: "#854D0E" },
+  { name: "Harry Potter",    slug: "harry-potter",    emoji: "🧙",  image: "/theme-cards/harry-potter.webp",    accentColor: "#7C3AED" },
+  { name: "Speed Champions", slug: "speed-champions", emoji: "🏎️", image: "/theme-cards/speed-champions.webp", accentColor: "#EA580C" },
+  { name: "Creator",         slug: "creator",         emoji: "🏗️", image: "/theme-cards/creator.webp",         accentColor: "#0D9488" },
+  { name: "Icons",           slug: "icons",           emoji: "🏛️", image: "/theme-cards/icons.webp",           accentColor: "#F59E0B" },
+  { name: "Botanical",       slug: "botanical",       emoji: "🌸",  image: "/theme-cards/botanical.webp",       accentColor: "#16A34A" },
+  { name: "Minecraft",       slug: "minecraft",       emoji: "⛏️", image: "/theme-cards/minecraft.webp",       accentColor: "#65A30D" },
+  { name: "Friends",         slug: "friends",         emoji: "💜",  image: "/theme-cards/friends.webp",         accentColor: "#EC4899" },
+  { name: "Ninjago",         slug: "ninjago",         emoji: "🥷",  image: "/theme-cards/ninjago.webp",         accentColor: "#DC2626" },
+  { name: "Marvel",          slug: "marvel",          emoji: "🕷️", image: "/theme-cards/marvel.webp",          accentColor: "#B91C1C" },
+  { name: "DC",              slug: "dc",              emoji: "🦇",  image: "/theme-cards/dc.webp",              accentColor: "#1E3A8A" },
+  { name: "Ideas",           slug: "ideas",           emoji: "💡",  image: "/theme-cards/ideas.webp",           accentColor: "#0EA5E9" },
+  { name: "Architecture",    slug: "architecture",    emoji: "🗼",  image: "/theme-cards/architecture.webp",    accentColor: "#78716C" },
+  { name: "Disney",          slug: "disney",          emoji: "🏰",  image: "/theme-cards/disney.webp",          accentColor: "#9333EA" },
+  { name: "BrickHeadz",      slug: "brickheadz",      emoji: "🟨",  image: "/theme-cards/brickheadz.webp",      accentColor: "#F59E0B" },
+  { name: "Jurassic World",  slug: "jurassic-world",  emoji: "🦕",  image: "/theme-cards/jurassic-world.webp",  accentColor: "#4D7C0F" },
+  { name: "Super Mario",     slug: "super-mario",     emoji: "🍄",  image: "/theme-cards/super-mario.webp",     accentColor: "#DC2626" },
+  { name: "Duplo",           slug: "duplo",           emoji: "🧸",  image: "/theme-cards/duplo.webp",           accentColor: "#EA580C" },
+  { name: "Art",             slug: "art",             emoji: "🎨",  image: "/theme-cards/art.webp",             accentColor: "#111827" },
+  { name: "Dots",            slug: "dots",            emoji: "🔴",  image: "/theme-cards/dots.webp",            accentColor: "#DB2777" },
+  { name: "Dreamzzz",        slug: "dreamzzz",        emoji: "🌙",  image: "/theme-cards/dreamzzz.webp",        accentColor: "#4F46E5" },
+  { name: "Classic",         slug: "classic",         emoji: "🧱",  image: "/theme-cards/classic.webp",         accentColor: "#F59E0B" },
+  { name: "Seasonal",        slug: "seasonal",        emoji: "🎄",  image: "/theme-cards/seasonal.webp",        accentColor: "#DC2626" },
 ] as const;
 
 export const PRICE_RANGES = [

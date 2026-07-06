@@ -5,6 +5,7 @@ import { createServerClient } from '@/lib/supabase';
 import { ThemeGrid } from '@/components/sets/ThemeGrid';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { THEMES } from '@/lib/brand';
+import { getThemeCardUrl, getThemeCardOgUrl } from '@/lib/themeCard';
 import { JsonLd } from '@/components/JsonLd';
 import { buildItemListSchema } from '@/lib/schemas';
 
@@ -26,7 +27,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     openGraph: {
       title: `LEGO ${theme.name} Sets India 2026 — Bricks of India`,
       description: `Compare all LEGO ${theme.name} prices across Indian stores. Updated every 6 hours.`,
-      images: theme.image ? [{ url: theme.image }] : [],
+      images: [{ url: getThemeCardOgUrl(theme.slug) }],
     },
   };
 }
@@ -110,7 +111,7 @@ export default async function ThemePage({ params }: Props) {
           <div className="flex items-center gap-4 mb-3">
             <div className="relative w-14 h-14 rounded-xl overflow-hidden shrink-0 border-2 border-white/20">
               <ImageWithFallback
-                srcs={[theme.image, '/images/lego-placeholder.svg']}
+                srcs={[getThemeCardUrl(theme.slug), '/theme-cards/_default.webp']}
                 alt={theme.name}
                 fill
                 className="object-cover"
@@ -138,7 +139,7 @@ export default async function ThemePage({ params }: Props) {
           <div className="text-center py-16">
             <div className="relative w-24 h-24 mx-auto mb-4 rounded-2xl overflow-hidden">
               <ImageWithFallback
-                srcs={[theme.image, '/images/lego-placeholder.svg']}
+                srcs={[getThemeCardUrl(theme.slug), '/theme-cards/_default.webp']}
                 alt={theme.name}
                 fill
                 className="object-cover"
