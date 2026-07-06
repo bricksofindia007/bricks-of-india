@@ -13,6 +13,14 @@ on:
         description: 'video_posts.id to publish'
         required: true
         type: string
+      action:
+        description: 'publish (post live) or resend-notification (re-send Stage F email using already-stored results, does not re-post)'
+        required: false
+        type: choice
+        default: publish
+        options:
+          - publish
+          - resend-notification
 
 jobs:
   publish:
@@ -39,4 +47,9 @@ jobs:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-        run: python engine.py --publish "${{ github.event.inputs.video_post_id }}"
+        run: |
+          if [ "${{ github.event.inputs.action }}" = "resend-notification" ]; then
+            python engine.py --resend-notification "${{ github.event.inputs.video_post_id }}"
+          else
+            python engine.py --publish "${{ github.event.inputs.video_post_id }}"
+          fi

@@ -1115,9 +1115,24 @@ def main() -> None:
     parser.add_argument("--posted", type=str, help="video_posts.id to mark as posted")
     parser.add_argument("--platform", type=str, choices=["ig", "yt", "both"], help="platform for --posted")
     parser.add_argument("--publish", type=str, help="video_posts.id to actually post live to IG Reels + YouTube Shorts")
+    parser.add_argument("--resend-notification", type=str, help="video_posts.id to re-send the Stage F publish notification for, using its already-stored results (does not re-post)")
     args = parser.parse_args()
 
     sb = get_supabase()
+
+    if args.resend_notification:
+        import notifier as notifier_mod
+
+        row_res = sb.table("video_posts").select("*").eq("id", args.resend_notification).single().execute()
+        video_post = row_res.data
+        if not video_post:
+            print(f"ERROR: no video_posts row found for id {args.resend_notification}", file=sys.stderr)
+            sys.exit(1)
+        ig_result = {"permalink": video_post["ig_permalink"]} if video_post.get("ig_permalink") else None
+        yt_result = {"url": video_post["yt_url"]} if video_post.get("yt_url") else None
+        notifier_mod.send_publish_notification(video_post, ig_result, yt_result)
+        print(f"Notification re-sent for {args.resend_notification}.")
+        return
 
     if args.publish:
         import publish as publish_mod

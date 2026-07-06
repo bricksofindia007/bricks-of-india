@@ -44,8 +44,15 @@ def send_publish_notification(video_post: dict, ig_result: dict | None, yt_resul
     video_post: the video_posts row (set_title, script, qc_frame_urls, etc).
     ig_result / yt_result: whatever publish_video_post() returned for each
     platform, or None if that platform wasn't attempted/failed.
+
+    set_title/script strip a leading BOM (\\ufeff) before use -- same bug
+    class already fixed in social-automation/notifier.py's send_success()
+    (2026-06-30): a BOM in scraped store/product data crashes Resend's send
+    with "'latin-1' codec can't encode character '\\ufeff'". Confirmed live
+    here too (2026-07-06, first real publish run) -- the video posted fine,
+    but this notification silently failed to send without this fix.
     """
-    set_title = video_post.get('set_title', 'Unknown set')
+    set_title = video_post.get('set_title', 'Unknown set').replace('﻿', '')
     subject = f'🎬 VID-P4 auto-published — {set_title}'
 
     links_html = ''
@@ -62,7 +69,7 @@ def send_publish_notification(video_post: dict, ig_result: dict | None, yt_resul
     for url in (video_post.get('qc_frame_urls') or []):
         frames_html += f'<img src="{url}" style="width:180px;margin:4px;border-radius:8px;" />'
 
-    script_text = (video_post.get('script') or '').replace('\n', '<br>')
+    script_text = (video_post.get('script') or '').replace('﻿', '').replace('\n', '<br>')
 
     html = f"""
 <h2>Video Auto-Published</h2>
@@ -88,7 +95,8 @@ def send_skip_notification(reason: str, candidate_title: str | None = None, gate
     must never be silent.
     """
     subject = '⚠️ VID-P4 skipped today — no video published'
-    detail = f'<p><strong>Candidate:</strong> {candidate_title}</p>' if candidate_title else ''
+    safe_title = (candidate_title or '').replace('﻿', '')
+    detail = f'<p><strong>Candidate:</strong> {safe_title}</p>' if safe_title else ''
     gates_html = ''
     if gate_failures:
         gates_html = '<ul>' + ''.join(f'<li>{g}</li>' for g in gate_failures) + '</ul>'
