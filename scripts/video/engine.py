@@ -201,12 +201,31 @@ ELEVENLABS_MAX_SCRIPT_CHARS = 1000
 # Test B: eleven_flash_v2_5, similarity_boost 0.9; Test C:
 # eleven_multilingual_v2, similarity_boost 0.85, bills at 2x Flash's rate).
 # Test B won. Standing default for ALL TTS calls, not a one-off setting.
+#
+# Bug found 2026-07-06: the Minas Tirith render (the render this A/B/C test
+# was validated against) actually ran BEFORE this lock landed in code --
+# that call had no voice_settings at all, so it used whatever ElevenLabs'
+# per-voice dashboard default happened to be. Confirmed (operator, via the
+# ElevenLabs dashboard) that account's similarity_boost default is currently
+# 90% -- meaning the render that "confirmed" Test B matched it by pure
+# timing coincidence, not because the code enforced it. All 5 fields
+# VoiceSettings supports (confirmed against the installed SDK's
+# elevenlabs.types.voice_settings.VoiceSettings Pydantic model, cross-
+# checked against ElevenLabs' own current API docs for documented defaults)
+# are now set explicitly here so nothing is ever left to an account-level
+# default that can drift silently with no record in this repo.
+# Documented API defaults for reference: stability=0.5, similarity_boost=0.75,
+# style=0, use_speaker_boost=true, speed=1.0 -- we deliberately override only
+# similarity_boost (0.9, the Test B result); the rest match the platform
+# default but are pinned explicitly rather than omitted, including speed
+# (not previously set at all, same silent-drift risk as similarity_boost was).
 TTS_MODEL_ID = "eleven_flash_v2_5"
 TTS_VOICE_SETTINGS = {
     "stability": 0.5,
     "similarity_boost": 0.9,
     "use_speaker_boost": True,
     "style": 0.0,
+    "speed": 1.0,
 }
 
 
