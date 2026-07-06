@@ -10,7 +10,13 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+# .lstrip('﻿'): found live 2026-07-06 while debugging the identical bug in
+# VID-P4's notifier.py -- the RESEND_API_KEY GitHub Secret carries a leading
+# BOM, which breaks the Bearer auth header ("'latin-1' codec can't encode
+# character '﻿' in position 7" -- position 7 is right after "Bearer ").
+# Same bug class CLAUDE.md documents for other Bearer-bound keys; this file
+# shares the same secret and was never covered by that fix.
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '').lstrip('﻿').strip()
 FROM_ADDRESS = 'notifications@bricksofindia.com'
 TO_ADDRESS = 'abhinav@bricksofindia.com'
 

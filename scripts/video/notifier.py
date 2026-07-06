@@ -19,7 +19,16 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent.parent / 'social-automation' / '.env')
 
-RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '')
+# .lstrip('﻿'): confirmed live 2026-07-06 -- this is the actual root
+# cause of the "'latin-1' codec can't encode character '﻿' in position
+# 7" failure (position 7 == right after "Bearer ", where the token starts).
+# The RESEND_API_KEY GitHub Secret itself carries a leading BOM -- same bug
+# class CLAUDE.md documents for other Bearer-bound keys (SUPABASE_SERVICE_
+# ROLE_KEY, GEMINI_API_KEY, CEREBRAS_API_KEY), centralized there via
+# getSecret() for the Next.js/TS side, but this Python pipeline has no
+# equivalent helper and was never covered by that fix. Stripping at load
+# time here since there's no shared Python equivalent to route through.
+RESEND_API_KEY = os.environ.get('RESEND_API_KEY', '').lstrip('﻿').strip()
 FROM_ADDRESS = 'notifications@bricksofindia.com'
 TO_ADDRESS = 'abhinav@bricksofindia.com'
 
