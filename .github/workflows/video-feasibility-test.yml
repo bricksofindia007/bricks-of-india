@@ -1,0 +1,86 @@
+name: VID-P4 Feasibility Test (Stage 1 — cloud architecture)
+
+# workflow_dispatch only. One-off diagnostic: does the full Stage 1-6
+# pipeline (candidate select, script gen, all gates, real TTS, moviepy
+# render, Whisper caption burn-in) complete on a standard GitHub-hosted
+# Ubuntu runner, and what does it actually cost in wall-clock time and
+# memory? Not part of the ongoing daily pipeline -- Stage 2 (the real cloud
+# generation workflow) is built separately once this answers the question.
+#
+# Uses --placeholder-anchors (solid-color intro/outro) since the operator's
+# real master_assets/*.mp4 clips are gitignored and never reach a runner --
+# this does not affect timing/memory in any way that matters for the
+# question being asked. TTS is real (not --no-tts): a silent placeholder
+# would make the Whisper caption-burn step meaningless to time, and the
+# real ElevenLabs round-trip is itself part of what needs measuring.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  feasibility:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/video/requirements.txt
+
+      - name: Report runner spec (for context on the numbers below)
+        run: |
+          echo "CPU:"; nproc
+          echo "Memory:"; free -h
+          echo "Disk:"; df -h /
+
+      - name: Run full Stage 1-6 pipeline with resource monitoring
+        working-directory: scripts/video
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_SOCIAL_API_KEY: ${{ secrets.GEMINI_SOCIAL_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          BRICKSET_API_KEY: ${{ secrets.BRICKSET_API_KEY }}
+          REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
+        run: |
+          # Background memory sampler -- /usr/bin/time gives peak RSS for the
+          # process tree's root only, which misses ffmpeg/whisper subprocess
+          # spikes. Sampling free -m every 2s alongside the run catches those.
+          ( while true; do date +%s; free -m | awk 'NR==2{print $3}'; sleep 2; done > ../../mem_samples.txt ) &
+          SAMPLER_PID=$!
+
+          START=$(date +%s)
+          /usr/bin/time -v python engine.py --pick 1 --placeholder-anchors 2> time_output.txt
+          EXIT_CODE=$?
+          END=$(date +%s)
+
+          kill $SAMPLER_PID 2>/dev/null || true
+
+          echo "=== EXIT CODE: $EXIT_CODE ==="
+          echo "=== WALL CLOCK: $((END - START)) seconds ==="
+          echo "=== /usr/bin/time -v output ==="
+          cat time_output.txt
+          echo "=== Peak memory from sampler (MB) ==="
+          awk 'NR % 2 == 0' ../../mem_samples.txt | sort -n | tail -1
+
+          exit $EXIT_CODE
+
+      - name: Upload rendered output + logs as artifacts (for inspection regardless of pass/fail)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: feasibility-test-output
+          path: |
+            scripts/video/output/*.mp4
+            scripts/video/time_output.txt
+            mem_samples.txt
+          retention-days: 7
+          if-no-files-found: warn
