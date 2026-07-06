@@ -87,7 +87,7 @@ JSON parses. If it doesn't, fix before doing anything else.
 | Phase 1 | Voice Codex | ✅ Done — `docs/codex/BOI_Codex_v2.docx` committed 2026-05-01 | CONTENT |
 | Phase 2 | Claude Project workbench | 🟡 Unblocked — pending setup | CONTENT |
 | Phase 3 | Topical Radar (RSS ingestion) | 🟡 In progress — RADAR-01–05/CRON ✅ Done. WEB-01–04 ✅ Done. DEFECT-005 ✅ closed. REVIEWS-FIRST-3 ✅ Done Day 14. RADAR-08 ✅ Done Day 26 (automated reviews pipeline). GHA batch generation ✅ Done Day 26 (generate-drafts.yml + dispatch button). 338 approved drafts awaiting bodies — first GHA run in progress 2026-05-27 03:51 UTC. | CONTENT |
-| Phase 4 | Shorts / Reels workflow (DaVinci + ElevenLabs) | 🟡 In progress — VID-P4-01 engine built 2026-07-05 (candidate selector, Codex script gen, pre-TTS gates, assembly). VID-P4-02 (first supervised live run) pending operator keys + recorded clips. | VIDEO |
+| Phase 4 | Shorts / Reels workflow (cloud-based approval pipeline) | 🟡 In progress — 2 real live posts confirmed 2026-07-06 (Minas Tirith 11377 via manual trigger; N-1 Starfighter 75442 via a fully autonomous chat-approve → poller-publish loop, independently fetch-back-verified on both platforms). Daily generation cron active (`video-generate-daily.yml`, 6:00 AM IST) and publish poller active (`video-publish-poller.yml`, every 15 min). Currently running in human-approval-gated mode (Tue/Wed hold period) — every generated video sits in `pending_approval` until the operator approves in chat; verified by exhaustive grep that no code path or DB trigger ever writes `status='approved'` itself. Thursday's full-autonomy mode (gate-pass-only, no human approval, 6:30 PM IST) is **NOT YET ENABLED** — an explicit operator/code change is still required to flip this. See Sprint changelog for full detail. | VIDEO |
 | Phase 5 | Social automation (carousel + Reels + YouTube Shorts) | ✅ Done — SOC-AUTO-01 shipped. Daily cron 12:00 IST. First live run 2026-05-24: 76342-1 Daily Bugle posted to IG Feed (8-image carousel) + IG Reels (8s) + YouTube Shorts (45s). Gallery via Brickset API. | SOCIAL |
 | Phase 8 | LEGO Search Pulse | ✅ Live — LAB-07 /lab/heat-map shipped 2026-05-10. D3 choropleth India + world view, 23 states, city drill-down. | WEB (PULSE-01→N) |
 
@@ -251,6 +251,54 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 ---
 
 ## Sprint changelog
+
+### 2026-07-06 (night consolidation — VID-P4 approval-flow pivot + theme card migration, both fully shipped; commit-count discrepancy flagged) — evidence-verified, 3 items left explicitly OPEN for operator
+
+**Verification note on this entry itself:** every commit hash and timestamp below is from `git log --format="%h %ad %s" --date=format:"%Y-%m-%d %H:%M:%S %z"`, not recalled from conversation. The GHA run ID cited was independently checked via `gh run view` before being written here.
+
+**Commit-count discrepancy, reported not silently corrected:** stated as 27 commits today; `git log` (author-date 2026-07-06, both by calendar day and by `--since`/`--until`) counts **19**, both spanning VID-P4 and the theme card migration. Not resolved further — flagging the mismatch rather than picking one number without knowing the source of "27."
+
+---
+
+**VID-P4 approval-flow pivot (naming note: the publish poller below is referred to only as "the Publish Poller," never "Stage 4," to avoid collision with line 301's "Stage 4 -- TTS," which is the original 8-stage pipeline-build numbering and is unrelated and unchanged).**
+
+**Stage 1 — feasibility, confirmed on a standard GitHub-hosted Ubuntu runner (`ubuntu-latest`, 4 CPU / 15 GB RAM):** full candidate-select → script → gates → TTS → render → caption-burn cycle completes in **374s wall-clock**, **3.2 GB peak memory** (system-wide sampler, catches ffmpeg/Whisper subprocess spikes; `/usr/bin/time`'s process-root-only figure was 1.26 GB). Comfortable headroom against the runner's 15 GB ceiling — no larger runner or separate VM needed. First attempt actually failed, but on a real bug it surfaced (`GEMINI_SOCIAL_API_KEY`/`CEREBRAS_API_KEY` GitHub Secrets both carrying a leading BOM, breaking script generation) rather than an infeasibility finding — fixed same night (see BOM section below). One-off workflow: `.github/workflows/video-feasibility-test.yml` (`7fa395c`, 2026-07-06 19:41 IST).
+
+**Stage 2 — cloud generation, confirmed deployed and active, not just built:** `.github/workflows/video-generate-daily.yml` (`f1ea1be`, 2026-07-06 21:04 IST). Verified live via `gh api .../actions/workflows`: registered, **`"state":"active"`**. Cron `30 0 * * *` (UTC) = **6:00 AM IST daily**. Downloads the operator's real `master_assets/*.mp4` clips from a private Supabase Storage bucket (gitignored, never in a fresh checkout) if missing locally, runs the full pipeline, uploads the captioned video + QC frames to storage, and leaves the row as `status='pending_approval'`.
+
+**Stage 3 — chat-based approval, no new code:** the operator reviews via the Supabase Storage link in the pending-approval row, approves in chat, and chat-Claude writes `status='approved'` directly via SQL — no terminal, no local machine. Validated live twice tonight (N-1 Starfighter 75442, both the initial approval and the resulting publish).
+
+**The Publish Poller — confirmed deployed, active, and has autonomously published a real post end to end:** `.github/workflows/video-publish-poller.yml` (`714e70b`, 2026-07-06 23:19 IST). Verified live via `gh api`: registered, **`"state":"active"`**. Cron `*/15 * * * *` = every 15 minutes. Queries `status='approved'`, calls the existing `publish_video_post()` (same hard gate-failure guardrail, same caption-presence guardrail, same disclosure split as the manual path), and reports each platform's outcome separately rather than collapsing a partial success into one line. New `publish_blocked` status (migration `20260706130000`) for the one case not yet exercised live: an approved row failing a hard guard at publish time — moves it out of the polling loop instead of retrying the same deterministic failure every 15 minutes.
+
+**Live result, autonomous end-to-end, independently verified (not just trusting the poller's own log):** N-1 Starfighter 75442 — IG Reels `https://www.instagram.com/reel/DadeDUyiOjZ/`, YouTube Shorts `https://youtube.com/shorts/pKYLNVxk-jQ`. YouTube's public oEmbed endpoint (unauthenticated, third-party-facing) confirms genuine live status under the "Bricks of India" channel; Instagram's permalink independently resolves (HTTP 200). `video_posts` shows `status='posted_both'`, `posted_at` `2026-07-06 17:52:32 UTC`, real IDs on both platforms.
+
+**Real bugs found and fixed the same night, each disproven/proven by testing against real data rather than assumed:**
+- BOM in `GEMINI_SOCIAL_API_KEY`/`CEREBRAS_API_KEY`/`RESEND_API_KEY` (3 separate GitHub Secrets, same root cause pattern already documented in this file's CLAUDE.md-adjacent conventions for other Bearer-bound keys, never previously ported to this Python pipeline) — fixed via one shared `secrets_util.get_secret()` helper (`b00bc74`, `fe1c285`, `c0c280f`) rather than patching each call site as it happened to fail.
+- First live post (Minas Tirith) shipped with no burned-in captions — root cause (SHA256-confirmed) was `insert_video_post()` storing the pre-caption file, not the captioned one; fixed with a single-artifact rule plus a new hard `assert_captions_present()` guard, which itself took three attempts (pixel-color heuristic, then bare OCR, then OCR + script-word-overlap) before one actually worked against real files (`e3bd275`, 2026-07-06 22:15 IST). Operator decision: the already-live post stays as-is, no repost.
+- ElevenLabs `similarity_boost` was never actually pinned in code for the Minas Tirith render — it happened to sound like the intended "Test B" only because the ElevenLabs account's dashboard default coincidentally matches (confirmed by the operator directly in the ElevenLabs dashboard). All 5 `VoiceSettings` fields are now pinned explicitly (`9bb7a23`) and verified against the actual outgoing HTTP request body, not just the code.
+
+**Re-verified per operator instruction, still holds:** exhaustive grep across `scripts/video/` for every occurrence of `"approved"` shows exactly one write anywhere in the codebase to `video_posts.status`, and it writes `'publish_blocked'`, never `'approved'`. Zero Postgres triggers on `video_posts`; zero DB functions reference "approved". `status='approved'` can only be set by an explicit external `UPDATE`.
+
+---
+
+**Theme card migration (zero prior tracker mentions — first log entry), verified via `git log`/`gh run view`, not the uploaded chat transcript at face value:**
+
+Replaced all Rebrickable-sourced LEGO theme card images with static local `.webp`/`.jpg` assets across the homepage grid, `/themes` index, and `/themes/[theme]` detail (thumb, hero, and OG meta image).
+
+- `2eccd6c` (2026-07-06 16:45 IST) — `docs/theme-card-manifest.md`, Phase 1 evidence pass. Confirmed on `main`, confirmed exactly 159 lines added, nothing else touched.
+- `b49e408` (2026-07-06 17:40 IST) — 25 PNG masters converted to genuine WebP/JPEG at 1000x1000, quarantined source masters kept outside `public/`.
+- `b57440a` (2026-07-06 18:17 IST) — render sites updated (`src/app/page.tsx`, `src/app/themes/page.tsx`, `src/app/themes/[theme]/page.tsx`, `src/lib/brand.ts`, new `src/lib/themeCard.ts`), `scripts/fetch-theme-images.mjs` deleted (obsolete), new `scripts/verify-theme-cards.mjs` prebuild guard. Confirmed on `main` with exactly this file list.
+- Deploy verified independently: GitHub Actions run `28792623366` ("Build & Deploy to Netlify") — confirmed via `gh run view`: `conclusion: success`, `headSha` matches `b57440a` exactly.
+
+**Open backlog item, deferred not urgent (from the manifest's own Step 2B):** the 25-theme scope excludes several prominent raw catalog themes with real set counts — `Ultimate Collector Series` (50 sets), `Batman` (145, separate from `DC`), `Avengers` (100, separate from `Marvel`), `Spider-Man` (130), `Bionicle` (414), `The Lord of the Rings` (18) — plus a DC/Marvel franchise-family rollup question (8 and ~10 overlapping raw sub-theme values respectively, e.g. `DC Comics`, `Justice League`, `The LEGO Batman Movie` vs. a single `DC` umbrella card). No filenames or slugs proposed for any of these; needs an explicit operator scope decision before any expansion.
+
+---
+
+**OPEN — not resolved tonight, flagged for operator, do not act without instruction:**
+
+1. **Two orphaned `rendered` rows with no disposition decided:** Harry Potter 76473 (`4d15041b...`, created 2026-07-05) and Death Star 75419 (`30630e36...`, created 2026-07-06 03:39 UTC) — both rendered, neither posted nor discarded. Options: discard, or leave as a historical test-data record. Not deleted without instruction.
+2. **"Low-confidence run" question, raised earlier tonight, never explicitly decided:** once Thursday's full autonomy is enabled, should a run that needed 2+ gate retries, or that drew from a bare-minimum image pool, still auto-publish, or should either condition hold it for approval regardless of day? Still open.
+3. **`admin/dashboard.html` has zero VID-P4 representation** — pre-existing gap (not introduced tonight, last touched 2026-05-25), separately scoped from tonight's work, still real.
 
 ### 2026-07-06 (VID-P4 first live post shipped with no burned-in captions — root cause, fix, and new hard guard) — ✅ CLOSED
 
