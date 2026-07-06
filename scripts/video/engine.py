@@ -27,6 +27,7 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
+import numpy as np
 import requests
 from dotenv import load_dotenv
 
@@ -256,8 +257,8 @@ def _gemini_pace() -> None:
     _last_gemini_call_at = time.time()
 
 
-def generate_script(title: str, price_inr: float, store_name: str, pieces: int | None, theme: str | None, retry_note: str | None = None) -> str:
-    task_prompt = prompts.build_task_prompt(title, price_inr, store_name, pieces, theme)
+def generate_script(title: str, price_inr: float, pieces: int | None, theme: str | None, retry_note: str | None = None) -> str:
+    task_prompt = prompts.build_task_prompt(title, price_inr, pieces, theme)
     if retry_note:
         task_prompt = f"{task_prompt}\n\n{retry_note}"
 
@@ -330,8 +331,8 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
 
     for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
         retry_note = RETRY_NOTE if attempt > 1 else None
-        raw_script = generate_script(candidate["title"], candidate["price_inr"], candidate["store_name"], candidate.get("pieces"), candidate.get("theme"), retry_note=retry_note)
-        report = gates.run_all_gates(raw_script, candidate.get("pieces"), sets_lookup, recent)
+        raw_script = generate_script(candidate["title"], candidate["price_inr"], candidate.get("pieces"), candidate.get("theme"), retry_note=retry_note)
+        report = gates.run_all_gates(raw_script, candidate.get("pieces"), sets_lookup, recent, candidate["price_inr"])
         if report.all_passed:
             # Sanitized text, not raw -- this is what actually reaches TTS
             # and gets stored as the canonical script (see gates.sanitize_script).
@@ -453,6 +454,148 @@ def download_images(urls: list[str], max_images: int = 6) -> list[Path]:
     return paths
 
 
+# Real bug found on operator visual review, 2026-07-06: official LEGO
+# "lifestyle" photos (product staged in a room, often off-center in the
+# source frame) get center-cropped through the middle of the room, cutting
+# off the actual product -- the cover-resize+center-crop math is correct
+# for a centered product, but lifestyle shots were never centered to begin
+# with. Fix is filtering, not smarter cropping: only use STUDIO shots
+# (plain white/neutral background, product centered and filling the frame)
+# for Ken Burns, since those are safe to center-crop by construction.
+#
+# Heuristic verified against 6 real MyBrickHouse images for one candidate:
+# true studio shots (product_0/1/2) had all 4 corner patches at pure white,
+# (255,255,255), zero variance across corners. The 3 real lifestyle photos
+# (product_3/4/5) had corner values as low as 32-224 with high variance
+# (17-60) from visible room/furniture/prop color. A tight per-channel
+# whiteness floor plus a cross-corner uniformity check cleanly separated
+# both classes on this real data with no ambiguous cases.
+_STUDIO_WHITE_FLOOR = 235
+_STUDIO_UNIFORMITY_MAX_STD = 15
+_STUDIO_CORNER_PATCH = 25
+MIN_STUDIO_IMAGES = 3
+
+
+def is_studio_image(path: Path) -> bool:
+    img = Image.open(path).convert("RGB")
+    w, h = img.size
+    patch = _STUDIO_CORNER_PATCH
+    corners = [
+        np.array(img.crop((0, 0, patch, patch))).mean(axis=(0, 1)),
+        np.array(img.crop((w - patch, 0, w, patch))).mean(axis=(0, 1)),
+        np.array(img.crop((0, h - patch, patch, h))).mean(axis=(0, 1)),
+        np.array(img.crop((w - patch, h - patch, w, h))).mean(axis=(0, 1)),
+    ]
+    means = np.array(corners)  # shape (4, 3)
+    if means.min() < _STUDIO_WHITE_FLOOR:
+        return False
+    if means.std(axis=0).max() > _STUDIO_UNIFORMITY_MAX_STD:
+        return False
+    return True
+
+
+# Second real bug found on closer operator review of the qc_frames the
+# studio/lifestyle filter above produced, 2026-07-06: some images pass the
+# corner check (their outer edges/margins are genuinely white) but are
+# actually TWO images side by side -- e.g. a box-cover photo abutting a
+# separate built-model shot, each with its own local background, meeting at
+# a seam well inside the corners. Center-cropping one of these shows a
+# partial sliver of the other element bleeding in at the frame edge.
+#
+# Third bug, same day: the first fix used a FIXED absolute content-fraction
+# threshold (0.45), calibrated against a side-by-side composite where each
+# half filled most of the frame (peaks ~0.73-0.75). It completely missed a
+# real vertically-stacked exploded/modular diagram (a tower shown as 4
+# separate segments stacked with white gaps) because that image is a THIN
+# subject on a WIDE canvas -- its row-wise content fraction never exceeds
+# ~0.16 anywhere, so it never crossed the fixed 0.45 threshold at all.
+#
+# Fourth bug, same day: the first attempted fix (a threshold relative to
+# the profile's GLOBAL peak) traded one failure for another -- it fixed the
+# exploded-diagram case but then missed the ORIGINAL side-by-side composite,
+# because a global-peak-relative floor can't tell "a real gap between two
+# similar-height peaks" from "a shallower but still-separate band elsewhere
+# in the same profile" (verified by testing both fixture images together,
+# not one at a time, after the first "fix" silently regressed the other
+# case -- exactly the mistake being corrected here).
+#
+# Final approach: real peak/valley prominence, evaluated LOCALLY per pair of
+# neighboring peaks, not against one global number. Find local maxima in the
+# profile, then for each adjacent pair, check whether the valley between
+# them drops to less than half of the SMALLER of the two peaks -- if so
+# they're genuinely separate regions; if not, they're one region with minor
+# internal wobble (e.g. box-art texture). This self-calibrates per-peak
+# rather than needing one constant to work across wildly different content
+# densities.
+#
+# Verified against 6 real fixture images together in one test (not
+# sequentially, to catch exactly the kind of regression above): 2 confirmed
+# composites (Eiffel side-by-side box+product, Barad-dur vertical exploded
+# stack) and 4 confirmed single-subject studio shots, all classified
+# correctly with no cross-regressions.
+_COMPOSITE_ACTIVE_FLOOR = 0.02
+_COMPOSITE_VALLEY_DROP_RATIO = 0.5
+
+
+def _count_content_regions(profile: np.ndarray) -> int:
+    active = profile >= _COMPOSITE_ACTIVE_FLOOR
+    idx = np.where(active)[0]
+    if len(idx) == 0:
+        return 0
+    start, end = idx[0], idx[-1] + 1
+    span = profile[start:end]
+    m = len(span)
+    if m < 3:
+        return 1
+    peaks = [i for i in range(1, m - 1) if span[i] >= span[i - 1] and span[i] >= span[i + 1] and span[i] > _COMPOSITE_ACTIVE_FLOOR]
+    if not peaks:
+        return 1
+    regions = [[peaks[0]]]
+    for p in peaks[1:]:
+        prev_peak_idx = regions[-1][-1]
+        valley = span[prev_peak_idx:p + 1].min()
+        peak_left, peak_right = span[prev_peak_idx], span[p]
+        if valley <= _COMPOSITE_VALLEY_DROP_RATIO * min(peak_left, peak_right):
+            regions.append([p])
+        else:
+            regions[-1].append(p)
+    return len(regions)
+
+
+def has_composite_seam(path: Path) -> bool:
+    img = Image.open(path).convert("RGB")
+    arr = np.array(img)
+    is_content = np.any(arr < _STUDIO_WHITE_FLOOR, axis=-1)
+    col_frac = is_content.mean(axis=0)
+    row_frac = is_content.mean(axis=1)
+    col_kernel = np.ones(max(15, len(col_frac) // 100))
+    col_kernel /= col_kernel.sum()
+    row_kernel = np.ones(max(15, len(row_frac) // 100))
+    row_kernel /= row_kernel.sum()
+    col_smoothed = np.convolve(col_frac, col_kernel, mode="same")
+    row_smoothed = np.convolve(row_frac, row_kernel, mode="same")
+    return _count_content_regions(col_smoothed) >= 2 or _count_content_regions(row_smoothed) >= 2
+
+
+def classify_image(path: Path) -> str:
+    """Returns 'studio', 'lifestyle', or 'composite'."""
+    if not is_studio_image(path):
+        return "lifestyle"
+    if has_composite_seam(path):
+        return "composite"
+    return "studio"
+
+
+def filter_studio_images(paths: list[Path]) -> list[Path]:
+    kept = []
+    for p in paths:
+        cls = classify_image(p)
+        print(f"  {p.name}: {cls}", file=sys.stderr)
+        if cls == "studio":
+            kept.append(p)
+    return kept
+
+
 def slugify(title: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
     return s[:60]
@@ -569,21 +712,44 @@ def main() -> None:
         return
 
     if args.pick or args.url:
+        candidate = None
+        image_paths: list[Path] = []
+
         if args.url:
             candidates = get_candidates(sb)
             match = next((c for c in candidates if c["product_url"] == args.url), None)
             if not match:
                 print(f"ERROR: {args.url} not found among current eligible candidates.", file=sys.stderr)
                 sys.exit(1)
-            candidate = match
+            # Manual override: check the one requested product, no substitution --
+            # the operator asked for this specific set, don't silently swap it.
+            downloaded = download_images(match["image_urls"])
+            studio = filter_studio_images(downloaded)
+            if len(studio) < MIN_STUDIO_IMAGES:
+                print(f"ERROR: {match['title']} has only {len(studio)} studio image(s) (need >={MIN_STUDIO_IMAGES}). No substitution for --url.", file=sys.stderr)
+                sys.exit(1)
+            candidate, image_paths = match, studio
         else:
             candidates = get_candidates(sb)
             if args.pick < 1 or args.pick > len(candidates):
                 print(f"ERROR: --pick {args.pick} out of range (1-{len(candidates)} available).", file=sys.stderr)
                 sys.exit(1)
-            candidate = candidates[args.pick - 1]
+            # Skip forward through the ranked list if a candidate doesn't have
+            # enough studio (non-lifestyle) images -- see is_studio_image().
+            for idx in range(args.pick - 1, len(candidates)):
+                c = candidates[idx]
+                downloaded = download_images(c["image_urls"])
+                studio = filter_studio_images(downloaded)
+                if len(studio) >= MIN_STUDIO_IMAGES:
+                    candidate, image_paths = c, studio
+                    break
+                print(f"SKIP: {c['title']} has only {len(studio)} studio image(s) (need >={MIN_STUDIO_IMAGES}) -- trying next candidate.", file=sys.stderr)
+            if candidate is None:
+                print("ERROR: no candidate from --pick onward has enough studio images.", file=sys.stderr)
+                sys.exit(1)
 
         print(f"Selected: {candidate['title']} ({candidate['product_url']})")
+        print(f"Using {len(image_paths)} studio image(s) for this render.")
 
         script, report = run_gates_with_one_retry(sb, candidate)
         print("\n--- SCRIPT ---")
@@ -592,8 +758,6 @@ def main() -> None:
         print("Gate results:")
         for r in report.results:
             print(f"  [{'PASS' if r.passed else 'FAIL'}] {r.gate}: {r.reason}")
-
-        image_paths = download_images(candidate["image_urls"])
 
         audio_path = TEMP_DOWNLOAD / "voiceover.mp3"
         if args.no_tts:

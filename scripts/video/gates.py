@@ -300,11 +300,81 @@ def gate_opener_uniqueness(script: str, recent_scripts: list[str]) -> GateResult
     return GateResult("G7_opener_uniqueness", True)
 
 
+# G8: price-comparison math sanity. Verified 2026-07-06 against the exact
+# required bad case ("₹65,999 = six months of Spotify", 6*139=834, nowhere
+# near 65999) before trusting this on real output -- also caught two REAL
+# bad examples already produced this session ("two years of Spotify
+# Premium" for a ₹1,04,999 set = 24*139=3336; "a full year of Netflix,
+# Prime, Spotify... combined" for ₹65,999 = 12*(499+125+139)=9156), neither
+# of which had been caught by any prior gate.
+#
+# Only checks claims using the reference-table subscriptions -- an
+# unrecognized comparison (e.g. "a Goa trip") is logged, not failed, since
+# we have no ground truth for it. Deliberately tolerant of intervening
+# words ("a full year", "almost two years") since real generated scripts
+# phrase durations that way, not just bare "six months".
+#
+# Grouped by family (Netflix has 3 overlapping keys, Prime has 2) --
+# verified live: a naive flat substring-match dict double-counts "Netflix
+# Premium, Spotify, and Prime" as netflix_premium(649) + bare
+# netflix(499) + spotify(139) + prime(125) = 1412/month, not the correct
+# 913/month, because "netflix" is a substring of "netflix premium" and
+# both keys matched independently. Within each family, only the FIRST
+# (most specific) match counts.
+_SUBSCRIPTION_FAMILIES = [
+    [("netflix premium", 649), ("netflix 4k", 649), ("netflix standard", 499), ("netflix", 499)],
+    [("amazon prime", 125), ("prime", 125)],
+    [("spotify", 139)],
+]
+_DURATION_NUMBER_WORDS = {
+    "a": 1, "an": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11,
+    "twelve": 12, "dozen": 12, "thirteen": 13, "fourteen": 14, "fifteen": 15,
+    "twenty": 20,
+}
+_PRICE_CLAIM_RE = re.compile(
+    r"\b(a|an|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|thirteen|fourteen|fifteen|twenty|\d+)\s+"
+    r"(?:full\s+|whole\s+|nearly\s+|almost\s+|roughly\s+|about\s+|good\s+)?"
+    r"(month|months|year|years)\s+(?:of\s+)?"
+    r"([a-zA-Z][a-zA-Z ,]*?)"
+    r"(?=[.!?]|$)",
+    re.IGNORECASE,
+)
+_PRICE_CLAIM_RATIO_LOW, _PRICE_CLAIM_RATIO_HIGH = 0.5, 1.5
+
+
+def gate_price_math(script: str, price_inr: float) -> GateResult:
+    for m in _PRICE_CLAIM_RE.finditer(script):
+        qty_word, unit, product_phrase = m.groups()
+        qty = int(qty_word) if qty_word.isdigit() else _DURATION_NUMBER_WORDS.get(qty_word.lower())
+        if qty is None:
+            continue
+        months_mult = 12 if unit.lower().startswith("year") else 1
+        low = product_phrase.lower()
+        matched_total, matched_any = 0, False
+        for family in _SUBSCRIPTION_FAMILIES:
+            for key, monthly in family:
+                if key in low:
+                    matched_total += monthly
+                    matched_any = True
+                    break  # most specific match in this family only, no double-count
+        if not matched_any:
+            continue  # no reference price for this comparison -- can't verify, don't fail it
+        claimed_value = qty * months_mult * matched_total
+        if not (_PRICE_CLAIM_RATIO_LOW * price_inr <= claimed_value <= _PRICE_CLAIM_RATIO_HIGH * price_inr):
+            return GateResult(
+                "G8_price_math", False,
+                f"claim {m.group(0)!r} implies ₹{claimed_value:,.0f}, but set price is ₹{price_inr:,.0f} (outside 0.5x-1.5x)",
+            )
+    return GateResult("G8_price_math", True)
+
+
 def run_all_gates(
     raw_script: str,
     pieces: int | None,
     sets_lookup,
     recent_scripts: list[str],
+    price_inr: float,
 ) -> GateReport:
     # Sanitize before any gate runs, not after -- the sanitized text is what
     # actually reaches TTS, so every gate (word count, banned patterns, the
@@ -318,4 +388,5 @@ def run_all_gates(
     report.results.append(gate_factuality(script, pieces, sets_lookup))
     report.results.append(gate_no_first_person_build(script))
     report.results.append(gate_opener_uniqueness(script, recent_scripts))
+    report.results.append(gate_price_math(script, price_inr))
     return report

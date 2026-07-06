@@ -252,6 +252,24 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-07-06 (composite detector rewrite + G8 price-math gate) — code fixed and verified; candidate-availability question OPEN, not resolved
+
+**Composite/lifestyle image classifier — real regression cycle, caught before shipping:**
+- First fix (fixed 0.45 content-fraction threshold) missed a real vertically-stacked exploded-diagram image entirely -- it's a thin subject on a wide canvas, so its content fraction never exceeds ~0.16, never crossing 0.45.
+- Attempted second fix (threshold relative to each profile's own global peak) fixed the exploded-diagram case but **silently regressed the original side-by-side composite case** -- caught only because both fixtures were tested together afterward, not sequentially.
+- Final fix: real peak/valley prominence, evaluated locally per adjacent peak pair (valley must drop to ≤50% of the smaller neighboring peak), not against one global constant. Verified against all 6 known real fixtures (2 confirmed composites, 4 confirmed single-subject studio shots) together in one test -- all correct, no cross-regressions.
+- **Retroactive re-check, real and severe:** re-ran the entire top-10 MyBrickHouse ranked candidate list with the corrected detector. **Every single candidate got skipped** -- Eiffel Tower, Titanic, Venator Cruiser, Hogwarts Castle, Tropical Aquarium, Barad-dûr, Hogsmeade Village, Enterprise, Pirate Ship -- all had fewer than 3 clean (non-lifestyle, non-composite) studio images. The pipeline currently has **zero valid candidates** in its top 10. Several candidates' very first/primary catalog image is itself a composite (Hogsmeade, Enterprise, Pirate Ship), not just secondary images.
+- Eiffel Tower depth-fetch check: all 13 catalog images exist (not 15+); images 7-13 are all lifestyle. Depth-fetching does not help this specific set -- untested on the other 8.
+- **Not resolved, needs an operator decision:** whether to lower `MIN_STUDIO_IMAGES` below 3, relax classification strictness, or accept that MyBrickHouse's flagship-tier catalog may not support this pipeline's current image-quality bar. No code change made unilaterally.
+
+**G8 price-comparison math-sanity gate — added, validated, one bug caught and fixed before trusting it:**
+- Extracts "₹X = Y months/years of Z" claims, checks Y × (Z's reference monthly price) lands within 0.5x-1.5x of the set's real price. Reference prices: Spotify ₹139, Netflix Standard ₹499/Premium ₹649, Amazon Prime ₹125 -- all per the operator's exact spec, set price itself never touched.
+- Validated against the required known-bad case (`₹65,999 = six months of Spotify` -> ₹834, correctly FAILs) before trusting it on new output.
+- Also caught two REAL bad examples already produced earlier this session that no prior gate detected ("two years of Spotify Premium" for a ₹1,04,999 set = ₹3,336; "a full year of Netflix, Prime, Spotify... combined" for ₹65,999 = ₹9,156 at the time -- both nowhere close to the real price).
+- **Bug found and fixed during validation:** the reference dict's overlapping keys ("netflix" as a substring of "netflix premium") double-counted subscriptions in combined claims, inflating one real test's computed total from a correct ₹54,780 to an incorrect ₹84,720. Fixed by grouping keys into families (Netflix, Prime, Spotify) and only counting the most specific match per family.
+
+**Script fixes also verified this pass (attribution, Indianization, vocabulary, word target):** 3 fresh real generations on Barad-dûr's metadata (image-blocked candidate, but script generation doesn't depend on image eligibility) -- zero store mentions, no banned literary vocabulary observed, word counts 137/88/90 (none landed inside the current 105-135 gate, wider swing than earlier tests -- flagged, not resolved).
+
 ### 2026-07-06 (wiring audit + store switch + first fully-combined-fix render) — ✅ CLOSED
 
 **Wiring audit, before touching any code:** confirmed `2026-07-06_refixed-images-test.mp4` (what the operator watched) has the real image fix but reuses `temp_download/voiceover.mp3` from 2026-07-05 19:20 -- generated hours before `normalize_currency_for_tts` existed (first shipped in commit `312f5ba`, 2026-07-06 00:57). That audio cannot say "rupees" by construction. **No file combined both fixes before this entry** -- confirmed no new bug, exactly the operator's suspicion. Traced `normalize_currency_for_tts()`'s call site: correctly wired inside `generate_tts()`, its output (`tts_text`, not raw `script`) is what's passed to `client.text_to_speech.convert()`.
