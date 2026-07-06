@@ -221,6 +221,27 @@ def get_supabase():
     return create_client(url, key)
 
 
+MASTER_ASSETS_BUCKET = "video-master-assets"
+
+
+def download_master_assets_if_missing(sb) -> None:
+    """
+    A fresh GitHub Actions checkout never has master_assets/*.mp4 -- they're
+    gitignored (the operator's actual face/voice recordings, not repo
+    content). Downloads them from a private Supabase Storage bucket
+    (uploaded once, out of band) if not already present locally. No-op on a
+    local dev machine that already has the real files.
+    """
+    for filename in ("intro_hook.mp4", "outro_signoff.mp4"):
+        local_path = MASTER_ASSETS / filename
+        if local_path.exists():
+            continue
+        print(f"{local_path} missing -- downloading from {MASTER_ASSETS_BUCKET}...")
+        data = sb.storage.from_(MASTER_ASSETS_BUCKET).download(filename)
+        local_path.write_bytes(data)
+        print(f"Downloaded {filename} ({len(data)} bytes)")
+
+
 # ── STEP 3: candidate selection ────────────────────────────────────────────────
 
 import re  # noqa: E402
@@ -1111,6 +1132,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="VID-P4 daily video pipeline")
     parser.add_argument("--suggest", action="store_true", help="show top 3 candidates")
     parser.add_argument("--pick", type=int, help="select candidate N (1-indexed) from --suggest order")
+    parser.add_argument("--cloud-generate", action="store_true", help="Stage 2 cloud workflow: auto-pick the top candidate, download master assets from storage if missing, and leave the row in status='pending_approval' with storage_url/qc_frame_urls populated instead of 'rendered'")
     parser.add_argument("--url", type=str, help="manual override: use this product URL instead of --pick")
     parser.add_argument("--no-tts", action="store_true", help="dry run: silent placeholder audio, no ElevenLabs call")
     parser.add_argument("--placeholder-anchors", action="store_true", help="generate solid-color test anchors if master_assets clips are absent (dry-run only)")
@@ -1186,7 +1208,13 @@ def main() -> None:
         print_suggestions(candidates)
         return
 
-    if args.pick or args.url:
+    if args.pick or args.url or args.cloud_generate:
+        if args.cloud_generate and not args.pick:
+            args.pick = 1  # cloud generation always takes the top-ranked candidate
+
+        if not args.placeholder_anchors:
+            download_master_assets_if_missing(sb)
+
         candidate = None
         image_paths: list[Path] = []
 
@@ -1258,8 +1286,27 @@ def main() -> None:
         burn_captions(output_path, segments, captioned_path)
         print(f"Captioned: {captioned_path}")
 
-        video_id = insert_video_post(sb, candidate, script, report, output_path)
+        # Bug found 2026-07-06 (evidence: both files existed locally for the
+        # Minas Tirith render, but video_posts.video_path pointed at
+        # output_path, the pre-caption file -- meaning the first live post
+        # actually went out with no burned-in captions despite this step
+        # existing). The captioned file is the real deliverable; store that.
+        video_id = insert_video_post(sb, candidate, script, report, captioned_path)
         print(f"video_posts row inserted: {video_id}")
+
+        if args.cloud_generate:
+            import publish as publish_mod
+
+            print("Stage 2: uploading captioned video + QC frames to storage...")
+            storage_url = publish_mod.upload_video_to_storage(sb, str(captioned_path), f"{video_id}.mp4")
+            qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(captioned_path), video_id)
+            sb.table("video_posts").update({
+                "storage_url": storage_url,
+                "qc_frame_urls": qc_urls,
+                "status": "pending_approval",
+            }).eq("id", video_id).execute()
+            print(f"video_posts {video_id} set to status='pending_approval'. storage_url: {storage_url}")
+
         return
 
     parser.print_help()

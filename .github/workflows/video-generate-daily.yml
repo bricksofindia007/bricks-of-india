@@ -1,0 +1,46 @@
+name: VID-P4 Daily Cloud Generation
+
+# Stage 2 (cloud architecture pivot, 2026-07-06): runs the full Stage 1-6
+# pipeline daily in the cloud instead of requiring a local machine/terminal
+# during the review period. Downloads the operator's real master_assets
+# clips from private Supabase Storage (they're gitignored, never in the
+# checkout), generates a candidate video, and leaves it as
+# status='pending_approval' with storage_url + qc_frame_urls populated --
+# approval happens via chat-Claude updating the row directly (Stage 3), not
+# in this workflow.
+#
+# 6:00 AM IST == 00:30 UTC.
+
+on:
+  schedule:
+    - cron: '30 0 * * *'
+  workflow_dispatch:  # manual trigger for testing
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/video/requirements.txt
+
+      - name: Generate candidate video
+        working-directory: scripts/video
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_SOCIAL_API_KEY: ${{ secrets.GEMINI_SOCIAL_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
+          BRICKSET_API_KEY: ${{ secrets.BRICKSET_API_KEY }}
+          REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
+        run: python engine.py --cloud-generate
