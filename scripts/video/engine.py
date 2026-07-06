@@ -61,12 +61,40 @@ OUTPUT_DIR = BASE_DIR / "output"
 for d in (MASTER_ASSETS, TEMP_DOWNLOAD, OUTPUT_DIR):
     d.mkdir(exist_ok=True)
 
-# Toycra dropped 2026-07-06 (operator directive) -- MyBrickHouse is now the
-# SOLE source for this video pipeline's candidate selection and images.
-# This does NOT affect the main web pipeline's Toycra scraper
+# MyBrickHouse is the sole source for CANDIDATE SELECTION (ranking/which
+# set to consider) -- Toycra dropped from that role 2026-07-06 (operator
+# directive). Re-added 2026-07-06 (later, operator directive: "do not skip
+# sets") as an IMAGE-ONLY fallback: if a candidate's MyBrickHouse images
+# don't clear 3 clean (non-lifestyle, non-composite) shots, the same set's
+# Toycra images are fetched and combined before giving up on the candidate.
+# Neither of this affects the main web pipeline's Toycra scraper
 # (scripts/scrape-now.mjs) -- scoped to scripts/video/ only.
 MBH_URL = "https://lego.mybrickhouse.com/collections/lego-sets/products.json"
 MBH_DOMAIN = "lego.mybrickhouse.com"
+TOYCRA_URL = "https://www.toycra.com/collections/lego/products.json"
+TOYCRA_DOMAIN = "www.toycra.com"
+
+_toycra_products_cache: list[dict] | None = None
+
+
+def get_toycra_products() -> list[dict]:
+    global _toycra_products_cache
+    if _toycra_products_cache is None:
+        _toycra_products_cache = fetch_shopify_products(TOYCRA_URL)
+    return _toycra_products_cache
+
+
+def find_toycra_fallback_images(set_number: str | None) -> list[str]:
+    """Image-only fallback: same set on Toycra, matched by set number only
+    (never fuzzy title matching -- a wrong match would put a different
+    set's images in this video). Empty list if no set_number or no match."""
+    if not set_number:
+        return []
+    for p in get_toycra_products():
+        if extract_set_number(p.get("title"), p.get("handle")) == set_number:
+            images = p.get("images") or []
+            return [img.get("src") for img in images if img.get("src")]
+    return []
 
 TARGET_W, TARGET_H = 1080, 1920
 KEN_BURNS_ZOOM = 0.04
@@ -426,7 +454,7 @@ def make_ken_burns_clip(image_path: Path, duration_s: float, zoom: float = KEN_B
     return zoomed.crop(x_center=zoomed.w / 2, y_center=zoomed.h / 2, width=TARGET_W, height=TARGET_H)
 
 
-def download_images(urls: list[str], max_images: int = 6) -> list[Path]:
+def download_images(urls: list[str], max_images: int = 6, prefix: str = "product") -> list[Path]:
     # Verified 2026-07-05 on a real run: Shopify serves some product images as
     # transparent cutout PNGs (this candidate: 5 of 6, ~52% transparent
     # pixels), despite the file being saved with a ".jpg" extension here.
@@ -440,7 +468,7 @@ def download_images(urls: list[str], max_images: int = 6) -> list[Path]:
     for i, url in enumerate(urls[:max_images]):
         resp = requests.get(url, timeout=20)
         resp.raise_for_status()
-        path = TEMP_DOWNLOAD / f"product_{i}.jpg"
+        path = TEMP_DOWNLOAD / f"{prefix}_{i}.jpg"
         img = Image.open(io.BytesIO(resp.content))
         if img.mode in ("RGBA", "LA") or (img.mode == "P" and "transparency" in img.info):
             img = img.convert("RGBA")
@@ -596,6 +624,28 @@ def filter_studio_images(paths: list[Path]) -> list[Path]:
     return kept
 
 
+def resolve_candidate_images(candidate: dict) -> list[Path]:
+    """MyBrickHouse first (preferred source); if that alone doesn't clear
+    MIN_STUDIO_IMAGES, fetch the same set's Toycra images as a fallback and
+    combine -- per operator directive, do not skip a set just because one
+    source's gallery happens to be thin. Only returns fewer than
+    MIN_STUDIO_IMAGES if BOTH sources combined still fall short."""
+    print(f"  [MyBrickHouse images for {candidate['title']}]", file=sys.stderr)
+    mbh_downloaded = download_images(candidate["image_urls"], prefix="mbh")
+    mbh_studio = filter_studio_images(mbh_downloaded)
+    if len(mbh_studio) >= MIN_STUDIO_IMAGES:
+        return mbh_studio
+
+    toycra_urls = find_toycra_fallback_images(candidate.get("set_number"))
+    if not toycra_urls:
+        print("  [Toycra fallback: no matching set found]", file=sys.stderr)
+        return mbh_studio
+    print(f"  [Toycra fallback images for {candidate['title']}]", file=sys.stderr)
+    toycra_downloaded = download_images(toycra_urls, prefix="toycra")
+    toycra_studio = filter_studio_images(toycra_downloaded)
+    return mbh_studio + toycra_studio
+
+
 def slugify(title: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
     return s[:60]
@@ -721,12 +771,12 @@ def main() -> None:
             if not match:
                 print(f"ERROR: {args.url} not found among current eligible candidates.", file=sys.stderr)
                 sys.exit(1)
-            # Manual override: check the one requested product, no substitution --
-            # the operator asked for this specific set, don't silently swap it.
-            downloaded = download_images(match["image_urls"])
-            studio = filter_studio_images(downloaded)
+            # Manual override: check the one requested product (with Toycra
+            # fallback), no candidate substitution -- the operator asked for
+            # this specific set, don't silently swap it for a different one.
+            studio = resolve_candidate_images(match)
             if len(studio) < MIN_STUDIO_IMAGES:
-                print(f"ERROR: {match['title']} has only {len(studio)} studio image(s) (need >={MIN_STUDIO_IMAGES}). No substitution for --url.", file=sys.stderr)
+                print(f"ERROR: {match['title']} has only {len(studio)} studio image(s) combined across MyBrickHouse + Toycra (need >={MIN_STUDIO_IMAGES}). No substitution for --url.", file=sys.stderr)
                 sys.exit(1)
             candidate, image_paths = match, studio
         else:
@@ -734,18 +784,17 @@ def main() -> None:
             if args.pick < 1 or args.pick > len(candidates):
                 print(f"ERROR: --pick {args.pick} out of range (1-{len(candidates)} available).", file=sys.stderr)
                 sys.exit(1)
-            # Skip forward through the ranked list if a candidate doesn't have
-            # enough studio (non-lifestyle) images -- see is_studio_image().
+            # Skip forward through the ranked list only if a candidate still
+            # doesn't have enough usable images after the Toycra fallback.
             for idx in range(args.pick - 1, len(candidates)):
                 c = candidates[idx]
-                downloaded = download_images(c["image_urls"])
-                studio = filter_studio_images(downloaded)
+                studio = resolve_candidate_images(c)
                 if len(studio) >= MIN_STUDIO_IMAGES:
                     candidate, image_paths = c, studio
                     break
-                print(f"SKIP: {c['title']} has only {len(studio)} studio image(s) (need >={MIN_STUDIO_IMAGES}) -- trying next candidate.", file=sys.stderr)
+                print(f"SKIP: {c['title']} has only {len(studio)} studio image(s) combined across MyBrickHouse + Toycra (need >={MIN_STUDIO_IMAGES}) -- trying next candidate.", file=sys.stderr)
             if candidate is None:
-                print("ERROR: no candidate from --pick onward has enough studio images.", file=sys.stderr)
+                print("ERROR: no candidate from --pick onward has enough studio images, even with Toycra fallback.", file=sys.stderr)
                 sys.exit(1)
 
         print(f"Selected: {candidate['title']} ({candidate['product_url']})")

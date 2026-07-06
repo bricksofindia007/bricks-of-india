@@ -167,13 +167,17 @@ def _word_count(script: str) -> int:
 
 def gate_word_count(script: str) -> GateResult:
     # Widened 2026-07-05 (Abhinav, explicit) from 100-130 to 105-135 after 6
-    # live Gemini generations all landed 132-165 words -- 105-135 maps to
-    # ~42-54s at conversational pace, still close to the ~50s sandwich-video
-    # target even at the top of the range.
+    # live Gemini generations all landed 132-165 words.
+    #
+    # Tightened 2026-07-06 (Abhinav, explicit) 105-135 -> 90-110, matching
+    # the system prompt's own "90-110 words, no exceptions" target (added
+    # same day) -- the gate had been left wider than the prompt's stated
+    # target pending real evidence it was achievable; see the tracker for
+    # the 5-generation distribution that confirmed it.
     n = _word_count(script)
-    if 105 <= n <= 135:
+    if 90 <= n <= 110:
         return GateResult("G1_word_count", True, f"{n} words")
-    return GateResult("G1_word_count", False, f"{n} words, outside 105-135")
+    return GateResult("G1_word_count", False, f"{n} words, outside 90-110")
 
 
 def gate_banned_patterns(script: str) -> GateResult:
