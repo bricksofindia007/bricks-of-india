@@ -252,6 +252,16 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-07-06 (set-number matching fix, pre-daily-automation) — ✅ CLOSED
+
+Fixed the "1701" false-positive found in Stage 1 (fictional Star Trek ship registry number matching real catalog set 1701 "Basic Building Set Trial Size"). Root cause: `extract_set_number()` returned only the first 4-6 digit regex match, with no validation it was actually the right number.
+
+**Fix:** `extract_set_number_candidates()` now returns ALL plausible candidates (not just the first). New `resolve_catalog_match(sb, title, candidates)` checks each candidate against the `sets` table and requires real keyword overlap (>=2 shared meaningful words) between the candidate's title and the catalog's own `name` field for that set number -- not theme alone (LEGO's "Icons" theme is a broad, legitimate umbrella for exactly this kind of adult licensed set, so theme-only checking wouldn't have discriminated the real bug case). If no candidate validates, pieces/theme are left `None` rather than attaching a wrong catalog row -- no Fact-3 backing for that candidate's script, not a false one. `enrich_with_catalog()` removed (superseded).
+
+**Consistency fix caught during verification:** the confirmed set number now also overwrites `candidate["set_number"]` itself (used for Brickset image lookup and `video_posts` storage), not just the enrichment fields -- an initial version left the wrong "1701" as the tracked/image-lookup number even after fixing pieces/theme, which would have kept querying Brickset for the wrong set.
+
+**Re-tested against the exact real case:** "Icons Star Trek: U.S.S. Enterprise NCC-1701-D... 10356 (3600 Pieces)" now correctly resolves to set **10356** (theme Icons, 3600 pieces) -- the wrong "1701" candidate is correctly rejected (zero overlap with its real catalog name, "Basic Building Set Trial Size"). Verified against the full current candidate list with no regressions on the other 9 candidates (unchanged set numbers/pieces/themes).
+
 ### 2026-07-06 (VID-P4 full daily pipeline build, Stages 1-8) — Stages 1-7 built + verified with real data; Stage 8 is a proposal only, not activated
 
 Full consolidation of every fix from this session's VID-P4 work into one coherent pipeline, verified stage by stage with real data per operator instruction ("no assumptions -- if any spec conflicts with the codebase, stop and report").

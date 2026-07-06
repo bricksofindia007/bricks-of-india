@@ -226,17 +226,82 @@ import re  # noqa: E402
 _SET_NUMBER_RE = re.compile(r"(?<!\d)(\d{4,6})(?!\d)")
 
 
-def extract_set_number(title: str | None, handle: str | None) -> str | None:
-    """Same 4-6 digit convention as scripts/scrape-now.mjs::extractSetNumber
-    (verified 2026-07-05 against a real catalog set, 853653, a 6-digit
-    number -- the brief said 4-5 digits, but that would miss real sets)."""
+def extract_set_number_candidates(title: str | None, handle: str | None) -> list[str]:
+    """Returns ALL plausible 4-6 digit candidates, in order found (handle
+    first, then title) -- does not pick one. A bare digit regex can match
+    incidental numbers that aren't set numbers at all (real bug, 2026-07-06:
+    "Star Trek: U.S.S. Enterprise NCC-1701-D... 10356" matched both '1701'
+    -- the ship's fictional registry number -- and '10356' -- the real
+    LEGO set). Confidence-checked disambiguation happens in
+    resolve_catalog_match(), which needs the full candidate list, not just
+    the first regex hit."""
     from_handle = _SET_NUMBER_RE.findall(handle or "")
     from_title = _SET_NUMBER_RE.findall(title or "")
     seen = []
     for n in from_handle + from_title:
         if n not in seen:
             seen.append(n)
-    return seen[0] if seen else None
+    return seen
+
+
+def extract_set_number(title: str | None, handle: str | None) -> str | None:
+    """Same 4-6 digit convention as scripts/scrape-now.mjs::extractSetNumber
+    (verified 2026-07-05 against a real catalog set, 853653, a 6-digit
+    number -- the brief said 4-5 digits, but that would miss real sets).
+
+    Best-guess only (first candidate found) -- used for Brickset image
+    lookup and DB tracking, where an occasional wrong guess is lower-stakes
+    (caught by the studio/lifestyle/composite classifier and operator QC
+    review). Catalog fact enrichment (pieces/theme) must NEVER use this
+    unvalidated guess -- see resolve_catalog_match()."""
+    candidates = extract_set_number_candidates(title, handle)
+    return candidates[0] if candidates else None
+
+
+# Generic words that appear in almost every LEGO product title/name and
+# carry no identifying signal -- excluded from the title-vs-catalog-name
+# overlap check below.
+_GENERIC_TITLE_WORDS = {
+    "lego", "icons", "building", "kit", "set", "sets", "for", "adults",
+    "pieces", "gift", "collectible", "model", "the", "and", "of", "a",
+    "an", "in", "with", "to", "r",
+}
+
+
+def _meaningful_words(text: str) -> set[str]:
+    words = re.findall(r"[a-z0-9]+", text.lower())
+    return {w for w in words if w not in _GENERIC_TITLE_WORDS and len(w) > 1}
+
+
+def resolve_catalog_match(sb, title: str, candidates: list[str]) -> tuple[str | None, int | None, str | None]:
+    """Cross-checks each candidate set-number against our catalog, requiring
+    real keyword overlap between the candidate's title and the catalog's
+    own name for that set -- not just a numeric coincidence.
+
+    Verified against the real bug case: candidate '1701' matches catalog
+    set 1701 = "Basic Building Set Trial Size" (theme "Basic") -- zero
+    meaningful overlap with "Star Trek: U.S.S. Enterprise NCC-1701-D".
+    Candidate '10356' matches catalog set 10356 = "Star Trek: U.S.S.
+    Enterprise NCC-1701-D" (theme "Icons") -- near-total overlap. Theme
+    alone isn't the discriminator here -- LEGO's own "Icons" theme is a
+    broad, legitimate umbrella for exactly this kind of adult licensed set
+    (also covers Minas Tirith, the Eiffel Tower, etc. this session) -- the
+    catalog NAME field is the reliable signal, not theme.
+
+    Returns (None, None, None) if no candidate validates -- the caller
+    must not fall back to an unconfirmed guess for pieces/theme.
+    """
+    title_words = _meaningful_words(title)
+    for n in candidates:
+        res = sb.table("sets").select("set_number, name, pieces, theme").eq("set_number", n).limit(1).execute()
+        if not res.data:
+            continue
+        row = res.data[0]
+        name_words = _meaningful_words(row.get("name") or "")
+        overlap = title_words & name_words
+        if len(overlap) >= 2:
+            return n, row.get("pieces"), row.get("theme")
+    return None, None, None
 
 
 def fetch_shopify_products(base_url: str, page_size: int = 250, max_pages: int = 2) -> list[dict]:
@@ -273,19 +338,21 @@ def build_candidate(product: dict, store_id: str, store_name: str, domain: str) 
     # come from the retailer at all (Brickset/Rebrickable now), so a thin
     # retailer gallery is irrelevant. A set_number IS required, since that's
     # the only way to look up Brickset images at all.
-    set_number = extract_set_number(product.get("title"), product.get("handle"))
-    if not set_number:
+    title = product.get("title") or ""
+    set_number_candidates = extract_set_number_candidates(title, product.get("handle"))
+    if not set_number_candidates:
         return None
     variant = cheapest_variant(product)
     if variant is None:
         return None
     return {
-        "title": product.get("title") or "",
+        "title": title,
         "store": store_id,
         "store_name": store_name,
         "product_url": f"https://{domain}/products/{product.get('handle')}",
         "price_inr": float(variant["price"]),
-        "set_number": set_number,
+        "set_number": set_number_candidates[0],  # best guess -- images/tracking only, see extract_set_number()
+        "set_number_candidates": set_number_candidates,  # full list -- resolve_catalog_match() needs these for enrichment
         "published_at": product.get("published_at") or "",
     }
 
@@ -299,15 +366,11 @@ def already_used(sb, product_url: str, set_number: str | None) -> bool:
     return bool(by_url.data)
 
 
-def enrich_with_catalog(sb, set_number: str | None) -> tuple[int | None, str | None]:
-    """Returns (pieces, theme) if set_number exists in our catalog, else (None, None)."""
-    if not set_number:
-        return None, None
-    res = sb.table("sets").select("pieces, theme").eq("set_number", set_number).limit(1).execute()
-    if not res.data:
-        return None, None
-    row = res.data[0]
-    return row.get("pieces"), row.get("theme")
+# enrich_with_catalog() removed 2026-07-06 -- it trusted extract_set_number()'s
+# single best-guess number directly, which is exactly what let the "1701"
+# bug poison a candidate's pieces/theme facts. Replaced by
+# resolve_catalog_match(), which checks every extracted candidate against
+# the catalog and requires real title-vs-name overlap before trusting one.
 
 
 # Price-drop detection: same query pattern and threshold as the real web
@@ -385,18 +448,28 @@ def get_candidates(sb, limit: int = 10, pool_size: int = 30) -> list[dict]:
 
     fresh.sort(key=rank_key, reverse=True)
 
-    # Attach catalog enrichment + a one-line reason.
+    # Attach catalog enrichment (confidence-checked, see resolve_catalog_match)
+    # + a one-line reason.
     for c in fresh[:limit]:
-        pieces, theme = enrich_with_catalog(sb, c["set_number"])
+        confirmed_number, pieces, theme = resolve_catalog_match(sb, c["title"], c["set_number_candidates"])
+        drop = drops.get(c["set_number"])
+        if confirmed_number:
+            # Use the CONFIRMED number everywhere downstream (Brickset image
+            # lookup, video_posts storage, already_used tracking) -- not
+            # just for the enrichment facts. Keeping the unvalidated
+            # best-guess here would still send the wrong number to Brickset
+            # even after fixing the pieces/theme data.
+            c["set_number"] = confirmed_number
         c["pieces"] = pieces
         c["theme"] = theme
-        drop = drops.get(c["set_number"])
         if drop:
             reason = f"price drop on MyBrickHouse: ₹{drop['old_price']:,.0f} -> ₹{drop['new_price']:,.0f} ({drop['drop_pct']:.0f}% off)"
         else:
             reason = f"newest arrival on MyBrickHouse (₹{c['price_inr']:,.0f})"
-        if pieces:
+        if confirmed_number:
             reason += f", catalog match: {theme} theme, {pieces} pieces"
+        else:
+            reason += " (no confident catalog match -- no piece/theme fact)"
         c["reason"] = reason
 
     return fresh[:limit]
