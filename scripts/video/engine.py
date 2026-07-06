@@ -346,6 +346,35 @@ def resolve_catalog_match(sb, title: str, candidates: list[str]) -> tuple[str | 
     return None, None, None
 
 
+# Bug found 2026-07-06/07: retailer product titles (MyBrickHouse, Toycra)
+# sometimes carry their own piece-count text -- e.g. "...75419 (9023
+# Pieces)" -- which can be simply wrong (catalog says 9031 for that exact
+# set). G5's factuality gate already catches a script that misstates piece
+# count against the catalog, but it only ever reads the SCRIPT text -- it
+# never touches video_posts.set_title, which is stored verbatim from the
+# retailer and flows straight into build_yt_metadata()'s YouTube title.
+# A wrong retailer number could reach the public-facing YouTube title even
+# on a video whose spoken script is completely accurate (confirmed live:
+# this exact case, set 75419, before this fix).
+#
+# Fix: once a catalog match exists, the catalog's pieces value becomes the
+# single source of truth for BOTH the script (already true via
+# resolve_catalog_match()'s return feeding build_task_prompt()) and the
+# title -- replaces only the number in an existing "<N> piece(s)/pcs"
+# mention, preserving the retailer's original wording/casing. Never
+# fabricates a piece-count phrase into a title that didn't have one (e.g.
+# Minas Tirith's retailer title has no piece count at all -- left alone).
+# Falls back to the raw retailer title untouched if no catalog match
+# exists, same graceful-degradation pattern as pieces/theme enrichment.
+_TITLE_PIECE_COUNT_RE = re.compile(r"(\d[\d,]*)(\s*(?:pieces?|pcs\.?))", re.IGNORECASE)
+
+
+def correct_title_piece_count(title: str, catalog_pieces: int | None) -> str:
+    if catalog_pieces is None:
+        return title
+    return _TITLE_PIECE_COUNT_RE.sub(lambda m: f"{catalog_pieces:,}{m.group(2)}", title, count=1)
+
+
 def fetch_shopify_products(base_url: str, page_size: int = 250, max_pages: int = 2) -> list[dict]:
     """Paginate a Shopify /products.json endpoint. Verified 2026-07-05: this
     endpoint ignores sort_by entirely (identical order with/without it) --
@@ -502,6 +531,11 @@ def get_candidates(sb, limit: int = 10, pool_size: int = 30) -> list[dict]:
             # best-guess here would still send the wrong number to Brickset
             # even after fixing the pieces/theme data.
             c["set_number"] = confirmed_number
+            # Same principle applied to the title's own piece-count text --
+            # catalog.pieces is now the single source of truth for both the
+            # script (already true above) and the title (see
+            # correct_title_piece_count()'s docstring for the bug this fixes).
+            c["title"] = correct_title_piece_count(c["title"], pieces)
         c["pieces"] = pieces
         c["theme"] = theme
         if drop:
