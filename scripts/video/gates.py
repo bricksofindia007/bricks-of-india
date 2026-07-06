@@ -247,6 +247,23 @@ def gate_no_first_person_build(script: str) -> GateResult:
     return GateResult("G6_no_first_person_build", True)
 
 
+# G9: zero store-name mentions, hard fail, no exceptions -- previously only
+# enforced via the system prompt's ATTRIBUTION rule and manual spot-checks
+# (5+ real generations this session, zero mentions observed), but no code
+# gate actually existed to guarantee it. Retailer names are internal
+# operational detail (store_id in video_posts) that must never leak into
+# the spoken script -- this is global content, and Indian retailer names
+# mean nothing to a non-Indian viewer regardless.
+_STORE_NAME_RE = re.compile(r"\btoycra\b|\bmy\s*brick\s*house\b|\bmybrickhouse\b", re.IGNORECASE)
+
+
+def gate_no_store_names(script: str) -> GateResult:
+    m = _STORE_NAME_RE.search(script)
+    if m:
+        return GateResult("G9_no_store_names", False, f"store name mentioned: {m.group(0)!r}")
+    return GateResult("G9_no_store_names", True)
+
+
 def _levenshtein(a: str, b: str) -> int:
     m, n = len(a), len(b)
     dp = [[0] * (n + 1) for _ in range(m + 1)]
@@ -393,4 +410,5 @@ def run_all_gates(
     report.results.append(gate_no_first_person_build(script))
     report.results.append(gate_opener_uniqueness(script, recent_scripts))
     report.results.append(gate_price_math(script, price_inr))
+    report.results.append(gate_no_store_names(script))
     return report

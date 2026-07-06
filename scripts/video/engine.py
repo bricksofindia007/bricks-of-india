@@ -24,7 +24,7 @@ import random
 import sys
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
@@ -38,13 +38,14 @@ load_dotenv()
 # `AttributeError: module 'PIL.Image' has no attribute 'ANTIALIAS'` on any
 # .resize() call without this patch. LANCZOS is the same algorithm under the
 # old name (Pillow renamed it in 9.1, removed the alias in 10.0).
-from PIL import Image
+from PIL import Image, ImageEnhance, ImageFilter
 if not hasattr(Image, "ANTIALIAS"):
     Image.ANTIALIAS = Image.LANCZOS
 
 from moviepy.editor import (  # noqa: E402
     AudioFileClip,
     ImageClip,
+    VideoClip,
     VideoFileClip,
     concatenate_videoclips,
 )
@@ -61,14 +62,11 @@ OUTPUT_DIR = BASE_DIR / "output"
 for d in (MASTER_ASSETS, TEMP_DOWNLOAD, OUTPUT_DIR):
     d.mkdir(exist_ok=True)
 
-# MyBrickHouse is the sole source for CANDIDATE SELECTION (ranking/which
-# set to consider) -- Toycra dropped from that role 2026-07-06 (operator
-# directive). Re-added 2026-07-06 (later, operator directive: "do not skip
-# sets") as an IMAGE-ONLY fallback: if a candidate's MyBrickHouse images
-# don't clear 3 clean (non-lifestyle, non-composite) shots, the same set's
-# Toycra images are fetched and combined before giving up on the candidate.
-# Neither of this affects the main web pipeline's Toycra scraper
-# (scripts/scrape-now.mjs) -- scoped to scripts/video/ only.
+# MyBrickHouse is the source for RETAIL DATA -- price, title, availability
+# -- with Toycra as fallback, joined by set number. NEVER used for images
+# as of 2026-07-06 (see below): retailer photos kept producing composite/
+# lifestyle/off-center shots the classifiers had to work increasingly hard
+# to filter out.
 MBH_URL = "https://lego.mybrickhouse.com/collections/lego-sets/products.json"
 MBH_DOMAIN = "lego.mybrickhouse.com"
 TOYCRA_URL = "https://www.toycra.com/collections/lego/products.json"
@@ -84,17 +82,87 @@ def get_toycra_products() -> list[dict]:
     return _toycra_products_cache
 
 
-def find_toycra_fallback_images(set_number: str | None) -> list[str]:
-    """Image-only fallback: same set on Toycra, matched by set number only
-    (never fuzzy title matching -- a wrong match would put a different
-    set's images in this video). Empty list if no set_number or no match."""
+def find_toycra_fallback(set_number: str | None) -> dict | None:
+    """Retail-data fallback only (price/title/availability) -- same set on
+    Toycra, matched by set number only (never fuzzy title matching)."""
     if not set_number:
-        return []
+        return None
     for p in get_toycra_products():
         if extract_set_number(p.get("title"), p.get("handle")) == set_number:
-            images = p.get("images") or []
-            return [img.get("src") for img in images if img.get("src")]
-    return []
+            return p
+    return None
+
+
+# Images: 2026-07-06 (operator directive, corrected same day after live
+# verification) -- Brickset API getAdditionalImages PRIMARY, Rebrickable
+# single main image FALLBACK. This matches social-automation/scraper.py's
+# actual, production-proven pattern exactly (same call sequence, same
+# endpoints) -- NOT the initially-assumed "LEGO.com primary" spec, which
+# was verified live to 403 on both the coming-soon page and a product page
+# (Cloudflare-protected, matching that file's own documented reasoning).
+# Reused directly rather than reimplemented.
+def brickset_gallery_images(set_number: str) -> list[str]:
+    brickset_key = os.environ.get("BRICKSET_API_KEY")
+    if not brickset_key:
+        return []
+    try:
+        r = requests.get(
+            "https://brickset.com/api/v3.asmx/getSets",
+            params={
+                "apiKey": brickset_key,
+                "userHash": "",
+                "params": json.dumps({"setNumber": f"{set_number}-1", "pageSize": 1}),
+            },
+            timeout=15,
+        )
+        if r.status_code != 200:
+            return []
+        found = r.json().get("sets", [])
+        if not found:
+            return []
+        set_id = found[0].get("setID")
+        main_img = (found[0].get("image") or {}).get("imageURL", "")
+    except Exception as e:
+        print(f"WARN: Brickset getSets lookup failed for {set_number}: {e}", file=sys.stderr)
+        return []
+    if not set_id:
+        return []
+
+    images: list[str] = []
+    try:
+        r2 = requests.get(
+            "https://brickset.com/api/v3.asmx/getAdditionalImages",
+            params={"apiKey": brickset_key, "setID": set_id},
+            timeout=15,
+        )
+        if r2.status_code == 200:
+            for item in r2.json().get("additionalImages", []):
+                url = item.get("imageURL", "")
+                if url:
+                    images.append(url)
+    except Exception as e:
+        print(f"WARN: Brickset getAdditionalImages failed for {set_number}: {e}", file=sys.stderr)
+
+    if main_img and main_img not in images:
+        images = [main_img] + images
+    return images
+
+
+def rebrickable_main_image(set_number: str) -> str | None:
+    rb_key = os.environ.get("REBRICKABLE_API_KEY")
+    if not rb_key:
+        return None
+    try:
+        r = requests.get(
+            f"https://rebrickable.com/api/v3/lego/sets/{set_number}-1/",
+            headers={"Authorization": f"key {rb_key}"},
+            timeout=15,
+        )
+        if r.status_code == 200:
+            return r.json().get("set_img_url")
+    except Exception as e:
+        print(f"WARN: Rebrickable lookup failed for {set_number}: {e}", file=sys.stderr)
+    return None
 
 TARGET_W, TARGET_H = 1080, 1920
 KEN_BURNS_ZOOM = 0.04
@@ -125,6 +193,19 @@ _last_gemini_call_at = 0.0
 # this session passed G1 cleanly at 131 and 128 words and still got refused
 # at the char guard, which is the bug this recompute fixes.)
 ELEVENLABS_MAX_SCRIPT_CHARS = 1000
+
+# Voice config -- operator-confirmed 2026-07-06 after a real A/B/C listening
+# test (Test A: default settings: eleven_flash_v2_5, default similarity;
+# Test B: eleven_flash_v2_5, similarity_boost 0.9; Test C:
+# eleven_multilingual_v2, similarity_boost 0.85, bills at 2x Flash's rate).
+# Test B won. Standing default for ALL TTS calls, not a one-off setting.
+TTS_MODEL_ID = "eleven_flash_v2_5"
+TTS_VOICE_SETTINGS = {
+    "stability": 0.5,
+    "similarity_boost": 0.9,
+    "use_speaker_boost": True,
+    "style": 0.0,
+}
 
 
 # ── Env / clients ─────────────────────────────────────────────────────────────
@@ -188,8 +269,12 @@ def cheapest_variant(product: dict) -> dict | None:
 
 
 def build_candidate(product: dict, store_id: str, store_name: str, domain: str) -> dict | None:
-    images = product.get("images") or []
-    if len(images) < 5:
+    # The >=5 retailer-image filter is gone 2026-07-06 -- images no longer
+    # come from the retailer at all (Brickset/Rebrickable now), so a thin
+    # retailer gallery is irrelevant. A set_number IS required, since that's
+    # the only way to look up Brickset images at all.
+    set_number = extract_set_number(product.get("title"), product.get("handle"))
+    if not set_number:
         return None
     variant = cheapest_variant(product)
     if variant is None:
@@ -200,8 +285,7 @@ def build_candidate(product: dict, store_id: str, store_name: str, domain: str) 
         "store_name": store_name,
         "product_url": f"https://{domain}/products/{product.get('handle')}",
         "price_inr": float(variant["price"]),
-        "image_urls": [img.get("src") for img in images if img.get("src")],
-        "set_number": extract_set_number(product.get("title"), product.get("handle")),
+        "set_number": set_number,
         "published_at": product.get("published_at") or "",
     }
 
@@ -226,7 +310,47 @@ def enrich_with_catalog(sb, set_number: str | None) -> tuple[int | None, str | N
     return row.get("pieces"), row.get("theme")
 
 
-def get_candidates(sb, limit: int = 10) -> list[dict]:
+# Price-drop detection: same query pattern and threshold as the real web
+# pipeline's src/app/lab/price-drops/page.tsx (drop_inr >= 200 OR
+# drop_pct >= 5, baseline = oldest price_history row in the last 30 days),
+# reused rather than re-derived. store_prices/price_history.set_id is the
+# plain set-number string, not a UUID FK -- verified live against the
+# actual table before assuming the join key.
+def get_price_drops(sb, set_numbers: list[str], store_id: str = "mybrickhouse") -> dict[str, dict]:
+    if not set_numbers:
+        return {}
+    since = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+
+    current: dict[str, dict] = {}
+    cur_res = sb.table("store_prices").select("set_id, price_inr, scraped_at").eq("store_id", store_id).in_("set_id", set_numbers).execute()
+    for r in cur_res.data or []:
+        if r.get("price_inr") is not None:
+            current[r["set_id"]] = {"price": float(r["price_inr"]), "scraped_at": r["scraped_at"]}
+
+    baseline: dict[str, float] = {}
+    hist_res = (
+        sb.table("price_history").select("set_id, price_inr, recorded_at")
+        .eq("store_id", store_id).in_("set_id", set_numbers).gte("recorded_at", since)
+        .order("recorded_at", desc=False).execute()
+    )
+    for r in hist_res.data or []:
+        if r["set_id"] not in baseline and r.get("price_inr") is not None:
+            baseline[r["set_id"]] = float(r["price_inr"])
+
+    drops: dict[str, dict] = {}
+    for set_num, cur in current.items():
+        base = baseline.get(set_num)
+        if base is None or cur["price"] >= base:
+            continue
+        drop_inr = base - cur["price"]
+        drop_pct = (drop_inr / base) * 100
+        if drop_inr < 200 and drop_pct < 5:
+            continue
+        drops[set_num] = {"old_price": base, "new_price": cur["price"], "drop_inr": drop_inr, "drop_pct": drop_pct}
+    return drops
+
+
+def get_candidates(sb, limit: int = 10, pool_size: int = 30) -> list[dict]:
     mbh_products = fetch_shopify_products(MBH_URL)
 
     def mbh_price_key(p: dict) -> float:
@@ -236,28 +360,46 @@ def get_candidates(sb, limit: int = 10) -> list[dict]:
     # Client-side sort, per STEP 0 verification: sort_by is ignored server-side.
     mbh_sorted = sorted(mbh_products, key=mbh_price_key, reverse=True)
 
-    candidates: list[dict] = []
+    pool: list[dict] = []
     for p in mbh_sorted:
         c = build_candidate(p, "mybrickhouse", "MyBrickHouse", MBH_DOMAIN)
         if c:
-            candidates.append(c)
-        if len(candidates) >= limit:
+            pool.append(c)
+        if len(pool) >= pool_size:
             break
 
-    # Filter: not already used, price present (guaranteed by build_candidate).
-    fresh = [c for c in candidates if not already_used(sb, c["product_url"], c["set_number"])]
+    # Filter: not already used.
+    fresh = [c for c in pool if not already_used(sb, c["product_url"], c["set_number"])]
+
+    # Rank: newest-arrival + price-drop signals. A real price-drop (reusing
+    # the web pipeline's own detector) is a strong "worth talking about
+    # today" signal, so it outranks plain recency; otherwise sort by
+    # newest-published first (previous behaviour).
+    drops = get_price_drops(sb, [c["set_number"] for c in fresh])
+
+    def rank_key(c: dict) -> tuple:
+        drop = drops.get(c["set_number"])
+        has_drop = 1 if drop else 0
+        drop_pct = drop["drop_pct"] if drop else 0.0
+        return (has_drop, drop_pct, c.get("published_at") or "")
+
+    fresh.sort(key=rank_key, reverse=True)
 
     # Attach catalog enrichment + a one-line reason.
-    for c in fresh:
+    for c in fresh[:limit]:
         pieces, theme = enrich_with_catalog(sb, c["set_number"])
         c["pieces"] = pieces
         c["theme"] = theme
-        reason = f"highest-priced on MyBrickHouse (₹{c['price_inr']:,.0f})"
+        drop = drops.get(c["set_number"])
+        if drop:
+            reason = f"price drop on MyBrickHouse: ₹{drop['old_price']:,.0f} -> ₹{drop['new_price']:,.0f} ({drop['drop_pct']:.0f}% off)"
+        else:
+            reason = f"newest arrival on MyBrickHouse (₹{c['price_inr']:,.0f})"
         if pieces:
-            reason += f", catalog match: {c['theme']} theme, {pieces} pieces"
+            reason += f", catalog match: {theme} theme, {pieces} pieces"
         c["reason"] = reason
 
-    return fresh[:10]
+    return fresh[:limit]
 
 
 def print_suggestions(candidates: list[dict]) -> None:
@@ -408,8 +550,13 @@ def generate_tts(script: str, output_path: Path) -> None:
         # Verified live 2026-07-05: the brief's "eleven_flash_v2.5" (period)
         # 400s with "invalid_uid" -- ElevenLabs' real model ID uses an
         # underscore, confirmed against their own docs.
-        model_id="eleven_flash_v2_5",
+        model_id=TTS_MODEL_ID,
         output_format="mp3_44100_128",
+        # Voice A/B/C test, operator-confirmed 2026-07-06: Test B (this
+        # model + similarity_boost 0.9) over Test C (eleven_multilingual_v2,
+        # 2x the cost per char). Locked as the standing default, not just
+        # that one test's settings -- do not revert without a new test.
+        voice_settings=TTS_VOICE_SETTINGS,
     )
     with open(output_path, "wb") as f:
         for chunk in audio_chunks:
@@ -444,14 +591,61 @@ def get_clip_duration(path: Path) -> float:
         return clip.duration
 
 
+# Visual assembly rewrite, 2026-07-06 (operator directive): the previous
+# cover-crop-and-fill approach is what caused the composite/lifestyle/
+# off-center-crop bugs this session -- cover-cropping assumes the subject
+# is centered and fills the frame, which retailer photos often don't do.
+# Replaced with SOC-AUTO-01's proven pattern instead of building smarter
+# classifiers around a fundamentally fragile approach: contained-fit
+# foreground (the product image scaled to FIT within a bounded box,
+# centered, never cropped -- safe regardless of the source image's aspect
+# ratio or subject position) + a blurred cover-crop of the SAME image as
+# full-frame background fill. Ported directly from
+# social-automation/media_processor.py's _scale_to_fill + GaussianBlur(20)
+# + Brightness(0.40) + _scale_to_contain combination. Zoom applies only to
+# the sharp foreground; the blurred background stays static per clip.
+FG_SIZE = TARGET_W  # 1080 -- foreground box is a square matching frame width
+FG_Y = (TARGET_H - FG_SIZE) // 2  # vertically centered, matches SOC-AUTO-01's FG_Y
+
+
+def _scale_to_fill_pil(image: Image.Image, target_w: int, target_h: int) -> Image.Image:
+    """Cover-crop to exact target size. Ported from social-automation/
+    media_processor.py::_scale_to_fill -- used ONLY for the blurred
+    background layer here, never the sharp product image."""
+    img_w, img_h = image.size
+    scale = max(target_w / img_w, target_h / img_h)
+    new_w, new_h = int(img_w * scale), int(img_h * scale)
+    resized = image.resize((new_w, new_h), Image.LANCZOS)
+    left = (new_w - target_w) // 2
+    top = (new_h - target_h) // 2
+    return resized.crop((left, top, left + target_w, top + target_h))
+
+
 def make_ken_burns_clip(image_path: Path, duration_s: float, zoom: float = KEN_BURNS_ZOOM):
-    clip = ImageClip(str(image_path))
-    w, h = clip.size
-    scale = max(TARGET_W / w, TARGET_H / h)
-    cover_w, cover_h = int(w * scale) + 4, int(h * scale) + 4  # cover 1080x1920, +4px slop for rounding
-    clip = clip.resize((cover_w, cover_h)).set_duration(duration_s)
-    zoomed = clip.resize(lambda t: 1 + zoom * (t / duration_s))
-    return zoomed.crop(x_center=zoomed.w / 2, y_center=zoomed.h / 2, width=TARGET_W, height=TARGET_H)
+    raw = Image.open(image_path).convert("RGB")
+
+    bg_img = _scale_to_fill_pil(raw.copy(), TARGET_W, TARGET_H)
+    bg_img = bg_img.filter(ImageFilter.GaussianBlur(radius=20))
+    bg_img = ImageEnhance.Brightness(bg_img).enhance(0.40)
+    bg_arr = np.array(bg_img)
+
+    fg_img = raw.copy()
+    fg_img.thumbnail((FG_SIZE, FG_SIZE), Image.LANCZOS)
+    fg_canvas = Image.new("RGB", (FG_SIZE, FG_SIZE), (255, 255, 255))
+    fg_canvas.paste(fg_img, ((FG_SIZE - fg_img.width) // 2, (FG_SIZE - fg_img.height) // 2))
+    fg_arr = np.array(fg_canvas)
+
+    def make_frame(t):
+        frame = bg_arr.copy()
+        scale = 1.0 + zoom * (t / duration_s)
+        new_size = max(FG_SIZE, int(FG_SIZE * scale))
+        zoomed = np.array(Image.fromarray(fg_arr).resize((new_size, new_size), Image.LANCZOS))
+        left = (new_size - FG_SIZE) // 2
+        zoomed = zoomed[left:left + FG_SIZE, left:left + FG_SIZE]
+        frame[FG_Y:FG_Y + FG_SIZE, :] = zoomed
+        return frame
+
+    return VideoClip(make_frame, duration=duration_s)
 
 
 def download_images(urls: list[str], max_images: int = 6, prefix: str = "product") -> list[Path]:
@@ -625,30 +819,132 @@ def filter_studio_images(paths: list[Path]) -> list[Path]:
 
 
 def resolve_candidate_images(candidate: dict) -> list[Path]:
-    """MyBrickHouse first (preferred source); if that alone doesn't clear
-    MIN_STUDIO_IMAGES, fetch the same set's Toycra images as a fallback and
-    combine -- per operator directive, do not skip a set just because one
-    source's gallery happens to be thin. Only returns fewer than
-    MIN_STUDIO_IMAGES if BOTH sources combined still fall short."""
-    print(f"  [MyBrickHouse images for {candidate['title']}]", file=sys.stderr)
-    mbh_downloaded = download_images(candidate["image_urls"], prefix="mbh")
-    mbh_studio = filter_studio_images(mbh_downloaded)
-    if len(mbh_studio) >= MIN_STUDIO_IMAGES:
-        return mbh_studio
+    """Images: Brickset getAdditionalImages PRIMARY, Rebrickable single main
+    image FALLBACK (2026-07-06, matches social-automation/scraper.py's
+    proven pattern) -- never retailer photos. Studio/lifestyle/composite
+    classification still runs as defense-in-depth, not the primary filter,
+    since Brickset images are expected to be clean by construction (same
+    assumption SOC-AUTO-01 relies on)."""
+    set_number = candidate.get("set_number")
+    if not set_number:
+        print(f"  [no set number extracted for {candidate['title']} -- cannot fetch Brickset images]", file=sys.stderr)
+        return []
 
-    toycra_urls = find_toycra_fallback_images(candidate.get("set_number"))
-    if not toycra_urls:
-        print("  [Toycra fallback: no matching set found]", file=sys.stderr)
-        return mbh_studio
-    print(f"  [Toycra fallback images for {candidate['title']}]", file=sys.stderr)
-    toycra_downloaded = download_images(toycra_urls, prefix="toycra")
-    toycra_studio = filter_studio_images(toycra_downloaded)
-    return mbh_studio + toycra_studio
+    print(f"  [Brickset images for {candidate['title']} (set {set_number})]", file=sys.stderr)
+    brickset_urls = brickset_gallery_images(set_number)
+    downloaded = download_images(brickset_urls, prefix="brickset", max_images=12)
+    studio = filter_studio_images(downloaded)
+    if len(studio) >= MIN_STUDIO_IMAGES:
+        return studio
+
+    rb_url = rebrickable_main_image(set_number)
+    if not rb_url:
+        print("  [Rebrickable fallback: no main image found]", file=sys.stderr)
+        return studio
+    print(f"  [Rebrickable fallback image for {candidate['title']}]", file=sys.stderr)
+    rb_downloaded = download_images([rb_url], prefix="rebrickable")
+    rb_studio = filter_studio_images(rb_downloaded)
+    return studio + rb_studio
 
 
 def slugify(title: str) -> str:
     s = re.sub(r"[^a-z0-9]+", "-", title.lower()).strip("-")
     return s[:60]
+
+
+# ── STEP 6b: captions (v1, approved style) ──────────────────────────────────────
+#
+# Transcribes the ACTUAL rendered audio (not the intended script text) --
+# this is deliberate: it catches real TTS mispronunciation the same way the
+# earlier "rupees" vs "RS" bug was caught by transcription, not by trusting
+# the input. openai-whisper's default segmentation is already sentence/
+# phrase-level, not word-level, matching the approved style directly.
+
+_CAPTION_FONT_CANDIDATES = [
+    "C:/Windows/Fonts/arialbd.ttf",
+    "C:/Windows/Fonts/arial.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+    "/System/Library/Fonts/Helvetica.ttc",
+]
+
+
+def _caption_font(size: int):
+    from PIL import ImageFont
+    for path in _CAPTION_FONT_CANDIDATES:
+        try:
+            return ImageFont.truetype(path, size)
+        except (IOError, OSError):
+            continue
+    return ImageFont.load_default()
+
+
+def transcribe_for_captions(audio_path: Path) -> list[dict]:
+    import whisper
+    model = whisper.load_model("base")
+    result = model.transcribe(str(audio_path))
+    return [
+        {"start": s["start"], "end": s["end"], "text": s["text"].strip()}
+        for s in result["segments"] if s["text"].strip()
+    ]
+
+
+def _wrap_caption_text(draw, text: str, font, max_width: int) -> list[str]:
+    words = text.split()
+    lines, line = [], ""
+    for word in words:
+        test = (line + " " + word).strip()
+        if draw.textbbox((0, 0), test, font=font)[2] > max_width and line:
+            lines.append(line)
+            line = word
+        else:
+            line = test
+    if line:
+        lines.append(line)
+    return lines
+
+
+def burn_captions(video_path: Path, segments: list[dict], output_path: Path) -> None:
+    """Bottom-third, white text, dark outline, full-sentence -- approved v1
+    style. Renders via PIL per-segment (not moviepy TextClip, which needs
+    ImageMagick) for consistency with the rest of this pipeline's manual
+    frame compositing."""
+    from PIL import ImageDraw
+    from moviepy.editor import CompositeVideoClip
+
+    base = VideoFileClip(str(video_path))
+    font = _caption_font(56)
+    max_width = int(TARGET_W * 0.85)
+    caption_y = int(TARGET_H * 0.78)  # bottom-third
+
+    def make_frame(t):
+        frame = np.zeros((TARGET_H, TARGET_W, 4), dtype=np.uint8)  # transparent
+        seg = next((s for s in segments if s["start"] <= t <= s["end"]), None)
+        if seg is None:
+            return frame
+        img = Image.fromarray(frame, "RGBA")
+        draw = ImageDraw.Draw(img)
+        lines = _wrap_caption_text(draw, seg["text"], font, max_width)
+        line_height = int(font.size * 1.3)
+        total_h = line_height * len(lines)
+        y = caption_y - total_h // 2
+        for line in lines:
+            w = draw.textbbox((0, 0), line, font=font)[2]
+            x = (TARGET_W - w) // 2
+            # dark outline: draw offset copies behind the white fill
+            for dx, dy in ((-2, -2), (-2, 2), (2, -2), (2, 2), (-2, 0), (2, 0), (0, -2), (0, 2)):
+                draw.text((x + dx, y + dy), line, font=font, fill=(0, 0, 0, 255))
+            draw.text((x, y), line, font=font, fill=(255, 255, 255, 255))
+            y += line_height
+        return np.array(img)
+
+    caption_clip = VideoClip(lambda t: make_frame(t)[:, :, :3], duration=base.duration)
+    mask_clip = VideoClip(lambda t: make_frame(t)[:, :, 3] / 255.0, duration=base.duration, ismask=True)
+    caption_clip = caption_clip.set_mask(mask_clip)
+
+    final = CompositeVideoClip([base, caption_clip]).set_audio(base.audio)
+    final.write_videofile(str(output_path), fps=FPS, codec="libx264", audio_codec="aac", logger=None)
+    base.close()
 
 
 def assemble_video(image_paths: list[Path], audio_path: Path, output_path: Path, placeholder_anchors: bool) -> float:
@@ -826,6 +1122,12 @@ def main() -> None:
         print(f"Total duration: {total_duration:.1f}s")
         if total_duration > 90:
             print("WARNING: video exceeds 90s — IG Reels/YT Shorts may reject or truncate.")
+
+        print("Transcribing rendered audio for captions (Whisper, catches real TTS pronunciation)...")
+        segments = transcribe_for_captions(output_path)
+        captioned_path = output_path.with_name(output_path.stem + "_captioned.mp4")
+        burn_captions(output_path, segments, captioned_path)
+        print(f"Captioned: {captioned_path}")
 
         video_id = insert_video_post(sb, candidate, script, report, output_path)
         print(f"video_posts row inserted: {video_id}")
