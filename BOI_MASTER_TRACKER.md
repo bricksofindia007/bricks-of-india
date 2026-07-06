@@ -252,6 +252,12 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-07-06 (vocabulary list extended + buyer-persona decision recorded) — ✅ CLOSED
+
+Added "undeniable statement", "a testament to", "makes a statement", "commands attention" to the banned review-language list in the video system prompt -- matching a real phrase from the Stage 7 E2E script itself ("it's an undeniable statement", Minas Tirith). Re-tested on 2 fresh real generations (Mandalorian N-1 Starfighter candidate): zero banned phrases in either (95 and 124 words). One of the two scripts' price-math also checked out independently by hand (3 years of Netflix Premium + Prime = ₹27,864 vs a ₹26,999 set -- within the 0.5x-1.5x band).
+
+**Buyer-persona (who should buy this): CLOSED, no gap.** Confirmed operator decision -- stays folded into the Opinion beat as-is, no separate gate. Not an open item.
+
 ### 2026-07-06 (set-number matching fix, pre-daily-automation) — ✅ CLOSED
 
 Fixed the "1701" false-positive found in Stage 1 (fictional Star Trek ship registry number matching real catalog set 1701 "Basic Building Set Trial Size"). Root cause: `extract_set_number()` returned only the first 4-6 digit regex match, with no validation it was actually the right number.
