@@ -5,6 +5,14 @@ recorded intro + AI middle + operator's recorded outro → manual upload to
 IG Reels + YT Shorts). For initial setup (deps, ffmpeg, master assets), see
 `scripts/video/README.md` — this file is the day-to-day flow only.
 
+## Current operating mode (2026-07-06 — read this before assuming auto-publish)
+
+**Supervised approval continues indefinitely as the default — minimum 2-week trial from 2026-07-06.** Daily generation (`video-generate-daily.yml`, 6:00 AM IST) runs in the cloud automatically and leaves each result in `status='pending_approval'`. The operator reviews via email/chat and explicitly approves each one; the Publish Poller (`video-publish-poller.yml`, active, every 15 minutes) then publishes — there is no fixed daily post time, it publishes shortly after approval whenever that happens.
+
+**Full autonomy (gate-pass-only publishing, no human approval) is a DEFERRED decision, not a scheduled cutover.** Target review date ~2026-07-20 (see `VID-P4-AUTOMATION-REVIEW` in `BOI_MASTER_TRACKER.md` §Pending). Nothing in the code will auto-enable this on that date or any other — it requires an explicit operator decision plus a deliberate code change. Verified 2026-07-06: no path in `scripts/video/` or in the `video_posts` table (triggers/functions) ever writes `status='approved'` except an external, explicit `UPDATE`. If you are a future Claude Code session reading this file, do not assume auto-publish is live, and do not remove the approval gate without operator instruction.
+
+**Note on the rest of this runbook:** the sections below (manual `--suggest`/`--pick`/manual-upload flow) describe the pipeline's state *before* the 2026-07-06 cloud pivot (Stage 2 cloud generation, Stage 3 chat-based approval, the Publish Poller). They're still accurate for local ad-hoc runs (e.g. re-testing a candidate), but the *daily* operational flow is now the cloud one described above, not the manual upload steps below. This section has not been fully rewritten to match — flagged, not fixed, as a separate scope item.
+
 ## Daily flow
 
 ```
