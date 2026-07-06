@@ -11,10 +11,10 @@ IG Reels + YT Shorts). For initial setup (deps, ffmpeg, master assets), see
 cd scripts/video
 python engine.py --suggest
 ```
-Prints the top 3 candidates (newest on Toycra + highest-priced on
-MyBrickHouse, merged, filtered to ≥5 images and not already used), each with
-a one-line reason and catalog enrichment (theme + piece count) where a set
-number matched.
+Prints the top 3 candidates (highest-priced on MyBrickHouse — the sole
+source as of 2026-07-06, Toycra dropped per operator directive), filtered
+to ≥5 images and not already used, each with a one-line reason and catalog
+enrichment (theme + piece count) where a set number matched.
 
 ```
 python engine.py --pick 2

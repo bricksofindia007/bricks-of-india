@@ -60,12 +60,10 @@ OUTPUT_DIR = BASE_DIR / "output"
 for d in (MASTER_ASSETS, TEMP_DOWNLOAD, OUTPUT_DIR):
     d.mkdir(exist_ok=True)
 
-# STEP 0 verified 2026-07-05: bare toycra.com works, but www.toycra.com
-# matches the existing scraper's (scripts/scrape-now.mjs) established
-# convention -- using that domain for consistency with real product URLs
-# already in the DB.
-TOYCRA_URL = "https://www.toycra.com/collections/lego/products.json"
-TOYCRA_DOMAIN = "www.toycra.com"
+# Toycra dropped 2026-07-06 (operator directive) -- MyBrickHouse is now the
+# SOLE source for this video pipeline's candidate selection and images.
+# This does NOT affect the main web pipeline's Toycra scraper
+# (scripts/scrape-now.mjs) -- scoped to scripts/video/ only.
 MBH_URL = "https://lego.mybrickhouse.com/collections/lego-sets/products.json"
 MBH_DOMAIN = "lego.mybrickhouse.com"
 
@@ -199,34 +197,22 @@ def enrich_with_catalog(sb, set_number: str | None) -> tuple[int | None, str | N
     return row.get("pieces"), row.get("theme")
 
 
-def get_candidates(sb, limit_per_store: int = 10) -> list[dict]:
-    toycra_products = fetch_shopify_products(TOYCRA_URL)
+def get_candidates(sb, limit: int = 10) -> list[dict]:
     mbh_products = fetch_shopify_products(MBH_URL)
-
-    # Client-side sort, per STEP 0 verification: sort_by is ignored server-side.
-    toycra_sorted = sorted(toycra_products, key=lambda p: p.get("published_at") or "", reverse=True)
 
     def mbh_price_key(p: dict) -> float:
         v = cheapest_variant(p)
         return float(v["price"]) if v else -1.0
 
+    # Client-side sort, per STEP 0 verification: sort_by is ignored server-side.
     mbh_sorted = sorted(mbh_products, key=mbh_price_key, reverse=True)
 
     candidates: list[dict] = []
-    for p in toycra_sorted:
-        c = build_candidate(p, "toycra", "Toycra", TOYCRA_DOMAIN)
-        if c:
-            candidates.append(c)
-        if len(candidates) >= limit_per_store:
-            break
-
-    mbh_added = 0
     for p in mbh_sorted:
         c = build_candidate(p, "mybrickhouse", "MyBrickHouse", MBH_DOMAIN)
         if c:
             candidates.append(c)
-            mbh_added += 1
-        if mbh_added >= limit_per_store:
+        if len(candidates) >= limit:
             break
 
     # Filter: not already used, price present (guaranteed by build_candidate).
@@ -237,10 +223,7 @@ def get_candidates(sb, limit_per_store: int = 10) -> list[dict]:
         pieces, theme = enrich_with_catalog(sb, c["set_number"])
         c["pieces"] = pieces
         c["theme"] = theme
-        if c["store"] == "toycra":
-            reason = f"newest on Toycra (published {c['published_at'][:10] if c['published_at'] else 'unknown'})"
-        else:
-            reason = f"highest-priced on MyBrickHouse (₹{c['price_inr']:,.0f})"
+        reason = f"highest-priced on MyBrickHouse (₹{c['price_inr']:,.0f})"
         if pieces:
             reason += f", catalog match: {c['theme']} theme, {pieces} pieces"
         c["reason"] = reason
