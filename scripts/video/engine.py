@@ -1158,6 +1158,7 @@ def main() -> None:
     parser.add_argument("--posted", type=str, help="video_posts.id to mark as posted")
     parser.add_argument("--platform", type=str, choices=["ig", "yt", "both"], help="platform for --posted")
     parser.add_argument("--publish", type=str, help="video_posts.id to actually post live to IG Reels + YouTube Shorts")
+    parser.add_argument("--poll-and-publish", action="store_true", help="Stage 4: find every status='approved' row and publish it (used by the scheduled poller workflow)")
     parser.add_argument("--resend-notification", type=str, help="video_posts.id to re-send the Stage F publish notification for, using its already-stored results (does not re-post)")
     args = parser.parse_args()
 
@@ -1176,6 +1177,62 @@ def main() -> None:
         notifier_mod.send_publish_notification(video_post, ig_result, yt_result)
         print(f"Notification re-sent for {args.resend_notification}.")
         return
+
+    if args.poll_and_publish:
+        import publish as publish_mod
+        import notifier as notifier_mod
+
+        approved_res = sb.table("video_posts").select("*").eq("status", "approved").order("created_at").execute()
+        approved_rows = approved_res.data
+
+        if not approved_rows:
+            print("No approved rows found. Nothing to publish.")
+            return
+
+        print(f"Found {len(approved_rows)} approved row(s) to publish.")
+        exit_code = 0
+
+        for video_post in approved_rows:
+            vid = video_post["id"]
+            print(f"\n--- Publishing {vid} ({video_post['set_title']}) ---")
+
+            try:
+                results = publish_mod.publish_video_post(sb, video_post)
+            except (publish_mod.GateFailureError, publish_mod.CaptionsMissingError) as exc:
+                # An already-approved row failing a hard guard at publish time
+                # is unexpected (approval implies the gates already passed at
+                # generation time) -- move it OUT of status='approved' so the
+                # poller doesn't retry the same deterministic failure every
+                # 15-30 minutes and re-alert each time, but keep it clearly
+                # distinct from an operator's own 'discarded' action.
+                print(f"ERROR: hard guard blocked {vid}: {exc}", file=sys.stderr)
+                sb.table("video_posts").update({"status": "publish_blocked"}).eq("id", vid).execute()
+                notifier_mod.send_skip_notification(
+                    reason=f"Approved video failed a hard guard at publish time: {exc}",
+                    candidate_title=video_post.get("set_title"),
+                )
+                exit_code = 1
+                continue
+
+            refreshed = sb.table("video_posts").select("*").eq("id", vid).single().execute().data
+            notifier_mod.send_publish_notification(refreshed, results.get("ig"), results.get("yt"))
+
+            # Report both platforms' outcomes separately whenever they
+            # diverge -- never collapse a partial success into a single
+            # "posted" line.
+            if "ig" in results and "yt" in results:
+                print(f"{vid}: posted_both -- IG {results['ig']['permalink']} | YT {results['yt']['url']}")
+            elif "ig" in results:
+                print(f"{vid}: posted_ig only -- IG {results['ig']['permalink']} live; YouTube FAILED: {results['errors']}", file=sys.stderr)
+                exit_code = 1
+            elif "yt" in results:
+                print(f"{vid}: posted_yt only -- YT {results['yt']['url']} live; Instagram FAILED: {results['errors']}", file=sys.stderr)
+                exit_code = 1
+            else:
+                print(f"{vid}: BOTH platforms failed: {results['errors']}", file=sys.stderr)
+                exit_code = 1
+
+        sys.exit(exit_code)
 
     if args.publish:
         import publish as publish_mod

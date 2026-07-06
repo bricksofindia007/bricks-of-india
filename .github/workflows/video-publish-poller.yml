@@ -1,0 +1,43 @@
+name: VID-P4 Publish Poller
+
+# Stage 4 (cloud architecture pivot, 2026-07-06): runs every 15 minutes,
+# looks for video_posts rows with status='approved' (set directly by
+# chat-Claude via Supabase after the operator approves in chat -- no
+# terminal/local machine needed for that step) and publishes each one via
+# the existing publish_video_post() -- same IG Reels + YouTube Shorts flow,
+# same disclosure split (YouTube containsSyntheticMedia=true, no IG AI-
+# voiceover suffix), same hard gate + caption guards as today's manual
+# post. Fires the Stage F notification once a post is confirmed live via
+# fetch-back from each platform's own API.
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:  # manual trigger for testing
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y ffmpeg tesseract-ocr
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/video/requirements.txt
+
+      - name: Poll for approved videos and publish
+        working-directory: scripts/video
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: python engine.py --poll-and-publish
