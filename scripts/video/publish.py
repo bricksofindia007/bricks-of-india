@@ -38,15 +38,17 @@ from pathlib import Path
 import requests
 from dotenv import load_dotenv
 
+from secrets_util import get_secret
+
 # VID-P4's own .env first, then fall back to social-automation's .env for
 # IG_ACCESS_TOKEN / IG_USER_ID / YOUTUBE_CLIENT_SECRETS -- same underlying
 # accounts, no reason to duplicate those secrets into a second .env file.
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent.parent / 'social-automation' / '.env')
 
-IG_ACCESS_TOKEN        = os.environ.get('IG_ACCESS_TOKEN', '')
-IG_USER_ID             = os.environ.get('IG_USER_ID', '')
-YOUTUBE_CLIENT_SECRETS = os.environ.get('YOUTUBE_CLIENT_SECRETS', '')
+IG_ACCESS_TOKEN        = get_secret('IG_ACCESS_TOKEN')
+IG_USER_ID             = get_secret('IG_USER_ID')
+YOUTUBE_CLIENT_SECRETS = get_secret('YOUTUBE_CLIENT_SECRETS')
 
 GRAPH_API_BASE = 'https://graph.facebook.com/v19.0'
 VIDEO_STORAGE_BUCKET = 'social-assets'  # reuse the existing proven public bucket

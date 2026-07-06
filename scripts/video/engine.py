@@ -31,6 +31,8 @@ import numpy as np
 import requests
 from dotenv import load_dotenv
 
+from secrets_util import get_secret
+
 load_dotenv()
 
 # moviepy 1.x calls PIL.Image.ANTIALIAS, removed in Pillow >=10. Verified
@@ -102,7 +104,7 @@ def find_toycra_fallback(set_number: str | None) -> dict | None:
 # (Cloudflare-protected, matching that file's own documented reasoning).
 # Reused directly rather than reimplemented.
 def brickset_gallery_images(set_number: str) -> list[str]:
-    brickset_key = os.environ.get("BRICKSET_API_KEY")
+    brickset_key = get_secret("BRICKSET_API_KEY")
     if not brickset_key:
         return []
     try:
@@ -149,7 +151,7 @@ def brickset_gallery_images(set_number: str) -> list[str]:
 
 
 def rebrickable_main_image(set_number: str) -> str | None:
-    rb_key = os.environ.get("REBRICKABLE_API_KEY")
+    rb_key = get_secret("REBRICKABLE_API_KEY")
     if not rb_key:
         return None
     try:
@@ -211,8 +213,8 @@ TTS_VOICE_SETTINGS = {
 # ── Env / clients ─────────────────────────────────────────────────────────────
 
 def get_supabase():
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+    url = get_secret("SUPABASE_URL")
+    key = get_secret("SUPABASE_SERVICE_ROLE_KEY")
     if not url or not key:
         print("ERROR: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set in .env", file=sys.stderr)
         sys.exit(1)
@@ -505,7 +507,7 @@ def generate_script(title: str, price_inr: float, pieces: int | None, theme: str
     if retry_note:
         task_prompt = f"{task_prompt}\n\n{retry_note}"
 
-    gemini_key = os.environ.get("GEMINI_SOCIAL_API_KEY")
+    gemini_key = get_secret("GEMINI_SOCIAL_API_KEY")
     if gemini_key:
         try:
             _gemini_pace()
@@ -525,7 +527,7 @@ def generate_script(title: str, price_inr: float, pieces: int | None, theme: str
     else:
         print("WARN: GEMINI_SOCIAL_API_KEY not set, going straight to Cerebras.", file=sys.stderr)
 
-    cerebras_key = os.environ.get("CEREBRAS_API_KEY")
+    cerebras_key = get_secret("CEREBRAS_API_KEY")
     if not cerebras_key:
         print("ERROR: Both Gemini and Cerebras unavailable (no CEREBRAS_API_KEY). Cannot generate script.", file=sys.stderr)
         sys.exit(1)
@@ -609,8 +611,8 @@ def generate_tts(script: str, output_path: Path) -> None:
         print(f"ERROR: TTS text is {len(tts_text)} chars after currency expansion, over the {ELEVENLABS_MAX_SCRIPT_CHARS}-char hard guard. Refusing to call ElevenLabs.", file=sys.stderr)
         sys.exit(1)
 
-    api_key = os.environ.get("ELEVENLABS_API_KEY")
-    voice_id = os.environ.get("ELEVENLABS_VOICE_ID")
+    api_key = get_secret("ELEVENLABS_API_KEY")
+    voice_id = get_secret("ELEVENLABS_VOICE_ID")
     if not api_key or not voice_id:
         print("ERROR: ELEVENLABS_API_KEY / ELEVENLABS_VOICE_ID not set.", file=sys.stderr)
         sys.exit(1)
