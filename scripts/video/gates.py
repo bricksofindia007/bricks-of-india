@@ -38,6 +38,23 @@ BANNED_PATTERNS = [
     r"\blike button\b",
     r"\bsubscribe\b",
     r"\bcomment\b",
+    # Added 2026-07-06 (Abhinav, explicit) -- these were added to the SYSTEM_PROMPT
+    # (prompts.py) as literary/review-language bans on the same day, but never
+    # mirrored into this gate. Real gap: the prompt telling the model not to use a
+    # phrase doesn't guarantee compliance -- that's what a gate is for. Confirmed
+    # live: the Minas Tirith video (video_posts id 15ba43f0-7847-4bdd-bfd7-c4ef2294c51d)
+    # contains "it's an undeniable statement" -- the exact motivating example from
+    # prompts.py's own amendment log -- and G2 still reported pass=true against the
+    # old list.
+    r"\bromanticism\b",
+    r"\barchitectural\b",
+    r"\bgrandeur\b",
+    r"\btestament\b",  # also covers "a testament to"
+    r"\bmagnificence\b",
+    r"\bquintessential\b",
+    r"\bundeniable statement\b",
+    r"\bmakes a statement\b",
+    r"\bcommands attention\b",
 ]
 
 # TTS reads these characters aloud if present — hard-fail, don't just strip.
@@ -87,8 +104,20 @@ def normalize_currency_for_tts(script: str) -> str:
 
     return _RUPEE_AMOUNT_RE.sub(replace, script)
 
+
+# "like" deliberately excluded as a bare word here (unlike follow/subscribe/
+# comment, which G2 bans unconditionally everywhere -- so re-matching them
+# bare in the last sentence is harmless redundancy, not a new risk). "like"
+# is different: G2 only bans specific CTA phrasings ("hit like", "like this
+# video") and explicitly allows conversational "feels like"/"looks like" --
+# a real, live-tested exception (see BANNED_PATTERNS comment above). A bare
+# \blike\b here would flag a legitimate "feels like"/"looks like" landing in
+# the punchline, contradicting that exception. Match the same CTA-specific
+# like-patterns G2 uses instead of a bare word.
 CTA_OR_SIGNOFF_RE = re.compile(
-    r"(follow|like|subscribe|comment|see you|until next time|that'?s (it|all) for (today|now))",
+    r"(follow|subscribe|comment|see you|until next time|that'?s (it|all) for (today|now)"
+    r"|like (and |, )?(subscribe|comment|follow)|hit (that |the )?like|smash (that |the )?like"
+    r"|like (this|the) video|like button)",
     re.IGNORECASE,
 )
 
@@ -180,6 +209,23 @@ def gate_word_count(script: str) -> GateResult:
     return GateResult("G1_word_count", False, f"{n} words, outside 90-110")
 
 
+
+# System prompt hard rule: "no quotes around the script" -- the model
+# occasionally wraps its entire output in a literal quote pair, which reads
+# aloud fine but is a clear compliance miss with zero prior gate coverage
+# (audit, 2026-07-06). Checks the whole-script wrapper only, not any quote
+# character appearing mid-script (e.g. a legitimate quoted aside), which is
+# why this matches start+end together rather than a bare quote-anywhere scan.
+def _is_quote_wrapped(script: str) -> bool:
+    s = script.strip()
+    if len(s) < 2:
+        return False
+    for open_q, close_q in (('"', '"'), ("'", "'"), ("“", "”"), ("‘", "’")):
+        if s.startswith(open_q) and s.endswith(close_q):
+            return True
+    return False
+
+
 def gate_banned_patterns(script: str) -> GateResult:
     lower = script.lower()
     for pat in BANNED_PATTERNS:
@@ -188,6 +234,8 @@ def gate_banned_patterns(script: str) -> GateResult:
     m = FORBIDDEN_CHARS_RE.search(script)
     if m:
         return GateResult("G2_banned_patterns", False, f"TTS-unsafe character found: {m.group(0)!r}")
+    if _is_quote_wrapped(script):
+        return GateResult("G2_banned_patterns", False, "script is wrapped in quotes (system prompt: 'no quotes around the script')")
     return GateResult("G2_banned_patterns", True)
 
 

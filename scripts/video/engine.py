@@ -1114,9 +1114,48 @@ def main() -> None:
     parser.add_argument("--placeholder-anchors", action="store_true", help="generate solid-color test anchors if master_assets clips are absent (dry-run only)")
     parser.add_argument("--posted", type=str, help="video_posts.id to mark as posted")
     parser.add_argument("--platform", type=str, choices=["ig", "yt", "both"], help="platform for --posted")
+    parser.add_argument("--publish", type=str, help="video_posts.id to actually post live to IG Reels + YouTube Shorts")
     args = parser.parse_args()
 
     sb = get_supabase()
+
+    if args.publish:
+        import publish as publish_mod
+        import notifier as notifier_mod
+
+        row_res = sb.table("video_posts").select("*").eq("id", args.publish).single().execute()
+        video_post = row_res.data
+        if not video_post:
+            print(f"ERROR: no video_posts row found for id {args.publish}", file=sys.stderr)
+            sys.exit(1)
+
+        try:
+            results = publish_mod.publish_video_post(sb, video_post)
+        except publish_mod.GateFailureError as exc:
+            # The one case where nothing was attempted at all -- no partial
+            # results exist, no notification to send (there's nothing to show).
+            print(f"ERROR: {exc}", file=sys.stderr)
+            sys.exit(1)
+
+        # Re-fetch so the notification reflects what was actually written
+        # (qc_frame_urls, storage_url) even if a platform call failed partway.
+        refreshed = sb.table("video_posts").select("*").eq("id", args.publish).single().execute().data
+        notifier_mod.send_publish_notification(refreshed, results.get("ig"), results.get("yt"))
+
+        print(f"\nPublish attempt complete for {args.publish}:")
+        if "ig" in results:
+            print(f"  IG Reels: {results['ig']['permalink']}")
+        else:
+            print("  IG Reels: FAILED (see errors above)")
+        if "yt" in results:
+            print(f"  YouTube Shorts: {results['yt']['url']}")
+        else:
+            print("  YouTube Shorts: FAILED (see errors above)")
+
+        if results["errors"]:
+            print(f"\nERRORS: {'; '.join(results['errors'])}", file=sys.stderr)
+            sys.exit(1)
+        return
 
     if args.posted:
         if not args.platform:
