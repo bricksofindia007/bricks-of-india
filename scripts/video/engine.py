@@ -458,12 +458,60 @@ def build_candidate(product: dict, store_id: str, store_name: str, domain: str) 
     }
 
 
+# Reversible rejection exclusion, added 2026-07-07 alongside content_rejections.
+# Two independent exclusion sources now, deliberately NOT collapsed into one
+# "any video_posts row exists" check like before:
+#
+# 1. Any NON-discarded video_posts row for the same set/URL -- covers a
+#    real published post (permanent, unchanged), and every other in-flight
+#    status (pending_approval, approved, rendered, publish_blocked) so the
+#    same candidate is never suggested twice while it's still actively
+#    somewhere in the pipeline. 'discarded' is deliberately excluded from
+#    this check -- its exclusion is now governed by content_rejections
+#    instead, which is the whole point of making rejection reversible.
+# 2. A content_rejections row with review_status in ('pending',
+#    'permanently_excluded') -- the set stays excluded until an operator
+#    explicitly flips it to 'cleared_for_regeneration'.
+#
+# 'publish_blocked' is deliberately covered ONLY by check 1 (permanent,
+# like before this change) -- it is the separate automated gate-failure
+# path, not an operator rejection, and is NOT tracked in content_rejections
+# at all (flagged back to the operator rather than merged into this table).
+_ACTIVE_EXCLUSION_STATUSES = ["rendered", "pending_approval", "approved",
+                              "posted_ig", "posted_yt", "posted_both", "publish_blocked"]
+_UNRESOLVED_REJECTION_STATUSES = ["pending", "permanently_excluded"]
+
+
 def already_used(sb, product_url: str, set_number: str | None) -> bool:
     if set_number:
-        by_set = sb.table("video_posts").select("id").eq("set_number", set_number).limit(1).execute()
-        if by_set.data:
+        active = (
+            sb.table("video_posts")
+            .select("id")
+            .eq("set_number", set_number)
+            .in_("status", _ACTIVE_EXCLUSION_STATUSES)
+            .limit(1)
+            .execute()
+        )
+        if active.data:
             return True
-    by_url = sb.table("video_posts").select("id").eq("product_url", product_url).limit(1).execute()
+        rejected = (
+            sb.table("content_rejections")
+            .select("id")
+            .eq("set_number", set_number)
+            .in_("review_status", _UNRESOLVED_REJECTION_STATUSES)
+            .limit(1)
+            .execute()
+        )
+        if rejected.data:
+            return True
+    by_url = (
+        sb.table("video_posts")
+        .select("id")
+        .eq("product_url", product_url)
+        .in_("status", _ACTIVE_EXCLUSION_STATUSES)
+        .limit(1)
+        .execute()
+    )
     return bool(by_url.data)
 
 
@@ -1385,6 +1433,68 @@ def _is_past_publish_window_ist(now_utc: datetime) -> bool:
     return (now_ist.hour, now_ist.minute) >= PUBLISH_WINDOW_START_IST
 
 
+# Biweekly rejection-review reminder, added 2026-07-07 (operator, explicit).
+# Cron cannot cleanly express "every 14 days" -- rather than fight it, this
+# runs on a plain WEEKLY cron and self-gates on a durably-stored
+# last_reminder_sent_at instead of relying on cron cadence for the 14-day
+# interval. `now_utc` is an explicit parameter on the pure-logic function
+# (not read internally) so it's directly testable, same pattern as
+# already_published_today_ist_at().
+REJECTION_REMINDER_INTERVAL_DAYS = 14
+
+
+def should_send_rejection_reminder_at(last_sent_at: datetime | None, now_utc: datetime) -> bool:
+    """True if a reminder has never been sent, or >=14 days have passed
+    since the last one. Does not look at whether anything is actually
+    pending -- that's a separate check in check_and_send_rejection_reminder,
+    kept apart so this function is a pure timer with nothing else to get
+    wrong."""
+    if last_sent_at is None:
+        return True
+    return (now_utc - last_sent_at) >= timedelta(days=REJECTION_REMINDER_INTERVAL_DAYS)
+
+
+def check_and_send_rejection_reminder(sb) -> None:
+    """--check-rejection-reminder entry point, run weekly by
+    video-rejection-reminder.yml. Silent no-op (no email, no state change)
+    unless BOTH: (a) >=14 days since the last reminder (or none ever sent),
+    AND (b) at least one content_rejections row is still review_status=
+    'pending'. If (a) holds but (b) doesn't, deliberately does NOT update
+    last_reminder_sent_at -- the 14-day timer keeps counting from the last
+    REAL send, not from an empty check, so the first genuinely-pending
+    rejection after a long quiet stretch still gets flagged promptly rather
+    than waiting out a reset window."""
+    import notifier as notifier_mod
+
+    state = sb.table("content_rejection_reminders").select("last_reminder_sent_at").eq("id", 1).single().execute().data
+    last_sent_raw = (state or {}).get("last_reminder_sent_at")
+    last_sent_at = datetime.fromisoformat(last_sent_raw) if last_sent_raw else None
+
+    now_utc = datetime.now(timezone.utc)
+    if not should_send_rejection_reminder_at(last_sent_at, now_utc):
+        days_since = (now_utc - last_sent_at).days if last_sent_at else None
+        print(f"Rejection reminder not due yet (last sent {days_since} day(s) ago, need >={REJECTION_REMINDER_INTERVAL_DAYS}). No-op.")
+        return
+
+    pending_res = (
+        sb.table("content_rejections")
+        .select("set_number, set_title, rejected_at, rejection_reason")
+        .eq("review_status", "pending")
+        .order("rejected_at")
+        .execute()
+    )
+    pending_rows = pending_res.data
+
+    if not pending_rows:
+        print("Rejection reminder due, but zero pending rows -- staying silent, timer not reset.")
+        return
+
+    print(f"Sending rejection reminder: {len(pending_rows)} pending row(s).")
+    notifier_mod.send_rejection_reminder(pending_rows)
+    sb.table("content_rejection_reminders").update({"last_reminder_sent_at": now_utc.isoformat()}).eq("id", 1).execute()
+    print(f"last_reminder_sent_at updated to {now_utc.isoformat()}.")
+
+
 # ── Re-render (full pipeline re-run against an EXISTING row) ────────────────────
 #
 # Process rule going forward: any post-hoc script/data correction always
@@ -1537,9 +1647,14 @@ def main() -> None:
     parser.add_argument("--poll-and-publish", action="store_true", help="Stage 4: find every status='approved' row and publish it (used by the scheduled poller workflow)")
     parser.add_argument("--resend-notification", type=str, help="video_posts.id to re-send the Stage F publish notification for, using its already-stored results (does not re-post)")
     parser.add_argument("--rerender", type=str, help="video_posts.id to fully re-render (re-sanitized script, new TTS, new images, new Whisper captions, new badge) and re-upload to its existing storage_url. Never touches status/story_number/id.")
+    parser.add_argument("--check-rejection-reminder", action="store_true", help="weekly cron entry point: send the biweekly content_rejections review reminder if 14+ days have passed since the last one AND at least one row is still review_status='pending'. Silent no-op otherwise.")
     args = parser.parse_args()
 
     sb = get_supabase()
+
+    if args.check_rejection_reminder:
+        check_and_send_rejection_reminder(sb)
+        return
 
     if args.rerender:
         result = rerender_video_post(sb, args.rerender, no_tts=args.no_tts)

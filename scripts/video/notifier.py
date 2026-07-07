@@ -127,6 +127,52 @@ def send_ready_for_review_notification(story_number: int, set_title: str, storag
         print(f'[notifier] Failed to send ready-for-review notification: {exc}')
 
 
+def send_rejection_reminder(pending_rows: list[dict]) -> None:
+    """
+    Biweekly content_rejections review reminder -- fires from
+    engine.check_and_send_rejection_reminder() only when both the 14-day
+    timer is due and at least one row is genuinely review_status='pending'
+    (caller's responsibility; this function just renders whatever list it's
+    given). pending_rows: dicts with set_number, set_title, rejected_at,
+    rejection_reason (rejection_reason may be None -- not every rejection
+    has one recorded).
+    """
+    count = len(pending_rows)
+    subject = f'🗂️ VID-P4 rejection review — {count} pending item{"s" if count != 1 else ""}'
+
+    rows_html = ''
+    for row in pending_rows:
+        safe_title = (row.get('set_title') or 'Unknown set').replace('﻿', '')
+        reason = row.get('rejection_reason') or '<em>no reason recorded</em>'
+        rows_html += f"""
+<tr>
+  <td style="padding:6px 10px;border-bottom:1px solid #eee;">{row.get('set_number') or '—'}</td>
+  <td style="padding:6px 10px;border-bottom:1px solid #eee;">{safe_title}</td>
+  <td style="padding:6px 10px;border-bottom:1px solid #eee;">{row.get('rejected_at') or '—'}</td>
+  <td style="padding:6px 10px;border-bottom:1px solid #eee;">{reason}</td>
+</tr>"""
+
+    html = f"""
+<h2>Rejection Review — {count} pending item{'s' if count != 1 else ''}</h2>
+<p>These sets are currently excluded from future daily candidates pending your review. Flip each row's <code>review_status</code> to <code>cleared_for_regeneration</code> to make it eligible again, or <code>permanently_excluded</code> to keep it out for good.</p>
+<table style="border-collapse:collapse;width:100%;">
+<tr style="background:#f5f5f5;text-align:left;">
+  <th style="padding:6px 10px;">Set #</th>
+  <th style="padding:6px 10px;">Title</th>
+  <th style="padding:6px 10px;">Rejected At</th>
+  <th style="padding:6px 10px;">Reason</th>
+</tr>
+{rows_html}
+</table>
+<hr>
+<p style="color:#888;font-size:12px;">Bricks of India — bricksofindia.com — VID-P4</p>
+"""
+    try:
+        _send(subject, html)
+    except Exception as exc:
+        print(f'[notifier] Failed to send rejection reminder: {exc}')
+
+
 def send_skip_notification(reason: str, candidate_title: str | None = None, gate_failures: list[str] | None = None) -> None:
     """
     Stage E requirement: if a day is skipped (gates failed / candidate pool

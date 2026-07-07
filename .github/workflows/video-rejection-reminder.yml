@@ -1,0 +1,43 @@
+name: VID-P4 Rejection Review Reminder
+
+# Biweekly content_rejections review reminder, added 2026-07-07. Cron can't
+# cleanly express "every 14 days" -- runs weekly instead and self-gates in
+# engine.py::check_and_send_rejection_reminder() on the durably-stored
+# content_rejection_reminders.last_reminder_sent_at, only actually sending
+# (and updating that timestamp) if >=14 days have passed AND at least one
+# content_rejections row is still review_status='pending'. Silent no-op
+# otherwise -- most weekly ticks are expected to do nothing.
+
+on:
+  schedule:
+    - cron: '0 3 * * 1'  # every Monday, 03:00 UTC
+  workflow_dispatch:  # manual trigger for testing
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        # Full requirements.txt, not just the supabase/resend this check
+        # actually needs -- engine.py imports moviepy/PIL/numpy/whisper
+        # unconditionally at module load regardless of which CLI flag is
+        # used, so a minimal install would ImportError before argparse ever
+        # runs. Matches the other video-*.yml workflows' install step.
+        run: pip install -r scripts/video/requirements.txt
+
+      - name: Check and send rejection reminder if due
+        working-directory: scripts/video
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: python engine.py --check-rejection-reminder
