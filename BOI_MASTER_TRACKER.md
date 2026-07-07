@@ -252,6 +252,22 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-07-07 (VID-P4: set_title/YouTube-title piece count now single-sourced from catalog, not retailer text) — ✅ CLOSED
+
+**Discrepancy found on operator review, before approval — not caught by any existing gate:** `video_posts` row `93c35a97` (Death Star 75419) had `set_title` reading `"...75419 (9023 Pieces)"`, while the generated script correctly said `"9,031 pieces"`. Live catalog query (`sets` table) confirmed the script was right: `pieces = 9031` for set 75419. The title's "9023" was wrong.
+
+**Root cause:** `set_title` is populated in `engine.py::build_candidate()` from `product.get("title")` — the retailer's (MyBrickHouse) raw Shopify product-listing text, stored verbatim, never cross-checked against the catalog. The **script** path is different and was already correct: `resolve_catalog_match()` looks up the catalog's `pieces` value independently and feeds *that* into `build_task_prompt()` for generation — it never reads the retailer title at all. Two unrelated sources for the same fact, only one of them validated.
+
+**Why G5 (factuality gate) didn't catch this:** confirmed by reading the gate directly — `gate_factuality()` only reads the *script* text and compares any stated piece count against the catalog. It never touches `set_title`. G5 did its job correctly here (the script was accurate); the gap was that **nothing** validated `set_title`, which `publish.py::build_yt_metadata()` uses directly to build the live YouTube title. A wrong retailer number could have reached the public-facing YouTube title even on a video whose spoken content was completely accurate — this specific case, caught only because the operator reviewed before approving, not by any gate.
+
+**Fix (`0ef480a`, 2026-07-07 01:21 IST):** new `correct_title_piece_count()` in `engine.py`, wired into the same `get_candidates()` enrichment loop that already calls `resolve_catalog_match()` for script generation — one catalog lookup now feeds both the script and the title. Replaces only the number in an existing `"<N> piece(s)/pcs"` mention in the title (preserving the retailer's original wording/casing); never fabricates a piece-count phrase into a title that never had one. Falls back to the untouched retailer title if no catalog match exists at all — same graceful-degradation pattern as the existing pieces/theme enrichment. `publish.py::build_yt_metadata()` needed no changes — it already consumes `set_title` directly, so the correction applies automatically once stored upstream.
+
+**Verified two ways, not assumed:**
+- **Death Star `93c35a97` — corrected via the real function, not a manual SQL edit.** Re-ran `resolve_catalog_match()` + `correct_title_piece_count()` live against the row's actual stored data: `"9023"` → `"9,031"`. Confirmed independently afterward by querying the row directly — now matches both the catalog and the script exactly.
+- **McLaren MCL39 F1 (`85c161ac`, set 42228) — fresh candidate, generated end-to-end after the fix, to confirm it holds generally and doesn't over-correct.** Catalog: 1,675 pieces; script correctly says "1,675 pieces". The retailer's own title never mentioned a piece count at all — confirmed the fix correctly left it untouched rather than fabricating one, proving the no-op path works on a real (not synthetic) case.
+
+Both rows sit in `status='pending_approval'`, awaiting operator chat review.
+
 ### 2026-07-06 (night consolidation — VID-P4 approval-flow pivot + theme card migration, both fully shipped; commit-count discrepancy flagged) — evidence-verified, 3 items left explicitly OPEN for operator
 
 **Verification note on this entry itself:** every commit hash and timestamp below is from `git log --format="%h %ad %s" --date=format:"%Y-%m-%d %H:%M:%S %z"`, not recalled from conversation. The GHA run ID cited was independently checked via `gh run view` before being written here.
