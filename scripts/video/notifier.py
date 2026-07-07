@@ -95,6 +95,38 @@ def send_publish_notification(video_post: dict, ig_result: dict | None, yt_resul
         print(f'[notifier] Failed to send publish notification: {exc}')
 
 
+def send_ready_for_review_notification(story_number: int, set_title: str, storage_url: str, qc_frame_urls: list[str] | None) -> None:
+    """
+    Fires once per day, right after --cloud-generate lands a fresh candidate
+    in status='pending_approval' -- closes the "how will I know a new one is
+    ready" gap without a dashboard: the operator gets exactly the three
+    things they were otherwise pulling from Supabase manually on request
+    (story number, storage_url, qc_frame_urls). Same Resend path as
+    send_publish_notification/send_skip_notification -- no new email
+    mechanism.
+    """
+    safe_title = (set_title or 'Unknown set').replace('﻿', '')
+    subject = f'📋 VID-P4 Story #{story_number} ready for review — {safe_title}'
+
+    frames_html = ''
+    for url in (qc_frame_urls or []):
+        frames_html += f'<img src="{url}" style="width:180px;margin:4px;border-radius:8px;" />'
+
+    html = f"""
+<h2>Story #{story_number} ready for review</h2>
+<p><strong>Set:</strong> {safe_title}</p>
+<p><strong>Video:</strong> <a href="{storage_url}">{storage_url}</a></p>
+<h3>QC Frames</h3>
+<div>{frames_html or '<p>none captured</p>'}</div>
+<hr>
+<p style="color:#888;font-size:12px;">Bricks of India — bricksofindia.com — VID-P4</p>
+"""
+    try:
+        _send(subject, html)
+    except Exception as exc:
+        print(f'[notifier] Failed to send ready-for-review notification: {exc}')
+
+
 def send_skip_notification(reason: str, candidate_title: str | None = None, gate_failures: list[str] | None = None) -> None:
     """
     Stage E requirement: if a day is skipped (gates failed / candidate pool

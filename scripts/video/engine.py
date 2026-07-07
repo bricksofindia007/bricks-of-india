@@ -1510,6 +1510,20 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
 # ── CLI ──────────────────────────────────────────────────────────────────────────
 
 def main() -> None:
+    # Generation-to-ready timing (2026-07-07, operator request: measure, don't
+    # estimate). This is the earliest moment this Python process can observe
+    # -- it is NOT the same instant the 6 AM cron fires. GitHub Actions
+    # scheduled triggers queue a runner, then run actions/checkout + pip
+    # install (observed ~40s+ for this dependency list) before this script's
+    # first line ever executes, and schedule triggers themselves can lag
+    # their nominal time by minutes to hours (confirmed live this session --
+    # a run landed 2.5 hours behind its */15 cadence). To get the FULL
+    # cron-fire-to-pending-approval span including that provisioning/queueing
+    # gap, cross-reference this run's `gh run view --json createdAt` against
+    # the `_timing.pending_approval_at` value stored below in gate_results --
+    # engine.py alone cannot see the cron-fire instant, only its own start.
+    generation_started_at = datetime.now(timezone.utc)
+
     parser = argparse.ArgumentParser(description="VID-P4 daily video pipeline")
     parser.add_argument("--suggest", action="store_true", help="show top 3 candidates")
     parser.add_argument("--pick", type=int, help="select candidate N (1-indexed) from --suggest order")
@@ -1814,16 +1828,46 @@ def main() -> None:
 
         if args.cloud_generate:
             import publish as publish_mod
+            import notifier as notifier_mod
 
             print("Stage 2: uploading captioned video + QC frames to storage...")
             storage_url = publish_mod.upload_video_to_storage(sb, str(output_path), f"{video_id}.mp4")
             qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(output_path), video_id)
+
+            # Generation-to-ready timing: real measurement, stored under the
+            # same "_"-prefixed metadata convention gate_results already uses
+            # (see assert_all_gates_passed()'s "_" = metadata, not a gate rule)
+            # so it rides along with the row rather than needing a schema
+            # migration. `report` is still the same GateReport this run
+            # produced earlier -- re-serializing it here just adds the timing
+            # key on top of the gate results already written at insert time.
+            pending_approval_at = datetime.now(timezone.utc)
+            gate_results_with_timing = report.as_dict()
+            gate_results_with_timing["_timing"] = {
+                "generation_started_at": generation_started_at.isoformat(),
+                "pending_approval_at": pending_approval_at.isoformat(),
+                "duration_seconds": (pending_approval_at - generation_started_at).total_seconds(),
+                "note": "generation_started_at is this script's own start, not the cron-fire instant -- see main()'s opening comment.",
+            }
+
             sb.table("video_posts").update({
                 "storage_url": storage_url,
                 "qc_frame_urls": qc_urls,
                 "status": "pending_approval",
+                "gate_results": gate_results_with_timing,
             }).eq("id", video_id).execute()
+            duration_s = gate_results_with_timing["_timing"]["duration_seconds"]
             print(f"video_posts {video_id} set to status='pending_approval'. storage_url: {storage_url}")
+            print(f"[TIMING] generation_started_at={generation_started_at.isoformat()} "
+                  f"pending_approval_at={pending_approval_at.isoformat()} duration={duration_s:.1f}s "
+                  f"(measured from this script's own start -- see note above for what this does/doesn't include)")
+
+            notifier_mod.send_ready_for_review_notification(
+                story_number=story_number,
+                set_title=candidate["title"],
+                storage_url=storage_url,
+                qc_frame_urls=qc_urls,
+            )
 
         return
 
