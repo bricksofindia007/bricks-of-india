@@ -68,11 +68,20 @@ def assert_all_gates_passed(gate_results: dict) -> None:
     Hard guardrail. Reads the actual stored gate_results dict (not a flag the
     caller sets) and raises if ANY gate's "pass" key is not True. Every
     publish function below calls this first, before any IG/YouTube API call.
-    "_sanitization" is metadata, not a gate, and is skipped.
+
+    Any key starting with "_" is metadata, not a gate, and is skipped --
+    generalized 2026-07-07 after "_sanitization" being the only hardcoded
+    exception caused a real false-positive block: a second metadata-only key
+    (`_post_hoc_correction`, added directly via Supabase as an audit-trail
+    annotation on a gate_results row) had no 'pass' field, so this function
+    read it as a failed gate and refused to publish a row whose actual gates
+    had all passed. Real gate names never start with "_" (see gates.py's
+    G1-G9 naming), so this is a safe, future-proof distinction rather than a
+    second one-off exact-string carve-out.
     """
     failed = [
         gate for gate, result in gate_results.items()
-        if gate != '_sanitization' and not result.get('pass', False)
+        if not gate.startswith('_') and not result.get('pass', False)
     ]
     if failed:
         raise GateFailureError(f'Refusing to publish: gate(s) failed: {", ".join(failed)}')

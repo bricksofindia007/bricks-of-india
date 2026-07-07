@@ -1335,13 +1335,15 @@ def _ist_day_bounds_utc(now_utc: datetime) -> tuple[str, str]:
     return start_utc.isoformat(), end_utc.isoformat()
 
 
-def already_published_today_ist(sb) -> str | None:
+def already_published_today_ist_at(sb, now_utc: datetime) -> str | None:
     """Returns the id of a video_posts row already posted today (IST
-    calendar day), or None. See the --poll-and-publish daily-cap comment for
-    why this exists -- one publish per calendar day is the core cadence
-    premise (including for the LEGO Fan CoLab application), but nothing
-    checked it before 2026-07-07."""
-    start, end = _ist_day_bounds_utc(datetime.now(timezone.utc))
+    calendar day, relative to the given now_utc), or None. See the
+    --poll-and-publish daily-cap comment for why this exists -- one publish
+    per calendar day is the core cadence premise (including for the LEGO
+    Fan CoLab application), but nothing checked it before 2026-07-07.
+    now_utc is an explicit parameter (not read internally) so this is
+    directly testable/simulatable without patching the clock."""
+    start, end = _ist_day_bounds_utc(now_utc)
     res = (
         sb.table("video_posts")
         .select("id, posted_at")
@@ -1352,6 +1354,35 @@ def already_published_today_ist(sb) -> str | None:
         .execute()
     )
     return res.data[0]["id"] if res.data else None
+
+
+def already_published_today_ist(sb) -> str | None:
+    """Production entry point -- uses the real current time. See
+    already_published_today_ist_at's docstring for the actual logic."""
+    return already_published_today_ist_at(sb, datetime.now(timezone.utc))
+
+
+# Fixed daily publish window, added 2026-07-07 (operator, explicit): the
+# day-cap alone ("nothing posted yet today") let a publish fire on whatever
+# tick happened to be first after midnight IST -- fine for the cap itself,
+# but the operator wants a predictable evening slot (7:30 PM IST) instead of
+# an arbitrary time of day. Deliberately NOT a single once-a-day cron
+# trigger -- the poller keeps its existing 15-minute tick frequency
+# (video-publish-poller.yml is unchanged, still `*/15 * * * *`, which spans
+# every UTC hour including 14:00 UTC = 19:30 IST) and the publish condition
+# becomes "nothing posted today AND current IST time >= 19:30". If the
+# 19:30 tick itself is missed (API hiccup, runner delay, GitHub Actions
+# scheduling jitter -- schedule triggers are not exact, confirmed live: the
+# 2026-07-06 08:44 UTC run before this fix landed over 2.5 hours behind a
+# nominal 15-minute cadence), 19:45/20:00/etc. still catch it the same
+# evening rather than skipping the whole day, which a single fixed-time
+# trigger could not recover from without waiting until tomorrow.
+PUBLISH_WINDOW_START_IST = (19, 30)  # (hour, minute), IST, 24h
+
+
+def _is_past_publish_window_ist(now_utc: datetime) -> bool:
+    now_ist = now_utc + IST_OFFSET
+    return (now_ist.hour, now_ist.minute) >= PUBLISH_WINDOW_START_IST
 
 
 # ── Re-render (full pipeline re-run against an EXISTING row) ────────────────────
@@ -1545,7 +1576,24 @@ def main() -> None:
                   f"Holding all approved rows for tomorrow's poll -- at most one publish per calendar day.")
             return
 
-        approved_res = sb.table("video_posts").select("*").eq("status", "approved").order("created_at").execute()
+        # Fixed evening window, not a single once-a-day trigger -- see
+        # _is_past_publish_window_ist's comment. The poller still ticks every
+        # 15 minutes; before 19:30 IST this is a deliberate silent no-op so a
+        # missed 19:30 tick is recovered by 19:45/20:00/etc. the same evening.
+        now_utc = datetime.now(timezone.utc)
+        if not _is_past_publish_window_ist(now_utc):
+            now_ist = now_utc + IST_OFFSET
+            print(f"Before publish window (19:30 IST) -- current IST time {now_ist.strftime('%H:%M')}. Nothing to do this tick.")
+            return
+
+        # Explicit, tested sort key: story_number, not created_at. They
+        # currently always agree (story_number is assigned by a BEFORE
+        # INSERT trigger off row-creation order -- see
+        # 20260707050000_video_posts_story_number.sql), but that's an
+        # incidental correlation, not a guarantee for every future insert
+        # path -- publish order must be pinned to the field that actually
+        # defines "Story #N" ordering.
+        approved_res = sb.table("video_posts").select("*").eq("status", "approved").order("story_number").execute()
         approved_rows = approved_res.data
 
         if not approved_rows:
