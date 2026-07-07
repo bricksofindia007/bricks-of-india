@@ -1,0 +1,18 @@
+-- VID-P4: piece_count_discrepancy for the corrected correct_title_piece_count()
+-- logic. Applied directly via Supabase MCP (apply_migration); this file is
+-- the local record, matching the repo's existing migration-history convention.
+--
+-- Real bug found 2026-07-07: correct_title_piece_count() (added 0ef480a)
+-- assumed the catalog's piece count always beats the retailer's own title
+-- text -- confirmed wrong for set 75419 (Death Star), where the retailer's
+-- number (9023) matched LEGO's own box art, and the catalog's stored value
+-- (9031) was the one that was actually wrong. "Catalog beats retailer" is a
+-- reasonable prior, not a law -- silently auto-resolving in one direction
+-- risks a confidently wrong number reaching a live video either way.
+--
+-- Fix: when catalog and retailer-title piece counts diverge beyond a small
+-- tolerance, do NOT auto-correct the title, and do NOT state a piece count
+-- in the generated script at all -- store the conflict here instead, so
+-- the operator sees it and can resolve it manually, rather than either
+-- number being asserted with false confidence.
+ALTER TABLE video_posts ADD COLUMN piece_count_discrepancy jsonb;

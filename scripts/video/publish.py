@@ -184,6 +184,66 @@ def assert_captions_present(video_path: str, script: str, sample_count: int = 10
     )
 
 
+class StoryBadgeMissingError(Exception):
+    """Raised by assert_story_badge_present() -- never caught silently by callers."""
+
+
+# Must match engine.py::apply_story_badge()'s positioning exactly: top-left,
+# _BADGE_MARGIN=40px offset, badge sized to fit its text (varies with digit
+# count, roughly 250x74px for a single digit). Cropping a generous
+# top-left region rather than an exact box so this doesn't need updating
+# every time the badge's own size/padding constants change.
+_BADGE_REGION = (0, 0, 420, 160)  # (left, top, right, bottom)
+
+
+def _frame_has_story_badge(frame, expected_story_number: int) -> bool:
+    import pytesseract
+    _ensure_tesseract_configured()
+    left, top, right, bottom = _BADGE_REGION
+    region = frame[top:bottom, left:right, :]
+    # --psm 6 (assume a single uniform text block) -- confirmed live: the
+    # default PSM (3, full automatic page/column layout analysis) returns
+    # an EMPTY string on some real frames despite the badge being clearly
+    # legible (confirmed by eye and by saving the exact crop) -- the
+    # McLaren video's lighter, textured Ken-Burns background apparently
+    # confuses default layout analysis in a way the Death Star crop's
+    # darker background didn't. PSM 6/7 both read it correctly every time
+    # tested; 6 chosen (treats the small badge as one text block, matching
+    # what it actually is).
+    text = pytesseract.image_to_string(Image.fromarray(region), config="--psm 6").strip().lower()
+    # Tolerant of OCR misreading "#" (tesseract often drops/mangles special
+    # characters) -- require "story" and the exact expected digits nearby,
+    # not a literal "story #3" string match.
+    return "story" in text and str(expected_story_number) in text
+
+
+def assert_story_badge_present(video_path: str, expected_story_number: int, sample_count: int = 3) -> None:
+    """
+    Hard pre-publish guard, same tier as assert_all_gates_passed and
+    assert_captions_present -- called before any IG/YouTube API call.
+    Unlike captions (which only show during active speech segments), the
+    story badge is static for the entire video, so fewer samples suffice --
+    kept at 3 (not 1) for robustness against a single corrupt/edge frame.
+    """
+    from moviepy.editor import VideoFileClip
+
+    clip = VideoFileClip(video_path)
+    try:
+        duration = clip.duration
+        margin = duration * 0.05
+        timestamps = [margin + i * (duration - 2 * margin) / (sample_count - 1) for i in range(sample_count)] if sample_count > 1 else [duration / 2]
+        for t in timestamps:
+            frame = clip.get_frame(t)
+            if _frame_has_story_badge(frame, expected_story_number):
+                return
+    finally:
+        clip.close()
+
+    raise StoryBadgeMissingError(
+        f'Refusing to publish: "Story #{expected_story_number}" badge not found in any of {sample_count} sampled frames of {video_path!r}.'
+    )
+
+
 # ── Storage ──────────────────────────────────────────────────────────────────
 
 def upload_video_to_storage(sb, video_path: str, filename: str) -> str:
@@ -447,8 +507,9 @@ def publish_video_post(sb, video_post: dict) -> dict:
     function -- the caller needs the partial results dict even when
     something failed (e.g. to still send a notification showing what
     succeeded), so failure is signaled via the 'errors' key, not an
-    exception. Only assert_all_gates_passed() and assert_captions_present()
-    raise -- those are the two cases where nothing should be attempted at all.
+    exception. Only assert_all_gates_passed(), assert_captions_present(),
+    and assert_story_badge_present() raise -- those are the cases where
+    nothing should be attempted at all.
     """
     assert_all_gates_passed(video_post['gate_results'])
 
@@ -482,6 +543,10 @@ def publish_video_post(sb, video_post: dict) -> dict:
     # actual file about to be posted has them, structurally, every time --
     # not just on the render side where the wrong-file bug actually occurred.
     assert_captions_present(local_video_path, video_post['script'])
+
+    # Same principle for the Story #N badge -- verify it's actually burned
+    # into the file about to be posted, not just trusted from the render step.
+    assert_story_badge_present(local_video_path, video_post['story_number'])
 
     if not storage_url:
         filename = f"{video_post['id']}.mp4"

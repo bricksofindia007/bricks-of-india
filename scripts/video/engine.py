@@ -346,33 +346,63 @@ def resolve_catalog_match(sb, title: str, candidates: list[str]) -> tuple[str | 
     return None, None, None
 
 
-# Bug found 2026-07-06/07: retailer product titles (MyBrickHouse, Toycra)
-# sometimes carry their own piece-count text -- e.g. "...75419 (9023
-# Pieces)" -- which can be simply wrong (catalog says 9031 for that exact
-# set). G5's factuality gate already catches a script that misstates piece
-# count against the catalog, but it only ever reads the SCRIPT text -- it
-# never touches video_posts.set_title, which is stored verbatim from the
-# retailer and flows straight into build_yt_metadata()'s YouTube title.
-# A wrong retailer number could reach the public-facing YouTube title even
-# on a video whose spoken script is completely accurate (confirmed live:
-# this exact case, set 75419, before this fix).
+# Bug found 2026-07-06/07, in two stages:
 #
-# Fix: once a catalog match exists, the catalog's pieces value becomes the
-# single source of truth for BOTH the script (already true via
-# resolve_catalog_match()'s return feeding build_task_prompt()) and the
-# title -- replaces only the number in an existing "<N> piece(s)/pcs"
-# mention, preserving the retailer's original wording/casing. Never
-# fabricates a piece-count phrase into a title that didn't have one (e.g.
-# Minas Tirith's retailer title has no piece count at all -- left alone).
-# Falls back to the raw retailer title untouched if no catalog match
-# exists, same graceful-degradation pattern as pieces/theme enrichment.
+# Stage 1 (0ef480a): retailer product titles (MyBrickHouse, Toycra)
+# sometimes carry their own piece-count text -- e.g. "...75419 (9023
+# Pieces)" -- which can diverge from the catalog's stored value (9031 for
+# that exact set at the time). G5's factuality gate already catches a
+# script that misstates piece count against the catalog, but it only ever
+# reads the SCRIPT text -- it never touches video_posts.set_title, which is
+# stored verbatim from the retailer and flows straight into
+# build_yt_metadata()'s YouTube title. Fixed by making the catalog's pieces
+# value the single source of truth for both the script and the title.
+#
+# Stage 2 (this fix): 0ef480a's fix assumed the catalog always wins. Wrong,
+# confirmed live for this exact set (75419) the following day -- the
+# retailer's number (9023) matched LEGO's own printed box art, and the
+# catalog's stored value (9031) was the one actually wrong. "Catalog beats
+# retailer" is a reasonable prior, not a law, and silently auto-resolving
+# in one fixed direction risks a confidently wrong number reaching a live
+# video either way -- only the direction of the mistake changed, not the
+# underlying risk.
+#
+# Correct behavior: when catalog and retailer-title piece counts diverge
+# beyond a small tolerance (a few pieces -- spares/alternates counted
+# differently between sources -- is normal noise; more than that is a real
+# conflict, not noise, regardless of how small the absolute number looks),
+# do NOT auto-resolve either way. Leave the title untouched, don't state a
+# piece count in the script at all (safer than guessing), and record the
+# conflict for the operator to resolve manually during review.
 _TITLE_PIECE_COUNT_RE = re.compile(r"(\d[\d,]*)(\s*(?:pieces?|pcs\.?))", re.IGNORECASE)
+_PIECE_COUNT_TRIVIAL_TOLERANCE = 2
 
 
-def correct_title_piece_count(title: str, catalog_pieces: int | None) -> str:
+def _extract_title_piece_count(title: str) -> int | None:
+    m = _TITLE_PIECE_COUNT_RE.search(title)
+    return int(m.group(1).replace(",", "")) if m else None
+
+
+def resolve_title_and_pieces(title: str, catalog_pieces: int | None) -> tuple[str, int | None, dict | None]:
+    """Returns (title, pieces_for_script, discrepancy).
+
+    discrepancy is None unless catalog and title-stated piece counts
+    diverge beyond _PIECE_COUNT_TRIVIAL_TOLERANCE -- in that case title is
+    returned UNCHANGED, pieces_for_script is None (script states no piece
+    count at all), and discrepancy carries both values for the operator.
+    """
     if catalog_pieces is None:
-        return title
-    return _TITLE_PIECE_COUNT_RE.sub(lambda m: f"{catalog_pieces:,}{m.group(2)}", title, count=1)
+        return title, None, None
+
+    title_pieces = _extract_title_piece_count(title)
+    if title_pieces is None:
+        return title, catalog_pieces, None
+
+    if abs(title_pieces - catalog_pieces) <= _PIECE_COUNT_TRIVIAL_TOLERANCE:
+        corrected = _TITLE_PIECE_COUNT_RE.sub(lambda m: f"{catalog_pieces:,}{m.group(2)}", title, count=1)
+        return corrected, catalog_pieces, None
+
+    return title, None, {"catalog": catalog_pieces, "retailer_title": title_pieces}
 
 
 def fetch_shopify_products(base_url: str, page_size: int = 250, max_pages: int = 2) -> list[dict]:
@@ -524,6 +554,7 @@ def get_candidates(sb, limit: int = 10, pool_size: int = 30) -> list[dict]:
     for c in fresh[:limit]:
         confirmed_number, pieces, theme = resolve_catalog_match(sb, c["title"], c["set_number_candidates"])
         drop = drops.get(c["set_number"])
+        discrepancy = None
         if confirmed_number:
             # Use the CONFIRMED number everywhere downstream (Brickset image
             # lookup, video_posts storage, already_used tracking) -- not
@@ -531,18 +562,24 @@ def get_candidates(sb, limit: int = 10, pool_size: int = 30) -> list[dict]:
             # best-guess here would still send the wrong number to Brickset
             # even after fixing the pieces/theme data.
             c["set_number"] = confirmed_number
-            # Same principle applied to the title's own piece-count text --
-            # catalog.pieces is now the single source of truth for both the
-            # script (already true above) and the title (see
-            # correct_title_piece_count()'s docstring for the bug this fixes).
-            c["title"] = correct_title_piece_count(c["title"], pieces)
+            # Title + script piece count: see resolve_title_and_pieces()'s
+            # docstring -- catalog vs. retailer-title conflicts beyond a
+            # trivial tolerance are flagged, not auto-resolved either way.
+            c["title"], pieces, discrepancy = resolve_title_and_pieces(c["title"], pieces)
         c["pieces"] = pieces
         c["theme"] = theme
+        c["piece_count_discrepancy"] = discrepancy
         if drop:
             reason = f"price drop on MyBrickHouse: ₹{drop['old_price']:,.0f} -> ₹{drop['new_price']:,.0f} ({drop['drop_pct']:.0f}% off)"
         else:
             reason = f"newest arrival on MyBrickHouse (₹{c['price_inr']:,.0f})"
-        if confirmed_number:
+        if discrepancy:
+            reason += (
+                f", catalog match: {theme} theme, BUT piece count DISPUTED -- "
+                f"catalog says {discrepancy['catalog']}, retailer title says {discrepancy['retailer_title']} "
+                f"-- needs manual resolution, no piece count will be stated"
+            )
+        elif confirmed_number:
             reason += f", catalog match: {theme} theme, {pieces} pieces"
         else:
             reason += " (no confident catalog match -- no piece/theme fact)"
@@ -1093,6 +1130,72 @@ def burn_captions(video_path: Path, segments: list[dict], output_path: Path) -> 
 
     final = CompositeVideoClip([base, caption_clip]).set_audio(base.audio)
     final.write_videofile(str(output_path), fps=FPS, codec="libx264", audio_codec="aac", logger=None)
+
+
+# ── STEP 6c: story badge ────────────────────────────────────────────────────
+#
+# "Story #N" pill, matching src/components/ui/Taglines.tsx::TaglineChip's
+# exact brand style: Fredoka SemiBold text, Brick Yellow (#FFC72C) on Navy
+# (#1a2332), fully rounded pill (TaglineChip uses border-radius: 999px).
+# TaglineChip is a small web chip (CSS px on a browser viewport); scaled up
+# here for a 1080x1920 video frame, not a literal 1:1 unit copy.
+#
+# Fredoka is loaded via next/font/google on the web side -- no local font
+# file exists anywhere in this repo for Python/PIL to use. Fetched the
+# actual static TTF from Google Fonts' public CSS2 API (not guessed or
+# substituted) to scripts/video/fonts/Fredoka-SemiBold.ttf.
+STORY_BADGE_FONT_PATH = BASE_DIR / "fonts" / "Fredoka-SemiBold.ttf"
+_BOI_YELLOW = (255, 199, 44)   # #FFC72C
+_BOI_NAVY = (26, 35, 50)       # #1a2332
+_BADGE_FONT_SIZE = 44
+_BADGE_PAD_X, _BADGE_PAD_Y = 36, 16
+_BADGE_MARGIN = 40  # top-left offset from frame edge
+
+
+def render_story_badge(story_number: int) -> "Image.Image":
+    """Renders a standalone RGBA 'Story #N' pill badge, transparent
+    background, sized to fit the text exactly (plus padding)."""
+    from PIL import ImageDraw, ImageFont
+
+    text = f"Story #{story_number}"
+    font = ImageFont.truetype(str(STORY_BADGE_FONT_PATH), _BADGE_FONT_SIZE)
+
+    probe = Image.new("RGBA", (10, 10))
+    draw = ImageDraw.Draw(probe)
+    bbox = draw.textbbox((0, 0), text, font=font)
+    text_w, text_h = bbox[2] - bbox[0], bbox[3] - bbox[1]
+
+    pill_w = text_w + _BADGE_PAD_X * 2
+    pill_h = text_h + _BADGE_PAD_Y * 2
+
+    badge = Image.new("RGBA", (pill_w, pill_h), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(badge)
+    draw.rounded_rectangle([0, 0, pill_w, pill_h], radius=pill_h // 2, fill=(*_BOI_NAVY, 255))
+    draw.text((_BADGE_PAD_X - bbox[0], _BADGE_PAD_Y - bbox[1]), text, font=font, fill=(*_BOI_YELLOW, 255))
+    return badge
+
+
+def apply_story_badge(video_path: Path, story_number: int, output_path: Path) -> None:
+    """Composites a persistent 'Story #N' badge, top-left corner, for the
+    FULL video duration (intro + middle + outro) -- unlike captions, this
+    is static content, not per-segment, so a single ImageClip suffices
+    rather than a per-frame make_frame() function. Positioned well clear of
+    the bottom-third caption band, so the two never overlap by
+    construction."""
+    from moviepy.editor import CompositeVideoClip, ImageClip
+
+    badge_img = render_story_badge(story_number)
+    badge_arr = np.array(badge_img)
+
+    base = VideoFileClip(str(video_path))
+    badge_clip = (
+        ImageClip(badge_arr)
+        .set_duration(base.duration)
+        .set_position((_BADGE_MARGIN, _BADGE_MARGIN))
+    )
+    final = CompositeVideoClip([base, badge_clip]).set_audio(base.audio)
+    final.write_videofile(str(output_path), fps=FPS, codec="libx264", audio_codec="aac", logger=None)
+    base.close()
     base.close()
 
 
@@ -1150,7 +1253,11 @@ def _make_placeholder_anchor(path: Path, color: tuple[int, int, int], label: str
 
 # ── DB write ────────────────────────────────────────────────────────────────────
 
-def insert_video_post(sb, candidate: dict, script: str, gate_report: gates.GateReport, video_path: Path) -> str:
+def insert_video_post(sb, candidate: dict, script: str, gate_report: gates.GateReport, video_path: Path) -> tuple[str, int]:
+    """Returns (video_id, story_number). story_number is assigned by the
+    video_posts_story_number_trigger DB trigger (COALESCE(MAX(story_number),0)+1)
+    -- only known for certain once the row exists, hence returned here
+    rather than predicted beforehand."""
     row = {
         "set_title": candidate["title"],
         "set_number": candidate.get("set_number"),
@@ -1162,9 +1269,10 @@ def insert_video_post(sb, candidate: dict, script: str, gate_report: gates.GateR
         "gate_results": gate_report.as_dict(),
         "video_path": str(video_path),
         "status": "rendered",
+        "piece_count_discrepancy": candidate.get("piece_count_discrepancy"),
     }
     res = sb.table("video_posts").insert(row).execute()
-    return res.data[0]["id"]
+    return res.data[0]["id"], res.data[0]["story_number"]
 
 
 def mark_posted(sb, video_id: str, platform: str) -> None:
@@ -1412,8 +1520,18 @@ def main() -> None:
         captioned_path.rename(output_path)
         print(f"Captioned (sole output for this run): {output_path}")
 
-        video_id = insert_video_post(sb, candidate, script, report, output_path)
-        print(f"video_posts row inserted: {video_id}")
+        video_id, story_number = insert_video_post(sb, candidate, script, report, output_path)
+        print(f"video_posts row inserted: {video_id} (Story #{story_number})")
+
+        print(f"Applying Story #{story_number} badge...")
+        badged_path = output_path.with_name(output_path.stem + "_badged.mp4")
+        apply_story_badge(output_path, story_number, badged_path)
+        # Same single-artifact rule as the caption-burn collapse above --
+        # exactly one file per run, no second path anything could
+        # mistakenly reference.
+        output_path.unlink()
+        badged_path.rename(output_path)
+        print(f"Badged (sole output): {output_path}")
 
         if args.cloud_generate:
             import publish as publish_mod
