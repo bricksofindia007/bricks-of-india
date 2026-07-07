@@ -76,8 +76,31 @@ FORBIDDEN_CHARS_RE = re.compile(r"[\U0001F300-\U0001FAFF\U00002600-\U000027BF\[\
 _MARKDOWN_STRIP_RE = re.compile(r"[*_#`]+")
 
 
+# Piece-count digit grouping, standardized at script-generation time (stored
+# script, not just TTS) -- Gemini/Cerebras don't reliably comma-format a
+# piece count it copies from the task prompt's bare "Piece count: 3458"
+# (build_task_prompt() passes pieces as a bare int, so the model has no
+# formatted example to imitate). Real inconsistency found across stored
+# scripts: Death Star / McLaren came out comma-formatted ("9,031" / "1,675"),
+# Shopping Street came out bare ("3458 pieces"). Reformatting deterministically
+# here (not just fixing the prompt) guarantees consistency regardless of what
+# the model actually outputs. Strips existing commas before reformatting so
+# already-correct values (both grouping styles) are idempotent, not just
+# newly-bare ones.
+_PIECE_COUNT_FORMAT_RE = re.compile(r"\b(\d[\d,]*)\b(\s*(?:-\s?)?pieces?\b)", re.IGNORECASE)
+
+
+def _format_piece_counts(script: str) -> str:
+    def replace(m: re.Match) -> str:
+        n = int(m.group(1).replace(",", ""))
+        return f"{n:,}{m.group(2)}"
+
+    return _PIECE_COUNT_FORMAT_RE.sub(replace, script)
+
+
 def sanitize_script(raw: str) -> str:
     stripped = _MARKDOWN_STRIP_RE.sub("", raw)
+    stripped = _format_piece_counts(stripped)
     return re.sub(r"[ \t]+", " ", stripped).strip()
 
 
@@ -103,6 +126,27 @@ def normalize_currency_for_tts(script: str) -> str:
         return f"{words} rupees"
 
     return _RUPEE_AMOUNT_RE.sub(replace, script)
+
+
+# Sibling to normalize_currency_for_tts, identical mechanism: TTS-only
+# transform, applied after sanitize_script but never to the stored script --
+# ElevenLabs speaks a bare digit run like "9,031" letter-by-letter or as a
+# garbled number-string rather than "nine thousand and thirty-one", the same
+# class of mispronunciation the rupee fix exists to catch. Runs AFTER
+# _format_piece_counts has already standardized the stored script's grouping
+# (via sanitize_script), but matches both bare and comma-formatted digits
+# regardless -- this function must never assume upstream formatting is
+# guaranteed, only that it's what the stored script currently contains.
+_PIECE_COUNT_TTS_RE = re.compile(r"\b(\d[\d,]*)\b(\s*(?:-\s?)?)(pieces?)\b", re.IGNORECASE)
+
+
+def normalize_piece_count_for_tts(script: str) -> str:
+    def replace(m: re.Match) -> str:
+        whole = int(m.group(1).replace(",", ""))
+        words = num2words(whole, lang="en")
+        return f"{words}{m.group(2)}{m.group(3)}"
+
+    return _PIECE_COUNT_TTS_RE.sub(replace, script)
 
 
 # "like" deliberately excluded as a bare word here (unlike follow/subscribe/

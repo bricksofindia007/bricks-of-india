@@ -674,6 +674,16 @@ def get_recent_scripts(sb, n: int = 30) -> list[str]:
     return [row["script"] for row in res.data if row.get("script")]
 
 
+def get_recent_scripts_excluding(sb, exclude_id: str, n: int = 30) -> list[str]:
+    """Same as get_recent_scripts, but drops one row by id first. Needed by
+    rerender_video_post: G7 opener-uniqueness compares the candidate against
+    "recent scripts", and a re-render's candidate IS one of those recent
+    rows (its own prior script) -- left in, it would always compare against
+    itself and spuriously fail at ~100% similarity."""
+    res = sb.table("video_posts").select("id, script").order("created_at", desc=True).limit(n + 1).execute()
+    return [row["script"] for row in res.data if row.get("script") and row["id"] != exclude_id][:n]
+
+
 MAX_GENERATION_ATTEMPTS = 4  # initial + 3 retries, per 2026-07-05 word-count fix
 RETRY_NOTE = "Your last attempt was too long. This one must be under 125 words. Cut ruthlessly."
 
@@ -710,14 +720,14 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
 # ── STEP 6: TTS ─────────────────────────────────────────────────────────────────
 
 def generate_tts(script: str, output_path: Path) -> None:
-    # Currency spoken-word expansion happens here, at the TTS boundary only --
-    # the stored script (video_posts.script, captions) keeps the ₹ numeral
-    # form; humans read "₹26,999" instantly, only the audio layer needs
-    # "twenty-six thousand, nine hundred and ninety-nine rupees". The char
-    # guard must check the EXPANDED text, since that's what's actually sent
-    # to (and billed by) ElevenLabs -- expansion makes the payload longer
-    # than the stored script.
+    # Currency AND piece-count spoken-word expansion happen here, at the TTS
+    # boundary only -- the stored script (video_posts.script, captions) keeps
+    # numeral form for both (₹26,999 / 9,031 pieces); humans read digits
+    # instantly, only the audio layer needs words. The char guard must check
+    # the EXPANDED text, since that's what's actually sent to (and billed by)
+    # ElevenLabs -- expansion makes the payload longer than the stored script.
     tts_text = gates.normalize_currency_for_tts(script)
+    tts_text = gates.normalize_piece_count_for_tts(tts_text)
     if len(tts_text) > ELEVENLABS_MAX_SCRIPT_CHARS:
         print(f"ERROR: TTS text is {len(tts_text)} chars after currency expansion, over the {ELEVENLABS_MAX_SCRIPT_CHARS}-char hard guard. Refusing to call ElevenLabs.", file=sys.stderr)
         sys.exit(1)
@@ -1004,6 +1014,26 @@ def filter_studio_images(paths: list[Path]) -> list[Path]:
     return kept
 
 
+# [IMG-DIAG] instrumentation (diagnostic only, no filtering behavior change):
+# the image-count question ("how many images does Brickset/Rebrickable
+# actually return, how many survive the composite/off-center filters, how
+# many end up in the middle section") has so far only ever been answered by
+# re-reading this code on demand -- never measured. Logs one structured line
+# per candidate so real numbers can be collected across several live
+# generations instead of guessed from architecture. Every count is the
+# number BEFORE any subsequent cap/filter is applied, so the four fields
+# form a strict funnel (api_returned >= downloaded >= studio_kept, then
+# final_middle_count includes any Rebrickable top-up).
+def _log_image_diag(set_number: str, api_returned: int, downloaded: int,
+                    studio_kept: int, rebrickable_used: bool, final_middle_count: int) -> None:
+    print(
+        f"[IMG-DIAG] set={set_number} brickset_api_returned={api_returned} "
+        f"downloaded(capped)={downloaded} studio_kept={studio_kept} "
+        f"rebrickable_fallback_used={rebrickable_used} final_middle_count={final_middle_count}",
+        file=sys.stderr,
+    )
+
+
 def resolve_candidate_images(candidate: dict) -> list[Path]:
     """Images: Brickset getAdditionalImages PRIMARY, Rebrickable single main
     image FALLBACK (2026-07-06, matches social-automation/scraper.py's
@@ -1021,16 +1051,20 @@ def resolve_candidate_images(candidate: dict) -> list[Path]:
     downloaded = download_images(brickset_urls, prefix="brickset", max_images=12)
     studio = filter_studio_images(downloaded)
     if len(studio) >= MIN_STUDIO_IMAGES:
+        _log_image_diag(set_number, len(brickset_urls), len(downloaded), len(studio), False, len(studio))
         return studio
 
     rb_url = rebrickable_main_image(set_number)
     if not rb_url:
         print("  [Rebrickable fallback: no main image found]", file=sys.stderr)
+        _log_image_diag(set_number, len(brickset_urls), len(downloaded), len(studio), False, len(studio))
         return studio
     print(f"  [Rebrickable fallback image for {candidate['title']}]", file=sys.stderr)
     rb_downloaded = download_images([rb_url], prefix="rebrickable")
     rb_studio = filter_studio_images(rb_downloaded)
-    return studio + rb_studio
+    final = studio + rb_studio
+    _log_image_diag(set_number, len(brickset_urls), len(downloaded), len(studio), True, len(final))
+    return final
 
 
 def slugify(title: str) -> str:
@@ -1287,6 +1321,161 @@ def mark_posted(sb, video_id: str, platform: str) -> None:
     print(f"Marked {video_id} as {status_map[platform]}.")
 
 
+IST_OFFSET = timedelta(hours=5, minutes=30)
+
+
+def _ist_day_bounds_utc(now_utc: datetime) -> tuple[str, str]:
+    """Returns (start, end) ISO timestamps in UTC that bound "today" in IST
+    -- posted_at is stored in UTC, so the day boundary has to be computed by
+    shifting to IST, truncating to midnight, then shifting back."""
+    now_ist = now_utc + IST_OFFSET
+    start_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
+    start_utc = start_ist - IST_OFFSET
+    end_utc = start_utc + timedelta(days=1)
+    return start_utc.isoformat(), end_utc.isoformat()
+
+
+def already_published_today_ist(sb) -> str | None:
+    """Returns the id of a video_posts row already posted today (IST
+    calendar day), or None. See the --poll-and-publish daily-cap comment for
+    why this exists -- one publish per calendar day is the core cadence
+    premise (including for the LEGO Fan CoLab application), but nothing
+    checked it before 2026-07-07."""
+    start, end = _ist_day_bounds_utc(datetime.now(timezone.utc))
+    res = (
+        sb.table("video_posts")
+        .select("id, posted_at")
+        .in_("status", ["posted_ig", "posted_yt", "posted_both"])
+        .gte("posted_at", start)
+        .lt("posted_at", end)
+        .limit(1)
+        .execute()
+    )
+    return res.data[0]["id"] if res.data else None
+
+
+# ── Re-render (full pipeline re-run against an EXISTING row) ────────────────────
+#
+# Process rule going forward: any post-hoc script/data correction always
+# triggers a full re-render (audio + captions + badge), never a DB-only
+# field edit -- that gap is exactly what left Story #4 (McLaren) and #5
+# (Shopping Street) badge-less despite their underlying data being correct.
+# This reuses the EXISTING approved script text (re-sanitized, never
+# regenerated via Gemini/Cerebras -- the wording was already approved, only
+# the piece-count digit formatting and downstream audio/captions/badge need
+# to catch up to it) and re-runs every subsequent pipeline stage for real:
+# new TTS (now includes piece-count word-spelling), new image resolution
+# (current contained-fit + blurred-bg pipeline), new Whisper captions, new
+# badge composite -- then re-uploads to the SAME storage_url filename
+# (upsert overwrites in place, so the public URL a reviewer already has
+# keeps working). Never touches `status`, `story_number`, or `id` -- this is
+# a content refresh of an existing row, not a new post.
+def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
+    row_res = sb.table("video_posts").select("*").eq("id", video_id).single().execute()
+    row = row_res.data
+    if not row:
+        print(f"ERROR: no video_posts row found for id {video_id}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"\n=== Re-rendering Story #{row['story_number']}: {row['set_title']} (id {video_id}) ===")
+
+    def sets_lookup(set_number: str) -> dict | None:
+        res = sb.table("sets").select("pieces, theme").eq("set_number", set_number).limit(1).execute()
+        return res.data[0] if res.data else None
+
+    pieces = None
+    if row.get("set_number"):
+        catalog_row = sets_lookup(row["set_number"])
+        pieces = catalog_row.get("pieces") if catalog_row else None
+
+    # Excludes this row's own (previous) script from the opener-uniqueness
+    # comparison set -- otherwise the candidate would compare against
+    # itself and always fail at ~100% similarity.
+    recent = get_recent_scripts_excluding(sb, video_id)
+
+    # Re-runs sanitize_script (hence _format_piece_counts) on the EXISTING
+    # stored script -- not a new generation. report.raw_script preserves
+    # the pre-fix text as the audit trail; report.sanitized_script is the
+    # corrected, TTS-ready canonical script.
+    report = gates.run_all_gates(row["script"], pieces, sets_lookup, recent, row["price_inr"])
+    if not report.all_passed:
+        print("ERROR: existing script no longer passes gates after re-sanitization -- aborting, not re-rendering.", file=sys.stderr)
+        for r in report.results:
+            status = "PASS" if r.passed else "FAIL"
+            print(f"  [{status}] {r.gate}: {r.reason}", file=sys.stderr)
+        sys.exit(1)
+    script = report.sanitized_script
+    print("--- SCRIPT (post-fix) ---")
+    print(script)
+    print("--- END SCRIPT ---")
+
+    download_master_assets_if_missing(sb)
+
+    image_candidate = {"title": row["set_title"], "set_number": row.get("set_number")}
+    image_paths = resolve_candidate_images(image_candidate)
+    if len(image_paths) < MIN_STUDIO_IMAGES:
+        print(f"ERROR: only {len(image_paths)} usable studio image(s) for {row['set_title']} (need >={MIN_STUDIO_IMAGES}). No substitution on a re-render.", file=sys.stderr)
+        sys.exit(1)
+    print(f"Using {len(image_paths)} studio image(s) for this re-render.")
+
+    audio_path = TEMP_DOWNLOAD / "voiceover.mp3"
+    if no_tts:
+        est_duration = estimate_voiceover_duration_s(script)
+        audio_path = TEMP_DOWNLOAD / "voiceover_silent.wav"
+        generate_silent_placeholder_audio(audio_path, est_duration)
+        print(f"--no-tts: silent placeholder audio, estimated duration {est_duration:.1f}s")
+    else:
+        generate_tts(script, audio_path)
+
+    slug = slugify(row["set_title"])
+    date_str = datetime.now().strftime("%Y-%m-%d")
+    output_path = OUTPUT_DIR / f"{date_str}_{slug}_rerender.mp4"
+
+    total_duration = assemble_video(image_paths, audio_path, output_path, placeholder_anchors=False)
+    print(f"Rendered: {output_path} ({total_duration:.1f}s)")
+
+    print("Transcribing rendered audio for captions (Whisper)...")
+    segments = transcribe_for_captions(output_path)
+    captioned_path = output_path.with_name(output_path.stem + "_captioned.mp4")
+    burn_captions(output_path, segments, captioned_path)
+    output_path.unlink()
+    captioned_path.rename(output_path)
+
+    print(f"Applying Story #{row['story_number']} badge...")
+    badged_path = output_path.with_name(output_path.stem + "_badged.mp4")
+    apply_story_badge(output_path, row["story_number"], badged_path)
+    output_path.unlink()
+    badged_path.rename(output_path)
+    print(f"Final re-rendered artifact: {output_path}")
+
+    import publish as publish_mod
+
+    print("Uploading to storage (same filename -- overwrites existing storage_url in place)...")
+    storage_url = publish_mod.upload_video_to_storage(sb, str(output_path), f"{video_id}.mp4")
+    qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(output_path), video_id)
+
+    # status/story_number/id deliberately absent from this update -- a
+    # re-render refreshes content, it never changes a row's identity or
+    # workflow state.
+    sb.table("video_posts").update({
+        "script": script,
+        "script_chars": len(script),
+        "gate_results": report.as_dict(),
+        "video_path": str(output_path),
+        "storage_url": storage_url,
+        "qc_frame_urls": qc_urls,
+    }).eq("id", video_id).execute()
+    print(f"video_posts {video_id} updated in place (status untouched). storage_url: {storage_url}")
+
+    return {
+        "video_id": video_id,
+        "story_number": row["story_number"],
+        "output_path": output_path,
+        "script": script,
+        "storage_url": storage_url,
+    }
+
+
 # ── CLI ──────────────────────────────────────────────────────────────────────────
 
 def main() -> None:
@@ -1302,9 +1491,17 @@ def main() -> None:
     parser.add_argument("--publish", type=str, help="video_posts.id to actually post live to IG Reels + YouTube Shorts")
     parser.add_argument("--poll-and-publish", action="store_true", help="Stage 4: find every status='approved' row and publish it (used by the scheduled poller workflow)")
     parser.add_argument("--resend-notification", type=str, help="video_posts.id to re-send the Stage F publish notification for, using its already-stored results (does not re-post)")
+    parser.add_argument("--rerender", type=str, help="video_posts.id to fully re-render (re-sanitized script, new TTS, new images, new Whisper captions, new badge) and re-upload to its existing storage_url. Never touches status/story_number/id.")
     args = parser.parse_args()
 
     sb = get_supabase()
+
+    if args.rerender:
+        result = rerender_video_post(sb, args.rerender, no_tts=args.no_tts)
+        print(f"\nRe-render complete for Story #{result['story_number']} ({args.rerender}).")
+        print(f"  Local file: {result['output_path']}")
+        print(f"  storage_url: {result['storage_url']}")
+        return
 
     if args.resend_notification:
         import notifier as notifier_mod
@@ -1324,6 +1521,30 @@ def main() -> None:
         import publish as publish_mod
         import notifier as notifier_mod
 
+        # Daily publish cap -- root-caused 2026-07-07: Minas Tirith (13:51 UTC)
+        # and N-1 Starfighter (17:52 UTC) both went out on 2026-07-06 because
+        # NOTHING anywhere ever checked this. The only "daily" throttle that
+        # existed was on the GENERATION side (video-generate-daily.yml, one
+        # new candidate/day) -- approval is an ungated, out-of-band Supabase
+        # UPDATE (chat-Claude or the operator, any time), and this poller
+        # unconditionally published every status='approved' row it found on
+        # every 15-minute tick, with no grouping by day and no cap on rows
+        # processed per run. Both 2026-07-06 posts were legitimate, deliberate
+        # chat-approvals (the second one was the operator validating the
+        # brand-new Stage 3/4 approval flow the same night it was built) --
+        # there was no bug to bypass, no wrong date field, no wrong timezone:
+        # the check simply never existed. Two-part fix: (1) skip this run
+        # entirely if anything already posted today (IST, matching the
+        # operator's real day and generate-daily's 6 AM IST cadence), (2)
+        # even on a run that does publish, stop after the first row that
+        # actually goes live on at least one platform -- a backlog of
+        # multiple approved rows must drain one per day, not all at once.
+        already_posted_id = already_published_today_ist(sb)
+        if already_posted_id:
+            print(f"Already published today (IST): video_posts {already_posted_id}. "
+                  f"Holding all approved rows for tomorrow's poll -- at most one publish per calendar day.")
+            return
+
         approved_res = sb.table("video_posts").select("*").eq("status", "approved").order("created_at").execute()
         approved_rows = approved_res.data
 
@@ -1331,10 +1552,10 @@ def main() -> None:
             print("No approved rows found. Nothing to publish.")
             return
 
-        print(f"Found {len(approved_rows)} approved row(s) to publish.")
+        print(f"Found {len(approved_rows)} approved row(s) queued; publishing at most one this run (daily cap).")
         exit_code = 0
 
-        for video_post in approved_rows:
+        for i, video_post in enumerate(approved_rows):
             vid = video_post["id"]
             print(f"\n--- Publishing {vid} ({video_post['set_title']}) ---")
 
@@ -1354,7 +1575,7 @@ def main() -> None:
                     candidate_title=video_post.get("set_title"),
                 )
                 exit_code = 1
-                continue
+                continue  # doesn't count as today's publish -- try the next queued row this same run
 
             refreshed = sb.table("video_posts").select("*").eq("id", vid).single().execute().data
             notifier_mod.send_publish_notification(refreshed, results.get("ig"), results.get("yt"))
@@ -1373,6 +1594,16 @@ def main() -> None:
             else:
                 print(f"{vid}: BOTH platforms failed: {results['errors']}", file=sys.stderr)
                 exit_code = 1
+
+            if "ig" in results or "yt" in results:
+                # At least one platform actually went live -- today's publish
+                # is used up. Remaining approved rows stay queued for tomorrow.
+                remaining = len(approved_rows) - i - 1
+                if remaining:
+                    print(f"Daily cap reached -- {remaining} remaining approved row(s) held for tomorrow.")
+                break
+            # else: both platforms failed, nothing actually went out -- fall
+            # through and try the next approved row in this same run.
 
         sys.exit(exit_code)
 
