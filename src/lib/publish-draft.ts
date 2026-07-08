@@ -229,6 +229,53 @@ export async function fetchOgImage(url: string): Promise<string | null> {
   } catch { return null; }
 }
 
+// Non-model Rebrickable categories that pollute set-number and theme-search
+// matches with plausible-looking-but-wrong images. Confirmed wrong-image
+// incidents (2026-07-08): Stickers, a Technic pneumatic part, an Educational
+// "Mosaic Set" (theme "Duplo and Explore"), an Alpha Pen Pack (Stationery),
+// 4 Books-category ISBN hits, a Mindstorms hub component, and a Houseware
+// lunch bag reached via a 9-digit non-set-number id. Rebrickable models
+// every real LEGO product, not just building sets, so a numeric match
+// against `sets` can land on any of these instead.
+const DISALLOWED_REBRICKABLE_THEMES = [
+  'gear', 'book', 'sticker', 'service pack', 'stationery',
+  'duplo', 'explore', 'houseware', 'mindstorms', 'powered up',
+];
+const themeNameCache = new Map<number, string | null>();
+
+async function isDisallowedRebrickableSet(
+  setNum: string,
+  themeId: number | undefined,
+  numParts: number | undefined,
+  rbHdrs: Record<string, string>,
+): Promise<boolean> {
+  // LEGO set numbers are never 13 digits — that pattern is Rebrickable's
+  // ISBN-format id for Books-category entries.
+  if (/^\d{13}$/.test(setNum.split('-')[0])) return true;
+
+  // A real buildable set always has parts. Zero parts reliably flags
+  // merchandise (lunch bags, apparel) and other non-model catalog entries
+  // that a plain numeric or theme-keyword match can still surface —
+  // preferring the honest fallback image over a confident-looking wrong one.
+  if (numParts === 0) return true;
+
+  if (themeId == null) return false;
+  let themeName = themeNameCache.get(themeId);
+  if (themeName === undefined) {
+    try {
+      const res = await fetch(
+        `https://rebrickable.com/api/v3/lego/themes/${themeId}/`,
+        { headers: rbHdrs, signal: AbortSignal.timeout(5000) },
+      );
+      themeName = res.ok ? ((await res.json() as { name?: string }).name ?? null) : null;
+    } catch { themeName = null; }
+    themeNameCache.set(themeId, themeName);
+  }
+  if (!themeName) return false;
+  const lower = themeName.toLowerCase();
+  return DISALLOWED_REBRICKABLE_THEMES.some(bad => lower.includes(bad));
+}
+
 // 4-step fallback chain, merged from the more complete actions.ts version:
 //   1. Distinct 4-6 digit set numbers from title+body → Rebrickable set lookup
 //   2. (folded into step 1's loop — kept as a separate numbered step in the
@@ -257,8 +304,12 @@ export async function resolveYouTubeHeroImage(
         { headers: rbHdrs, signal: AbortSignal.timeout(5000) },
       );
       if (res.ok) {
-        const data = await res.json() as { set_img_url?: string };
+        const data = await res.json() as { set_num?: string; set_img_url?: string; theme_id?: number; num_parts?: number };
         if (data.set_img_url) {
+          if (await isDisallowedRebrickableSet(data.set_num ?? `${num}-1`, data.theme_id, data.num_parts, rbHdrs)) {
+            console.log(`[publish:hero] set ${num} rejected — disallowed category/ISBN match`);
+            continue;
+          }
           console.log(`[publish:hero] set ${num} → ${data.set_img_url.slice(0, 70)}`);
           return data.set_img_url;
         }
@@ -275,9 +326,10 @@ export async function resolveYouTubeHeroImage(
         { headers: rbHdrs, signal: AbortSignal.timeout(5000) },
       );
       if (res.ok) {
-        const data = await res.json() as { results?: Array<{ set_img_url?: string }> };
-        const hit = (data.results ?? []).find(s => s.set_img_url);
-        if (hit?.set_img_url) {
+        const data = await res.json() as { results?: Array<{ set_num?: string; set_img_url?: string; theme_id?: number; num_parts?: number }> };
+        for (const hit of data.results ?? []) {
+          if (!hit.set_img_url) continue;
+          if (await isDisallowedRebrickableSet(hit.set_num ?? '', hit.theme_id, hit.num_parts, rbHdrs)) continue;
           console.log(`[publish:hero] theme "${theme}" → ${hit.set_img_url.slice(0, 70)}`);
           return hit.set_img_url;
         }

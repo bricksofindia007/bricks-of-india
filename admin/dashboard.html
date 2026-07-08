@@ -552,12 +552,11 @@
 <!-- =================================================================== -->
 <!--  DATA — edit this block to update the dashboard                      -->
 <!-- =================================================================== -->
-<script id="boi-data" type="application/json">
-{
+<script id="boi-data" type="application/json">{
   "meta": {
-    "lastUpdated": "2026-05-25",
+    "lastUpdated": "2026-07-09",
     "trackerVersion": "v1.6",
-    "currentSprint": "Day 25 — WEB-05 /guides + WEB-06 /community + LAB-06 /lab/deals shipped. DEFECT-005 closed. DEFECT-014 (hero image dedup) Part A + Part B closed. REVIEW-PRICE-01 extended. Fan CoLab routes unblocked."
+    "currentSprint": "MRP root-cause fix (HIGH-57): 644 sets corrected against live Toycra MRP, mrp_verified flag + CMF exclusion added, generator gated on verification. DEFECT-016 (Rebrickable wrong-image filter) closed. Duplicate-article redirects completed (9/9). Fallback-hero backfill run."
   },
   "kpis": {
     "healthScore": 85,
@@ -588,179 +587,1081 @@
     ]
   },
   "issues": [
-    { "id": "DEFECT-013", "issue": "generateArticle() throws hard runtime error when Gemini omits BOI_DRAFT markers", "rootCause": "Pre-existing. Markers were embedded only as a fill-in template in userPrompt with no explicit instruction to reproduce them. Model responding conversationally triggered si === -1 hard throw. Logging as DEFECT-013 on discovery.", "solution": "OUTPUT_FORMAT constant added as final systemPrompt segment — non-negotiable hard rule isolated from voice/style guidance so it cannot be buried. IMPORTANT: anchor also added to top of userPrompt for double reinforcement.", "deployedOn": "2026-05-14", "status": "closed", "priority": "P2", "affects": "All generateArticle() calls — any conversational Gemini response caused silent generation failure" },
-    { "id": "DEFECT-005", "issue": "RADAR-04 generated articles not in BOI Codex voice — flat, not Clarkson-register", "rootCause": "System prompt lacked concrete positive examples. FORMAT_ADDENDUM gave structural rules (length, structure) but no register demonstration. ANTI_PATTERNS blocked wrong patterns but provided no positive counterpart. Model defaulted to safe, neutral prose.", "solution": "Option A (Day 25): VOICE_EXAMPLES replaced with verbatim Codex Page 19 exemplars (F1 wallet-anxiety opener, Taj Mahal beat structure, pani puri Indian comparison, samosas build-collapse). Prompt reordered — VOICE_EXAMPLES + ANTI_PATTERNS now lead system prompt before full codex. Structural requirements made explicit: wallet in Para 1, India Paragraph mandatory, beat structure enforced. NEVER list and impatient-explanation rule added. Flash-Lite holds register when exemplars include explicit DELETE examples alongside positive ones. Option B not required.", "deployedOn": "2026-05-25", "status": "closed", "priority": "P1", "affects": "All RADAR-04 generated articles — voice quality and on-brand register" },
-    { "id": "DEFECT-014", "issue": "Hero image OG collisions — same image on multiple articles, no Rebrickable fallback", "rootCause": "fetchOgImage() is not content-aware. Source articles covering similar LEGO topics (all '2026 LEGO sets') often used the same Brickset set image as their OG. Dedup guard was added after historical articles were published.", "solution": "Part A: retroactive null-out on 5 rows across 3 duplicate groups (scripts/fix-hero-dupes.mjs). Part B: extractSetNumber() + Rebrickable fallback in publishDraft() — on collision, tries sets.image_url (dedup-checked + HEAD-verified) before dropping to null.", "deployedOn": "2026-05-25", "status": "closed", "priority": "P2", "affects": "news_articles hero images — duplicate thumbnails on article cards" },
-    { "id": "BUG-015", "issue": "Tracker stated DNS on Netlify nsone.net; reality is Cloudflare authoritative", "rootCause": "DNS migration to Cloudflare not back-propagated to BOI_MASTER_TRACKER.md", "solution": "Verified via nslookup -type=NS — confirmed kira.ns.cloudflare.com + yadiel.ns.cloudflare.com. Tracker updated; Cloudflare added to stack[].", "deployedOn": "2026-04-26", "status": "closed", "priority": "P3", "affects": "Documentation accuracy, incident response (knowing which dashboard to check)" },
-    { "id": "BUG-014", "issue": "Netlify build minutes critically low", "rootCause": "Scrapers running inside Netlify build pipeline", "solution": "Resolved by INFRA-03 (deploy.yml live). Scrapers no longer consume Netlify build minutes.", "deployedOn": "2026-04-26", "status": "closed", "priority": "P0", "affects": "Build availability until May 11" },
-    { "id": "BUG-013", "issue": "JSON-LD schemas invisible to AI crawlers and non-JS search engines", "rootCause": "MIS-DIAGNOSED. Discovery 2026-05-02 confirmed schemas have been server-rendered into initial HTML all along. Original April 26 diagnosis confused 'use client' on BreadcrumbSchema with the entire schema layer being client-rendered. SchemaLD.tsx never had 'use client'; it was always a Server Component. BreadcrumbSchema did have 'use client' but Next.js SSR renders client components into initial HTML regardless.", "solution": "No fix required — schemas were already in initial HTML. GEO-01 shipped a hardening pass (XSS scrub, consolidation, middleware bug fix) as housekeeping. See GEO-01 pipeline item.", "deployedOn": "2026-05-02", "status": "closed", "priority": "P0", "affects": "No active impact — closed as mis-diagnosed" },
-    { "id": "BUG-012", "issue": "Silent batch aborts in scraper pipeline", "rootCause": "Postgres unique constraint conflicts dropping entire batches", "solution": "Switched to ON CONFLICT DO UPDATE deduplication on (source, sku)", "deployedOn": "2026-04-22", "status": "closed", "priority": "P1", "affects": "Toycra, MyBrickHouse, Jaiman scrapers" },
-    { "id": "BUG-011", "issue": "Rebrickable API returning 429 on long pulls", "rootCause": "No retry logic + no inter-page delay on pagination", "solution": "Added exponential backoff retry + 1.5s delay between pages", "deployedOn": "2026-04-21", "status": "closed", "priority": "P1", "affects": "Set search results completeness" },
-    { "id": "BUG-010", "issue": "Search returning Supabase-only results, missing global sets", "rootCause": "Search priority ordered Supabase → Rebrickable", "solution": "Flipped priority: Rebrickable first, Supabase used only for INR price hydration on Indian-stocked sets", "deployedOn": "2026-04-20", "status": "closed", "priority": "P1", "affects": "Search relevance globally" },
-    { "id": "BUG-009", "issue": "Email forwarding not arriving at Gmail", "rootCause": "MX records pointed at Cloudflare, but DNS was still hosted at Netlify (nsone.net) at time of issue — pre-Cloudflare migration", "solution": "Reconfigured ImprovMX MX records; abhinav@bricksofindia.com → bricksofindia007@gmail.com. DNS subsequently migrated to Cloudflare.", "deployedOn": "2026-04-18", "status": "closed", "priority": "P2", "affects": "Inbound contact email" },
-    { "id": "BUG-008", "issue": "Hero banner low engagement signal", "rootCause": "Generic stock banner with no India context", "solution": "Replaced with custom minifigure + Indian monuments hero in BOI palette", "deployedOn": "2026-04-15", "status": "closed", "priority": "P2", "affects": "Homepage" },
-    { "id": "BUG-007", "issue": "GEO/AI readiness baseline of 26/F", "rootCause": "Missing llms.txt, no JSON-LD, no E-E-A-T author bylines", "solution": "Shipped llms.txt + JSON-LD product/article schemas + author bylines (schemas currently client-side — see BUG-013 P0)", "deployedOn": "2026-04-14", "status": "closed", "priority": "P1", "affects": "AI search visibility" },
-    { "id": "BUG-006", "issue": "No brand identity on website", "rootCause": "Default theme, no palette or typography lock", "solution": "Locked BOI palette (saffron #F7A800, blue #006CB7, green #16A34A, navy #0F2D6B) + Fredoka/Inter typography", "deployedOn": "2026-04-10", "status": "closed", "priority": "P2", "affects": "Brand recognition" }
+    {
+      "id": "DEFECT-016",
+      "issue": "Rebrickable hero-image matching (resolveYouTubeHeroImage) had no filter against non-model catalog categories -- Gear/Books/Stickers/Stationery/Service-Packs/Duplo/Houseware/Mindstorms/Powered-Up items and 13-digit ISBN ids all matched as if they were real set images",
+      "rootCause": "Rebrickable models every real LEGO product, not just buildable sets. A numeric set-number or theme-keyword match could land on non-model entries. Confirmed via 6 wrong-image incidents pre-existing (Stickers, a Technic pneumatic part, an Alpha Pen Pack, 4 Books ISBN hits) plus 2 more caught live during this session's dry run (Educational \"Mosaic Set\" re-proposed for the exact article it was already reverted from; a Powered Up hub component).",
+      "solution": "isDisallowedRebrickableSet() added: rejects 13-digit ISBN ids, zero-num_parts matches, and a theme-name blacklist. Verified via dry-run then live application in the fallback-hero backfill -- filter correctly rejected 2 known-bad matches in the same run it approved 1 genuine rescue.",
+      "deployedOn": "2026-07-08",
+      "status": "closed",
+      "priority": "P2",
+      "affects": "news_articles/blog_posts hero images resolved via the Rebrickable fallback chain"
+    },
+    {
+      "id": "HIGH-57",
+      "issue": "sets.lego_mrp_inr populated as Brickset US-retail-price x forex conversion, not real India MRP -- systemically wrong (476/646 cross-checkable sets disagreed with live Toycra MRP)",
+      "rootCause": "populate-mrp.js used Brickset LEGOCom.US.retailPrice x USD/INR rate as a stand-in for India MRP. Real India MRP runs higher once GST/import duty/distributor margin are priced in. This was the data-level problem HIGH-56 mitigated the presentation of but did not fix.",
+      "solution": "Direct-scraped Toycra (the only store that visibly labels a compare_at_price field as MRP on-page -- MyBrickHouse does not expose one). 644 sets corrected with real MRP + mrp_verified=true. 2,770 other populated-but-unverifiable rows flagged mrp_verified=false/unverified_estimate (suspect by default, systemic root cause). 127 CMF (Collectible Minifigures) sets flagged separately (mrp_review_reason=cmf_box_ambiguity) for the single-figure-vs-sealed-box mismatch. generate-body.ts gated on mrp_verified so unverified figures are never fed to the article generator.",
+      "deployedOn": "2026-07-09",
+      "status": "closed",
+      "priority": "P1",
+      "affects": "Every article verdict computed from lego_mrp_inr sitewide -- foundational data error, not a verdict-logic error"
+    },
+    {
+      "id": "DEFECT-013",
+      "issue": "generateArticle() throws hard runtime error when Gemini omits BOI_DRAFT markers",
+      "rootCause": "Pre-existing. Markers were embedded only as a fill-in template in userPrompt with no explicit instruction to reproduce them. Model responding conversationally triggered si === -1 hard throw. Logging as DEFECT-013 on discovery.",
+      "solution": "OUTPUT_FORMAT constant added as final systemPrompt segment — non-negotiable hard rule isolated from voice/style guidance so it cannot be buried. IMPORTANT: anchor also added to top of userPrompt for double reinforcement.",
+      "deployedOn": "2026-05-14",
+      "status": "closed",
+      "priority": "P2",
+      "affects": "All generateArticle() calls — any conversational Gemini response caused silent generation failure"
+    },
+    {
+      "id": "DEFECT-005",
+      "issue": "RADAR-04 generated articles not in BOI Codex voice — flat, not Clarkson-register",
+      "rootCause": "System prompt lacked concrete positive examples. FORMAT_ADDENDUM gave structural rules (length, structure) but no register demonstration. ANTI_PATTERNS blocked wrong patterns but provided no positive counterpart. Model defaulted to safe, neutral prose.",
+      "solution": "Option A (Day 25): VOICE_EXAMPLES replaced with verbatim Codex Page 19 exemplars (F1 wallet-anxiety opener, Taj Mahal beat structure, pani puri Indian comparison, samosas build-collapse). Prompt reordered — VOICE_EXAMPLES + ANTI_PATTERNS now lead system prompt before full codex. Structural requirements made explicit: wallet in Para 1, India Paragraph mandatory, beat structure enforced. NEVER list and impatient-explanation rule added. Flash-Lite holds register when exemplars include explicit DELETE examples alongside positive ones. Option B not required.",
+      "deployedOn": "2026-05-25",
+      "status": "closed",
+      "priority": "P1",
+      "affects": "All RADAR-04 generated articles — voice quality and on-brand register"
+    },
+    {
+      "id": "DEFECT-014",
+      "issue": "Hero image OG collisions — same image on multiple articles, no Rebrickable fallback",
+      "rootCause": "fetchOgImage() is not content-aware. Source articles covering similar LEGO topics (all '2026 LEGO sets') often used the same Brickset set image as their OG. Dedup guard was added after historical articles were published.",
+      "solution": "Part A: retroactive null-out on 5 rows across 3 duplicate groups (scripts/fix-hero-dupes.mjs). Part B: extractSetNumber() + Rebrickable fallback in publishDraft() — on collision, tries sets.image_url (dedup-checked + HEAD-verified) before dropping to null.",
+      "deployedOn": "2026-05-25",
+      "status": "closed",
+      "priority": "P2",
+      "affects": "news_articles hero images — duplicate thumbnails on article cards"
+    },
+    {
+      "id": "BUG-015",
+      "issue": "Tracker stated DNS on Netlify nsone.net; reality is Cloudflare authoritative",
+      "rootCause": "DNS migration to Cloudflare not back-propagated to BOI_MASTER_TRACKER.md",
+      "solution": "Verified via nslookup -type=NS — confirmed kira.ns.cloudflare.com + yadiel.ns.cloudflare.com. Tracker updated; Cloudflare added to stack[].",
+      "deployedOn": "2026-04-26",
+      "status": "closed",
+      "priority": "P3",
+      "affects": "Documentation accuracy, incident response (knowing which dashboard to check)"
+    },
+    {
+      "id": "BUG-014",
+      "issue": "Netlify build minutes critically low",
+      "rootCause": "Scrapers running inside Netlify build pipeline",
+      "solution": "Resolved by INFRA-03 (deploy.yml live). Scrapers no longer consume Netlify build minutes.",
+      "deployedOn": "2026-04-26",
+      "status": "closed",
+      "priority": "P0",
+      "affects": "Build availability until May 11"
+    },
+    {
+      "id": "BUG-013",
+      "issue": "JSON-LD schemas invisible to AI crawlers and non-JS search engines",
+      "rootCause": "MIS-DIAGNOSED. Discovery 2026-05-02 confirmed schemas have been server-rendered into initial HTML all along. Original April 26 diagnosis confused 'use client' on BreadcrumbSchema with the entire schema layer being client-rendered. SchemaLD.tsx never had 'use client'; it was always a Server Component. BreadcrumbSchema did have 'use client' but Next.js SSR renders client components into initial HTML regardless.",
+      "solution": "No fix required — schemas were already in initial HTML. GEO-01 shipped a hardening pass (XSS scrub, consolidation, middleware bug fix) as housekeeping. See GEO-01 pipeline item.",
+      "deployedOn": "2026-05-02",
+      "status": "closed",
+      "priority": "P0",
+      "affects": "No active impact — closed as mis-diagnosed"
+    },
+    {
+      "id": "BUG-012",
+      "issue": "Silent batch aborts in scraper pipeline",
+      "rootCause": "Postgres unique constraint conflicts dropping entire batches",
+      "solution": "Switched to ON CONFLICT DO UPDATE deduplication on (source, sku)",
+      "deployedOn": "2026-04-22",
+      "status": "closed",
+      "priority": "P1",
+      "affects": "Toycra, MyBrickHouse, Jaiman scrapers"
+    },
+    {
+      "id": "BUG-011",
+      "issue": "Rebrickable API returning 429 on long pulls",
+      "rootCause": "No retry logic + no inter-page delay on pagination",
+      "solution": "Added exponential backoff retry + 1.5s delay between pages",
+      "deployedOn": "2026-04-21",
+      "status": "closed",
+      "priority": "P1",
+      "affects": "Set search results completeness"
+    },
+    {
+      "id": "BUG-010",
+      "issue": "Search returning Supabase-only results, missing global sets",
+      "rootCause": "Search priority ordered Supabase → Rebrickable",
+      "solution": "Flipped priority: Rebrickable first, Supabase used only for INR price hydration on Indian-stocked sets",
+      "deployedOn": "2026-04-20",
+      "status": "closed",
+      "priority": "P1",
+      "affects": "Search relevance globally"
+    },
+    {
+      "id": "BUG-009",
+      "issue": "Email forwarding not arriving at Gmail",
+      "rootCause": "MX records pointed at Cloudflare, but DNS was still hosted at Netlify (nsone.net) at time of issue — pre-Cloudflare migration",
+      "solution": "Reconfigured ImprovMX MX records; abhinav@bricksofindia.com → bricksofindia007@gmail.com. DNS subsequently migrated to Cloudflare.",
+      "deployedOn": "2026-04-18",
+      "status": "closed",
+      "priority": "P2",
+      "affects": "Inbound contact email"
+    },
+    {
+      "id": "BUG-008",
+      "issue": "Hero banner low engagement signal",
+      "rootCause": "Generic stock banner with no India context",
+      "solution": "Replaced with custom minifigure + Indian monuments hero in BOI palette",
+      "deployedOn": "2026-04-15",
+      "status": "closed",
+      "priority": "P2",
+      "affects": "Homepage"
+    },
+    {
+      "id": "BUG-007",
+      "issue": "GEO/AI readiness baseline of 26/F",
+      "rootCause": "Missing llms.txt, no JSON-LD, no E-E-A-T author bylines",
+      "solution": "Shipped llms.txt + JSON-LD product/article schemas + author bylines (schemas currently client-side — see BUG-013 P0)",
+      "deployedOn": "2026-04-14",
+      "status": "closed",
+      "priority": "P1",
+      "affects": "AI search visibility"
+    },
+    {
+      "id": "BUG-006",
+      "issue": "No brand identity on website",
+      "rootCause": "Default theme, no palette or typography lock",
+      "solution": "Locked BOI palette (saffron #F7A800, blue #006CB7, green #16A34A, navy #0F2D6B) + Fredoka/Inter typography",
+      "deployedOn": "2026-04-10",
+      "status": "closed",
+      "priority": "P2",
+      "affects": "Brand recognition"
+    }
   ],
   "pipeline": [
-    { "id": "GEO-01", "title": "JSON-LD hardening — XSS scrub, JsonLd primitive, SchemaLD removal", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-02 (commits 236fa7d–e9e1680). Hardening pass: XSS scrub across 8 emission sites, JsonLd Server Component primitive, BreadcrumbSchema converted from client to server, lib/schemas.ts created, SchemaLD.tsx removed. Middleware bug fixed (5f4abef): was setting response not request headers. BUG-013 closed as mis-diagnosed — schemas were server-rendered all along. Followup: verify /reviews/[slug] schema on first review publish." },
-    { "id": "GEO-02", "title": "Cloudflare AI Crawl Control — per-crawler WAF allow/block", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-01 (manual, by founder in Cloudflare dashboard). 9 search/assistant bots allowed; 13 training-only bots blocked at WAF. Declared policy aligned via ROBOTS-01 (commit e1054e1)." },
-    { "id": "ROBOTS-01", "title": "Align app/robots.ts with Cloudflare AI Crawl Control policy", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": ["GEO-02"], "blocks": [], "notes": "Done 2026-05-01 (commit e1054e1). src/app/robots.ts now declares same allow/block list as Cloudflare WAF. Verified live: GPTBot Disallow:/, PerplexityBot Allow:/, Sitemap present." },
-    { "id": "LAB-01", "title": "Biryani Index calculator at /lab/biryani-index", "category": "Lab", "status": "done", "priority": "P2", "depsBlock": [], "blocks": ["LAB-04"], "notes": "Shipped 2026-05-01 (merge commit be8f134). Converts any LEGO set price into biryani/chai/petrol/PVR equivalents. Reference prices last refreshed 2026-04-26 — refresh quarterly." },
-    { "id": "LAB-02", "title": "Which Set Are You? (quiz)", "category": "Lab", "status": "done", "priority": "P2", "depsBlock": ["LAB-01"], "blocks": ["LAB-04"], "notes": "Done 2026-05-10. /lab/which-set live. 5 questions, 8 outcomes, store links with ABHINAV12 code." },
-    { "id": "LAB-03", "title": "Daily price snapshot cron", "category": "Lab", "status": "done", "priority": "P1", "depsBlock": [], "blocks": ["LAB-05"], "notes": "Done 2026-05-02. 724 snapshots/day, 08:30 IST cron. Phase 5 verified by operator. LAB-05 eligible 2026-06-01 (30 days runway). Brief at briefs/LAB-03-price-snapshot-cron.md." },
-    { "id": "LAB-04", "title": "Lab homepage strip + nav + /lab directory", "category": "Lab", "status": "done", "priority": "P2", "depsBlock": ["LAB-01"], "blocks": [], "notes": "Done 2026-05-02. /lab directory live, homepage strip + nav dropdown shipped. Fixes /lab 404. LAB-02 staged as coming_soon in src/lib/lab-tools.ts. Brief at briefs/LAB-04-homepage-strip.md." },
-    { "id": "LAB-06", "title": "India Deals Today at /lab/deals", "category": "Lab", "status": "done", "priority": "P1", "depsBlock": [], "blocks": ["CE-06"], "notes": "Done 2026-05-25. Server Component. Queries store_prices (in_stock=true) + sets joined in memory by set_id=set_number. Computes discount_pct=(lego_mrp_inr-price_inr)/lego_mrp_inr*100. Sorted desc. Cards: set name, set number, store badge, INR price, strikethrough MRP, discount % badge, Buy Now CTA → product_url. Empty state graceful. Registered in lab-tools.ts + sitemap.ts. CE-06 unblocked." },
-    { "id": "CF-CACHE-01", "title": "Diagnose and fix 2.31% Cloudflare cache rate", "category": "Infrastructure", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-02 (commit 6229d99). Cache-Control headers added per route type in next.config.mjs: /sets/* long (3600), /news+/blog+/reviews short (300), /admin no-store, /sitemap.xml medium. Target: 2.3% → 40%+ hit rate — verify in Cloudflare analytics 24h post-deploy." },
-    { "id": "INFRA-03", "title": "GitHub Actions deploy workflow (deploy.yml)", "category": "Infrastructure", "status": "done", "priority": "P0", "depsBlock": [], "blocks": ["Phase 8 globe", "RADAR-01 cron"], "notes": "Deployed 2026-04-24 (commit 8992aef). Build now runs on GitHub Actions; Netlify still hosts but no longer runs the build. Netlify build minute concern resolved." },
-    { "id": "RADAR-01", "title": "Topical Radar daily cron @ 23:00 IST", "category": "Content OS", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-09 — PR #2 merged (e5b71b1). fetch-rss.js live, 11 active sources (5 deferred: PARSER-01/SCRAPE-01/YT-FEED-NOISE-01). 163 signals in raw_signals as of 2026-05-09T06:07 UTC. workflow_dispatch verified green (run 25593692037, 37s). First scheduled tick: 2026-05-09 17:30 UTC." },
-    { "id": "WEB-01", "title": "Article auto-publish pipeline with 4 lint gates", "category": "Website", "status": "done", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-14. Gate 1: 3-state PASS/WARN/FAIL (±10%/±25%). Gate 2: full 4-component India Paragraph (marker, ₹price, store availability, Indian comparison). Gate 3: verdict enum all formats. Gate 4: OG image HEAD-check in publishDraft(). sendLintAlert() on any FAIL via Resend." },
-    { "id": "VOICE-01", "title": "ElevenLabs free-tier voice clone test", "category": "Audio", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["Shorts/Reels production model"], "notes": "Outcome decides hybrid clone vs full self-record" },
-    { "id": "INFRA-04", "title": "View Source verification of JSON-LD schemas", "category": "Infrastructure", "status": "pending", "priority": "P1", "depsBlock": [], "blocks": ["GEO re-audit"], "notes": "Superseded by BUG-013 P0 finding — curl confirms schemas not in initial HTML. GEO-01 is the fix." },
-    { "id": "PHASE-08", "title": "LEGO Search Pulse — Three.js globe + D3 choropleth", "category": "Feature", "status": "blocked", "priority": "P2", "depsBlock": ["RADAR-01", "WEB-01"], "blocks": [], "notes": "Specced; deferred until infra stable. INFRA-03 dep removed (done)." },
-    { "id": "WEB-02", "title": "Image fetch + attribution block automation", "category": "Website", "status": "in-progress", "priority": "P2", "depsBlock": [], "blocks": [], "notes": "Tier 1 APIs only (Brickset, Rebrickable); Tier 2 manual click-save into /raw-assets/" },
-    { "id": "WEB-03", "title": "PR auto-merge on lint pass", "category": "Website", "status": "done", "priority": "P2", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-14 (respecced). Pipeline is UI-based not PR-based. Equivalent: Publish button hard-gated by lintDraft() — all gates must pass before publishDraft() inserts to Supabase. Failed lint throws, draft stays in pending state." },
-    { "id": "WEB-04", "title": "RSS feed for /news and /reviews", "category": "Website", "status": "pending", "priority": "P3", "depsBlock": ["WEB-01"], "blocks": [], "notes": "Required for Topical Radar feed-loop and aggregator pickup" },
-    { "id": "CONTENT-01", "title": "Voice Codex spec (8–12 pages)", "category": "Content OS", "status": "done", "priority": "P2", "depsBlock": [], "blocks": [], "notes": "Done 2026-05-01 (commit 3190596). 21 pages at docs/codex/BOI_Codex_v2.docx. India Paragraph Page 12, verdict enum Page 13, lint gate spec Page 20." },
-    { "id": "CONTENT-02", "title": "Claude Project workbench setup", "category": "Content OS", "status": "unblocked", "priority": "P2", "depsBlock": [], "blocks": [], "notes": "Unblocked by CONTENT-01. Load docs/codex/BOI_Codex_v2.docx as project knowledge in Claude.ai." },
-    { "id": "CONTENT-03", "title": "DaVinci Resolve template for news Shorts", "category": "Content OS", "status": "pending", "priority": "P3", "depsBlock": ["VOICE-01"], "blocks": [], "notes": "CapCut banned in India; Descript and OpusClip deferred" },
-    { "id": "CONTENT-04", "title": "Instagram 7-slide Canva carousel template", "category": "Content OS", "status": "pending", "priority": "P3", "depsBlock": [], "blocks": [], "notes": "Target cadence 3x/week" },
-    { "id": "MONETIZE-01", "title": "MyBrickHouse coupon-code arrangement", "category": "Monetization", "status": "scheduled", "priority": "P2", "depsBlock": [], "blocks": [], "notes": "Most actionable near-term affiliate path" },
-    { "id": "MONETIZE-02", "title": "Jaiman Toys coupon-code arrangement", "category": "Monetization", "status": "scheduled", "priority": "P2", "depsBlock": [], "blocks": [], "notes": "Parallel to MONETIZE-01" },
-    { "id": "MONETIZE-03", "title": "Amazon affiliate reapplication", "category": "Monetization", "status": "scheduled", "priority": "P3", "depsBlock": [], "blocks": [], "notes": "Eligible Oct/Nov 2026" },
-    { "id": "INSIDERS-01", "title": "LEGO Insiders points reconciliation", "category": "Brand", "status": "pending", "priority": "P3", "depsBlock": [], "blocks": ["RLFM application"], "notes": "Member #811205769 — zero points despite purchase history; founder credibility issue" },
-    { "id": "RLFM-01", "title": "LAN RLFM application draft", "category": "Brand", "status": "scheduled", "priority": "P3", "depsBlock": [], "blocks": [], "notes": "Apply at one-year mark with live stats" },
-    { "id": "PERF-01", "title": "Evaluate Cloudflare edge caching for article pages", "category": "Infrastructure", "status": "scheduled", "priority": "P3", "depsBlock": [], "blocks": [], "notes": "Currently cf-cache-status: DYNAMIC — Cloudflare is proxy-only, not caching. Article pages could be cached at edge to reduce ~775ms origin latency to ~10ms. Interacts with Next.js ISR; needs careful TTL tuning to avoid stale article content. Defer until after RADAR-01 and WEB-01 ship." },
-    { "id": "RADAR-08", "title": "Automated reviews generation pipeline", "category": "Content OS", "status": "pending", "priority": "P2", "depsBlock": [], "blocks": ["RLFM-01"], "notes": "Briefed 2026-05-14. Reduce manual dependency — target 5+ Codex-compliant reviews/week. Requires: (a) reviews format added to RADAR-03 classifier, (b) generateArticle() extended to publish to reviews table with set_id UUID lookup, (c) hero_image from Rebrickable CDN, (d) lint Gate 3 verdict enforcement already in place. Blocks RLFM at scale." },
-    { "id": "SOC-AUTO-01", "title": "Social automation pipeline — IG carousel + Reels + YouTube Shorts", "category": "Social", "status": "done", "priority": "P1", "depsBlock": [], "blocks": ["RLFM-01"], "notes": "Done 2026-05-24. social-automation/pipeline.py — daily cron 06:30 UTC (12:00 IST). Three platforms: IG Feed (8-image carousel), IG Reels (8s), YouTube Shorts (45s with text overlays). India defense layer: is_available_in_india() checks store_prices before posting. Source-aware captions. 3 sets posted: 11377-1, 76342-1, 75641-1. Run 3 blocked 4 India-available sets." },
-    { "id": "VID-P4", "title": "Video Shorts/Reels pipeline — cloud generation + chat approval + publish poller", "category": "Video", "status": "in-progress", "priority": "P1", "depsBlock": [], "blocks": [], "notes": "Cloud approval-flow pivot shipped 2026-07-06. Live counts as of 2026-07-06 (pulled directly from video_posts, not estimated): 4 total rows generated, 1 pending_approval, 2 posted (posted_both), 1 rendered/unposted (orphaned pre-pivot row, awaiting operator decision — see BOI_MASTER_TRACKER.md open items). Last generation run: 2026-07-06 19:26 UTC. Last publish: 2026-07-06 17:52 UTC. Daily generation cron active (video-generate-daily.yml, 6:00 AM IST); publish poller active (video-publish-poller.yml, every 15 min). Currently in supervised-approval mode (operator approves each video via chat before it posts) — see VID-P4-AUTOMATION-REVIEW for the full-autonomy review date (~2026-07-20, not a scheduled cutover)." },
-    { "id": "WEB-05", "title": "/guides route — index + [slug] pages", "category": "Website", "status": "done", "priority": "P1", "depsBlock": [], "blocks": ["CE-02", "CE-05"], "notes": "Shipped 2026-05-25. guides table migration in supabase/migrations/20260525000000_guides.sql — run manually in dashboard. Commit eb8a049." },
-    { "id": "WEB-06", "title": "/community route — index + [slug] pages", "category": "Website", "status": "done", "priority": "P1", "depsBlock": [], "blocks": ["CE-01"], "notes": "Shipped 2026-05-25. community_spotlights table migration at supabase/migrations/20260525120000_community_spotlights.sql — run in Supabase dashboard. Both routes live: /community (index with empty-state) + /community/[slug] (builder detail + photo gallery). Community added to nav. RLS: published=true SELECT only." }
+    {
+      "id": "GEO-01",
+      "title": "JSON-LD hardening — XSS scrub, JsonLd primitive, SchemaLD removal",
+      "category": "Infrastructure",
+      "status": "done",
+      "priority": "P1",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Done 2026-05-02 (commits 236fa7d–e9e1680). Hardening pass: XSS scrub across 8 emission sites, JsonLd Server Component primitive, BreadcrumbSchema converted from client to server, lib/schemas.ts created, SchemaLD.tsx removed. Middleware bug fixed (5f4abef): was setting response not request headers. BUG-013 closed as mis-diagnosed — schemas were server-rendered all along. Followup: verify /reviews/[slug] schema on first review publish."
+    },
+    {
+      "id": "GEO-02",
+      "title": "Cloudflare AI Crawl Control — per-crawler WAF allow/block",
+      "category": "Infrastructure",
+      "status": "done",
+      "priority": "P1",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Done 2026-05-01 (manual, by founder in Cloudflare dashboard). 9 search/assistant bots allowed; 13 training-only bots blocked at WAF. Declared policy aligned via ROBOTS-01 (commit e1054e1)."
+    },
+    {
+      "id": "ROBOTS-01",
+      "title": "Align app/robots.ts with Cloudflare AI Crawl Control policy",
+      "category": "Infrastructure",
+      "status": "done",
+      "priority": "P1",
+      "depsBlock": [
+        "GEO-02"
+      ],
+      "blocks": [],
+      "notes": "Done 2026-05-01 (commit e1054e1). src/app/robots.ts now declares same allow/block list as Cloudflare WAF. Verified live: GPTBot Disallow:/, PerplexityBot Allow:/, Sitemap present."
+    },
+    {
+      "id": "LAB-01",
+      "title": "Biryani Index calculator at /lab/biryani-index",
+      "category": "Lab",
+      "status": "done",
+      "priority": "P2",
+      "depsBlock": [],
+      "blocks": [
+        "LAB-04"
+      ],
+      "notes": "Shipped 2026-05-01 (merge commit be8f134). Converts any LEGO set price into biryani/chai/petrol/PVR equivalents. Reference prices last refreshed 2026-04-26 — refresh quarterly."
+    },
+    {
+      "id": "LAB-02",
+      "title": "Which Set Are You? (quiz)",
+      "category": "Lab",
+      "status": "done",
+      "priority": "P2",
+      "depsBlock": [
+        "LAB-01"
+      ],
+      "blocks": [
+        "LAB-04"
+      ],
+      "notes": "Done 2026-05-10. /lab/which-set live. 5 questions, 8 outcomes, store links with ABHINAV12 code."
+    },
+    {
+      "id": "LAB-03",
+      "title": "Daily price snapshot cron",
+      "category": "Lab",
+      "status": "done",
+      "priority": "P1",
+      "depsBlock": [],
+      "blocks": [
+        "LAB-05"
+      ],
+      "notes": "Done 2026-05-02. 724 snapshots/day, 08:30 IST cron. Phase 5 verified by operator. LAB-05 eligible 2026-06-01 (30 days runway). Brief at briefs/LAB-03-price-snapshot-cron.md."
+    },
+    {
+      "id": "LAB-04",
+      "title": "Lab homepage strip + nav + /lab directory",
+      "category": "Lab",
+      "status": "done",
+      "priority": "P2",
+      "depsBlock": [
+        "LAB-01"
+      ],
+      "blocks": [],
+      "notes": "Done 2026-05-02. /lab directory live, homepage strip + nav dropdown shipped. Fixes /lab 404. LAB-02 staged as coming_soon in src/lib/lab-tools.ts. Brief at briefs/LAB-04-homepage-strip.md."
+    },
+    {
+      "id": "LAB-06",
+      "title": "India Deals Today at /lab/deals",
+      "category": "Lab",
+      "status": "done",
+      "priority": "P1",
+      "depsBlock": [],
+      "blocks": [
+        "CE-06"
+      ],
+      "notes": "Done 2026-05-25. Server Component. Queries store_prices (in_stock=true) + sets joined in memory by set_id=set_number. Computes discount_pct=(lego_mrp_inr-price_inr)/lego_mrp_inr*100. Sorted desc. Cards: set name, set number, store badge, INR price, strikethrough MRP, discount % badge, Buy Now CTA → product_url. Empty state graceful. Registered in lab-tools.ts + sitemap.ts. CE-06 unblocked."
+    },
+    {
+      "id": "CF-CACHE-01",
+      "title": "Diagnose and fix 2.31% Cloudflare cache rate",
+      "category": "Infrastructure",
+      "status": "done",
+      "priority": "P1",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Done 2026-05-02 (commit 6229d99). Cache-Control headers added per route type in next.config.mjs: /sets/* long (3600), /news+/blog+/reviews short (300), /admin no-store, /sitemap.xml medium. Target: 2.3% → 40%+ hit rate — verify in Cloudflare analytics 24h post-deploy."
+    },
+    {
+      "id": "INFRA-03",
+      "title": "GitHub Actions deploy workflow (deploy.yml)",
+      "category": "Infrastructure",
+      "status": "done",
+      "priority": "P0",
+      "depsBlock": [],
+      "blocks": [
+        "Phase 8 globe",
+        "RADAR-01 cron"
+      ],
+      "notes": "Deployed 2026-04-24 (commit 8992aef). Build now runs on GitHub Actions; Netlify still hosts but no longer runs the build. Netlify build minute concern resolved."
+    },
+    {
+      "id": "RADAR-01",
+      "title": "Topical Radar daily cron @ 23:00 IST",
+      "category": "Content OS",
+      "status": "done",
+      "priority": "P1",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Done 2026-05-09 — PR #2 merged (e5b71b1). fetch-rss.js live, 11 active sources (5 deferred: PARSER-01/SCRAPE-01/YT-FEED-NOISE-01). 163 signals in raw_signals as of 2026-05-09T06:07 UTC. workflow_dispatch verified green (run 25593692037, 37s). First scheduled tick: 2026-05-09 17:30 UTC."
+    },
+    {
+      "id": "WEB-01",
+      "title": "Article auto-publish pipeline with 4 lint gates",
+      "category": "Website",
+      "status": "done",
+      "priority": "P1",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Done 2026-05-14. Gate 1: 3-state PASS/WARN/FAIL (±10%/±25%). Gate 2: full 4-component India Paragraph (marker, ₹price, store availability, Indian comparison). Gate 3: verdict enum all formats. Gate 4: OG image HEAD-check in publishDraft(). sendLintAlert() on any FAIL via Resend."
+    },
+    {
+      "id": "VOICE-01",
+      "title": "ElevenLabs free-tier voice clone test",
+      "category": "Audio",
+      "status": "pending",
+      "priority": "P1",
+      "depsBlock": [],
+      "blocks": [
+        "Shorts/Reels production model"
+      ],
+      "notes": "Outcome decides hybrid clone vs full self-record"
+    },
+    {
+      "id": "INFRA-04",
+      "title": "View Source verification of JSON-LD schemas",
+      "category": "Infrastructure",
+      "status": "pending",
+      "priority": "P1",
+      "depsBlock": [],
+      "blocks": [
+        "GEO re-audit"
+      ],
+      "notes": "Superseded by BUG-013 P0 finding — curl confirms schemas not in initial HTML. GEO-01 is the fix."
+    },
+    {
+      "id": "PHASE-08",
+      "title": "LEGO Search Pulse — Three.js globe + D3 choropleth",
+      "category": "Feature",
+      "status": "blocked",
+      "priority": "P2",
+      "depsBlock": [
+        "RADAR-01",
+        "WEB-01"
+      ],
+      "blocks": [],
+      "notes": "Specced; deferred until infra stable. INFRA-03 dep removed (done)."
+    },
+    {
+      "id": "WEB-02",
+      "title": "Image fetch + attribution block automation",
+      "category": "Website",
+      "status": "in-progress",
+      "priority": "P2",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Tier 1 APIs only (Brickset, Rebrickable); Tier 2 manual click-save into /raw-assets/"
+    },
+    {
+      "id": "WEB-03",
+      "title": "PR auto-merge on lint pass",
+      "category": "Website",
+      "status": "done",
+      "priority": "P2",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Done 2026-05-14 (respecced). Pipeline is UI-based not PR-based. Equivalent: Publish button hard-gated by lintDraft() — all gates must pass before publishDraft() inserts to Supabase. Failed lint throws, draft stays in pending state."
+    },
+    {
+      "id": "WEB-04",
+      "title": "RSS feed for /news and /reviews",
+      "category": "Website",
+      "status": "pending",
+      "priority": "P3",
+      "depsBlock": [
+        "WEB-01"
+      ],
+      "blocks": [],
+      "notes": "Required for Topical Radar feed-loop and aggregator pickup"
+    },
+    {
+      "id": "CONTENT-01",
+      "title": "Voice Codex spec (8–12 pages)",
+      "category": "Content OS",
+      "status": "done",
+      "priority": "P2",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Done 2026-05-01 (commit 3190596). 21 pages at docs/codex/BOI_Codex_v2.docx. India Paragraph Page 12, verdict enum Page 13, lint gate spec Page 20."
+    },
+    {
+      "id": "CONTENT-02",
+      "title": "Claude Project workbench setup",
+      "category": "Content OS",
+      "status": "unblocked",
+      "priority": "P2",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Unblocked by CONTENT-01. Load docs/codex/BOI_Codex_v2.docx as project knowledge in Claude.ai."
+    },
+    {
+      "id": "CONTENT-03",
+      "title": "DaVinci Resolve template for news Shorts",
+      "category": "Content OS",
+      "status": "pending",
+      "priority": "P3",
+      "depsBlock": [
+        "VOICE-01"
+      ],
+      "blocks": [],
+      "notes": "CapCut banned in India; Descript and OpusClip deferred"
+    },
+    {
+      "id": "CONTENT-04",
+      "title": "Instagram 7-slide Canva carousel template",
+      "category": "Content OS",
+      "status": "pending",
+      "priority": "P3",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Target cadence 3x/week"
+    },
+    {
+      "id": "MONETIZE-01",
+      "title": "MyBrickHouse coupon-code arrangement",
+      "category": "Monetization",
+      "status": "scheduled",
+      "priority": "P2",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Most actionable near-term affiliate path"
+    },
+    {
+      "id": "MONETIZE-02",
+      "title": "Jaiman Toys coupon-code arrangement",
+      "category": "Monetization",
+      "status": "scheduled",
+      "priority": "P2",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Parallel to MONETIZE-01"
+    },
+    {
+      "id": "MONETIZE-03",
+      "title": "Amazon affiliate reapplication",
+      "category": "Monetization",
+      "status": "scheduled",
+      "priority": "P3",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Eligible Oct/Nov 2026"
+    },
+    {
+      "id": "INSIDERS-01",
+      "title": "LEGO Insiders points reconciliation",
+      "category": "Brand",
+      "status": "pending",
+      "priority": "P3",
+      "depsBlock": [],
+      "blocks": [
+        "RLFM application"
+      ],
+      "notes": "Member #811205769 — zero points despite purchase history; founder credibility issue"
+    },
+    {
+      "id": "RLFM-01",
+      "title": "LAN RLFM application draft",
+      "category": "Brand",
+      "status": "scheduled",
+      "priority": "P3",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Apply at one-year mark with live stats"
+    },
+    {
+      "id": "PERF-01",
+      "title": "Evaluate Cloudflare edge caching for article pages",
+      "category": "Infrastructure",
+      "status": "scheduled",
+      "priority": "P3",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Currently cf-cache-status: DYNAMIC — Cloudflare is proxy-only, not caching. Article pages could be cached at edge to reduce ~775ms origin latency to ~10ms. Interacts with Next.js ISR; needs careful TTL tuning to avoid stale article content. Defer until after RADAR-01 and WEB-01 ship."
+    },
+    {
+      "id": "RADAR-08",
+      "title": "Automated reviews generation pipeline",
+      "category": "Content OS",
+      "status": "pending",
+      "priority": "P2",
+      "depsBlock": [],
+      "blocks": [
+        "RLFM-01"
+      ],
+      "notes": "Briefed 2026-05-14. Reduce manual dependency — target 5+ Codex-compliant reviews/week. Requires: (a) reviews format added to RADAR-03 classifier, (b) generateArticle() extended to publish to reviews table with set_id UUID lookup, (c) hero_image from Rebrickable CDN, (d) lint Gate 3 verdict enforcement already in place. Blocks RLFM at scale."
+    },
+    {
+      "id": "SOC-AUTO-01",
+      "title": "Social automation pipeline — IG carousel + Reels + YouTube Shorts",
+      "category": "Social",
+      "status": "done",
+      "priority": "P1",
+      "depsBlock": [],
+      "blocks": [
+        "RLFM-01"
+      ],
+      "notes": "Done 2026-05-24. social-automation/pipeline.py — daily cron 06:30 UTC (12:00 IST). Three platforms: IG Feed (8-image carousel), IG Reels (8s), YouTube Shorts (45s with text overlays). India defense layer: is_available_in_india() checks store_prices before posting. Source-aware captions. 3 sets posted: 11377-1, 76342-1, 75641-1. Run 3 blocked 4 India-available sets."
+    },
+    {
+      "id": "VID-P4",
+      "title": "Video Shorts/Reels pipeline — cloud generation + chat approval + publish poller",
+      "category": "Video",
+      "status": "in-progress",
+      "priority": "P1",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Cloud approval-flow pivot shipped 2026-07-06. Live counts as of 2026-07-06 (pulled directly from video_posts, not estimated): 4 total rows generated, 1 pending_approval, 2 posted (posted_both), 1 rendered/unposted (orphaned pre-pivot row, awaiting operator decision — see BOI_MASTER_TRACKER.md open items). Last generation run: 2026-07-06 19:26 UTC. Last publish: 2026-07-06 17:52 UTC. Daily generation cron active (video-generate-daily.yml, 6:00 AM IST); publish poller active (video-publish-poller.yml, every 15 min). Currently in supervised-approval mode (operator approves each video via chat before it posts) — see VID-P4-AUTOMATION-REVIEW for the full-autonomy review date (~2026-07-20, not a scheduled cutover)."
+    },
+    {
+      "id": "WEB-05",
+      "title": "/guides route — index + [slug] pages",
+      "category": "Website",
+      "status": "done",
+      "priority": "P1",
+      "depsBlock": [],
+      "blocks": [
+        "CE-02",
+        "CE-05"
+      ],
+      "notes": "Shipped 2026-05-25. guides table migration in supabase/migrations/20260525000000_guides.sql — run manually in dashboard. Commit eb8a049."
+    },
+    {
+      "id": "WEB-06",
+      "title": "/community route — index + [slug] pages",
+      "category": "Website",
+      "status": "done",
+      "priority": "P1",
+      "depsBlock": [],
+      "blocks": [
+        "CE-01"
+      ],
+      "notes": "Shipped 2026-05-25. community_spotlights table migration at supabase/migrations/20260525120000_community_spotlights.sql — run in Supabase dashboard. Both routes live: /community (index with empty-state) + /community/[slug] (builder detail + photo gallery). Community added to nav. RLS: published=true SELECT only."
+    }
   ],
   "auditChecklist": [
     {
       "group": "Uptime & availability",
       "items": [
-        { "name": "Site responds at https://www.bricksofindia.com (200 OK)", "status": "unknown", "detail": "Run from Pingdom or UptimeRobot" },
-        { "name": "TLS certificate valid > 30 days", "status": "unknown", "detail": "Auto-renewed by Netlify; verify expiry" },
-        { "name": "DNS records intact (A, MX, TXT)", "status": "unknown", "detail": "Cloudflare authoritative DNS (kira.ns + yadiel.ns.cloudflare.com); Netlify origin; ImprovMX for email MX" },
-        { "name": "Email routing alive (test send to abhinav@bricksofindia.com)", "status": "unknown", "detail": "ImprovMX → bricksofindia007@gmail.com" },
-        { "name": "Cloudflare edge serving from BOM (Mumbai) for India traffic", "status": "pass", "detail": "Verified via CF-RAY suffix 2026-04-26 — header: 9f23ae1b3f7b428a-BOM" },
-        { "name": "HSTS active (max-age >= 1 year)", "status": "pass", "detail": "strict-transport-security: max-age=31536000 — verified 2026-04-26" }
+        {
+          "name": "Site responds at https://www.bricksofindia.com (200 OK)",
+          "status": "unknown",
+          "detail": "Run from Pingdom or UptimeRobot"
+        },
+        {
+          "name": "TLS certificate valid > 30 days",
+          "status": "unknown",
+          "detail": "Auto-renewed by Netlify; verify expiry"
+        },
+        {
+          "name": "DNS records intact (A, MX, TXT)",
+          "status": "unknown",
+          "detail": "Cloudflare authoritative DNS (kira.ns + yadiel.ns.cloudflare.com); Netlify origin; ImprovMX for email MX"
+        },
+        {
+          "name": "Email routing alive (test send to abhinav@bricksofindia.com)",
+          "status": "unknown",
+          "detail": "ImprovMX → bricksofindia007@gmail.com"
+        },
+        {
+          "name": "Cloudflare edge serving from BOM (Mumbai) for India traffic",
+          "status": "pass",
+          "detail": "Verified via CF-RAY suffix 2026-04-26 — header: 9f23ae1b3f7b428a-BOM"
+        },
+        {
+          "name": "HSTS active (max-age >= 1 year)",
+          "status": "pass",
+          "detail": "strict-transport-security: max-age=31536000 — verified 2026-04-26"
+        }
       ]
     },
     {
       "group": "Functional CTAs & links",
       "items": [
-        { "name": "Every nav link returns 200", "status": "unknown", "detail": "Header, footer, breadcrumb" },
-        { "name": "Every affiliate link resolves to merchant", "status": "unknown", "detail": "Toycra ABHINAV12 code present" },
-        { "name": "Every CTA button triggers expected action", "status": "unknown", "detail": "Search, subscribe, share" },
-        { "name": "Internal links between articles intact", "status": "unknown", "detail": "Catch broken links from drafts" },
-        { "name": "External outbound links return 200", "status": "unknown", "detail": "Brickset, Rebrickable, source attributions" }
+        {
+          "name": "Every nav link returns 200",
+          "status": "unknown",
+          "detail": "Header, footer, breadcrumb"
+        },
+        {
+          "name": "Every affiliate link resolves to merchant",
+          "status": "unknown",
+          "detail": "Toycra ABHINAV12 code present"
+        },
+        {
+          "name": "Every CTA button triggers expected action",
+          "status": "unknown",
+          "detail": "Search, subscribe, share"
+        },
+        {
+          "name": "Internal links between articles intact",
+          "status": "unknown",
+          "detail": "Catch broken links from drafts"
+        },
+        {
+          "name": "External outbound links return 200",
+          "status": "unknown",
+          "detail": "Brickset, Rebrickable, source attributions"
+        }
       ]
     },
     {
       "group": "Content integrity",
       "items": [
-        { "name": "All images return HTTP 200", "status": "unknown", "detail": "Lint gate already enforces on PR; spot-check older articles" },
-        { "name": "Image attribution block present on every article", "status": "unknown", "detail": "Auto-added by WEB-02; verify" },
-        { "name": "India Paragraph present in every review/news post", "status": "unknown", "detail": "Lint gate enforces; spot-check" },
-        { "name": "Verdict matches locked enum", "status": "unknown", "detail": "Buy now / Wait / Import only / Avoid" },
-        { "name": "Word count within range (News 300–400, Reviews 500–700, Opinion 400–500)", "status": "unknown", "detail": "Lint gate enforces; spot-check" }
+        {
+          "name": "All images return HTTP 200",
+          "status": "unknown",
+          "detail": "Lint gate already enforces on PR; spot-check older articles"
+        },
+        {
+          "name": "Image attribution block present on every article",
+          "status": "unknown",
+          "detail": "Auto-added by WEB-02; verify"
+        },
+        {
+          "name": "India Paragraph present in every review/news post",
+          "status": "unknown",
+          "detail": "Lint gate enforces; spot-check"
+        },
+        {
+          "name": "Verdict matches locked enum",
+          "status": "unknown",
+          "detail": "Buy now / Wait / Import only / Avoid"
+        },
+        {
+          "name": "Word count within range (News 300–400, Reviews 500–700, Opinion 400–500)",
+          "status": "unknown",
+          "detail": "Lint gate enforces; spot-check"
+        }
       ]
     },
     {
       "group": "GEO & AI readiness",
       "items": [
-        { "name": "llms.txt present and parses", "status": "warn", "detail": "Shipped 2026-04-14 — re-verify contents match site" },
-        { "name": "JSON-LD schemas validate (Product, Article, Organization, Person)", "status": "pass", "detail": "GEO-01 hardening done 2026-05-02 (commits 236fa7d–e9e1680). XSS scrub, JsonLd primitive, lib/schemas.ts, BreadcrumbSchema server-rendered, SchemaLD.tsx removed. BUG-013 closed as mis-diagnosed — schemas were server-rendered all along." },
-        { "name": "E-E-A-T author bylines on every post", "status": "unknown", "detail": "Verify author entity has linked Person schema" },
-        { "name": "robots.txt allows AI crawlers (GPTBot, ClaudeBot, etc.)", "status": "unknown", "detail": "Confirm explicit allow, not just default" },
-        { "name": "Sitemap.xml present and current", "status": "unknown", "detail": "Should auto-generate per build" }
+        {
+          "name": "llms.txt present and parses",
+          "status": "warn",
+          "detail": "Shipped 2026-04-14 — re-verify contents match site"
+        },
+        {
+          "name": "JSON-LD schemas validate (Product, Article, Organization, Person)",
+          "status": "pass",
+          "detail": "GEO-01 hardening done 2026-05-02 (commits 236fa7d–e9e1680). XSS scrub, JsonLd primitive, lib/schemas.ts, BreadcrumbSchema server-rendered, SchemaLD.tsx removed. BUG-013 closed as mis-diagnosed — schemas were server-rendered all along."
+        },
+        {
+          "name": "E-E-A-T author bylines on every post",
+          "status": "unknown",
+          "detail": "Verify author entity has linked Person schema"
+        },
+        {
+          "name": "robots.txt allows AI crawlers (GPTBot, ClaudeBot, etc.)",
+          "status": "unknown",
+          "detail": "Confirm explicit allow, not just default"
+        },
+        {
+          "name": "Sitemap.xml present and current",
+          "status": "unknown",
+          "detail": "Should auto-generate per build"
+        }
       ]
     },
     {
       "group": "Pipeline & data",
       "items": [
-        { "name": "Toycra scraper last run successful", "status": "pass", "detail": "Verified 2026-04-25 — scrape-prices.yml firing every 6h on GHA, 100% success rate" },
-        { "name": "MyBrickHouse scraper last run successful", "status": "pass", "detail": "Verified 2026-04-25 — scrape-prices.yml firing every 6h on GHA, 100% success rate" },
-        { "name": "Jaiman Toys scraper last run successful", "status": "pass", "detail": "Verified 2026-04-25 — scrape-prices.yml firing every 6h on GHA, 100% success rate" },
-        { "name": "Rebrickable hydration completing without 429s", "status": "pass", "detail": "BUG-011 fixed 2026-04-21" },
-        { "name": "Postgres dedup not silently aborting batches", "status": "pass", "detail": "BUG-012 fixed 2026-04-22" },
-        { "name": "Topical Radar cron firing at 23:00 IST", "status": "pass", "detail": "radar.yml live — PR #2 merged 2026-05-09. workflow_dispatch run 25593692037 green (37s). First scheduled tick: 2026-05-09 17:30 UTC." }
+        {
+          "name": "Toycra scraper last run successful",
+          "status": "pass",
+          "detail": "Verified 2026-04-25 — scrape-prices.yml firing every 6h on GHA, 100% success rate"
+        },
+        {
+          "name": "MyBrickHouse scraper last run successful",
+          "status": "pass",
+          "detail": "Verified 2026-04-25 — scrape-prices.yml firing every 6h on GHA, 100% success rate"
+        },
+        {
+          "name": "Jaiman Toys scraper last run successful",
+          "status": "pass",
+          "detail": "Verified 2026-04-25 — scrape-prices.yml firing every 6h on GHA, 100% success rate"
+        },
+        {
+          "name": "Rebrickable hydration completing without 429s",
+          "status": "pass",
+          "detail": "BUG-011 fixed 2026-04-21"
+        },
+        {
+          "name": "Postgres dedup not silently aborting batches",
+          "status": "pass",
+          "detail": "BUG-012 fixed 2026-04-22"
+        },
+        {
+          "name": "Topical Radar cron firing at 23:00 IST",
+          "status": "pass",
+          "detail": "radar.yml live — PR #2 merged 2026-05-09. workflow_dispatch run 25593692037 green (37s). First scheduled tick: 2026-05-09 17:30 UTC."
+        }
       ]
     },
     {
       "group": "Performance & SEO",
       "items": [
-        { "name": "Lighthouse score (Mobile) ≥ 80", "status": "unknown", "detail": "Run from PageSpeed Insights" },
-        { "name": "Core Web Vitals — LCP, CLS, INP — all green", "status": "unknown", "detail": "Field data from Search Console" },
-        { "name": "Search Console — no manual actions / coverage drops", "status": "unknown", "detail": "Weekly check" },
-        { "name": "GEO score trend vs 26 baseline", "status": "warn", "detail": "Target 70s — blocked until BUG-013 / GEO-01 resolved (schemas currently invisible)" }
+        {
+          "name": "Lighthouse score (Mobile) ≥ 80",
+          "status": "unknown",
+          "detail": "Run from PageSpeed Insights"
+        },
+        {
+          "name": "Core Web Vitals — LCP, CLS, INP — all green",
+          "status": "unknown",
+          "detail": "Field data from Search Console"
+        },
+        {
+          "name": "Search Console — no manual actions / coverage drops",
+          "status": "unknown",
+          "detail": "Weekly check"
+        },
+        {
+          "name": "GEO score trend vs 26 baseline",
+          "status": "warn",
+          "detail": "Target 70s — blocked until BUG-013 / GEO-01 resolved (schemas currently invisible)"
+        }
       ]
     },
     {
       "group": "Security & access",
       "items": [
-        { "name": "API keys in .env.local + Netlify env (not committed)", "status": "pass", "detail": "REBRICKABLE_API_KEY, BRICKSET_API_KEY" },
-        { "name": "GitHub repo access reviewed", "status": "unknown", "detail": "Quarterly review" },
-        { "name": "Netlify team membership reviewed", "status": "unknown", "detail": "Quarterly review" },
-        { "name": "No exposed admin routes", "status": "unknown", "detail": "admin/dashboard.html placed in repo, disallowed in robots.ts — not yet auth-gated. Confirm /admin/* requires auth before linking publicly." },
-        { "name": "Cloudflare 2FA enabled on account", "status": "pass", "detail": "Verified manually by operator 2026-05-02. Recovery codes saved." },
-        { "name": "Cloudflare SSL/TLS mode is Full (strict), not Flexible", "status": "pass", "detail": "Full Strict confirmed manually by operator 2026-05-02." },
-        { "name": "Cloudflare API tokens reviewed (none exposed in repo)", "status": "unknown", "detail": "Quarterly review alongside other API key/access audits" }
+        {
+          "name": "API keys in .env.local + Netlify env (not committed)",
+          "status": "pass",
+          "detail": "REBRICKABLE_API_KEY, BRICKSET_API_KEY"
+        },
+        {
+          "name": "GitHub repo access reviewed",
+          "status": "unknown",
+          "detail": "Quarterly review"
+        },
+        {
+          "name": "Netlify team membership reviewed",
+          "status": "unknown",
+          "detail": "Quarterly review"
+        },
+        {
+          "name": "No exposed admin routes",
+          "status": "unknown",
+          "detail": "admin/dashboard.html placed in repo, disallowed in robots.ts — not yet auth-gated. Confirm /admin/* requires auth before linking publicly."
+        },
+        {
+          "name": "Cloudflare 2FA enabled on account",
+          "status": "pass",
+          "detail": "Verified manually by operator 2026-05-02. Recovery codes saved."
+        },
+        {
+          "name": "Cloudflare SSL/TLS mode is Full (strict), not Flexible",
+          "status": "pass",
+          "detail": "Full Strict confirmed manually by operator 2026-05-02."
+        },
+        {
+          "name": "Cloudflare API tokens reviewed (none exposed in repo)",
+          "status": "unknown",
+          "detail": "Quarterly review alongside other API key/access audits"
+        }
       ]
     }
   ],
   "stack": [
-    { "name": "Cloudflare", "purpose": "DNS authority + CDN proxy + DDoS protection in front of Netlify origin. Mumbai edge node serves Indian audience with ~10ms edge latency.", "auth": "Account login (email + password + 2FA)", "credLocation": "Cloudflare dashboard", "criticality": "critical", "category": "Hosting" },
-    { "name": "Netlify", "purpose": "Origin server — Next.js build, hosting, deploy pipeline. Sits behind Cloudflare proxy. No longer authoritative for DNS.", "auth": "GitHub OAuth", "credLocation": "Netlify dashboard", "criticality": "critical", "category": "Hosting" },
-    { "name": "GitHub Actions", "purpose": "Build + deploy cron (deploy.yml) + price scraper cron (scrape-prices.yml) + catalogue sync (sync-catalogue.yml) + catalogue audit (catalogue-audit.yml)", "auth": "GitHub repo", "credLocation": "Repo secrets", "criticality": "critical", "category": "CI/CD" },
-    { "name": "Supabase (Postgres)", "purpose": "Indian store inventory + price database", "auth": "Service role key", "credLocation": ".env.local + Netlify env", "criticality": "critical", "category": "Database" },
-    { "name": "Rebrickable API", "purpose": "Global LEGO set catalog, primary search source", "auth": "API key", "credLocation": "REBRICKABLE_API_KEY", "criticality": "critical", "category": "Data API" },
-    { "name": "Brickset API", "purpose": "Set metadata, retirement status, image URLs", "auth": "API key", "credLocation": "BRICKSET_API_KEY", "criticality": "high", "category": "Data API" },
-    { "name": "Toycra (products.json)", "purpose": "Indian inventory + INR pricing scraper", "auth": "Public Shopify endpoint", "credLocation": "—", "criticality": "high", "category": "Scraper" },
-    { "name": "MyBrickHouse (products.json)", "purpose": "Indian inventory + INR pricing scraper", "auth": "Public Shopify endpoint", "credLocation": "—", "criticality": "high", "category": "Scraper" },
-    { "name": "Jaiman Toys (products.json)", "purpose": "Indian inventory + INR pricing scraper", "auth": "Public Shopify endpoint", "credLocation": "—", "criticality": "medium", "category": "Scraper" },
-    { "name": "ImprovMX", "purpose": "Email forwarding to Gmail", "auth": "Account login", "credLocation": "ImprovMX dashboard", "criticality": "medium", "category": "Email" },
-    { "name": "Claude API (Anthropic)", "purpose": "Strategic planning, brief generation, code review (this chat layer).", "auth": "API key", "credLocation": "Claude.ai / Anthropic console", "criticality": "high", "category": "AI" },
-    { "name": "Google Gemini 2.5 Flash-Lite", "purpose": "Topical Radar drafter (RADAR-04) — BOI-voice article drafts from RSS items. Free tier: 1,000 RPD.", "auth": "API key", "credLocation": "GEMINI_API_KEY (GitHub Secrets + .env.local)", "criticality": "high", "category": "AI" },
-    { "name": "ElevenLabs", "purpose": "Voice clone for video narration (testing)", "auth": "API key", "credLocation": "Pending VOICE-01 outcome", "criticality": "medium", "category": "AI" },
-    { "name": "Brickset RSS", "purpose": "Topical Radar source feed", "auth": "Public", "credLocation": "—", "criticality": "medium", "category": "RSS source" },
-    { "name": "The Brothers Brick RSS", "purpose": "Topical Radar source feed", "auth": "Public", "credLocation": "—", "criticality": "medium", "category": "RSS source" },
-    { "name": "New Elementary RSS", "purpose": "Topical Radar source feed", "auth": "Public", "credLocation": "—", "criticality": "medium", "category": "RSS source" },
-    { "name": "BrickNerd RSS", "purpose": "Topical Radar source feed", "auth": "Public", "credLocation": "—", "criticality": "medium", "category": "RSS source" },
-    { "name": "Reddit r/lego JSON", "purpose": "Topical Radar — posts >500 upvotes", "auth": "Public", "credLocation": "—", "criticality": "low", "category": "RSS source" },
-    { "name": "YouTube RSS (selected channels)", "purpose": "Topical Radar source feed", "auth": "Public", "credLocation": "—", "criticality": "low", "category": "RSS source" },
-    { "name": "Toycra affiliate (code ABHINAV12)", "purpose": "Affiliate revenue, currently untracked", "auth": "Affiliate program", "credLocation": "—", "criticality": "medium", "category": "Monetization" }
+    {
+      "name": "Cloudflare",
+      "purpose": "DNS authority + CDN proxy + DDoS protection in front of Netlify origin. Mumbai edge node serves Indian audience with ~10ms edge latency.",
+      "auth": "Account login (email + password + 2FA)",
+      "credLocation": "Cloudflare dashboard",
+      "criticality": "critical",
+      "category": "Hosting"
+    },
+    {
+      "name": "Netlify",
+      "purpose": "Origin server — Next.js build, hosting, deploy pipeline. Sits behind Cloudflare proxy. No longer authoritative for DNS.",
+      "auth": "GitHub OAuth",
+      "credLocation": "Netlify dashboard",
+      "criticality": "critical",
+      "category": "Hosting"
+    },
+    {
+      "name": "GitHub Actions",
+      "purpose": "Build + deploy cron (deploy.yml) + price scraper cron (scrape-prices.yml) + catalogue sync (sync-catalogue.yml) + catalogue audit (catalogue-audit.yml)",
+      "auth": "GitHub repo",
+      "credLocation": "Repo secrets",
+      "criticality": "critical",
+      "category": "CI/CD"
+    },
+    {
+      "name": "Supabase (Postgres)",
+      "purpose": "Indian store inventory + price database",
+      "auth": "Service role key",
+      "credLocation": ".env.local + Netlify env",
+      "criticality": "critical",
+      "category": "Database"
+    },
+    {
+      "name": "Rebrickable API",
+      "purpose": "Global LEGO set catalog, primary search source",
+      "auth": "API key",
+      "credLocation": "REBRICKABLE_API_KEY",
+      "criticality": "critical",
+      "category": "Data API"
+    },
+    {
+      "name": "Brickset API",
+      "purpose": "Set metadata, retirement status, image URLs",
+      "auth": "API key",
+      "credLocation": "BRICKSET_API_KEY",
+      "criticality": "high",
+      "category": "Data API"
+    },
+    {
+      "name": "Toycra (products.json)",
+      "purpose": "Indian inventory + INR pricing scraper",
+      "auth": "Public Shopify endpoint",
+      "credLocation": "—",
+      "criticality": "high",
+      "category": "Scraper"
+    },
+    {
+      "name": "MyBrickHouse (products.json)",
+      "purpose": "Indian inventory + INR pricing scraper",
+      "auth": "Public Shopify endpoint",
+      "credLocation": "—",
+      "criticality": "high",
+      "category": "Scraper"
+    },
+    {
+      "name": "Jaiman Toys (products.json)",
+      "purpose": "Indian inventory + INR pricing scraper",
+      "auth": "Public Shopify endpoint",
+      "credLocation": "—",
+      "criticality": "medium",
+      "category": "Scraper"
+    },
+    {
+      "name": "ImprovMX",
+      "purpose": "Email forwarding to Gmail",
+      "auth": "Account login",
+      "credLocation": "ImprovMX dashboard",
+      "criticality": "medium",
+      "category": "Email"
+    },
+    {
+      "name": "Claude API (Anthropic)",
+      "purpose": "Strategic planning, brief generation, code review (this chat layer).",
+      "auth": "API key",
+      "credLocation": "Claude.ai / Anthropic console",
+      "criticality": "high",
+      "category": "AI"
+    },
+    {
+      "name": "Google Gemini 2.5 Flash-Lite",
+      "purpose": "Topical Radar drafter (RADAR-04) — BOI-voice article drafts from RSS items. Free tier: 1,000 RPD.",
+      "auth": "API key",
+      "credLocation": "GEMINI_API_KEY (GitHub Secrets + .env.local)",
+      "criticality": "high",
+      "category": "AI"
+    },
+    {
+      "name": "ElevenLabs",
+      "purpose": "Voice clone for video narration (testing)",
+      "auth": "API key",
+      "credLocation": "Pending VOICE-01 outcome",
+      "criticality": "medium",
+      "category": "AI"
+    },
+    {
+      "name": "Brickset RSS",
+      "purpose": "Topical Radar source feed",
+      "auth": "Public",
+      "credLocation": "—",
+      "criticality": "medium",
+      "category": "RSS source"
+    },
+    {
+      "name": "The Brothers Brick RSS",
+      "purpose": "Topical Radar source feed",
+      "auth": "Public",
+      "credLocation": "—",
+      "criticality": "medium",
+      "category": "RSS source"
+    },
+    {
+      "name": "New Elementary RSS",
+      "purpose": "Topical Radar source feed",
+      "auth": "Public",
+      "credLocation": "—",
+      "criticality": "medium",
+      "category": "RSS source"
+    },
+    {
+      "name": "BrickNerd RSS",
+      "purpose": "Topical Radar source feed",
+      "auth": "Public",
+      "credLocation": "—",
+      "criticality": "medium",
+      "category": "RSS source"
+    },
+    {
+      "name": "Reddit r/lego JSON",
+      "purpose": "Topical Radar — posts >500 upvotes",
+      "auth": "Public",
+      "credLocation": "—",
+      "criticality": "low",
+      "category": "RSS source"
+    },
+    {
+      "name": "YouTube RSS (selected channels)",
+      "purpose": "Topical Radar source feed",
+      "auth": "Public",
+      "credLocation": "—",
+      "criticality": "low",
+      "category": "RSS source"
+    },
+    {
+      "name": "Toycra affiliate (code ABHINAV12)",
+      "purpose": "Affiliate revenue, currently untracked",
+      "auth": "Affiliate program",
+      "credLocation": "—",
+      "criticality": "medium",
+      "category": "Monetization"
+    }
   ],
   "cadence": [
-    { "feature": "GitHub Actions build + deploy to Netlify", "frequency": "Per push to main", "mode": "auto", "owner": "GitHub Actions → netlify-cli deploy", "notes": "INFRA-03 done 2026-04-24. Build runs on GHA, artifact deployed to Netlify CDN via netlify-cli." },
-    { "feature": "Toycra scraper", "frequency": "Every 6h (00:00, 06:00, 12:00, 18:00 UTC)", "mode": "auto", "owner": "GitHub Actions — scrape-prices.yml", "notes": "Live since INFRA-03. All 3 stores run in single combined cron." },
-    { "feature": "MyBrickHouse scraper", "frequency": "Every 6h (00:00, 06:00, 12:00, 18:00 UTC)", "mode": "auto", "owner": "GitHub Actions — scrape-prices.yml", "notes": "Live since INFRA-03. All 3 stores run in single combined cron." },
-    { "feature": "Jaiman Toys scraper", "frequency": "Every 6h (00:00, 06:00, 12:00, 18:00 UTC)", "mode": "auto", "owner": "GitHub Actions — scrape-prices.yml", "notes": "Live since INFRA-03. All 3 stores run in single combined cron." },
-    { "feature": "Rebrickable catalogue sync", "frequency": "Weekly Sunday 02:00 UTC (07:30 IST)", "mode": "auto", "owner": "GitHub Actions cron 0 2 * * 0 — sync-catalogue.yml", "notes": "~26k Rebrickable entries → ~10k unique sets after dedup. Row assertion ≥ 8,000. Opens GitHub issue on failure." },
-    { "feature": "Catalogue health audit", "frequency": "Weekly Monday 03:30 UTC (09:00 IST)", "mode": "auto", "owner": "GitHub Actions cron 30 3 * * 1 — catalogue-audit.yml", "notes": "Checks row count, image coverage, scraper staleness, live search + theme pages. Opens GitHub issue on failure." },
-    { "feature": "Topical Radar (RADAR-01 + RADAR-02)", "frequency": "Daily 23:00 IST (17:30 UTC)", "mode": "auto", "owner": "GitHub Actions — radar.yml", "notes": "Live — PR #2 merged 2026-05-09. Chains fetch-rss.js → dedupe-signals.js. 163 signals as of 2026-05-09T06:07 UTC." },
-    { "feature": "Morning brief email", "frequency": "Daily 08:00 IST", "mode": "auto", "owner": "RADAR-01 follow-on", "notes": "Pending deploy" },
-    { "feature": "Cloudflare cache purge on deploy", "frequency": "Per deploy (no-op currently — cf-cache-status DYNAMIC)", "mode": "auto", "owner": "Becomes relevant only after PERF-01", "notes": "Will need GitHub Actions step calling Cloudflare API after Netlify deploy completes" },
-    { "feature": "Article publish (news)", "frequency": "2x per week", "mode": "hybrid", "owner": "Abhinav drafts → auto-publish on lint pass", "notes": "WEB-01 pipeline" },
-    { "feature": "Article publish (reviews)", "frequency": "1x per week", "mode": "hybrid", "owner": "Abhinav drafts → auto-publish on lint pass", "notes": "WEB-01 pipeline" },
-    { "feature": "Long-form YouTube video", "frequency": "1x per week", "mode": "manual", "owner": "Abhinav", "notes": "DaVinci Resolve" },
-    { "feature": "News videos (Shorts)", "frequency": "2x per week", "mode": "manual", "owner": "Abhinav", "notes": "DaVinci Resolve" },
-    { "feature": "Shorts/Reels", "frequency": "3x per week", "mode": "manual", "owner": "Abhinav", "notes": "Pending VOICE-01 outcome" },
-    { "feature": "Instagram carousels", "frequency": "3x per week", "mode": "manual", "owner": "Abhinav", "notes": "Canva 7-slide template" },
-    { "feature": "Image attribution check", "frequency": "Per PR", "mode": "auto", "owner": "Lint gate", "notes": "Image URLs return 200" },
-    { "feature": "Light health check", "frequency": "Weekly (Sunday)", "mode": "manual", "owner": "Abhinav (proposed)", "notes": "Run audit checklist groups: Uptime, Functional CTAs, Pipeline" },
-    { "feature": "Deep audit", "frequency": "Monthly", "mode": "manual", "owner": "Abhinav (proposed)", "notes": "Full checklist incl. GEO, performance, security" },
-    { "feature": "GEO score re-baseline", "frequency": "Quarterly", "mode": "manual", "owner": "Abhinav (proposed)", "notes": "Independent re-run of original GEO audit" },
-    { "feature": "Social automation (BOI Social Automation)", "frequency": "Daily 06:30 UTC (12:00 IST)", "mode": "auto", "owner": "GitHub Actions — social-automation.yml", "notes": "Live since 2026-05-24. Selects new LEGO set → generates 10 product images + Reels video + Shorts video → posts to IG Feed, IG Reels, YouTube Shorts. India defense check prevents sets already in Indian stores from posting. Monitoring via Resend success/failure email." },
-    { "feature": "Affiliate link integrity sweep", "frequency": "Weekly (proposed)", "mode": "manual", "owner": "Abhinav", "notes": "Confirm Toycra code resolves and merchant URLs alive" },
-    { "feature": "API key + access review", "frequency": "Quarterly", "mode": "manual", "owner": "Abhinav", "notes": "Repo, Netlify, Cloudflare, Supabase, Rebrickable, Brickset" },
-    { "feature": "Cloudflare 2FA + access review", "frequency": "Quarterly", "mode": "manual", "owner": "Abhinav", "notes": "Same review pass as other API key/access audits" }
+    {
+      "feature": "GitHub Actions build + deploy to Netlify",
+      "frequency": "Per push to main",
+      "mode": "auto",
+      "owner": "GitHub Actions → netlify-cli deploy",
+      "notes": "INFRA-03 done 2026-04-24. Build runs on GHA, artifact deployed to Netlify CDN via netlify-cli."
+    },
+    {
+      "feature": "Toycra scraper",
+      "frequency": "Every 6h (00:00, 06:00, 12:00, 18:00 UTC)",
+      "mode": "auto",
+      "owner": "GitHub Actions — scrape-prices.yml",
+      "notes": "Live since INFRA-03. All 3 stores run in single combined cron."
+    },
+    {
+      "feature": "MyBrickHouse scraper",
+      "frequency": "Every 6h (00:00, 06:00, 12:00, 18:00 UTC)",
+      "mode": "auto",
+      "owner": "GitHub Actions — scrape-prices.yml",
+      "notes": "Live since INFRA-03. All 3 stores run in single combined cron."
+    },
+    {
+      "feature": "Jaiman Toys scraper",
+      "frequency": "Every 6h (00:00, 06:00, 12:00, 18:00 UTC)",
+      "mode": "auto",
+      "owner": "GitHub Actions — scrape-prices.yml",
+      "notes": "Live since INFRA-03. All 3 stores run in single combined cron."
+    },
+    {
+      "feature": "Rebrickable catalogue sync",
+      "frequency": "Weekly Sunday 02:00 UTC (07:30 IST)",
+      "mode": "auto",
+      "owner": "GitHub Actions cron 0 2 * * 0 — sync-catalogue.yml",
+      "notes": "~26k Rebrickable entries → ~10k unique sets after dedup. Row assertion ≥ 8,000. Opens GitHub issue on failure."
+    },
+    {
+      "feature": "Catalogue health audit",
+      "frequency": "Weekly Monday 03:30 UTC (09:00 IST)",
+      "mode": "auto",
+      "owner": "GitHub Actions cron 30 3 * * 1 — catalogue-audit.yml",
+      "notes": "Checks row count, image coverage, scraper staleness, live search + theme pages. Opens GitHub issue on failure."
+    },
+    {
+      "feature": "Topical Radar (RADAR-01 + RADAR-02)",
+      "frequency": "Daily 23:00 IST (17:30 UTC)",
+      "mode": "auto",
+      "owner": "GitHub Actions — radar.yml",
+      "notes": "Live — PR #2 merged 2026-05-09. Chains fetch-rss.js → dedupe-signals.js. 163 signals as of 2026-05-09T06:07 UTC."
+    },
+    {
+      "feature": "Morning brief email",
+      "frequency": "Daily 08:00 IST",
+      "mode": "auto",
+      "owner": "RADAR-01 follow-on",
+      "notes": "Pending deploy"
+    },
+    {
+      "feature": "Cloudflare cache purge on deploy",
+      "frequency": "Per deploy (no-op currently — cf-cache-status DYNAMIC)",
+      "mode": "auto",
+      "owner": "Becomes relevant only after PERF-01",
+      "notes": "Will need GitHub Actions step calling Cloudflare API after Netlify deploy completes"
+    },
+    {
+      "feature": "Article publish (news)",
+      "frequency": "2x per week",
+      "mode": "hybrid",
+      "owner": "Abhinav drafts → auto-publish on lint pass",
+      "notes": "WEB-01 pipeline"
+    },
+    {
+      "feature": "Article publish (reviews)",
+      "frequency": "1x per week",
+      "mode": "hybrid",
+      "owner": "Abhinav drafts → auto-publish on lint pass",
+      "notes": "WEB-01 pipeline"
+    },
+    {
+      "feature": "Long-form YouTube video",
+      "frequency": "1x per week",
+      "mode": "manual",
+      "owner": "Abhinav",
+      "notes": "DaVinci Resolve"
+    },
+    {
+      "feature": "News videos (Shorts)",
+      "frequency": "2x per week",
+      "mode": "manual",
+      "owner": "Abhinav",
+      "notes": "DaVinci Resolve"
+    },
+    {
+      "feature": "Shorts/Reels",
+      "frequency": "3x per week",
+      "mode": "manual",
+      "owner": "Abhinav",
+      "notes": "Pending VOICE-01 outcome"
+    },
+    {
+      "feature": "Instagram carousels",
+      "frequency": "3x per week",
+      "mode": "manual",
+      "owner": "Abhinav",
+      "notes": "Canva 7-slide template"
+    },
+    {
+      "feature": "Image attribution check",
+      "frequency": "Per PR",
+      "mode": "auto",
+      "owner": "Lint gate",
+      "notes": "Image URLs return 200"
+    },
+    {
+      "feature": "Light health check",
+      "frequency": "Weekly (Sunday)",
+      "mode": "manual",
+      "owner": "Abhinav (proposed)",
+      "notes": "Run audit checklist groups: Uptime, Functional CTAs, Pipeline"
+    },
+    {
+      "feature": "Deep audit",
+      "frequency": "Monthly",
+      "mode": "manual",
+      "owner": "Abhinav (proposed)",
+      "notes": "Full checklist incl. GEO, performance, security"
+    },
+    {
+      "feature": "GEO score re-baseline",
+      "frequency": "Quarterly",
+      "mode": "manual",
+      "owner": "Abhinav (proposed)",
+      "notes": "Independent re-run of original GEO audit"
+    },
+    {
+      "feature": "Social automation (BOI Social Automation)",
+      "frequency": "Daily 06:30 UTC (12:00 IST)",
+      "mode": "auto",
+      "owner": "GitHub Actions — social-automation.yml",
+      "notes": "Live since 2026-05-24. Selects new LEGO set → generates 10 product images + Reels video + Shorts video → posts to IG Feed, IG Reels, YouTube Shorts. India defense check prevents sets already in Indian stores from posting. Monitoring via Resend success/failure email."
+    },
+    {
+      "feature": "Affiliate link integrity sweep",
+      "frequency": "Weekly (proposed)",
+      "mode": "manual",
+      "owner": "Abhinav",
+      "notes": "Confirm Toycra code resolves and merchant URLs alive"
+    },
+    {
+      "feature": "API key + access review",
+      "frequency": "Quarterly",
+      "mode": "manual",
+      "owner": "Abhinav",
+      "notes": "Repo, Netlify, Cloudflare, Supabase, Rebrickable, Brickset"
+    },
+    {
+      "feature": "Cloudflare 2FA + access review",
+      "frequency": "Quarterly",
+      "mode": "manual",
+      "owner": "Abhinav",
+      "notes": "Same review pass as other API key/access audits"
+    }
   ]
-}
-</script>
+}</script>
 
 <!-- =================================================================== -->
 <!--  HEADER                                                              -->

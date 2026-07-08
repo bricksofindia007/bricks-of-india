@@ -126,11 +126,21 @@ export async function buildIndiaPriceContext(
 
   const { data: setRow } = await supabase
     .from('sets')
-    .select('lego_mrp_inr')
+    .select('lego_mrp_inr, mrp_verified')
     .eq('set_number', setNumber)
     .maybeSingle();
-  if (setRow?.lego_mrp_inr) {
-    return `INDIA PRICE DATA: Estimated India price ₹${fmtInr(Number(setRow.lego_mrp_inr))} (converted from US retail; no live store prices, no confirmed India MRP). Present this as an estimate — "expect around ₹X" — NEVER as the official MRP. Mention Toycra / MyBrickHouse may list it within 4–6 weeks.`;
+
+  // mrp_verified=true means this figure was directly confirmed against a
+  // live retailer-labeled MRP (see mrp-fix-apply-2026-07-09.mjs) -- safe to
+  // present as the real MRP. mrp_verified=false (the default for every
+  // pre-2026-07-09 populate-mrp.js row) means it's a currency-converted US
+  // estimate that root-cause analysis found systemically wrong (476/646
+  // cross-checked sets disagreed with real India MRP) -- do not feed it to
+  // the model at all; fall through to the no-data branches below so the
+  // article is honest about not knowing the India price, rather than
+  // computing a verdict against a number already known to be suspect.
+  if (setRow?.lego_mrp_inr && setRow.mrp_verified) {
+    return `INDIA PRICE DATA: Confirmed India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (retailer-labeled, verified live). Use this exact figure.`;
   }
 
   const rate = await fetchLiveUsdInr();

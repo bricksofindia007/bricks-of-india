@@ -12,6 +12,55 @@ const nextConfig = {
         destination: '/sets',
         permanent: true,
       },
+      // Duplicate-article cleanup, 2026-07-08 (VERDICT-RULE-01 / duplicate_title
+      // backlog) -- these 5 news_articles rows were deleted as duplicates.
+      // Selection rule: real image beats fallback image regardless of slug
+      // naming; if tied, earliest published_at wins.
+      {
+        source: '/news/lego-darth-vader-bust-75439-worth-5499',
+        destination: '/news/lego-darth-vader-bust-75439-worth-5499-2',
+        permanent: true,
+      },
+      {
+        source: '/news/lego-dinosaur-fossils-triceratops-77985-worth-10999-2',
+        destination: '/news/lego-dinosaur-fossils-triceratops-77985-worth-10999',
+        permanent: true,
+      },
+      {
+        source: '/news/build-your-own-mtron-mobile-moon-base-with-free-instructions',
+        destination: '/news/build-your-own-mtron-mobile-moon-base-for-free-no-set-number',
+        permanent: true,
+      },
+      {
+        source: '/news/build-your-own-mtron-moon-base-with-free-instructions',
+        destination: '/news/build-your-own-mtron-mobile-moon-base-for-free-no-set-number',
+        permanent: true,
+      },
+      {
+        source: '/news/free-mtron-mobile-moon-base-moc-build-your-own-retro-rover-n',
+        destination: '/news/build-your-own-mtron-mobile-moon-base-for-free-no-set-number',
+        permanent: true,
+      },
+      {
+        source: '/news/weapon-wednesday-lego-miniweapons-turn-instagram-into-a-ritu',
+        destination: '/news/weapon-wednesday-tiny-lego-weapons-knolling-rituals-what-ind',
+        permanent: true,
+      },
+      {
+        source: '/news/weapon-wednesday-and-lego-rituals-what-indian-fans-need-to-k',
+        destination: '/news/weapon-wednesday-tiny-lego-weapons-knolling-rituals-what-ind',
+        permanent: true,
+      },
+      {
+        source: '/news/weapon-wednesday-tiny-lego-weapons-find-a-home',
+        destination: '/news/weapon-wednesday-tiny-lego-weapons-knolling-rituals-what-ind',
+        permanent: true,
+      },
+      {
+        source: '/news/lego-sega-genesis-mini-console-3500-or-a-painful-surprise',
+        destination: '/news/lego-sega-genesis-mini-console-3500-or-a-wallet-meltdown',
+        permanent: true,
+      },
     ];
   },
   images: {
