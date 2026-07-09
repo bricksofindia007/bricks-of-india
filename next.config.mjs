@@ -96,6 +96,20 @@ const nextConfig = {
         destination: '/news/big-bike-energy-lego-set-11380-road-bike-rolls-in',
         permanent: true,
       },
+      // Found 2026-07-09 during a user-requested re-verification: the
+      // original §2b search only ever matched slugs containing "11380",
+      // so this 5th Road Bike article (no "11380" in its slug, set_number
+      // never linked) was missed entirely and never evaluated. It's a
+      // genuine duplicate of the-lego-road-bike-11380-worth-your-emi-in-
+      // india -- both are pre-launch teasers for set 11380, published 10
+      // minutes apart on 2026-05-09. Wrong image (Brickset's auto-generated
+      // article-OG-image proxy, not a real product photo) beats the
+      // survivor's real Rebrickable product image regardless of timing.
+      {
+        source: '/news/lego-icons-road-bike-rolls-into-india-a-17500-test-of-patien',
+        destination: '/news/the-lego-road-bike-11380-worth-your-emi-in-india',
+        permanent: true,
+      },
       {
         source: '/news/woah-an-alternate-bossks-houndstooth-from-the-ucs-sailbarge-',
         destination: '/news/bossks-houndstooth-from-jabbas-sailbarge-set-75397-gets-a-cr',

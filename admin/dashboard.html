@@ -556,7 +556,7 @@
   "meta": {
     "lastUpdated": "2026-07-09",
     "trackerVersion": "v1.6",
-    "currentSprint": "DEFECT-019: reviews table first full CQS pass -- rating/verdict decoupled generator-side (new draft_rating column), 13 duplicate openers rewritten, no set_number mislinks, stale/false-positive CQS rows cleaned up."
+    "currentSprint": "DEFECT-020: 5th Road Bike duplicate found via user-requested re-verification (query scope gap, not env split), fixed; all other duplicate groups broadly re-checked, all clean."
   },
   "kpis": {
     "healthScore": 85,
@@ -587,6 +587,16 @@
     ]
   },
   "issues": [
+    {
+      "id": "DEFECT-020",
+      "issue": "Sec2b Road Bike duplicate-article group had a 5th article the original cleanup missed entirely -- lego-icons-road-bike-rolls-into-india-a-17500-test-of-patien, no 11380 in its slug and no set_number linked, so it never surfaced in any discovery query",
+      "rootCause": "Every Sec2b discovery query for this group matched slugs containing literal 11380 -- this sibling used a different slug pattern (title-based, not set-number-based) and had never been linked to sets via set_number, so it was invisible to that search. Found only because Abhinav asked for a raw re-run of the discovery query against the same connection to rule out an environment split or a delete that silently never ran -- neither was true; same project throughout, original delete confirmed correctly applied.",
+      "solution": "Confirmed genuine duplicate: pre-launch teaser for set 11380 published 10 minutes before the-lego-road-bike-11380-worth-your-emi-in-india, which had been assessed as legitimately-different content without knowing this sibling existed. Wrong-image rule applied regardless of timing -- deleted row used a Brickset auto-generated article-OG-image proxy, not a real product photo; survivor has a genuine Rebrickable image. Deleted + redirected. Given the root cause was a search-scope gap, broadly re-checked every other resolved duplicate group (this session plus the original 6) by title keyword across the whole table -- all clean, exactly one survivor each.",
+      "deployedOn": "2026-07-09",
+      "status": "closed",
+      "priority": "P2",
+      "affects": "news_articles -- 1 more duplicate row removed, search methodology gap identified and checked against every other resolved group"
+    },
     {
       "id": "DEFECT-019",
       "issue": "reviews table (18 rows, powers /reviews) never audited for standard CQS categories -- rating perfectly mirrored verdict with zero independent variation, 13 of 18 articles opened with the same wallet-relief cliche (3 near-word-for-word identical pairs)",
