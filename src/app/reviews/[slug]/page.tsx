@@ -127,7 +127,7 @@ export default async function ReviewPage({ params }: Props) {
             )}
           </div>
           <h1 className="font-heading text-white text-5xl md:text-6xl mb-2">{review.title}</h1>
-          <Byline publishedAt={review.published_at} updatedAt={review.updated_at} />
+          <Byline publishedAt={review.published_at} updatedAt={review.updated_at} onDark />
         </div>
       </div>
 

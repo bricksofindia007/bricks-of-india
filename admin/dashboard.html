@@ -556,7 +556,7 @@
   "meta": {
     "lastUpdated": "2026-07-09",
     "trackerVersion": "v1.6",
-    "currentSprint": "Sec2b duplicate-article cleanup closed: 6 more groups resolved (5 genuine, Road Bike partially applied per content review), 2 wrong-image cases confirmed pre-existing backlog not filter gap, 1 missing redirect fixed (Ideas 21365 was 404ing). 7 new redirects added."
+    "currentSprint": "BUG-016 closed: byline/breadcrumb contrast fix on Reviews dark hero band (~3:1/~1.1:1 -> ~15.9:1/~8.7:1), verified live via local dev on News/Reviews/Blog. Sec2b duplicate cleanup closed (prior entry)."
   },
   "kpis": {
     "healthScore": 85,
@@ -587,6 +587,16 @@
     ]
   },
   "issues": [
+    {
+      "id": "BUG-016",
+      "issue": "Byline metadata text and breadcrumb nearly illegible against the black hero-band background on Reviews article pages",
+      "rootCause": "src/components/content/Byline.tsx hardcodes color: #666 (body text) and color: var(--boi-navy) (#1a2332, author link) with no dark-background variant. Computed contrast against reviews/[slug]/page.tsx bg-dark (#1A1A1A): ~3.0:1 (text) and ~1.1:1 (author link) -- both fail WCAG AA 4.5:1. Confirmed via live screenshot on production. Only the Reviews template wraps Byline in a dark background; News and Blog render it on bg-white where the original colors were already fine.",
+      "solution": "Byline takes a new onDark boolean prop. When true: text rgba(255,255,255,0.85) (~15.9:1), author link var(--color-accent) -- the site's existing saffron brand accent, not an invented color (~8.7:1), separators rgba(255,255,255,0.4). Default behavior unchanged. reviews/[slug]/page.tsx passes onDark. Verified with a local dev server: Reviews now clearly legible, News/Blog screenshots visually unchanged.",
+      "deployedOn": "2026-07-09",
+      "status": "closed",
+      "priority": "P2",
+      "affects": "Reviews page byline/breadcrumb legibility -- accessibility (WCAG AA) and readability"
+    },
     {
       "id": "DEFECT-018",
       "issue": "6 more duplicate-article groups (McLaren 42228, Megatron BrickHeadz, Porco Rosso x3, Road Bike 11380 pair, Jabba alternate-build) found via §2b spot-check, plus 1 missing redirect (Ideas 21365, already deleted in an earlier session but never redirected -- was 404ing)",
