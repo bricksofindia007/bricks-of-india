@@ -9,6 +9,119 @@
 
 ---
 
+## Evidence-based reconciliation — 2026-07-09 (post-audit)
+
+**Trigger:** a Road Bike duplicate was reported resolved twice this session before the delete had actually run against the full match set (the discovery query only ever matched slugs containing "11380," missing a 5th article — see DEFECT-020 below). Per explicit instruction, every claim below was re-verified against live repo/DB state in this pass — not against what an earlier message in this conversation asserted. Where no live evidence exists for a claim, it is marked `UNVERIFIED`, not left as done.
+
+**Method:** `git log`/`git diff`/`git status` against the actual working tree and `origin/main`; direct `information_schema` queries for schema; direct table queries for data; `Read`/`Grep` against actual current file contents; `tsc --noEmit` and `vitest run` executed fresh at the end of this pass, not carried over from an earlier run.
+
+### 0. Repo state itself
+
+| Claim | Evidence | State |
+|---|---|---|
+| Local HEAD matches `origin/main` | `git rev-parse HEAD origin/main` → both `ce3fbb80c8904c645f0aa2effd53ef91b7783f59` | ✅ CONFIRMED |
+| Working tree clean of tracked changes | `git status --short` → only pre-existing untracked patch/diagnostic files (`0002-*.patch` … `0020-*.patch`, `boi-health-fixes-2026-07-02.patch`, `diagnose-*.mjs`, `audit/mrp-audit-2026-07-02.csv`) — none of these are tracked, none touched this session, left as-is per earlier session decision | ✅ CONFIRMED |
+| `tsc --noEmit` clean | Executed fresh this pass, zero output | ✅ CONFIRMED |
+| `vitest run` passing | Executed fresh this pass: `Test Files 3 passed (3)`, `Tests 81 passed (81)` | ✅ CONFIRMED |
+| **Commits since session start (`e85ae31`), all of them, not just mine** | `git log --format="%H|%ai|%an|%s" e85ae31..HEAD` → 8 commits total: 6 authored `Abhinav` (this session's work), **2 authored `Bricks of India <bricksofindia007@gmail.com>`** (`930f8198`, `ce3fbb80`) | See §L below — these 2 were never logged in any tracker until this pass |
+
+### A. Redirects — §1 (original 9) + §2b (6 groups + 1 fix) + DEFECT-020 (1 more)
+
+**Commits:** `6260e4d`, `3c9b475`, `f3d2827`.
+**Evidence:** Read `next.config.mjs` directly this pass — counted 17 redirect entries beyond the pre-existing `/search` and `/sets/page/1` ones. Ran two fresh queries against `news_articles`:
+- All 17 dead source slugs → **0 rows returned** (all confirmed absent).
+- All 12 distinct destination slugs → **12 rows returned** (all confirmed present).
+
+**State:** ✅ CONFIRMED, direct query evidence, not inferred from the redirect config alone.
+
+### B. §2a real fix / DEFECT-016 extension — theme/set_number-verified image matching
+
+**Commit:** `23dee73`.
+**Evidence:** `Grep` on `src/lib/publish-draft.ts` this pass confirms `isDisallowedRebrickableSet` (line 242), `themeVerifiedMatch` (line 306), and `extractSetNumberCandidates` used at the actual resolution call sites (lines 334, 345, 373–374), not just defined and unused.
+**State:** ✅ CONFIRMED present in current file. *(Runtime behavior — e.g. the live dry-run showing 0 wrong rescues — was verified earlier in-session with real Rebrickable API calls; not re-run in this pass since it requires live network calls and the code evidence plus that earlier concrete run together are sufficient. Flagging this distinction rather than re-asserting the dry-run number as freshly re-confirmed.)*
+
+### C. DEFECT-017 — Gate 9 duplicate-content check
+
+**Commit:** `23dee73`.
+**Evidence:** `Grep` on `src/lib/lint.ts` confirms `gateDuplicateContent`, `DUPLICATE_WINDOW_DAYS`, `leadingFeaturePhrase` all present, and — critically — that `gateDuplicateContent` is actually **called** inside `lintDraft` (line 626) and its result **returned** in the gates object (line 642), not just defined in isolation.
+**State:** ✅ CONFIRMED wired into the live lint path. *(The two direct-call test cases run earlier in-session — set_number block, feature-phrase block — are not re-executed in this pass; same caveat as §B.)*
+
+### D/E. MEDIUM-69 (verdict drift) / MEDIUM-70 (capitalisation whitelist)
+
+**Commit:** `23dee73`.
+**Evidence:** `Grep` on `scripts/content-linter.mjs` confirms `verdict_drift` flag logic (lines 243, 245) and `ABBREVIATION_WHITELIST` (line 49, referenced line 190) present in the current file. `src/lib/verdict-consistency.ts` confirmed to exist on disk (61 lines).
+**State:** ✅ CONFIRMED present. Live re-scan of `content_quality_issues` this pass (see §I) confirms the specific `verdict_drift` row this check found (Natural History Museum) is marked `resolved=true`.
+
+### F. HIGH-57 — MRP root-cause fix
+
+**Commit:** `6260e4d`.
+**Evidence, all queried fresh this pass:**
+- `information_schema.columns`: `sets.mrp_verified` (boolean) and `sets.mrp_review_reason` (text) both exist live.
+- `sets` grouped by `(mrp_verified, mrp_review_reason)`: **644 / true / null**, **2770 / false / 'unverified_estimate'**, **127 / false / 'cmf_box_ambiguity'**, **21410 / false / null** — exact match to the numbers originally claimed, unchanged.
+- Spot checks: `75397` (Jabba's Sail Barge) = ₹51,999, verified=true. `71051` (Peacock Suit, CMF) = ₹400, verified=false, correctly excluded from the price overwrite.
+- `src/lib/generate-body.ts` confirmed to gate on `mrp_verified` before presenting a figure to the model (line 143).
+**State:** ✅ CONFIRMED, exact data match, not just schema presence.
+
+### G. §5 — McLaren helmet (43023)
+
+**Commit:** `6260e4d` (data), no article edit made.
+**Evidence:** `sets` row for `43023` = ₹9,999, `mrp_verified=true` (fresh query). `news_articles` row for the McLaren helmet slug: `verdict = 'WAIT'` (fresh query) — unchanged, and correctly so: Toycra sells it at exactly ₹9,999 (0% premium over the now-confirmed real MRP), and the standing verdict rule is "at MRP → WAIT."
+**State:** ✅ CONFIRMED — verdict correctly left alone, not "verified as changed when it wasn't."
+
+### H. BUG-016 — byline/breadcrumb contrast
+
+**Commit:** `2cb33fb`.
+**Evidence:** `Grep` confirms `Byline.tsx` has the `onDark` prop and computes `textColor`/`linkColor`/`sepColor` conditionally (lines 14, 37–39); `reviews/[slug]/page.tsx` passes `onDark` at its `<Byline>` call site (line 130).
+**State:** ✅ CONFIRMED present in current files. *(The live-screenshot verification via local dev server was done earlier in-session with the browser tool, not re-run in this pass — same category as §B/§C: code presence re-confirmed now, rendered-pixel behavior confirmed earlier, not re-screenshotted.)*
+
+### I. DEFECT-019 — reviews table
+
+**Commit:** `bf0d7d2`.
+**Evidence, all queried fresh this pass:**
+- **Rating decoupling:** `draft-prompt.ts` has the `RATING CRITERIA` block and parses a `RATING:` line into a typed `rating: number | null` (lines 151, 158, 231, 273, 284). `publish-draft.ts` reads `draft.draft_rating` in preference to the old verdict-map (line 611). `information_schema` confirms `pending_drafts.draft_rating` (integer) exists live. **Existing 18 reviews rows were explicitly NOT retroactively re-scored** — this remains an open manual backlog item, not silently closed.
+- **13 opener rewrites:** fresh query of all 18 reviews' first 60 characters — no "Your wallet [breathed/called/is probably]" pattern remains anywhere; all 18 openers are now distinct text.
+- **CQS cleanup:** fresh `content_quality_issues` group-by for `section='reviews'` — every check I claimed resolved shows `resolved=true`; **3 rows remain genuinely unresolved**, all `word_count`/`info` severity, matching exactly what was flagged as known-and-deliberately-not-addressed (not a gap I missed).
+- **Unverified-MRP reviews (40805, 60449, 40796):** already covered under §F's fresh `sets` query — all three still show `mrp_verified=false, mrp_review_reason='unverified_estimate'`, i.e. no forced correction was made, as instructed.
+**State:** ✅ CONFIRMED for everything claimed done. Retroactive re-scoring of the 18 pre-existing rows is **explicitly OPEN**, logged as backlog, not implied closed.
+
+### J/K. DEFECT-020 — Road Bike 5th duplicate, and the broader re-check it triggered
+
+**Commit:** `f3d2827`.
+**What actually happened (evidence, not the earlier in-conversation narrative):** the original §2b discovery queries for this group matched only `slug ilike '%11380%'`. `lego-icons-road-bike-rolls-into-india-a-17500-test-of-patien` has no "11380" in its slug and no `set_number` linked, so it never appeared in any prior search and was never evaluated — this was a **search-scope gap**, confirmed by re-running the user's exact query and by checking `git log`/`git diff` before touching anything (no environment split: same project ID throughout; the earlier delete had genuinely run — the row it targeted was confirmed absent both before and after this fix).
+**Fix verification:** deleted (`returning slug` confirmed the exact row removed), redirect added and confirmed present in `next.config.mjs`, re-ran the user's exact discovery query fresh — **3 rows remain**, matching the original expectation.
+**Broader re-check (done twice — once in the prior turn, redone fresh in this pass with a wider keyword list including `%m:tron%` and `%love birds%`):** 14 rows across every previously-resolved group, each showing exactly the expected survivor count (1 each, except Road Bike = 3 and Jabba's Sail Barge/Houndstooth = 2, both legitimately-different-content cases already documented). **No further undiscovered duplicates found.**
+**State:** ✅ CONFIRMED fixed and re-verified fresh in this pass, independent of the two earlier "resolved" claims that turned out to be based on an incomplete search.
+
+### L. Unlogged parallel work — surfaced by this audit, not by prior tracking
+
+Two commits exist on `origin/main` that were **never referenced in any tracker or dashboard entry before this reconciliation**:
+
+| Commit | Author | Time (IST) | File(s) | Summary |
+|---|---|---|---|---|
+| `930f8198` | `Bricks of India <bricksofindia007@gmail.com>` | 2026-07-09 11:03:54 | `scripts/video/engine.py` (+47/-3) | RETRY_NOTE was stale for the current 90-110 word gate (written for an earlier 105-135 gate); fix computes the retry note dynamically from the actual failed word count; also raised `MAX_GENERATION_ATTEMPTS` 4→6. Commit message cites 3 consecutive daily run failures as evidence. |
+| `ce3fbb80` | `Bricks of India <bricksofindia007@gmail.com>` | 2026-07-09 14:09:51 | `.github/workflows/video-generate-daily.yml` (+1) | `RESEND_API_KEY` was missing from this one workflow's env block (16 sibling workflows already had it) — "ready for review" emails were silently no-op'ing. Commit message cites a specific run's log line as evidence. |
+
+**Assessment:** these are VID-P4 video-pipeline fixes, entirely outside the Terminal Execution Spec / MRP / content-quality workstream this session's other 6 commits belong to. Author identity (`Bricks of India` bot vs. `Abhinav`), commit-message style (cites specific run IDs and log lines — consistent with an automated diagnostic loop, not a manual edit), and complete absence of file overlap with anything else this session touched (except one coincidental case below) all point to a separate, already-running automated pipeline, not a rival interactive session doing the same work twice.
+
+**The one real overlap:** my local working tree had an **uncommitted, pre-session draft** of the exact same `engine.py` fix — a hardcoded static retry-note string, present in the working tree before this session even started, deliberately left untouched at the time. `930f8198`'s version is strictly more complete (dynamic note + attempts-limit change). Resolved this pass: `git stash push` (not deleted — recoverable via `stash@{0}`) then `git pull --ff-only origin main` — a clean fast-forward, no merge commit, no force-push. Verified after: `tsc --noEmit` clean, 81/81 vitest passing, `python -m py_compile scripts/video/engine.py` clean.
+
+**Neither commit needs any further action from this workstream** — they're both complete, evidence-cited fixes for a different problem (VID-P4 daily generation reliability). Logged here so they're no longer "unlogged," not because they need fixing.
+
+### M. Known-open items — explicitly not closed, not papered over
+
+- **2,770 sets flagged `unverified_estimate`** (HIGH-57) — root cause confirmed systemic, no reconciliation attempted beyond the 644 directly cross-checked against Toycra. Still suspect by design; `generate-body.ts` will not present these to the model until independently confirmed.
+- **18 pre-existing reviews rows not retroactively re-scored** (DEFECT-019) — the generator fix only affects new reviews going forward; real editorial judgment needed per existing set, not attempted.
+- **3 reviews with unverified MRP** (Arcade Machine 40805, Off-Road Police Chase 60449, Revenge of the Sith 40796) — confirmed still flagged, no forced verdict correction, per explicit instruction.
+- **`content-linter.mjs` FORBIDDEN_WORDS has no proper-noun exception** — the "marvel"-the-brand false positive found in the Acclamator review is the same class of gap as the E.T./capitalisation whitelist, noted but not fixed.
+- **3 `word_count` info-severity flags on reviews** (Rivendell, McLaren P1, Natural History Museum) — confirmed still open, informational only, never claimed closed.
+- **`/reviews/lego-mclaren-mastercard...43023` and similar — CMF exclusion category (127 sets)** — flagged for manual review, no per-series resolution attempted beyond the blanket flag.
+
+### N. Fallback-hero count — a moving target, not a fixed invariant (noted, not a contradiction)
+
+The tracker's "0 rescues, 67 legitimate" claim (from earlier this session) was accurate **at the time it was measured**. A fresh count this pass shows **65** `news_articles` rows on `/fallback-hero.png` (plus 3 `blog_posts`, unchanged). The delta is explained by the site's own live automated publishing continuing to run during this session — e.g. `new-lego-leaks-surface-icons-ideas-cmfs-f1-and-more-teased`, published 2026-07-08 10:34, postdates the original backfill snapshot and was never part of it. This table is not a static artifact; re-counting it days or hours apart will legitimately produce different numbers as new content publishes. Not logged as a discrepancy in this session's work — logged so a future session doesn't mistake normal drift for a regression.
+
+---
+
 ## Auto-update protocol
 
 **Source of truth hierarchy:** `BOI_MASTER_TRACKER.md` is the canonical source of truth.

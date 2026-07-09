@@ -556,7 +556,7 @@
   "meta": {
     "lastUpdated": "2026-07-09",
     "trackerVersion": "v1.6",
-    "currentSprint": "DEFECT-020: 5th Road Bike duplicate found via user-requested re-verification (query scope gap, not env split), fixed; all other duplicate groups broadly re-checked, all clean."
+    "currentSprint": "Full evidence-based tracker reconciliation run (triggered by a Road Bike miscount): every claimed-done item this session re-verified against live repo/DB state, not conversation history. All confirmed except explicitly-flagged known-open backlog. 2 previously-unlogged VID-P4 pipeline commits (930f8198, ce3fbb80) found on origin/main and logged for the first time. See BOI_MASTER_TRACKER.md Evidence-based reconciliation section for full detail."
   },
   "kpis": {
     "healthScore": 85,
@@ -587,6 +587,26 @@
     ]
   },
   "issues": [
+    {
+      "id": "VID-P4-FIX-01",
+      "issue": "engine.py RETRY_NOTE told the model to target a word count that itself still failed the real gate",
+      "rootCause": "RETRY_NOTE was written 2026-07-05 for a 105-135 word gate; the gate tightened to 90-110 the next day but the note was never updated. Confirmed against 3 consecutive daily run failures -- 10 of 11 logged attempts landed outside 90-110.",
+      "solution": "Retry note now computed dynamically from the actual failed attempt's word count and the real 90-110 band. MAX_GENERATION_ATTEMPTS raised 4->6 as extra margin.",
+      "deployedOn": "2026-07-09",
+      "status": "closed",
+      "priority": "P3",
+      "affects": "VID-P4 daily video generation -- script regeneration retry loop"
+    },
+    {
+      "id": "VID-P4-FIX-02",
+      "issue": "video-generate-daily.yml missing RESEND_API_KEY in its env block -- ready-for-review emails silently no-op'd",
+      "rootCause": "notifier.py has read RESEND_API_KEY since 2026-07-06; 16 sibling workflows already pass it through via secrets.RESEND_API_KEY. This one workflow's env block was just missing the line.",
+      "solution": "Added the same secrets line used by every sibling workflow. Confirmed live on run #6: log showed the skipped-email message before the fix.",
+      "deployedOn": "2026-07-09",
+      "status": "closed",
+      "priority": "P3",
+      "affects": "VID-P4 daily generation -- operator review-ready notifications"
+    },
     {
       "id": "DEFECT-020",
       "issue": "Sec2b Road Bike duplicate-article group had a 5th article the original cleanup missed entirely -- lego-icons-road-bike-rolls-into-india-a-17500-test-of-patien, no 11380 in its slug and no set_number linked, so it never surfaced in any discovery query",
