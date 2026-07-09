@@ -732,8 +732,44 @@ def get_recent_scripts_excluding(sb, exclude_id: str, n: int = 30) -> list[str]:
     return [row["script"] for row in res.data if row.get("script") and row["id"] != exclude_id][:n]
 
 
-MAX_GENERATION_ATTEMPTS = 4  # initial + 3 retries, per 2026-07-05 word-count fix
-RETRY_NOTE = "Your last attempt was too long. This one must be under 125 words. Cut ruthlessly."
+# Widened 2026-07-09 (Abhinav, explicit) from 4 (initial + 3 retries) to 6
+# (initial + 5 retries), alongside the RETRY_NOTE fix below. The old value
+# was set 2026-07-05 for the then-current 105-135 word gate; the gate was
+# tightened to 90-110 on 2026-07-06 but this budget was never revisited.
+# Extra margin while the fixed retry note proves itself in production.
+MAX_GENERATION_ATTEMPTS = 6
+
+# Root-cause fix, 2026-07-09 (Abhinav, explicit): this used to be a single
+# static RETRY_NOTE -- "must be under 125 words" -- written 2026-07-05 for
+# the gate that existed THAT DAY (105-135 words). The very next day
+# (2026-07-06) the gate was tightened to 90-110, but this note was never
+# updated. Result: every regeneration was told to hit a target ("under
+# 125") that itself still fails the real gate, so the retry loop could
+# never converge. Confirmed live: 3 consecutive daily runs (2026-07-08/09)
+# failed after exactly 4 attempts, 10 of 11 logged attempts landing outside
+# 90-110 (up to 157 words), because the model was faithfully complying with
+# the wrong instruction it was given. Fixed by computing the note from the
+# actual failed attempt's word count and the real 90-110 band, every time.
+GENERIC_RETRY_NOTE = (
+    "Your last attempt failed a quality gate. Re-read the hard rules above "
+    "and try again, especially the 90-110 word count."
+)
+
+
+def _word_count_retry_note(n: int) -> str:
+    if n > 110:
+        return (
+            f"Your last attempt was {n} words -- that FAILS the 90-110 word hard rule "
+            f"(too long by {n - 110}). Cut it down to land inside 90-110: remove "
+            f"qualifying phrases and shorten the story section first, never cut the "
+            f"punchline or the price. Count your words before answering."
+        )
+    return (
+        f"Your last attempt was {n} words -- that FAILS the 90-110 word hard rule "
+        f"(too short by {90 - n}). Add real content to land inside 90-110 -- more story "
+        f"detail, the LEGO fact, or INDIANIZATION texture -- never pad with filler. Count "
+        f"your words before answering."
+    )
 
 
 def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport]:
@@ -743,8 +779,9 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
         res = sb.table("sets").select("pieces, theme").eq("set_number", set_number).limit(1).execute()
         return res.data[0] if res.data else None
 
+    retry_note = None
+    report = None
     for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
-        retry_note = RETRY_NOTE if attempt > 1 else None
         raw_script = generate_script(candidate["title"], candidate["price_inr"], candidate.get("pieces"), candidate.get("theme"), retry_note=retry_note)
         report = gates.run_all_gates(raw_script, candidate.get("pieces"), sets_lookup, recent, candidate["price_inr"])
         if report.all_passed:
@@ -756,6 +793,13 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
             if not r.passed:
                 print(f"  {r.gate}: {r.reason}", file=sys.stderr)
         if attempt < MAX_GENERATION_ATTEMPTS:
+            word_count_failed = next(
+                (r for r in report.results if r.gate == "G1_word_count" and not r.passed), None
+            )
+            if word_count_failed:
+                retry_note = _word_count_retry_note(len(report.sanitized_script.split()))
+            else:
+                retry_note = GENERIC_RETRY_NOTE
             print(f"Regenerating (attempt {attempt + 1}/{MAX_GENERATION_ATTEMPTS})...", file=sys.stderr)
 
     print(f"ERROR: script failed gates {MAX_GENERATION_ATTEMPTS} times. Aborting, not publishing.", file=sys.stderr)
