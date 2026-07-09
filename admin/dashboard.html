@@ -556,7 +556,7 @@
   "meta": {
     "lastUpdated": "2026-07-09",
     "trackerVersion": "v1.6",
-    "currentSprint": "DEFECT-016 extended (theme/set_number-verified image matching, no keyword-overlap-alone). DEFECT-017 closed (Gate 9 pre-publish duplicate check, set_number + topic-stem + feature-phrase). MEDIUM-69 verdict/body drift detection (found+fixed 1 live bug: Natural History Museum). MEDIUM-70 capitalisation whitelist."
+    "currentSprint": "Sec2b duplicate-article cleanup closed: 6 more groups resolved (5 genuine, Road Bike partially applied per content review), 2 wrong-image cases confirmed pre-existing backlog not filter gap, 1 missing redirect fixed (Ideas 21365 was 404ing). 7 new redirects added."
   },
   "kpis": {
     "healthScore": 85,
@@ -587,6 +587,16 @@
     ]
   },
   "issues": [
+    {
+      "id": "DEFECT-018",
+      "issue": "6 more duplicate-article groups (McLaren 42228, Megatron BrickHeadz, Porco Rosso x3, Road Bike 11380 pair, Jabba alternate-build) found via §2b spot-check, plus 1 missing redirect (Ideas 21365, already deleted in an earlier session but never redirected -- was 404ing)",
+      "rootCause": "Same root cause as DEFECT-017 (no pre-publish set_number/topic check) -- these predate Gate 9 shipping. Confirmed via publish-date + full content comparison (not just shared image) per explicit instruction against over-merging: 5 of 6 groups were genuine duplicates; Road Bike 11380 was NOT a blanket duplicate -- 2 of its 4 candidates (a pre-launch teaser and a later substantively-different hands-on review) were legitimately distinct content and left untouched.",
+      "solution": "6 duplicate rows deleted + redirected (same selection rule: correct image beats wrong beats fallback, earliest published_at breaks ties). Megatron survivor had a wrong image on both copies (Hangzhou Brickheadz, not Megatron) -- reverted to fallback after the loser was deleted, since deleting alone does not fix the survivor. 1 missing redirect added for the already-resolved Ideas 21365 case. 7 new next.config.mjs redirects total, same format as the original 9 -- all dead slugs confirmed gone, all destinations confirmed live before commit.",
+      "deployedOn": "2026-07-09",
+      "status": "closed",
+      "priority": "P2",
+      "affects": "news_articles -- 6 duplicate rows removed, 1 wrong image corrected, 1 dead URL fixed"
+    },
     {
       "id": "MEDIUM-69",
       "issue": "missing_verdict CQS check only confirms body has SOME verdict word -- never compares against the verdict column, which can silently disagree",

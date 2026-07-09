@@ -61,6 +61,46 @@ const nextConfig = {
         destination: '/news/lego-sega-genesis-mini-console-3500-or-a-wallet-meltdown',
         permanent: true,
       },
+      // §2b duplicate-article cleanup, 2026-07-09 -- 6 more groups found via
+      // publish-date + content comparison (not just shared image), same
+      // selection rule as above. Plus one missing redirect for a duplicate
+      // resolved in an earlier session but never given a redirect (Ideas
+      // 21365 -- confirmed 404ing until this entry).
+      {
+        source: '/news/lego-ideas-21365-love-birds-seeing-the-birds-for-the-tree-wo',
+        destination: '/news/lego-ideas-21365-love-birds-cute-but-does-it-make-sense-for-',
+        permanent: true,
+      },
+      {
+        source: '/news/lego-technic-42228-mclaren-f1-team-mcl39-review-too-many-car',
+        destination: '/news/lego-technic-42228-mclaren-f1-team-mcl39-worth-24999',
+        permanent: true,
+      },
+      {
+        source: '/news/lego-megatron-brickheadz-your-wallet-is-safe-for-now',
+        destination: '/news/lego-megatron-brickheadz-a-tiny-transformer-for-your-shelf-n',
+        permanent: true,
+      },
+      {
+        source: '/news/lego-porco-rosso-beach-hideout-moc-a-dream-build-for-your-wa',
+        destination: '/news/porco-rosso-beach-hideout-fan-build-is-it-worth-the-indian-w',
+        permanent: true,
+      },
+      {
+        source: '/news/porco-rossos-hideout-your-wallet-needs-this-miyazaki-lego-bu',
+        destination: '/news/porco-rosso-beach-hideout-fan-build-is-it-worth-the-indian-w',
+        permanent: true,
+      },
+      {
+        source: '/news/lego-11380-road-bike-a-2-foot-bicycle-that-costs-12400',
+        destination: '/news/big-bike-energy-lego-set-11380-road-bike-rolls-in',
+        permanent: true,
+      },
+      {
+        source: '/news/woah-an-alternate-bossks-houndstooth-from-the-ucs-sailbarge-',
+        destination: '/news/bossks-houndstooth-from-jabbas-sailbarge-set-75397-gets-a-cr',
+        permanent: true,
+      },
     ];
   },
   images: {
