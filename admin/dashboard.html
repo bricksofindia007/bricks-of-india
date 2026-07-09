@@ -556,7 +556,7 @@
   "meta": {
     "lastUpdated": "2026-07-09",
     "trackerVersion": "v1.6",
-    "currentSprint": "MRP root-cause fix (HIGH-57): 644 sets corrected against live Toycra MRP, mrp_verified flag + CMF exclusion added, generator gated on verification. DEFECT-016 (Rebrickable wrong-image filter) closed. Duplicate-article redirects completed (9/9). Fallback-hero backfill run."
+    "currentSprint": "DEFECT-016 extended (theme/set_number-verified image matching, no keyword-overlap-alone). DEFECT-017 closed (Gate 9 pre-publish duplicate check, set_number + topic-stem + feature-phrase). MEDIUM-69 verdict/body drift detection (found+fixed 1 live bug: Natural History Museum). MEDIUM-70 capitalisation whitelist."
   },
   "kpis": {
     "healthScore": 85,
@@ -588,11 +588,31 @@
   },
   "issues": [
     {
+      "id": "MEDIUM-69",
+      "issue": "missing_verdict CQS check only confirms body has SOME verdict word -- never compares against the verdict column, which can silently disagree",
+      "rootCause": "Two independent write surfaces (verdict column, body marker text) with no enforcement that they stay in sync -- exactly how contradictory verdicts on duplicate articles went undetected for weeks.",
+      "solution": "New verdict_drift CQS check (content-linter.mjs) flags column-set-but-no-body-marker and column-vs-marker disagreement. New enforced write path src/lib/verdict-consistency.ts::updateArticleVerdict() throws VerdictDriftError rather than allowing verdict+body to be written separately/inconsistently. Running the new check against live data immediately found and led to fixing one real bug: lego-10326-natural-history-museum-review (WAIT verdict, no body marker, stale Jaiman-store price citation -- store removed 2026-05-31). Corrected to BUY NOW with real current prices, verified.",
+      "deployedOn": "2026-07-09",
+      "status": "closed",
+      "priority": "P2",
+      "affects": "Every reviews/news_articles row with a verdict column -- prevents future column/body disagreement"
+    },
+    {
+      "id": "DEFECT-017",
+      "issue": "No pre-publish check for duplicate content by set_number or recurring topic -- root cause of 6+ confirmed duplicate-article incidents (Darth Vader Bust, Triceratops, MTRON x4, Weapon Wednesday x5, Sega Genesis)",
+      "rootCause": "RADAR-02 cross-day dedup (dedupe-signals.js Pass 0.5) operates on SOURCE signal titles at ingestion with a 0.75 Jaccard threshold -- never re-checks the generated article against already-published content, and the threshold is far too strict for low-textual-similarity recurring features (real Weapon Wednesday title pairs measured at ~0.18 Jaccard).",
+      "solution": "New Gate 9 (src/lib/lint.ts::gateDuplicateContent), wired into lintDraft (news format only) and enforced at publishOneDraft, the single shared publish choke point. Exact set_number match (60-day window) when the article has one; otherwise an exact leading \"Feature Name:\" phrase match (added because Jaccard alone provably misses Weapon Wednesday-style cases) or >=30% title-token Jaccard (catches MTRON-style cases). A hard fail routes through the existing failed_lint/manual-review path -- no new mechanism needed.",
+      "deployedOn": "2026-07-09",
+      "status": "closed",
+      "priority": "P1",
+      "affects": "Every future news_articles auto-publish -- the actual root cause fix behind the duplicate-article cleanup work"
+    },
+    {
       "id": "DEFECT-016",
-      "issue": "Rebrickable hero-image matching (resolveYouTubeHeroImage) had no filter against non-model catalog categories -- Gear/Books/Stickers/Stationery/Service-Packs/Duplo/Houseware/Mindstorms/Powered-Up items and 13-digit ISBN ids all matched as if they were real set images",
+      "issue": "Rebrickable hero-image matching (resolveYouTubeHeroImage) had no filter against non-model catalog categories -- Gear/Books/Stickers/Stationery/Service-Packs/Duplo/Houseware/Mindstorms/Powered-Up items and 13-digit ISBN ids all matched as if they were real set images -- Extended 2026-07-09: category filter alone was insufficient (a real, correctly-categorized set can still be topically wrong).",
       "rootCause": "Rebrickable models every real LEGO product, not just buildable sets. A numeric set-number or theme-keyword match could land on non-model entries. Confirmed via 6 wrong-image incidents pre-existing (Stickers, a Technic pneumatic part, an Alpha Pen Pack, 4 Books ISBN hits) plus 2 more caught live during this session's dry run (Educational \"Mosaic Set\" re-proposed for the exact article it was already reverted from; a Powered Up hub component).",
-      "solution": "isDisallowedRebrickableSet() added: rejects 13-digit ISBN ids, zero-num_parts matches, and a theme-name blacklist. Verified via dry-run then live application in the fallback-hero backfill -- filter correctly rejected 2 known-bad matches in the same run it approved 1 genuine rescue.",
-      "deployedOn": "2026-07-08",
+      "solution": "isDisallowedRebrickableSet() added: rejects 13-digit ISBN ids, zero-num_parts matches, and a theme-name blacklist. Verified via dry-run then live application in the fallback-hero backfill -- filter correctly rejected 2 known-bad matches in the same run it approved 1 genuine rescue. Extended 2026-07-09: resolveYouTubeHeroImage now requires either an exact set_number match (no fuzzy scanning) or a themeVerifiedMatch() confirming the result set's own Rebrickable theme actually corresponds to the searched keyword -- fixes the confirmed Paris/Architecture-vs-City-theme wrong match. Re-verified: fallback backfill dry-run now yields 0 wrong rescues (down from 1).",
+      "deployedOn": "2026-07-09",
       "status": "closed",
       "priority": "P2",
       "affects": "news_articles/blog_posts hero images resolved via the Rebrickable fallback chain"

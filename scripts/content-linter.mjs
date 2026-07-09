@@ -43,6 +43,13 @@ const BAD_OPENERS = ['So,', 'Okay', 'Alright,', "Let's talk"];
 const VERDICT_WORDS = ['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID'];
 const STORE_NAMES   = ['MyBrickHouse', 'Toycra'];
 const SIGNOFF       = 'On that bombshell';
+// §4b fix: period-bearing abbreviations that legitimately continue
+// mid-sentence in lowercase (checked case-insensitively against the token
+// immediately preceding a flagged period, e.g. "E.T" for "E.T. the ...").
+const ABBREVIATION_WHITELIST = new Set([
+  'e.t', 'u.s', 'u.k', 'mr', 'mrs', 'ms', 'dr', 'st', 'jr', 'sr',
+  'vs', 'etc', 'inc', 'ltd', 'ave', 'no', 'prof', 'gen', 'sgt', 'capt',
+]);
 
 const RUN_AT = new Date().toISOString();
 
@@ -170,9 +177,18 @@ for (const art of all) {
   if (/\n{3,}/.test(body))
     flag(art, 'consecutive_blank_lines', 'info', '3+ consecutive blank lines', true);
 
-  // Capitalisation after period — skip URLs and set numbers
+  // Capitalisation after period — skip URLs, set numbers, and known
+  // abbreviations (§4b fix, 2026-07-08/09: "E.T. the Extra-Terrestrial" was
+  // false-flagged, since the lowercase-after-period rule has no concept of
+  // a period-bearing abbreviation that legitimately continues mid-sentence).
   const capErrors = [...body.matchAll(/\.\s+([a-z])(?=[a-z]{2,})/g)]
-    .filter(m => !/https?:|www\.|[0-9]{4,}/.test(body.slice(Math.max(0, m.index - 20), m.index + 20)));
+    .filter(m => !/https?:|www\.|[0-9]{4,}/.test(body.slice(Math.max(0, m.index - 20), m.index + 20)))
+    .filter(m => {
+      let start = m.index;
+      while (start > 0 && /[A-Za-z.]/.test(body[start - 1])) start--;
+      const token = body.slice(start, m.index).toLowerCase();
+      return !ABBREVIATION_WHITELIST.has(token);
+    });
   for (const m of capErrors.slice(0, 2))
     flag(art, 'capitalisation_error', 'info', `Lowercase after period: "${m[0].slice(0, 40)}"`, true);
 
@@ -213,6 +229,21 @@ for (const art of all) {
 
   if (isNewsOrReview && art.category === 'Review' && !VERDICT_WORDS.some(v => body.includes(v)))
     flag(art, 'missing_verdict', 'critical', 'No verdict found (BUY NOW/WAIT/IMPORT ONLY/AVOID)', true);
+
+  // §4a fix (2026-07-08/09): missing_verdict above only checks the BODY has
+  // *some* verdict word in it — it never compares against the `verdict`
+  // COLUMN, so the two can silently disagree (exactly how contradictory
+  // verdicts on duplicate articles went undetected for weeks). This check
+  // closes that gap: if the column is set, the body's own "Verdict: X"
+  // marker must say the same thing.
+  if (art.verdict) {
+    const bodyVerdictMatch = body.match(/Verdict:\s*(BUY NOW|WAIT|IMPORT ONLY|AVOID)\b/i);
+    const bodyVerdict = bodyVerdictMatch ? bodyVerdictMatch[1].toUpperCase() : null;
+    if (!bodyVerdict)
+      flag(art, 'verdict_drift', 'critical', `verdict column says "${art.verdict}" but body has no "Verdict: X" marker at all`, false);
+    else if (bodyVerdict !== String(art.verdict).toUpperCase())
+      flag(art, 'verdict_drift', 'critical', `verdict column says "${art.verdict}" but body says "${bodyVerdict}"`, false);
+  }
 
   if (isNewsOrReview && ['New Sets', 'India Launches', 'Review'].includes(art.category) && !body.includes('₹'))
     flag(art, 'missing_india_paragraph', 'critical', 'No INR price (₹) found in body', false);

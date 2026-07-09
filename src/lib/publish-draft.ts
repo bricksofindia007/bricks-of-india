@@ -276,12 +276,57 @@ async function isDisallowedRebrickableSet(
   return DISALLOWED_REBRICKABLE_THEMES.some(bad => lower.includes(bad));
 }
 
-// 4-step fallback chain, merged from the more complete actions.ts version:
-//   1. Distinct 4-6 digit set numbers from title+body → Rebrickable set lookup
-//   2. (folded into step 1's loop — kept as a separate numbered step in the
-//      original comments, preserved here for continuity with prior logs)
-//   3. Theme-keyword match → Rebrickable search, first result with an image
-//   4. All chains exhausted → null (caller applies HERO_FALLBACK)
+// Resolves a Rebrickable theme_id to its name, walking one level up via
+// parent_id if present (covers common subtheme cases, e.g. a UCS/Trains
+// subtheme whose own name doesn't repeat the parent theme's name).
+async function resolveThemeNames(themeId: number, rbHdrs: Record<string, string>): Promise<string[]> {
+  const names: string[] = [];
+  try {
+    const res = await fetch(`https://rebrickable.com/api/v3/lego/themes/${themeId}/`, { headers: rbHdrs, signal: AbortSignal.timeout(5000) });
+    if (!res.ok) return names;
+    const data = await res.json() as { name?: string; parent_id?: number | null };
+    if (data.name) names.push(data.name);
+    if (data.parent_id != null) {
+      const pRes = await fetch(`https://rebrickable.com/api/v3/lego/themes/${data.parent_id}/`, { headers: rbHdrs, signal: AbortSignal.timeout(5000) });
+      if (pRes.ok) {
+        const pData = await pRes.json() as { name?: string };
+        if (pData.name) names.push(pData.name);
+      }
+    }
+  } catch { /* best-effort */ }
+  return names;
+}
+
+// A theme-keyword search match is only accepted if the RESULT's own theme
+// (or its immediate parent theme) actually corresponds to the keyword that
+// was searched — not just because the search string happened to appear
+// somewhere in the result's name. Confirmed live failure without this check
+// (2026-07-08): searching theme keyword "City" (from "LEGO City") matched
+// Rebrickable set 21064-1 "Paris – City of Love" — a real, correctly-
+// categorized Architecture set with zero relation to the LEGO City theme,
+// matched purely because the string "City" appears in its name. A
+// well-formed, real, non-disallowed-category match is not sufficient on its
+// own; it must also be topically the right thing.
+async function themeVerifiedMatch(themeId: number | undefined, searchedKeyword: string, rbHdrs: Record<string, string>): Promise<boolean> {
+  if (themeId == null) return false;
+  const names = await resolveThemeNames(themeId, rbHdrs);
+  const keywordLower = searchedKeyword.toLowerCase();
+  return names.some(n => n.toLowerCase() === keywordLower || n.toLowerCase().includes(keywordLower));
+}
+
+// Two valid paths only, per the 2026-07-08 root-cause fix — no image match
+// is ever accepted on keyword overlap alone:
+//   1. Article has a set_number (via extractSetNumberCandidates' precise
+//      contextual patterns — "LEGO 1234", "#1234", "(1234)", etc. — NOT a
+//      blind scan of every 4-6 digit number in free text, which picks up
+//      piece counts, prices, and years). Only that exact set_number's own
+//      page is tried; no fuzzy/closest-match searching, no theme fallback
+//      if it doesn't resolve to a valid image.
+//   2. Article has no set_number (MOC, roundup, editorial) → theme-keyword
+//      search is allowed, but a hit is only accepted if its own Rebrickable
+//      theme (themeVerifiedMatch) actually corresponds to the searched
+//      keyword. If nothing verifies, the honest fallback placeholder is the
+//      correct outcome, not a failure state.
 export async function resolveYouTubeHeroImage(
   title: string | null,
   body: string | null,
@@ -290,31 +335,31 @@ export async function resolveYouTubeHeroImage(
   const rbHdrs: Record<string, string> = { 'User-Agent': UA, ...(rbKey ? { Authorization: `key ${rbKey}` } : {}) };
   const combined = `${title ?? ''} ${body ?? ''}`;
 
-  const seen = new Set<string>();
-  const setNums: string[] = [];
-  const re = /\b(\d{4,6})\b/g;
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(combined)) !== null) {
-    if (!seen.has(m[1])) { seen.add(m[1]); setNums.push(m[1]); }
-  }
-  for (const num of setNums.slice(0, 5)) {
-    try {
-      const res = await fetch(
-        `https://rebrickable.com/api/v3/lego/sets/${num}-1/`,
-        { headers: rbHdrs, signal: AbortSignal.timeout(5000) },
-      );
-      if (res.ok) {
-        const data = await res.json() as { set_num?: string; set_img_url?: string; theme_id?: number; num_parts?: number };
-        if (data.set_img_url) {
-          if (await isDisallowedRebrickableSet(data.set_num ?? `${num}-1`, data.theme_id, data.num_parts, rbHdrs)) {
-            console.log(`[publish:hero] set ${num} rejected — disallowed category/ISBN match`);
-            continue;
+  const setNumberCandidates = extractSetNumberCandidates(combined);
+  if (setNumberCandidates.length > 0) {
+    for (const num of setNumberCandidates.slice(0, 3)) {
+      try {
+        const res = await fetch(
+          `https://rebrickable.com/api/v3/lego/sets/${num}-1/`,
+          { headers: rbHdrs, signal: AbortSignal.timeout(5000) },
+        );
+        if (res.ok) {
+          const data = await res.json() as { set_num?: string; set_img_url?: string; theme_id?: number; num_parts?: number };
+          if (data.set_img_url) {
+            if (await isDisallowedRebrickableSet(data.set_num ?? `${num}-1`, data.theme_id, data.num_parts, rbHdrs)) {
+              console.log(`[publish:hero] set ${num} rejected — disallowed category/ISBN match`);
+              continue;
+            }
+            console.log(`[publish:hero] set ${num} (exact) → ${data.set_img_url.slice(0, 70)}`);
+            return data.set_img_url;
           }
-          console.log(`[publish:hero] set ${num} → ${data.set_img_url.slice(0, 70)}`);
-          return data.set_img_url;
         }
-      }
-    } catch { /* try next set number */ }
+      } catch { /* try next candidate */ }
+    }
+    // Article has a declared set_number but none resolved to a valid image —
+    // per the fix, do NOT fall through to a broader theme search.
+    console.log('[publish:hero] article has set_number candidates but none resolved — no theme-search fallback');
+    return null;
   }
 
   const titleLower = (title ?? '').toLowerCase();
@@ -330,7 +375,11 @@ export async function resolveYouTubeHeroImage(
         for (const hit of data.results ?? []) {
           if (!hit.set_img_url) continue;
           if (await isDisallowedRebrickableSet(hit.set_num ?? '', hit.theme_id, hit.num_parts, rbHdrs)) continue;
-          console.log(`[publish:hero] theme "${theme}" → ${hit.set_img_url.slice(0, 70)}`);
+          if (!(await themeVerifiedMatch(hit.theme_id, theme, rbHdrs))) {
+            console.log(`[publish:hero] theme "${theme}" candidate rejected — result's own theme doesn't verify (set ${hit.set_num})`);
+            continue;
+          }
+          console.log(`[publish:hero] theme "${theme}" (verified) → ${hit.set_img_url.slice(0, 70)}`);
           return hit.set_img_url;
         }
       }
@@ -420,6 +469,7 @@ export function summarizeFailReasons(lint: LintResult): string {
     lint.gates.factuality,
     lint.gates.sourceFidelity,
     lint.gates.openerUniqueness,
+    lint.gates.duplicateContent,
   ]
     .filter((g): g is NonNullable<typeof g> => g !== null && g.severity === 'fail')
     .map(g => g.reason ?? 'gate failure')
@@ -486,6 +536,7 @@ export async function publishOneDraft(
           body:       draft.draft_body || '',
           word_count: draft.word_count,
           verdict:    draft.draft_verdict,
+          title:      draft.draft_title,
           source: {
             source_url:     draft.source_url,
             source_title:   draft.source_title,

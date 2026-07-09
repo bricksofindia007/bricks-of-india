@@ -43,6 +43,7 @@ export type LintResult = {
     factuality:       LintGateResult | null;
     sourceFidelity:   LintGateResult | null;
     openerUniqueness: LintGateResult | null;
+    duplicateContent: LintGateResult | null;
   };
 };
 
@@ -52,6 +53,7 @@ export type LintInput = {
   word_count?: number | null;
   verdict?: string | null;
   source?: SourceContext;   // required for sourceFidelity gate; optional for backward compat
+  title?: string | null;    // required for Gate 9 (duplicateContent); gate no-ops without it
 };
 
 export type LintOptions = {
@@ -217,6 +219,138 @@ export async function gateOpenerUniqueness(
   }
 
   return { pass: true, severity: 'ok' };
+}
+
+// ── Gate 9: duplicate content by set_number / topic-stem ────────────────────
+// §4c fix (2026-07-08/09) — root cause of 6 confirmed duplicate-article
+// incidents (same set, or same recurring topic/feature, published 2-5x over
+// days to weeks: Darth Vader Bust, Triceratops, MTRON x4, Weapon Wednesday
+// x5, Sega Genesis). RADAR-02's existing cross-day dedup (dedupe-signals.js
+// Pass 0.5) operates on SOURCE signal titles at ingestion time with a 0.75
+// Jaccard threshold tuned to avoid over-triggering across stylistically
+// different outlets — it never re-checks the GENERATED article against
+// what's already published, and its threshold is too strict for
+// low-textual-similarity recurring features: real Weapon Wednesday title
+// pairs Jaccard around 0.25, well under 0.75, which is exactly why that
+// cluster went undetected for 5 published copies. This gate is a second,
+// later check specifically for that gap:
+//   1. Article has a set_number (own title+body) -> hard fail if a
+//      news_articles row for that exact set_number published within the
+//      last 60 days already exists. Exact match only, no fuzzy searching.
+//   2. No set_number (MOC, roundup, recurring feature) -> hard fail if the
+//      title's significant-word stem is >=30% Jaccard-similar to another
+//      no-set-number article published within the same window. A lower
+//      threshold than Gate 8's opener check is deliberate: two DIFFERENT
+//      articles about the same recurring feature share fewer common words
+//      than same-source opener-template reuse does, by design of the
+//      failure mode this gate targets.
+// A hard fail here routes to the existing failed_lint / /admin/pending
+// manual-review path — exactly "route to manual review instead of
+// auto-publishing," using the publish policy that already exists for every
+// other gate, not a new mechanism.
+const DUPLICATE_WINDOW_DAYS = 60;
+const TOPIC_STEM_JACCARD_THRESHOLD = 0.3;
+const STOPWORDS = new Set([
+  'a', 'an', 'and', 'are', 'as', 'at', 'be', 'but', 'by', 'for', 'from',
+  'has', 'have', 'if', 'in', 'into', 'is', 'it', 'its', 'of', 'on', 'or',
+  'our', 'so', 'than', 'that', 'the', 'their', 'this', 'to', 'was', 'what',
+  'will', 'with', 'your', 'you', 'lego',
+]);
+
+function titleTokens(title: string): Set<string> {
+  return new Set(
+    title.toLowerCase()
+      .replace(/[^a-z0-9\s-]/g, ' ')
+      .split(/[\s-]+/)
+      .filter(t => t.length > 1 && !STOPWORDS.has(t)),
+  );
+}
+
+function titleJaccard(a: Set<string>, b: Set<string>): number {
+  if (a.size === 0 || b.size === 0) return 0;
+  let inter = 0;
+  for (const t of Array.from(a)) if (b.has(t)) inter++;
+  return inter / (a.size + b.size - inter);
+}
+
+// Recurring named features (Weapon Wednesday, Febrovery, ...) title
+// themselves consistently as "Feature Name: <whatever this week's angle
+// is>" — the distinctive signal is the leading proper-noun phrase, not
+// overall word overlap. This matters because word overlap between two real
+// Weapon Wednesday articles can be as low as ~0.18 Jaccard (confirmed
+// against the actual titles from the 5-article incident this gate exists
+// to prevent recurring) — well below any threshold that wouldn't also
+// false-positive on genuinely unrelated articles. An exact (case-insensitive)
+// match on this leading phrase is a much higher-precision signal for
+// exactly this failure mode, independent of the rest of the title.
+function leadingFeaturePhrase(title: string): string | null {
+  const m = title.match(/^([A-Z][a-zA-Z']*(?:\s[A-Z][a-zA-Z']*){0,2}):\s/);
+  return m ? m[1].toLowerCase() : null;
+}
+
+export async function gateDuplicateContent(
+  title: string,
+  body: string,
+  sb: SupabaseClient,
+): Promise<LintGateResult> {
+  const windowStart = new Date(Date.now() - DUPLICATE_WINDOW_DAYS * 24 * 60 * 60 * 1000).toISOString();
+
+  try {
+    const setCandidates = extractSetNumberCandidates(`${title} ${body}`);
+    if (setCandidates.length > 0) {
+      const { data, error } = await sb
+        .from('news_articles')
+        .select('slug, set_number, published_at')
+        .in('set_number', setCandidates)
+        .gte('published_at', windowStart)
+        .limit(1);
+      if (error) return { pass: true, severity: 'warn', reason: `gate 9 set_number query failed — duplicate check DEGRADED: ${error.message}` };
+      if (data && data.length > 0) {
+        return {
+          pass: false,
+          severity: 'fail',
+          reason: `possible duplicate: set_number ${data[0].set_number} already published as "${data[0].slug}" on ${data[0].published_at} (within ${DUPLICATE_WINDOW_DAYS}d window)`,
+        };
+      }
+      return { pass: true, severity: 'ok' };
+    }
+
+    // No set_number — normalized topic/title-stem match against other
+    // no-set-number news_articles in the same window.
+    const stem = titleTokens(title);
+    const myFeaturePhrase = leadingFeaturePhrase(title);
+    if (stem.size === 0 && !myFeaturePhrase) return { pass: true, severity: 'ok' };
+
+    const { data, error } = await sb
+      .from('news_articles')
+      .select('slug, title, published_at')
+      .is('set_number', null)
+      .gte('published_at', windowStart)
+      .limit(200);
+    if (error) return { pass: true, severity: 'warn', reason: `gate 9 topic-stem query failed — duplicate check DEGRADED: ${error.message}` };
+
+    for (const row of (data ?? []) as { slug: string; title: string | null; published_at: string }[]) {
+      if (myFeaturePhrase && leadingFeaturePhrase(row.title ?? '') === myFeaturePhrase) {
+        return {
+          pass: false,
+          severity: 'fail',
+          reason: `possible duplicate recurring feature "${myFeaturePhrase}": already published as "${row.title}" (${row.slug}, published ${row.published_at})`,
+        };
+      }
+      const sim = titleJaccard(stem, titleTokens(row.title ?? ''));
+      if (sim >= TOPIC_STEM_JACCARD_THRESHOLD) {
+        return {
+          pass: false,
+          severity: 'fail',
+          reason: `possible duplicate topic (${(sim * 100).toFixed(0)}% title-stem match): "${row.title}" (${row.slug}, published ${row.published_at})`,
+        };
+      }
+    }
+    return { pass: true, severity: 'ok' };
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return { pass: true, severity: 'warn', reason: `gate 9 threw — duplicate check DEGRADED: ${msg}` };
+  }
 }
 
 // ── Gate 5: factuality ────────────────────────────────────────────────────────
@@ -459,6 +593,7 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
   let factualityGate: LintGateResult | null       = null;
   let sourceFidelityGate: LintGateResult | null   = null;
   let openerUniquenessGate: LintGateResult | null = null;
+  let duplicateContentGate: LintGateResult | null = null;
 
   if (!options.skipFactuality) {
     // Gate 6: Source fidelity — pure text comparison, no DB needed
@@ -482,6 +617,15 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
       // recent articles (catches "Your wallet called. It wants to discuss…" family).
       openerUniquenessGate = await gateOpenerUniqueness(body, sb, options.batchOpeners);
       if (!openerUniquenessGate.pass) overallPass = false;
+
+      // Gate 9: Duplicate content by set_number/topic-stem — news format only
+      // (that's the exact scope of every confirmed duplicate-article
+      // incident). No-ops without a title (some callers don't have one yet
+      // at generation-lint time; the publish-time caller always does).
+      if (format === 'news' && draft.title) {
+        duplicateContentGate = await gateDuplicateContent(draft.title, body, sb);
+        if (!duplicateContentGate.pass) overallPass = false;
+      }
     }
   }
 
@@ -495,6 +639,7 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
       factuality:       factualityGate,
       sourceFidelity:   sourceFidelityGate,
       openerUniqueness: openerUniquenessGate,
+      duplicateContent: duplicateContentGate,
     },
   };
 }
