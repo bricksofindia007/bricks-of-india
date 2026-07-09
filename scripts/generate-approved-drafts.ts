@@ -241,6 +241,7 @@ async function autoPublish(draft: any, outcome: GenerationOutcome): Promise<{ pa
     draft_title:      outcome.title,
     draft_body:       outcome.body,
     draft_verdict:    outcome.verdict,
+    draft_rating:     outcome.rating,
     draft_format:     outcome.format,
     word_count:       outcome.wordCount,
     source_url:       draft.source_url,

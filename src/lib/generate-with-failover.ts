@@ -20,6 +20,7 @@ export type GenerationOutcome = {
   title: string;
   body: string;
   verdict: string | null;
+  rating: number | null;
   format: string;
   wordCount: number;
   provider: 'gemini' | 'cerebras';
@@ -123,6 +124,7 @@ export async function generateWithFailover(
       title: parsed.title,
       body:  parsed.body,
       verdict: parsed.verdict,
+      rating: parsed.rating,
       format:  parsed.format,
       wordCount: parsed.wordCount,
       provider: 'gemini',
@@ -193,6 +195,7 @@ export async function generateWithFailover(
     title:   parsed.title,
     body:    parsed.body,
     verdict: parsed.verdict,
+    rating:  parsed.rating,
     format:  parsed.format,
     wordCount: parsed.wordCount,
     provider: 'cerebras',

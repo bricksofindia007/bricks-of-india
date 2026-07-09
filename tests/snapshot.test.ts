@@ -391,6 +391,7 @@ describe('passesAutoPublishGates', () => {
     title: 'Test title',
     body: 'Some intro text.\n\n<!-- INDIA_PARAGRAPH -->\nAvailable at Toycra for ₹4,999.\n<!-- /INDIA_PARAGRAPH -->',
     verdict: 'BUY NOW',
+    rating: null,
     format: 'news',
     wordCount: 400,
     provider: 'gemini',

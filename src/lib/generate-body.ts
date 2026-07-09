@@ -33,6 +33,7 @@ export type GenerationResult = {
   title: string;
   body: string;
   verdict: string | null;
+  rating: number | null;
   format: string;
   wordCount: number;
 };

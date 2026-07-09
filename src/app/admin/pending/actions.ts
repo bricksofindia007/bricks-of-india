@@ -108,11 +108,11 @@ export async function generateArticle(formData: FormData) {
 
     if (error || !draft) throw new Error(`Draft not found: ${error?.message}`);
 
-    const { title, body, verdict, format, wordCount } = await generateBody(supabase, draft);
+    const { title, body, verdict, rating, format, wordCount } = await generateBody(supabase, draft);
 
     const { error: saveErr } = await supabase
       .from('pending_drafts')
-      .update({ draft_title: title, draft_body: body, draft_verdict: verdict, draft_format: format, word_count: wordCount, status: 'draft' })
+      .update({ draft_title: title, draft_body: body, draft_verdict: verdict, draft_rating: rating, draft_format: format, word_count: wordCount, status: 'draft' })
       .eq('id', id);
     if (saveErr) {
       console.error('[supabase-write] admin-action table=pending_drafts op=update(generateArticle) draft_id=', id, 'error:', saveErr);
@@ -205,7 +205,7 @@ export async function publishDraft(formData: FormData) {
 
   const { data: draft, error: fetchErr } = await supabase
     .from('pending_drafts')
-    .select('id, draft_title, draft_body, draft_verdict, draft_format, word_count, source_url, source_title, source_excerpt, lint_result, updated_at')
+    .select('id, draft_title, draft_body, draft_verdict, draft_rating, draft_format, word_count, source_url, source_title, source_excerpt, lint_result, updated_at')
     .eq('id', id)
     .single();
 

@@ -148,11 +148,27 @@ No text before the opening marker. No text after the closing marker.
 FORMAT: <format>
 TITLE: <title — must include set number if reviewing a set. For reviews: "LEGO [Set Name] ([number]): Worth ₹[INR price]?" For news: include set number in title.>
 VERDICT: <BUY NOW | WAIT | IMPORT ONLY | AVOID | NONE>
+RATING: <review format only — 1-5, otherwise NONE. See RATING CRITERIA below.>
 BODY:
 <article body — plain text only, no markdown, no asterisks, no bold.
  Place <!-- INDIA_PARAGRAPH --> on its own line before the India Paragraph block.
  Place <!-- /INDIA_PARAGRAPH --> on its own line immediately after the India Paragraph block.>
 --- BOI_DRAFT_END ---
+
+RATING CRITERIA (review format only) — this is completely independent of
+VERDICT and must NEVER simply mirror it. VERDICT is about whether the
+CURRENT PRICE in India is a good deal right now — a genuinely excellent set
+can still be a WAIT if it's overpriced, and a mediocre set can be a BUY NOW
+if it's cheap. RATING is about the SET ITSELF regardless of price: build
+experience (interesting techniques, satisfying construction, part variety),
+design merit (accuracy, aesthetics, display value), value-for-pieces (not
+value-for-money — piece count and part quality relative to a typical set in
+its category), and how it would land with the community (a beloved theme
+executed well vs. a forgettable licensed tie-in). Base RATING on what the
+BODY text itself says about these things — if the body praises the build
+and design, the rating should reflect that even if the verdict is WAIT
+because of price; if the body is lukewarm on the actual set despite the
+price being fair, the rating should be middling even with a BUY NOW verdict.
 
 VERDICT LINE DISCIPLINE:
 - The structured response includes ONE VERDICT: line in the block above.
@@ -212,6 +228,7 @@ export type ParsedDraft = {
   title: string;
   body: string;
   verdict: string | null;
+  rating: number | null;
   format: string;
   wordCount: number;
 };
@@ -253,7 +270,7 @@ export function parseDraftResponse(rawText: string, format?: string): ParsedDraf
   if (si === -1 || ei === -1) throw new Error('Response missing BOI_DRAFT markers');
 
   const inner = rawText.slice(si + '--- BOI_DRAFT_START ---'.length, ei).trim();
-  let title = '', parsedFormat = '', verdict: string | null = null, inBody = false;
+  let title = '', parsedFormat = '', verdict: string | null = null, rating: number | null = null, inBody = false;
   const bodyLines: string[] = [];
 
   for (const line of inner.split('\n')) {
@@ -263,6 +280,10 @@ export function parseDraftResponse(rawText: string, format?: string): ParsedDraf
       if (line.startsWith('VERDICT:')) {
         const v = line.slice(8).trim();
         verdict = ['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID'].includes(v) ? v : null;
+      }
+      if (line.startsWith('RATING:')) {
+        const r = parseInt(line.slice(7).trim(), 10);
+        rating = (Number.isInteger(r) && r >= 1 && r <= 5) ? r : null;
       }
       if (line.trim() === 'BODY:') inBody = true;
     } else { bodyLines.push(line); }
@@ -276,5 +297,5 @@ export function parseDraftResponse(rawText: string, format?: string): ParsedDraf
     body += '\n\n' + (VERDICT_TEMPLATES[verdict] ?? '');
   }
 
-  return { title, body, verdict, format: resolvedFormat, wordCount: body.split(/\s+/).filter(Boolean).length };
+  return { title, body, verdict, rating, format: resolvedFormat, wordCount: body.split(/\s+/).filter(Boolean).length };
 }

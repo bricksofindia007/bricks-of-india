@@ -142,11 +142,27 @@ No text before the opening marker. No text after the closing marker.
 FORMAT: <format>
 TITLE: <title — must include set number if reviewing a set. For reviews: "LEGO [Set Name] ([number]): Worth ₹[INR price]?" For news: include set number in title.>
 VERDICT: <BUY NOW | WAIT | IMPORT ONLY | AVOID | NONE>
+RATING: <review format only — 1-5, otherwise NONE. See RATING CRITERIA below.>
 BODY:
 <article body — plain text only, no markdown, no asterisks, no bold.
  Place <!-- INDIA_PARAGRAPH --> on its own line before the India Paragraph block.
  Place <!-- /INDIA_PARAGRAPH --> on its own line immediately after the India Paragraph block.>
 --- BOI_DRAFT_END ---
+
+RATING CRITERIA (review format only) — this is completely independent of
+VERDICT and must NEVER simply mirror it. VERDICT is about whether the
+CURRENT PRICE in India is a good deal right now — a genuinely excellent set
+can still be a WAIT if it's overpriced, and a mediocre set can be a BUY NOW
+if it's cheap. RATING is about the SET ITSELF regardless of price: build
+experience (interesting techniques, satisfying construction, part variety),
+design merit (accuracy, aesthetics, display value), value-for-pieces (not
+value-for-money — piece count and part quality relative to a typical set in
+its category), and how it would land with the community (a beloved theme
+executed well vs. a forgettable licensed tie-in). Base RATING on what the
+BODY text itself says about these things — if the body praises the build
+and design, the rating should reflect that even if the verdict is WAIT
+because of price; if the body is lukewarm on the actual set despite the
+price being fair, the rating should be middling even with a BUY NOW verdict.
 
 VERDICT LINE DISCIPLINE:
 - The structured response includes ONE VERDICT: line in the block above.

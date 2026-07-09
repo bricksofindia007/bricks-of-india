@@ -187,19 +187,15 @@ export function resolveTarget(format: string): { table: string; path: string; ca
 }
 
 // Verdict -> star rating, decided 2026-07-05 alongside the reviews-routing
-// change. Only BUY NOW reads as >=4 ("Recommended" in the reviews UI) — WAIT
-// is deliberately kept below that threshold since it's not a rejection but
-// isn't a recommendation to buy right now either.
-//
-// IMPORT ONLY -> null (amended 2026-07-05, reviews.rating confirmed nullable):
-// that verdict is about India retail/import availability, not the set's
-// build quality — a numeric star rating derived from it would misstate the
-// thing rating actually claims to measure, and this value feeds the Review
-// schema Google indexes directly. Downstream consequence, not hidden here:
-// reviews/[slug]/page.tsx's '★'.repeat(rating) and the rating>=4 Recommended/
-// Skip-It badge both treat null as 0 (no crash, but renders as 0 filled stars
-// and a "Skip It" badge) — that page was not changed as part of this fix;
-// revisit if IMPORT ONLY reviews need their own null-rating presentation.
+// change, and always acknowledged as an interim stopgap (see the original
+// comment this replaces): a rating mechanically derived from price verdict
+// misstates the thing a rating is supposed to measure. Confirmed live
+// 2026-07-09 across all 18 published reviews: rating tracked verdict with
+// essentially zero independent variation, regardless of piece count, build
+// quality, or design merit. Superseded by an independent RATING field the
+// model now produces directly (draft-prompt.ts RATING CRITERIA) — this map
+// is kept ONLY as a fallback for drafts approved before this fix shipped
+// (draft_rating absent), not as the primary path.
 const VERDICT_TO_RATING: Record<string, number | null> = {
   'BUY NOW': 5,
   'WAIT': 3,
@@ -483,6 +479,7 @@ export type PublishableDraft = {
   draft_title: string | null;
   draft_body: string | null;
   draft_verdict: string | null;
+  draft_rating?: number | null;
   draft_format: string | null;
   word_count: number | null;
   source_url: string;
@@ -611,7 +608,7 @@ export async function publishOneDraft(
         published_at: now, seo_title: title, seo_description: excerpt,
         hero_image: heroImage,
         verdict: reviewVerdict,
-        rating: reviewVerdict ? VERDICT_TO_RATING[reviewVerdict] ?? null : null,
+        rating: draft.draft_rating ?? (reviewVerdict ? VERDICT_TO_RATING[reviewVerdict] ?? null : null),
         ...(reviewSetId ? { set_id: reviewSetId } : {}),
       }
     : {
