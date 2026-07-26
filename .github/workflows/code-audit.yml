@@ -44,7 +44,9 @@ jobs:
         continue-on-error: true
 
       - name: Send failure alert
+        id: alert
         if: steps.lint.outcome == 'failure' || steps.typecheck.outcome == 'failure' || steps.audit.outcome == 'failure' || steps.secrets.outcome == 'failure'
+        continue-on-error: true
         env:
           RESEND_API_KEY:    ${{ secrets.RESEND_API_KEY }}
           LINT_OUTCOME:      ${{ steps.lint.outcome }}
@@ -52,3 +54,28 @@ jobs:
           AUDIT_OUTCOME:     ${{ steps.audit.outcome }}
           SECRETS_OUTCOME:   ${{ steps.secrets.outcome }}
         run: node scripts/code-audit-notify.mjs
+
+      # LOW-28: every check above uses continue-on-error so it always fully
+      # runs and reports its own outcome (and so a broken alert send can't
+      # itself obscure the real signal) -- but that meant the job's overall
+      # conclusion was "success" regardless, and `gh run list` /
+      # any CI-status consumer never saw a failure. Confirmed live: all 8
+      # code-audit runs since this workflow's creation (2026-06-01 through
+      # 2026-07-20) fired a real failure alert, yet every single one shows
+      # "success" at the job level -- a 100% false-green rate, not a
+      # one-off. This step is the sole authority on job pass/fail: it does
+      # NOT have continue-on-error, so failing here is what finally makes
+      # the job (and gh run list) report red when a real check failed.
+      - name: Fail job if any check failed
+        if: always()
+        env:
+          LINT_OUTCOME:      ${{ steps.lint.outcome }}
+          TYPECHECK_OUTCOME: ${{ steps.typecheck.outcome }}
+          AUDIT_OUTCOME:     ${{ steps.audit.outcome }}
+          SECRETS_OUTCOME:   ${{ steps.secrets.outcome }}
+        run: |
+          if [ "$LINT_OUTCOME" = "failure" ] || [ "$TYPECHECK_OUTCOME" = "failure" ] || [ "$AUDIT_OUTCOME" = "failure" ] || [ "$SECRETS_OUTCOME" = "failure" ]; then
+            echo "::error::code-audit failed -- lint=$LINT_OUTCOME typecheck=$TYPECHECK_OUTCOME audit=$AUDIT_OUTCOME secrets=$SECRETS_OUTCOME (see step logs above for details; alert email already sent)"
+            exit 1
+          fi
+          echo "All code-audit checks passed."
