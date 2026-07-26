@@ -41,6 +41,11 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history needed so the sitemap-change check below can diff
+          # against the pre-push SHA even for multi-commit pushes -- the
+          # default shallow clone (depth 1) only has the latest commit.
+          fetch-depth: 0
 
       - name: Setup Node 20
         uses: actions/setup-node@v4
@@ -63,3 +68,31 @@ jobs:
           NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
           NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
         run: npx netlify-cli@latest deploy --build --prod
+
+      # Recrawl acceleration: sitemap.xml is regenerated fresh from live DB
+      # data on every build (src/app/sitemap.ts), so its actual URL set can
+      # change even when sitemap.ts itself isn't touched -- but "don't ping
+      # on every deploy regardless of relevance" per the operator's explicit
+      # instruction means gating on the file most directly responsible for
+      # sitemap *structure* changes (tier filtering, priority, new sections),
+      # not every deploy this workflow's own paths: filter already lets
+      # through. workflow_dispatch has no push diff to check -- pings
+      # unconditionally there, since a manual dispatch is rare enough that
+      # over-pinging costs nothing and Google's endpoint is a fire-and-forget
+      # GET with no rate-limit concern at this volume.
+      - name: Check if sitemap generation changed
+        id: sitemap_check
+        if: github.event_name == 'push'
+        run: |
+          if git diff --name-only "${{ github.event.before }}" "${{ github.sha }}" | grep -q '^src/app/sitemap\.ts$'; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Ping Google to recrawl sitemap
+        if: github.event_name == 'workflow_dispatch' || steps.sitemap_check.outputs.changed == 'true'
+        continue-on-error: true
+        run: |
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://www.google.com/ping?sitemap=https://bricksofindia.com/sitemap.xml")
+          echo "Google sitemap ping response: HTTP $STATUS"
