@@ -110,11 +110,25 @@ jobs:
           pip install -q resend
           python3 - <<'PY'
           import os, resend
-          resend.api_key = os.environ['RESEND_API_KEY']
-          resend.Emails.send({
-            'from': 'BOI Alerts <alerts@bricksofindia.com>',
-            'to': ['abhinav@bricksofindia.com'],
-            'subject': '[BOI] IG token auto-refresh FAILED — manual action needed before expiry',
-            'html': '<p>ig-token-refresh workflow failed. Check the run logs. If not fixed, Instagram posting stops when the current token expires (60 days from last successful exchange).</p>',
-          })
+
+          # Strip BOM (U+FEFF) -- GitHub Secrets copied from BOM-encoded source
+          # files include a leading U+FEFF byte that breaks the Bearer auth
+          # header. Confirmed incident 2026-07-06 on this exact RESEND_API_KEY
+          # secret (VID-P4's notifier.py). health-check.mjs and notifier.py
+          # both strip this already; this alert script previously didn't.
+          try:
+              resend.api_key = os.environ['RESEND_API_KEY'].lstrip('﻿').strip()
+              result = resend.Emails.send({
+                  'from': 'BOI Alerts <alerts@bricksofindia.com>',
+                  'to': ['abhinav@bricksofindia.com'],
+                  'subject': '[BOI] IG token auto-refresh FAILED — manual action needed before expiry',
+                  'html': '<p>ig-token-refresh workflow failed. Check the run logs. If not fixed, Instagram posting stops when the current token expires (60 days from last successful exchange).</p>',
+              })
+              print(f'[alert] Email sent. ID: {result.get("id")}')
+          except Exception as exc:
+              # If the alert itself breaks, leave a loud, specific trace instead
+              # of the original workflow failure going unexplained with no signal
+              # at all in either the log or the inbox.
+              print(f'[alert] FAILED TO SEND ALERT EMAIL: {type(exc).__name__}: {exc}')
+              raise
           PY

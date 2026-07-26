@@ -55,7 +55,12 @@ async function sendAlert(subject, body) {
       html: `<pre style="font-family:monospace;font-size:14px;">${body}</pre>`,
     }),
   });
-  if (!res.ok) console.error(`Resend failed (${res.status}): ${await res.text()}`);
+  if (!res.ok) {
+    console.error(`Resend failed (${res.status}): ${await res.text()}`);
+  } else {
+    const sent = await res.json();
+    console.log(`[alert] Email sent. ID: ${sent.id}`);
+  }
 }
 
 // ── Check 1: /news freshness (> 7 days = alert) ─────────────────────────────
@@ -79,6 +84,10 @@ try {
 } catch (e) {
   console.error('[1] news freshness check failed:', e.message);
   failures.push('news-check-error');
+  await sendAlert(
+    '🔥 [BOI INFRA FAILURE] — /news freshness check crashed',
+    `Check 1 itself failed to run (this is not a normal staleness alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real /news freshness state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 1 directly.`
+  );
 }
 
 // ── Check 2: /blog freshness (> 14 days = alert) ────────────────────────────
@@ -102,6 +111,10 @@ try {
 } catch (e) {
   console.error('[2] blog freshness check failed:', e.message);
   failures.push('blog-check-error');
+  await sendAlert(
+    '🔥 [BOI INFRA FAILURE] — /blog freshness check crashed',
+    `Check 2 itself failed to run (this is not a normal staleness alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real /blog freshness state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 2 directly.`
+  );
 }
 
 // ── Check 3: RADAR pipeline (> 25 hours = alert) ────────────────────────────
@@ -125,6 +138,10 @@ try {
 } catch (e) {
   console.error('[3] RADAR pipeline check failed:', e.message);
   failures.push('radar-check-error');
+  await sendAlert(
+    '🔥 [BOI INFRA FAILURE] — RADAR pipeline check crashed',
+    `Check 3 itself failed to run (this is not a normal staleness alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real RADAR pipeline state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 3 directly.`
+  );
 }
 
 // ── Check 4: Social automation (> 25 hours = alert) ─────────────────────────
@@ -148,6 +165,10 @@ try {
 } catch (e) {
   console.error('[4] Social automation check failed:', e.message);
   failures.push('social-check-error');
+  await sendAlert(
+    '🔥 [BOI INFRA FAILURE] — Social automation check crashed',
+    `Check 4 itself failed to run (this is not a normal staleness alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real social automation state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 4 directly.`
+  );
 }
 
 // ── Check 5: Store price scraper (> 7 hours = alert) ────────────────────────
@@ -171,6 +192,10 @@ try {
 } catch (e) {
   console.error('[5] Store prices check failed:', e.message);
   failures.push('prices-check-error');
+  await sendAlert(
+    '🔥 [BOI INFRA FAILURE] — Store price scraper check crashed',
+    `Check 5 itself failed to run (this is not a normal staleness alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real store price freshness state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 5 directly.`
+  );
 }
 
 // ── Check 5b: Scrape coverage — % of in-stock rows fresh (<7h) ───────────────
@@ -197,6 +222,10 @@ try {
 } catch (e) {
   console.error('[5b] ScrapeCoverage check failed:', e.message);
   failures.push('scrape-coverage-error');
+  await sendAlert(
+    '🔥 [BOI INFRA FAILURE] — Scrape coverage check crashed',
+    `Check 5b itself failed to run (this is not a normal coverage-threshold alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real scrape coverage state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 5b directly.`
+  );
 }
 
 // ── Check 6: IG token expiry (within 14 days = alert) ───────────────────────
@@ -213,6 +242,10 @@ try {
 } catch (e) {
   console.error('[6] IG token check failed:', e.message);
   failures.push('ig-check-error');
+  await sendAlert(
+    '🔥 [BOI INFRA FAILURE] — Instagram token expiry check crashed',
+    `Check 6 itself failed to run (this is not a normal expiry-warning alert): ${e.message}\n\nThis check is pure date math on a hardcoded constant, so a throw here means a code-level bug, not an external dependency failure. Investigate scripts/health-check.mjs Check 6 directly.`
+  );
 }
 
 // ── Check 6b: YouTube token expiry ───────────────────────────────────────────
@@ -290,6 +323,10 @@ try {
 } catch (e) {
   console.error('[6c] YouTube heartbeat check failed:', e.message);
   failures.push('yt-heartbeat-error');
+  await sendAlert(
+    '🔥 [BOI INFRA FAILURE] — YouTube heartbeat check crashed',
+    `Check 6c itself failed to run (this is not a normal heartbeat-staleness alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real YouTube heartbeat state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 6c directly.`
+  );
 }
 
 // ── Check 7: Pending drafts backlog (> 50 approved = alert) ─────────────────
@@ -310,6 +347,10 @@ try {
 } catch (e) {
   console.error('[7] Pending drafts check failed:', e.message);
   failures.push('drafts-check-error');
+  await sendAlert(
+    '🔥 [BOI INFRA FAILURE] — Pending drafts backlog check crashed',
+    `Check 7 itself failed to run (this is not a normal backlog-threshold alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real pending drafts backlog state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 7 directly.`
+  );
 }
 
 // ── Check 8: Per-store in-stock counts (alert if any store < 50) ─────────────
@@ -338,6 +379,10 @@ try {
 } catch (e) {
   console.error('[8] Store count check failed:', e.message);
   failures.push('store-count-error');
+  await sendAlert(
+    '🔥 [BOI INFRA FAILURE] — Store price count check crashed',
+    `Check 8 itself failed to run (this is not a normal low-count alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real store price count state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 8 directly.`
+  );
 }
 
 // ── Check 9: Cron success timestamps (> 26 hours = alert) ────────────────────
@@ -376,6 +421,10 @@ try {
 } catch (e) {
   console.error('[9] Cron timestamp check failed:', e.message);
   failures.push('cron-check-error');
+  await sendAlert(
+    '🔥 [BOI INFRA FAILURE] — Cron timestamp check crashed',
+    `Check 9 itself failed to run (this is not a normal cron-stale alert): ${e.message}\n\nLikely GITHUB_TOKEN missing or the GitHub API call failing — not a workflow being stale, the check itself broke. Investigate scripts/health-check.mjs Check 9 directly.`
+  );
 }
 
 // ── Check 10: Sets with zero store coverage (log weekly, no alert) ────────────
