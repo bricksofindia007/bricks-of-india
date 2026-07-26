@@ -20,7 +20,7 @@
 
 **Fixes:**
 - Got a genuinely fresh short-lived User Token from Graph API Explorer and exchanged *that* (short-lived → long-lived is the flow that actually resets the clock — confirmed `expires_in: 5184000`, exactly 60 days). `IG_ACCESS_TOKEN` rotated 2026-07-26T07:03:13Z.
-- `ig-token-refresh.yml` now parses `expires_in` from the exchange response and fails the job loudly (does not commit the secret) if it's under 30 days — so a repeat no-op gets caught immediately instead of reporting false success. This does **not** fix the underlying Meta limitation (re-exchanging an already-long-lived token structurally can't extend it) — that requires the Meta System User (non-expiring) token, already planned (see §FAN-COLAB item, "System User token setup"), pending Abhinav in Meta Business Manager.
+- `ig-token-refresh.yml` now parses `expires_in` from the exchange response and fails the job loudly (does not commit the secret) if it's under 30 days — so a repeat no-op gets caught immediately instead of reporting false success. This does **not** fix the underlying Meta limitation (re-exchanging an already-long-lived token structurally can't extend it) — that requires the Meta System User (non-expiring) token, already planned (see **LOW-43** under §Pending — Next Up → CRITICAL — Time-bound), pending Abhinav in Meta Business Manager.
 - `pipeline.py`: Instagram posting (Steps 7–8) was unprotected and ran *before* YouTube (Step 9) — an unhandled IG exception aborted the whole script, so YouTube's own (already-isolated) try/except never even got reached. This is why YouTube looked dark too, despite being healthy. IG posting now has its own try/except + heartbeat write, matching YouTube's existing isolation; one platform failing no longer blocks the other, and the job reports/exits based on both platforms independently.
 - **Verified live:** triggered `social-automation.yml` manually (run `30192155275`, set `11385-1`) after the fixes — both platforms posted in the same run: IG carousel (media `18143870473531437`), IG Reels (media `18073454504359350`), YouTube Short (video `O7fxKdW_QU0`). `posted_sets` row 41.
 
@@ -2010,10 +2010,20 @@ Decision deferred to Day 3 open.
 - **Source:** Current blockers § — 25 days remaining as of 2026-06-21
 - **Automation shipped 2026-07-02:** `.github/workflows/ig-token-refresh.yml` (new, health-audit patch) — runs 1st + 15th of every month, exchanges for a fresh 60-day token, validates via `/me`, rotates the `IG_ACCESS_TOKEN` repo secret, emails on failure.
 - **REOPENED 2026-07-26 — the 2026-07-05 closure was premature.** The cron's first unattended run (2026-07-15) *did* fire and *did* report success, exactly as this entry's closing bar required — but the "successful" rotation was a no-op: re-exchanging an already-long-lived token doesn't reliably reset Meta's 60-day clock, so the token still died on its original schedule (2026-07-23 06:04:38 PDT), taking IG posting down for 2 days (`social-automation.yml` failed 07-24, 07-25) before being noticed. Full root cause, fix, and live verification: see **§Session — 2026-07-26** at the top of this file. Closing-bar lesson for next time: "a confirmed green run" isn't sufficient evidence for a token-rotation workflow — the *result's* actual expiry needs checking too, which `ig-token-refresh.yml` now does (`expires_in >= 30 days` gate).
-- **Status:** 🟡 MITIGATED, not closed — `IG_ACCESS_TOKEN` re-exchanged from a genuine short-lived token 2026-07-26T07:03:13Z (confirmed `expires_in: 5184000`, real 60 days), workflow now refuses to silently repeat the no-op. Durable fix is still the Meta System User (non-expiring) token — see §FAN-COLAB deferred item — not yet done.
+- **Status:** 🟡 MITIGATED, not closed — `IG_ACCESS_TOKEN` re-exchanged from a genuine short-lived token 2026-07-26T07:03:13Z (confirmed `expires_in: 5184000`, real 60 days), workflow now refuses to silently repeat the no-op. Durable fix is still the Meta System User (non-expiring) token — see **LOW-43** immediately below — not yet done.
 - **Owner:** A (System User token setup, in Meta Business Manager).
-- **Target window:** stopgap done 2026-07-26; durable fix window 2026-07-20–2026-08-01 (unchanged, see System User token item).
-- **Dependencies:** None for the stopgap; System User token item depends on this being stable in the interim.
+- **Target window:** stopgap done 2026-07-26; durable fix window 2026-07-20–2026-08-01 (unchanged, see LOW-43).
+- **Dependencies:** None for the stopgap; LOW-43 depends on this being stable in the interim.
+
+#### LOW-43: Meta System User Token — durable IG-TOK-01 close
+- **What:** Replace the current 60-day re-exchange stopgap with a permanent, non-expiring Meta System User token — the only fix that removes the recurring ~60-day cycle entirely. Re-exchanging an already-long-lived token cannot produce a true indefinite token; that's a Meta API limitation, not something `ig-token-refresh.yml` can code around (see **§Session — 2026-07-26** at top of file for the full root-cause writeup of why the re-exchange approach is structurally a stopgap, not a fix).
+- **Context (2026-07-26):** `IG_ACCESS_TOKEN` is currently a genuine, verified-working 60-day token (re-exchanged from a real short-lived token, confirmed `expires_in: 5184000`), and both the `expires_in >= 30 days` refusal gate and the alerting path to Abhinav's inbox are now correctly wired and verified (see Follow-up 1 and Follow-up 3 sessions, same date). This is the **one remaining non-durable piece of the whole IG pipeline** — everything downstream of the token itself is solid.
+- **Action needed:** Abhinav to retry System User creation in Meta Business Manager — previously blocked by a UI chicken-and-egg issue around app-to-Business-Portfolio assignment; worth checking whether that's cleared since May before assuming it's still stuck. Steps once unblocked: create System User → assign the LegoAutoPosts app → generate token with `instagram_basic`, `instagram_content_publish`, `pages_read_engagement`, `pages_show_list` → update the `IG_ACCESS_TOKEN` secret.
+- **Source:** B1 + E1 consolidated; SOCIAL_AUTOMATION_STATUS.md §Token calendar; originally tracked as LOW-43 (below, in §Social Automation — this entry supersedes that one's detail; kept there as a pointer for historical continuity, not duplicated).
+- **Status:** Pending — Abhinav (blocked on Meta Business Manager UI, not on any code path)
+- **Owner:** A
+- **Target window:** No deadline forcing this — the current stopgap is stable and alerting correctly — but flag as the one remaining non-durable piece worth closing when Abhinav has a window.
+- **Dependencies:** IG-TOK-01 (this closes IG-TOK-01 permanently once done)
 
 #### YT-OAUTH-01: YouTube OAuth sensitive scope Google verification
 - **What:** (a) Record OAuth scope justification video per Google requirements — not yet recorded. (b) Await Google reviewer response (submitted 2026-06-02, ~4–6 week review)
@@ -2022,6 +2032,16 @@ Decision deferred to Day 3 open.
 - **Owner:** A (video recording); Google (external)
 - **Target window:** unscheduled (Google-controlled); step (a) can be done immediately
 - **Dependencies:** none (video recording is independent of Google decision)
+
+#### YT-OAUTH-02: Google OAuth consent screen status check — unblocks Fix C correctness
+- **What:** Confirm and log the app's actual current publishing status in Google Cloud Console (Console → APIs & Services → OAuth consent screen): **Testing**, **In production**, **Needs verification**, or other. This is distinct from YT-OAUTH-01's original justification-video/review-wait items above — it's specifically about knowing which branch is currently true, not about the verification process itself.
+- **Context (2026-07-26):** `social-automation/youtube_oauth_helper.py` used to hardcode "always assume Testing mode, 7-day refresh-token expiry" when computing the value `health-check.mjs` Check 6b tracks. Evidence contradicts that assumption — a token issued 2026-06-20 was still working 2026-07-22, 32 days later, well past any real 7-day Testing-mode limit — but this has never been confirmed and logged as a fact, only inferred from indirect evidence. The helper now asks interactively at re-auth time (Fix C, same-date session) rather than guessing, but the prompt is only as good as the answer given.
+- **Action needed:** Abhinav checks Google Cloud Console → OAuth consent screen → publishing status, reports back one of the four statuses above, and it gets logged here as the tracker's source of truth. This is what the helper's interactive prompt should be answered with at the next YouTube re-auth.
+- **Source:** Follow-up 3 — 2026-07-26 session (Fix C); related to but distinct from YT-OAUTH-01 above.
+- **Status:** Pending — Abhinav (not code-verifiable; no Google Cloud API credentials configured for this repo that could check it programmatically)
+- **Owner:** A
+- **Target window:** No urgency — takes effect only at Abhinav's *next* YouTube re-auth, not immediately — but shouldn't get lost before then.
+- **Dependencies:** None to check the status now; the answer is consumed at the next re-auth via `youtube_oauth_helper.py`'s prompt.
 
 #### CE-01: Builder Spotlight ×2 — outreach response
 - **What:** Two Builder Spotlights for publication. Outreach sent 2026-05-29. Check inbox for replies; if none by 2026-07-01 send a second outreach. Capture name, featured set, bio excerpt, confirm publication slot.
@@ -2748,12 +2768,9 @@ Decision deferred to Day 3 open.
 > Items from the 2026-06-27 consolidation audit. Not blocking Fan CoLab deadline unless IG-TOK-01 slips.
 
 #### LOW-43: IG System User Token — permanent non-expiring setup
-- **What:** Replace the 60-day long-lived token with a permanent non-expiring token via Meta Business Manager → System User → Token Generator. One-time setup eliminates the annual IG-TOK-01 re-exchange cycle forever. Currently deferred behind IG-TOK-01 (re-exchange by 2026-07-16). Once IG-TOK-01 is complete, proceed with System User token setup.
+- **Superseded 2026-07-26 — see the full, current entry under §CRITICAL — Time-bound (top of §Pending — Next Up), same ID, same item.** Kept here as a pointer only, so this doesn't read as a second/conflicting record: current status, context, and exact action steps live there now, not here. Original text below retained for historical continuity only — do not treat as current.
+- **What (original, 2026-06-27):** Replace the 60-day long-lived token with a permanent non-expiring token via Meta Business Manager → System User → Token Generator. One-time setup eliminates the annual IG-TOK-01 re-exchange cycle forever. Currently deferred behind IG-TOK-01 (re-exchange by 2026-07-16). Once IG-TOK-01 is complete, proceed with System User token setup.
 - **Source:** B1 + E1 consolidated; SOCIAL_AUTOMATION_STATUS.md §Token calendar; absent from master tracker prior to consolidation audit
-- **Status:** deferred — do after IG-TOK-01 completes
-- **Owner:** A
-- **Target window:** 2026-07-20 to 2026-08-01 (after IG-TOK-01, before RLFM application)
-- **Dependencies:** IG-TOK-01 (if re-exchange extends to permanent token setup directly, this item closes simultaneously)
 
 #### LOW-44: CE-06 — Deals Alert IG Story
 - **What:** Weekly IG Story summarising top 5 deals from /lab/deals. LAB-06 (/lab/deals) is live — data exists. Canva template approach: pull top-5 `store_prices` rows by discount from MRP, export to Story format, post every Monday. No code needed.
