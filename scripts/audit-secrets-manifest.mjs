@@ -5,8 +5,13 @@
  * Two checks:
  *   A. For every secret declared required_by a workflow, verify that workflow
  *      actually references it via secrets.<NAME>.
- *   B. For every secrets.<NAME> reference in any workflow, verify it is declared
- *      in the manifest (catches undocumented secrets before they cause prod failures).
+ *   B. For every secrets.<NAME> reference in any workflow, verify that specific
+ *      workflow is listed in <NAME>'s required_by array -- not just that the
+ *      secret name exists somewhere in the manifest. (Hardened 2026-07-26:
+ *      the name-exists-anywhere version let a real reference silently go
+ *      undocumented for a specific workflow -- e.g. RESEND_API_KEY added to
+ *      ig-token-refresh.yml in a3a48d6 passed because RESEND_API_KEY was
+ *      already declared for other workflows.)
  *
  * Run: node scripts/audit-secrets-manifest.mjs
  * Wired into: .github/workflows/code-audit.yml (Monday 05:00 UTC)
@@ -69,12 +74,17 @@ for (const [name, meta] of Object.entries(secrets)) {
   }
 }
 
-// Check B: workflow → manifest (every secret used is declared)
+// Check B: workflow → manifest (every secret used is declared for THIS workflow)
 for (const [wf, used] of Object.entries(wfSecretMap)) {
   for (const name of used) {
     if (AUTO_INJECTED.has(name)) continue;
-    if (!secrets[name]) {
+    const meta = secrets[name];
+    if (!meta) {
       fail(`${wf}: references undeclared secret ${name} (add it to secrets-manifest.json)`);
+    } else if (!(meta.required_by ?? []).includes(wf)) {
+      fail(`${wf}: references ${name}, but ${wf} is missing from ${name}'s required_by in secrets-manifest.json`);
+    } else {
+      pass(`${wf} → ${name}`);
     }
   }
 }
