@@ -42,13 +42,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: p.priority,
   }));
 
-  // Dynamic set pages — paginate to bypass PostgREST 1000-row cap
+  // Dynamic set pages — paginate to bypass PostgREST 1000-row cap.
+  // GSC-01 Part A: Tier 3 (noindex candidates -- merch/parts/exclusives,
+  // not real LEGO sets) is excluded from the sitemap entirely rather than
+  // included with a low priority -- a noindexed page listed in a sitemap
+  // sends Google a mixed signal. Tier 1 (recent + priced + core-retail
+  // theme) gets priority 0.8, matching this file's existing top-level
+  // section priority; Tier 2 (everything else that isn't excluded) gets
+  // 0.5 -- lower than Tier 1 but still above the lowest static pages
+  // (/legal/* at 0.3), since Tier 2 still includes plenty of real,
+  // legitimately older sets.
   const PAGE = 1000;
-  const allSets: { set_number: string; name: string; updated_at: string }[] = [];
+  const allSets: { set_number: string; name: string; updated_at: string; index_tier: string }[] = [];
   for (let offset = 0; ; offset += PAGE) {
     const { data } = await supabase
       .from('sets')
-      .select('set_number, name, updated_at')
+      .select('set_number, name, updated_at, index_tier')
+      .neq('index_tier', 'tier3')
       .order('year', { ascending: false })
       .order('set_number', { ascending: true })
       .range(offset, offset + PAGE - 1);
@@ -60,7 +70,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     url: `${base}/sets/${s.set_number}-${slugify(s.name)}`,
     lastModified: new Date(s.updated_at),
     changeFrequency: 'daily' as const,
-    priority: 0.8,
+    priority: s.index_tier === 'tier1' ? 0.8 : 0.5,
   }));
 
   // Blog posts

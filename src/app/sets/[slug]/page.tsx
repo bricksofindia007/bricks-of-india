@@ -72,6 +72,13 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     title: `${set.name} (${set.set_number}) Price in India 2026`,
     description: setMetaDescription(set.name),
     alternates: { canonical: `https://bricksofindia.com/sets/${params.slug}` },
+    // GSC-01 Part A: Tier 3 (merch/parts/exclusives, not real LEGO sets)
+    // stays crawlable -- follow: true -- so link equity and any existing
+    // backlinks still flow through, but is excluded from the index. The
+    // Rebrickable fallback path (no DB row) has no index_tier at all and
+    // is intentionally left unrestricted -- it's a live, uncached lookup
+    // for a set not yet in our catalog, not a known-noindex case.
+    ...(set.index_tier === 'tier3' && { robots: { index: false, follow: true } }),
     openGraph: {
       title: `${set.name} (${set.set_number}) — Best Price in India`,
       description: `Compare ${set.name} prices across Indian stores. Best deal updated every 6 hours.`,
@@ -157,6 +164,29 @@ export default async function SetPage({ params }: Props) {
       }
     }
   }
+
+  // Related Coverage (GEO-05b Phase 3) — the reverse of Phase 2's forward
+  // linking: any published article whose body links to THIS set's own
+  // slug via [num](/sets/<this-slug>), the exact markdown pattern
+  // linkFirstSetMentions() inserts. Reuses that link shape rather than a
+  // second matching system. Rendered only if at least one match exists —
+  // absent, not an empty "no coverage yet" block (same discipline as the
+  // Part C review/aggregateRating fix).
+  const coveragePattern = `%](/sets/${params.slug})%`;
+  const [newsCoverageRes, blogCoverageRes, reviewCoverageRes] = await Promise.all([
+    serverClient.from('news_articles').select('slug, title, published_at').ilike('content', coveragePattern),
+    serverClient.from('blog_posts').select('slug, title, published_at, category').ilike('content', coveragePattern),
+    serverClient.from('reviews').select('slug, title, published_at').ilike('content', coveragePattern),
+  ]);
+  const relatedCoverage = [
+    ...(newsCoverageRes.data ?? []).map((a: any) => ({ ...a, href: `/news/${a.slug}`, kind: 'News' })),
+    ...(blogCoverageRes.data ?? []).map((a: any) => ({
+      ...a,
+      href: a.category === 'Opinion' ? `/opinion/${a.slug}` : `/blog/${a.slug}`,
+      kind: a.category === 'Opinion' ? 'Opinion' : 'Blog',
+    })),
+    ...(reviewCoverageRes.data ?? []).map((a: any) => ({ ...a, href: `/reviews/${a.slug}`, kind: 'Review' })),
+  ].sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
 
   const review = set.reviews?.[0] || null;
   const shareUrl = `https://bricksofindia.com/sets/${params.slug}`;
@@ -450,6 +480,25 @@ export default async function SetPage({ params }: Props) {
                 const bestP = relatedPriceMap[relSet.set_number] ?? null;
                 return <SetCard key={relSet.id} set={relSet} bestPrice={bestP} priceCount={bestP ? 1 : 0} />;
               })}
+            </div>
+          </div>
+        )}
+
+        {/* Related Coverage (GEO-05b Phase 3) */}
+        {relatedCoverage.length > 0 && (
+          <div className="mt-12">
+            <h2 className="font-heading text-dark text-3xl mb-6">RELATED COVERAGE</h2>
+            <div className="flex flex-col gap-3">
+              {relatedCoverage.map((a) => (
+                <Link
+                  key={a.href}
+                  href={a.href}
+                  className="flex items-center justify-between gap-3 px-5 py-4 rounded-xl border-2 border-border hover:border-accent-blue transition-colors"
+                >
+                  <span className="font-bold text-dark">{a.title}</span>
+                  <Badge variant="grey">{a.kind}</Badge>
+                </Link>
+              ))}
             </div>
           </div>
         )}
