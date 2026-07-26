@@ -27,6 +27,15 @@ const SERVICE_KEY       = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const RESEND_API_KEY    = (process.env.RESEND_API_KEY ?? '').replace(/^﻿/, '').trim();
 const BRIEF_EMAIL       = (process.env.BRIEF_EMAIL ?? '').replace(/^﻿/, '').trim();
 
+// GITHUB_ACTIONS=true is set automatically by every real Actions run -- nothing
+// to remember to flip. Local/manual runs (including verification testing) never
+// hit the real inbox by default; FORCE_REAL_ALERTS=true is an explicit, deliberate
+// opt-in for the rare case a live send genuinely needs testing outside Actions.
+// Added 2026-07-26 after a verification pass sent real alerts to the production
+// address from local test runs (see BOI_MASTER_TRACKER.md this date).
+const IS_GITHUB_ACTIONS = process.env.GITHUB_ACTIONS === 'true';
+const FORCE_REAL_ALERTS = process.env.FORCE_REAL_ALERTS === 'true';
+
 if (!SUPABASE_URL || !SERVICE_KEY) {
   console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
   process.exit(1);
@@ -34,13 +43,13 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY);
 
-// IG token expiry — hardcoded, refresh date is ~60 days before this
-const IG_TOKEN_EXPIRY = new Date('2026-07-23');
-const IG_WARN_DAYS    = 14;
-
 const failures = [];
 
 async function sendAlert(subject, body) {
+  if (!IS_GITHUB_ACTIONS && !FORCE_REAL_ALERTS) {
+    console.warn(`[TEST MODE — not in GitHub Actions, alert NOT sent] ${subject}`);
+    return;
+  }
   if (!RESEND_API_KEY || !BRIEF_EMAIL) {
     console.warn(`ALERT (no email config): ${subject}`);
     return;
@@ -228,23 +237,57 @@ try {
   );
 }
 
-// ── Check 6: IG token expiry (within 14 days = alert) ───────────────────────
+// ── Check 6: Instagram heartbeat ─────────────────────────────────────────────
+// Replaces the old hardcoded-expiry-date check (removed 2026-07-26 -- it never
+// tracked the real token, so once the constant's date passed it fired a false
+// "expiring soon" alert every single day forever, regardless of actual token
+// state). Reads the same social_automation_heartbeat table Check 6c already
+// uses for YouTube -- real success/failure signal instead of a guessed date.
+// Primary alert  (26h): last_attempt_at stale -> workflow itself hasn't run
+// Secondary alert (72h): last_success_at stale -> workflow runs but IG never succeeds
 try {
-  const daysUntilExpiry = (IG_TOKEN_EXPIRY.getTime() - Date.now()) / 86_400_000;
-  console.log(`[6] IG token: expires in ${daysUntilExpiry.toFixed(0)} days (${IG_TOKEN_EXPIRY.toISOString().slice(0, 10)})`);
-  if (daysUntilExpiry <= IG_WARN_DAYS) {
-    failures.push('ig-token-expiring');
+  const { data: igHb, error: igHbErr } = await sb
+    .from('social_automation_heartbeat')
+    .select('last_attempt_at, last_success_at')
+    .eq('platform', 'instagram')
+    .single();
+  if (igHbErr) throw igHbErr;
+
+  if (!igHb.last_attempt_at) {
+    failures.push('ig-heartbeat-never-ran');
     await sendAlert(
-      '⚠️ BOI Health Alert — Instagram token expiring soon',
-      `Instagram access token expires in ${daysUntilExpiry.toFixed(0)} days (${IG_TOKEN_EXPIRY.toISOString().slice(0, 10)}).\n\nRe-exchange the token before it expires to avoid social automation failure.\n\nSee docs for re-exchange process.`
+      '⚠️ BOI Health Alert — Instagram pipeline never ran',
+      'social_automation_heartbeat.instagram.last_attempt_at is NULL — social-automation.yml has never written a heartbeat.\n\nCheck that the migration was applied and the workflow is running.'
     );
+  } else {
+    const igAttemptAge = (Date.now() - new Date(igHb.last_attempt_at).getTime()) / 3_600_000;
+    console.log(`[6] Instagram heartbeat: last attempt ${igAttemptAge.toFixed(1)}h ago`);
+    if (igAttemptAge > 26) {
+      failures.push('ig-heartbeat-stale');
+      await sendAlert(
+        '⚠️ BOI Health Alert — Instagram pipeline not attempting',
+        `social-automation.yml last ran ${igAttemptAge.toFixed(1)} hours ago.\n\nThreshold: 26 hours (runs daily at 12:00 IST).\n\nCheck GitHub Actions → social-automation.yml for failures or missed triggers.`
+      );
+    } else if (igHb.last_success_at) {
+      const igSuccessAge = (Date.now() - new Date(igHb.last_success_at).getTime()) / 3_600_000;
+      console.log(`[6] Instagram heartbeat: last success ${igSuccessAge.toFixed(1)}h ago`);
+      if (igSuccessAge > 72) {
+        failures.push('ig-heartbeat-no-success');
+        await sendAlert(
+          '⚠️ BOI Health Alert — Instagram not posting',
+          `Pipeline is running (last attempt ${igAttemptAge.toFixed(1)}h ago) but last successful Instagram post was ${igSuccessAge.toFixed(1)} hours ago.\n\nThreshold: 72 hours.\n\nLikely causes: token expiry/invalidation, no eligible sets, or post error. Check social-automation.yml logs.`
+        );
+      }
+    } else {
+      console.log('[6] Instagram heartbeat: pipeline running but no successful post yet');
+    }
   }
 } catch (e) {
-  console.error('[6] IG token check failed:', e.message);
-  failures.push('ig-check-error');
+  console.error('[6] Instagram heartbeat check failed:', e.message);
+  failures.push('ig-heartbeat-error');
   await sendAlert(
-    '🔥 [BOI INFRA FAILURE] — Instagram token expiry check crashed',
-    `Check 6 itself failed to run (this is not a normal expiry-warning alert): ${e.message}\n\nThis check is pure date math on a hardcoded constant, so a throw here means a code-level bug, not an external dependency failure. Investigate scripts/health-check.mjs Check 6 directly.`
+    '🔥 [BOI INFRA FAILURE] — Instagram heartbeat check crashed',
+    `Check 6 itself failed to run (this is not a normal heartbeat-staleness alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real Instagram heartbeat state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 6 directly.`
   );
 }
 
@@ -454,7 +497,11 @@ if (failures.length === 0) {
   console.log('  ALL CHECKS PASSED — no alerts sent');
 } else {
   console.log(`  ${failures.length} CHECK(S) FAILED: ${failures.join(', ')}`);
-  console.log('  Alerts sent via Resend');
+  console.log(
+    IS_GITHUB_ACTIONS || FORCE_REAL_ALERTS
+      ? '  Alerts sent via Resend'
+      : '  TEST MODE — no real alerts sent (see [TEST MODE] lines above)'
+  );
 }
 console.log('═══════════════════════════════\n');
 
