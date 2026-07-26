@@ -180,6 +180,15 @@ type ReviewData = {
   rating: number | null;
 };
 
+// Distinct from ReviewData above (used by buildReviewSchema for a
+// news-article-derived rating) -- this is a real reviews-table row, joined
+// via sets(*, reviews(*)) on /sets/[slug], which always has slug/excerpt.
+type SetReviewData = {
+  rating: number | null;
+  slug: string;
+  excerpt: string;
+};
+
 type ReviewedSet = {
   name?: string | null;
   set_number?: string | null;
@@ -232,7 +241,7 @@ export function buildProductSchema(
   slug: string,
   storeNames: Record<string, string>,
   description: string,
-  review?: ReviewData | null,
+  review?: SetReviewData | null,
 ) {
   const hasPrices = activePrices.length > 0;
   return {
@@ -244,6 +253,17 @@ export function buildProductSchema(
     description,
     brand: { '@type': 'Brand', name: 'LEGO' },
     ...(review?.rating != null && {
+      review: {
+        '@type': 'Review',
+        reviewRating: {
+          '@type': 'Rating',
+          ratingValue: String(review.rating),
+          bestRating: '5',
+        },
+        author: { '@type': 'Organization', name: 'Bricks of India' },
+        reviewBody: review.excerpt,
+        url: `https://bricksofindia.com/reviews/${review.slug}`,
+      },
       aggregateRating: {
         '@type': 'AggregateRating',
         ratingValue: String(review.rating),
