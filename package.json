@@ -14,8 +14,8 @@
     "@extractus/feed-extractor": "^7.2.1",
     "@google/generative-ai": "^0.24.0",
     "@sparticuz/chromium": "^147.0.0",
-    "@supabase/ssr": "^0.10.2",
-    "@supabase/supabase-js": "^2.103.0",
+    "@supabase/ssr": "0.10.2",
+    "@supabase/supabase-js": "2.103.0",
     "cheerio": "^1.2.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
@@ -45,11 +45,21 @@
     "eslint": "^8",
     "eslint-config-next": "14.2.35",
     "playwright": "^1.60.0",
-    "postcss": "^8",
+    "postcss": "^8.5.18",
     "sharp": "^0.35.3",
     "tailwindcss": "^3.4.1",
     "tsx": "^4.22.4",
     "typescript": "^5",
     "vitest": "^4.1.9"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.18"
+    },
+    "@supabase/postgrest-js": "2.103.0",
+    "@supabase/auth-js": "2.103.0",
+    "@supabase/realtime-js": "2.103.0",
+    "@supabase/storage-js": "2.103.0",
+    "@supabase/functions-js": "2.103.0"
   }
 }
