@@ -50,6 +50,12 @@ print('Waiting for callback on http://localhost:8080 ...', flush=True)
 # Pass same state so run_local_server accepts the callback
 creds = flow.run_local_server(port=8080, open_browser=False, state=state)
 
+# Testing-mode Google Cloud OAuth apps issue refresh tokens that expire after
+# 7 days — this estimate is what health-check.mjs Check 6b reads to warn
+# before that happens. It must be persisted in the secret itself: the health
+# check only ever sees YOUTUBE_CLIENT_SECRETS, not this script's console output.
+expiry = datetime.now(timezone.utc) + timedelta(days=7)
+
 token_data = {
     'token':         creds.token,
     'refresh_token': creds.refresh_token,
@@ -57,6 +63,7 @@ token_data = {
     'client_id':     creds.client_id,
     'client_secret': creds.client_secret,
     'scopes':        list(creds.scopes),
+    'expiry':        expiry.strftime('%Y-%m-%dT%H:%M:%SZ'),
 }
 
 token_path = Path('youtube_token.json')
@@ -79,6 +86,5 @@ except FileNotFoundError:
     print('  gh secret set YOUTUBE_CLIENT_SECRETS < youtube_token.json', flush=True)
     sys.exit(1)
 
-expiry = datetime.now(timezone.utc) + timedelta(days=7)
 print(f'[OK] Token stored. Next expiry: {expiry.strftime("%Y-%m-%dT%H:%M:%SZ")}', flush=True)
 print('Remember to delete client_secrets.json and youtube_token.json from this directory.', flush=True)

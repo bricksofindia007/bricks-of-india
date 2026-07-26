@@ -79,16 +79,26 @@ def main() -> None:
     # ── Step 6: Publish ───────────────────────────────────────────────────────
     platforms = {'ig_feed': False, 'ig_reels': False, 'yt_shorts': False}
 
-    # IG carousel: 7 gallery images + stats card = 8 total (Meta allows up to 10)
-    carousel_urls = image_urls[:7] + [image_urls[-1]]
-    print(f'[pipeline] Step 7: Posting to Instagram carousel ({len(carousel_urls)} images)...')
-    publisher.post_instagram_carousel(carousel_urls, caption_text)
-    platforms['ig_feed'] = True
+    # Instagram and YouTube are independent platforms — one failing (e.g. an
+    # expired IG token) must not prevent the other from posting. Each gets its
+    # own try/except and heartbeat write; a failure here does not raise past
+    # this block, so Step 9 (YouTube) always runs regardless of IG's outcome.
+    ig_failure_reason = None
+    try:
+        # IG carousel: 7 gallery images + stats card = 8 total (Meta allows up to 10)
+        carousel_urls = image_urls[:7] + [image_urls[-1]]
+        print(f'[pipeline] Step 7: Posting to Instagram carousel ({len(carousel_urls)} images)...')
+        publisher.post_instagram_carousel(carousel_urls, caption_text)
+        platforms['ig_feed'] = True
 
-    print('[pipeline] Step 8: Posting to Instagram Reels...')
-    publisher.post_instagram_reels(reels_url, caption_text)
-    platforms['ig_reels'] = True
-    db.record_heartbeat('instagram', success=True)
+        print('[pipeline] Step 8: Posting to Instagram Reels...')
+        publisher.post_instagram_reels(reels_url, caption_text)
+        platforms['ig_reels'] = True
+        db.record_heartbeat('instagram', success=True)
+    except Exception as ig_exc:
+        ig_failure_reason = str(ig_exc)
+        print(f'[pipeline] Instagram posting failed: {ig_exc}')
+        db.record_heartbeat('instagram', success=False, error=ig_failure_reason)
 
     print('[pipeline] Step 9: Uploading YouTube Short...')
     yt_failure_reason = None
@@ -118,13 +128,19 @@ def main() -> None:
     print('[pipeline] Step 12: Sending success email...')
     notifier.send_success(set_data, platforms)
 
-    print(f'\n[pipeline] Done. {set_num} posted successfully.')
-    print(f'  IG Feed:  {"OK" if platforms["ig_feed"] else "X"}')
-    print(f'  IG Reels: {"OK" if platforms["ig_reels"] else "X"}')
+    print(f'\n[pipeline] Done. {set_num} processed.')
+    print(f'  IG Feed:  {"OK" if platforms["ig_feed"] else "FAIL — " + (ig_failure_reason or "unknown")}')
+    print(f'  IG Reels: {"OK" if platforms["ig_reels"] else "FAIL — " + (ig_failure_reason or "unknown")}')
     print(f'  YouTube:  {"OK" if platforms["yt_shorts"] else "FAIL — " + (yt_failure_reason or "unknown")}')
 
+    failure_reasons = []
+    if ig_failure_reason:
+        failure_reasons.append(f'Instagram: {ig_failure_reason}')
     if yt_failure_reason:
-        print(f'[pipeline] Exiting non-zero: YouTube failed — {yt_failure_reason}')
+        failure_reasons.append(f'YouTube: {yt_failure_reason}')
+
+    if failure_reasons:
+        print(f'[pipeline] Exiting non-zero: {"; ".join(failure_reasons)}')
         sys.exit(1)
 
 

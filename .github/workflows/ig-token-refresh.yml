@@ -14,6 +14,18 @@
 #
 # Failure mode: any step failing sends the standard failure email via the
 # social-automation notifier so it never dies silently.
+#
+# KNOWN LIMITATION (confirmed 2026-07-26): re-exchanging a token that is
+# ALREADY long-lived does not reliably reset Meta's 60-day clock the way
+# exchanging a short-lived token does — Meta can hand back a token that is
+# functionally the same underlying session, still expiring on its original
+# schedule. The 2026-07-15 run "succeeded" by every check this workflow had
+# (fresh access_token string, passed /me validation) but the resulting token
+# died 8 days later, not 60. The new expires_in check below stops that from
+# being silently reported as success — it does NOT make the renewal actually
+# work long-term; that requires a Meta System User (non-expiring) token,
+# which is the planned durable fix, pending Abhinav in Meta Business Manager.
+# This workflow is a stopgap until that lands.
 
 name: ig-token-refresh
 
@@ -55,6 +67,19 @@ jobs:
           fi
           echo "::add-mask::$NEW_TOKEN"
           echo "new_token=$NEW_TOKEN" >> "$GITHUB_OUTPUT"
+
+          # Re-exchanging an already-long-lived token can silently return one
+          # with barely any life left instead of a fresh 60 days (see runbook
+          # note above, confirmed 2026-07-26). Refuse to commit that as a
+          # "successful" rotation — 30 days is comfortably more than the
+          # 15-day cadence between runs.
+          EXPIRES_IN=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('expires_in', 0))")
+          echo "New token expires_in: ${EXPIRES_IN}s"
+          MIN_EXPIRES_IN=$((30 * 24 * 60 * 60))
+          if [ "$EXPIRES_IN" -lt "$MIN_EXPIRES_IN" ]; then
+            echo "::error::Exchange returned only ${EXPIRES_IN}s (< 30 days) — this is the already-long-lived-token no-op, not a fresh 60-day grant. NOT updating secret. Manual re-auth with a fresh short-lived User Token from Graph API Explorer is required."
+            exit 1
+          fi
 
       - name: Validate new token against Graph /me
         env:
