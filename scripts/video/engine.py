@@ -562,6 +562,26 @@ def get_price_drops(sb, set_numbers: list[str], store_id: str = "mybrickhouse") 
     return drops
 
 
+# Priority requeue (added 2026-07-26, alongside the rejection-exception
+# workflow migration): a set explicitly cleared_for_regeneration after a
+# real root-cause fix (e.g. a corrected MRP) must be the very next thing
+# generated, not just eventually-eligible again via the normal price/
+# recency pool -- which could take days, or never surface it at all if it
+# doesn't rank in the top pool_size by price. review_status=
+# 'cleared_for_regeneration' AND regeneration_priority=true together is the
+# gate (see migration's comment on why no trigger sets this at clear-time).
+def get_priority_regeneration_rows(sb) -> list[dict]:
+    res = (
+        sb.table("content_rejections")
+        .select("set_number, rejection_reason, rejected_at")
+        .eq("review_status", "cleared_for_regeneration")
+        .eq("regeneration_priority", True)
+        .order("rejected_at")  # oldest-cleared first -- fair queue order
+        .execute()
+    )
+    return [r for r in (res.data or []) if r.get("set_number")]
+
+
 def get_candidates(sb, limit: int = 10, pool_size: int = 30) -> list[dict]:
     mbh_products = fetch_shopify_products(MBH_URL)
 
@@ -572,22 +592,43 @@ def get_candidates(sb, limit: int = 10, pool_size: int = 30) -> list[dict]:
     # Client-side sort, per STEP 0 verification: sort_by is ignored server-side.
     mbh_sorted = sorted(mbh_products, key=mbh_price_key, reverse=True)
 
+    priority_rows = get_priority_regeneration_rows(sb)
+    priority_set_numbers = {r["set_number"] for r in priority_rows}
+    priority_reasons = {r["set_number"]: r["rejection_reason"] for r in priority_rows}
+    priority_order = {r["set_number"]: i for i, r in enumerate(priority_rows)}
+
+    # Build the normal price-ranked pool as before, but keep scanning past
+    # pool_size for as long as a priority-cleared set hasn't been found yet --
+    # its position in the live MyBrickHouse price ranking is irrelevant to
+    # whether it must be included.
     pool: list[dict] = []
+    found_priority_numbers: set[str] = set()
     for p in mbh_sorted:
         c = build_candidate(p, "mybrickhouse", "MyBrickHouse", MBH_DOMAIN)
-        if c:
+        if not c:
+            continue
+        is_priority = c.get("set_number") in priority_set_numbers
+        if is_priority:
+            found_priority_numbers.add(c["set_number"])
+        if len(pool) < pool_size or is_priority:
             pool.append(c)
-        if len(pool) >= pool_size:
+        if len(pool) >= pool_size and found_priority_numbers >= priority_set_numbers:
             break
 
-    # Filter: not already used.
+    # Filter: not already used. A cleared_for_regeneration row is NOT one of
+    # the review_status values already_used() excludes on (see its own
+    # docstring), so a priority set naturally passes this filter already.
     fresh = [c for c in pool if not already_used(sb, c["product_url"], c["set_number"])]
 
-    # Rank: newest-arrival + price-drop signals. A real price-drop (reusing
-    # the web pipeline's own detector) is a strong "worth talking about
-    # today" signal, so it outranks plain recency; otherwise sort by
-    # newest-published first (previous behaviour).
-    drops = get_price_drops(sb, [c["set_number"] for c in fresh])
+    priority_items = [c for c in fresh if c.get("set_number") in priority_set_numbers]
+    normal_items = [c for c in fresh if c.get("set_number") not in priority_set_numbers]
+    priority_items.sort(key=lambda c: priority_order.get(c.get("set_number"), 999_999))
+
+    # Rank (normal items only): newest-arrival + price-drop signals. A real
+    # price-drop (reusing the web pipeline's own detector) is a strong
+    # "worth talking about today" signal, so it outranks plain recency;
+    # otherwise sort by newest-published first (previous behaviour).
+    drops = get_price_drops(sb, [c["set_number"] for c in normal_items])
 
     def rank_key(c: dict) -> tuple:
         drop = drops.get(c["set_number"])
@@ -595,7 +636,11 @@ def get_candidates(sb, limit: int = 10, pool_size: int = 30) -> list[dict]:
         drop_pct = drop["drop_pct"] if drop else 0.0
         return (has_drop, drop_pct, c.get("published_at") or "")
 
-    fresh.sort(key=rank_key, reverse=True)
+    normal_items.sort(key=rank_key, reverse=True)
+
+    # Priority-cleared sets always come first, ahead of every normal
+    # candidate, regardless of price/recency rank.
+    fresh = priority_items + normal_items
 
     # Attach catalog enrichment (confidence-checked, see resolve_catalog_match)
     # + a one-line reason.
@@ -617,7 +662,13 @@ def get_candidates(sb, limit: int = 10, pool_size: int = 30) -> list[dict]:
         c["pieces"] = pieces
         c["theme"] = theme
         c["piece_count_discrepancy"] = discrepancy
-        if drop:
+        if c.get("set_number") in priority_set_numbers:
+            # Overrides the normal price-drop/recency reason entirely -- this
+            # candidate isn't here because of price or recency, it's here
+            # because it was explicitly cleared for regeneration.
+            prior_reason = priority_reasons.get(c["set_number"]) or "no reason recorded"
+            reason = f"[PRIORITY REGEN] cleared_for_regeneration after rejection: \"{prior_reason}\""
+        elif drop:
             reason = f"price drop on MyBrickHouse: ₹{drop['old_price']:,.0f} -> ₹{drop['new_price']:,.0f} ({drop['drop_pct']:.0f}% off)"
         else:
             reason = f"newest arrival on MyBrickHouse (₹{c['price_inr']:,.0f})"
@@ -1398,7 +1449,21 @@ def insert_video_post(sb, candidate: dict, script: str, gate_report: gates.GateR
         "piece_count_discrepancy": candidate.get("piece_count_discrepancy"),
     }
     res = sb.table("video_posts").insert(row).execute()
-    return res.data[0]["id"], res.data[0]["story_number"]
+    video_id, story_number = res.data[0]["id"], res.data[0]["story_number"]
+
+    # Priority requeue consumption (added 2026-07-26): a set is now actually
+    # regenerated, so stop force-picking it every day forever. Scoped by the
+    # exact same WHERE conditions get_candidates() selects on, so this only
+    # ever touches the row(s) that made this candidate a priority pick in the
+    # first place -- a no-op for an ordinary (non-priority) candidate.
+    set_number = candidate.get("set_number")
+    if set_number:
+        sb.table("content_rejections").update({
+            "regeneration_priority": False,
+            "requeued_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("set_number", set_number).eq("review_status", "cleared_for_regeneration").eq("regeneration_priority", True).execute()
+
+    return video_id, story_number
 
 
 def mark_posted(sb, video_id: str, platform: str) -> None:
