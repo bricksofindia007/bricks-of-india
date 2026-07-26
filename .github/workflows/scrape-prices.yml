@@ -45,6 +45,13 @@ jobs:
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
         run: node scripts/scrape-now.mjs
 
+      - name: Sync new/changed sets to IndexNow
+        if: always()
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/indexnow-sync-sets.ts
+
       - name: Report store_prices row count
         if: always()
         env:

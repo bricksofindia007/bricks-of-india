@@ -1,5 +1,6 @@
 import { lintDraft, extractSetNumberCandidates, type LintResult } from './lint';
 import { linkFirstSetMentions } from './link-set-mentions';
+import { submitToIndexNow } from './indexnow';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ── Unified publish-a-draft logic (2026-06-28) ────────────────────────────────
@@ -635,6 +636,13 @@ export async function publishOneDraft(
   if (insertErr) {
     throw new Error(`Insert failed (${table}): ${insertErr.message}`);
   }
+
+  // Recrawl acceleration (replaces the dead Google sitemap ping): submit
+  // this one new/updated article URL immediately. Never blocks publish --
+  // submitToIndexNow() itself never throws, and any unexpected error here
+  // is caught by publishOneDraft's own caller-level error handling like
+  // any other post-insert step.
+  await submitToIndexNow([`https://bricksofindia.com${path}/${slug}`]);
 
   const { error: markErr } = await supabase.from('pending_drafts').update({
     status: 'published', published_url: `${path}/${slug}`, published_at: now, lint_result: lint,
