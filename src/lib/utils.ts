@@ -13,6 +13,13 @@ export function formatPrice(price: number): string {
   }).format(price);
 }
 
+// Single source of truth for a set's meta description -- threaded into both
+// the <meta name="description"> tag (generateMetadata) and the Product
+// JSON-LD (buildProductSchema) so they can't drift apart.
+export function setMetaDescription(setName: string): string {
+  return `Find the best price for ${setName} in India. Compare prices across Toycra and MyBrickHouse. Updated every 6 hours.`;
+}
+
 export function slugify(text: string): string {
   return text
     .toLowerCase()

@@ -133,7 +133,6 @@ type SetData = {
   name: string;
   set_number: string;
   image_url?: string | null;
-  description?: string | null;
   theme?: string | null;
   pieces?: number | null;
 };
@@ -232,6 +231,7 @@ export function buildProductSchema(
   activePrices: StorePrice[],
   slug: string,
   storeNames: Record<string, string>,
+  description: string,
   review?: ReviewData | null,
 ) {
   const hasPrices = activePrices.length > 0;
@@ -241,9 +241,7 @@ export function buildProductSchema(
     name: set.name,
     sku: set.set_number,
     ...(set.image_url && { image: set.image_url }),
-    description:
-      set.description ||
-      `LEGO ${set.theme ? set.theme + ' ' : ''}set ${set.set_number}${set.pieces ? ', ' + set.pieces + ' pieces' : ''}, compare prices across Indian stores`,
+    description,
     brand: { '@type': 'Brand', name: 'LEGO' },
     ...(review?.rating != null && {
       aggregateRating: {

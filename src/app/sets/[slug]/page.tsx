@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
 import { getSet } from '@/lib/rebrickable';
-import { formatPrice, slugify, whatsappShareUrl, socialCardImage } from '@/lib/utils';
+import { formatPrice, slugify, whatsappShareUrl, socialCardImage, setMetaDescription } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
 import { Badge, BestPriceBadge, OutOfStockBadge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
@@ -70,7 +70,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!set) return { title: 'Set Not Found' };
   return {
     title: `${set.name} (${set.set_number}) Price in India 2026`,
-    description: `Find the best price for ${set.name} in India. Compare prices across Toycra and MyBrickHouse. Updated every 6 hours.`,
+    description: setMetaDescription(set.name),
     alternates: { canonical: `https://bricksofindia.com/sets/${params.slug}` },
     openGraph: {
       title: `${set.name} (${set.set_number}) — Best Price in India`,
@@ -175,7 +175,7 @@ export default async function SetPage({ params }: Props) {
 
   return (
     <div className="bg-white min-h-screen">
-      <JsonLd data={buildProductSchema(set, activePrices, params.slug, STORE_NAMES, review)} />
+      <JsonLd data={buildProductSchema(set, activePrices, params.slug, STORE_NAMES, setMetaDescription(set.name), review)} />
 
       {/* Breadcrumb */}
       <div className="max-w-site mx-auto px-4 py-3">
