@@ -31,6 +31,9 @@ jobs:
       - name: Review/aggregateRating schema integrity check (GSC-01)
         run: npx tsx scripts/check-review-schema-integrity.ts
 
+      - name: Set-mention link integrity check (GEO-05b)
+        run: npx tsx scripts/check-set-mention-links.ts
+
       - run: npm run build
 
       - name: Scan client bundle and static public files for email leak

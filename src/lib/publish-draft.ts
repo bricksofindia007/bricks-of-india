@@ -1,4 +1,5 @@
 import { lintDraft, extractSetNumberCandidates, type LintResult } from './lint';
+import { linkFirstSetMentions } from './link-set-mentions';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ── Unified publish-a-draft logic (2026-06-28) ────────────────────────────────
@@ -575,6 +576,17 @@ export async function publishOneDraft(
   const cqsErr = cqsHardCheck(cleanBody);
   if (cqsErr) throw new Error(`[CQS REJECT] ${cqsErr}`);
 
+  // Gate 10 (GEO-05b): auto-link the first mention of each distinct set
+  // number to its /sets/[slug] page. Never blocks publish -- a mention
+  // with no matching sets row is silently skipped (logged, not thrown).
+  // Runs on cleanBody, not the excerpt -- excerptRaw below is derived from
+  // cleanBody (pre-link) on purpose, so the meta description never shows
+  // raw markdown link syntax.
+  const { content: linkedBody, skipped: unresolvedSetMentions } = await linkFirstSetMentions(cleanBody, supabase);
+  if (unresolvedSetMentions.length > 0) {
+    console.log(`[Gate 10] ${unresolvedSetMentions.length} set mention(s) with no matching sets row, skipped: ${unresolvedSetMentions.join(', ')}`);
+  }
+
   // Word-boundary truncation — the old hard .slice(0, 160) cut mid-word
   // ("…vehicle can p") in live meta descriptions (2026-07-02 audit).
   const excerptRaw = cleanBody.replace(/#{1,6}\s/g, '').replace(/\*+([^*]+)\*+/g, '$1').replace(/\s+/g, ' ').trim();
@@ -604,7 +616,7 @@ export async function publishOneDraft(
   // not the text `set_number` the other tables use) that they don't have.
   const row = table === 'reviews'
     ? {
-        title, slug, content: cleanBody, excerpt,
+        title, slug, content: linkedBody, excerpt,
         published_at: now, seo_title: title, seo_description: excerpt,
         hero_image: heroImage,
         verdict: reviewVerdict,
@@ -612,7 +624,7 @@ export async function publishOneDraft(
         ...(reviewSetId ? { set_id: reviewSetId } : {}),
       }
     : {
-        title, slug, content: cleanBody, category, excerpt,
+        title, slug, content: linkedBody, category, excerpt,
         published_at: now, seo_title: title, seo_description: excerpt,
         hero_image: heroImage,
         ...(reviewVerdict ? { verdict: reviewVerdict } : {}),
