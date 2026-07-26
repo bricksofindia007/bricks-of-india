@@ -153,32 +153,18 @@ try {
   );
 }
 
-// ── Check 4: Social automation (> 25 hours = alert) ─────────────────────────
-try {
-  const { data, error } = await sb
-    .from('posted_sets')
-    .select('posted_at')
-    .order('posted_at', { ascending: false })
-    .limit(1)
-    .single();
-  if (error) throw error;
-  const ageHours = (Date.now() - new Date(data.posted_at).getTime()) / 3_600_000;
-  console.log(`[4] Social automation: last post ${ageHours.toFixed(1)}h ago`);
-  if (ageHours > 25) {
-    failures.push('social-stale');
-    await sendAlert(
-      '⚠️ BOI Health Alert — Social automation stale',
-      `Last social post ${ageHours.toFixed(1)} hours ago.\n\nThreshold: 25 hours.\n\nCheck GitHub Actions → social-automation.yml for failures.`
-    );
-  }
-} catch (e) {
-  console.error('[4] Social automation check failed:', e.message);
-  failures.push('social-check-error');
-  await sendAlert(
-    '🔥 [BOI INFRA FAILURE] — Social automation check crashed',
-    `Check 4 itself failed to run (this is not a normal staleness alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real social automation state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 4 directly.`
-  );
-}
+// ── Check 4: REMOVED 2026-07-26 ──────────────────────────────────────────────
+// Used to alert on posted_sets.posted_at > 25h, but that column only updates
+// when an eligible new set is found (~7 of every 17 days, per the ≥10-gallery-
+// image gate) -- not on every pipeline run. Confirmed via live posted_sets
+// history: 5 of the last 14 real gaps between posts already exceeded 25h
+// (up to 71.9h), unrelated to any actual failure -- this was firing real
+// false alarms roughly weekly. Check 6 (Instagram) and Check 6c (YouTube)
+// already cover "is the pipeline actually running" correctly via
+// social_automation_heartbeat.last_attempt_at (updated on every run,
+// including "no eligible candidates" days) with the same 26h threshold --
+// making this check fully redundant once pointed at the right data, so it
+// was removed rather than duplicated.
 
 // ── Check 5: Store price scraper (> 7 hours = alert) ────────────────────────
 try {
@@ -244,7 +230,12 @@ try {
 // state). Reads the same social_automation_heartbeat table Check 6c already
 // uses for YouTube -- real success/failure signal instead of a guessed date.
 // Primary alert  (26h): last_attempt_at stale -> workflow itself hasn't run
-// Secondary alert (72h): last_success_at stale -> workflow runs but IG never succeeds
+// Secondary alert (120h): last_success_at stale -> workflow runs but IG never succeeds.
+// Widened from 72h to 120h 2026-07-26: live posted_sets history showed real,
+// non-failure gaps up to 71.9h between eligible sets (the ~7-of-17-days gate),
+// putting 72h at risk of the same false-positive shape Check 4 had. 120h gives
+// margin above every observed real gap while still catching genuine outages
+// well within a week.
 try {
   const { data: igHb, error: igHbErr } = await sb
     .from('social_automation_heartbeat')
@@ -271,11 +262,11 @@ try {
     } else if (igHb.last_success_at) {
       const igSuccessAge = (Date.now() - new Date(igHb.last_success_at).getTime()) / 3_600_000;
       console.log(`[6] Instagram heartbeat: last success ${igSuccessAge.toFixed(1)}h ago`);
-      if (igSuccessAge > 72) {
+      if (igSuccessAge > 120) {
         failures.push('ig-heartbeat-no-success');
         await sendAlert(
           '⚠️ BOI Health Alert — Instagram not posting',
-          `Pipeline is running (last attempt ${igAttemptAge.toFixed(1)}h ago) but last successful Instagram post was ${igSuccessAge.toFixed(1)} hours ago.\n\nThreshold: 72 hours.\n\nLikely causes: token expiry/invalidation, no eligible sets, or post error. Check social-automation.yml logs.`
+          `Pipeline is running (last attempt ${igAttemptAge.toFixed(1)}h ago) but last successful Instagram post was ${igSuccessAge.toFixed(1)} hours ago.\n\nThreshold: 120 hours.\n\nLikely causes: token expiry/invalidation, no eligible sets, or post error. Check social-automation.yml logs.`
         );
       }
     } else {
@@ -324,7 +315,9 @@ try {
 
 // ── Check 6c: YouTube heartbeat ──────────────────────────────────────────────
 // Primary alert  (26h): last_attempt_at stale → workflow itself hasn't run
-// Secondary alert (72h): last_success_at stale → workflow runs but YouTube never succeeds
+// Secondary alert (120h): last_success_at stale → workflow runs but YouTube never succeeds.
+// Widened from 72h to 120h 2026-07-26 -- same false-positive shape as Check 4
+// (shared eligibility-gated posting cadence with Instagram), see Check 6 note.
 try {
   const { data: hb, error: hbErr } = await sb
     .from('social_automation_heartbeat')
@@ -351,11 +344,11 @@ try {
     } else if (hb.last_success_at) {
       const successAge = (Date.now() - new Date(hb.last_success_at).getTime()) / 3_600_000;
       console.log(`[6c] YouTube heartbeat: last success ${successAge.toFixed(1)}h ago`);
-      if (successAge > 72) {
+      if (successAge > 120) {
         failures.push('yt-heartbeat-no-success');
         await sendAlert(
           '⚠️ BOI Health Alert — YouTube not uploading',
-          `Pipeline is running (last attempt ${attemptAge.toFixed(1)}h ago) but last successful YouTube upload was ${successAge.toFixed(1)} hours ago.\n\nThreshold: 72 hours.\n\nLikely causes: token expiry, no eligible sets, or upload error. Check social-automation.yml logs.`
+          `Pipeline is running (last attempt ${attemptAge.toFixed(1)}h ago) but last successful YouTube upload was ${successAge.toFixed(1)} hours ago.\n\nThreshold: 120 hours.\n\nLikely causes: token expiry, no eligible sets, or upload error. Check social-automation.yml logs.`
         );
       }
     } else {
@@ -428,17 +421,32 @@ try {
   );
 }
 
-// ── Check 9: Cron success timestamps (> 26 hours = alert) ────────────────────
+// ── Check 9: Cron success timestamps + run-failure detection ────────────────
+// Two independent conditions per workflow, both using data already fetched:
+//  - stale (age > per-workflow threshold): hasn't run recently
+//  - failed (conclusion === 'failure'): DID run, but the run itself failed --
+//    added 2026-07-26. Previously this data was fetched and logged (the
+//    console.log below always showed the real status) but never acted on --
+//    a workflow running on schedule and failing every time produced zero
+//    alert, which is exactly what happened with social-automation.yml's real
+//    07-24/07-25 failures (both recent, so age-based staleness never caught
+//    them). Confirmed against a real historical failed run
+//    (repos/.../actions/runs/30151185064) that GitHub's API literally returns
+//    conclusion: "failure" as this exact string.
 try {
   const GITHUB_TOKEN = process.env.GITHUB_TOKEN;
   const REPO         = process.env.GITHUB_REPOSITORY ?? 'bricksofindia007/bricks-of-india';
   if (!GITHUB_TOKEN) throw new Error('GITHUB_TOKEN not set');
 
   const workflows = [
-    { file: 'radar.yml',          label: 'RADAR pipeline'   },
-    { file: 'social-automation.yml', label: 'Social automation' },
-    { file: 'scrape-prices.yml',  label: 'Price scraper'    },
-    { file: 'generate-drafts.yml', label: 'Batch generator' },
+    { file: 'radar.yml',             label: 'RADAR pipeline',        maxAgeHours: 26 },
+    { file: 'social-automation.yml', label: 'Social automation',     maxAgeHours: 26 },
+    { file: 'scrape-prices.yml',     label: 'Price scraper',         maxAgeHours: 26 },
+    { file: 'generate-drafts.yml',   label: 'Batch generator',       maxAgeHours: 26 },
+    // Added 2026-07-26 -- previously absent despite being two of the more
+    // consequential workflows in the repo this week.
+    { file: 'ig-token-refresh.yml',  label: 'IG token auto-refresh', maxAgeHours: 432 }, // 1st+15th cron; worst real gap is 17 days (31-day month, 15th -> 1st) + 1 day buffer
+    { file: 'publish-drafts.yml',    label: 'Publish drafts',        maxAgeHours: 16 },  // 3x/day cron (~19:00/07:30/12:30 UTC); worst gap ~12.5h + buffer
   ];
 
   for (const wf of workflows) {
@@ -453,11 +461,19 @@ try {
     const ageHours = (Date.now() - new Date(lastRun.created_at).getTime()) / 3_600_000;
     const status   = lastRun.conclusion ?? lastRun.status;
     console.log(`[9] ${wf.label}: last run ${ageHours.toFixed(1)}h ago (${status})`);
-    if (ageHours > 26) {
+
+    if (lastRun.conclusion === 'failure') {
+      failures.push(`cron-failed-${wf.file}`);
+      await sendAlert(
+        `⚠️ BOI Health Alert — ${wf.label} run failed`,
+        `Workflow: ${wf.file}\nMost recent run failed ${ageHours.toFixed(1)} hours ago (${lastRun.created_at}).\n\nThis fires regardless of how recently it ran — a workflow running on schedule but failing every time previously produced no alert here. Check the run logs.`
+      );
+    }
+    if (ageHours > wf.maxAgeHours) {
       failures.push(`cron-stale-${wf.file}`);
       await sendAlert(
         `⚠️ BOI Health Alert — ${wf.label} cron stale`,
-        `Workflow: ${wf.file}\nLast run: ${ageHours.toFixed(1)} hours ago (${lastRun.created_at})\nStatus: ${status}\n\nThreshold: 26 hours.\n\nCheck GitHub Actions for failures.`
+        `Workflow: ${wf.file}\nLast run: ${ageHours.toFixed(1)} hours ago (${lastRun.created_at})\nStatus: ${status}\n\nThreshold: ${wf.maxAgeHours} hours.\n\nCheck GitHub Actions for failures.`
       );
     }
   }
