@@ -3104,6 +3104,26 @@ Decision deferred to Day 3 open.
 
 ---
 
+### VID-QP — Quiet Panic Format
+
+> New, lower-frequency comedic track sitting alongside VID-P4's daily review pipeline — SFX/whisper-led, zero building footage, one persona ("The Overly Serious Whisperer") across three planned formats. Full spec: `briefs/BOI_QuietPanic_Format_Brief_v1.md` (persona, voice lock, SFX library, bumpers). Phase 2b build spec (not yet executed): `briefs/BOI_QuietPanic_Phase2b_Brief_v1.md`.
+
+#### VID-QP-01: SFX library + bumper lock (Phase 1 & 2a)
+- **What:** One-time SFX library (6 cues) and the two standing intro/outro bumpers for every Quiet Panic video, generated via ElevenLabs and locked for reuse — never regenerated per video.
+- **Status: ✅ Phase 1 & 2a COMPLETE 2026-07-29.** Phase 2b (script-gen/segment JSON/gates/assembly/DB-publish wiring) is **pending** — spec written (`briefs/BOI_QuietPanic_Phase2b_Brief_v1.md`) but not executed.
+- **Locked voice:** Mira Whisper — ASMR & English whisper, voice ID `thNHFcPYszCz6ZPG6mUp`. Selected from a 3-candidate test batch (Viraj, Mira Whisper, Julian), re-confirmed against a vocabulary-loaded line ("Sharma ji," "Swiggy," rupee figures) — Julian tested clean on diction but read as distinctly American, disqualifying against Indian-cultural-reference scripts.
+- **API key:** `ELEVENLABS_API_KEY_ASMR` (scoped: Text to Speech, Sound Effects, Voices — separate from VID-P4's production `ELEVENLABS_API_KEY`). All future TTS/SFX calls for this format use this key.
+- **SFX library location:** `assets/sfx/library/` — `bag_tear.mp3`, `brick_snap.mp3`, `brick_pour.mp3`, `sorting_rummage.mp3`, `separator_pry.mp3`, `soft_whoosh.mp3` (6/6 generated). `brick_snap_short.mp3` (0.7s trim of `brick_snap.mp3`) also present, used in the final intro splice.
+- **Bumper file locations:** `assets/bumpers/intro_final.mp3` (7.2s, `eleven_flash_v2_5`, brick-snap-scored) and `assets/bumpers/outro_final.mp3` (renamed from `outro_take6.mp3`, `eleven_multilingual_v2` — `eleven_flash_v2_5` repeatedly stuttered on this exact phrasing across every take, multilingual_v2 rendered clean on the first attempt; one-time asset, so stability was prioritized over generation speed). Both locked as permanent spliced-in bumpers for every video in this format.
+- **Planned cadence:** The Quiet Panic (flagship) 3x/week, both platforms, 45–55s incl. bumpers (revised up from an initial 30–45s target once Mira's actual whisper pacing was measured). Guess the Sound (1x/week) and Pure Loop (3x/week, Instagram-only) both **deferred** until Quiet Panic has a couple weeks of real engagement data.
+- **Standing dependency:** this format cannot go live for a given set until that set's MRP is confirmed audited (`sets.lego_mrp_inr`, verified rows only — never one of the ~2,770 unverified-estimate rows from the ongoing MRP audit). No live scraping at render time; the corrected DB column is the shared source of truth for both site and video.
+- **Outstanding (not yet done):** brief flags that Julian and Viraj's added voice-library slots should be removed from the ElevenLabs account now that Mira is locked — not actioned as part of this tracker entry.
+- **Owner:** A (voice/creative decisions, brief authorship) + C (generation, splicing).
+- **Target window:** Phase 2b next, no date set.
+- **Dependencies:** VID-P4's existing ASSET-01/02 image pipeline (reused, no new scraper); MRP audit completion per set.
+
+---
+
 ### Monetization
 
 #### MEDIUM-62: MyBrickHouse coupon-code affiliate arrangement
