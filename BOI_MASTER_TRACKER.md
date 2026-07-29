@@ -3122,6 +3122,20 @@ Decision deferred to Day 3 open.
 - **Target window:** Phase 2b next, no date set.
 - **Dependencies:** VID-P4's existing ASSET-01/02 image pipeline (reused, no new scraper); MRP audit completion per set.
 
+#### VID-QP-02a: Publish-side isolation (DB table, standalone script, standalone workflow)
+- **What:** Operator requested full isolation from VID-P4's publish infrastructure, not just a `content_type` value on `video_posts` — "copy the model, not the infrastructure." Investigation first found `video_posts.content_type` doesn't exist at all (would've needed a migration either way); operator then redirected to a fully separate table instead.
+- **Status: ✅ DONE 2026-07-29** — this slice only (DB table + standalone poller/publisher + standalone workflow). Script-gen, segment JSON, gates, TTS, assembly, and audio QC (VID-QP-02.md sections 1-6) are **still pending** — this is the publish-side (section 7) slice only, built ahead of the generation side.
+- **`quiet_panic_posts` table:** `supabase/migrations/20260729000000_quiet_panic_posts.sql`, applied via Supabase MCP (project `hqpaiarhmiocmjrzjhtw`). Own schema (not a `video_posts` column addition), own `status` CHECK constraint (`pending_approval/approved/posted_ig/posted_yt/posted_both/discarded/publish_blocked`), own `sequence_number` ordering trigger (mirrors `video_posts.story_number`'s trigger pattern), RLS enabled with zero policies (matches the existing admin-table idiom — `video_posts`, `content_rejections`, `generator_runs`).
+- **`scripts/video/publish_quiet_panic.py`:** new, fully standalone. Zero imports from `engine.py`/`publish.py` — the IG Reels (container-create → poll → publish → fetch-back-verify) and YouTube Shorts (channel-identity guard → resumable upload → fetch-back-verify) upload logic is duplicated as its own functions in this file. Own daily cap (1/day) and own IST-day-bounds check against `quiet_panic_posts` only, no shared counter with VID-P4's poller.
+- **One shared data dependency (not code):** `IG_ACCESS_TOKEN` / `IG_USER_ID` / `YOUTUBE_CLIENT_SECRETS` — same Bricks of India IG/YouTube account credentials as VID-P4, reused as-is (there is only one account regardless of which pipeline posts to it). `IG_ACCESS_TOKEN` freshness still depends on the existing `ig-token-refresh.yml` workflow — no separate refresh cycle was built.
+- **`.github/workflows/video-publish-poller-quiet-panic.yml`:** new, separate workflow, hourly at `:17` (`17 * * * *`) — independent schedule from VID-P4's `*/15 * * * *`.
+- **Confirmed untouched by this change:** `video_posts` (table/schema), `scripts/video/engine.py`, `scripts/video/publish.py`, `.github/workflows/video-publish-poller.yml`, `social-assets` bucket contents.
+- **`quiet-panic-assets` Storage bucket:** initial build shared VID-P4's `social-assets` bucket under a `quiet-panic-video/` prefix — reversed same-day once flagged that `service_role` bypasses RLS on `storage.objects` entirely and can't be scoped to a prefix, so the shared-bucket approach would have given this script full read/write/delete on VID-P4's stored videos. Created a fully separate bucket instead (`public: True`, same `create_bucket` pattern as `social-assets`). Verified live: test upload succeeded, `get_public_url()` returned a real fetchable `HTTP 200` link (byte-identical content), and `social-assets`' object listing showed zero new objects from the test.
+- **Not built in this slice** (none requested): notification wiring (`notifier.py` was not duplicated), captions/story-badge OCR guards (no equivalent defined yet for this format), an evening publish-window restriction (only the daily cap was requested).
+- **Owner:** A (isolation decision) + C (build).
+- **Target window:** Done (this slice). Generation-side sections 1-6 of VID-QP-02.md still pending, no date set.
+- **Dependencies:** VID-QP-01 (SFX/bumpers, done); VID-P4's IG/YouTube account credentials (shared, not owned by this slice).
+
 ---
 
 ### Monetization

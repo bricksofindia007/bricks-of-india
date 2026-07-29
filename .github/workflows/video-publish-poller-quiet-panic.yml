@@ -1,0 +1,37 @@
+name: VID-QP Publish Poller
+
+# Standalone poller for the Quiet Panic format. Independent schedule and
+# trigger from VID-P4's "VID-P4 Publish Poller" workflow (video-publish-
+# poller.yml, */15 * * * *) -- runs hourly at :17 instead, deliberately not
+# aligned to VID-P4's cadence. Calls publish_quiet_panic.py, which imports
+# nothing from engine.py/publish.py; the only thing shared with VID-P4's
+# poller is the underlying IG/YouTube account credentials (same Bricks of
+# India account, not shared code). See briefs/VID-QP-02.md.
+
+on:
+  schedule:
+    - cron: '17 * * * *'
+  workflow_dispatch:  # manual trigger for testing
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/video/requirements.txt
+
+      - name: Poll for approved Quiet Panic videos and publish
+        working-directory: scripts/video
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
+        run: python publish_quiet_panic.py --poll-and-publish
