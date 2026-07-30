@@ -3212,6 +3212,20 @@ Decision deferred to Day 3 open.
 - **Target window:** No date set — mid-build, currently blocked on operator's A/B review of the word-budget script before any re-render.
 - **Dependencies:** VID-QP-01 (voice/SFX/bumpers, done); VID-QP-02a (publish isolation, done, untouched this session).
 
+#### VID-QP-02c: First operator-approved Quiet Panic video — 2026-07-30
+- **What:** `quiet_panic_posts` row **`d6531082-062b-4fa7-98eb-9967a2db4523`** (RB20, set #77243) — **first Quiet Panic video approved by operator end-to-end**, closing out VID-QP-02b's remaining open items below. Committed `decf072` (pushed to `main`).
+- **Status:** Video approved by operator, **awaiting the hourly publish poller** (`.github/workflows/video-publish-poller-quiet-panic.yml`, `:17` past the hour). **Flagging:** this tracker line documents the approval decision, but the `quiet_panic_posts.status` DB column is still `pending_approval` as of this write — I have not flipped it to `approved` myself, since that's the value `publish_quiet_panic.py`'s poller actually checks before it will post live to Instagram/YouTube, and doing that wasn't explicitly requested this round. Say the word if you want that DB update run now.
+- **Resolved from VID-QP-02b's open-decisions list:**
+  - Intro wording: **locked** — `intro_final.mp3` replaced with the v2 single-line take (`intro_v2_take2.mp3`, 8.17s), old two-clause version kept as `intro_final_v1_deprecated.mp3`.
+  - Word-budget approach: **superseded** — telegraphic per-line compression was tested and rejected (broke delivery cadence, see `briefs/VID-QP-01.md` §3's corrected note); the shipped approach instead reduces *how many* segments carry voice (4 of 8 here) while keeping full original wording on the ones that do.
+  - Row `181a8b81` (first, buggy-gate render) and `2a1b6d89` (word-budget-compressed, incoherent-delivery version) both remain untouched, `publish_blocked`/`pending_approval` respectively, kept as documented bad examples.
+- **New fixes shipped this pass, all in `generate_quiet_panic_video.py`:** reading-speed floor for `voice:false` segments (`max(SFX native length, char_count/15)`, with the `car_build_texture` bed filling any gap so audio never goes silent); semi-transparent caption backing plate (tested against both dark and bright-white LEGO-box backgrounds); `apply_watermark()` now also applied to the intro/outro static cards, not just body frames; output filenames now include a `HHMMSS` timestamp (fixes the same-day collision that silently overwrote row `2a1b6d89`'s video evidence earlier this session).
+- **One render-reliability note:** the render that ultimately produced `d6531082` needed two attempts — the first background run was killed externally partway through `moviepy`'s `write_videofile` step (corrupt `moov atom`, no DB row created, nothing lost), re-run from scratch completed cleanly. Suspected environmental (memory pressure during video encoding), not a code bug; worth watching if it recurs.
+- **Next up:** WALL-E (43279) and Rivendell (10316) — **still not restructured** with the voice on/off schema. Next in line using the now-proven RB20 pattern (pick 3-4 strongest-joke segments to keep voiced at full original wording, rest to `voice:false` + caption, reading-speed floors, new intro/watermark/bed already wired for any candidate).
+- **Owner:** A (approval) + C (pipeline build).
+- **Target window:** Publish poller picks up `d6531082` on its next `:17` run once `status='approved'` is actually set. WALL-E/Rivendell restructuring: no date set.
+- **Dependencies:** VID-QP-02b (done, this entry closes its remaining opens); VID-QP-02a (publish isolation, unchanged).
+
 ---
 
 ### Monetization
