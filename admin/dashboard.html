@@ -1131,15 +1131,23 @@
     },
     {
       "id": "RADAR-08",
-      "title": "Automated reviews generation pipeline",
+      "title": "Automated reviews generation pipeline (RADAR-08, RSS/Brickset-sourced) — RETIRED 2026-07-30",
       "category": "Content OS",
-      "status": "pending",
+      "status": "done",
       "priority": "P2",
       "depsBlock": [],
-      "blocks": [
-        "RLFM-01"
-      ],
-      "notes": "Briefed 2026-05-14. Reduce manual dependency — target 5+ Codex-compliant reviews/week. Requires: (a) reviews format added to RADAR-03 classifier, (b) generateArticle() extended to publish to reviews table with set_id UUID lookup, (c) hero_image from Rebrickable CDN, (d) lint Gate 3 verdict enforcement already in place. Blocks RLFM at scale."
+      "blocks": [],
+      "notes": "Superseded 2026-07-30 by REVIEWS-SRC-01 (see below) — reviews are no longer sourced from RADAR's RSS/in-stock-signal matching. scripts/radar-08-reviews.js removed from radar.yml's daily schedule; script left in the repo, undeleted, for reference. A live duplicate (independently-queued candidate for set 75442, the same set REVIEWS-SRC-01 had just published) was found and purged from the legacy pending_drafts backlog before this was closed out."
+    },
+    {
+      "id": "REVIEWS-SRC-01",
+      "title": "Reviews pipeline overhaul — direct MyBrickHouse/Toycra sourcing",
+      "category": "Content OS",
+      "status": "done",
+      "priority": "P1",
+      "depsBlock": [],
+      "blocks": [],
+      "notes": "Done 2026-07-30. A set is review-eligible only with a confirmed live retailer listing (price + stock, fetched fresh at generation/refresh time) — not RADAR's RSS/in-stock-signal matching. New reviews.source_retailer/source_price_inr/source_stock_status/source_checked_at/verdict_disclaimer_variant columns; deterministic (never model-transcribed) India-Paragraph + retailer-conditional-disclaimer splice at publish time; scripts/reviews-source-refresh.mjs + reviews-weekly-refresh.yml (Wed 05:00 UTC) re-verifies published reviews and discovers new candidates from one shared live fetch; 4 new CQS gates. 3 real reviews published end-to-end through the production pipeline, verdicts genuinely model-decided. Full writeup in BOI_MASTER_TRACKER.md."
     },
     {
       "id": "SOC-AUTO-01",
@@ -1626,7 +1634,14 @@
       "frequency": "Daily 23:00 IST (17:30 UTC)",
       "mode": "auto",
       "owner": "GitHub Actions — radar.yml",
-      "notes": "Live — PR #2 merged 2026-05-09. Chains fetch-rss.js → dedupe-signals.js. 163 signals as of 2026-05-09T06:07 UTC."
+      "notes": "Live — PR #2 merged 2026-05-09. Chains fetch-rss.js → dedupe-signals.js. 163 signals as of 2026-05-09T06:07 UTC. RADAR-08 (review-candidate queuing) removed from this workflow 2026-07-30 — reviews are now sourced by the job below instead."
+    },
+    {
+      "feature": "Reviews source refresh (re-verification + discovery)",
+      "frequency": "Weekly Wed 05:00 UTC (10:30 IST)",
+      "mode": "auto",
+      "owner": "GitHub Actions cron 0 5 * * 3 — reviews-weekly-refresh.yml",
+      "notes": "Live 2026-07-30 (REVIEWS-SRC-01). Single job, two passes: re-verifies every published retailer-sourced review's price/stock, discovers new review-eligible sets from the same live MyBrickHouse/Toycra fetch. Slot checked against every other schedule in the repo at ship time — no collision."
     },
     {
       "feature": "Morning brief email",
