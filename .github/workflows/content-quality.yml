@@ -34,7 +34,7 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node scripts/content-linter.mjs
+        run: npx tsx scripts/content-linter.mjs
 
       - name: Run auto-fixer
         continue-on-error: true

@@ -233,6 +233,50 @@ export type ParsedDraft = {
   wordCount: number;
 };
 
+export type RetailerSourceContext = {
+  retailerDisplayName: string;
+  priceInrFormatted: string; // pre-formatted (e.g. "12,999") — caller formats, keeps this file free of locale-formatting footguns
+  stockStatus: 'in_stock' | 'out_of_stock';
+  checkedAt: string;
+};
+
+/**
+ * India-price prompt context for reviews sourced from the MyBrickHouse/
+ * Toycra retailer pipeline (2026-07-30), as opposed to RADAR's RSS/YouTube
+ * sourcing — generate-approved-drafts.ts's buildIndiaPriceContext() covers
+ * the "estimated"/import-lag cases this pipeline never hits, since a set
+ * only enters this pipeline once it already has a real, confirmed retailer
+ * listing.
+ *
+ * Deliberately keeps the model writing a normal-looking INDIA_PARAGRAPH
+ * block (price + store + one comparison sentence, same shape as every
+ * other article) rather than a stripped-down one: src/lib/lint.ts's Gate 2
+ * (indiaParagraphGate) runs against the model's raw draft_body, checking
+ * for a ₹ figure and a store mention from the marker onward, BEFORE
+ * publish-draft.ts's deterministic splice ever runs — a marker block with
+ * no price/store in it would hard-fail that shared gate (which stays
+ * unmodified, since it's used by every other format/source too) before
+ * this draft could ever reach the splice step. So the model is told to use
+ * the confirmed figures (not estimate) and drop the "estimated"/launch-lag
+ * framing, but still write the full paragraph shape lint expects.
+ * publish-draft.ts then unconditionally REPLACES this block's price/store/
+ * stock text with the deterministic version built from the same source_*
+ * values given here (keeping only the model's comparison sentence) — so
+ * the model's own price/store text, even though correct, never actually
+ * reaches the published page; it only exists to satisfy the gate.
+ */
+export function buildRetailerSourcePriceContext(ctx: RetailerSourceContext): string {
+  return `INDIA PRICE DATA — CONFIRMED LIVE RETAILER LISTING (not an estimate, not a RADAR guess):
+  Price: ₹${ctx.priceInrFormatted}
+  Retailer: ${ctx.retailerDisplayName}
+  Stock: ${ctx.stockStatus === 'in_stock' ? 'confirmed in stock' : 'confirmed out of stock'}
+  Checked: ${ctx.checkedAt}
+
+Use this price to decide your verdict (BUY NOW / WAIT / AVOID only for this article — IMPORT ONLY is not valid here, this set is confirmed listed in an Indian store right now) and to set the article's tone. Do NOT invent, round, or use a different price figure anywhere in the body — use exactly ₹${ctx.priceInrFormatted}.
+
+INDIA PARAGRAPH FOR THIS ARTICLE: write the usual India Paragraph inside <!-- INDIA_PARAGRAPH --> ... <!-- /INDIA_PARAGRAPH --> — the confirmed price, "${ctx.retailerDisplayName}" as the store, and one relatable Indian comparison sentence (a number and an Indian reference, e.g. Spotify, Netflix, Amul, EMI). This set is already confirmed in stock at an Indian retailer right now — do NOT use "estimated", "expect to land around", or any 4–6 week India availability lag language; it's not an estimate and it's not launching later, it's on sale today.`;
+}
+
 export function buildSystemPrompt(): string {
   return VOICE_EXAMPLES + OUTPUT_FORMAT;
 }

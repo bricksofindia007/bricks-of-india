@@ -1,6 +1,7 @@
 import { lintDraft, extractSetNumberCandidates, type LintResult } from './lint';
 import { linkFirstSetMentions } from './link-set-mentions';
 import { submitToIndexNow } from './indexnow';
+import { resolveDisclaimerVariant, disclaimerTextFor, STORE_DISPLAY_NAME, type SourceRetailer } from './review-disclaimer';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 // ── Unified publish-a-draft logic (2026-06-28) ────────────────────────────────
@@ -474,6 +475,121 @@ export function summarizeFailReasons(lint: LintResult): string {
     .join('; ') || 'lint failed';
 }
 
+// ── Reviews source pipeline (2026-07-30) ──────────────────────────────────────
+//
+// Deterministic India Paragraph + disclaimer splice for reviews sourced from
+// the MyBrickHouse/Toycra retailer pipeline. src/lib/lint.ts's Gate 2
+// (indiaParagraphGate) already ran against the model's ORIGINAL draft_body
+// earlier in publishOneDraft, before any of this runs — that gate requires a
+// ₹ price + store mention from the marker onward, which the model satisfies
+// on its own (draft-prompt.ts's buildRetailerSourcePriceContext tells it to
+// write the usual paragraph shape using the confirmed figures). What follows
+// unconditionally REPLACES that entire marker block with deterministic text
+// built from the same source_* values, regardless of what the model wrote —
+// the model's own price/store prose never reaches the published page; it
+// only existed to satisfy the pre-publish lint gate.
+
+// No .toLocaleString('en-IN')/.toLocaleDateString('en-IN') anywhere in this
+// file — this module is also called from the Netlify-hosted admin Server
+// Action (src/app/admin/pending/actions.ts), and Netlify's minimal ICU
+// build throws RangeError on the 'en-IN' locale (see CLAUDE.md).
+const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+function fmtInrLocal(n: number): string {
+  const s     = Math.round(n).toString();
+  const last3 = s.slice(-3);
+  const rest  = s.slice(0, -3);
+  if (!rest) return last3;
+  return rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + last3;
+}
+
+function formatCheckedAtDisplay(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
+}
+
+const INDIA_MARKER_RE = /<!--\s*INDIA_PARAGRAPH\s*-->[\s\S]*?<!--\s*\/INDIAN?_PARAGRAPH\s*-->/;
+
+// Matches the deterministic block's own first line once it's live in a
+// published review's `content` (no HTML markers survive publish — this is
+// what scripts/reviews-source-refresh.mjs's weekly re-verification pass
+// matches against to update price/timestamp in place on an already-
+// published review, without disturbing the surrounding article prose).
+const PUBLISHED_PRICE_LINE_RE = /Priced at ₹[\d,]+ on [^,]+, confirmed in stock as of [^.]+\./;
+
+export type RetailerReviewSourceFields = {
+  source_retailer:     SourceRetailer;
+  source_price_inr:    number;
+  source_stock_status: 'in_stock' | 'out_of_stock';
+  source_checked_at:   string;
+};
+
+function buildDeterministicBlock(verdict: string, source: RetailerReviewSourceFields): { block: string; disclaimerVariant: string } {
+  const disclaimerVariant = resolveDisclaimerVariant(verdict, source.source_retailer);
+  const retailerDisplay   = STORE_DISPLAY_NAME[source.source_retailer] ?? source.source_retailer;
+
+  const block = [
+    `Priced at ₹${fmtInrLocal(source.source_price_inr)} on ${retailerDisplay}, confirmed in stock as of ${formatCheckedAtDisplay(source.source_checked_at)}.`,
+    `Verdict: ${verdict}.`,
+    '',
+    disclaimerTextFor(disclaimerVariant as Parameters<typeof disclaimerTextFor>[0]),
+  ].join('\n');
+
+  return { block, disclaimerVariant };
+}
+
+/**
+ * Replaces the entire <!-- INDIA_PARAGRAPH --> ... <!-- /INDIA_PARAGRAPH -->
+ * span in `body` with the Section-5 deterministic template. Throws (does not
+ * silently fall back) if the marker is missing — Gate 2 should have already
+ * guaranteed its presence, so a missing marker here means something upstream
+ * skipped that gate, and this must not publish unverified content.
+ */
+export function spliceRetailerIndiaParagraph(
+  body: string,
+  verdict: string,
+  source: RetailerReviewSourceFields,
+): { body: string; disclaimerVariant: string } {
+  if (!INDIA_MARKER_RE.test(body)) {
+    throw new Error('[reviews-source] INDIA_PARAGRAPH marker missing at publish time — Gate 2 should have rejected this draft already');
+  }
+  const { block, disclaimerVariant } = buildDeterministicBlock(verdict, source);
+  return { body: body.replace(INDIA_MARKER_RE, block), disclaimerVariant };
+}
+
+/**
+ * Re-splices the deterministic block into an ALREADY-PUBLISHED review's
+ * `content` — used by the weekly re-verification pass when a price/stock
+ * change doesn't flip the verdict (Section 4 Pass 1, point 3): only the
+ * price/retailer/timestamp (and, mechanically, the disclaimer text if the
+ * featured retailer changed) update; the verdict passed in must be the
+ * SAME verdict already on the row — this function never changes verdict,
+ * callers that detect a possible flip must route through the
+ * content_quality_issues flag instead of calling this.
+ */
+export function resplicePublishedIndiaParagraph(
+  content: string,
+  verdict: string,
+  source: RetailerReviewSourceFields,
+): { content: string; disclaimerVariant: string } {
+  if (!PUBLISHED_PRICE_LINE_RE.test(content)) {
+    throw new Error('[reviews-source] deterministic price line not found in published content — refusing to guess where to splice');
+  }
+  const { block, disclaimerVariant } = buildDeterministicBlock(verdict, source);
+  // The published block is exactly: price line \n Verdict line \n \n disclaimer.
+  // Match that whole span (price line through the disclaimer paragraph) and
+  // replace it wholesale, same as the pre-publish splice — the disclaimer
+  // paragraph itself always starts with "Standard disclaimer:" (every
+  // variant in review-disclaimer.ts's DISCLAIMER_TEXT table begins with
+  // that exact phrase), which anchors the end of the span to replace.
+  const FULL_BLOCK_RE = /Priced at ₹[\d,]+ on [^,]+, confirmed in stock as of [^.]+\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
+  if (!FULL_BLOCK_RE.test(content)) {
+    throw new Error('[reviews-source] full deterministic block not found in published content — refusing to guess where to splice');
+  }
+  return { content: content.replace(FULL_BLOCK_RE, block), disclaimerVariant };
+}
+
 // ── Core orchestration ────────────────────────────────────────────────────────
 
 export type PublishableDraft = {
@@ -489,6 +605,13 @@ export type PublishableDraft = {
   source_excerpt: string | null;
   lint_result?: LintResult | null;
   updated_at?: string | null;
+  // Retailer source pipeline (2026-07-30) — present only for review-format
+  // drafts sourced from scripts/reviews-source-refresh.mjs, undefined for
+  // every other draft (RADAR news/opinion/guide, and legacy RADAR reviews).
+  source_retailer?: SourceRetailer | null;
+  source_price_inr?: number | null;
+  source_stock_status?: 'in_stock' | 'out_of_stock' | null;
+  source_checked_at?: string | null;
 };
 
 export type PublishOneDraftOptions = {
@@ -569,9 +692,28 @@ export async function publishOneDraft(
     draft.source_url, draft.draft_title, draft.source_title, draft.draft_body, table, supabase,
   );
 
-  const rawBody   = draft.draft_body
-    .replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '')
-    .replace(/<!--\s*\/INDIAN?_PARAGRAPH\s*-->\n?/g, '');  // /INDIAN_PARAGRAPH is a known model typo
+  const verdictUpper = (draft.draft_verdict || '').trim().toUpperCase() || null;
+  const isRetailerSourcedReview = format === 'review' && !!draft.source_retailer;
+
+  let rawBody: string;
+  let retailerDisclaimerVariant: string | null = null;
+  if (isRetailerSourcedReview) {
+    if (verdictUpper === 'IMPORT ONLY' || !verdictUpper) {
+      throw new Error(`[reviews-source] verdict "${draft.draft_verdict ?? 'none'}" is not valid for a retailer-sourced review — listing on ${draft.source_retailer} is the entry condition, IMPORT ONLY can never legitimately apply here`);
+    }
+    const spliced = spliceRetailerIndiaParagraph(draft.draft_body, verdictUpper, {
+      source_retailer:     draft.source_retailer as SourceRetailer,
+      source_price_inr:    draft.source_price_inr as number,
+      source_stock_status: draft.source_stock_status as 'in_stock' | 'out_of_stock',
+      source_checked_at:   draft.source_checked_at as string,
+    });
+    rawBody = spliced.body;
+    retailerDisclaimerVariant = spliced.disclaimerVariant;
+  } else {
+    rawBody = draft.draft_body
+      .replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '')
+      .replace(/<!--\s*\/INDIAN?_PARAGRAPH\s*-->\n?/g, '');  // /INDIAN_PARAGRAPH is a known model typo
+  }
   const cleanBody = prePublishAutoFix(rawBody, draft, slug);
 
   const cqsErr = cqsHardCheck(cleanBody);
@@ -602,7 +744,7 @@ export async function publishOneDraft(
   // the set_number text column news_articles carries for the same purpose).
   let reviewVerdict: string | null = null, reviewSetNumber: string | null = null, reviewSetId: string | null = null;
   if (format === 'review') {
-    reviewVerdict = (draft.draft_verdict || '').trim().toUpperCase() || null;
+    reviewVerdict = verdictUpper;
     const candidates = extractSetNumberCandidates(cleanBody);
     if (candidates.length > 0) {
       const { data: matchedSet } = await supabase.from('sets').select('id, set_number').in('set_number', candidates).limit(1).maybeSingle();
@@ -623,6 +765,13 @@ export async function publishOneDraft(
         verdict: reviewVerdict,
         rating: draft.draft_rating ?? (reviewVerdict ? VERDICT_TO_RATING[reviewVerdict] ?? null : null),
         ...(reviewSetId ? { set_id: reviewSetId } : {}),
+        ...(isRetailerSourcedReview ? {
+          source_retailer:            draft.source_retailer,
+          source_price_inr:           draft.source_price_inr,
+          source_stock_status:        draft.source_stock_status,
+          source_checked_at:          draft.source_checked_at,
+          verdict_disclaimer_variant: retailerDisclaimerVariant,
+        } : {}),
       }
     : {
         title, slug, content: linkedBody, category, excerpt,

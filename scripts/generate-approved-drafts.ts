@@ -23,6 +23,8 @@ import { generateWithFailover, BothProvidersFailedError, type DraftGenerationInp
 import { getSecret } from '../src/lib/get-secret';
 import { passesAutoPublishGates } from '../src/lib/auto-publish-gate';
 import { publishOneDraft } from '../src/lib/publish-draft';
+import { buildRetailerSourcePriceContext } from '../src/lib/prompts/draft-prompt';
+import { STORE_DISPLAY_NAME } from './lib/reviews-source.mjs';
 
 // ── CLI flags ─────────────────────────────────────────────────────────────────
 
@@ -237,18 +239,25 @@ export async function buildIndiaPriceContext(setNumber: string | null): Promise<
 // of something this process just linted itself.
 async function autoPublish(draft: any, outcome: GenerationOutcome): Promise<{ path: string; slug: string }> {
   const publishable = {
-    id:               draft.id,
-    draft_title:      outcome.title,
-    draft_body:       outcome.body,
-    draft_verdict:    outcome.verdict,
-    draft_rating:     outcome.rating,
-    draft_format:     outcome.format,
-    word_count:       outcome.wordCount,
-    source_url:       draft.source_url,
-    source_title:     draft.source_title,
-    source_excerpt:   draft.source_excerpt,
-    lint_result:      outcome.lintResult,
-    updated_at:       new Date().toISOString(),
+    id:                  draft.id,
+    draft_title:         outcome.title,
+    draft_body:          outcome.body,
+    draft_verdict:       outcome.verdict,
+    draft_rating:        outcome.rating,
+    draft_format:        outcome.format,
+    word_count:          outcome.wordCount,
+    source_url:          draft.source_url,
+    source_title:        draft.source_title,
+    source_excerpt:      draft.source_excerpt,
+    lint_result:         outcome.lintResult,
+    updated_at:          new Date().toISOString(),
+    // Retailer-pipeline metadata (2026-07-30) — undefined (not null) for
+    // RADAR-sourced drafts, so publishOneDraft's `draft.source_retailer`
+    // check behaves the same as "column absent" for every other content type.
+    source_retailer:     draft.source_retailer ?? undefined,
+    source_price_inr:    draft.source_price_inr ?? undefined,
+    source_stock_status: draft.source_stock_status ?? undefined,
+    source_checked_at:   draft.source_checked_at ?? undefined,
   };
 
   const { path, slug } = await publishOneDraft(publishable, sb);
@@ -275,10 +284,24 @@ async function generateBodyWithFailover(draft: any, batchOpeners?: string[]): Pr
 
   const setNumber = extractSetNumber(draft.source_url, draft.source_title ?? null);
 
+  // Reviews sourced from the MyBrickHouse/Toycra retailer pipeline (2026-07-30)
+  // carry their own confirmed price/stock, fetched moments before this draft
+  // was queued — always more current and more authoritative than a fresh
+  // store_prices lookup here, and framed so the model never estimates or
+  // invents a number. RADAR-sourced drafts (source_retailer is null) are
+  // unaffected — they still go through buildIndiaPriceContext() exactly as
+  // before.
   const [fullBody, indiaPriceContext] = await Promise.all([
     fetchFullBody(draft.source_url),
-    buildIndiaPriceContext(setNumber)
-      .catch(() => 'INDIA PRICE DATA: price lookup failed. Acknowledge price uncertainty; do not state a specific figure.'),
+    draft.source_retailer
+      ? Promise.resolve(buildRetailerSourcePriceContext({
+          retailerDisplayName: (STORE_DISPLAY_NAME as Record<string, string>)[draft.source_retailer as string] ?? draft.source_retailer,
+          priceInrFormatted:   fmtInr(Number(draft.source_price_inr)),
+          stockStatus:         draft.source_stock_status,
+          checkedAt:           draft.source_checked_at,
+        }))
+      : buildIndiaPriceContext(setNumber)
+          .catch(() => 'INDIA PRICE DATA: price lookup failed. Acknowledge price uncertainty; do not state a specific figure.'),
   ]);
 
   const input: DraftGenerationInput = {
@@ -307,7 +330,7 @@ if (IS_MAIN) (async () => {
 
   let q = sb
     .from('pending_drafts')
-    .select('id, source_url, source_title, source_excerpt, source_published_at, draft_format, draft_title')
+    .select('id, source_url, source_title, source_excerpt, source_published_at, draft_format, draft_title, source_retailer, source_price_inr, source_stock_status, source_checked_at')
     .eq('status', 'approved')
     .is('draft_body', null)
     .order('created_at', { ascending: true });

@@ -39,7 +39,15 @@ jobs:
       - name: RADAR-03 — classify + queue to pending_drafts
         run: node scripts/radar/classify-signals.js
 
-      - name: RADAR-08 — queue review candidates from in-stock sets
-        run: node scripts/radar-08-reviews.js
+      # RADAR-08 (scripts/radar-08-reviews.js) removed from this cron
+      # 2026-07-30 — reviews are now sourced exclusively by
+      # scripts/reviews-source-refresh.mjs (.github/workflows/reviews-weekly-refresh.yml),
+      # which requires a confirmed live MyBrickHouse/Toycra listing before a
+      # set becomes review-eligible, rather than RADAR's RSS/in-stock-signal
+      # matching. scripts/radar-08-reviews.js is left in the repo, unmodified,
+      # in case it's needed for reference. Confirmed via a live duplicate:
+      # RADAR-08 had independently queued a pending_drafts row for the exact
+      # set (75442) that shipped as one of this new pipeline's first three
+      # published reviews.
       # RADAR-04 (generate-drafts.js) removed from cron — generation is now
       # on-demand via the "Generate Article" button in /admin/pending.

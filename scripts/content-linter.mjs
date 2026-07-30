@@ -10,6 +10,7 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { checkReviewSourceGates } from '../src/lib/review-source-quality.ts';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
@@ -253,6 +254,19 @@ for (const art of all) {
 
   if (isOpinionOrNews && !body.includes(SIGNOFF))
     flag(art, 'missing_signoff', 'info', `Missing "${SIGNOFF}" signoff`, true);
+
+  // REVIEWS SOURCE PIPELINE (2026-07-30) ───────────────────────────────────
+  // Only applies to reviews sourced from scripts/reviews-source-refresh.mjs
+  // (source_retailer populated) — legacy RADAR-sourced reviews are exempt
+  // by construction (source_retailer is null for all of them). Gate logic
+  // lives in src/lib/review-source-quality.ts (independently unit-tested in
+  // tests/review-source-quality.test.ts) so it isn't only exercisable by
+  // running this whole linter against real published content.
+  if (section === 'reviews' && art.source_retailer) {
+    for (const issue of checkReviewSourceGates(art)) {
+      flag(art, issue.checkName, issue.severity, issue.detail, false);
+    }
+  }
 
   // STRUCTURE ───────────────────────────────────────────────────────────────
 

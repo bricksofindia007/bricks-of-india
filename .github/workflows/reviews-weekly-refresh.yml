@@ -1,0 +1,53 @@
+name: reviews-weekly-refresh
+
+# Weekly combined job (discovery + re-verification) for the reviews source
+# pipeline — MyBrickHouse/Toycra direct sourcing. One job, two passes inside
+# scripts/reviews-source-refresh.mjs (Pass 1 re-verifies published reviews,
+# Pass 2 discovers new ones from the same fetch) — not two separate crons.
+#
+# Schedule: Wed 05:00 UTC (10:30 IST). Checked against every other schedule
+# in this repo before picking this slot:
+#   - Weeklies cluster Mon 02:00-05:30 UTC (catalogue-audit, code-audit,
+#     technical-hygiene, video-rejection-reminder) and Sun 02:00 UTC
+#     (retiring-soon, sync-catalogue).
+#   - Dailies sit at 01:30 (brief), 02:30 (health-check), 03:00
+#     (content-quality, snapshot-prices), 06:30 (social-automation),
+#     07:30/12:30/19:00 (publish-drafts), 08:30 (generate-drafts), 17:30
+#     (radar), and scrape-prices runs every 6h (00/06/12/18).
+# Wednesday 05:00 UTC overlaps none of these.
+
+on:
+  schedule:
+    - cron: '0 5 * * 3'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (print stats but skip Supabase writes)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Re-verify published reviews + discover new candidates
+        run: npx tsx scripts/reviews-source-refresh.mjs ${{ inputs.dry_run == true && '--dry-run' || '' }}
