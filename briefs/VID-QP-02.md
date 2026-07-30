@@ -21,6 +21,7 @@ Query `sets` for candidates meeting all of:
 
 - LLM: Gemini primary, Cerebras failover — same convention as the rest of the content pipeline.
 - Prompt = BOI_Codex_v2.md + Quiet Panic persona rules (`briefs/VID-QP-01.md` sections 2–3) + set data (name, number, verified INR price, piece count, theme) + the 3 operator-approved reference scripts as few-shot examples (already in section 12 of that brief).
+- **Hard word-count budget (added 2026-07-30, calibrated from RB20 real-render pacing data — see VID-QP-01.md section 3):** the prompt must give the LLM a per-segment word ceiling computed as `target_duration ÷ rate`, not just a duration number to aim for by feel. Rate is style-dependent: **0.65s/word** for flowing declarative sentences, **0.95s/word** for punchy/ellipsis-heavy fragments (short lines with "..." or comma pauses render much slower per word than their word count implies). Total voice-on word count across a script's flexible (non-fixed-verdict) segments should land in the **~26-42 word range** for the standard 45-55s format — a script that scores ~70+ words for the same segment structure is a sign the draft was paced by vibe, not by this budget, and will overrun even though the *target_durations* looked fine on paper (this is exactly what happened to the first RB20 draft: targets summed to a reasonable ~23s, but 73 actual words at real Mira pacing took 52s).
 - Output: strict JSON array, no prose wrapper:
 ```json
 [

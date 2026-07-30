@@ -32,6 +32,23 @@ Generic fallback bank:
 - "Diwali bonus exists for exactly this kind of regret."
 - "Some questions don't need answers."
 
+### Price-tier reference bank (locked 2026-07-29)
+
+Rule 3 above ("price is a punchline prop for comparison") needs a proportionality check — a comparison that's true at one price point reads as nonsense at another. The script-gen prompt must select the comparison from the tier matching the set's actual verified price (`sets.lego_mrp_inr`), not whichever comparison sounds best in isolation.
+
+| Tier | Price band | Comparison device | Example |
+|---|---|---|---|
+| **Low** | ~₹1,000–4,000 | A single small everyday spend | one Swiggy order, one movie ticket, one coffee-shop visit |
+| **Mid** | ~₹5,000–15,000 | A recurring monthly cost | a full month of Swiggy, a month's phone EMI |
+| **High** | ~₹15,000–40,000 | A trip or significant one-off | a Goa round trip, a flight |
+| **Very high** | ₹40,000+ | Life-event scale | a shagun envelope, a wedding-season expense |
+
+Swiggy is a valid device at **both** Low (single order) and Mid (full month) tiers — both are proportionally correct at their respective price points, they are not interchangeable at the same price. Canonical Mid-tier example (from the reference scripts, section 12 below): the WhatsApp-group script's "one full month of Swiggy. Gone." at ₹6,900 (Mid tier). A Low-tier set (e.g. ~₹3,000) referencing "a month of Swiggy" would overstate the price; a Very-high-tier set referencing "one Swiggy order" would understate it into incoherence — both are gate failures, not stylistic choices.
+
+### Opening-line variety (locked 2026-07-29)
+
+"This is not a [object]." must not be the default opener — it's one available device, not the format's signature move. Vary opening structure across scripts: some can open on the price, some on a piece-count fact, some on a direct comparison, some on the "this is not a X" device when it genuinely fits the set (e.g. a flagship where the grandiosity lands hardest) — but never as the default every time.
+
 ## 3. Three formats, three jobs
 
 | Format | Job | Voice | Length target | Cadence |
@@ -41,6 +58,10 @@ Generic fallback bank:
 | **Pure Loop** | Feeds algorithm volume, cheapest to produce | No voice, ambient SFX only | 45–90s | 3x/week, Instagram-only |
 
 Hard ceiling for all three: stay well under the 3-minute Shorts/Reels classification limit. Both platforms' discovery algorithms stop pushing content to non-followers past 3 minutes — for a comedic, subscriber-growth format, staying short is a discovery requirement, not just a pacing preference. Revised note (2026-07-29): Mira's whisper pacing runs slower than initially assumed — the two fixed taglines alone take ~12-13s to deliver naturally, so Quiet Panic's target moved from 30-45s to 45-55s to reflect that honestly rather than forcing an unnatural speed-up. Still comfortably inside the well-performing 45-60s band, nowhere near the 3-minute discovery cliff.
+
+**Revised note (2026-07-30) — word-count budget, calibrated against real RB20 render data:** the RB20 test script's 6 voice-on segments measured 73 words / 52.338s TTS output, an aggregate rate of **0.717s/word** — driven by the gate-fixed real bumper duration (intro 7.2s + outro 13.89s = 21.09s measured) exposing that the body had ballooned to 56.4s against a 24-34s body budget (45-55s total minus bumpers), because segments were written to a vibe-based duration guess with no word-count ceiling. Per-segment rate is not flat: flowing declarative sentences ran 0.59-0.68s/word (4 of 6 segments), while short punchy/ellipsis-heavy fragments ("Verdict: buy it.", the Swiggy-comparison line) ran 0.96s/word — pauses from "..." and commas inflate effective per-word time even with fewer words. Use **0.65s/word for flowing sentences, 0.95s/word for punchy/ellipsis fragments** (0.72s/word blended, if a single constant is needed) as the working rate, not the ~0.5s/word a naive "normal speech" assumption would suggest.
+
+**Hard word-count budget (script-gen prompt must enforce this, not just aim for it):** body budget is ~24-34s (45-55s target minus ~21s fixed bumpers). Voice-off/SFX-primary beats (bag_tear ≈3.0s, brick_snap_body ≈1.1s — fixed asset lengths, not word-driven) and the fixed "Verdict: buy it." line (≈2.9s at the punchy rate, non-negotiable text) take a combined ~7s off that budget regardless of script content. The remaining ~17-27s of flowing voice-on lines, at 0.65s/word, gives a **word budget of roughly 26-42 words total** across the non-fixed voice-on segments (≈30-46 words including the fixed 3-word verdict line) — down from the ~73-word draft that actually rendered. **Per-segment budget = target_duration ÷ rate for that segment's style** (flowing vs. punchy) — write to that number as a cap, don't estimate a duration from a vibe and hope the word count happens to fit.
 
 ## 4. Standard opens/closes — constant assets, generated once
 
