@@ -479,6 +479,14 @@ Then update `kpis.healthScoreNote` to a one-line summary of the dominant factor.
 At the start of every session, after reading the tracker, also verify the dashboard
 JSON parses. If it doesn't, fix before doing anything else.
 
+**Concurrency (added 2026-07-30):** Avoid running concurrent Claude Code sessions
+against the same working tree. Two independent sessions both hit this same risk in
+the same week — one session's `git add` can leave files staged that a second,
+unrelated session then sweeps into its own commit via a plain `git commit` (which
+commits everything currently staged, not just what that session just added). Use
+`git worktree add` for a genuinely separate directory when parallel sessions are
+actually needed, rather than pointing two sessions at one working tree.
+
 ---
 
 ## Sub-trackers
@@ -3227,6 +3235,7 @@ Decision deferred to Day 3 open.
   - Row `181a8b81` (first, buggy-gate render) and `2a1b6d89` (word-budget-compressed, incoherent-delivery version) both remain untouched, `publish_blocked`/`pending_approval` respectively, kept as documented bad examples.
 - **New fixes shipped this pass, all in `generate_quiet_panic_video.py`:** reading-speed floor for `voice:false` segments (`max(SFX native length, char_count/15)`, with the `car_build_texture` bed filling any gap so audio never goes silent); semi-transparent caption backing plate (tested against both dark and bright-white LEGO-box backgrounds); `apply_watermark()` now also applied to the intro/outro static cards, not just body frames; output filenames now include a `HHMMSS` timestamp (fixes the same-day collision that silently overwrote row `2a1b6d89`'s video evidence earlier this session).
 - **One render-reliability note:** the render that ultimately produced `d6531082` needed two attempts — the first background run was killed externally partway through `moviepy`'s `write_videofile` step (corrupt `moov atom`, no DB row created, nothing lost), re-run from scratch completed cleanly. Suspected environmental (memory pressure during video encoding), not a code bug; worth watching if it recurs.
+- **Resolved, not reverted:** commit `cfbf5b8` (this thread's tracker-status fix) swept in 6 unrelated files beyond the intended single-file change. Operator confirmed those 6 files are a separate, fully completed project — the Reviews Pipeline Overhaul (MyBrickHouse/Toycra direct sourcing, retailer-conditional disclaimers, CQS gates, flip-freeze self-verification), run to completion in its own session with its own testing/review, not an unreviewed fragment. Left as-is in `cfbf5b8`; see line ~70 of this file for that session's own note on the same incident. Root cause and prevention: see the new Concurrency note under §Auto-update protocol.
 - **Next up:** WALL-E (43279) and Rivendell (10316) — **still not restructured** with the voice on/off schema. Next in line using the now-proven RB20 pattern (pick 3-4 strongest-joke segments to keep voiced at full original wording, rest to `voice:false` + caption, reading-speed floors, new intro/watermark/bed already wired for any candidate).
 - **Owner:** A (approval) + C (pipeline build).
 - **Target window:** Publish poller picks up `d6531082` on its next `:17` run once `status='approved'` is actually set. WALL-E/Rivendell restructuring: no date set.
