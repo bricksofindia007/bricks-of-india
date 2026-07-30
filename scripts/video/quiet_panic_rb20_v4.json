@@ -1,0 +1,18 @@
+[
+  {
+    "set_number": "77243",
+    "set_title": "Oracle Red Bull Racing RB20 F1 Race Car",
+    "price_inr": 2999,
+    "image_url": "https://cdn.rebrickable.com/media/sets/77243-1/148257.jpg",
+    "segments": [
+      {"text": "Two hundred fifty one pieces.", "target_duration": 3.0, "voice": false, "sfx_tag": "bag_tear"},
+      {"text": "This is a Formula One team's marketing budget... on your coffee table.", "target_duration": 8.0, "voice": true, "sfx_tag": null},
+      {"text": "Red Bull's real pit crew changes all four tyres in under two seconds.", "target_duration": 7.71, "voice": true, "sfx_tag": "brick_snap"},
+      {"text": "You will take twenty minutes. And call it engineering.", "target_duration": 5.76, "voice": true, "sfx_tag": null},
+      {"text": "Two thousand nine hundred ninety nine rupees.", "target_duration": 1.1, "voice": false, "sfx_tag": "brick_snap_body"},
+      {"text": "One Swiggy order. No guilt.", "target_duration": 2.0, "voice": false, "sfx_tag": "soft_whoosh"},
+      {"text": "Verdict: buy it.", "target_duration": 2.9, "voice": true, "sfx_tag": null},
+      {"text": "The real RB20 needs a garage. This needs a shelf... and no self-control.", "target_duration": 4.0, "voice": false, "sfx_tag": "sorting_rummage"}
+    ]
+  }
+]

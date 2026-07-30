@@ -1,0 +1,49 @@
+[
+  {
+    "set_number": "77243",
+    "set_title": "Oracle Red Bull Racing RB20 F1 Race Car",
+    "price_inr": 2999,
+    "image_url": "https://cdn.rebrickable.com/media/sets/77243-1/148257.jpg",
+    "segments": [
+      {"text": "Two hundred fifty one pieces.", "target_duration": 2.0, "sfx_tag": "bag_tear"},
+      {"text": "This is a Formula One team's entire marketing budget... sitting on your coffee table.", "target_duration": 4.0, "sfx_tag": null},
+      {"text": "Red Bull's real pit crew changes all four tyres in under two seconds.", "target_duration": 3.0, "sfx_tag": "brick_snap"},
+      {"text": "You will take twenty minutes. And call it engineering.", "target_duration": 2.8, "sfx_tag": null},
+      {"text": "Two thousand nine hundred ninety nine rupees.", "target_duration": 2.2, "sfx_tag": null},
+      {"text": "That is one Swiggy order... eaten alone, no guilt, no explanation needed.", "target_duration": 3.2, "sfx_tag": "soft_whoosh"},
+      {"text": "Verdict: buy it.", "target_duration": 1.5, "sfx_tag": null},
+      {"text": "The real RB20 needs a full Red Bull garage. This one just needs a shelf... and your complete lack of financial discipline.", "target_duration": 4.5, "sfx_tag": null}
+    ]
+  },
+  {
+    "set_number": "43279",
+    "set_title": "WALL-E and EVE",
+    "price_inr": 7749,
+    "image_url": "https://cdn.rebrickable.com/media/sets/43279-1/159700.jpg",
+    "segments": [
+      {"text": "Two robots. One wasteland. Zero people asking if you're single.", "target_duration": 3.0, "sfx_tag": "bag_tear"},
+      {"text": "Eight hundred eleven pieces.", "target_duration": 2.0, "sfx_tag": "sorting_rummage"},
+      {"text": "WALL-E spent seven hundred years alone on Earth. You will spend one weekend... also alone, building him.", "target_duration": 4.5, "sfx_tag": null},
+      {"text": "Seven thousand seven hundred forty nine rupees.", "target_duration": 2.6, "sfx_tag": null},
+      {"text": "That is one month's phone EMI... gone, for a robot who waited seven hundred years and still found love before you did.", "target_duration": 4.2, "sfx_tag": "soft_whoosh"},
+      {"text": "Verdict: buy it.", "target_duration": 1.5, "sfx_tag": null},
+      {"text": "The real WALL-E waited seven hundred years for someone to love him. Your shelf has waited its whole life for this.", "target_duration": 4.8, "sfx_tag": null}
+    ]
+  },
+  {
+    "set_number": "10316",
+    "set_title": "Lord of the Rings: Rivendell",
+    "price_inr": 50399,
+    "image_url": "https://cdn.rebrickable.com/media/sets/10316-1/132394.jpg",
+    "segments": [
+      {"text": "This is not a LEGO set.", "target_duration": 1.6, "sfx_tag": "bag_tear"},
+      {"text": "This is an elvish city... and a decision you cannot take back.", "target_duration": 3.2, "sfx_tag": null},
+      {"text": "Six thousand one hundred eighty one pieces.", "target_duration": 2.5, "sfx_tag": "brick_pour"},
+      {"text": "Elrond built Rivendell to last three ages of Middle-earth. You will build this... over three weekends, minimum.", "target_duration": 4.8, "sfx_tag": null},
+      {"text": "Fifty thousand three hundred ninety nine rupees.", "target_duration": 3.0, "sfx_tag": null},
+      {"text": "That is a full shagun envelope... at a wedding you were not even planning to attend.", "target_duration": 4.0, "sfx_tag": "soft_whoosh"},
+      {"text": "Verdict: buy it.", "target_duration": 1.5, "sfx_tag": null},
+      {"text": "The real Rivendell survived the entire War of the Ring. This one just needs to survive your family finding out the price.", "target_duration": 5.2, "sfx_tag": null}
+    ]
+  }
+]
