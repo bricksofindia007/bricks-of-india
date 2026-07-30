@@ -21,7 +21,8 @@ dotenv.config({ path: '.env.local' });
 
 import { createClient } from '@supabase/supabase-js';
 import { fetchLiveListings, resolveEligibleListing, STORE_DISPLAY_NAME } from './lib/reviews-source.mjs';
-import { resplicePublishedIndiaParagraph } from '../src/lib/publish-draft.ts';
+import { resplicePublishedIndiaParagraph, extractIndiaParagraphBlock } from '../src/lib/publish-draft.ts';
+import { assertFlipFreezeGuarantee } from '../src/lib/flip-freeze-assertion.ts';
 import { getSecret } from '../src/lib/get-secret.ts';
 
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -117,11 +118,26 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
   console.log('── PASS 1: re-verification ──');
   const publishedReviews = await paginate(offset =>
     sb.from('reviews')
-      .select('id, slug, title, content, verdict, set_id, source_retailer, source_price_inr, source_stock_status, source_checked_at')
+      .select('id, slug, title, content, verdict, verdict_disclaimer_variant, set_id, source_retailer, source_price_inr, source_stock_status, source_checked_at')
       .not('source_retailer', 'is', null)
       .range(offset, offset + PAGE - 1),
   );
   console.log(`Reviews sourced from this pipeline: ${publishedReviews.length}`);
+
+  // Self-verifying flip-freeze assertion: snapshot the three fields that
+  // must NEVER change for a row flagged as a verdict-flip candidate, before
+  // any Pass 1 write happens. Checked against a live re-read after the loop
+  // completes, for every row actually flagged this run — not a log-only
+  // check, a hard failure (non-zero exit) if anything moved.
+  const preRunSnapshot = new Map(); // review.id -> { verdict, verdict_disclaimer_variant, indiaParagraphBlock }
+  for (const review of publishedReviews) {
+    preRunSnapshot.set(review.id, {
+      verdict: review.verdict,
+      verdict_disclaimer_variant: review.verdict_disclaimer_variant,
+      indiaParagraphBlock: extractIndiaParagraphBlock(review.content),
+    });
+  }
+  const flipFlaggedReviewIds = [];
 
   let p1Updated = 0, p1Flagged = 0, p1OutOfStock = 0, p1FetchIncomplete = 0;
 
@@ -172,6 +188,7 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
 
     if (pctChange >= FLIP_THRESHOLD_PCT) {
       p1Flagged++;
+      flipFlaggedReviewIds.push(review.id);
       await flagIssue(review.slug, 'verdict_flip_candidate', 'critical',
         `${setNumber}: ₹${review.source_price_inr} -> ₹${newPrice} (${(pctChange * 100).toFixed(1)}% change) at ${resolved.sourceRetailer}, current verdict ${review.verdict} — plausibly flips the verdict. Frozen pending chat approval; only source_checked_at updated.`);
       if (!DRY_RUN) {
@@ -213,6 +230,28 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
   }
 
   console.log(`Pass 1 summary: ${p1Updated} auto-updated, ${p1Flagged} flagged (possible verdict flip), ${p1OutOfStock} flagged (out of stock), ${p1FetchIncomplete} skipped (fetch incomplete)\n`);
+
+  // ── Self-verifying flip-freeze assertion ────────────────────────────────────
+  // For every row flagged verdict_flip_candidate THIS run, re-read the LIVE
+  // row (fresh from the DB, not the in-memory copy) and assert verdict,
+  // verdict_disclaimer_variant, and the India Paragraph block text are
+  // byte-identical to the pre-run snapshot. This is the one guarantee that
+  // absolutely cannot silently fail — a mismatch here means a flip candidate
+  // was live-changed without chat approval, which is a hard failure (thrown,
+  // non-zero exit), not a log line alongside the flag. Skipped in DRY_RUN —
+  // nothing was written, so there is nothing to verify.
+  if (!DRY_RUN && flipFlaggedReviewIds.length > 0) {
+    console.log(`── Verifying flip-freeze guarantee for ${flipFlaggedReviewIds.length} flagged row(s) ──`);
+    const { data: liveRows, error: liveErr } = await sb
+      .from('reviews')
+      .select('id, slug, verdict, verdict_disclaimer_variant, content')
+      .in('id', flipFlaggedReviewIds);
+    if (liveErr) {
+      throw new Error(`[flip-freeze-assertion] Could not re-read flagged rows to verify: ${liveErr.message}`);
+    }
+    assertFlipFreezeGuarantee(preRunSnapshot, liveRows);
+    console.log(`Flip-freeze guarantee held for all ${flipFlaggedReviewIds.length} flagged row(s) — verdict/disclaimer/India Paragraph unchanged.\n`);
+  }
 
   // ══ PASS 2 — discovery of new qualifying sets ═══════════════════════════════
   console.log('── PASS 2: discovery ──');

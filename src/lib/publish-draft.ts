@@ -558,6 +558,18 @@ export function spliceRetailerIndiaParagraph(
   return { body: body.replace(INDIA_MARKER_RE, block), disclaimerVariant };
 }
 
+// The published block is exactly: price line \n Verdict line \n \n disclaimer.
+// This whole span (price line through the disclaimer paragraph) is what gets
+// replaced wholesale on a re-splice — the disclaimer paragraph itself always
+// starts with "Standard disclaimer:" (every variant in review-disclaimer.ts's
+// DISCLAIMER_TEXT table begins with that exact phrase), which anchors the
+// end of the span. Also used read-only by extractIndiaParagraphBlock() below,
+// for the weekly job's flip-freeze self-verifying assertion (snapshot this
+// exact text before Pass 1 runs, compare after for any row flagged as a
+// verdict-flip candidate — it must be byte-identical, since a flip candidate
+// must never actually change).
+const FULL_BLOCK_RE = /Priced at ₹[\d,]+ on [^,]+, confirmed in stock as of [^.]+\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
+
 /**
  * Re-splices the deterministic block into an ALREADY-PUBLISHED review's
  * `content` — used by the weekly re-verification pass when a price/stock
@@ -577,17 +589,22 @@ export function resplicePublishedIndiaParagraph(
     throw new Error('[reviews-source] deterministic price line not found in published content — refusing to guess where to splice');
   }
   const { block, disclaimerVariant } = buildDeterministicBlock(verdict, source);
-  // The published block is exactly: price line \n Verdict line \n \n disclaimer.
-  // Match that whole span (price line through the disclaimer paragraph) and
-  // replace it wholesale, same as the pre-publish splice — the disclaimer
-  // paragraph itself always starts with "Standard disclaimer:" (every
-  // variant in review-disclaimer.ts's DISCLAIMER_TEXT table begins with
-  // that exact phrase), which anchors the end of the span to replace.
-  const FULL_BLOCK_RE = /Priced at ₹[\d,]+ on [^,]+, confirmed in stock as of [^.]+\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
   if (!FULL_BLOCK_RE.test(content)) {
     throw new Error('[reviews-source] full deterministic block not found in published content — refusing to guess where to splice');
   }
   return { content: content.replace(FULL_BLOCK_RE, block), disclaimerVariant };
+}
+
+/**
+ * Extracts just the deterministic India-Paragraph block's current text from
+ * a published review's `content` (price/retailer/checked-at line through the
+ * disclaimer paragraph) — not the whole article body. Returns null if the
+ * block isn't found (should not happen for a row with source_retailer set;
+ * callers should treat null as its own anomaly, not assume "no change").
+ */
+export function extractIndiaParagraphBlock(content: string): string | null {
+  const match = content.match(FULL_BLOCK_RE);
+  return match ? match[0] : null;
 }
 
 // ── Core orchestration ────────────────────────────────────────────────────────

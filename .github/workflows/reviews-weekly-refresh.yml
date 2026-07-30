@@ -50,4 +50,34 @@ jobs:
         run: npm ci
 
       - name: Re-verify published reviews + discover new candidates
+        id: refresh
+        continue-on-error: true
         run: npx tsx scripts/reviews-source-refresh.mjs ${{ inputs.dry_run == true && '--dry-run' || '' }}
+
+      # Covers any step failure — fetch error, script exception (including
+      # the flip-freeze self-verifying assertion below), non-zero exit.
+      # scripts/workflow-failure-notify.mjs is a generic, data-driven notify
+      # script (not hardcoded to this workflow's specific step) — see its
+      # header comment for the reusable pattern.
+      - name: Send failure alert
+        if: steps.refresh.outcome == 'failure'
+        continue-on-error: true
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL:    ${{ secrets.BRIEF_EMAIL }}
+          WORKFLOW_NAME:  reviews-weekly-refresh
+          STEP_OUTCOMES:  '{"Re-verify published reviews + discover new candidates": "${{ steps.refresh.outcome }}"}'
+        run: node scripts/workflow-failure-notify.mjs
+
+      # Same false-green problem code-audit.yml had (LOW-28): continue-on-error
+      # above means the job's own conclusion would otherwise be "success"
+      # regardless of whether the script actually failed. This step has no
+      # continue-on-error — it's the sole authority on job pass/fail.
+      - name: Fail job if refresh step failed
+        if: always()
+        run: |
+          if [ "${{ steps.refresh.outcome }}" = "failure" ]; then
+            echo "::error::reviews-source-refresh.mjs failed — see step log above; alert email already sent"
+            exit 1
+          fi
+          echo "reviews-source-refresh.mjs completed successfully."
