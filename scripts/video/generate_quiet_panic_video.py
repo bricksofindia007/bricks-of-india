@@ -1001,6 +1001,21 @@ def process_candidate(candidate: dict) -> dict:
     final_audio_path = work_dir / 'final_audio.mp3'
     apply_final_loudnorm(full_audio_path, final_audio_path)
 
+    # Real, ffprobe'd duration of the actually-encoded audio file -- NOT
+    # the pre-encode sum of segment/bumper durations. MP3 encoding quantizes
+    # to fixed-size frames, so the real file's length can come in a hair
+    # short (or long) of that computed sum. Forcing the audio clip's
+    # reported duration to the *computed* sum (as this used to do) told
+    # moviepy there was audio out to a point past what the file actually
+    # contains -- write_videofile would then try to read a chunk right at
+    # the end and hit a real EOF, raising "OSError: Accessing time t=X,
+    # with clip duration=Y" (hit for real on the WALL-E cloud render,
+    # 2026-07-30). Using the real duration as the single source of truth
+    # for the whole composited clip avoids this regardless of which way
+    # the rounding goes -- video frames are synthesized from a time value
+    # with no EOF risk, only the audio reader has one.
+    actual_audio_duration = ffprobe_duration(final_audio_path)
+
     # 6. Video assembly: intro card -> Ken Burns per segment -> outro card.
     intro_visual = make_static_card_clip(['Bricks of India', 'Where every brick tells a story', 'in ASMR'], intro_duration)
     outro_visual = make_static_card_clip(['Like it. Share it.', 'Follow Bricks of India.'], outro_duration)
@@ -1013,7 +1028,7 @@ def process_candidate(candidate: dict) -> dict:
     video_no_audio = concatenate_videoclips([intro_visual] + segment_clips + [outro_visual], method='compose')
 
     with AudioFileClip(str(final_audio_path)) as final_audio:
-        video_with_audio = video_no_audio.set_audio(final_audio.set_duration(video_no_audio.duration))
+        video_with_audio = video_no_audio.set_audio(final_audio).set_duration(actual_audio_duration)
 
         # Caption timing: offset by intro_duration, cumulative over measured segment durations.
         segments_timed = []
