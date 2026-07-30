@@ -1,7 +1,9 @@
 google-genai
 elevenlabs
 cerebras_cloud_sdk
-moviepy<2.0
+moviepy==1.0.3
+numpy==1.26.4
+Pillow==10.3.0
 requests
 python-dotenv
 supabase

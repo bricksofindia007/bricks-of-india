@@ -80,6 +80,10 @@ OUTRO_BUMPER = BUMPERS_DIR / 'outro_final.mp3'
 # file's apply_watermark() below duplicates.
 WATERMARK_PATH = BASE_DIR.parent.parent / 'social-automation' / 'assets' / 'watermark.png'
 
+# Same bucket as publish_quiet_panic.py's VIDEO_STORAGE_BUCKET -- duplicated
+# constant, not imported, per this file's isolation precedent.
+VIDEO_STORAGE_BUCKET = 'quiet-panic-assets'
+
 # Continuous "car being built" audio-bed asset (promoted from the v2
 # candidate 2026-07-30) and its duck level under voice:true segments.
 AUDIO_BED_SFX_TAG = 'car_build_texture'
@@ -158,6 +162,37 @@ def get_supabase():
         print('ERROR: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set.', file=sys.stderr)
         sys.exit(1)
     return create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+
+def video_file_is_valid(path: Path) -> bool:
+    """Basic corruption check via ffprobe -- catches e.g. a truncated MP4
+    with no moov atom, which happened for real this session when a
+    background render was killed mid-write_videofile. Uploading a corrupt
+    file to Storage would be worse than not uploading at all."""
+    try:
+        ffprobe_duration(path)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+
+
+def upload_video_to_storage(sb, local_path: str, filename: str) -> str:
+    """Duplicated from publish_quiet_panic.py's upload_video_to_storage --
+    same bucket, same upload/get_public_url calls, not imported, per this
+    file's isolation precedent (zero imports from anywhere else in
+    scripts/video/). Wiring this into generation itself, immediately after
+    a render passes all gates and is confirmed valid on disk, closes a
+    real gap hit for real on row d6531082 (the first row ever to reach
+    status='approved'): the publish poller runs on a GitHub-hosted cloud
+    runner with no access to this machine's local filesystem, so a
+    video_path-only row was unpublishable from there until someone
+    manually uploaded it. Uploading at generation time instead means every
+    future render is publishable regardless of where generation happened."""
+    with open(local_path, 'rb') as f:
+        sb.storage.from_(VIDEO_STORAGE_BUCKET).upload(
+            filename, f, {'content-type': 'video/mp4', 'upsert': 'true'}
+        )
+    return sb.storage.from_(VIDEO_STORAGE_BUCKET).get_public_url(filename)
 
 
 # ---------------------------------------------------------------------------
@@ -592,25 +627,22 @@ def make_static_card_clip(lines: list, duration_s: float, bg_color=(15, 20, 30))
 # we already have the exact segment text, no need to re-derive it).
 # ---------------------------------------------------------------------------
 
-_CAPTION_FONT_CANDIDATES_ITALIC = [
-    'C:/Windows/Fonts/ariali.ttf',
-    'C:/Windows/Fonts/georgiai.ttf',
-    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf',
-]
-_CAPTION_FONT_CANDIDATES_REGULAR = [
-    'C:/Windows/Fonts/arial.ttf',
-    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
-]
+FONTS_DIR = BASE_DIR.parent.parent / 'assets' / 'fonts'
+CAPTION_FONT_ITALIC_PATH = FONTS_DIR / 'Lato-Italic.ttf'
+CAPTION_FONT_REGULAR_PATH = FONTS_DIR / 'Lato-Regular.ttf'
 
 
 def _caption_font(size: int, italic: bool = True):
-    candidates = _CAPTION_FONT_CANDIDATES_ITALIC if italic else _CAPTION_FONT_CANDIDATES_REGULAR
-    for path in candidates:
-        try:
-            return ImageFont.truetype(path, size)
-        except (IOError, OSError):
-            continue
-    return ImageFont.load_default()
+    """Bundled font only -- no OS-specific system-font paths (the old
+    Arial/Georgia candidates weren't redistributable anyway -- commercial
+    fonts can't be committed to the repo) and no silent ImageFont.
+    load_default() fallback. A missing bundled font is a packaging bug,
+    not something that should ship as quietly worse-looking captions --
+    fail loudly instead."""
+    path = CAPTION_FONT_ITALIC_PATH if italic else CAPTION_FONT_REGULAR_PATH
+    if not path.exists():
+        raise FileNotFoundError(f'Bundled caption font not found at {path} -- check assets/fonts/ is present and committed.')
+    return ImageFont.truetype(str(path), size)
 
 
 def _wrap_caption_text(draw, text: str, font, max_width: int) -> list:
@@ -1003,8 +1035,22 @@ def process_candidate(candidate: dict) -> dict:
 
     print(f'  Rendered -> {output_path} (total duration ~{total_video_duration:.1f}s)')
 
-    # 7. DB insert.
+    # 7. Upload to Storage immediately, not left to publish time -- only for
+    # gate-passing renders confirmed valid on disk (see upload_video_to_
+    # storage's docstring for why this matters). A gate-failing render's
+    # video_path stays local-only; publish_quiet_panic.py's own gate
+    # (assert_all_gates_passed) would refuse to publish it anyway.
     sb = get_supabase()
+    storage_url = None
+    if all_passed:
+        if video_file_is_valid(output_path):
+            storage_filename = f'{set_number}_{timestamp_str}.mp4'
+            storage_url = upload_video_to_storage(sb, str(output_path), storage_filename)
+            print(f'  Uploaded to Storage -> {storage_url}')
+        else:
+            print(f'  WARNING: {output_path} failed the post-render validity check (corrupt?) -- skipping Storage upload.', file=sys.stderr)
+
+    # 8. DB insert.
     status = 'pending_approval' if all_passed else 'publish_blocked'
     full_script_text = ' '.join(s['text'] for s in segments)
     row = {
@@ -1013,6 +1059,7 @@ def process_candidate(candidate: dict) -> dict:
         'price_inr': price_inr,
         'script': full_script_text,
         'video_path': str(output_path),
+        'storage_url': storage_url,
         'gate_results': gate_results,
         'status': status,
     }
