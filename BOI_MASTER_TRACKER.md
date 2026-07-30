@@ -3136,6 +3136,24 @@ Decision deferred to Day 3 open.
 - **Target window:** Done (this slice). Generation-side sections 1-6 of VID-QP-02.md still pending, no date set.
 - **Dependencies:** VID-QP-01 (SFX/bumpers, done); VID-P4's IG/YouTube account credentials (shared, not owned by this slice).
 
+#### VID-QP-02b: Generation-side build — IN PROGRESS (current-state snapshot, 2026-07-30)
+- **What:** Building out VID-QP-02.md sections 1-6 (script-gen, segment JSON, gates, TTS, assembly, audio QC) inside `scripts/video/generate_quiet_panic_video.py`. First real end-to-end test render completed against set 77243 (Oracle Red Bull Racing RB20).
+- **Locked/stable, reused as-is this session:** voice (Mira Whisper, `thNHFcPYszCz6ZPG6mUp`, `ELEVENLABS_API_KEY_ASMR`); SFX library (`assets/sfx/library/` — now 8 files including `brick_snap_body.mp3`/`brick_snap_short.mp3`, plus a new `peak_levels.json` manifest, see below); bumpers (`intro_final.mp3`/`outro_final.mp3`, spliced as-is); the publish-side isolation from VID-QP-02a (`publish_quiet_panic.py`, `quiet_panic_posts` table, `quiet-panic-assets` bucket) — untouched this session, confirmed it performs the Storage upload itself at publish time from `video_path` (not expecting the render step to have uploaded anything; falls back to downloading from `storage_url` only if the local file is missing).
+- **In progress, all in `generate_quiet_panic_video.py`:**
+  - **Voice on/off segment schema:** segments can now carry `"voice": false` — an SFX-primary beat with no TTS at all (duration comes from the SFX file's own native length). Proven via a restructured RB20 script (piece-count and price-reveal beats now play as SFX-only, e.g. `brick_snap_body.mp3`) through a full render.
+  - **Audio mixing fixes:** `amix normalize=0` (explicit gain staging instead of ffmpeg auto-scaling SFX down against voice); peak-relative SFX gain via a new `assets/sfx/library/peak_levels.json` manifest (`--build-sfx-manifest` CLI flag) replacing a flat dB boost that was clipping hot SFX files; `alimiter` safety net added after the gain stage; single-pass `loudnorm` replaced with two-pass (measure then correct), applied once on the fully assembled track.
+  - **Caption stroke/shadow legibility fix:** done (thicker outline + blurred drop shadow vs. the earlier thin-outline pass).
+  - **Duration gate fix:** the gate was checking body-segment duration only, missing the ~21s of fixed intro+outro bumpers — the RB20 render passed gate at a reported 56.4s while the actual file was 77.5s. Fixed to gate on full assembled duration (intro+body+outro); re-run against the existing RB20 render now correctly reports **FAIL** (77.5s vs. the 40.5-60.5s band).
+  - **Script pacing calibration:** measured Mira's real per-word TTS rate from the RB20 render — 0.717s/word aggregate, split ~0.65s/word for flowing sentences vs. ~0.95s/word for short/punctuation-heavy fragments (ellipses and commas add pause time independent of word count). Added a hard word-count budget rule to `briefs/VID-QP-01.md` §3 and `briefs/VID-QP-02.md` §2 — the original RB20 draft used ~73 voice-on words against a budget that should have been roughly 26-42.
+- **Open decisions:**
+  - **Intro wording:** `intro_final.mp3` is explicitly a placeholder — `intro_v2` has not been recorded/chosen yet.
+  - **Word-budget-compressed RB20 script** (33 voice-on words, currently only in a scratchpad file, not in the repo) is pending operator's A/B listen — 4 standalone TTS clips rendered comparing two compressed lines against lightly-restored alternates. Script stays out of the repo/pipeline until reviewed.
+  - **WALL-E (43279) and Rivendell (10316)** test candidates have **not** been restructured with the voice:true/false schema — do not render either until that's done (explicit operator instruction, still standing).
+  - `quiet_panic_posts` row `181a8b81-980d-4c66-b02a-3d4ef442dca6` (the RB20 test render) corrected to `status='publish_blocked'` with `gate_results.duration` now showing the true FAIL — held pending a re-render with the calibrated script, not currently publishable.
+- **Owner:** A (creative/wording decisions, A/B review) + C (pipeline build).
+- **Target window:** No date set — mid-build, currently blocked on operator's A/B review of the word-budget script before any re-render.
+- **Dependencies:** VID-QP-01 (voice/SFX/bumpers, done); VID-QP-02a (publish isolation, done, untouched this session).
+
 ---
 
 ### Monetization
