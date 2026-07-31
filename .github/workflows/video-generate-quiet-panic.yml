@@ -56,6 +56,7 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Validate candidate and assemble render input
+        id: validate
         working-directory: scripts/video
         env:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -87,6 +88,15 @@ jobs:
               candidates = sel.select_candidates(limit=1)
               if not candidates:
                   print('No eligible candidates found right now -- nothing to render this run.')
+                  # No candidate.json gets written below -- the Render step
+                  # must not run against a nonexistent file. Flagging this
+                  # explicitly via GITHUB_OUTPUT rather than letting the
+                  # next step fail on a missing file (found 2026-08-01,
+                  # while wiring the review-ready notification).
+                  gh_output = os.environ.get('GITHUB_OUTPUT')
+                  if gh_output:
+                      with open(gh_output, 'a') as f:
+                          f.write('no_candidate=true\n')
                   sys.exit(0)
               result = candidates[0]
               set_number = result['set_number']
@@ -114,6 +124,8 @@ jobs:
           PYEOF
 
       - name: Render Quiet Panic video
+        id: render
+        if: steps.validate.outputs.no_candidate != 'true'
         working-directory: scripts/video
         env:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -124,3 +136,43 @@ jobs:
           BRICKSET_API_KEY: ${{ secrets.BRICKSET_API_KEY }}
           REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
         run: python generate_quiet_panic_video.py --test-batch candidate.json
+
+      # Fires only when a new row was inserted with status='pending_approval'
+      # (gates passed, video uploaded) -- NOT on gate failure (publish_
+      # blocked, no output written the same way since gate_results already
+      # captured why) and NOT on a hard failure (pre-TTS rejection, TTS/
+      # render exception -- the render step itself fails, this step is
+      # skipped by default since it has no continue-on-error above it).
+      # Reuses scripts/workflow-failure-notify.mjs's NOTIFY_TYPE=custom mode
+      # (added 2026-08-01) rather than a second notify script -- same Resend
+      # plumbing, same verified from-address, same BRIEF_EMAIL secret.
+      - name: Setup Node (for notification step)
+        if: steps.render.outputs.status == 'pending_approval'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Node dependencies (for notification step)
+        if: steps.render.outputs.status == 'pending_approval'
+        run: npm ci
+
+      - name: Send "video ready for review" notification
+        if: steps.render.outputs.status == 'pending_approval'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL: ${{ secrets.BRIEF_EMAIL }}
+          NOTIFY_TYPE: custom
+          SUBJECT: "Quiet Panic video ready for review: ${{ steps.render.outputs.set_title }} (#${{ steps.render.outputs.set_number }})"
+          BODY: |
+            A new Quiet Panic video passed all gates and is ready for your review.
+
+            Set: ${{ steps.render.outputs.set_title }} (#${{ steps.render.outputs.set_number }})
+            Price: Rs.${{ steps.render.outputs.price_inr }}
+            Row id: ${{ steps.render.outputs.post_id }}
+
+            Watch it here:
+            ${{ steps.render.outputs.storage_url }}
+
+            Watch this, then tell Claude "approved" or "rejected: <reason>" in chat.
+        run: node scripts/workflow-failure-notify.mjs

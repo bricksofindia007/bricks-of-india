@@ -1131,12 +1131,33 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
         'post_id': post_id,
         'set_title': set_title,
         'set_number': set_number,
+        'price_inr': price_inr,
         'status': status,
         'gate_results': gate_results,
         'total_duration': total_video_duration,
         'video_path': str(output_path),
+        'storage_url': storage_url,
         'reworked_from': reworked_from,
     }
+
+
+def _write_github_output(result: dict) -> None:
+    """Writes key result fields to $GITHUB_OUTPUT when running as a GitHub
+    Actions step (no-op locally, where that env var is unset) -- lets a
+    later workflow step (e.g. a "video ready for review" notification)
+    reference steps.<id>.outputs.* without re-querying Supabase. Only
+    called for the single-candidate case this workflow's own usage
+    always is; not meant to represent a multi-candidate batch run."""
+    output_path = os.environ.get('GITHUB_OUTPUT')
+    if not output_path:
+        return
+    with open(output_path, 'a', encoding='utf-8') as f:
+        f.write(f"post_id={result['post_id']}\n")
+        f.write(f"status={result['status']}\n")
+        f.write(f"set_title={result['set_title']}\n")
+        f.write(f"set_number={result['set_number']}\n")
+        f.write(f"price_inr={result['price_inr']}\n")
+        f.write(f"storage_url={result['storage_url'] or ''}\n")
 
 
 def main():
@@ -1163,6 +1184,9 @@ def main():
     print('\n=== Summary ===')
     for r in results:
         print(json.dumps(r, indent=2))
+
+    if results:
+        _write_github_output(results[-1])
 
 
 if __name__ == '__main__':
