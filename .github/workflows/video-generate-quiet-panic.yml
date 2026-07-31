@@ -1,4 +1,4 @@
-name: VID-QP Generate (cloud, manual trigger only)
+name: VID-QP Generate (cloud, Mon/Wed/Fri schedule + manual trigger)
 
 # Cloud rendering for the Quiet Panic format. Separate from
 # video-publish-poller-quiet-panic.yml, which only publishes already-
@@ -6,17 +6,28 @@ name: VID-QP Generate (cloud, manual trigger only)
 # TTS + audio mix + video assembly + Storage upload + quiet_panic_posts
 # insert.
 #
-# workflow_dispatch ONLY, still deliberately no schedule trigger.
 # UPDATED 2026-07-31: automated script-gen now exists
 # (quiet_panic_script_gen.py, briefs/VID-QP-02.md section 2) -- segments_
 # json is now OPTIONAL. Leave it blank to have process_candidate() call
 # script-gen in fresh mode automatically; only pass it to render a hand-
 # authored script instead (same manual path used for every script through
-# RB20/WALL-E). Still no `schedule:` trigger: this workflow's own design
-# (script-gen prompt, gate pass rate) needs operator review first, same
-# standing rule as the rework poller (video-rework-poller-quiet-panic.yml).
+# RB20/WALL-E).
+#
+# UPDATED 2026-08-01: schedule enabled after this session's script-gen
+# persona tuning + gate hardening (word budget, verdict-reason,
+# broadened banned-construction gate) was reviewed. Mon/Wed/Fri 03:30 UTC
+# (09:00 IST). Scheduled runs carry no `inputs` context at all (that's
+# workflow_dispatch-only) -- the "Validate candidate" step below falls
+# back to select_quiet_panic_candidate.py's select_candidates() to
+# auto-pick the next eligible set when SET_NUMBER comes through empty,
+# rather than requiring a manually-supplied set_number every time.
+# video-rework-poller-quiet-panic.yml's schedule stays OFF (workflow_
+# dispatch only) until a real (non-fabricated) rejection has been
+# reworked once by hand.
 
 on:
+  schedule:
+    - cron: '30 3 * * 1,3,5'
   workflow_dispatch:
     inputs:
       set_number:
@@ -59,13 +70,26 @@ jobs:
 
           import select_quiet_panic_candidate as sel
 
-          set_number = os.environ['SET_NUMBER']
+          set_number = os.environ.get('SET_NUMBER', '').strip()
           segments_json_raw = os.environ.get('SEGMENTS_JSON', '').strip()
 
-          result = sel.check_set_number(set_number)
-          if not result.get('eligible'):
-              print(f"ERROR: set_number {set_number!r} is not eligible: {result.get('reason')}", file=sys.stderr)
-              sys.exit(1)
+          if set_number:
+              result = sel.check_set_number(set_number)
+              if not result.get('eligible'):
+                  print(f"ERROR: set_number {set_number!r} is not eligible: {result.get('reason')}", file=sys.stderr)
+                  sys.exit(1)
+          else:
+              # Scheduled run (cron) -- workflow_dispatch's `inputs` context
+              # does not exist for schedule-triggered runs, so SET_NUMBER
+              # comes through as an empty string, not absent. Auto-select
+              # the next eligible candidate instead of failing.
+              print('No set_number provided (scheduled run) -- auto-selecting next eligible candidate...')
+              candidates = sel.select_candidates(limit=1)
+              if not candidates:
+                  print('No eligible candidates found right now -- nothing to render this run.')
+                  sys.exit(0)
+              result = candidates[0]
+              set_number = result['set_number']
 
           candidate_entry = {
               'set_number': result['set_number'],
