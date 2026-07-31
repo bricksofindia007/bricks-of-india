@@ -137,24 +137,28 @@ jobs:
           REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
         run: python generate_quiet_panic_video.py --test-batch candidate.json
 
-      # Fires only when a new row was inserted with status='pending_approval'
-      # (gates passed, video uploaded) -- NOT on gate failure (publish_
-      # blocked, no output written the same way since gate_results already
-      # captured why) and NOT on a hard failure (pre-TTS rejection, TTS/
-      # render exception -- the render step itself fails, this step is
-      # skipped by default since it has no continue-on-error above it).
-      # Reuses scripts/workflow-failure-notify.mjs's NOTIFY_TYPE=custom mode
-      # (added 2026-08-01) rather than a second notify script -- same Resend
-      # plumbing, same verified from-address, same BRIEF_EMAIL secret.
-      - name: Setup Node (for notification step)
-        if: steps.render.outputs.status == 'pending_approval'
+      # Two possible non-crash notification outcomes from the render step:
+      # 'pending_approval' (gates passed, video ready) or
+      # 'script_gen_exhausted' (added 2026-08-01: MAX_SCRIPT_GEN_ATTEMPTS
+      # pre-TTS rejections in a row, no video produced this run, but not a
+      # bug either -- see ScriptGenExhaustedError in generate_quiet_panic_
+      # video.py). NOT on gate failure (publish_blocked, no notification --
+      # gate_results already captured why, same as before) and NOT on a
+      # real hard failure (unhandled exception -- the render step fails
+      # normally, both notification branches below are skipped since
+      # steps.render.outputs.status is unset). Reuses scripts/workflow-
+      # failure-notify.mjs's NOTIFY_TYPE=custom mode rather than a second
+      # notify script -- same Resend plumbing, same verified from-address,
+      # same BRIEF_EMAIL secret.
+      - name: Setup Node (for notification steps)
+        if: steps.render.outputs.status == 'pending_approval' || steps.render.outputs.status == 'script_gen_exhausted'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
-      - name: Install Node dependencies (for notification step)
-        if: steps.render.outputs.status == 'pending_approval'
+      - name: Install Node dependencies (for notification steps)
+        if: steps.render.outputs.status == 'pending_approval' || steps.render.outputs.status == 'script_gen_exhausted'
         run: npm ci
 
       - name: Send "video ready for review" notification
@@ -175,4 +179,28 @@ jobs:
             ${{ steps.render.outputs.storage_url }}
 
             Watch this, then tell Claude "approved" or "rejected: <reason>" in chat.
+        run: node scripts/workflow-failure-notify.mjs
+
+      - name: Send "no video produced" notification
+        if: steps.render.outputs.status == 'script_gen_exhausted'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL: ${{ secrets.BRIEF_EMAIL }}
+          NOTIFY_TYPE: custom
+          SUBJECT: "Quiet Panic: no video produced this run (${{ steps.render.outputs.set_title }})"
+          BODY: |
+            This run fired but produced no video -- not a crash, just every
+            script-gen attempt failing the pre-TTS word-budget/verdict-reason
+            check for this set.
+
+            Set: ${{ steps.render.outputs.set_title }} (#${{ steps.render.outputs.set_number }})
+            Attempts: ${{ steps.render.outputs.attempts }} (all failed, zero ElevenLabs cost incurred)
+
+            Per-attempt detail:
+            ${{ steps.render.outputs.attempts_detail }}
+
+            This set stays eligible and may be picked up again next run. If
+            the same set (or sets in general) keeps hitting this, it's worth
+            a closer look at the script-gen prompt calibration rather than
+            bad luck.
         run: node scripts/workflow-failure-notify.mjs

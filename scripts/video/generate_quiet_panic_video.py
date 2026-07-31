@@ -50,6 +50,33 @@ from quiet_panic_script_gen import (  # noqa: E402
     check_verdict_reason,
 )
 
+# Retry budget for script-gen's pre-TTS validation (added 2026-08-01 after
+# a real 3-for-3 miss streak on Rapunzel's Castle in production CI, all
+# WordBudgetExceededError -- each attempt costs one LLM call and zero
+# ElevenLabs cost, so retrying is cheap). 5 matches the worst observed
+# real-world attempts-to-pass count from manual testing the prior session
+# -- deliberately not undershot given the miss streak that motivated this.
+MAX_SCRIPT_GEN_ATTEMPTS = 5
+
+
+class ScriptGenExhaustedError(Exception):
+    """Raised by process_candidate() when script-gen fails its pre-TTS
+    validation MAX_SCRIPT_GEN_ATTEMPTS times in a row for the same
+    candidate -- a genuine, expected terminal outcome for this run (the
+    set stays eligible, will be retried next run), not a crash. Callers
+    should NOT insert a quiet_panic_posts row for this (nothing was
+    generated) but SHOULD still surface it to the operator -- see
+    main()'s handling and video-generate-quiet-panic.yml's "no video
+    produced" notification step."""
+    def __init__(self, set_title: str, set_number: str, attempts_log: list):
+        self.set_title = set_title
+        self.set_number = set_number
+        self.attempts_log = attempts_log
+        super().__init__(
+            f'{set_title} (#{set_number}): all {len(attempts_log)} '
+            f'script-gen attempts failed pre-TTS validation'
+        )
+
 
 def get_secret(name: str, default: str = '') -> str:
     """Duplicated from secrets_util.py, same as publish_quiet_panic.py --
@@ -919,13 +946,30 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
             'theme': candidate.get('theme'),
         }
         mode = 'revision' if revision_context else 'fresh'
-        print(f'  No pre-authored segments -- calling script-gen ({mode} mode)...')
-        try:
-            segments = generate_quiet_panic_script(script_gen_meta, revision_context=revision_context)
-        except PreTTSValidationError as e:
-            print(f'  REJECTED pre-TTS (zero ElevenLabs cost incurred): {e}', file=sys.stderr)
-            raise
-        print(f'  script-gen returned {len(segments)} segment(s)')
+        attempts_log = []
+        segments = None
+        for attempt in range(1, MAX_SCRIPT_GEN_ATTEMPTS + 1):
+            print(f'  No pre-authored segments -- calling script-gen ({mode} mode), attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}...')
+            try:
+                segments = generate_quiet_panic_script(script_gen_meta, revision_context=revision_context)
+                print(f'  script-gen returned {len(segments)} segment(s) on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}')
+                break
+            except PreTTSValidationError as e:
+                # Each attempt's rejection reason logged individually (word
+                # count, which segments) -- a real record for diagnosing a
+                # deeper prompt-calibration issue if this keeps happening,
+                # not just "it failed". Zero ElevenLabs cost per attempt.
+                print(f'  REJECTED pre-TTS on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS} (zero ElevenLabs cost incurred): {e}', file=sys.stderr)
+                attempts_log.append(str(e))
+
+        if segments is None:
+            # Not a crash -- a genuine, expected terminal outcome for this
+            # run (added 2026-08-01 after a real 3-for-3 miss streak on
+            # Rapunzel's Castle in production). The caller (main()) turns
+            # this into a graceful, non-failing exit so the workflow can
+            # still notify the operator instead of silently producing
+            # nothing with no visible signal beyond an empty inbox.
+            raise ScriptGenExhaustedError(set_title, set_number, attempts_log)
 
     client = ElevenLabs(api_key=ELEVENLABS_API_KEY_ASMR)
 
@@ -1160,6 +1204,26 @@ def _write_github_output(result: dict) -> None:
         f.write(f"storage_url={result['storage_url'] or ''}\n")
 
 
+def _write_github_output_exhausted(exc: ScriptGenExhaustedError) -> None:
+    """Same $GITHUB_OUTPUT mechanism as _write_github_output(), for the
+    ScriptGenExhaustedError case -- status='script_gen_exhausted' lets the
+    workflow's "no video produced" notification step fire, distinct from
+    both 'pending_approval' (success) and a real crash (no output written
+    at all, step fails normally)."""
+    output_path = os.environ.get('GITHUB_OUTPUT')
+    if not output_path:
+        return
+    with open(output_path, 'a', encoding='utf-8') as f:
+        f.write('status=script_gen_exhausted\n')
+        f.write(f'set_title={exc.set_title}\n')
+        f.write(f'set_number={exc.set_number}\n')
+        f.write(f'attempts={len(exc.attempts_log)}\n')
+        f.write('attempts_detail<<EOF_ATTEMPTS_DETAIL\n')
+        for i, detail in enumerate(exc.attempts_log, 1):
+            f.write(f'Attempt {i}: {detail}\n')
+        f.write('EOF_ATTEMPTS_DETAIL\n')
+
+
 def main():
     parser = argparse.ArgumentParser(description='Quiet Panic script-to-video generation (standalone, no engine.py/publish.py/gates.py imports).')
     parser.add_argument('--test-batch', type=str, help='Path to a JSON file of candidate dicts (segments + set metadata) to process.')
@@ -1178,15 +1242,29 @@ def main():
         candidates = json.load(f)
 
     results = []
+    exhausted = None
     for candidate in candidates:
-        results.append(process_candidate(candidate))
+        try:
+            results.append(process_candidate(candidate))
+        except ScriptGenExhaustedError as e:
+            # Genuine terminal outcome, not a crash -- exit gracefully
+            # (status 0) so the calling workflow's later steps still run
+            # and can notify the operator, rather than propagating this as
+            # an unhandled exception and failing the whole step/job like a
+            # real bug would.
+            print(f'\nScript-gen exhausted for this candidate: {e}', file=sys.stderr)
+            exhausted = e
 
     print('\n=== Summary ===')
     for r in results:
         print(json.dumps(r, indent=2))
+    if exhausted:
+        print(f'Exhausted: {exhausted}')
 
     if results:
         _write_github_output(results[-1])
+    elif exhausted:
+        _write_github_output_exhausted(exhausted)
 
 
 if __name__ == '__main__':
