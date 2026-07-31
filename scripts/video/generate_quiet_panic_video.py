@@ -44,7 +44,11 @@ from elevenlabs.client import ElevenLabs  # noqa: E402
 # is Quiet-Panic-only, imported here (fresh mode) and by
 # rework_quiet_panic.py (revision mode), not duplicated per caller. See
 # quiet_panic_script_gen.py's module docstring.
-from quiet_panic_script_gen import generate_quiet_panic_script, WordBudgetExceededError  # noqa: E402
+from quiet_panic_script_gen import (  # noqa: E402
+    generate_quiet_panic_script,
+    PreTTSValidationError,
+    check_verdict_reason,
+)
 
 
 def get_secret(name: str, default: str = '') -> str:
@@ -135,6 +139,13 @@ BANNED_PATTERNS = [
     r"\blike (and |, )?(subscribe|comment|follow)\b",
     r"\bhit (that |the )?like\b",
     r"\bsmash (that |the )?like\b",
+    # Broadened 2026-08-01: the like-specific hit/smash pair above didn't
+    # catch a Quiet Panic script that swapped in "button" instead of
+    # "like" ("Smash that button.") -- same engagement-bait CTA echo, just
+    # a different object noun. This is a persona-voice violation (BOI
+    # satirizes marketing tropes, it doesn't deploy them), not a factual
+    # error, but belongs in this same banned-construction family.
+    r"\b(hit|smash) (that |the )?(button|subscribe|bell|notification)\b",
     r"\blike (this|the) video\b",
     r"\blike button\b",
     r"\bsubscribe\b",
@@ -870,6 +881,7 @@ def run_all_gates(segments: list, total_duration: float, price_inr: int) -> dict
         'duration': gate_duration(total_duration),
         'price_token': gate_price_token(full_text, price_inr),
         'verdict': gate_verdict(full_text),
+        'verdict_reason': check_verdict_reason(segments),
         'sfx_tags': gate_sfx_tags(segments),
         'banned_constructions': gate_banned_constructions(full_text),
         'vocab_complexity': gate_vocab_complexity(full_text),
@@ -910,7 +922,7 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
         print(f'  No pre-authored segments -- calling script-gen ({mode} mode)...')
         try:
             segments = generate_quiet_panic_script(script_gen_meta, revision_context=revision_context)
-        except WordBudgetExceededError as e:
+        except PreTTSValidationError as e:
             print(f'  REJECTED pre-TTS (zero ElevenLabs cost incurred): {e}', file=sys.stderr)
             raise
         print(f'  script-gen returned {len(segments)} segment(s)')

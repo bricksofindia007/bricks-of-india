@@ -165,6 +165,37 @@ scripts -- some open on the price, some on a piece-count fact, some on a
 direct comparison, some on the "this is not a X" device only when it
 genuinely fits (e.g. a flagship set where the grandiosity lands hardest).
 
+OPENER QUALITY (added 2026-08-01 -- "Epic clash." as an opener for a
+vs.-fight set is a flat restatement of the premise, not a joke): a generic
+single-clause opener that just states what the set literally is is NOT
+the signature move -- it's describing the box, not doing the format's
+actual joke. Every opener should attempt the core device instead: an
+ordinary object measured against something absurdly OVERSIZED or
+CONSEQUENTIAL. Same scale-jump as the reference scripts' openers -- RB20's
+"Two hundred fifty one pieces. This is a Formula One team's marketing
+budget... on your coffee table" (a toy vs. an entire team's budget) or
+WALL-E's "Two robots. One wasteland. Zero people asking if you're single"
+(an absurd escalation from robot to your love life), not a restatement
+like "Two robots fighting." If the opening line doesn't reach for that
+oversized comparison, it isn't doing the joke yet -- vary the STRUCTURE
+per OPENING-LINE VARIETY above, but never drop the scale-jump itself.
+
+CONCRETE-DETAIL RULE (added 2026-07-31 -- generic phrasing keeps slipping
+in): every line, voice:true or voice:false, must anchor in something
+CONCRETE and SPECIFIC -- a real comparison, a real cultural reference, a
+real physical detail about the set. Do NOT reach for abstract inspirational
+or stock-marketing phrasing. Banned-style constructions (illustrative, not
+exhaustive -- if a line could be pasted onto a completely different set
+unchanged, it's too generic): "a monument to [X]", "reaching for your
+dreams", "assembling the [character]", "a testament to [X]", "a symbol of
+[X]", "an ode to [X]", anything of the shape "[abstract noun] of [abstract
+noun]". Compare: "Assembling the incredible Hulk" (generic, could describe
+any Hulk set) vs. "Two hundred fifty one pieces. This is a Formula One
+team's marketing budget... on your coffee table" (specific -- exact piece
+count, a real-world comparison anchored to THIS set's actual theme). Every
+line should read like it was written for this exact set, not a template
+with the set name dropped in.
+
 SEGMENT-COUNT / WORD-BUDGET RULE (calibrated from real render data --
 telegraphic word-compression was tried and rejected, it broke delivery
 cadence and read as choppy rather than deadpan; do NOT compress wording to
@@ -178,22 +209,31 @@ hit a duration target):
   segment's audio is entirely its sfx_tag cue. Still give each a "text"
   string (this becomes the burned-in caption, at full original wording --
   captions aren't TTS-bound, so they don't need to shrink either).
-- HARD WORD CEILING (recalibrated 2026-07-31 against real measured TTS/SFX
-  durations -- a first test on Rapunzel's Castle (43297) at the old
-  26-42 word range measured 72.50s total, 12s over the 60.5s ceiling,
-  because that range never accounted for fixed bumper overhead or
-  voice-off SFX floor time): total word count across ALL voice:true
-  segments combined must be 16 WORDS OR FEWER (aim for 10-16). See the
-  WORD_CEILING_DERIVATION comment above PERSONA_RULES in this file for the
-  full math if this ever needs re-deriving (e.g. after a bumper or SFX
-  library change).
-- PER-SEGMENT CAP (added 2026-07-31 after a script put 16 words -- the
-  ENTIRE total budget -- into a single opener segment): no individual
-  voice:true segment may exceed 7 WORDS. The price-token segment
-  realistically needs close to this (a 4-digit INR price + "rupees" runs
-  5-7 words) -- every other segment should be noticeably shorter than
-  that, not equal to it. This is a secondary check alongside the 16-word
-  total, not a replacement for it.
+- WORD CAPS BELOW APPLY ONLY TO voice:true SEGMENTS (clarified 2026-07-31
+  -- this was ambiguous before and nearby caps were bleeding into caption
+  quality). voice:false captions have NO word-count constraint at all --
+  their timing comes from the SFX asset's native length / reading-speed
+  floor, never from word count. Write voice:false captions with the SAME
+  wit, specificity, and full joke-carrying weight as voice:true lines --
+  do not write them shorter or blander just because they sit next to a
+  capped segment. A caption is not a placeholder; it's read on-screen and
+  needs to land on its own.
+- HARD WORD CEILING, voice:true segments only (recalibrated 2026-07-31
+  against real measured TTS/SFX durations -- a first test on Rapunzel's
+  Castle (43297) at the old 26-42 word range measured 72.50s total, 12s
+  over the 60.5s ceiling, because that range never accounted for fixed
+  bumper overhead or voice-off SFX floor time): total word count across
+  ALL voice:true segments combined must be 16 WORDS OR FEWER (aim for
+  10-16). See the WORD_CEILING_DERIVATION comment above PERSONA_RULES in
+  this file for the full math if this ever needs re-deriving (e.g. after
+  a bumper or SFX library change).
+- PER-SEGMENT CAP, voice:true segments only (added 2026-07-31 after a
+  script put 16 words -- the ENTIRE total budget -- into a single opener
+  segment): no individual voice:true segment may exceed 7 WORDS. The
+  price-token segment realistically needs close to this (a 4-digit INR
+  price + "rupees" runs 5-7 words) -- every other voice:true segment
+  should be noticeably shorter than that, not equal to it. This is a
+  secondary check alongside the 16-word total, not a replacement for it.
 - Pacing budget for voice:true segments only: flowing declarative
   sentences run about 0.65s/word when spoken by the TTS voice; short,
   punchy, ellipsis-heavy fragments (lines with "..." or comma pauses) run
@@ -432,15 +472,30 @@ def _validate_segments(segments: list) -> None:
             raise ValueError(f'Segment {i} has voice:false but no sfx_tag: {seg!r}')
 
 
-class WordBudgetExceededError(Exception):
-    """Raised by check_word_budget() via generate_quiet_panic_script() --
-    a pre-TTS rejection, same binary gate-and-reject philosophy as every
-    post-render gate in generate_quiet_panic_video.py, just executed
-    before any ElevenLabs call instead of after. Callers should NOT insert
-    a quiet_panic_posts row for this failure (video_path is NOT NULL and
-    no render has happened yet) -- mirrors the existing precedent in
-    process_candidate() for other pre-render failures (e.g. "No images
-    resolved for set..." also just raises, no DB row)."""
+class PreTTSValidationError(Exception):
+    """Base class for any pre-TTS rejection -- same binary gate-and-reject
+    philosophy as every post-render gate in generate_quiet_panic_video.py,
+    just executed before any ElevenLabs call instead of after, at zero
+    cost either way. Callers should NOT insert a quiet_panic_posts row for
+    any subclass of this (video_path is NOT NULL and no render has
+    happened yet) -- mirrors the existing precedent in process_candidate()
+    for other pre-render failures (e.g. "No images resolved for set..."
+    also just raises, no DB row)."""
+
+
+class WordBudgetExceededError(PreTTSValidationError):
+    """Raised by check_word_budget() via generate_quiet_panic_script()."""
+
+
+class VerdictReasonMissingError(PreTTSValidationError):
+    """Raised by check_verdict_reason() via generate_quiet_panic_script()
+    -- added 2026-08-01 after a fresh generation shipped a bare "Verdict:
+    buy it." with no reason following it. The VERDICT RULE in
+    PERSONA_RULES already instructed a reason to always follow, but a
+    prompt instruction alone proved unreliable (this is exactly the kind
+    of thing this pipeline's whole gate philosophy exists to catch, not
+    trust to the model): a real code-level check, not a persona-only
+    fix."""
 
 
 def check_word_budget(segments: list) -> dict:
@@ -473,6 +528,45 @@ def check_word_budget(segments: list) -> dict:
         'total_words': total_words,
         'segment_words': segment_words,
     }
+
+
+# Generic single-word non-reasons -- a bare "Obviously." or "Yes." after
+# "Verdict: buy it." is trivially close to no reason at all, same failure
+# mode as having nothing there, just padded with one throwaway word. A
+# single REAL word (e.g. Spider-Man's approved "Fight.") is fine -- this
+# list exists to catch filler, not to force a minimum word count.
+VERDICT_REASON_FILLER_WORDS = {
+    'obviously', 'definitely', 'clearly', 'duh', 'yes', 'sure', 'done',
+    'literally', 'seriously', 'totally', 'basically', 'naturally',
+}
+
+_VERDICT_PHRASE_RE = re.compile(r'verdict:\s*buy it\.?', re.IGNORECASE)
+
+
+def check_verdict_reason(segments: list) -> dict:
+    """Pre-TTS validation, zero ElevenLabs cost either way -- see
+    VerdictReasonMissingError. Finds the voice:true segment containing
+    the required "Verdict: buy it." phrase and checks there is real text
+    after it in the SAME segment: either more than one word, or exactly
+    one word that isn't on the generic-filler list above. Also included
+    in generate_quiet_panic_video.py's run_all_gates() (imported from
+    here to avoid a circular import -- that file already imports FROM
+    this module) so every render's gate_results carries this check too,
+    not just the pre-TTS path."""
+    for i, seg in enumerate(segments):
+        if not seg.get('voice', True):
+            continue
+        match = _VERDICT_PHRASE_RE.search(seg['text'])
+        if not match:
+            continue
+        remainder = seg['text'][match.end():].strip(' .!?')
+        words = remainder.split()
+        if len(words) == 0:
+            return {'pass': False, 'detail': f'segment {i} is "Verdict: buy it." with no reason following it at all'}
+        if len(words) == 1 and words[0].lower().strip('.,!?') in VERDICT_REASON_FILLER_WORDS:
+            return {'pass': False, 'detail': f'segment {i}\'s verdict reason is just filler ({remainder!r}), not a real reason'}
+        return {'pass': True, 'detail': f'segment {i} verdict reason: {remainder!r}'}
+    return {'pass': False, 'detail': 'no voice:true segment contains "Verdict: buy it."'}
 
 
 # ---------------------------------------------------------------------------
@@ -545,6 +639,10 @@ def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) 
     budget_check = check_word_budget(segments)
     if not budget_check['pass']:
         raise WordBudgetExceededError(budget_check['detail'])
+
+    verdict_check = check_verdict_reason(segments)
+    if not verdict_check['pass']:
+        raise VerdictReasonMissingError(verdict_check['detail'])
 
     return segments
 
