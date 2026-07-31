@@ -38,6 +38,14 @@ from moviepy.editor import AudioFileClip, ImageClip, VideoClip, concatenate_vide
 from supabase import create_client  # noqa: E402
 from elevenlabs.client import ElevenLabs  # noqa: E402
 
+# Shared script-gen function (briefs/VID-QP-02.md section 2, built
+# 2026-07-31) -- the one deliberate exception to this file's own
+# zero-import isolation from engine.py/publish.py: quiet_panic_script_gen
+# is Quiet-Panic-only, imported here (fresh mode) and by
+# rework_quiet_panic.py (revision mode), not duplicated per caller. See
+# quiet_panic_script_gen.py's module docstring.
+from quiet_panic_script_gen import generate_quiet_panic_script, WordBudgetExceededError  # noqa: E402
+
 
 def get_secret(name: str, default: str = '') -> str:
     """Duplicated from secrets_util.py, same as publish_quiet_panic.py --
@@ -872,17 +880,40 @@ def run_all_gates(segments: list, total_duration: float, price_inr: int) -> dict
 # Full per-candidate pipeline
 # ---------------------------------------------------------------------------
 
-def process_candidate(candidate: dict) -> dict:
+def process_candidate(candidate: dict, reworked_from: str = None, revision_context: dict = None) -> dict:
+    """reworked_from: id of the quiet_panic_posts row this render is a
+    targeted rework of (None for a fresh candidate). revision_context:
+    {'original_script', 'rejection_reason'} passed through to script-gen
+    when candidate has no pre-authored 'segments' -- see
+    quiet_panic_script_gen.py. Ignored if candidate['segments'] is already
+    provided (the --test-batch hand-authored path)."""
     set_number = candidate['set_number']
     set_title = candidate['set_title']
     price_inr = candidate['price_inr']
-    segments = candidate['segments']
     fallback_image_url = candidate.get('image_url', '')
 
     work_dir = TEMP_DIR / f'qp_{set_number}'
     work_dir.mkdir(exist_ok=True)
 
     print(f'\n=== Processing {set_title} (#{set_number}) ===')
+
+    segments = candidate.get('segments')
+    if not segments:
+        script_gen_meta = {
+            'set_number': set_number,
+            'set_title': set_title,
+            'price_inr': price_inr,
+            'pieces': candidate.get('pieces'),
+            'theme': candidate.get('theme'),
+        }
+        mode = 'revision' if revision_context else 'fresh'
+        print(f'  No pre-authored segments -- calling script-gen ({mode} mode)...')
+        try:
+            segments = generate_quiet_panic_script(script_gen_meta, revision_context=revision_context)
+        except WordBudgetExceededError as e:
+            print(f'  REJECTED pre-TTS (zero ElevenLabs cost incurred): {e}', file=sys.stderr)
+            raise
+        print(f'  script-gen returned {len(segments)} segment(s)')
 
     client = ElevenLabs(api_key=ELEVENLABS_API_KEY_ASMR)
 
@@ -1077,10 +1108,12 @@ def process_candidate(candidate: dict) -> dict:
         'storage_url': storage_url,
         'gate_results': gate_results,
         'status': status,
+        'reworked_from': reworked_from,
     }
     inserted = sb.table('quiet_panic_posts').insert(row).execute()
     post_id = inserted.data[0]['id']
-    print(f'  Inserted quiet_panic_posts row {post_id} (status={status})')
+    rework_note = f' (reworked_from={reworked_from})' if reworked_from else ''
+    print(f'  Inserted quiet_panic_posts row {post_id} (status={status}){rework_note}')
 
     return {
         'post_id': post_id,
@@ -1090,6 +1123,7 @@ def process_candidate(candidate: dict) -> dict:
         'gate_results': gate_results,
         'total_duration': total_video_duration,
         'video_path': str(output_path),
+        'reworked_from': reworked_from,
     }
 
 

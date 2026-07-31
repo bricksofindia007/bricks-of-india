@@ -1,0 +1,98 @@
+name: VID-QP Script-Gen Test (no render, no DB writes)
+
+# Standalone script-gen dry-run for the Quiet Panic format, built alongside
+# the rejection-rework loop (2026-07-31). Calls quiet_panic_script_gen.py's
+# generate_quiet_panic_script() directly with explicit candidate fields --
+# no render, no quiet_panic_posts insert -- so operator/chat-Claude can
+# spot-check fresh-mode output (or, by also filling original_script +
+# rejection_reason, revision-mode output) before trusting either the
+# fresh-generate path (video-generate-quiet-panic.yml) or the rework
+# poller (video-rework-poller-quiet-panic.yml) to run unattended.
+#
+# Candidate fields are explicit inputs rather than looked up from
+# set_number here -- keeps this workflow needing no Supabase credentials
+# at all, and lets revision-mode tests target a set that's already
+# claimed (the normal case: testing a rework of something already
+# generated once).
+
+on:
+  workflow_dispatch:
+    inputs:
+      set_number:
+        description: 'LEGO set number (for reference in the output only)'
+        required: true
+        type: string
+      set_title:
+        required: true
+        type: string
+      price_inr:
+        description: 'Verified price in INR, e.g. 9999'
+        required: true
+        type: string
+      pieces:
+        required: false
+        type: string
+      theme:
+        required: false
+        type: string
+      original_script:
+        description: '(Revision-mode test only) the previously-generated script being revised -- leave blank for fresh mode'
+        required: false
+        type: string
+      rejection_reason:
+        description: '(Revision-mode test only) the rejection reason to test against -- leave blank for fresh mode'
+        required: false
+        type: string
+
+jobs:
+  script-gen-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/video/requirements.txt
+
+      - name: Run script-gen
+        working-directory: scripts/video
+        env:
+          GEMINI_SOCIAL_API_KEY: ${{ secrets.GEMINI_SOCIAL_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          SET_NUMBER: ${{ inputs.set_number }}
+          SET_TITLE: ${{ inputs.set_title }}
+          PRICE_INR: ${{ inputs.price_inr }}
+          PIECES: ${{ inputs.pieces }}
+          THEME: ${{ inputs.theme }}
+          ORIGINAL_SCRIPT: ${{ inputs.original_script }}
+          REJECTION_REASON: ${{ inputs.rejection_reason }}
+        run: |
+          python - <<'PYEOF'
+          import json
+          import os
+
+          from quiet_panic_script_gen import generate_quiet_panic_script
+
+          candidate = {
+              'set_number': os.environ['SET_NUMBER'],
+              'set_title': os.environ['SET_TITLE'],
+              'price_inr': float(os.environ['PRICE_INR']),
+              'pieces': int(os.environ['PIECES']) if os.environ.get('PIECES') else None,
+              'theme': os.environ.get('THEME') or None,
+          }
+
+          original_script = os.environ.get('ORIGINAL_SCRIPT', '').strip()
+          rejection_reason = os.environ.get('REJECTION_REASON', '').strip()
+          revision_context = None
+          if original_script and rejection_reason:
+              revision_context = {'original_script': original_script, 'rejection_reason': rejection_reason}
+              print('=== REVISION MODE ===')
+          else:
+              print('=== FRESH MODE ===')
+
+          segments = generate_quiet_panic_script(candidate, revision_context=revision_context)
+          print(json.dumps(segments, indent=2))
+          PYEOF

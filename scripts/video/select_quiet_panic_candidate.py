@@ -20,11 +20,18 @@ The join to `sets` below is therefore on set_number, not on `sets.id`.
 
 Permanent dedup: a set_number is excluded once any quiet_panic_posts row
 exists for it in a CLAIMED status (pending_approval, approved, posted_ig,
-posted_yt, posted_both). 'publish_blocked' (automated gate failure) and
-'discarded' (operator rejected that specific attempt/draft -- same
-precedent as video_posts/content_rejections, not a permanent set-level
-verdict) do NOT count as claimed -- the set stays eligible for a future
-attempt.
+posted_yt, posted_both, rejected). 'publish_blocked' (automated gate
+failure) and 'discarded' (operator rejected that specific attempt/draft
+with no reason, same precedent as video_posts/content_rejections, not a
+permanent set-level verdict) do NOT count as claimed -- the set stays
+eligible for a future attempt.
+
+'rejected' (added 20260731000000, rejection-rework loop) DOES count as
+claimed, unlike 'discarded' -- a rejected row carries a specific
+rejection_reason and is claimed exclusively by rework_quiet_panic.py for
+a targeted revision. Without this, a set mid-rework would also be
+eligible for an unrelated fresh pick here at the same time, generating
+two independent videos for the same set concurrently.
 """
 
 import argparse
@@ -51,7 +58,7 @@ SUPABASE_URL = get_secret('SUPABASE_URL')
 SUPABASE_SERVICE_ROLE_KEY = get_secret('SUPABASE_SERVICE_ROLE_KEY')
 
 ELIGIBLE_STORE_IDS = ('mybrickhouse', 'toycra')
-CLAIMED_STATUSES = ('pending_approval', 'approved', 'posted_ig', 'posted_yt', 'posted_both')
+CLAIMED_STATUSES = ('pending_approval', 'approved', 'posted_ig', 'posted_yt', 'posted_both', 'rejected')
 PAGE = 1000  # PostgREST caps at 1000 rows/request regardless of .limit()/.range()
 
 

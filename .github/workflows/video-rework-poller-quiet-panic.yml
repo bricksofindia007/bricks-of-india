@@ -1,0 +1,60 @@
+name: VID-QP Rework Poller
+
+# Rejection-rework loop for the Quiet Panic format (built 2026-07-31,
+# alongside quiet_panic_script_gen.py's shared script-gen function).
+# Polls quiet_panic_posts for status='rejected' rows carrying a specific
+# rejection_reason, regenerates the script in revision mode (same
+# candidate data + the rejected script + the reason as explicit context),
+# re-renders through the same pipeline used for fresh candidates
+# (process_candidate() in generate_quiet_panic_video.py, imported not
+# duplicated -- see rework_quiet_panic.py's module docstring), and inserts
+# the result as a new pending_approval row referencing the original via
+# reworked_from. Escalation cap: 2 rejected rows for the same set_number
+# stops automated rework for that set and flags BOI_MASTER_TRACKER.md
+# instead of a third automatic attempt.
+#
+# INTENTIONALLY NO `schedule:` TRIGGER YET -- workflow_dispatch only,
+# same precedent as video-generate-quiet-panic.yml before its own design
+# was reviewed. Once operator's chat-Claude has reviewed this design
+# (script-gen prompt, escalation logic, render reuse) and it's approved to
+# run unattended, add:
+#
+#   schedule:
+#     - cron: '47 * * * *'   # hourly at :47 -- offset from the publish
+#                             # poller's :17 and generate side's manual-only
+#                             # cadence; rework volume is expected to be low
+#                             # and this isn't time-sensitive the way
+#                             # publishing is.
+#
+# to the `on:` block below.
+
+on:
+  workflow_dispatch:  # manual trigger only, for now
+
+jobs:
+  rework:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/video/requirements.txt
+
+      - name: Install ffmpeg
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+
+      - name: Poll for rejected Quiet Panic rows and rework them
+        working-directory: scripts/video
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          ELEVENLABS_API_KEY_ASMR: ${{ secrets.ELEVENLABS_API_KEY_ASMR }}
+          BRICKSET_API_KEY: ${{ secrets.BRICKSET_API_KEY }}
+          REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
+          GEMINI_SOCIAL_API_KEY: ${{ secrets.GEMINI_SOCIAL_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+        run: python rework_quiet_panic.py --poll-and-rework

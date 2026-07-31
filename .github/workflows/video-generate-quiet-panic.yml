@@ -2,21 +2,19 @@ name: VID-QP Generate (cloud, manual trigger only)
 
 # Cloud rendering for the Quiet Panic format. Separate from
 # video-publish-poller-quiet-panic.yml, which only publishes already-
-# approved rows -- this workflow does candidate selection + TTS + audio
-# mix + video assembly + Storage upload + quiet_panic_posts insert.
+# approved rows -- this workflow does candidate selection + script-gen +
+# TTS + audio mix + video assembly + Storage upload + quiet_panic_posts
+# insert.
 #
-# workflow_dispatch ONLY, deliberately no schedule trigger yet.
-# There is no automated script-gen for this format -- every segment
-# script (including RB20's) has been hand-authored following the persona
-# brief (briefs/VID-QP-01.md), not produced by an LLM call. Until that's
-# built (or a decision is made to keep doing this by hand on a cadence),
-# a scheduled run would fire with no script input and either fail
-# immediately or have nothing to call. Add a `schedule:` trigger only
-# once script-gen -- manual or automated -- has an actual answer for how
-# it fires unattended.
-#
-# This run's segments_json input is chat-authored per candidate, same
-# process used for RB20 throughout this build.
+# workflow_dispatch ONLY, still deliberately no schedule trigger.
+# UPDATED 2026-07-31: automated script-gen now exists
+# (quiet_panic_script_gen.py, briefs/VID-QP-02.md section 2) -- segments_
+# json is now OPTIONAL. Leave it blank to have process_candidate() call
+# script-gen in fresh mode automatically; only pass it to render a hand-
+# authored script instead (same manual path used for every script through
+# RB20/WALL-E). Still no `schedule:` trigger: this workflow's own design
+# (script-gen prompt, gate pass rate) needs operator review first, same
+# standing rule as the rework poller (video-rework-poller-quiet-panic.yml).
 
 on:
   workflow_dispatch:
@@ -26,8 +24,8 @@ on:
         required: true
         type: string
       segments_json:
-        description: 'Segment script as a JSON array (text/target_duration/voice/sfx_tag per segment) -- hand-authored, same schema as briefs/VID-QP-01.md section 6'
-        required: true
+        description: 'OPTIONAL: hand-authored segment script as a JSON array (text/target_duration/voice/sfx_tag per segment), same schema as briefs/VID-QP-01.md section 6. Leave blank to auto-generate via script-gen (fresh mode) instead.'
+        required: false
         type: string
 
 jobs:
@@ -62,20 +60,28 @@ jobs:
           import select_quiet_panic_candidate as sel
 
           set_number = os.environ['SET_NUMBER']
-          segments = json.loads(os.environ['SEGMENTS_JSON'])
+          segments_json_raw = os.environ.get('SEGMENTS_JSON', '').strip()
 
           result = sel.check_set_number(set_number)
           if not result.get('eligible'):
               print(f"ERROR: set_number {set_number!r} is not eligible: {result.get('reason')}", file=sys.stderr)
               sys.exit(1)
 
-          candidate = [{
+          candidate_entry = {
               'set_number': result['set_number'],
               'set_title': result['set_title'],
               'price_inr': result['price_inr'],
+              'pieces': result.get('pieces'),
+              'theme': result.get('theme'),
               'image_url': result['image_url'],
-              'segments': segments,
-          }]
+          }
+          if segments_json_raw:
+              candidate_entry['segments'] = json.loads(segments_json_raw)
+              print('Hand-authored segments_json provided -- render will use it as-is.')
+          else:
+              print('No segments_json provided -- render will call script-gen (fresh mode) automatically.')
+
+          candidate = [candidate_entry]
 
           with open('candidate.json', 'w') as f:
               json.dump(candidate, f, indent=2)
@@ -89,6 +95,8 @@ jobs:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ELEVENLABS_API_KEY_ASMR: ${{ secrets.ELEVENLABS_API_KEY_ASMR }}
+          GEMINI_SOCIAL_API_KEY: ${{ secrets.GEMINI_SOCIAL_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
           BRICKSET_API_KEY: ${{ secrets.BRICKSET_API_KEY }}
           REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
         run: python generate_quiet_panic_video.py --test-batch candidate.json
