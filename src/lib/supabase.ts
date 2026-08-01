@@ -38,6 +38,7 @@ export interface LegoSet {
   description: string | null;
   age_range: string | null;
   lego_mrp_inr: number | null;
+  mrp_verified: boolean;
   rebrickable_id: string | null;
   created_at: string;
   updated_at: string;

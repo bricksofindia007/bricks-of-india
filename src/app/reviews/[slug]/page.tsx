@@ -301,7 +301,9 @@ export default async function ReviewPage({ params }: Props) {
               {
                 q: `What is the price of ${set?.name || 'this set'} in India?`,
                 a: set?.lego_mrp_inr
-                  ? `The official LEGO India MRP is ₹${set.lego_mrp_inr.toLocaleString('en-IN')}. Some stores may sell at a discount. Compare prices above.`
+                  ? set.mrp_verified
+                    ? `The confirmed LEGO India MRP is ₹${set.lego_mrp_inr.toLocaleString('en-IN')}. Some stores may sell at a discount. Compare prices above.`
+                    : `Based on the US retail price, this set works out to roughly ₹${set.lego_mrp_inr.toLocaleString('en-IN')} in India before local pricing adjustments. Check lego.com/en-in for the official MRP.`
                   : 'Check our price comparison tool for current prices across Indian stores.',
               },
               {

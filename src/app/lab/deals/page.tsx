@@ -50,7 +50,8 @@ export default async function DealsPage() {
       .from('sets')
       .select('set_number, name, lego_mrp_inr, image_url, theme')
       .in('set_number', setNumbers)
-      .not('lego_mrp_inr', 'is', null);
+      .not('lego_mrp_inr', 'is', null)
+      .eq('mrp_verified', true);
     setsData = (data ?? []) as typeof setsData;
   }
 

@@ -61,7 +61,7 @@ export default async function ComparePage({ searchParams }: Props) {
         const setNumbers = rbResult.results.map((s) => stripSuffix(s.set_num));
         const { data: supabaseSets } = await supabase
           .from('sets')
-          .select('id, set_number, lego_mrp_inr, age_range, theme, subtheme, minifigs')
+          .select('id, set_number, lego_mrp_inr, mrp_verified, age_range, theme, subtheme, minifigs')
           .in('set_number', setNumbers);
 
         const supabaseMap = new Map<string, any>(

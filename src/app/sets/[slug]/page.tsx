@@ -144,7 +144,7 @@ export default async function SetPage({ params }: Props) {
   if (set.theme) {
     const { data: relData } = await serverClient
       .from('sets')
-      .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr')
+      .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr, mrp_verified')
       .eq('theme', set.theme)
       .neq('set_number', set.set_number)
       .limit(4);
@@ -272,7 +272,9 @@ export default async function SetPage({ params }: Props) {
             {set.lego_mrp_inr && (
               <div className="bg-light-grey rounded-xl p-4 mb-6 flex items-center justify-between">
                 <div>
-                  <p className="text-xs text-gray-400 uppercase tracking-wide font-bold">Est. MRP (from US price)</p>
+                  <p className="text-xs text-gray-400 uppercase tracking-wide font-bold">
+                    {set.mrp_verified ? 'MRP' : 'Est. MRP (from US price)'}
+                  </p>
                   <p className="font-price text-2xl font-bold text-dark">{formatPrice(set.lego_mrp_inr)}</p>
                 </div>
                 <span className="text-3xl">🏷️</span>
@@ -442,7 +444,9 @@ export default async function SetPage({ params }: Props) {
                   {
                     q: `What is the official MRP of ${set.name} in India?`,
                     a: set.lego_mrp_inr
-                      ? `Based on the US retail price, ${set.name} works out to roughly ${formatPrice(set.lego_mrp_inr)} in India before local pricing adjustments. Check lego.com/en-in for the official MRP.`
+                      ? set.mrp_verified
+                        ? `The confirmed LEGO India MRP for ${set.name} is ${formatPrice(set.lego_mrp_inr)}.`
+                        : `Based on the US retail price, ${set.name} works out to roughly ${formatPrice(set.lego_mrp_inr)} in India before local pricing adjustments. Check lego.com/en-in for the official MRP.`
                       : `The official India MRP for ${set.name} hasn't been confirmed. Check lego.com/en-in for the latest official pricing.`,
                   },
                   {

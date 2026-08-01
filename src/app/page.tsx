@@ -50,7 +50,7 @@ async function getHomepageData() {
     dealSetNums.length > 0
       ? supabase
           .from('sets')
-          .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr')
+          .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr, mrp_verified')
           .in('set_number', dealSetNums)
           .order('year', { ascending: false })
           .limit(8)

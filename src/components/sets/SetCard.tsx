@@ -56,7 +56,7 @@ export function SetCard({ set, bestPrice, priceCount }: SetCardProps) {
               </div>
             ) : set.lego_mrp_inr ? (
               <span className="font-price text-sm text-dark font-bold">
-                MRP: {formatPrice(set.lego_mrp_inr)}
+                {set.mrp_verified ? 'MRP' : 'Est. MRP'}: {formatPrice(set.lego_mrp_inr)}
               </span>
             ) : (
               <span className="text-xs text-gray-400 italic">Price TBD</span>

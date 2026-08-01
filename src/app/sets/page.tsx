@@ -151,7 +151,7 @@ export default async function SetsPage({ searchParams }: Props) {
     if (pageIds.length > 0) {
       const { data } = await supabase
         .from('sets')
-        .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr')
+        .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr, mrp_verified')
         .in('set_number', pageIds);
       const byNum = new Map((data ?? []).map((s: any) => [s.set_number, s]));
       sets = pageIds.map(id => byNum.get(id)).filter(Boolean);
@@ -162,7 +162,7 @@ export default async function SetsPage({ searchParams }: Props) {
     let q = supabase
       .from('sets')
       .select(
-        'id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr',
+        'id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr, mrp_verified',
         { count: 'exact' },
       );
 

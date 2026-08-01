@@ -84,7 +84,7 @@ export default async function DealsPage() {
 
   const { data: setsData } = await supabase
     .from('sets')
-    .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr')
+    .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr, mrp_verified')
     .in('set_number', priceSetIds);
 
   // Apply MSRP fallback for sets without enough history
@@ -98,7 +98,7 @@ export default async function DealsPage() {
 
     if (isDeal) {
       dealSets.push({ ...set, _dealPrice: bestPrice });
-    } else if (!avgBySet[set.set_number] && hasMrp) {
+    } else if (!avgBySet[set.set_number] && hasMrp && set.mrp_verified) {
       // No history yet — use MSRP × 1.35 benchmark
       if (bestPrice < set.lego_mrp_inr * MSRP_BENCHMARK_MULTIPLIER) {
         dealSets.push({ ...set, _dealPrice: bestPrice });
