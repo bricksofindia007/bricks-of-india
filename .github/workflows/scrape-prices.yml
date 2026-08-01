@@ -43,7 +43,7 @@ jobs:
           # fetch sets not yet in Supabase. Not required for price-only scraping.
           REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
-        run: node scripts/scrape-now.mjs
+        run: npx tsx scripts/scrape-now.mjs
 
       - name: Sync new/changed sets to IndexNow
         if: always()
@@ -57,19 +57,4 @@ jobs:
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          node -e "
-          const { createClient } = require('@supabase/supabase-js');
-          const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-          async function report() {
-            const { count: spCount } = await sb.from('store_prices').select('*', { count: 'exact', head: true });
-            const { count: phCount } = await sb.from('price_history').select('*', { count: 'exact', head: true });
-            console.log('store_prices rows:', spCount);
-            console.log('price_history rows:', phCount);
-            const { data } = await sb.from('store_prices').select('store_id').order('store_id');
-            const byStore = {};
-            for (const r of data ?? []) byStore[r.store_id] = (byStore[r.store_id] ?? 0) + 1;
-            console.log('By store:', JSON.stringify(byStore));
-          }
-          report().catch(e => { console.error(e); process.exit(1); });
-          "
+        run: npx tsx scripts/report-store-prices.ts

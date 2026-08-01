@@ -21,6 +21,7 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { STORES, withRetry, fetchAllProducts, extractSetNumber, parseProduct } from './lib/retailer-fetch.mjs';
+import { getSecret } from '../src/lib/get-secret';
 
 // ── Load .env.local when running locally ────────────────────────────────────
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -41,7 +42,7 @@ try {
 }
 
 const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+const SERVICE_KEY  = getSecret('SUPABASE_SERVICE_ROLE_KEY');
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
   console.error('ERROR: Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
@@ -53,7 +54,7 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 // Set via workflow_dispatch input `dry_run: true` — reads only, no Supabase writes.
 const DRY_RUN = process.env.DRY_RUN === 'true';
 
-const RESEND_KEY  = (process.env.RESEND_API_KEY || '').replace(/^﻿/, '').trim();
+const RESEND_KEY  = (getSecret('RESEND_API_KEY') || '').trim();
 const ALERT_EMAIL = process.env.BRIEF_EMAIL || 'abhinav@bricksofindia.com';
 
 // STORES, withRetry, fetchAllProducts, extractSetNumber, parseProduct now live
