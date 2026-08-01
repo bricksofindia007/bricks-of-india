@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 15
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      DOTENV_CONFIG_QUIET: 'true'
 
     steps:
       - name: Checkout
