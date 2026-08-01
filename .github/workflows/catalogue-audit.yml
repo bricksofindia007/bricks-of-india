@@ -37,6 +37,7 @@ jobs:
         run: npx tsx scripts/catalogue-audit.ts
 
       - name: Check live search endpoint
+        id: search-check
         run: |
           RESULT=$(curl -s "https://bricksofindia.com/api/sets/search?q=Concorde")
           COUNT=$(echo "$RESULT" | node -e "let d=''; process.stdin.on('data',c=>d+=c).on('end',()=>{ try { const j=JSON.parse(d); console.log(j.total??0); } catch(e) { console.log(0); } })")
@@ -47,6 +48,7 @@ jobs:
           fi
 
       - name: Check /compare page renders sets (no 'Nothing found')
+        id: compare-check
         run: |
           HTML=$(curl -s "https://bricksofindia.com/compare?q=Technic")
           if echo "$HTML" | grep -qi "NOTHING FOUND\|NO SETS TRACKED"; then
@@ -56,6 +58,7 @@ jobs:
           echo "PASS: /compare?q=Technic renders sets"
 
       - name: Check Star Wars theme page (>=20 sets)
+        id: starwars-check
         run: |
           HTML=$(curl -s "https://bricksofindia.com/themes/star-wars")
           COUNT=$(echo "$HTML" | grep -oE "[0-9]+ sets found" | grep -oE "[0-9]+" | head -1)
@@ -65,8 +68,36 @@ jobs:
             exit 1
           fi
 
+      # mrp_only is set by scripts/catalogue-audit.ts (defaults to 'false', only
+      # flips to 'true' if lego_mrp_inr coverage is the *sole* DB-check failure).
+      # These two steps' `if:` conditions are De Morgan duals of each other so
+      # exactly one fires on any failure — never both, never neither.
+      - name: Dedupe MRP-coverage-gap issue
+        if: >-
+          failure() &&
+          steps.audit.outputs.mrp_only == 'true' &&
+          steps.search-check.outcome != 'failure' &&
+          steps.compare-check.outcome != 'failure' &&
+          steps.starwars-check.outcome != 'failure'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          EXISTING=$(gh issue list --state open --search "MRP-coverage gap in:title" --json number --jq '.[0].number')
+          if [ -n "$EXISTING" ]; then
+            gh issue comment "$EXISTING" --body "Still failing as of $(date -u +%Y-%m-%dT%H:%M:%SZ) — run ${{ github.run_id }}."
+          else
+            gh issue create --title "MRP-coverage gap: catalogue-audit failed" \
+              --body "Coverage below threshold. Run ${{ github.run_id }}." --label "catalogue-audit-failed"
+          fi
+
       - name: Open issue on failure
-        if: failure()
+        if: >-
+          failure() && (
+          steps.audit.outputs.mrp_only != 'true' ||
+          steps.search-check.outcome == 'failure' ||
+          steps.compare-check.outcome == 'failure' ||
+          steps.starwars-check.outcome == 'failure'
+          )
         uses: actions/github-script@v7
         with:
           script: |
