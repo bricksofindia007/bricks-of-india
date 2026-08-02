@@ -1939,7 +1939,7 @@ def main() -> None:
         return
 
     if args.suggest:
-                candidates = get_candidates(sb)
+        candidates = get_candidates(sb)
         print_suggestions(candidates)
         return
 
