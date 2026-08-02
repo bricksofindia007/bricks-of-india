@@ -1968,7 +1968,7 @@ def main() -> None:
                 sys.exit(1)
             candidate, image_paths = match, studio
         else:
-            candidates = get_candidates(sb, limit=25)
+            candidates = get_candidates(sb, limit=25, pool_size=100)
             if args.pick < 1 or args.pick > len(candidates):
                 print(f"ERROR: --pick {args.pick} out of range (1-{len(candidates)} available).", file=sys.stderr)
                 sys.exit(1)
