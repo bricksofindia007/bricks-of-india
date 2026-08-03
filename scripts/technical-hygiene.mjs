@@ -100,6 +100,29 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+// Paginates past PostgREST's server-side row cap (confirmed 1000 here,
+// applies regardless of a client-requested .limit()/.range() override) to
+// get the TRUE full set of store_prices.store_id rows. Added 2026-08-04
+// after both store_prices checks below (7b DataIntegrity, 15g Performance)
+// used `.select('store_id').limit(3000)` with no `.order()` -- confirmed
+// live that this silently truncates at 1000 rows, and without an explicit
+// order the truncated page happened to land entirely on mybrickhouse rows,
+// making 7b wrongly report "only 1 store" while StorePriceCount's own
+// per-store counts in the same run (toycra=804, mybrickhouse=1006) proved
+// otherwise. Same pattern already established in scrape-now.mjs and
+// documented in this repo's CLAUDE.md for exactly this class of bug.
+async function fetchAllStorePriceStoreIds() {
+  const PAGE = 1000;
+  let rows = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await sb.from('store_prices').select('store_id').range(offset, offset + PAGE - 1);
+    if (error) throw error;
+    rows = rows.concat(data ?? []);
+    if ((data ?? []).length < PAGE) break;
+  }
+  return rows;
+}
+
 // ── Check 1: Route health — HTTP GET 20 live routes ──────────────────────────
 
 const ROUTES = [
@@ -470,8 +493,8 @@ try {
 
 // 7b. store_prices has rows for at least 2 distinct stores (Jaiman removed 2026-05-31)
 try {
-  const { data: storeRows } = await sb.from('store_prices').select('store_id').limit(3000);
-  const storeIds = new Set((storeRows ?? []).map(r => r.store_id));
+  const storeRows = await fetchAllStorePriceStoreIds();
+  const storeIds = new Set(storeRows.map(r => r.store_id));
   if (storeIds.size < 2) {
     alertFail('DataIntegrity', `Only ${storeIds.size} store(s) with data in store_prices — expected ≥ 2 (${[...storeIds].join(', ')})`);
   } else {
@@ -1516,10 +1539,10 @@ await Promise.allSettled(['/', '/sets'].map(async route => {
 // 15g: store_prices distribution — log only (threshold removed: 2-store config means one
 // store will always be dominant; MBH skew is acceptable after Jaiman removal 2026-05-31)
 try {
-  const { data: storeRows } = await sb.from('store_prices').select('store_id').limit(3000);
-  const total15 = (storeRows ?? []).length;
+  const storeRows = await fetchAllStorePriceStoreIds();
+  const total15 = storeRows.length;
   const counts = {};
-  for (const r of storeRows ?? []) counts[r.store_id] = (counts[r.store_id] ?? 0) + 1;
+  for (const r of storeRows) counts[r.store_id] = (counts[r.store_id] ?? 0) + 1;
   log('Performance', `store_prices distribution: ${Object.entries(counts).map(([s, c]) => `${s}=${c} (${Math.round((c/total15)*100)}%)`).join(', ')}`);
 } catch (e) { alertFail('Performance', `store_prices distribution check error: ${e.message.slice(0, 80)}`); }
 
