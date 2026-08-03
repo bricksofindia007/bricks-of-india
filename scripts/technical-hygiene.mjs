@@ -14,8 +14,11 @@
  * CHECK GROUPS (15 total):
  *   1.  RouteHealth      — HTTP 200 for 26 live routes
  *   1b. GuideRoutes      — HTTP 200 for all guide slugs
- *   2.  HeroImages       — HEAD all news_articles.hero_image URLs
- *   3.  Sitemap          — /sitemap.xml URL count ≥ 1000
+ *   2.  Sitemap          — /sitemap.xml URL count ≥ 1000 (runs before
+ *                          HeroImages, 2026-08-04 -- isolates this single
+ *                          cheap request from HeroImages' concurrent burst)
+ *   3.  HeroImages       — batched, throttled GET all news_articles.hero_image
+ *                          URLs, one narrow retry on a transient 403
  *   4.  Lighthouse       — perf/a11y/SEO on homepage + /sets
  *   5.  Staleness        — store_prices MAX(scraped_at) per store ≤ 8h
  *   6.  RowCounts        — all major table counts (trend log)
@@ -91,6 +94,10 @@ function alertFail(section, msg) {
   console.error(`[${section}] FAIL: ${msg}`);
   report.push(`[${section}] ❌ FAIL: ${msg}`);
   alerts.push(`${section}: ${msg}`);
+}
+
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
 }
 
 // ── Check 1: Route health — HTTP GET 20 live routes ──────────────────────────
@@ -189,68 +196,15 @@ try {
   alertFail('GuideRoutes', `Guide slug fetch failed: ${e.message.slice(0, 80)}`);
 }
 
-// ── Check 2: Broken hero images ───────────────────────────────────────────────
-
-log('HeroImages', 'Checking all news_articles.hero_image URLs');
-const { data: heroRows } = await sb
-  .from('news_articles')
-  .select('slug, hero_image')
-  .not('hero_image', 'is', null);
-
-const heroFails = [];
-if (heroRows && heroRows.length > 0) {
-  await Promise.allSettled(
-    heroRows.map(async row => {
-      if (!row.hero_image) return;
-      try {
-        // Bug fixed 2026-06-30: Node's native fetch requires an absolute
-        // URL — passing a relative path like '/fallback-hero.png' throws
-        // "Failed to parse URL from /fallback-hero.png" immediately, which
-        // the catch block below silently counted as a broken hero image.
-        // The image itself was never actually broken (browsers resolve
-        // relative URLs against the page's own origin automatically); this
-        // was purely the audit script failing to construct a fetchable URL.
-        // Resolve relative paths against SITE_URL, same as every other
-        // route check in this file, before fetching.
-        const heroUrl = row.hero_image.startsWith('/')
-          ? `${SITE_URL}${row.hero_image}`
-          : row.hero_image;
-        // HEAD -> GET + Range fixed 2026-06-30: 2 external hero_image URLs
-        // (jaysbrickblog.com) returned HTTP 415 from this check's HEAD
-        // request specifically when run on the GitHub Actions runner --
-        // confirmed NOT reproducible via curl, an isolated Node fetch, or a
-        // 51-request concurrent burst, all run from outside the runner.
-        // Root cause not fully pinned down (most likely the runner's
-        // network path hitting a different CDN/WAF edge rule than local
-        // traffic, since Node version was ruled out -- this workflow's
-        // setup-node step requests Node 20, not 24). Rather than keep
-        // chasing an external server's exact behavior, switched to GET with
-        // Range: bytes=0-0 -- downloads at most 1 byte, confirms
-        // reachability, sidesteps whatever specifically dislikes a bare
-        // HEAD from this runner. A server that honors the Range header
-        // returns 206 Partial Content (res.ok is still true for 206); a
-        // server that ignores it returns a normal 200 with the full body,
-        // which is also fine since we only check status, not body length.
-        const res = await fetch(heroUrl, {
-          method: 'GET',
-          headers: { 'User-Agent': 'BOI-TechHygiene/1.0', Range: 'bytes=0-0' },
-          signal: AbortSignal.timeout(8_000),
-        });
-        if (!res.ok) {
-          heroFails.push(`/news/${row.slug}: ${res.status}`);
-          alertFail('HeroImages', `/news/${row.slug} hero_image → HTTP ${res.status}`);
-        }
-      } catch (e) {
-        heroFails.push(`/news/${row.slug}: ${e.message.slice(0, 40)}`);
-      }
-    })
-  );
-  log('HeroImages', `${heroRows.length - heroFails.length}/${heroRows.length} hero images OK`);
-} else {
-  log('HeroImages', 'No hero images to check');
-}
-
-// ── Check 3: Sitemap URL count (alert if drops > 10%) ────────────────────────
+// ── Check 2: Sitemap URL count (alert if drops > 10%) ────────────────────────
+// Moved before HeroImages (2026-08-04, was Check 3): confirmed live that
+// HeroImages' concurrent burst (see below) was causing collateral 403s on
+// completely unrelated requests fired immediately after it -- RouteHealth
+// (Check 1, above) fetched this exact /sitemap.xml URL successfully earlier
+// in the same run, then this dedicated check hit HTTP 403 on the identical
+// URL/IP/User-Agent moments after HeroImages' burst, in the same run. This
+// is a single, cheap request; running it before the burst removes it from
+// the blast radius entirely instead of sharing it.
 
 log('Sitemap', `Fetching ${SITE_URL}/sitemap.xml`);
 try {
@@ -270,6 +224,99 @@ try {
   }
 } catch (e) {
   alertFail('Sitemap', `Could not fetch sitemap: ${e.message.slice(0, 80)}`);
+}
+
+// ── Check 3: Broken hero images ───────────────────────────────────────────────
+// Throttled to bounded concurrency + narrow 403 retry (2026-08-04): firing
+// all ~261 hero_image fetches at once via unbounded Promise.allSettled was
+// triggering WAF/rate-limit 403s -- confirmed live, failures climbed 7 -> 21
+// between two runs 8 minutes apart (254/261 OK -> 240/261 OK), and it was
+// also the direct cause of the Sitemap collateral-403 reordered above. Same
+// family of problem as the 2026-06-30 jaysbrickblog.com HEAD-request quirk
+// documented below, just worse at full concurrency. Fixed two ways: batches
+// of HERO_BATCH_SIZE with a short pause between batches (keeps this under
+// whatever burst threshold the runner's IP was hitting, no new dependency
+// needed for something this simple), plus one retry after a short delay for
+// a 403 specifically -- narrow to 403 only, since this is meant to absorb
+// transient rate-limiting, not mask a genuinely broken image. Any other
+// non-ok status (404, 500, etc.) still fails immediately, no retry.
+
+log('HeroImages', 'Checking all news_articles.hero_image URLs');
+const { data: heroRows } = await sb
+  .from('news_articles')
+  .select('slug, hero_image')
+  .not('hero_image', 'is', null);
+
+const HERO_BATCH_SIZE = 20;
+const HERO_BATCH_DELAY_MS = 500;
+const HERO_RETRY_DELAY_MS = 2_500;
+
+const heroFails = [];
+if (heroRows && heroRows.length > 0) {
+  for (let i = 0; i < heroRows.length; i += HERO_BATCH_SIZE) {
+    const batch = heroRows.slice(i, i + HERO_BATCH_SIZE);
+    await Promise.allSettled(
+      batch.map(async row => {
+        if (!row.hero_image) return;
+        try {
+          // Bug fixed 2026-06-30: Node's native fetch requires an absolute
+          // URL — passing a relative path like '/fallback-hero.png' throws
+          // "Failed to parse URL from /fallback-hero.png" immediately, which
+          // the catch block below silently counted as a broken hero image.
+          // The image itself was never actually broken (browsers resolve
+          // relative URLs against the page's own origin automatically); this
+          // was purely the audit script failing to construct a fetchable URL.
+          // Resolve relative paths against SITE_URL, same as every other
+          // route check in this file, before fetching.
+          const heroUrl = row.hero_image.startsWith('/')
+            ? `${SITE_URL}${row.hero_image}`
+            : row.hero_image;
+          // HEAD -> GET + Range fixed 2026-06-30: 2 external hero_image URLs
+          // (jaysbrickblog.com) returned HTTP 415 from this check's HEAD
+          // request specifically when run on the GitHub Actions runner --
+          // confirmed NOT reproducible via curl, an isolated Node fetch, or a
+          // 51-request concurrent burst, all run from outside the runner.
+          // Root cause not fully pinned down (most likely the runner's
+          // network path hitting a different CDN/WAF edge rule than local
+          // traffic, since Node version was ruled out -- this workflow's
+          // setup-node step requests Node 20, not 24). Rather than keep
+          // chasing an external server's exact behavior, switched to GET with
+          // Range: bytes=0-0 -- downloads at most 1 byte, confirms
+          // reachability, sidesteps whatever specifically dislikes a bare
+          // HEAD from this runner. A server that honors the Range header
+          // returns 206 Partial Content (res.ok is still true for 206); a
+          // server that ignores it returns a normal 200 with the full body,
+          // which is also fine since we only check status, not body length.
+          const doFetch = () => fetch(heroUrl, {
+            method: 'GET',
+            headers: { 'User-Agent': 'BOI-TechHygiene/1.0', Range: 'bytes=0-0' },
+            signal: AbortSignal.timeout(8_000),
+          });
+          let res = await doFetch();
+          if (res.status === 403) {
+            await sleep(HERO_RETRY_DELAY_MS);
+            const retryRes = await doFetch();
+            if (retryRes.ok) {
+              log('HeroImages', `/news/${row.slug} hero_image → 403 then OK on retry (transient, not a real failure)`);
+              return;
+            }
+            log('HeroImages', `/news/${row.slug} hero_image → 403 again on retry (still ${retryRes.status}), counting as real failure`);
+            res = retryRes;
+          }
+          if (!res.ok) {
+            heroFails.push(`/news/${row.slug}: ${res.status}`);
+            alertFail('HeroImages', `/news/${row.slug} hero_image → HTTP ${res.status}`);
+          }
+        } catch (e) {
+          heroFails.push(`/news/${row.slug}: ${e.message.slice(0, 40)}`);
+        }
+      })
+    );
+    if (i + HERO_BATCH_SIZE < heroRows.length) await sleep(HERO_BATCH_DELAY_MS);
+  }
+  log('HeroImages', `${heroRows.length - heroFails.length}/${heroRows.length} hero images OK`);
+} else {
+  log('HeroImages', 'No hero images to check');
 }
 
 // ── Check 4: Lighthouse — performance, accessibility, SEO ────────────────────
