@@ -1,0 +1,96 @@
+name: MRP Verification Refresh
+
+# Recurring version of the 2026-07-09 one-time MRP fix (commit 6260e4d,
+# scripts/mrp-fix-apply-2026-07-09.mjs) -- applied once, then never run
+# again, drifting stale against Toycra's live catalog and every set added
+# since. Re-runs the same 3-phase logic weekly so it doesn't go stale again.
+#
+# Schedule: Monday 02:30 UTC (08:00 IST) -- before catalogue-audit (03:30
+# UTC), which reports lego_mrp_inr coverage, so that check always sees the
+# week's freshest verification pass. Checked against every other schedule
+# in this repo (see reviews-weekly-refresh.yml's own schedule comment for
+# the full picture as of 2026-07-30): Mon 02:30 UTC was free -- nearest
+# neighbors are video-rejection-reminder (Mon 03:00) and catalogue-audit
+# (Mon 03:30).
+#
+# Deliberately its own lightweight weekly job rather than a step bolted
+# onto scrape-prices.yml (every 6h): MRP data changes far less often than
+# the stock/price data that job tracks, and scrape-prices.yml is an
+# already-tuned, frequently-run production path -- restructuring it for a
+# weekly-cadence need is disproportionate risk for the size of this change.
+# This does overlap scrape-prices.yml on one Toycra collection fetch
+# (`/collections/lego/products.json`, via scripts/lib/retailer-fetch.mjs) --
+# accepted as trivial: one extra weekly fetch of a collection already
+# fetched ~28 times/week (4x/day) by that job.
+
+on:
+  schedule:
+    - cron: '30 2 * * 1'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (print stats but skip Supabase writes)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Re-verify MRP against live Toycra catalog
+        id: refresh
+        continue-on-error: true
+        # NOT the reviews-weekly-refresh.yml pattern (`dry_run == true && 'x' || ''`)
+        # inverted naively -- that trap bites here because '--apply' is the
+        # non-empty branch: `dry_run==true && '' || '--apply'` would return
+        # '--apply' on BOTH true and false (empty string is falsy, so `||`
+        # always falls through to '--apply' once the true-branch yields '').
+        # Condition inverted instead so the branch that must win is the
+        # truthy one on both sides.
+        run: node scripts/mrp-fix-apply-2026-07-09.mjs ${{ inputs.dry_run != true && '--apply' || '' }}
+
+      # Covers any step failure -- Toycra fetch error, Supabase write error,
+      # script exception, non-zero exit. Same reusable pattern as
+      # reviews-weekly-refresh.yml -- see scripts/workflow-failure-notify.mjs.
+      - name: Send failure alert
+        if: steps.refresh.outcome == 'failure'
+        continue-on-error: true
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL:    ${{ secrets.BRIEF_EMAIL }}
+          WORKFLOW_NAME:  mrp-refresh
+          STEP_OUTCOMES:  '{"Re-verify MRP against live Toycra catalog": "${{ steps.refresh.outcome }}"}'
+        run: node scripts/workflow-failure-notify.mjs
+
+      # Same false-green problem code-audit.yml/reviews-weekly-refresh.yml
+      # had (LOW-28): continue-on-error above means the job's own conclusion
+      # would otherwise be "success" regardless of whether the script
+      # actually failed. This step has no continue-on-error -- it's the
+      # sole authority on job pass/fail.
+      - name: Fail job if refresh step failed
+        if: always()
+        run: |
+          if [ "${{ steps.refresh.outcome }}" = "failure" ]; then
+            echo "::error::mrp-fix-apply-2026-07-09.mjs failed — see step log above; alert email already sent"
+            exit 1
+          fi
+          echo "mrp-fix-apply-2026-07-09.mjs completed successfully."
