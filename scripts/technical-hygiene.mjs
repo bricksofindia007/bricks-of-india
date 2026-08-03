@@ -1507,7 +1507,17 @@ try {
 //      A reviewed set with no prices means the compare sidebar is empty on the
 //      review page — the most important commercial surface on the site.
 try {
-  const { data: reviewedSets } = await sb.from('reviews').select('set_id, title');
+  const { data: allReviewedSets } = await sb.from('reviews').select('set_id, title');
+  // Exclude reviews with no matched catalog set (added 2026-08-03 -- a
+  // review with set_id=null, e.g. the price-uncertain Ninjago Destiny's
+  // Bounty board game review, has no set to check store_prices for. Worse,
+  // passing that null through to .in('id', [...]) poisons the WHOLE query:
+  // supabase-js renders it as the literal string "null" in the request URL,
+  // and Postgres then fails the entire batch with 22P02 "invalid input
+  // syntax for type uuid" -- one unmatched review broke the check for all
+  // 131, not just itself. Confirmed live: exactly 1/131 reviews.set_id is
+  // null.
+  const reviewedSets = allReviewedSets.filter(r => r.set_id != null);
   const { data: setRows } = await sb.from('sets')
     .select('id, set_number')
     .in('id', reviewedSets.map(r => r.set_id));
