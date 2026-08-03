@@ -21,11 +21,39 @@
  *     lego_mrp_inr = Toycra MRP, mrp_verified=true, mrp_review_reason=null.
  *
  *   Phase 3 -- suspect-by-default: every remaining set with a populated
- *     lego_mrp_inr that is NOT in Phase 1 or Phase 2 gets
- *     mrp_verified=false, mrp_review_reason='unverified_estimate'. Root
- *     cause is systemic (same populate-mrp.js method, no exceptions found),
- *     so absence of a Toycra listing means "unconfirmed", not "probably
- *     fine".
+ *     lego_mrp_inr that is NOT in Phase 1, Phase 2, or already
+ *     mrp_verified=true (see below) gets mrp_verified=false,
+ *     mrp_review_reason='unverified_estimate'. Root cause is systemic (same
+ *     populate-mrp.js method, no exceptions found), so absence of a Toycra
+ *     listing means "unconfirmed", not "probably fine".
+ *
+ * Made recurring 2026-08-04 (this had been applied exactly once, 2026-07-09,
+ * then never run again -- drifted stale against Toycra's live catalog and
+ * every set added since). Two evidence-based fixes to the Toycra-fetch step
+ * only, phase logic unchanged, found by diffing a fresh dry run against live
+ * DB state before ever re-applying:
+ *
+ *   (a) Also fetch the `lego-adult` collection, not just `lego`. Confirmed
+ *       live: Toycra re-categorized several LEGO Ideas/adult sets (e.g.
+ *       21349 Tuxedo Cat) out of the general `lego` collection into
+ *       `lego-adult` sometime after 2026-07-09 -- invisible to the original
+ *       single-collection fetch.
+ *
+ *   (b) Phase 3 no longer sweeps up a set that is ALREADY mrp_verified=true
+ *       in the DB -- such a set is left untouched (frozen at its last
+ *       confirmed price/status) rather than demoted. Confirmed live: of 63
+ *       sets that would have been silently demoted by a naive re-run, some
+ *       were genuinely delisted from Toycra, but others (e.g. 10297
+ *       Boutique Hotel, 76934 Ferrari F40, 10914 Duplo Deluxe Brick Box)
+ *       are still live and orderable, just excluded from both collections'
+ *       products.json while out of stock (confirmed via Toycra's own
+ *       storefront search, which does surface them with real price/
+ *       compare_at_price data). A temporarily-unlisted product is not
+ *       evidence the previously-confirmed MRP is wrong -- per the
+ *       instruction that motivated this fix, a previously-confirmed number
+ *       must not be silently erased by a data-source gap. Sets that
+ *       genuinely leave Toycra's catalog simply stop being reconfirmed or
+ *       corrected going forward; they don't get retroactively marked wrong.
  *
  * Usage:
  *   node scripts/mrp-fix-apply-2026-07-09.mjs            (dry run, no writes)
@@ -99,7 +127,7 @@ async function loadAllSets() {
   let offset = 0;
   const all = [];
   while (true) {
-    const { data, error } = await sb.from('sets').select('id, set_number, name, theme, lego_mrp_inr').range(offset, offset + PAGE - 1);
+    const { data, error } = await sb.from('sets').select('id, set_number, name, theme, lego_mrp_inr, mrp_verified').range(offset, offset + PAGE - 1);
     if (error) throw error;
     if (!data?.length) break;
     all.push(...data);
@@ -125,8 +153,16 @@ async function main() {
   console.log(`CMF-affected set_numbers: ${cmfSetNumbers.size}`);
 
   // ── Toycra live scrape (sku-based matching) ─────────────────────────────
+  // Both `lego` and `lego-adult` collections -- see the 2026-08-04 module
+  // docstring note (a). Toycra re-categorizes sets between these over time;
+  // fetching only `lego` silently loses whichever sets currently live in
+  // `lego-adult`.
   console.log('\nFetching Toycra...');
-  const products = await fetchAllProducts('www.toycra.com', '/collections/lego/products.json');
+  const [legoProducts, adultProducts] = await Promise.all([
+    fetchAllProducts('www.toycra.com', '/collections/lego/products.json'),
+    fetchAllProducts('www.toycra.com', '/collections/lego-adult/products.json'),
+  ]);
+  const products = [...legoProducts, ...adultProducts];
   const toycraMrp = new Map();
   for (const p of products) {
     const variant = pickVariant(p);
@@ -135,12 +171,13 @@ async function main() {
     if (!setNumber || toycraMrp.has(setNumber)) continue;
     toycraMrp.set(setNumber, deriveMrp(variant));
   }
-  console.log(`Toycra: ${toycraMrp.size} sets matched`);
+  console.log(`Toycra: ${toycraMrp.size} sets matched (lego=${legoProducts.length} + lego-adult=${adultProducts.length} products fetched)`);
 
   // ── Categorize ───────────────────────────────────────────────────────────
   const phase1Cmf = [];      // exclusion flag only, no price touch
   const phase2Confirmed = []; // write real MRP
   const phase3Suspect = [];   // flag suspect, no price touch
+  const preservedVerified = []; // already verified, no current Toycra match -- left untouched
 
   for (const s of sets) {
     if (cmfSetNumbers.has(s.set_number)) {
@@ -154,16 +191,30 @@ async function main() {
       phase2Confirmed.push({ ...s, newMrp: toycraPrice });
       continue;
     }
+    // See the 2026-08-04 module docstring note (b): a previously-confirmed
+    // set with no CURRENT Toycra match (out of stock and excluded from both
+    // collections' products.json, or genuinely delisted) is left as-is, not
+    // demoted -- absence of a fresh match is not evidence the last-confirmed
+    // number is wrong.
+    if (s.mrp_verified === true) {
+      preservedVerified.push(s);
+      continue;
+    }
     if (s.lego_mrp_inr != null) phase3Suspect.push(s);
   }
 
   console.log(`\nPhase 1 (CMF exclusion, no price change):        ${phase1Cmf.length}`);
   console.log(`Phase 2 (confirmed Toycra MRP write):             ${phase2Confirmed.length}`);
   console.log(`Phase 3 (suspect-by-default, no price change):    ${phase3Suspect.length}`);
+  console.log(`Preserved (already verified, no current match, left untouched): ${preservedVerified.length}`);
 
   if (!APPLY) {
     console.log('\nDRY RUN -- sample of Phase 2 writes:');
     phase2Confirmed.slice(0, 10).forEach(r => console.log(`  ${r.set_number.padEnd(10)} ${(r.name ?? '').slice(0, 35).padEnd(37)} ${r.lego_mrp_inr ?? 'NULL'} -> ${r.newMrp}`));
+    if (preservedVerified.length > 0) {
+      console.log('\nDRY RUN -- preserved (previously verified, no current Toycra match):');
+      preservedVerified.forEach(s => console.log(`  ${s.set_number.padEnd(10)} ${(s.name ?? '').slice(0, 35).padEnd(37)} mrp=${s.lego_mrp_inr} (unchanged)`));
+    }
     console.log('\nRe-run with --apply to write.');
     return;
   }
