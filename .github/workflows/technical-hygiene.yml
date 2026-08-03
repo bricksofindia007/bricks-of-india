@@ -42,4 +42,4 @@ jobs:
           CHROME_PATH: /usr/bin/chromium-browser
           BRICKSET_API_KEY: ${{ secrets.BRICKSET_API_KEY }}
           REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
-        run: node scripts/technical-hygiene.mjs
+        run: npx tsx scripts/technical-hygiene.mjs
