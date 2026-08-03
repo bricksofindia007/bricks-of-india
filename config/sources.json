@@ -8,7 +8,8 @@
     {
       "name": "Jay's Brick Blog",
       "url": "https://jaysbrickblog.com/feed/",
-      "country": "UK"
+      "country": "UK",
+      "tolerant": true
     },
     {
       "name": "New Elementary",
