@@ -48,6 +48,8 @@ from quiet_panic_script_gen import (  # noqa: E402
     generate_quiet_panic_script,
     PreTTSValidationError,
     check_verdict_reason,
+    TOTAL_WORD_CAP,
+    PER_SEGMENT_WORD_CAP,
 )
 
 # Retry budget for script-gen's pre-TTS validation (added 2026-08-01 after
@@ -915,6 +917,49 @@ def run_all_gates(segments: list, total_duration: float, price_inr: int) -> dict
     }
 
 
+def _build_word_cap_feedback(e: PreTTSValidationError) -> str:
+    """Builds the auto-retry rejection_reason for the NEXT script-gen
+    attempt after a pre-TTS validation failure. Added 2026-08-03 alongside
+    the auto-retry-with-feedback mechanism itself (see
+    PreTTSValidationError.segments docstring) -- a first version of this
+    feedback just forwarded the plain string detail ("total voice-word
+    count 19 exceeds the 16-word cap") and plateaued at 18-19 words across
+    all 5 retries on Ariel's Royal Wedding Boat (43299): the model can't
+    reliably self-count words in its own draft, so a vague "cut some
+    words" instruction wasn't specific enough to close a 2-3 word gap.
+    This version instead cites exact per-segment word counts and the
+    exact number of words that must come out, computed here in code (not
+    trusted to the model), for a WordBudgetExceededError. Falls back to
+    the plain string for any other PreTTSValidationError subclass (e.g.
+    VerdictReasonMissingError), which has no word-count data to cite."""
+    budget = getattr(e, 'budget', None)
+    if not budget:
+        return (
+            f'AUTOMATIC RETRY after pre-TTS validation failure: {e}. Fix '
+            'this specific problem; do not change anything else.'
+        )
+
+    total_words = budget['total_words']
+    overage = total_words - TOTAL_WORD_CAP
+    seg_lines = []
+    for i, wc in budget['segment_words']:
+        text = e.segments[i].get('text', '') if e.segments and i < len(e.segments) else ''
+        flag = ' -- OVER the per-segment cap' if wc > PER_SEGMENT_WORD_CAP else ''
+        seg_lines.append(f'segment {i} ({wc}w{flag}): "{text}"')
+
+    return (
+        f'AUTOMATIC RETRY after pre-TTS validation failure: your voice:true '
+        f'segments totaled {total_words} words against a {TOTAL_WORD_CAP}-word '
+        f'cap -- that is {overage} word(s) too many, and each voice:true '
+        f'segment must also stay at or under {PER_SEGMENT_WORD_CAP} words. '
+        f'Your voice:true segments were exactly:\n' + '\n'.join(seg_lines) +
+        f'\nYou MUST cut at least {overage} word(s) total from these '
+        'segments -- shorten the longest one(s) first, and definitely any '
+        'segment flagged OVER above. Do not pad other segments to '
+        'compensate, and do not change any voice:false segment.'
+    )
+
+
 # ---------------------------------------------------------------------------
 # Full per-candidate pipeline
 # ---------------------------------------------------------------------------
@@ -945,11 +990,18 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
             'pieces': candidate.get('pieces'),
             'theme': candidate.get('theme'),
         }
-        mode = 'revision' if revision_context else 'fresh'
+        initial_mode = 'revision' if revision_context else 'fresh'
         attempts_log = []
         segments = None
         for attempt in range(1, MAX_SCRIPT_GEN_ATTEMPTS + 1):
-            print(f'  No pre-authored segments -- calling script-gen ({mode} mode), attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}...')
+            # After attempt 1, revision_context may have been set below from
+            # the previous attempt's own failure (auto-retry-with-feedback,
+            # not the caller's original mode) -- log which is actually
+            # happening this attempt, not just the mode process_candidate()
+            # started in.
+            mode = 'revision' if revision_context else 'fresh'
+            mode_label = mode if attempt == 1 else f'{mode}, auto-retry' if mode != initial_mode else mode
+            print(f'  No pre-authored segments -- calling script-gen ({mode_label} mode), attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}...')
             try:
                 segments = generate_quiet_panic_script(script_gen_meta, revision_context=revision_context)
                 print(f'  script-gen returned {len(segments)} segment(s) on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}')
@@ -961,6 +1013,23 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
                 # not just "it failed". Zero ElevenLabs cost per attempt.
                 print(f'  REJECTED pre-TTS on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS} (zero ElevenLabs cost incurred): {e}', file=sys.stderr)
                 attempts_log.append(str(e))
+                # Feed this attempt's actual failure back into the next one
+                # (added 2026-08-03 after Ariel's Royal Wedding Boat (43299)
+                # missed 5/5 in one run, 17-22 words each): without this,
+                # every retry called script-gen with the exact same
+                # fresh-mode prompt and zero information about what went
+                # wrong, so all 5 attempts were independent draws from the
+                # same distribution rather than corrective ones. Reuses the
+                # existing revision_context mechanism (same one operator
+                # rejections use) -- the "previous script" is this failed
+                # attempt's own output, and the "rejection reason" is the
+                # exact pre-TTS validation detail (segment-by-segment word
+                # counts), not a vague retry.
+                if e.segments is not None:
+                    revision_context = {
+                        'original_script': ' '.join(s.get('text', '') for s in e.segments),
+                        'rejection_reason': _build_word_cap_feedback(e),
+                    }
 
         if segments is None:
             # Not a crash -- a genuine, expected terminal outcome for this

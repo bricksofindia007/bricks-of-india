@@ -480,7 +480,33 @@ class PreTTSValidationError(Exception):
     any subclass of this (video_path is NOT NULL and no render has
     happened yet) -- mirrors the existing precedent in process_candidate()
     for other pre-render failures (e.g. "No images resolved for set..."
-    also just raises, no DB row)."""
+    also just raises, no DB row).
+
+    Carries the segments that failed validation (added 2026-08-03 after
+    Ariel's Royal Wedding Boat (43299) missed the word cap on all 5/5
+    retry attempts in one run, 17-22 words each): MAX_SCRIPT_GEN_ATTEMPTS
+    previously just called generate_quiet_panic_script() again with the
+    exact same fresh-mode prompt on every retry, so the model had zero
+    information about what it got wrong -- 5 independent draws from the
+    same distribution, not 5 corrective attempts. Exposing the failed
+    segments here lets the caller feed the specific failure back as a
+    revision_context on the next attempt (same mechanism already used for
+    operator-rejected reworks), turning a blind retry loop into a
+    self-correcting one."""
+    def __init__(self, message: str, segments: list = None, budget: dict = None):
+        super().__init__(message)
+        self.segments = segments
+        # Full check_word_budget() dict (total_words, segment_words),
+        # not just the summary string -- so a caller building corrective
+        # feedback can cite exact numbers (segment index, its word count,
+        # exactly how many words over) instead of trusting the model to
+        # re-derive those from a text-only description of its own
+        # overshoot (added 2026-08-03: a first attempt at feeding just
+        # the string detail back plateaued at 18-19 words across all 5
+        # retries on Ariel's Royal Wedding Boat (43299) -- "cut some
+        # words" without exact counts wasn't specific enough to close a
+        # 2-3 word gap).
+        self.budget = budget
 
 
 class WordBudgetExceededError(PreTTSValidationError):
@@ -638,11 +664,11 @@ def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) 
 
     budget_check = check_word_budget(segments)
     if not budget_check['pass']:
-        raise WordBudgetExceededError(budget_check['detail'])
+        raise WordBudgetExceededError(budget_check['detail'], segments=segments, budget=budget_check)
 
     verdict_check = check_verdict_reason(segments)
     if not verdict_check['pass']:
-        raise VerdictReasonMissingError(verdict_check['detail'])
+        raise VerdictReasonMissingError(verdict_check['detail'], segments=segments)
 
     return segments
 
