@@ -13,23 +13,16 @@ name: VID-QP Rework Poller
 # stops automated rework for that set and flags BOI_MASTER_TRACKER.md
 # instead of a third automatic attempt.
 #
-# INTENTIONALLY NO `schedule:` TRIGGER YET -- workflow_dispatch only,
-# same precedent as video-generate-quiet-panic.yml before its own design
-# was reviewed. Once operator's chat-Claude has reviewed this design
-# (script-gen prompt, escalation logic, render reuse) and it's approved to
-# run unattended, add:
-#
-#   schedule:
-#     - cron: '47 * * * *'   # hourly at :47 -- offset from the publish
-#                             # poller's :17 and generate side's manual-only
-#                             # cadence; rework volume is expected to be low
-#                             # and this isn't time-sensitive the way
-#                             # publishing is.
-#
-# to the `on:` block below.
+# Schedule enabled 2026-08-05 -- operator's chat-Claude reviewed the design
+# (script-gen prompt, escalation logic, render reuse) and approved unattended
+# running. Hourly at :00, same cadence as the publish poller
+# (video-publish-poller-quiet-panic.yml, which runs at :17) -- rework volume
+# is expected to be low and this isn't time-sensitive the way publishing is.
 
 on:
-  workflow_dispatch:  # manual trigger only, for now
+  schedule:
+    - cron: '0 * * * *'
+  workflow_dispatch:  # manual trigger still available for testing
 
 jobs:
   rework:
