@@ -169,27 +169,71 @@ def record_heartbeat(platform: str, success: bool | None, error: str | None = No
     """
     Upsert into social_automation_heartbeat. Non-fatal — never blocks the pipeline.
 
-    success=True  → sets last_attempt_at + last_success_at
-    success=False → sets last_attempt_at + last_failure_at + last_error
-    success=None  → sets last_attempt_at only (pipeline ran, no eligible content)
+    success=True  → sets last_attempt_at + last_success_at, resets
+                     consecutive_skip_days to 0, clears skip_reason
+    success=False → sets last_attempt_at + last_failure_at + last_error.
+                     consecutive_skip_days is left untouched -- a hard
+                     failure (crash, API error) is a different signal from
+                     "ran cleanly, found nothing to post," and conflating
+                     them would make the skip-streak alert fire for the
+                     wrong reason.
+    success=None  → sets last_attempt_at only, increments
+                     consecutive_skip_days, persists the real skip_reason
+                     (previously discarded entirely). Alerts at >=2.
+
+    NOTE: consecutive_skip_days/skip_reason require migration
+    20260808000000_heartbeat_skip_streak.sql, written for review but NOT
+    applied to the live database as of this commit -- see PR description.
     """
     import datetime
     client = _client()
     now = datetime.datetime.now(datetime.timezone.utc).isoformat()
     row: dict = {'platform': platform, 'last_attempt_at': now}
+
     if success is True:
         row['last_success_at'] = now
         row['last_error'] = None
+        row['consecutive_skip_days'] = 0
+        row['skip_reason'] = None
     elif success is False:
         row['last_failure_at'] = now
         row['last_error'] = (error or 'unknown')[:500]
-    # success is None: last_attempt_at only — last_success_at/last_failure_at untouched
+    else:
+        # success is None: increment the streak. Needs the current value
+        # first -- Supabase upsert doesn't do atomic increment via a plain
+        # dict payload. This runs at most once/day per platform, so the
+        # tiny read-then-write race window is accepted rather than adding a
+        # Postgres-side increment function for a job at this frequency.
+        try:
+            current = (client.table('social_automation_heartbeat')
+                       .select('consecutive_skip_days')
+                       .eq('platform', platform)
+                       .maybe_single()
+                       .execute())
+            prev_streak = (current.data or {}).get('consecutive_skip_days') or 0
+        except Exception as exc:
+            print(f'[db] Could not read previous skip streak (defaulting to 0): {exc}')
+            prev_streak = 0
+        row['consecutive_skip_days'] = prev_streak + 1
+        row['skip_reason'] = (error or 'no_eligible_candidates')[:500]
+
     try:
         client.table('social_automation_heartbeat').upsert(row, on_conflict='platform').execute()
         state = 'OK' if success is True else ('FAIL' if success is False else 'SKIP')
-        print(f'[db] Heartbeat: {platform} {state}')
+        streak_note = f' (consecutive_skip_days={row["consecutive_skip_days"]})' if success is None else ''
+        print(f'[db] Heartbeat: {platform} {state}{streak_note}')
     except Exception as exc:
         print(f'[db] Heartbeat write failed (non-fatal): {exc}')
+        return
+
+    # Alerting is deliberately outside the write's own try/except -- an
+    # alert failure must never be reported as a heartbeat write failure.
+    if success is None and row.get('consecutive_skip_days', 0) >= 2:
+        try:
+            import notifier
+            notifier.send_skip_streak_alert(platform, row['consecutive_skip_days'], row.get('skip_reason', ''))
+        except Exception as exc:
+            print(f'[db] Skip-streak alert failed (non-fatal): {exc}')
 
 
 def upload_to_storage(local_path: str, filename: str) -> str:

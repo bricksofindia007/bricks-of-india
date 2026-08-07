@@ -112,3 +112,34 @@ def send_success(set_data: dict, platforms: dict, row_id: int = None) -> None:
         _send(subject, html)
     except Exception as notify_exc:
         print(f'[notifier] Failed to send success email: {notify_exc}')
+
+
+def send_skip_streak_alert(platform: str, streak_days: int, reason: str) -> None:
+    """
+    Sent when social_automation_heartbeat.consecutive_skip_days reaches 2+
+    for a platform -- i.e. the pipeline has run cleanly (no crash) but found
+    no eligible candidate for 2+ days in a row. Deliberately a different
+    subject line from send_success()'s "BOI Posted" confirmation so the two
+    are never confused at a glance in an inbox.
+    """
+    today = date.today().isoformat()
+    subject = f'⚠️ BOI Social — No post for {streak_days}+ days'
+    safe_reason = _sanitize(reason or 'unknown')
+    html = f"""
+<h2>No Social Post — {streak_days} Day Streak</h2>
+<p><strong>Date:</strong> {today}</p>
+<p><strong>Platform:</strong> {platform}</p>
+<p><strong>Consecutive skip days:</strong> {streak_days}</p>
+<p><strong>Last recorded reason:</strong></p>
+<pre style="background:#fee;padding:12px;border-radius:4px;">{safe_reason}</pre>
+<p>This is NOT a crash alert -- the pipeline ran cleanly each day, it just
+found no candidate that cleared the buildable + gallery-image gates in any
+tier. Check <code>social_automation_heartbeat</code> and recent
+<code>social-automation.yml</code> run logs for the current candidate pool.</p>
+<hr>
+<p style="color:#888;font-size:12px;">Bricks of India — bricksofindia.com</p>
+"""
+    try:
+        _send(subject, html)
+    except Exception as notify_exc:
+        print(f'[notifier] Failed to send skip-streak alert: {notify_exc}')
