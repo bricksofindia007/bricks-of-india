@@ -212,47 +212,71 @@ def _lego_com_scrape_product_page(url: str) -> dict:
     Scrapes a single LEGO.com product page for enrichment data.
     Returns dict with: num_parts, usd_price, theme, gallery_images (list of URLs).
     Returns empty dict on any failure.
+
+    DIAGNOSTIC REWRITE (2026-08-07, evidence-gathering branch, not merged):
+    gallery extraction rewritten against __APOLLO_STATE__, confirmed live
+    against 4 real product pages the same day. The old logic looked for
+    pageProps.product.images / .media, which no longer exist -- LEGO.com's
+    current pages carry no `product` key in __NEXT_DATA__ at all; pageProps
+    is just {initProps, __APOLLO_STATE__}. __APOLLO_STATE__ is a normalized
+    Apollo GraphQL cache; every gallery photo is a top-level
+    "ProductAssetImage:<id>" entry with a direct .url field pointing at the
+    same www.lego.com/cdn/cs/set/assets/... path already confirmed reachable
+    independent of the coming-soon/product-page 403.
+    num_parts/usd_price/theme extraction below is UNCHANGED legacy logic --
+    its schema was not verified in this rewrite and may have the same
+    problem; not in scope for this test.
+    `_http_status` / `_failure` are diagnostic-only fields for this test
+    branch, not present in the original function.
     """
     try:
         resp = requests.get(url, headers=_lego_headers(), timeout=25)
         if resp.status_code != 200:
-            return {}
+            return {'_http_status': resp.status_code, '_failure': f'http_{resp.status_code}'}
         soup = BeautifulSoup(resp.text, 'html.parser')
-        result: dict = {}
+        result: dict = {'_http_status': resp.status_code}
 
-        # Try __NEXT_DATA__ first
         nd_tag = soup.find('script', id='__NEXT_DATA__')
-        if nd_tag:
-            try:
-                data = json.loads(nd_tag.string)
-                pp = data.get('props', {}).get('pageProps', {})
-                product = (pp.get('product') or pp.get('set')
-                           or _deep_find(pp, 'product') or {})
-                if product:
-                    result['num_parts'] = product.get('pieceCount') or product.get('pieces') or 0
-                    price_obj = product.get('price') or {}
-                    if isinstance(price_obj, dict):
-                        raw = price_obj.get('formattedAmount', '')
-                        m = re.search(r'[\d,.]+', raw.replace(',', ''))
-                        if m:
-                            result['usd_price'] = float(m.group())
-                    result['theme'] = product.get('theme', '')
-                    # Gallery images from product media
-                    media = product.get('images') or product.get('media') or []
-                    imgs = []
-                    for item in media:
-                        if isinstance(item, dict):
-                            u = item.get('url') or item.get('src', '')
-                            if u and _is_image_url(u):
-                                imgs.append(u)
-                        elif isinstance(item, str) and _is_image_url(item):
-                            imgs.append(item)
-                    if imgs:
-                        result['gallery_images'] = imgs
-            except Exception:
-                pass
+        if not nd_tag:
+            result['_failure'] = 'no___NEXT_DATA__'
+            return result
+        try:
+            data = json.loads(nd_tag.string)
+        except Exception as exc:
+            result['_failure'] = f'next_data_json_parse_error: {exc}'
+            return result
 
-        # Fallback: HTML meta/og tags
+        pp = data.get('props', {}).get('pageProps', {})
+        apollo = pp.get('__APOLLO_STATE__')
+        if not isinstance(apollo, dict):
+            result['_failure'] = 'no___APOLLO_STATE__'
+            return result
+
+        imgs = []
+        seen = set()
+        for key, val in apollo.items():
+            if key.startswith('ProductAssetImage:') and isinstance(val, dict):
+                u = val.get('url')
+                if u and _is_image_url(u) and u not in seen:
+                    seen.add(u)
+                    imgs.append(u)
+        if imgs:
+            result['gallery_images'] = imgs
+        else:
+            result['_failure'] = 'apollo_present_zero_ProductAssetImage_entries'
+
+        # num_parts/usd_price/theme: UNCHANGED legacy logic, unverified schema, not in scope.
+        product = (pp.get('product') or pp.get('set') or _deep_find(pp, 'product') or {})
+        if product:
+            result['num_parts'] = product.get('pieceCount') or product.get('pieces') or 0
+            price_obj = product.get('price') or {}
+            if isinstance(price_obj, dict):
+                raw = price_obj.get('formattedAmount', '')
+                m = re.search(r'[\d,.]+', raw.replace(',', ''))
+                if m:
+                    result['usd_price'] = float(m.group())
+            result['theme'] = product.get('theme', '')
+
         if not result.get('usd_price'):
             price_el = (soup.find('meta', property='product:price:amount')
                         or soup.find('[data-test*="price"]'))
@@ -265,8 +289,7 @@ def _lego_com_scrape_product_page(url: str) -> dict:
 
         return result
     except Exception as exc:
-        print(f'[scraper] Product page scrape error ({url[:60]}...): {exc}')
-        return {}
+        return {'_failure': f'exception: {exc}'}
 
 
 def _parse_next_data_products(data: dict) -> list[dict]:
