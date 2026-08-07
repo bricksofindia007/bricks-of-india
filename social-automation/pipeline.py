@@ -31,17 +31,48 @@ def _cleanup(paths: list) -> None:
             print(f'[pipeline] cleanup warning: {exc}')
 
 
+# Tiers, tried in order. Tier 1 (current-year) is scraper.get_new_set()'s
+# existing default behavior, unchanged. Tier 2/3 only run if every prior
+# tier produced zero passing candidates -- confirmed necessary by the
+# Aug 6/7 real-world failures, where the entire current-year candidate
+# pool was either non-buildable junk or genuinely lacked enough gallery
+# photos. 1932 = LEGO's founding year, used as an inclusive lower bound
+# for "pre-2020" rather than leaving it open-ended.
+_TIERS = [
+    ('current-year', None, None, True),
+    ('2020-2025',     2020, 2025, False),
+    ('pre-2020',      1932, 2019, False),
+]
+
+
+def _find_candidate_tiered() -> tuple[dict | None, str | None]:
+    """Tries each tier in order; returns (set_data, winning_tier_name).
+    winning_tier_name is None (alongside set_data=None) only if every tier
+    is exhausted with no passing candidate."""
+    for tier_name, y_start, y_end, require_new in _TIERS:
+        print(f'[pipeline] Trying tier: {tier_name}...')
+        candidate = scraper.get_new_set(y_start, y_end, require_genuinely_new=require_new)
+        if candidate is not None:
+            print(f'[pipeline] Tier "{tier_name}" produced a candidate.')
+            return candidate, tier_name
+        print(f'[pipeline] Tier "{tier_name}" produced zero passing candidates.')
+    return None, None
+
+
 def main() -> None:
-    # ── Step 1: Find a new set ────────────────────────────────────────────────
+    # ── Step 1: Find a new set (tiered) ───────────────────────────────────────
     print('[pipeline] Step 1: Looking for a new set...')
-    set_data = scraper.get_new_set()
+    set_data, winning_tier = _find_candidate_tiered()
 
     if set_data is None:
-        print('[pipeline] No new sets found today. Exiting cleanly.')
-        db.record_heartbeat('instagram', success=None, error='no_eligible_candidates')
-        db.record_heartbeat('youtube',   success=None, error='no_eligible_candidates')
+        skip_reason = ('no candidate cleared the gallery gate in any tier '
+                        '(current-year, 2020-2025, pre-2020)')
+        print(f'[pipeline] {skip_reason}. Exiting cleanly.')
+        db.record_heartbeat('instagram', success=None, error=skip_reason)
+        db.record_heartbeat('youtube',   success=None, error=skip_reason)
         sys.exit(0)
 
+    print(f'[pipeline] Winning tier: {winning_tier}')
     set_num = set_data['set_num']
     print(f'[pipeline] Proceeding with: {set_num} - {set_data["name"]}')
     print(f'[pipeline]   Parts: {set_data.get("num_parts", "?")}  '

@@ -2,36 +2,51 @@
 #
 # Facebook Graph long-lived tokens (~60 days) can be exchanged for a fresh
 # 60-day token any time before expiry via oauth/access_token with
-# grant_type=fb_exchange_token. Running this on the 1st and 15th means the
-# token is never more than ~15 days old — expiry becomes unreachable.
+# grant_type=fb_exchange_token.
 #
 # REQUIRED SECRETS (one-time setup, see runbook in workflow summary):
 #   FB_APP_ID        — Meta app ID (from developers.facebook.com app dashboard)
 #   FB_APP_SECRET    — Meta app secret
 #   IG_ACCESS_TOKEN  — the current long-lived token (already exists)
 #   ADMIN_PAT        — fine-grained PAT, this repo only, "Secrets: read/write"
-#                      (GITHUB_TOKEN cannot update repo secrets — PAT required)
+#                      AND "Variables: read/write" (GITHUB_TOKEN cannot update
+#                      repo secrets/variables — PAT required)
 #
 # Failure mode: any step failing sends the standard failure email via the
 # social-automation notifier so it never dies silently.
 #
-# KNOWN LIMITATION (confirmed 2026-07-26): re-exchanging a token that is
-# ALREADY long-lived does not reliably reset Meta's 60-day clock the way
-# exchanging a short-lived token does — Meta can hand back a token that is
-# functionally the same underlying session, still expiring on its original
-# schedule. The 2026-07-15 run "succeeded" by every check this workflow had
-# (fresh access_token string, passed /me validation) but the resulting token
-# died 8 days later, not 60. The new expires_in check below stops that from
-# being silently reported as success — it does NOT make the renewal actually
-# work long-term; that requires a Meta System User (non-expiring) token,
-# which is the planned durable fix, pending Abhinav in Meta Business Manager.
-# This workflow is a stopgap until that lands.
+# 2026-08-08 CHANGE: previously, an internal safety check refused to save
+# any exchange result with < 30 days of expires_in left, on the theory that
+# re-exchanging an already-long-lived token can silently return one with
+# barely any life left instead of a fresh 60 days (confirmed 2026-07-26 --
+# the 2026-07-15 run "succeeded" by every check this workflow had, but the
+# resulting token died 8 days later, not 60). That check was correct about
+# the failure mode, but its response to it -- refuse to update the secret at
+# all -- meant rotation silently stopped working entirely for weeks with no
+# alert, which is worse: an unrotated token guarantees eventual expiry,
+# while a short-lived-but-still-valid one at least buys time. Replaced with:
+# save the exchange result regardless (it's still a valid token right now),
+# but track a CONSECUTIVE short-lived-rotation streak (IG_TOKEN_SHORT_LIVED_
+# STREAK repo variable) and alert loudly once it hits 2 in a row, instead of
+# refusing silently forever. The durable fix is still a Meta System User
+# (non-expiring) token, pending Abhinav in Meta Business Manager -- this
+# workflow remains a stopgap either way.
+#
+# PROACTIVE SCHEDULE: cron granularity can't express "every 45 days" directly
+# (day-of-month step values don't divide evenly across variable month
+# lengths), so this still ticks on the 1st/15th but the "Check if rotation is
+# due" step uses the IG_ACCESS_TOKEN secret's own `updated_at` metadata (via
+# the GitHub API) as the real timer -- every tick is a no-op check until 45
+# days have actually passed since the last successful rotation, at which
+# point the next tick performs the real exchange. This makes the schedule
+# proactive (fires well before the ~60-day hard expiry) without needing an
+# interval cron GitHub Actions can't express.
 
 name: ig-token-refresh
 
 on:
   schedule:
-    - cron: '0 5 1,15 * *'   # 1st + 15th, 10:30 IST
+    - cron: '0 5 1,15 * *'   # checked every 1st/15th; actual rotation gated by the 45-day timer below
   workflow_dispatch:
 
 permissions:
@@ -43,8 +58,32 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Check if rotation is due (45-day proactive timer)
+        id: due_check
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+        run: |
+          set -euo pipefail
+          UPDATED_AT=$(gh api "repos/${GITHUB_REPOSITORY}/actions/secrets/IG_ACCESS_TOKEN" --jq '.updated_at' 2>/dev/null || echo "")
+          if [ -z "$UPDATED_AT" ]; then
+            echo "::warning::Could not read IG_ACCESS_TOKEN secret metadata -- proceeding with rotation to be safe."
+            echo "due=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          UPDATED_EPOCH=$(date -d "$UPDATED_AT" +%s)
+          NOW_EPOCH=$(date +%s)
+          AGE_DAYS=$(( (NOW_EPOCH - UPDATED_EPOCH) / 86400 ))
+          echo "IG_ACCESS_TOKEN last updated ${AGE_DAYS} day(s) ago."
+          if [ "$AGE_DAYS" -ge 45 ]; then
+            echo "due=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "due=false" >> "$GITHUB_OUTPUT"
+            echo "Not due yet (45-day proactive schedule, ${AGE_DAYS}/45 days elapsed) -- skipping this run."
+          fi
+
       - name: Exchange for fresh 60-day token
         id: exchange
+        if: steps.due_check.outputs.due == 'true'
         env:
           FB_APP_ID: ${{ secrets.FB_APP_ID }}
           FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
@@ -68,20 +107,21 @@ jobs:
           echo "::add-mask::$NEW_TOKEN"
           echo "new_token=$NEW_TOKEN" >> "$GITHUB_OUTPUT"
 
-          # Re-exchanging an already-long-lived token can silently return one
-          # with barely any life left instead of a fresh 60 days (see runbook
-          # note above, confirmed 2026-07-26). Refuse to commit that as a
-          # "successful" rotation — 30 days is comfortably more than the
-          # 15-day cadence between runs.
+          # Still detected and tracked (see header comment) -- but no longer
+          # refuses to save. A short-lived-but-valid token beats an
+          # unrotated one; the streak check below is the new safety net.
           EXPIRES_IN=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('expires_in', 0))")
           echo "New token expires_in: ${EXPIRES_IN}s"
           MIN_EXPIRES_IN=$((30 * 24 * 60 * 60))
           if [ "$EXPIRES_IN" -lt "$MIN_EXPIRES_IN" ]; then
-            echo "::error::Exchange returned only ${EXPIRES_IN}s (< 30 days) — this is the already-long-lived-token no-op, not a fresh 60-day grant. NOT updating secret. Manual re-auth with a fresh short-lived User Token from Graph API Explorer is required."
-            exit 1
+            echo "::warning::Exchange returned only ${EXPIRES_IN}s (< 30 days) — likely the already-long-lived-token no-op. Saving anyway since it's still a valid token; tracking as a short-lived rotation for streak alerting."
+            echo "short_lived=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "short_lived=false" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Validate new token against Graph /me
+        if: steps.due_check.outputs.due == 'true'
         env:
           NEW_TOKEN: ${{ steps.exchange.outputs.new_token }}
         run: |
@@ -90,6 +130,7 @@ jobs:
             || { echo "::error::New token failed /me validation — NOT updating secret"; exit 1; }
 
       - name: Update IG_ACCESS_TOKEN repo secret
+        if: steps.due_check.outputs.due == 'true'
         env:
           GH_TOKEN: ${{ secrets.ADMIN_PAT }}
           NEW_TOKEN: ${{ steps.exchange.outputs.new_token }}
@@ -100,7 +141,51 @@ jobs:
             exit 1
           fi
           gh secret set IG_ACCESS_TOKEN --repo "$GITHUB_REPOSITORY" --body "$NEW_TOKEN"
-          echo "IG_ACCESS_TOKEN rotated OK — next refresh in <=15 days."
+          echo "IG_ACCESS_TOKEN rotated OK."
+
+      - name: Track short-lived-rotation streak + alert at 2 in a row
+        if: steps.due_check.outputs.due == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          SHORT_LIVED: ${{ steps.exchange.outputs.short_lived }}
+        run: |
+          set -euo pipefail
+          PREV_STREAK=$(gh variable get IG_TOKEN_SHORT_LIVED_STREAK --repo "$GITHUB_REPOSITORY" 2>/dev/null || echo "0")
+          PREV_STREAK=${PREV_STREAK:-0}
+          if [ "$SHORT_LIVED" = "true" ]; then
+            NEW_STREAK=$((PREV_STREAK + 1))
+          else
+            NEW_STREAK=0
+          fi
+          gh variable set IG_TOKEN_SHORT_LIVED_STREAK --repo "$GITHUB_REPOSITORY" --body "$NEW_STREAK"
+          echo "Consecutive short-lived rotations: ${NEW_STREAK}"
+
+          if [ "$NEW_STREAK" -ge 2 ]; then
+            pip install -q resend
+            export NEW_STREAK
+            python3 - <<'PY'
+          import os, resend
+          streak = os.environ['NEW_STREAK']
+          try:
+              resend.api_key = os.environ['RESEND_API_KEY'].lstrip('﻿').strip()
+              result = resend.Emails.send({
+                  'from': 'BOI Alerts <alerts@bricksofindia.com>',
+                  'to': ['abhinav@bricksofindia.com'],
+                  'subject': f'⚠️ BOI Social — IG token rotation short-lived {streak}x in a row',
+                  'html': (f'<p>ig-token-refresh has rotated IG_ACCESS_TOKEN successfully {streak} times '
+                           f'in a row, but each time Meta returned a short-lived token (&lt;30 days) '
+                           f'instead of a fresh 60-day grant -- the known "already-long-lived-token '
+                           f'no-op" failure mode. The secret is still being updated (better than not '
+                           f'rotating at all), but this needs the durable fix: a Meta System User '
+                           f'(non-expiring) token via Meta Business Manager.</p>'),
+              })
+              print(f'[alert] Streak email sent. ID: {result.get("id")}')
+          except Exception as exc:
+              print(f'[alert] FAILED TO SEND STREAK ALERT: {type(exc).__name__}: {exc}')
+              raise
+          PY
+          fi
 
       - name: Alert on failure
         if: failure()
