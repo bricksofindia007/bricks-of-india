@@ -24,7 +24,7 @@ export default function NotFound() {
           <TaglineWink />
         </div>
         <div className="flex flex-col sm:flex-row gap-3 justify-center">
-          <Link href="/" className="bg-primary text-dark font-bold px-6 py-3 rounded-xl hover:bg-yellow-400 transition-colors">
+          <Link href="/" className="bg-primary text-white font-bold px-6 py-3 rounded-xl hover:bg-yellow-400 hover:text-dark transition-colors">
             Go Home
           </Link>
           <Link href="/compare" className="bg-dark text-white font-bold px-6 py-3 rounded-xl hover:bg-gray-800 transition-colors">

@@ -267,7 +267,7 @@ export default async function ReviewPage({ params }: Props) {
                   </div>
 
                   <Link href={`/sets/${set.set_number}-${set.name?.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
-                    className="block w-full text-center bg-primary text-dark font-bold py-2.5 rounded-lg hover:bg-yellow-400 transition-colors text-sm">
+                    className="block w-full text-center bg-primary text-white font-bold py-2.5 rounded-lg hover:bg-yellow-400 hover:text-dark transition-colors text-sm">
                     Compare Prices →
                   </Link>
                 </div>

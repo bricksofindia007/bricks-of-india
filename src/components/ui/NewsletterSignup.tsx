@@ -72,7 +72,7 @@ export function NewsletterSignup() {
                 <button
                   type="submit"
                   disabled={status === 'loading'}
-                  className="bg-primary text-dark font-bold px-6 py-3 rounded-lg hover:bg-yellow-400 transition-colors disabled:opacity-50 whitespace-nowrap"
+                  className="bg-primary text-white font-bold px-6 py-3 rounded-lg hover:bg-yellow-400 hover:text-dark transition-colors disabled:opacity-50 whitespace-nowrap"
                 >
                   {status === 'loading' ? 'Signing up...' : 'Get Deals →'}
                 </button>
