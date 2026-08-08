@@ -87,7 +87,7 @@ button {
   width: 6px;
 }
 ::-webkit-scrollbar-track {
-  background: #F5F5F5;
+  background: transparent;
 }
 ::-webkit-scrollbar-thumb {
   background: var(--boi-saffron);
