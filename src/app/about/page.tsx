@@ -311,7 +311,7 @@ export default function AboutPage() {
                 }}
               >
                 <InstagramIcon />
-                @bricksofindia on Instagram
+                @BricksofIndia on Instagram
               </a>
               <Link
                 href="/contact"
