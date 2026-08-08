@@ -2,11 +2,12 @@ export default function Loading() {
   return (
     <div className="min-h-screen bg-white animate-pulse">
       {/* Hero skeleton */}
-      <div className="h-64 bg-primary-dark/20 rounded-none" />
+      <div className="h-48 bg-primary-dark/20 rounded-none" />
 
-      {/* Card grid skeleton */}
-      <div className="max-w-site mx-auto px-4 py-12">
-        <div className="h-8 w-48 bg-gray-200 rounded-lg mb-6" />
+      <div className="max-w-site mx-auto px-4 py-10">
+        <div className="h-8 w-56 bg-gray-200 rounded-lg mb-6" />
+
+        {/* Deal card grid skeleton */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
           {Array.from({ length: 8 }).map((_, i) => (
             <div key={i} className="rounded-xl border border-border overflow-hidden">
