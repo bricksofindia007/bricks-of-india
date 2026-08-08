@@ -3478,26 +3478,28 @@ Searched all `.md` files for `INFRA-03`, `Phase 8`, and `LEGO Search Pulse`:
 
 ## BOI Shareables — AI-Animated Greeting Video Library
 
-**Status:** Occasion list (27) and build phases locked. Scene/caption/Kling-prompt content still in draft — being refined. Technical build (post-production script, Shareables tab) proceeding in parallel. Kling not yet purchased — pending final script approval.
+**Status:** Phase 1 (Creative Lock) DONE — all 27 clips finalized via video-by-video alignment session, consolidated into `docs/shareables/BOI_Shareables_Master_Production_Script_FINAL.md` (supersedes the original codex `BOI_Shareables_Master_Production_Script.md`, commit `7a94ff0`, and this section's own prior draft summary). Phase 5 (post-production script) and Phase 7 (Shareables tab) build now in progress in parallel — both consume the same manifest generated from the FINAL file. Phases 2-4 (reference photography, tool setup, generation) NOT started: Kling Pro plan not yet purchased, no reference photos exist, no generation has happened.
 **Type:** One-time creative asset build. Explicitly outside the automation stack — no cron, no Supabase status table, no recurring pipeline. Once published, requires no maintenance.
 
 **Objective:** Permanent, reusable library of 27 AI-animated BOI mascot clips (3 flagship intros + 24 occasion greetings) hosted in a `/shareables` tab for download and forwarding via WhatsApp/IG/FB/LinkedIn.
 
 **Key decisions locked:**
 - Generation tool: Kling AI, direct, Pro plan (~$25.99/mo, one-time month, manual web UI — not API, not routed through Higgsfield/Runway/Artlist/ElevenLabs after comparison)
-- Render settings: Professional mode, 1080p, all 27 clips (20 at 10s, 7 at 5s)
+- Render settings: Professional mode, 1080p, all 27 clips (19 at 10s, 8 at 5s — corrected from this section's earlier "20/7" summary, which was stale; the per-clip table in the FINAL doc is what actually governs render/trim settings)
 - SFX: ElevenLabs Sound Effects (existing Starter plan), 1-2 cues per clip, placed at marked timestamp in post — no voiceover, no background music
-- Post-production: single moviepy script (loop trim, SFX placement, caption burn-in, watermark bake-in), built once, run once
-- Hosting: static asset delivery (Supabase Storage bucket or Netlify static) — no database table
+- Post-production: single moviepy script (loop trim, SFX placement, caption burn-in, watermark bake-in), built once, run once — `scripts/shareables/postprocess.py`
+- Hosting: static asset delivery via Netlify static (Next.js `public/` convention — confirmed by repo audit: no Supabase Storage usage exists anywhere in this codebase, so this project follows the existing convention rather than introducing a new one) — no database table
 - IP: confirmed resolved — custom minifigures, no copyright dependency
 
-**Reference doc:** `docs/shareables/BOI_Shareables_Master_Production_Script.md` — working draft of scene/caption/Kling-prompt spec for all 27 clips. Occasions and structure locked; content still being refined.
+**Reference doc:** `docs/shareables/BOI_Shareables_Master_Production_Script_FINAL.md` — locked scene/caption/Kling-prompt spec for all 27 clips, single source of truth for creative content.
 
 **Open items:**
-- [ ] Reference photography session (minifigure, 3-5 angles, consistent lighting)
-- [ ] Post-production script build (parallel track, doesn't need Kling purchased)
-- [ ] Shareables tab UX build (parallel track)
-- [ ] Purchase Kling Pro, generate 27 raws
+- [x] Creative lock — all 27 clips finalized (Phase 1)
+- [ ] Reference photography session (minifigure, 3-5 angles, consistent lighting) — Phase 2
+- [ ] Kling Pro tool setup — Phase 3
+- [x] Post-production script build (Phase 5) — `scripts/shareables/postprocess.py`, manifest-driven, tested end-to-end against a dummy clip
+- [x] Shareables tab UX build (Phase 7) — `/shareables` route, manifest-driven, placeholder assets pending Phase 4
+- [ ] Purchase Kling Pro, generate 27 raws — Phase 4
 - [ ] QA pass, publish, soft launch via one IG post
 
 **Last updated:** 2026-08-08

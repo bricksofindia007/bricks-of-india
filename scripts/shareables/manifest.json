@@ -1,0 +1,1026 @@
+{
+  "generated_from": "docs/shareables/BOI_Shareables_Master_Production_Script_FINAL.md",
+  "generated_note": "Hand-transcribed 2026-08-08 via this generator for accuracy (not auto-parsed from markdown). Creative content (scene, caption, sfx_cues, kling_prompt, post_production_notes, alignment_note) is LOCKED per Phase 1 -- do not edit manifest.json directly; edit build_manifest.py (or, for creative changes, the FINAL doc first) and regenerate. loop_trim and assets paths are technical placeholders for Phases 5/7, not creative content.",
+  "global": {
+    "output_spec": {
+      "format": "mp4",
+      "codec": "h264",
+      "width": 1080,
+      "height": 1920,
+      "loop_duration_s_min": 4,
+      "loop_duration_s_max": 6,
+      "max_size_mb": 5,
+      "fps": 30
+    },
+    "caption": {
+      "position": "bottom_third",
+      "style": "white_fill_dark_outline"
+    },
+    "watermark": {
+      "position": "bottom_right",
+      "opacity": 0.12,
+      "opacity_range_note": "10-15% per spec; 12% used as default"
+    }
+  },
+  "clips": [
+    {
+      "id": 1,
+      "slug": "01-clumsy-tech",
+      "occasion": "Clumsy Tech",
+      "category": "Flagship Website Intros",
+      "source_tag": "D1",
+      "raw_duration_s": 10,
+      "caption": "Entrance: 2/10. Website: 10/10. bricksofindia.com",
+      "scene": "A LEGO minifigure struts confidently toward a laptop on a desk, chest out, chin up. It raises one arm dramatically to press Enter, overreaches, and face-plants flat onto the keyboard. Beat pause.",
+      "kling_prompt": "Static camera, medium shot. A LEGO minifigure struts confidently toward a laptop on a desk, chest out, chin up. It raises one arm dramatically to press Enter, overreaches, and face-plants flat onto the keyboard. Beat pause. Toy stop-motion aesthetic, bright even studio lighting, solid color background, smooth deliberate motion, no on-screen text.",
+      "post_production_notes": "URL \"bricksofindia.com\" is caption text only, never in-frame.",
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": null,
+          "description": "Soft thud"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/01-clumsy-tech.mp4",
+        "sfx_dir": "assets/shareables/sfx/01-clumsy-tech/",
+        "public_output": "public/shareables/01-clumsy-tech.mp4"
+      }
+    },
+    {
+      "id": 2,
+      "slug": "02-brick-finder",
+      "occasion": "Brick-Finder",
+      "category": "Flagship Website Intros",
+      "source_tag": "D2, text-fixed",
+      "raw_duration_s": 10,
+      "caption": "Never overpay for LEGO again. www.bricksofindia.com",
+      "scene": "BOI wields a ridiculous radar scanner searching for the cheapest LEGO prices. The scanner beeps rapidly and triggers a massive avalanche of price tags and bricks. BOI pops out of the pile holding a blank golden sign.",
+      "kling_prompt": "Macro stop-motion animation, Lego minifigure emerging from a mountain of blocks holding up a glowing golden blank billboard sign, heroic victory pose, dynamic camera zoom, tilt-shift optics, no on-screen text.",
+      "post_production_notes": "Website URL burned onto the blank sign in post.",
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 3,
+          "description": "rapid sci-fi radar beeps"
+        },
+        {
+          "timestamp_s": 6,
+          "description": "plastic brick avalanche"
+        },
+        {
+          "timestamp_s": 8,
+          "description": "heavenly victory chime"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/02-brick-finder.mp4",
+        "sfx_dir": "assets/shareables/sfx/02-brick-finder/",
+        "public_output": "public/shareables/02-brick-finder.mp4"
+      }
+    },
+    {
+      "id": 3,
+      "slug": "03-magic-reveal",
+      "occasion": "Magic Reveal",
+      "category": "Flagship Website Intros",
+      "source_tag": "D2, text-fixed",
+      "raw_duration_s": 10,
+      "caption": "The magic of LEGO price tracking. www.bricksofindia.com",
+      "scene": "BOI wears a magician's hat, waving a micro wand over a black velvet box. POOF! A confetti explosion blows his hat off, revealing a blank brick-built banner that unrolls.",
+      "kling_prompt": "Charming stop-motion shot, tiny plastic magician character in an oversized top hat blowing off from a huge confetti explosion, unrolling a small blank banner, adorable shocked facial expression, macro photography, no on-screen text.",
+      "post_production_notes": "Website URL burned onto the blank banner in post.",
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 3,
+          "description": "orchestral drumroll"
+        },
+        {
+          "timestamp_s": 5,
+          "description": "party popper bang"
+        },
+        {
+          "timestamp_s": 8,
+          "description": "magical shimmer sound"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/03-magic-reveal.mp4",
+        "sfx_dir": "assets/shareables/sfx/03-magic-reveal/",
+        "public_output": "public/shareables/03-magic-reveal.mp4"
+      }
+    },
+    {
+      "id": 4,
+      "slug": "04-holi",
+      "occasion": "Holi",
+      "category": "Festivals",
+      "source_tag": "D2",
+      "raw_duration_s": 10,
+      "caption": "HAPPY HOLI! Somehow, that worked.",
+      "scene": "BOI confidently adjusts an enormous LEGO colour cannon, serious nod, pulls the lever — nothing. Pulls again — BOOM! It fires backwards, completely engulfing him in pink and yellow powder. He proudly raises both arms.",
+      "kling_prompt": "Macro stop-motion, Lego minifigure standing covered in explosion of multi-colored dry Holi powder next to a smoking miniature cannon, proud comedic pose, ultra detailed brick textures, colorful dusty atmosphere, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 2,
+          "description": "heavy mechanical click"
+        },
+        {
+          "timestamp_s": 4,
+          "description": "failure squeak"
+        },
+        {
+          "timestamp_s": 5,
+          "description": "explosive powder blast"
+        },
+        {
+          "timestamp_s": 8,
+          "description": "victory chime"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/04-holi.mp4",
+        "sfx_dir": "assets/shareables/sfx/04-holi/",
+        "public_output": "public/shareables/04-holi.mp4"
+      }
+    },
+    {
+      "id": 5,
+      "slug": "05-diwali",
+      "occasion": "Diwali",
+      "category": "Festivals",
+      "source_tag": "D2",
+      "raw_duration_s": 10,
+      "caption": "HAPPY DIWALI! We got most of it working.",
+      "scene": "BOI lights the first diya in a massive arrangement with grand engineer confidence. A chain reaction lights hundreds of diyas in a glowing sea. He beams. One tiny diya beside him quietly goes out; he relights it, it goes out again; he shrugs happily.",
+      "kling_prompt": "Cozy nighttime stop-motion scene, plastic minifigure lighting miniature clay lamps with glowing flame effects, soft sparkler trails in background, cozy golden bokeh, detailed micro textures, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 2,
+          "description": "match ignition"
+        },
+        {
+          "timestamp_s": 4,
+          "description": "rapid magical sparkles"
+        },
+        {
+          "timestamp_s": 7,
+          "description": "tiny 'pfft' flame out"
+        },
+        {
+          "timestamp_s": 9,
+          "description": "whimsical chime"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/05-diwali.mp4",
+        "sfx_dir": "assets/shareables/sfx/05-diwali/",
+        "public_output": "public/shareables/05-diwali.mp4"
+      }
+    },
+    {
+      "id": 6,
+      "slug": "06-christmas",
+      "occasion": "Christmas",
+      "category": "Festivals",
+      "source_tag": "D1",
+      "raw_duration_s": 10,
+      "caption": "Wasn't planning to be a gift this year. Here we are. Merry Christmas!",
+      "scene": "A LEGO minifigure carrying fairy lights gets progressively tangled with each step, fully wrapped by the last. Proud arms-out ta-da pose.",
+      "kling_prompt": "Static camera, medium shot. A LEGO minifigure carrying fairy lights gets progressively tangled with each step, fully wrapped by the last. Proud arms-out ta-da pose. Toy stop-motion aesthetic, warm festive lighting, solid red/green background, smooth motion, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": null,
+          "description": "Jingle + light rustle"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/06-christmas.mp4",
+        "sfx_dir": "assets/shareables/sfx/06-christmas/",
+        "public_output": "public/shareables/06-christmas.mp4"
+      }
+    },
+    {
+      "id": 7,
+      "slug": "07-eid",
+      "occasion": "Eid",
+      "category": "Festivals",
+      "source_tag": "D2",
+      "raw_duration_s": 10,
+      "caption": "EID MUBARAK! The important things were taken care of.",
+      "scene": "BOI walks solemnly toward a lavish Eid table with royal grace, spots a massive plate of sweets. Cut to 5s later: the entire feast is untouched, but the sweet plate is entirely empty. He sits at the end of the table looking adorably stuffed and satisfied.",
+      "kling_prompt": "Stop-motion animation, plastic minifigure sitting blissfully beside an empty plate surrounded by festive lanterns under a glowing crescent moon window, elegant dark blue night background, cute character focus, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 2,
+          "description": "regal ambient fanfare"
+        },
+        {
+          "timestamp_s": 4,
+          "description": "rapid cartoon bite pops"
+        },
+        {
+          "timestamp_s": 7,
+          "description": "satisfied little sigh"
+        },
+        {
+          "timestamp_s": 9,
+          "description": "peaceful chime"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/07-eid.mp4",
+        "sfx_dir": "assets/shareables/sfx/07-eid/",
+        "public_output": "public/shareables/07-eid.mp4"
+      }
+    },
+    {
+      "id": 8,
+      "slug": "08-republic-day",
+      "occasion": "Republic Day",
+      "category": "Special / National Occasions",
+      "source_tag": "MERGE",
+      "raw_duration_s": 10,
+      "caption": "A flag doesn't have to stand straight to stand for something. Happy Republic Day!",
+      "scene": "A minifigure snaps into a crisp salute, holding still. A small flag in its other hand droops sideways over a couple seconds. It doesn't break its salute.",
+      "kling_prompt": "Static camera, medium shot, front-facing. A minifigure snaps into a crisp salute, holding still. A small flag in its other hand droops sideways over a couple seconds. It doesn't break its salute. Toy stop-motion aesthetic, bright patriotic lighting, solid tricolor-toned background, smooth minimal motion, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": "doc 2's crowd-parade version was rejected for production risk (many figures = higher retry cost against the credit pool); doc 1's single-figure visual/caption kept, doc 2's timestamped-SFX discipline applied.",
+      "sfx_cues": [
+        {
+          "timestamp_s": 3,
+          "description": "soft fabric flutter (flag droop)"
+        },
+        {
+          "timestamp_s": 8,
+          "description": "held-stillness beat (salute doesn't break)"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/08-republic-day.mp4",
+        "sfx_dir": "assets/shareables/sfx/08-republic-day/",
+        "public_output": "public/shareables/08-republic-day.mp4"
+      }
+    },
+    {
+      "id": 9,
+      "slug": "09-independence-day",
+      "occasion": "Independence Day",
+      "category": "Special / National Occasions",
+      "source_tag": "D2",
+      "raw_duration_s": 10,
+      "caption": "HAPPY INDEPENDENCE DAY 🇮🇳 Floating into freedom.",
+      "scene": "BOI attempts to release a massive bundle of tricolor balloons. Instead of releasing them, the buoyancy pulls him off the ground, and he floats upward, casually waving and saluting as he drifts into the bright sunny sky.",
+      "kling_prompt": "Whimsical stop-motion animation, minifigure floating upward while holding a bundle of saffron white and green balloons, sunny blue sky backdrop, cheerful patriotic mood, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 3,
+          "description": "balloon string tension strain"
+        },
+        {
+          "timestamp_s": 5,
+          "description": "gentle wind swoosh"
+        },
+        {
+          "timestamp_s": 8,
+          "description": "upbeat celebratory chime"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/09-independence-day.mp4",
+        "sfx_dir": "assets/shareables/sfx/09-independence-day/",
+        "public_output": "public/shareables/09-independence-day.mp4"
+      }
+    },
+    {
+      "id": 10,
+      "slug": "10-ganesh-chaturthi",
+      "occasion": "Ganesh Chaturthi",
+      "category": "Special / National Occasions",
+      "source_tag": "D2",
+      "raw_duration_s": 10,
+      "caption": "GANPATI BAPPA MORYA! We may have overdone the flowers.",
+      "scene": "BOI prepares a festive shrine setup — flowers, diyas, perfection. He notices one tiny empty spot and adds a flower. Then another. Then five more. The frame comically overflows with marigolds, forcing him to squeeze into the corner, squished but beaming.",
+      "kling_prompt": "Festive brick stop-motion, plastic minifigure squished into the side of the frame by a giant, overflowing mountain of orange marigold flowers around a golden shrine, warm soft lighting, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 2,
+          "description": "temple bell ring"
+        },
+        {
+          "timestamp_s": 4,
+          "description": "rapid placement clicks"
+        },
+        {
+          "timestamp_s": 7,
+          "description": "rustling flower squeeze"
+        },
+        {
+          "timestamp_s": 9,
+          "description": "celebration chime"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/10-ganesh-chaturthi.mp4",
+        "sfx_dir": "assets/shareables/sfx/10-ganesh-chaturthi/",
+        "public_output": "public/shareables/10-ganesh-chaturthi.mp4"
+      }
+    },
+    {
+      "id": 11,
+      "slug": "11-raksha-bandhan",
+      "occasion": "Raksha Bandhan",
+      "category": "Special / National Occasions",
+      "source_tag": "D2",
+      "raw_duration_s": 10,
+      "caption": "HAPPY RAKSHA BANDHAN ❤️ The chocolate was always the main event.",
+      "scene": "BOI presents his sister with a tiny rakhi thread. She smiles. He dramatically reveals a gigantic gift box — she opens it, a smaller box inside; opens that, another smaller box; finally opens the tiniest box: a single chocolate piece. She laughs; he nods like a genius.",
+      "kling_prompt": "Warm stop-motion scene, two plastic minifigures surrounded by nesting gift boxes open on the floor, staring at a tiny single piece of chocolate, bright cozy room lighting, heartwarming atmosphere, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 2,
+          "description": "dramatic box opening"
+        },
+        {
+          "timestamp_s": 4,
+          "description": "escalating pops"
+        },
+        {
+          "timestamp_s": 7,
+          "description": "tiny squeak box open"
+        },
+        {
+          "timestamp_s": 9,
+          "description": "satisfied chime"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/11-raksha-bandhan.mp4",
+        "sfx_dir": "assets/shareables/sfx/11-raksha-bandhan/",
+        "public_output": "public/shareables/11-raksha-bandhan.mp4"
+      }
+    },
+    {
+      "id": 12,
+      "slug": "12-mothers-day",
+      "occasion": "Mother's Day",
+      "category": "Personal Milestones & Family",
+      "source_tag": "D2",
+      "raw_duration_s": 5,
+      "caption": "HAPPY MOTHER'S DAY ❤️ For the one who holds it all together.",
+      "scene": "BOI waddles forward under an absurdly giant brick bouquet five times his size. He reaches Mother mascot, and the entire floral mountain collapses over both of them. A tiny hand emerges from underneath giving a thumbs-up.",
+      "kling_prompt": "Adorable stop-motion macro, tiny plastic arm sticking out from beneath a giant pile of collapsed colorful LEGO flowers giving a thumbs up, bright warm pastel background, heartwarming comedic mood, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 2,
+          "description": "heavy struggling footsteps"
+        },
+        {
+          "timestamp_s": 3,
+          "description": "soft floral crash sound"
+        },
+        {
+          "timestamp_s": 4,
+          "description": "warm sparkle chime"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/12-mothers-day.mp4",
+        "sfx_dir": "assets/shareables/sfx/12-mothers-day/",
+        "public_output": "public/shareables/12-mothers-day.mp4"
+      }
+    },
+    {
+      "id": 13,
+      "slug": "13-fathers-day",
+      "occasion": "Father's Day",
+      "category": "Personal Milestones & Family",
+      "source_tag": "D2",
+      "raw_duration_s": 10,
+      "caption": "HAPPY FATHER'S DAY! Dad deserves the upgrade.",
+      "scene": "BOI unveils an over-engineered LEGO throne for Dad (cup holders, TV, reading light). Dad sits; the chair reclines smoothly into max comfort. Dad gives a thumbs-up, then quietly presses a hidden button — a snack tray pops out. BOI looks at camera in utter awe.",
+      "kling_prompt": "Comedic stop-motion, Lego minifigure standing proudly beside a giant luxury reclining armchair built of colorful blocks, dad character lounging inside with a snack tray, bright studio lighting, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 2,
+          "description": "grand curtain reveal"
+        },
+        {
+          "timestamp_s": 4,
+          "description": "hydraulic recline hiss"
+        },
+        {
+          "timestamp_s": 7,
+          "description": "mechanical pop-out"
+        },
+        {
+          "timestamp_s": 9,
+          "description": "victory fanfare"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/13-fathers-day.mp4",
+        "sfx_dir": "assets/shareables/sfx/13-fathers-day/",
+        "public_output": "public/shareables/13-fathers-day.mp4"
+      }
+    },
+    {
+      "id": 14,
+      "slug": "14-friendship-day",
+      "occasion": "Friendship Day",
+      "category": "Personal Milestones & Family",
+      "source_tag": "D2",
+      "raw_duration_s": 10,
+      "caption": "HAPPY FRIENDSHIP DAY! Better when we fall apart together.",
+      "scene": "Two minifigures march toward each other in dramatic slow motion for an epic high-five. CLACK! Both yellow plastic hands pop clean off. They stare at their detached wrists, look at each other, and bump shoulders instead.",
+      "kling_prompt": "Upbeat stop-motion scene, two plastic minifigures looking at their detached plastic hands on the floor and bumping shoulders in a hug, star confetti in air, vibrant backdrop, macro focus, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 3,
+          "description": "slow cinematic footsteps"
+        },
+        {
+          "timestamp_s": 6,
+          "description": "plastic snapping clack"
+        },
+        {
+          "timestamp_s": 8,
+          "description": "toy pieces dropping"
+        },
+        {
+          "timestamp_s": 9,
+          "description": "warm chime"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/14-friendship-day.mp4",
+        "sfx_dir": "assets/shareables/sfx/14-friendship-day/",
+        "public_output": "public/shareables/14-friendship-day.mp4"
+      }
+    },
+    {
+      "id": 15,
+      "slug": "15-valentines-day",
+      "occasion": "Valentine's Day",
+      "category": "Personal Milestones & Family",
+      "source_tag": "D2",
+      "raw_duration_s": 10,
+      "caption": "HAPPY VALENTINE'S DAY ❤️ You make my heart vibrate.",
+      "scene": "BOI builds a glowing red heart brick by brick. He places the final central piece, and the entire heart pulses so hard it gently vibrates him across the table.",
+      "kling_prompt": "Charming macro stop-motion, Lego minifigure standing next to a pulsing red light brick heart sculpture on a wooden table, dreamy bokeh, warm romantic lighting, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 4,
+          "description": "plastic brick click"
+        },
+        {
+          "timestamp_s": 7,
+          "description": "bass heart thumping pulse"
+        },
+        {
+          "timestamp_s": 9,
+          "description": "cute slide rattle"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/15-valentines-day.mp4",
+        "sfx_dir": "assets/shareables/sfx/15-valentines-day/",
+        "public_output": "public/shareables/15-valentines-day.mp4"
+      }
+    },
+    {
+      "id": 16,
+      "slug": "16-birthday",
+      "occasion": "Birthday",
+      "category": "Personal Milestones & Family",
+      "source_tag": "D2",
+      "raw_duration_s": 10,
+      "caption": "HAPPY BIRTHDAY! 🎉 We may have found the button.",
+      "scene": "Dark room. BOI hides behind a banner. A door opens. He leaps out shouting \"SURPRISE!\" and fires a confetti cannon — it gets stuck ON. More confetti. Cut to 8s: only BOI's head is visible above a room-high mountain of confetti. Tiny wave.",
+      "kling_prompt": "Festive stop-motion macro, plastic minifigure head peeking out from the very top of a massive pile of colorful confetti that fills the room, holding a party popper, energetic dynamic lighting, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 2,
+          "description": "stealthy footsteps"
+        },
+        {
+          "timestamp_s": 4,
+          "description": "cannon BANG"
+        },
+        {
+          "timestamp_s": 6,
+          "description": "continuous party horn hiss"
+        },
+        {
+          "timestamp_s": 9,
+          "description": "squeaky tiny wave"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/16-birthday.mp4",
+        "sfx_dir": "assets/shareables/sfx/16-birthday/",
+        "public_output": "public/shareables/16-birthday.mp4"
+      }
+    },
+    {
+      "id": 17,
+      "slug": "17-anniversary",
+      "occasion": "Anniversary",
+      "category": "Personal Milestones & Family",
+      "source_tag": "D2",
+      "raw_duration_s": 10,
+      "caption": "HAPPY ANNIVERSARY ❤️ Years later. Still building. Still arguing about the instructions.",
+      "scene": "Two mascots happily build a LEGO set together. One places a brick; the other immediately moves it. A tiny building disagreement escalates into frantic brick placement — then they stop, look at the finished model, smile, and high-five.",
+      "kling_prompt": "Charming macro stop-motion, two toy minifigures standing together proudly in front of a detailed LEGO monument they built, holding hands on a wooden desk, warm cozy romantic lighting, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 2,
+          "description": "gentle plastic clicks"
+        },
+        {
+          "timestamp_s": 5,
+          "description": "rapid-fire intense brick snapping"
+        },
+        {
+          "timestamp_s": 7,
+          "description": "sudden silence / chime"
+        },
+        {
+          "timestamp_s": 9,
+          "description": "high-five snap"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/17-anniversary.mp4",
+        "sfx_dir": "assets/shareables/sfx/17-anniversary/",
+        "public_output": "public/shareables/17-anniversary.mp4"
+      }
+    },
+    {
+      "id": 18,
+      "slug": "18-thank-you",
+      "occasion": "Thank You",
+      "category": "Everyday BOI",
+      "source_tag": "D2",
+      "raw_duration_s": 5,
+      "caption": "THANK YOU ❤️ Subtlety is overrated.",
+      "scene": "BOI holds up a small sign, decides it's too subtle, flips a giant industrial lever. A giant neon wall behind him lights up. He adjusts his stance proudly.",
+      "kling_prompt": "Clean stop-motion shot, plastic minifigure standing in front of a giant glowing neon sign wall illuminating the scene, bright studio setup, warm inviting key lighting, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 1,
+          "description": "tiny sign rattle"
+        },
+        {
+          "timestamp_s": 3,
+          "description": "heavy industrial switch clunk"
+        },
+        {
+          "timestamp_s": 4,
+          "description": "stadium light buzz & chime"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/18-thank-you.mp4",
+        "sfx_dir": "assets/shareables/sfx/18-thank-you/",
+        "public_output": "public/shareables/18-thank-you.mp4"
+      }
+    },
+    {
+      "id": 19,
+      "slug": "19-congratulations",
+      "occasion": "Congratulations",
+      "category": "Everyday BOI",
+      "source_tag": "D2",
+      "raw_duration_s": 10,
+      "caption": "CONGRATULATIONS! 🏆 Obviously, this required a ceremony.",
+      "scene": "BOI stands on a 1st place podium surrounded by fireworks and massive trophies, confused why. He looks down at his neck, sees a tiny \"Participant\" ribbon, smiles proudly, and raises it to the roaring crowd like Olympic gold.",
+      "kling_prompt": "Dynamic stop-motion, minifigure character on a tall podium holding up a tiny medal with a massive gold trophy beside him, golden glitter showering down, bright victory studio lighting, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 2,
+          "description": "fireworks blast"
+        },
+        {
+          "timestamp_s": 5,
+          "description": "crowd cheering roar"
+        },
+        {
+          "timestamp_s": 8,
+          "description": "ribbon ping sound"
+        },
+        {
+          "timestamp_s": 9,
+          "description": "triumphant fanfare"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/19-congratulations.mp4",
+        "sfx_dir": "assets/shareables/sfx/19-congratulations/",
+        "public_output": "public/shareables/19-congratulations.mp4"
+      }
+    },
+    {
+      "id": 20,
+      "slug": "20-good-luck",
+      "occasion": "Good Luck",
+      "category": "Everyday BOI",
+      "source_tag": "D1",
+      "raw_duration_s": 5,
+      "caption": "Reading the instructions upside down. Confidence: right side up. Good Luck!",
+      "scene": "A minifigure studies an instruction manual held upside down, then closes it, firm confident nod, thumbs up.",
+      "kling_prompt": "Static camera, medium shot. A minifigure studies an instruction manual held upside down, then closes it, firm confident nod, thumbs up. Toy stop-motion aesthetic, bright lighting, solid color background, smooth motion, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": null,
+          "description": "Page flip"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/20-good-luck.mp4",
+        "sfx_dir": "assets/shareables/sfx/20-good-luck/",
+        "public_output": "public/shareables/20-good-luck.mp4"
+      }
+    },
+    {
+      "id": 21,
+      "slug": "21-happy-weekend",
+      "occasion": "Happy Weekend",
+      "category": "Everyday BOI",
+      "source_tag": "D1",
+      "raw_duration_s": 5,
+      "caption": "Chair reclined. Sunglasses oversized. Ambition also reclined. Happy Weekend!",
+      "scene": "A minifigure reclines in a lounge chair with oversized sunglasses, gives a slow lazy thumbs up without opening its eyes.",
+      "kling_prompt": "Static camera, medium-wide shot. A minifigure reclines in a lounge chair with oversized sunglasses, gives a slow lazy thumbs up without opening its eyes. Toy stop-motion aesthetic, bright relaxed lighting, solid color background, minimal smooth motion, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": null,
+          "description": "Relaxed sigh + chair creak"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/21-happy-weekend.mp4",
+        "sfx_dir": "assets/shareables/sfx/21-happy-weekend/",
+        "public_output": "public/shareables/21-happy-weekend.mp4"
+      }
+    },
+    {
+      "id": 22,
+      "slug": "22-you-are-the-best",
+      "occasion": "You Are The Best",
+      "category": "Everyday BOI",
+      "source_tag": "D1",
+      "raw_duration_s": 5,
+      "caption": "Built an entire trophy just to hand it to you. You Are The Best.",
+      "scene": "A minifigure holds a gold trophy piece, buffs it once, admires it, then holds it out directly toward camera.",
+      "kling_prompt": "Static camera, medium shot. A minifigure holds a gold trophy piece, buffs it once, admires it, then holds it out directly toward camera. Toy stop-motion aesthetic, warm glowing lighting, solid color background, smooth motion, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": null,
+          "description": "Trophy shine chime"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/22-you-are-the-best.mp4",
+        "sfx_dir": "assets/shareables/sfx/22-you-are-the-best/",
+        "public_output": "public/shareables/22-you-are-the-best.mp4"
+      }
+    },
+    {
+      "id": 23,
+      "slug": "23-love-you",
+      "occasion": "Love You",
+      "category": "Everyday BOI",
+      "source_tag": "D2",
+      "raw_duration_s": 5,
+      "caption": "LOVE YOU ❤️",
+      "scene": "BOI holds a single red LEGO heart brick and presents it to the camera. The heart glows with warmth, pulsing soft light across his face. A sweet, simple smile.",
+      "kling_prompt": "Charming stop-motion macro, toy minifigure holding out a small glowing red heart brick, soft romantic pink and warm ambient lighting, beautiful shallow depth of field, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 2,
+          "description": "soft plastic touch"
+        },
+        {
+          "timestamp_s": 3,
+          "description": "deep warm heart thud"
+        },
+        {
+          "timestamp_s": 4,
+          "description": "gentle magical chime"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/23-love-you.mp4",
+        "sfx_dir": "assets/shareables/sfx/23-love-you/",
+        "public_output": "public/shareables/23-love-you.mp4"
+      }
+    },
+    {
+      "id": 24,
+      "slug": "24-new-year",
+      "occasion": "New Year",
+      "category": "Seasonal & Daily Expressions",
+      "source_tag": "D2",
+      "raw_duration_s": 10,
+      "caption": "HAPPY NEW YEAR! 🎆 Right on schedule.",
+      "scene": "BOI stands on a rooftop countdown clock. 3... 2... 1... He pulls the giant lever. Nothing. Pulls again, frantic. Still nothing. Terrified look. Suddenly — BOOM! The sky erupts in fireworks. He instantly assumes a smooth pose, pointing up as if he timed it.",
+      "kling_prompt": "Festive stop-motion night scene, plastic minifigure on a rooftop with hands on hips, colorful fireworks exploding in dark sky background, cinematic lens flare, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 3,
+          "description": "countdown ticks"
+        },
+        {
+          "timestamp_s": 5,
+          "description": "lever squeak failure"
+        },
+        {
+          "timestamp_s": 7,
+          "description": "massive fireworks explosion"
+        },
+        {
+          "timestamp_s": 9,
+          "description": "midnight celebration cheer"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/24-new-year.mp4",
+        "sfx_dir": "assets/shareables/sfx/24-new-year/",
+        "public_output": "public/shareables/24-new-year.mp4"
+      }
+    },
+    {
+      "id": 25,
+      "slug": "25-halloween",
+      "occasion": "Halloween",
+      "category": "Seasonal & Daily Expressions",
+      "source_tag": "D2",
+      "raw_duration_s": 10,
+      "caption": "HAPPY HALLOWEEN! 🎃 Spooky, dangerous, and easily tripped.",
+      "scene": "BOI, dressed as a ghost in a white sheet, jumps out from behind a carved pumpkin shouting \"BOO!\" Trips on the sheet edge, falls gently into a pile of candy.",
+      "kling_prompt": "Spooky-cute stop-motion, minifigure in a sheet ghost costume lying in a pile of colorful Halloween candy, pumpkin lantern glowing, moody purple lighting, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 3,
+          "description": "cute high-pitched \"Boo!\""
+        },
+        {
+          "timestamp_s": 6,
+          "description": "candy rattle thud"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/25-halloween.mp4",
+        "sfx_dir": "assets/shareables/sfx/25-halloween/",
+        "public_output": "public/shareables/25-halloween.mp4"
+      }
+    },
+    {
+      "id": 26,
+      "slug": "26-good-morning",
+      "occasion": "Good Morning",
+      "category": "Seasonal & Daily Expressions",
+      "source_tag": "D2",
+      "raw_duration_s": 5,
+      "caption": "GOOD MORNING ☀️ Technically.",
+      "scene": "A golden sunrise, birds chirping. BOI emerges from bed, hair wildly messy. Stretches dramatically, looks at the sun, smiles... immediately falls backward flat into bed. One hand creeps out from under the blanket for a thumbs-up.",
+      "kling_prompt": "Bright morning stop-motion scene, plastic minifigure bed with an arm sticking out giving a thumbs-up from under a blanket, messy hair piece on pillow, warm golden sunrise light, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 2,
+          "description": "morning bird chirps"
+        },
+        {
+          "timestamp_s": 3,
+          "description": "big yawn"
+        },
+        {
+          "timestamp_s": 4,
+          "description": "bed mattress thud"
+        },
+        {
+          "timestamp_s": 5,
+          "description": "cute squeak"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/26-good-morning.mp4",
+        "sfx_dir": "assets/shareables/sfx/26-good-morning/",
+        "public_output": "public/shareables/26-good-morning.mp4"
+      }
+    },
+    {
+      "id": 27,
+      "slug": "27-good-night-and-sweet-dreams",
+      "occasion": "Good Night & Sweet Dreams",
+      "category": "Seasonal & Daily Expressions",
+      "source_tag": "D2",
+      "raw_duration_s": 5,
+      "caption": "GOOD NIGHT & SWEET DREAMS! Rest well.",
+      "scene": "BOI climbs into a cozy bed, adjusts his sleep mask, turns off the lamp. Total dark peaceful bliss. A rogue 2x2 LEGO brick falls from the ceiling, taps him softly on the head. CLICK. He sighs peacefully and sleeps anyway.",
+      "kling_prompt": "Cozy night stop-motion shot, minifigure tucked under a brick patterned blanket in a small bed with a sleep mask, cool blue moonlight filtering through window, peaceful atmosphere, no on-screen text.",
+      "post_production_notes": null,
+      "alignment_note": null,
+      "sfx_cues": [
+        {
+          "timestamp_s": 2,
+          "description": "lamp switch click"
+        },
+        {
+          "timestamp_s": 4,
+          "description": "small plastic 'clack' head impact"
+        },
+        {
+          "timestamp_s": 5,
+          "description": "soft night lullaby chime"
+        }
+      ],
+      "loop_trim": {
+        "in_s": 0.0,
+        "out_s": 5.0,
+        "status": "placeholder"
+      },
+      "assets": {
+        "raw_input": "assets/shareables/raw/27-good-night-and-sweet-dreams.mp4",
+        "sfx_dir": "assets/shareables/sfx/27-good-night-and-sweet-dreams/",
+        "public_output": "public/shareables/27-good-night-and-sweet-dreams.mp4"
+      }
+    }
+  ]
+}

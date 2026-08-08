@@ -18,6 +18,7 @@ const NAV_LINKS = [
   { href: '/opinion',    label: 'Opinion'    },
   { href: '/guides',     label: 'Guides'     },
   { href: '/community',  label: 'Community'  },
+  { href: '/shareables', label: 'Shareables' },
 ];
 
 /** Wordmark lockup — shared by desktop header and mobile drawer */
