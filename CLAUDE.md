@@ -28,6 +28,8 @@ SESSION START: Read `BOI_MASTER_TRACKER.md` — header block (metadata, current 
 
 **Always push after commit.** Do not leave commits un-pushed at session end.
 
+**Branching:** use a feature branch + PR for anything touching deployable code (src/, scripts/, or anything that could break the build). The email-guard checks (snapshot-tests, verify-no-email-in-client-bundle) run identically on push-to-main and on PRs — but a direct push to main deploys to prod in parallel with those checks, not gated on them, so a failure is discovered after the code is already live. A PR gives a checkpoint to see check results before merging. This gate is currently advisory only — GitHub does not block merging on a failing check today (confirmed via `gh api repos/bricksofindia007/bricks-of-india/branches/main/protection` → 404 "Branch not protected", checked 2026-08-08). Enabling required status checks on main would make this enforced rather than manual. Direct commits to main remain fine for docs-only or tracker-only changes (e.g. BOI_MASTER_TRACKER.md, docs/) where nothing can break.
+
 **Use PowerShell for `gh` commands** — the Bash tool does not inherit Windows PATH additions, so `gh` is not visible there. `gh run list`, `gh pr create`, `gh pr merge`, `gh workflow run`, `gh run watch` all go through the PowerShell tool.
 
 **Never amend** unless the user explicitly asks. Create new commits instead.
