@@ -202,7 +202,7 @@ export function Footer() {
                 style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(255,247,220,0.85)' }}
               >
                 <InstagramIcon />
-                @bricksofindia
+                @BricksofIndia
               </a>
               <Link
                 href="/contact"
