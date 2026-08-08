@@ -1,7 +1,9 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
+import { MASCOTS } from '@/lib/brand';
 import { PrecisionCta } from './PrecisionCta';
-import { YouTubePlayIcon, InstagramCameraIcon, GlobeStudsIcon } from './icons';
+import { YouTubeBadgeIcon, InstagramBadgeIcon, GlobeStudsIcon } from './icons';
 
 // Hidden QR-landing page -- discoverable only via direct QR scan. Deliberately
 // NOT added to sitemap.ts's static route list, never linked from anywhere in
@@ -27,14 +29,33 @@ const ctaClassName =
 export default function PrecisionPage() {
   return (
     <main className="mx-auto max-w-2xl px-6 py-12 sm:py-16">
-      <p className="font-serif text-2xl font-extrabold leading-snug text-neutral-900 sm:text-3xl">
-        Thank you — you've officially taken the first step towards severe
-        financial irresponsibility.
-      </p>
-      <p className="mt-6 max-w-lg text-[15px] leading-relaxed text-neutral-700">
-        While you wait, do yourself an enormous favour: subscribe on
-        YouTube and follow on Instagram.
-      </p>
+      <div className="flex items-center gap-4">
+        <Image
+          src={MASCOTS.both.celebrate}
+          alt=""
+          width={96}
+          height={96}
+          className="shrink-0 rounded-xl"
+          priority
+        />
+        <p className="font-serif text-2xl font-extrabold leading-snug text-neutral-900 sm:text-3xl">
+          Thank you — you've officially taken the first step towards severe
+          financial irresponsibility.
+        </p>
+      </div>
+      <div className="mt-6 flex items-center gap-4">
+        <Image
+          src={MASCOTS.blue.pointing}
+          alt=""
+          width={90}
+          height={120}
+          className="shrink-0"
+        />
+        <p className="max-w-lg text-[15px] leading-relaxed text-neutral-700">
+          While you wait, do yourself an enormous favour: <strong className="font-bold">subscribe on
+          YouTube and follow on Instagram</strong>.
+        </p>
+      </div>
       <p className="mt-4 max-w-lg text-[15px] leading-relaxed text-neutral-700">
         No doctor on earth will tell you this, mostly because we didn't
         ask one. However, our own research which was verified by
@@ -53,7 +74,7 @@ export default function PrecisionPage() {
           external
           className={ctaClassName}
         >
-          <YouTubePlayIcon />
+          <YouTubeBadgeIcon />
           <span>
             <span className="block text-sm font-bold">Subscribe on YouTube</span>
             <span className="mt-1 block text-xs opacity-90">
@@ -68,7 +89,7 @@ export default function PrecisionPage() {
           external
           className={ctaClassName}
         >
-          <InstagramCameraIcon />
+          <InstagramBadgeIcon />
           <span>
             <span className="block text-sm font-bold">Follow on Instagram</span>
             <span className="mt-1 block text-xs opacity-90">
