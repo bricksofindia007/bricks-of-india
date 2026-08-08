@@ -3474,3 +3474,31 @@ Searched all `.md` files for `INFRA-03`, `Phase 8`, and `LEGO Search Pulse`:
 - **Phase 8** (LEGO Search Pulse / LAB-07): ✅ Live at `/lab/heat-map` since Day 10 (commit `d5d1641`). `BOI_WEB_TRACKER.md` §E shows PULSE-02 as `🟡 Status uncertain` (stale from 2026-05-02 audit) but master tracker §Phase status overrides: Phase 8 ✅ Live.
 - **Finding:** No undocumented Phase 8 / INFRA-03 blocker exists in any tracker file. No D2 gap added.
 
+---
+
+## BOI Shareables — AI-Animated Greeting Video Library
+
+**Status:** Occasion list (27) and build phases locked. Scene/caption/Kling-prompt content still in draft — being refined. Technical build (post-production script, Shareables tab) proceeding in parallel. Kling not yet purchased — pending final script approval.
+**Type:** One-time creative asset build. Explicitly outside the automation stack — no cron, no Supabase status table, no recurring pipeline. Once published, requires no maintenance.
+
+**Objective:** Permanent, reusable library of 27 AI-animated BOI mascot clips (3 flagship intros + 24 occasion greetings) hosted in a `/shareables` tab for download and forwarding via WhatsApp/IG/FB/LinkedIn.
+
+**Key decisions locked:**
+- Generation tool: Kling AI, direct, Pro plan (~$25.99/mo, one-time month, manual web UI — not API, not routed through Higgsfield/Runway/Artlist/ElevenLabs after comparison)
+- Render settings: Professional mode, 1080p, all 27 clips (20 at 10s, 7 at 5s)
+- SFX: ElevenLabs Sound Effects (existing Starter plan), 1-2 cues per clip, placed at marked timestamp in post — no voiceover, no background music
+- Post-production: single moviepy script (loop trim, SFX placement, caption burn-in, watermark bake-in), built once, run once
+- Hosting: static asset delivery (Supabase Storage bucket or Netlify static) — no database table
+- IP: confirmed resolved — custom minifigures, no copyright dependency
+
+**Reference doc:** `docs/shareables/BOI_Shareables_Master_Production_Script.md` — working draft of scene/caption/Kling-prompt spec for all 27 clips. Occasions and structure locked; content still being refined.
+
+**Open items:**
+- [ ] Reference photography session (minifigure, 3-5 angles, consistent lighting)
+- [ ] Post-production script build (parallel track, doesn't need Kling purchased)
+- [ ] Shareables tab UX build (parallel track)
+- [ ] Purchase Kling Pro, generate 27 raws
+- [ ] QA pass, publish, soft launch via one IG post
+
+**Last updated:** 2026-08-08
+
