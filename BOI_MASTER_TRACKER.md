@@ -682,6 +682,25 @@ Experimental features. Each ships as a standalone page under `/lab/`. Brief file
 
 ## Sprint changelog
 
+### 2026-08-08 (Daily set social pipeline: gallery-gate starvation root-caused and fixed — tiered discovery, buildable-category filter, IG token proactive rotation, heartbeat skip-streak alerting) — ✅ CLOSED, PR #18 (`feature/social-gallery-tiering-and-alerting`), squash-merged as `c317e00`
+
+**Issue:** the daily set social post pipeline (`posted_sets`) stopped publishing reliably around Aug 4-7, 2026. **Root cause was not the long-known LEGO.com Cloudflare block alone** (previously logged as an "accepted risk" in `docs/archive/SOCIAL_AUTOMATION_STATUS.md`) — it was that the Brickset-fallback gallery-image gate (`MIN_GALLERY_IMAGES=10`) starved out because candidate discovery was scoped to current-year-only (~1,161 of 25,532 sets) and included non-buildable junk (books, posters, gear, barcode-shaped SKUs) that structurally can never pass an image gate.
+
+**Separately identified during the same investigation:**
+- `ig-token-refresh.yml`'s safety check had silently blocked its own rotation for weeks (last successful scheduled rotation Jul 15), causing 2 confirmed real missed posts (Jul 24, Jul 25) via expired-token failures at the IG carousel-create step — unrelated to image sourcing.
+- `social_automation_heartbeat` had no mechanism to distinguish a legitimate quiet day from a multi-day systemic failure — its own alert threshold (120h) was wider than the actual gap that occurred.
+
+**Fix shipped, PR #18 (`feature/social-gallery-tiering-and-alerting` → `main`, squash-merged as `c317e00`):**
+1. Buildable-candidate filter using Brickset's `category` field ("Normal", plus allowlisted "Extended" BrickLink Designer Program sets, pattern `^91\d{4}$`).
+2. Tiered candidate discovery: current-year → 2020-2025 → pre-2020, each tier only tried if the prior tier is fully exhausted; multiple candidates tried per tier, not just the first.
+3. Image sourcing: Brickset gallery as primary/load-bearing source (confirmed reliable, never blocked in testing). LEGO.com (`curl_cffi`, `impersonate="chrome120"`) kept as opportunistic-only enrichment — used if it happens to return more images than Brickset, never blocks a candidate if it fails. Confirmed via testing that direct LEGO.com fetching from GitHub Actions is **not** reliably fixable by client library alone (a 20-sequential-call test degraded to ~5% success rate even with full Chrome TLS impersonation) — this is why LEGO.com was demoted to opportunistic rather than kept as primary.
+4. IG token: removed the self-blocking safety check; now rotates proactively on a 45-day fixed schedule regardless of Meta's reported expiry, alerts if rotation fails twice consecutively.
+5. Heartbeat: added `consecutive_skip_days` and `skip_reason` columns (migration applied to live DB, confirmed clean backfill on the 2 existing rows). Alerts at `consecutive_skip_days >= 2` via existing email infra, distinct subject line.
+
+**Verification:** migration dry-run and a forced-403 Tier-2-fallback simulation both passed before merge. Live production run confirmed post-merge: workflow run `31215154070`, winner `76476-1` ("The Ministry of Magic - Collectors' Edition", 3,491 parts, 19 Brickset-sourced images, Tier 1). Posted live to IG carousel, IG Reels, and YouTube Shorts. `posted_sets` row 52 confirmed (`posted_at` 2026-08-07 20:24:08, all 3 platform flags true). `social_automation_heartbeat` confirmed updated cleanly with the new schema, `consecutive_skip_days: 0`, no errors.
+
+**Known open item, explicitly not verified:** the Jul 24/25 token-expiry fix cannot be retroactively confirmed against Meta's historical API behavior — logged as "plausibly fixed by design, not confirmed avoided."
+
 ### 2026-07-09 (DEFECT-020: §2b Road Bike group had a 5th, undiscovered duplicate — found via user-requested re-verification) — ✅ CLOSED, root cause was query scope not environment split
 
 **Abhinav asked for a raw re-run of `select slug from news_articles where slug ilike '%road-bike%' or slug ilike '%11380%'` against the exact same connection used for the original delete, suspecting either an environment split (his count showed 4, mine had reported 3) or a delete that silently never ran.** Neither: same project (`hqpaiarhmiocmjrzjhtw`) throughout, and the original delete (`lego-11380-road-bike-a-2-foot-bicycle-that-costs-12400`) is confirmed correctly absent. The actual bug — **every §2b discovery query only ever matched slugs containing "11380."** `lego-icons-road-bike-rolls-into-india-a-17500-test-of-patien` has no "11380" in its slug and was never linked to a `set_number`, so it never surfaced in any search and was never evaluated. It's a genuine duplicate: a pre-launch teaser for set 11380 published 2026-05-09 18:09:56, **10 minutes before** `the-lego-road-bike-11380-worth-your-emi-in-india` (18:20:16) — which I had separately (and, it turns out, wrongly) assessed as "legitimately different content" without knowing this sibling existed.

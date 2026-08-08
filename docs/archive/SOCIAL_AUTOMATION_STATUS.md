@@ -2,7 +2,7 @@
 
 **ID:** SOC-AUTO-01  
 **Status:** LIVE — 3 successful runs (latest: 75641-1, 2026-05-25)  
-**Last updated:** 2026-05-25
+**Last updated:** 2026-08-08 (Source priority + Known issues below — see BOI_MASTER_TRACKER.md Sprint changelog, commit `c317e00`)
 
 ---
 
@@ -29,15 +29,18 @@
 
 ## Source priority
 
-### Set discovery
-1. **LEGO.com `/categories/coming-soon`** — intended primary source. Currently blocked by Cloudflare (403 on all plain requests). Returns 0 sets every run.
-2. **Rebrickable API** — fallback. `min_year=CURRENT_YEAR`, page size 20. Returns ~20 sets.
-3. **Brickset API** — fallback. `year=CURRENT_YEAR`, page size 50. Returns ~50 sets.
+**Updated 2026-08-08** — re-architected as part of the gallery-gate-starvation fix (see BOI_MASTER_TRACKER.md Sprint changelog, PR #18, commit `c317e00`). LEGO.com is no longer treated as the intended primary for either discovery or gallery images — see Known issues below for why.
 
-Merge strategy: Rebrickable wins on part count + image URL. Brickset fills: usd_price, us_date, uk_date, availability, theme name, **brickset_set_id**.
+### Set discovery
+1. **LEGO.com `/categories/coming-soon`** — still attempted first, but not load-bearing. Blocked by Cloudflare (403 on all plain requests) every run observed.
+2. **Rebrickable API** — effective primary discovery source. `min_year=CURRENT_YEAR` (Tier 1), widened to 2020-2025 then pre-2020 if Tier 1 is fully exhausted with zero passing candidates. Now filtered through a live Brickset `category` lookup per candidate before being added to the pool (Rebrickable's own response has no category field of its own).
+3. **Brickset API** — effective primary discovery source alongside Rebrickable, same tiering. Candidates filtered by `category` (`"Normal"`, or `"Extended"` matching the allowlisted BrickLink Designer Program pattern `^91\d{4}$`) before being added to the pool — this is what excludes books, posters, gear, and barcode-shaped SKUs that used to reach the gallery gate and fail it every time.
+
+Merge strategy unchanged: Rebrickable wins on part count + image URL. Brickset fills: usd_price, us_date, uk_date, availability, theme name, **brickset_set_id**.
 
 ### Gallery images
-- **Primary:** Brickset `getAdditionalImages` API with `setID` (from Brickset `getSets`). Returns 10–50 high-res product photos from Brickset CDN (`images.brickset.com`).
+- **Primary, load-bearing:** Brickset `getAdditionalImages` API with `setID` (from Brickset `getSets`). Returns 10–50 high-res product photos from Brickset CDN (`images.brickset.com`). Confirmed reliable, never blocked, throughout the 2026-08 investigation.
+- **Secondary, opportunistic only:** LEGO.com product page via `curl_cffi` (`impersonate="chrome120"`) — tried, and adopted only if it returns AND yields strictly more images than Brickset already has. Never blocks or fails a candidate if it 403s. Confirmed via testing that this is not reliably fixable by client library alone — a 20-sequential-call test on a real GitHub Actions runner degraded to ~5% success even with full Chrome TLS impersonation — which is why it is opportunistic enrichment, not a primary source.
 - **Minimum required:** 10 gallery images per set (sets with fewer are skipped).
 - **Typical yield:** 20–30 images for recently released sets.
 
@@ -152,7 +155,7 @@ Local `tmp/` files are deleted after successful upload.
 
 | ID | Issue | Severity | Status |
 |----|-------|----------|--------|
-| — | LEGO.com Cloudflare block | Medium | Accepted. Rebrickable/Brickset fallback works reliably. India check is the real safety layer. |
+| — | LEGO.com Cloudflare block | Medium | **Re-scoped 2026-08-08** — no longer "accepted as-is." Root-caused: the real Aug 4-7, 2026 posting outage wasn't this block alone, it was the Brickset-fallback gallery gate (`MIN_GALLERY_IMAGES=10`) starving because candidate discovery was scoped to current-year-only (~1,161 of 25,532 sets) and included non-buildable junk (books, posters, gear, barcode-shaped SKUs) that could never pass an image gate. Fixed via tiered discovery + a Brickset `category` buildable filter + demoting LEGO.com to opportunistic-only image enrichment (see BOI_MASTER_TRACKER.md Sprint changelog, PR #18, commit `c317e00`). The Cloudflare block itself is unchanged and still expected — Rebrickable/Brickset now do the real work, not as a fallback but as the documented primary path. |
 | — | /lab pages missing from sitemap.xml | Low | Fixed 2026-05-25 — added /lab, /lab/biryani-index, /lab/which-set, /lab/heat-map to sitemap.ts. |
 
 ---
