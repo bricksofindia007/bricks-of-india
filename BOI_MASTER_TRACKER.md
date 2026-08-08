@@ -185,6 +185,30 @@ Actual root cause: `src/app/loading.tsx` at the app root wrapped every route in 
 
 **Status:** Soft 404 and Duplicate canonical/Crawled-not-indexed both shipped and validation-requested 2026-08-08; Page with redirect closed as a false alarm, no further validation requests on that category. **Next check:** mid-to-late August GSC re-check (already scheduled) — review validation outcomes for both pending categories, confirm Crawled-not-indexed and Page-with-redirect counts have declined via natural recrawl.
 
+**Addendum, same day — reconciliation with GSC-01's non-numeric-ID trade-off.** GSC-01's Part A follow-up (above) explicitly accepted a trade-off after removing non-numeric `set_number` as a standalone Tier 3 trigger: "some genuine non-core items with no keyword corroboration (`FRANKFURT` event exclusive, `GW8555` literal adidas shoes, `TOTEBAG`) now fall through to Tier 2 instead of Tier 3." GSC-02's reclassification query above never checked ID format — and moved 2 of those 3 named items, `GW8555` and `TOTEBAG`, from tier2 to tier3. Not known at the time GSC-02 ran; found afterward by re-querying with GSC-01's rule in mind.
+
+**Every figure below re-verified by direct query against the live `sets` table, 2026-08-08, immediately before writing this entry:**
+
+| Check | Condition | Result |
+|---|---|---|
+| Non-numeric-ID sets moved to tier3 by GSC-02 | `tier3 AND updated_at>='2026-08-08' AND set_number !~ '[0-9]'` | **148** |
+| Non-numeric-ID sets still tier2 today | `tier2 AND set_number !~ '[0-9]'` | **355** |
+| — of those 355, with a real piece count | `+ pieces > 0` | **355 (100%)** |
+| — of those 355, with any store price on record | `+ set_number IN store_prices` | **0** |
+| Non-numeric-ID tier2 sets still matching GSC-02's thin criteria (completeness check — should be 0 if the reclassification was applied consistently) | `tier2 AND non-numeric AND (pieces IS NULL OR 0) AND NOT IN store_prices` | **0** |
+
+**The three named examples, individually confirmed:**
+
+| Set | Pieces | Ever priced? | Tier now | Why |
+|---|---|---|---|---|
+| `FRANKFURT` (LEGO Store Grand Opening Exclusive, MyZeil) | 157 | No | **tier2**, unchanged (`updated_at` 2026-08-02, predates GSC-02) | Has a real piece count — never matched GSC-02's criteria |
+| `GW8555` (adidas Gamemode TF x LEGO shoes) | 0 | No | **tier3**, moved 2026-08-08 07:16:30 | Zero pieces, no price data — matched GSC-02's criteria |
+| `TOTEBAG` (LEGOLAND Shark & Mermaid Beach Tote Bag) | 0 | No | **tier3**, moved 2026-08-08 07:16:30 (same batch timestamp as `GW8555`) | Zero pieces, no price data — matched GSC-02's criteria |
+
+**Reading of the evidence (judgment, not a query result):** GSC-01's rule existed to stop a blunt "non-numeric ID → tier3" heuristic from wrongly demoting legitimate items — `FRANKFURT` is the case it was protecting, and the table above shows that protection is still fully intact under GSC-02's criteria: every one of the 355 non-numeric-ID sets still in tier2 has a real piece count, `FRANKFURT` included, none were touched by this reclassification. GSC-02's criterion is not the ID-format heuristic GSC-01 rejected — it's a direct content-based measurement (zero pieces AND never priced) GSC-01 didn't have as a rule at the time. The 148-item overlap is not GSC-02 silently re-applying the discarded heuristic; it's GSC-02 independently reaching the same two named examples (`GW8555`, `TOTEBAG`) via evidence the earlier pass didn't use, while correctly leaving `FRANKFURT` alone for the same reason GSC-01 wanted it left alone.
+
+**Disposition: GSC-02 supersedes GSC-01's non-numeric-ID trade-off for this 148-item overlap. Not reverted.** The completeness check above (row 5, "0") confirms no non-numeric-ID tier2 set currently matches GSC-02's thin criteria — if this disposition stands, no further action is needed on this front. If a future session disagrees, the 148 `set_number`s are fully enumerable via the same `tier3 AND updated_at >= '2026-08-08' AND set_number !~ '[0-9]'` filter used above, and reverting is a single-column update, not a data-loss risk.
+
 ---
 
 ## GEO-05b: bidirectional set-article linking — 2026-07-27
