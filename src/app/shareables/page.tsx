@@ -1,12 +1,23 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 import { getShareablesManifest, shareablesPublicUrl, type ShareablesClip } from '@/lib/shareables';
 import { HowToShareModal } from '@/components/shareables/HowToShareModal';
+
+// Temporary unpublish (2026-08-08): the 27 clips are placeholder assets
+// pending Phases 2-4 (reference photography, Kling generation) -- see
+// BOI_MASTER_TRACKER.md §BOI Shareables. Real content isn't ready, but
+// nothing here is deleted: the grid/manifest/download wiring below is
+// untouched and fully re-enabled by flipping this back to true. Nav link
+// removed (src/components/layout/Navbar.tsx) and this route noindex'd
+// while flagged off -- flip both back when Phase 4 delivers real clips.
+const SHAREABLES_LIVE = false;
 
 export const metadata: Metadata = {
   title: 'Shareables | Bricks of India',
   description:
     'Free AI-animated LEGO minifigure greeting clips for every occasion — download and share on WhatsApp, Instagram, Facebook, or LinkedIn.',
   alternates: { canonical: 'https://bricksofindia.com/shareables' },
+  ...(!SHAREABLES_LIVE && { robots: { index: false, follow: false } }),
 };
 
 // Static/filesystem only, matching every other locked decision in this
@@ -58,7 +69,9 @@ function ShareCard({ clip }: { clip: ShareablesClip }) {
   );
 }
 
-export default function ShareablesPage() {
+// Full page — real content, untouched, just not currently reachable
+// while SHAREABLES_LIVE is false. See export default below.
+function ShareablesGrid() {
   const manifest = getShareablesManifest();
 
   // Preserve manifest order within each category (already document order
@@ -114,4 +127,42 @@ export default function ShareablesPage() {
       </div>
     </div>
   );
+}
+
+function ShareablesComingSoon() {
+  return (
+    <div className="bg-white min-h-screen">
+      <section className="py-16 px-4" style={{ background: 'var(--boi-sky)' }}>
+        <div className="max-w-site mx-auto text-center">
+          <span
+            className="inline-block text-xs font-bold tracking-widest mb-3 px-3 py-1 rounded-full"
+            style={{ background: 'var(--boi-green)', color: '#fff', letterSpacing: '0.1em' }}
+          >
+            SHAREABLES
+          </span>
+          <h1 className="font-heading text-6xl mb-4" style={{ color: 'var(--boi-navy)' }}>
+            Coming Soon
+          </h1>
+          <p
+            className="font-body text-lg max-w-lg mx-auto mb-8"
+            style={{ color: 'var(--boi-navy)', opacity: 0.75 }}
+          >
+            We&apos;re putting together a library of free AI-animated BOI
+            mascot greeting clips for every occasion. Check back soon.
+          </p>
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-opacity hover:opacity-90"
+            style={{ background: 'var(--boi-red)', fontFamily: 'var(--font-fredoka)', fontWeight: 700 }}
+          >
+            ← Back to homepage
+          </Link>
+        </div>
+      </section>
+    </div>
+  );
+}
+
+export default function ShareablesPage() {
+  return SHAREABLES_LIVE ? <ShareablesGrid /> : <ShareablesComingSoon />;
 }
