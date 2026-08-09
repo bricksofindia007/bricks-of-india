@@ -222,6 +222,13 @@ export type BuildUserPromptInput = {
   fullBody?: string | null;
   sourceExcerpt: string | null;
   indiaPriceContext: string;
+  // Opinion fortnightly cadence, fallback path (Nav & Content Overhaul,
+  // 2026-08-09): true only when opinion-cadence.js couldn't find a
+  // naturally opinion-shaped candidate on an Opinion day and picked the
+  // strongest general News signal instead. The source material itself
+  // won't have an obvious angle — tells the model to build one
+  // deliberately rather than default into a neutral report.
+  forceOpinionTake?: boolean;
 };
 
 export type ParsedDraft = {
@@ -281,10 +288,22 @@ export function buildSystemPrompt(): string {
   return VOICE_EXAMPLES + OUTPUT_FORMAT;
 }
 
+const FORCED_TAKE_INSTRUCTION = `
+FORCED TAKE — READ CAREFULLY: this source is a plain announcement, not an
+editorial/comparison/ranking piece. There is no ready-made angle sitting in
+the source material. Your job is to build one deliberately: pick a specific,
+defensible position on it (e.g. is this actually worth the India price, does
+it fit the current lineup, is the timing/value smart or a trap for Indian
+buyers) and argue it in the BOI wallet-anxiety voice. Do NOT default into a
+neutral report of what was announced — that is a News article, not an
+Opinion piece. If you cannot find a genuine angle, pick the most honest one
+available (even "this is fine but unremarkable, here's why") rather than
+writing something that just restates the source.`;
+
 export function buildUserPrompt(input: BuildUserPromptInput): string {
   const {
     format, sourceTitle, sourceUrl, sourcePublishedAt,
-    setNumber, fullBody, sourceExcerpt, indiaPriceContext,
+    setNumber, fullBody, sourceExcerpt, indiaPriceContext, forceOpinionTake,
   } = input;
   const wordTarget = WORD_TARGETS[format] ?? WORD_TARGETS.news;
   const content    = fullBody || sourceExcerpt || sourceTitle || '(no content available)';
@@ -295,7 +314,7 @@ export function buildUserPrompt(input: BuildUserPromptInput): string {
   return `Write a BOI-voice ${format} article about the source below. Target: ${wordTarget} words in body.
 
 Your entire response must be wrapped in the BOI_DRAFT markers exactly as specified in your instructions. No text before or after the markers.
-
+${format === 'opinion' && forceOpinionTake ? FORCED_TAKE_INSTRUCTION : ''}
 ${indiaPriceContext}
 
 SOURCE:

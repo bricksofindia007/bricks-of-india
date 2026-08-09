@@ -85,6 +85,7 @@ const FORMAT_COLOUR: Record<string, { bg: string; color: string }> = {
   news:    { bg: '#DBEAFE', color: '#1E40AF' },
   review:  { bg: '#DCFCE7', color: '#166534' },
   opinion: { bg: '#FEF3C7', color: '#92400E' },
+  guide:   { bg: '#EDE9FE', color: '#5B21B6' },
 };
 
 function FormatBadge({ format }: { format: string | null }) {

@@ -172,19 +172,24 @@ export default async function SetPage({ params }: Props) {
   // second matching system. Rendered only if at least one match exists —
   // absent, not an empty "no coverage yet" block (same discipline as the
   // Part C review/aggregateRating fix).
+  // Nav & Content Overhaul (2026-08-09): blog_posts dropped from this query
+  // -- every row that matters here was copied into guides or news_articles
+  // (category='Opinion'), so querying blog_posts too would either double-
+  // count the same coverage or point at a slug that now just 301s. guides
+  // added since it's a real coverage source now (weekly generation, §5).
   const coveragePattern = `%](/sets/${params.slug})%`;
-  const [newsCoverageRes, blogCoverageRes, reviewCoverageRes] = await Promise.all([
-    serverClient.from('news_articles').select('slug, title, published_at').ilike('content', coveragePattern),
-    serverClient.from('blog_posts').select('slug, title, published_at, category').ilike('content', coveragePattern),
+  const [newsCoverageRes, guidesCoverageRes, reviewCoverageRes] = await Promise.all([
+    serverClient.from('news_articles').select('slug, title, published_at, category').ilike('content', coveragePattern),
+    serverClient.from('guides').select('slug, title, published_at').ilike('content', coveragePattern),
     serverClient.from('reviews').select('slug, title, published_at').ilike('content', coveragePattern),
   ]);
   const relatedCoverage = [
-    ...(newsCoverageRes.data ?? []).map((a: any) => ({ ...a, href: `/news/${a.slug}`, kind: 'News' })),
-    ...(blogCoverageRes.data ?? []).map((a: any) => ({
+    ...(newsCoverageRes.data ?? []).map((a: any) => ({
       ...a,
-      href: a.category === 'Opinion' ? `/opinion/${a.slug}` : `/blog/${a.slug}`,
-      kind: a.category === 'Opinion' ? 'Opinion' : 'Blog',
+      href: `/news/${a.slug}`,
+      kind: a.category === 'Opinion' ? 'Opinion' : 'News',
     })),
+    ...(guidesCoverageRes.data ?? []).map((a: any) => ({ ...a, href: `/guides/${a.slug}`, kind: 'Guide' })),
     ...(reviewCoverageRes.data ?? []).map((a: any) => ({ ...a, href: `/reviews/${a.slug}`, kind: 'Review' })),
   ].sort((a, b) => new Date(b.published_at).getTime() - new Date(a.published_at).getTime());
 

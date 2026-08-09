@@ -258,6 +258,7 @@ async function autoPublish(draft: any, outcome: GenerationOutcome): Promise<{ pa
     source_price_inr:    draft.source_price_inr ?? undefined,
     source_stock_status: draft.source_stock_status ?? undefined,
     source_checked_at:   draft.source_checked_at ?? undefined,
+    draft_category:      draft.draft_category ?? undefined,
   };
 
   const { path, slug } = await publishOneDraft(publishable, sb);
@@ -313,6 +314,7 @@ async function generateBodyWithFailover(draft: any, batchOpeners?: string[]): Pr
     fullBody,
     sourceExcerpt:     draft.source_excerpt as string | null,
     indiaPriceContext,
+    forceOpinionTake:  draft.opinion_forced_take === true,
   };
 
   return generateWithFailover(input, sb, GEMINI_KEY!, CEREBRAS_KEY ?? undefined, batchOpeners);
@@ -330,7 +332,7 @@ if (IS_MAIN) (async () => {
 
   let q = sb
     .from('pending_drafts')
-    .select('id, source_url, source_title, source_excerpt, source_published_at, draft_format, draft_title, source_retailer, source_price_inr, source_stock_status, source_checked_at')
+    .select('id, source_url, source_title, source_excerpt, source_published_at, draft_format, draft_title, source_retailer, source_price_inr, source_stock_status, source_checked_at, opinion_forced_take, draft_category')
     .eq('status', 'approved')
     .is('draft_body', null)
     .order('created_at', { ascending: true });

@@ -1,0 +1,69 @@
+name: guide-staleness-monthly
+
+# §5, Nav & Content Overhaul (2026-08-09) — monthly Guides staleness guard.
+# Flags the oldest guides into content_quality_issues for manual review when
+# they contain a ₹ price or date-claim pattern that may have gone stale.
+# Never auto-corrects (no live-price gate for Guides to correct against —
+# see scripts/radar/guide-staleness-guard.js header for the full reasoning).
+#
+# Schedule: 1st of the month, 04:20 UTC — same minute as
+# generate-guide-weekly.yml (tidy, not required), distinct from
+# monthly-audit-reminder.yml (03:00) and ig-token-refresh.yml (1st/15th
+# 05:00) so nothing collides on the 1st.
+
+on:
+  schedule:
+    - cron: '20 4 1 * *'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (print what would be flagged, skip the insert)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  guard:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check oldest guides for staleness
+        id: guard
+        continue-on-error: true
+        run: node scripts/radar/guide-staleness-guard.js ${{ inputs.dry_run == true && '--dry-run' || '' }}
+
+      - name: Send failure alert
+        if: steps.guard.outcome == 'failure'
+        continue-on-error: true
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL:    ${{ secrets.BRIEF_EMAIL }}
+          WORKFLOW_NAME:  guide-staleness-monthly
+          STEP_OUTCOMES:  '{"Check oldest guides for staleness": "${{ steps.guard.outcome }}"}'
+        run: node scripts/workflow-failure-notify.mjs
+
+      - name: Fail job if guard step failed
+        if: always()
+        run: |
+          if [ "${{ steps.guard.outcome }}" = "failure" ]; then
+            echo "::error::guide-staleness-guard.js failed — see step log above; alert email already sent"
+            exit 1
+          fi
+          echo "guide-staleness-guard.js completed successfully."

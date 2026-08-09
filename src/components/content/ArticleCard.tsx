@@ -10,9 +10,24 @@ const PLACEHOLDER = '/images/lego-placeholder.svg';
 // Generic LEGO set image used as second-level fallback when hero_image is missing
 const GENERIC_FALLBACK = 'https://cdn.rebrickable.com/media/sets/10329-1/10329-1.jpg';
 
+// Card-display shape any content type can be normalized into at the call
+// site (e.g. guides' featured_image_url -> hero_image, nullable
+// content/excerpt coalesced to '') -- keeps this component's internals
+// (and its two callers on /news, /blog) from having to special-case a
+// third source shape.
+interface CardArticle {
+  slug: string;
+  title: string;
+  category: string;
+  excerpt: string;
+  content: string;
+  hero_image: string | null;
+  published_at: string;
+}
+
 interface ArticleCardProps {
-  article: BlogPost | NewsArticle;
-  type: 'blog' | 'news';
+  article: BlogPost | NewsArticle | CardArticle;
+  type: 'blog' | 'news' | 'guides';
 }
 
 export function ArticleCard({ article, type }: ArticleCardProps) {

@@ -11,7 +11,16 @@ export const metadata: Metadata = {
   alternates: { canonical: 'https://bricksofindia.com/guides' },
 };
 
-const GUIDE_CATEGORIES = ['Getting Started', 'India Specific', 'Advanced'];
+// Nav & Content Overhaul (2026-08-09): these chips previously listed
+// 'Getting Started' / 'India Specific' / 'Advanced' -- categories that
+// never actually existed on any guides row (all 9 pre-migration rows are
+// 'lego-101'; confirmed live via information_schema before writing this).
+// Every filter returned zero results. Rebuilt to the real category set:
+// the original 'lego-101' plus the 4 categories migrated in from
+// blog_posts (§2) — Buying Guides, How-To, Gift Guides, Value Picks.
+const GUIDE_CATEGORIES = ['lego-101', 'Buying Guides', 'How-To', 'Gift Guides', 'Value Picks'];
+const GUIDE_CATEGORY_LABELS: Record<string, string> = { 'lego-101': 'LEGO 101' };
+const guideCategoryLabel = (cat: string) => GUIDE_CATEGORY_LABELS[cat] ?? cat;
 
 interface Guide {
   id: number;
@@ -60,7 +69,7 @@ export default async function GuidesPage({ searchParams }: { searchParams: { cat
               href={`/guides?category=${encodeURIComponent(cat)}`}
               className={`px-4 py-2 rounded-full text-sm font-bold border-2 transition-colors ${category === cat ? 'bg-dark text-white border-dark' : 'bg-white text-dark border-border hover:border-dark'}`}
             >
-              {cat}
+              {guideCategoryLabel(cat)}
             </Link>
           ))}
         </div>
@@ -90,7 +99,7 @@ export default async function GuidesPage({ searchParams }: { searchParams: { cat
                     {guide.category && (
                       <div className="absolute top-3 left-3">
                         <span className="inline-block bg-white text-dark text-xs font-bold px-3 py-1 rounded-full border-2 border-dark">
-                          {guide.category}
+                          {guideCategoryLabel(guide.category)}
                         </span>
                       </div>
                     )}
@@ -99,10 +108,14 @@ export default async function GuidesPage({ searchParams }: { searchParams: { cat
                   <div className="relative overflow-hidden" style={{ aspectRatio: '16/9' }}>
                     <div className="absolute inset-0 flex flex-col items-center justify-center"
                       style={{
-                        background: guide.category === 'India Specific'
+                        background: guide.category === 'Buying Guides'
                           ? 'linear-gradient(135deg, #F7A800 0%, #e09600 100%)'
-                          : guide.category === 'Advanced'
+                          : guide.category === 'How-To'
+                          ? 'linear-gradient(135deg, #138808 0%, #0d6b06 100%)'
+                          : guide.category === 'Gift Guides'
                           ? 'linear-gradient(135deg, #E3000B 0%, #b80009 100%)'
+                          : guide.category === 'Value Picks'
+                          ? 'linear-gradient(135deg, #7C3AED 0%, #5b21b6 100%)'
                           : 'linear-gradient(135deg, #006CB7 0%, #005a99 100%)'
                       }}>
                       {/* BOI stud pattern — decorative */}
@@ -119,7 +132,7 @@ export default async function GuidesPage({ searchParams }: { searchParams: { cat
                     </div>
                     {guide.category && (
                       <span className="absolute top-3 left-3 z-20 text-xs font-semibold px-3 py-1 rounded-full bg-white/90 text-gray-800 shadow-sm">
-                        {guide.category}
+                        {guideCategoryLabel(guide.category)}
                       </span>
                     )}
                   </div>

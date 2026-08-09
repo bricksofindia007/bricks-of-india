@@ -17,12 +17,23 @@
  * Format classification (keyword-based, first match wins):
  *   community  → skipped (MOC/discussion/help threads — not draftable)
  *   review     → draft_format: 'review'
- *   opinion    → draft_format: 'opinion'
  *   set-release / default → draft_format: 'news'
  *   Rebrickable API signals (source_type='api') → null (skip drafting — catalogue data, not editorial)
  *
- * Idempotent: pending_drafts has UNIQUE INDEX on source_url.
- * Re-running classify-signals never duplicates rows.
+ * Opinion is NOT produced here (Nav & Content Overhaul, 2026-08-09) — it's a
+ * deterministic fortnightly branch, not a reactive classification. See
+ * scripts/radar/opinion-cadence.js, which runs as the next step in
+ * radar.yml and reclassifies one of THIS run's 'news' rows to 'opinion' on
+ * a 14-day cycle, preferring one that matches opinion-signal.js's
+ * OPINION_RE (the regex this file used to use as an autonomous trigger).
+ *
+ * Idempotency note: pending_drafts has NO unique constraint on source_url
+ * (dropped by migration 20260503120000_pending_drafts_iteration.sql to
+ * allow multiple iteration rows per source — see CLAUDE.md). The line that
+ * used to claim a UNIQUE INDEX enforced this was wrong as of that
+ * migration; re-running this script safely avoids duplicates only via the
+ * fetchExistingUrls() pre-check below (a real, working guard — just an
+ * application-level one, not a DB constraint).
  *
  * Usage:
  *   node scripts/radar/classify-signals.js --dry-run
@@ -77,8 +88,6 @@ function scoreSignal(signal) {
 const COMMUNITY_RE  = /\b(moc|ama|weekly|thread|discussion|question|help|advice|tips?|haul|showcase|share|digest|round.?up|headline|contest)\b/i;
 // review signals: hands-on, verdict, rating
 const REVIEW_RE     = /\b(review|verdict|worth it|hands.?on|unboxing|rating|tested|first.?impression|in.?depth)\b/i;
-// opinion signals: editorials, comparisons, rankings
-const OPINION_RE    = /\b(opinion|editorial|why|should you|is it worth|best|worst|top \d|ranked|ranking|vs\.?|versus|compar(ed?|ing)|argument)\b/i;
 
 function classifyFormat(signal) {
   // Rebrickable API = structured catalogue data — skip drafting (not editorial)
@@ -89,9 +98,9 @@ function classifyFormat(signal) {
   // Community check first — skip these entirely
   if (COMMUNITY_RE.test(t)) return null;
 
-  // Specificity order: review > opinion > news (default)
+  // Specificity order: review > news (default). Opinion is deliberately not
+  // classified here — see opinion-cadence.js.
   if (REVIEW_RE.test(t))  return 'review';
-  if (OPINION_RE.test(t)) return 'opinion';
   return 'news';
 }
 
@@ -163,7 +172,10 @@ async function writeDrafts(drafts) {
   let countSkippedFiller   = 0;
   let countQueued          = 0;
   let countAutoApproved    = 0;
-  const byFormat           = { news: 0, review: 0, opinion: 0 };
+  // No 'opinion' key here — classifyFormat() can no longer produce it (see
+  // opinion-cadence.js), so a permanently-zero counter would be misleading
+  // rather than informative.
+  const byFormat           = { news: 0, review: 0 };
   const drafts             = [];
   const fillerDrafts       = [];
 
@@ -276,7 +288,7 @@ async function writeDrafts(drafts) {
     ` skipped_filler=${countSkippedFiller}` +
     ` queued=${countQueued}` +
     ` (auto_approved=${countAutoApproved} needs_approval=${countQueued - countAutoApproved})` +
-    ` (news=${byFormat.news} review=${byFormat.review} opinion=${byFormat.opinion})` +
+    ` (news=${byFormat.news} review=${byFormat.review})` +
     ` duration=${dur}s` +
     (DRY_RUN ? ' [DRY-RUN]' : '')
   );
