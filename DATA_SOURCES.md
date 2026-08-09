@@ -122,10 +122,14 @@ Stored as `sets.image_url` during catalogue sync. No separate image pipeline.
 
 ## 6. Article and review content
 
-**Tables:** `news_articles`, `blog_posts`, `reviews`
-**Source:** Primarily pipeline-generated via `scripts/generate-approved-drafts.ts` (Gemini 2.5 Flash-Lite primary; Cerebras gpt-oss-120b failover). Operator reviews signals in `/admin/pending` and approves for generation. Some content (guides, opinion posts, manual reviews) is hand-authored by Abhinav.
+**Tables:** `news_articles` (includes Opinion, `category='Opinion'`), `guides`, `reviews`. `blog_posts` is dormant since the Nav & Content Overhaul (2026-08-09) — Blog/Opinion retired as standalone sections, its rows copied into `guides`/`news_articles`, nothing writes to it anymore. Left in place, not deleted, as a rollback net.
+**Source:** Pipeline-generated via `scripts/generate-approved-drafts.ts` (Gemini 2.5 Flash-Lite primary; Cerebras gpt-oss-120b failover) for all four formats (`news`/`review`/`opinion`/`guide`) — this was previously true only for news/review; guides and opinion are now also pipeline-driven, not hand-authored:
+  - **Guides:** weekly topic queue (`scripts/radar/guide-topics.js` backlog + `queue-weekly-guide.js`, Thu 04:20 UTC) queues one `pending_drafts` row/week; the existing daily generator picks it up. Monthly staleness guard (`guide-staleness-guard.js`) flags stale-looking guides into `content_quality_issues` — never auto-corrects.
+  - **Opinion:** deterministic 14-day cadence (`scripts/radar/opinion-cadence.js`, runs after RADAR-03 in `radar.yml`) reclassifies one of that day's News candidates to Opinion, preferring a naturally opinion-shaped one (`opinion-signal.js`'s `OPINION_RE`, no longer an autonomous trigger) and falling back to the strongest general candidate + an explicit forced-take prompt instruction otherwise. Logs which path fired to `opinion_cadence_log`.
+  - **News/Review:** unchanged — RADAR-01→03 (`fetch-rss.js`/`dedupe-signals.js`/`classify-signals.js`) classify and queue from `raw_signals`; Reviews sourced separately via the MyBrickHouse/Toycra direct pipeline (`reviews-source-refresh.mjs`).
+Operator reviews low-confidence signals in `/admin/pending` and approves for generation; auto-approve-tier sources and both new pipelines above self-approve.
 **Format:** Markdown (stored as plain text — rendered server-side via `react-markdown`)
-**Refresh:** `generate-approved-drafts.ts` runs daily at 08:30 UTC on approved `pending_drafts` rows. `publish-drafts.yml` auto-publishes lint-passing drafts 3×/day or operator publishes manually via `/admin/pending`.
+**Refresh:** `generate-approved-drafts.ts` runs daily at 08:30 UTC on approved `pending_drafts` rows regardless of format. `publish-drafts.yml` auto-publishes lint-passing drafts 3×/day or operator publishes manually via `/admin/pending`.
 
 ---
 
