@@ -554,9 +554,9 @@
 <!-- =================================================================== -->
 <script id="boi-data" type="application/json">{
   "meta": {
-    "lastUpdated": "2026-07-09",
+    "lastUpdated": "2026-08-09",
     "trackerVersion": "v1.6",
-    "currentSprint": "Full evidence-based tracker reconciliation run (triggered by a Road Bike miscount): every claimed-done item this session re-verified against live repo/DB state, not conversation history. All confirmed except explicitly-flagged known-open backlog. 2 previously-unlogged VID-P4 pipeline commits (930f8198, ce3fbb80) found on origin/main and logged for the first time. See BOI_MASTER_TRACKER.md Evidence-based reconciliation section for full detail."
+    "currentSprint": "Nav & Content Overhaul: Blog/Opinion retired (redirected + migrated into guides/news_articles), Guides weekly pipeline + Opinion fortnightly cadence built, featured_videos mechanism, News/Reviews image-fallback root-cause fix. PR #22, squash-merged 311b13b. Full detail in BOI_MASTER_TRACKER.md top section."
   },
   "kpis": {
     "healthScore": 85,
@@ -1754,6 +1754,27 @@
       "mode": "manual",
       "owner": "Abhinav",
       "notes": "Same review pass as other API key/access audits"
+    },
+    {
+      "feature": "Guides weekly topic queue",
+      "frequency": "Weekly (Thu 04:20 UTC)",
+      "mode": "auto",
+      "owner": "GitHub Actions — generate-guide-weekly.yml",
+      "notes": "Queues one pending_drafts row (draft_format=guide) from scripts/radar/guide-topics.js backlog; existing daily generate-drafts.yml cron generates+publishes it. No new generation infra."
+    },
+    {
+      "feature": "Guides staleness guard",
+      "frequency": "Monthly (1st, 04:20 UTC)",
+      "mode": "auto",
+      "owner": "GitHub Actions — guide-staleness-monthly.yml",
+      "notes": "Flags oldest guides with stale-looking price/date patterns into content_quality_issues for manual review. Never auto-corrects."
+    },
+    {
+      "feature": "Opinion fortnightly cadence branch",
+      "frequency": "Daily check, acts every 14th cycle",
+      "mode": "auto",
+      "owner": "GitHub Actions — radar.yml (RADAR-03b step)",
+      "notes": "scripts/radar/opinion-cadence.js. Deterministic day-count check; reclassifies one of that days queued News candidates to Opinion. Logs to opinion_cadence_log."
     }
   ]
 }</script>
