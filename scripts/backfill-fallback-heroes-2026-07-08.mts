@@ -55,7 +55,7 @@ for (const table of ['news_articles', 'blog_posts'] as const) {
   console.log(`[${table}] ${articles.length} articles on fallback\n`);
 
   for (const art of articles) {
-    const resolved = await resolveYouTubeHeroImage(art.title, art.content);
+    const resolved = await resolveYouTubeHeroImage(art.title, art.content, sb);
 
     if (resolved) {
       rescueCount++;
