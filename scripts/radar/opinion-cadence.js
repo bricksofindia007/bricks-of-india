@@ -36,7 +36,12 @@
  * not a second reclassification.
  *
  * Usage:
- *   node scripts/radar/opinion-cadence.js [--dry-run]
+ *   node scripts/radar/opinion-cadence.js [--dry-run] [--force]
+ *
+ * --force bypasses the day-count check only (still respects the
+ * idempotency guard against opinion_cadence_log — running --force twice
+ * the same day is still a no-op the second time). For manually proving the
+ * mechanism works end-to-end without waiting on the calendar.
  */
 
 require('dotenv').config({ path: '.env.local' });
@@ -44,6 +49,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { looksLikeOpinion } = require('./opinion-signal');
 
 const DRY_RUN = process.argv.includes('--dry-run');
+const FORCE = process.argv.includes('--force');
 
 const SUPABASE_URL         = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -92,9 +98,12 @@ async function logCadence(cycleDate, path, extra = {}) {
   const cycleDate = new Date().toISOString().slice(0, 10); // UTC date
   const isOpinionDay = cycleDayNumber % CADENCE_DAYS === 0;
 
-  if (!isOpinionDay) {
+  if (!isOpinionDay && !FORCE) {
     console.log(`Not an Opinion day (day ${cycleDayNumber} % ${CADENCE_DAYS} = ${cycleDayNumber % CADENCE_DAYS}) — skipping.`);
     return;
+  }
+  if (!isOpinionDay && FORCE) {
+    console.log(`Not naturally an Opinion day (day ${cycleDayNumber} % ${CADENCE_DAYS} = ${cycleDayNumber % CADENCE_DAYS}) — proceeding anyway (--force).`);
   }
 
   // Idempotency guard — a manual workflow_dispatch re-run on the same UTC
@@ -109,11 +118,19 @@ async function logCadence(cycleDate, path, extra = {}) {
     return;
   }
 
-  // Candidate pool: today's freshly-classified 'news' rows, not yet generated.
+  // Candidate pool: today's freshly-classified 'news' rows, not yet
+  // generated, and STILL ELIGIBLE (status IN draft/approved). Confirmed
+  // live 2026-08-09: without the status filter, this picked up a same-day
+  // row classify-signals.js had already rejected as filler
+  // (status='rejected', a Brickset "Random X of the day" item) and
+  // "reclassified" a dead row to opinion while a real, still-eligible
+  // candidate (status='draft') sat right next to it, unpicked. A rejected
+  // row is not a candidate — it's already been decided.
   const { data: candidates, error: candErr } = await sb
     .from('pending_drafts')
     .select('id, source_url, source_title, status, created_at')
     .eq('draft_format', 'news')
+    .in('status', ['draft', 'approved'])
     .is('draft_body', null)
     .gte('created_at', `${cycleDate}T00:00:00Z`);
   if (candErr) throw candErr;

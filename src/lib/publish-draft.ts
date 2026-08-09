@@ -56,11 +56,19 @@ const HERO_FALLBACK   = '/fallback-hero.png';
 // confirmed live) always end up here: they have no set to resolve a real
 // product image from. The old behavior fell through to the same generic
 // HERO_FALLBACK used for genuine resolution failures on a real set — this
-// asset instead honestly signals "this is community content", and is an
-// original composition (mascots + brand assets), never a rehosted
+// asset instead honestly signals "this is community/fan content", and is
+// an original composition (mascots + brand assets), never a rehosted
 // third-party photo. Scoped to news_articles only (see resolveHeroImage) —
 // Guides/Reviews have different shapes and keep the generic fallback.
-const COMMUNITY_SPOTLIGHT_FALLBACK = '/community-spotlight-fallback.png';
+//
+// Named lego-news-fallback.png, not community-spotlight-fallback.png
+// (renamed 2026-08-09, Abhinav) — "Community Spotlight" is the actual
+// /community section's own name/branding; reusing it on News cards made
+// News look like it was Community content. This asset is also only
+// reached after matchLocalSetByTitle() (see resolveYouTubeHeroImage) gets
+// a chance at a real image first — it's the true last resort, not the
+// first thing tried for a set_number-less article.
+const NEWS_FALLBACK_ASSET = '/lego-news-fallback.png';
 
 const EDITORIAL_CDN_BLOCKLIST = new Set([
   'static1.squarespace.com',       // New Elementary
@@ -328,8 +336,74 @@ async function themeVerifiedMatch(themeId: number | undefined, searchedKeyword: 
   return names.some(n => n.toLowerCase() === keywordLower || n.toLowerCase().includes(keywordLower));
 }
 
-// Two valid paths only, per the 2026-07-08 root-cause fix — no image match
-// is ever accepted on keyword overlap alone:
+// Third-tier fallback (2026-08-09, follow-up to §7 of the Nav & Content
+// Overhaul): for articles with NO set_number candidate and NO
+// LEGO_THEME_KEYWORDS hit, check whether a real, already-catalogued set's
+// NAME appears in the title -- e.g. a fan-MOC article discussing a just-
+// released official set by name ("LEGO X-Files Sets Land, But MOC
+// Community Already Building More") rather than a formatted number.
+// Uses our own `sets` table (already-verified image_url data), not a live
+// Rebrickable/Brickset search -- confirmed live 2026-08-09 that the two
+// examples which DID resolve a real image without a set_number did so
+// because their own source_url was itself a Brickset page (the generic
+// fetchOgImage() step succeeded before ever reaching this chain), not via
+// any title-search mechanism -- this tier is a genuinely new capability,
+// not a reproduction of an existing one.
+//
+// Deliberately conservative, same "don't guess" discipline as
+// isDisallowedRebrickableSet/themeVerifiedMatch above:
+//   - candidate names have a leading "The"/"A"/"An" stripped, then must
+//     appear as a whole-word-bounded substring of the title (not fuzzy)
+//   - excludes the same non-model categories as isDisallowedRebrickableSet,
+//     plus 'Promotional' -- confirmed live 2026-08-09: a set literally
+//     named "Building" (theme=Promotional) false-matched "...Already
+//     Building More" before this exclusion was added
+//   - the stripped name must be multi-word OR contain a non-letter
+//     character (hyphen/digit) -- excludes generic single dictionary
+//     words ("Building") while allowing genuine distinctive single-token
+//     names ("X-Files")
+//   - only used if it resolves to exactly ONE candidate; multiple matches
+//     means don't guess, same as every other ambiguous case in this chain
+// Substring-matched against the candidate's theme, same style as
+// DISALLOWED_REBRICKABLE_THEMES/isDisallowedRebrickableSet above (a real
+// Rebrickable/local theme string like "Gear & Accessories" needs substring
+// matching, not exact-equality, to be caught).
+const LOCAL_MATCH_DISALLOWED_THEMES = [...DISALLOWED_REBRICKABLE_THEMES, 'promotional'];
+
+async function matchLocalSetByTitle(
+  title: string | null,
+  supabase: SupabaseClient,
+): Promise<{ set_number: string; image_url: string } | null> {
+  if (!title) return null;
+  const { data } = await supabase
+    .from('sets')
+    .select('set_number, name, image_url, theme')
+    .not('image_url', 'is', null)
+    .gte('year', 2024);
+  const rows = (data ?? []) as { set_number: string; name: string; image_url: string; theme: string | null }[];
+
+  const matches: { set_number: string; image_url: string }[] = [];
+  for (const row of rows) {
+    const themeLower = (row.theme ?? '').toLowerCase();
+    if (LOCAL_MATCH_DISALLOWED_THEMES.some(bad => themeLower.includes(bad))) continue;
+    const stripped = row.name.replace(/^(The|A|An)\s+/i, '').trim();
+    if (stripped.length < 6) continue;
+    const wordCount = stripped.split(/\s+/).length;
+    const isDistinctiveSingleToken = wordCount === 1 && /[^a-zA-Z ]/.test(stripped);
+    if (wordCount < 2 && !isDistinctiveSingleToken) continue;
+    const escaped = stripped.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (new RegExp(`\\b${escaped}\\b`, 'i').test(title)) {
+      matches.push({ set_number: row.set_number, image_url: row.image_url });
+    }
+  }
+
+  if (matches.length !== 1) return null; // 0 or >1 candidates -- don't guess
+  return matches[0];
+}
+
+// Three valid paths, per the 2026-07-08 root-cause fix (tiers 1-2) plus the
+// 2026-08-09 local-catalog addition (tier 3) — no image match is ever
+// accepted on keyword overlap alone:
 //   1. Article has a set_number (via extractSetNumberCandidates' precise
 //      contextual patterns — "LEGO 1234", "#1234", "(1234)", etc. — NOT a
 //      blind scan of every 4-6 digit number in free text, which picks up
@@ -339,11 +413,16 @@ async function themeVerifiedMatch(themeId: number | undefined, searchedKeyword: 
 //   2. Article has no set_number (MOC, roundup, editorial) → theme-keyword
 //      search is allowed, but a hit is only accepted if its own Rebrickable
 //      theme (themeVerifiedMatch) actually corresponds to the searched
-//      keyword. If nothing verifies, the honest fallback placeholder is the
-//      correct outcome, not a failure state.
+//      keyword.
+//   3. Neither of the above resolved → matchLocalSetByTitle() checks
+//      whether a real, already-catalogued set's own name appears in the
+//      title (word-bounded, conservative — see its own comment). If
+//      nothing verifies at any tier, the honest fallback placeholder is
+//      the correct outcome, not a failure state.
 export async function resolveYouTubeHeroImage(
   title: string | null,
   body: string | null,
+  supabase: SupabaseClient,
 ): Promise<string | null> {
   const rbKey  = process.env.REBRICKABLE_API_KEY;
   const rbHdrs: Record<string, string> = { 'User-Agent': UA, ...(rbKey ? { Authorization: `key ${rbKey}` } : {}) };
@@ -400,7 +479,13 @@ export async function resolveYouTubeHeroImage(
     } catch { /* fall through */ }
   }
 
-  console.log('[publish:hero] no image resolved via Rebrickable chain');
+  const localMatch = await matchLocalSetByTitle(title, supabase);
+  if (localMatch) {
+    console.log(`[publish:hero] local catalog title match → set ${localMatch.set_number} → ${localMatch.image_url.slice(0, 70)}`);
+    return localMatch.image_url;
+  }
+
+  console.log('[publish:hero] no image resolved via Rebrickable chain or local catalog title match');
   return null;
 }
 
@@ -420,14 +505,30 @@ export async function resolveHeroImage(
   table: string,
   supabase: SupabaseClient,
 ): Promise<string> {
-  let heroImage = await fetchOgImage(sourceUrl);
+  // Guide-format drafts (§5) use a synthetic same-site source_url
+  // (https://bricksofindia.com/guides#topic-<slug>) since there's no real
+  // external article to fetch an image from. Confirmed live 2026-08-09:
+  // the #fragment is never sent to the server, so this "succeeds" by
+  // fetching our own live /guides page and scraping ITS og:image (the
+  // site-wide default, /assets/og-image.jpg) -- a bland but technically-
+  // valid-looking result, not the honest "no image at source" this chain
+  // is supposed to detect. Never attempt fetchOgImage() against our own
+  // domain; go straight to the Rebrickable/local-catalog chain instead.
+  const isOwnDomainUrl = (() => {
+    try { return new URL(sourceUrl).hostname.replace(/^www\./, '') === 'bricksofindia.com'; }
+    catch { return false; }
+  })();
 
-  if (YOUTUBE_SRC_RE.test(sourceUrl) || (heroImage !== null && YOUTUBE_IMG_RE.test(heroImage))) {
+  let heroImage = isOwnDomainUrl ? null : await fetchOgImage(sourceUrl);
+  if (isOwnDomainUrl) {
+    console.log('[publish:hero] source_url is our own site (synthetic guide topic marker) — skipping OG fetch, running Rebrickable/local-catalog chain');
+    heroImage = await resolveYouTubeHeroImage(draftTitle, draftBody ?? sourceTitle, supabase);
+  } else if (YOUTUBE_SRC_RE.test(sourceUrl) || (heroImage !== null && YOUTUBE_IMG_RE.test(heroImage))) {
     console.log('[publish:hero] YouTube source — running Rebrickable fallback chain');
-    heroImage = await resolveYouTubeHeroImage(draftTitle, draftBody ?? sourceTitle);
+    heroImage = await resolveYouTubeHeroImage(draftTitle, draftBody ?? sourceTitle, supabase);
   } else if (isEditorialCDN(heroImage)) {
     console.log(`[publish:hero] editorial CDN blocked (${heroImage ? new URL(heroImage).hostname : 'unknown'}) — running Rebrickable fallback chain`);
-    heroImage = await resolveYouTubeHeroImage(draftTitle, draftBody ?? sourceTitle);
+    heroImage = await resolveYouTubeHeroImage(draftTitle, draftBody ?? sourceTitle, supabase);
   }
 
   // HTTP check on whatever we have (skip for already-local paths like a
@@ -479,7 +580,7 @@ export async function resolveHeroImage(
   // table) keeps the generic HERO_FALLBACK exactly as before.
   if (table === 'news_articles') {
     const hasSetNumber = extractSetNumberCandidates(`${draftTitle ?? ''} ${sourceTitle ?? ''} ${draftBody ?? ''}`).length > 0;
-    if (!hasSetNumber) return COMMUNITY_SPOTLIGHT_FALLBACK;
+    if (!hasSetNumber) return NEWS_FALLBACK_ASSET;
   }
   return HERO_FALLBACK;
 }
