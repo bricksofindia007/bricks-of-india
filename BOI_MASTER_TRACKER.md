@@ -667,6 +667,7 @@ actually needed, rather than pointing two sessions at one working tree.
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
+| DASH-01 | `admin/dashboard.html` full reconciliation with tracker | 🟡 Deferred (Abhinav, 2026-08-09) | `meta.lastUpdated` was `2026-07-09` (a month behind the tracker) before the Nav & Content Overhaul session, which patched `meta`/`cadence` for its own 3 new jobs but did not do a full pass. Internal tracking artifact, not user-facing — explicitly not worth a standalone session. Pick up next time this file is open for something else. |
 | CATALOG-05 | Theme backfill — older sets missing from theme pages | 🔴 Not started | Depends on full sync completing all 27 pages (Rebrickable daily quota currently limits one-shot runs). |
 | DATA-01 | Reconcile `store_prices` (scraper) ↔ `prices` (frontend) | ✅ Done 2026-05-09 | commit `9ced905`. /sets, /sets/page/[page], /compare all now read store_prices. Price filter on /compare operates on live store prices. DEFECT-009 logged. |
 | ADMIN-CLEANUP-01 | Remove Netlify legacy secrets from GitHub Secrets (NETLIFY_AUTH_TOKEN, NETLIFY_SITE_ID) | 🟡 Deferred | Noted "LEGACY — pending removal in ADMIN-CLEANUP-01" in `.env.example` (commit 4a39ca5). Netlify is still the origin host so removing now is low-risk but not urgent. |
