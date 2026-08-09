@@ -14,8 +14,6 @@ const NAV_LINKS = [
   { href: '/deals',      label: 'Deals'      },
   { href: '/reviews',    label: 'Reviews'    },
   { href: '/news',       label: 'News'       },
-  { href: '/blog',       label: 'Blog'       },
-  { href: '/opinion',    label: 'Opinion'    },
   { href: '/guides',     label: 'Guides'     },
   { href: '/community',  label: 'Community'  },
   // '/shareables' temporarily removed (2026-08-08) -- page content isn't

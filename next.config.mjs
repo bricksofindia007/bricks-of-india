@@ -7,6 +7,32 @@ const nextConfig = {
         destination: '/compare',
         permanent: true,
       },
+      // Nav & Content Overhaul, 2026-08-09 -- Blog/Opinion retired as
+      // standalone sections; blog_posts rows migrated into guides (non-
+      // Opinion categories) and news_articles (Opinion, category='Opinion').
+      // Old page components deliberately left in place, unrouted, as a
+      // rollback path (see CLAUDE.md-documented past-migration convention)
+      // -- these redirects are what actually makes them unreachable.
+      {
+        source: '/blog/:slug',
+        destination: '/guides/:slug',
+        permanent: true,
+      },
+      {
+        source: '/blog',
+        destination: '/guides',
+        permanent: true,
+      },
+      {
+        source: '/opinion/:slug',
+        destination: '/news/:slug',
+        permanent: true,
+      },
+      {
+        source: '/opinion',
+        destination: '/news',
+        permanent: true,
+      },
       {
         source: '/sets/page/1',
         destination: '/sets',

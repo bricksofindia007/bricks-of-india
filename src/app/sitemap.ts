@@ -13,7 +13,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/deals`, priority: 0.9 },
     { url: `${base}/reviews`, priority: 0.8 },
     { url: `${base}/news`, priority: 0.8 },
-    { url: `${base}/blog`, priority: 0.8 },
     { url: `${base}/lab`, priority: 0.8 },
     { url: `${base}/lab/biryani-index`, priority: 0.7 },
     { url: `${base}/lab/which-set`, priority: 0.7 },
@@ -26,7 +25,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/compare`, priority: 0.9 },
     { url: `${base}/themes`, priority: 0.8 },
     { url: `${base}/guides`, priority: 0.8 },
-    { url: `${base}/opinion`, priority: 0.8 },
     { url: `${base}/community`, priority: 0.8 },
     { url: `${base}/about`, priority: 0.6 },
     { url: `${base}/contact`, priority: 0.5 },
@@ -73,14 +71,12 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: s.index_tier === 'tier1' ? 0.8 : 0.5,
   }));
 
-  // Blog posts
-  const { data: posts } = await supabase.from('blog_posts').select('slug, published_at');
-  const blogPages = (posts || []).map((p: any) => ({
-    url: `${base}/blog/${p.slug}`,
-    lastModified: new Date(p.published_at),
-    changeFrequency: 'weekly' as const,
-    priority: 0.7,
-  }));
+  // blog_posts is now dormant (Nav & Content Overhaul, 2026-08-09) — every
+  // row was copied into guides or news_articles, and /blog + /opinion now
+  // 301 to their new homes. Deliberately NOT sitemapped from here anymore:
+  // listing a URL that permanently redirects is the exact "Page with
+  // redirect" GSC issue this project already fixed once (see §GSC-02). The
+  // migrated content is sitemapped below via guidePages/newsPages instead.
 
   // News articles
   const { data: news } = await supabase.from('news_articles').select('slug, published_at');
@@ -109,17 +105,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.8,
   }));
 
-  // Opinion posts
-  const { data: opinions } = await supabase
-    .from('blog_posts')
-    .select('slug, published_at')
-    .eq('category', 'Opinion');
-  const opinionPages = (opinions || []).map((p: any) => ({
-    url: `${base}/opinion/${p.slug}`,
-    lastModified: new Date(p.published_at),
-    changeFrequency: 'weekly' as const,
-    priority: 0.7,
-  }));
+  // Opinion no longer has a dedicated section or listing page — pieces
+  // publish into news_articles (category='Opinion') and are already
+  // included via newsPages above.
 
   // Community spotlights
   const { data: spotlights } = await supabase
@@ -133,5 +121,5 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     priority: 0.7,
   }));
 
-  return [...staticPages, ...setPages, ...blogPages, ...newsPages, ...reviewPages, ...guidePages, ...opinionPages, ...communityPages];
+  return [...staticPages, ...setPages, ...newsPages, ...reviewPages, ...guidePages, ...communityPages];
 }

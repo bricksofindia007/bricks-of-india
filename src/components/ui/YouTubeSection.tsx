@@ -4,23 +4,6 @@ import { useState } from 'react';
 import Image from 'next/image';
 import { BRAND } from '@/lib/brand';
 
-// Replace video IDs as needed. Find ID from: https://www.youtube.com/@BricksofIndia
-// URL: https://www.youtube.com/watch?v=ABC123XYZ  ->  ID is "ABC123XYZ"
-const VIDEOS = [
-  {
-    id: 'V2RuwgOANPA',
-    title: 'BRAD PITT in LEGO?! The RAREST Speed Champions F1 Set Review 77252',
-  },
-  {
-    id: 'KVj4n5CQqmQ',
-    title: 'Mission LEGO Impossible: My Craziest LEGO Hunt Ever for Retired Sets!',
-  },
-  {
-    id: '72_6dwxsd3o',
-    title: 'This Tiny LEGO Car Is a Trap — F1 Academy Mini Car Speed Champions #30734',
-  },
-];
-
 function PlayIcon() {
   return (
     <svg className="w-6 h-6 text-white ml-1" fill="currentColor" viewBox="0 0 24 24">
@@ -107,8 +90,19 @@ function VideoModal({ videoId, onClose }: ModalProps) {
   );
 }
 
-export function YouTubeSection() {
+interface YouTubeSectionProps {
+  // Sourced from the featured_videos table (§4, Nav & Content Overhaul,
+  // 2026-08-09) — replaces the old hardcoded 3-video array. Abhinav updates
+  // picks directly via Supabase; no code change needed to swap videos.
+  videos: { youtube_video_id: string; title: string }[];
+}
+
+export function YouTubeSection({ videos }: YouTubeSectionProps) {
   const [activeVideo, setActiveVideo] = useState<string | null>(null);
+
+  if (videos.length === 0) return null;
+
+  const cards = videos.map((v) => ({ id: v.youtube_video_id, title: v.title }));
 
   return (
     <>
@@ -122,7 +116,7 @@ export function YouTubeSection() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-5 mb-10">
-            {VIDEOS.map((video) => (
+            {cards.map((video) => (
               <VideoCard key={video.id + video.title} video={video} onPlay={setActiveVideo} />
             ))}
           </div>

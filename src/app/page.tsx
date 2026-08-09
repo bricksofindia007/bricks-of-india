@@ -46,7 +46,7 @@ async function getHomepageData() {
   }
   const dealSetNums = Object.keys(dealPriceMap);
 
-  const [setsRes, reviewsRes, newsRes, blogRes, setsCountRes, newsCountRes, reviewsCountRes] = await Promise.allSettled([
+  const [setsRes, reviewsRes, newsRes, guidesRes, featuredVideosRes, setsCountRes, newsCountRes, reviewsCountRes] = await Promise.allSettled([
     dealSetNums.length > 0
       ? supabase
           .from('sets')
@@ -65,10 +65,23 @@ async function getHomepageData() {
       .select('*')
       .order('published_at', { ascending: false })
       .limit(3),
+    // Nav & Content Overhaul (2026-08-09): "GUIDES & OPINION" replaced with
+    // a genuine Latest Guides section pulling the merged guides table (was:
+    // blog_posts, unfiltered -- never actually guaranteed Opinion content,
+    // and none of guides' own 9 rows ever appeared here). Opinion no longer
+    // gets a dedicated homepage block -- it surfaces inline in Latest News
+    // below (news_articles is queried unfiltered by category already, so
+    // Opinion rows appear there automatically once migrated).
     supabase
-      .from('blog_posts')
-      .select('*')
+      .from('guides')
+      .select('slug, title, category, excerpt, content, featured_image_url, published_at')
       .order('published_at', { ascending: false })
+      .limit(3),
+    supabase
+      .from('featured_videos')
+      .select('youtube_video_id, title')
+      .eq('is_active', true)
+      .order('display_order', { ascending: true })
       .limit(3),
     supabase.from('sets').select('*', { count: 'exact', head: true }),
     supabase.from('news_articles').select('*', { count: 'exact', head: true }),
@@ -80,12 +93,29 @@ async function getHomepageData() {
   const reviewsCount = reviewsCountRes.status === 'fulfilled' ? (reviewsCountRes.value.count ?? 0) : 0;
   const sets = setsRes.status === 'fulfilled' ? ((setsRes.value as any).data || []) : [];
 
+  const guides = guidesRes.status === 'fulfilled' ? ((guidesRes.value as any).data || []) : [];
+  // Normalize to ArticleCard's CardArticle shape: featured_image_url ->
+  // hero_image (the field guides pages actually render, see
+  // src/app/guides/page.tsx), nullable content/excerpt coalesced to '' —
+  // readingTime()/stripMarkdown() both call string methods directly with
+  // no null guard.
+  const guideCards = guides.map((g: any) => ({
+    slug: g.slug,
+    title: g.title,
+    category: g.category ?? 'Guide',
+    excerpt: g.excerpt ?? '',
+    content: g.content ?? '',
+    hero_image: g.featured_image_url ?? null,
+    published_at: g.published_at,
+  }));
+
   return {
     sets,
     dealPriceMap,
     reviews: reviewsRes.status === 'fulfilled' ? (reviewsRes.value.data || []) : [],
     news: newsRes.status === 'fulfilled' ? (newsRes.value.data || []) : [],
-    blog: blogRes.status === 'fulfilled' ? (blogRes.value.data || []) : [],
+    guides: guideCards,
+    featuredVideos: featuredVideosRes.status === 'fulfilled' ? ((featuredVideosRes.value as any).data || []) : [],
     setsCount,
     newsCount,
     reviewsCount,
@@ -93,7 +123,7 @@ async function getHomepageData() {
 }
 
 export default async function HomePage() {
-  const { sets, dealPriceMap, reviews, news, blog, setsCount, newsCount, reviewsCount } = await getHomepageData();
+  const { sets, dealPriceMap, reviews, news, guides, featuredVideos, setsCount, newsCount, reviewsCount } = await getHomepageData();
 
   return (
     <div className="bg-white">
@@ -400,22 +430,22 @@ export default async function HomePage() {
         </section>
       )}
 
-      {/* LATEST BLOG */}
-      {blog.length > 0 && (
+      {/* LATEST GUIDES */}
+      {guides.length > 0 && (
         <section className="py-12 px-4">
           <div className="max-w-site mx-auto">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h2 className="font-heading text-dark text-4xl">GUIDES &amp; OPINION</h2>
-                <p className="text-text-secondary text-sm mt-1">Buying guides, hot takes, and LEGO wisdom.</p>
+                <h2 className="font-heading text-dark text-4xl">LATEST GUIDES</h2>
+                <p className="text-text-secondary text-sm mt-1">Buying guides, how-tos, and LEGO wisdom.</p>
               </div>
-              <Link href="/blog" className="text-primary font-bold hover:underline text-sm">
-                All posts →
+              <Link href="/guides" className="text-primary font-bold hover:underline text-sm">
+                All guides →
               </Link>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-              {blog.map((post: any) => (
-                <ArticleCard key={post.id} article={post} type="blog" />
+              {guides.map((guide: any) => (
+                <ArticleCard key={guide.slug} article={guide} type="guides" />
               ))}
             </div>
           </div>
@@ -426,7 +456,7 @@ export default async function HomePage() {
       <YoutubeStrip />
 
       {/* YOUTUBE */}
-      <YouTubeSection />
+      <YouTubeSection videos={featuredVideos} />
 
       {/* INSTAGRAM */}
       <section className="py-10 px-4 bg-surface">

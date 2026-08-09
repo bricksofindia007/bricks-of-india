@@ -1,0 +1,71 @@
+name: generate-guide-weekly
+
+# §5, Nav & Content Overhaul (2026-08-09) — weekly Guides topic queue.
+# Queues ONE pending_drafts row (draft_format='guide') from
+# scripts/radar/guide-topics.js; the existing daily generate-drafts.yml
+# cron (08:30 UTC) generates and auto-publishes it, same gates/failover as
+# every other format. This workflow does no generation itself.
+#
+# Schedule: Thursday 04:20 UTC. Checked against every existing cron in this
+# repo before picking this slot (2026-08-09): dailies sit at 00:00/00:30/
+# 01:30/02:30/03:00/06:00/06:30/07:30/08:30/12:00/12:30/17:30/18:00/19:00,
+# plus hourly pollers at minutes :00/:15/:17 every hour. Weeklies sit at
+# Mon 02:30/03:00/03:30/04:00/05:00, Wed 03:30/05:00, Sun 02:00. Thursday
+# 04:20 overlaps none of them.
+
+on:
+  schedule:
+    - cron: '20 4 * * 4'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (print what would be queued, skip the insert)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  queue:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Queue next Guides topic
+        id: queue
+        continue-on-error: true
+        run: node scripts/radar/queue-weekly-guide.js ${{ inputs.dry_run == true && '--dry-run' || '' }}
+
+      - name: Send failure alert
+        if: steps.queue.outcome == 'failure'
+        continue-on-error: true
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL:    ${{ secrets.BRIEF_EMAIL }}
+          WORKFLOW_NAME:  generate-guide-weekly
+          STEP_OUTCOMES:  '{"Queue next Guides topic": "${{ steps.queue.outcome }}"}'
+        run: node scripts/workflow-failure-notify.mjs
+
+      - name: Fail job if queue step failed
+        if: always()
+        run: |
+          if [ "${{ steps.queue.outcome }}" = "failure" ]; then
+            echo "::error::queue-weekly-guide.js failed — see step log above; alert email already sent"
+            exit 1
+          fi
+          echo "queue-weekly-guide.js completed successfully."

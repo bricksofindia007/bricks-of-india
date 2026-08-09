@@ -14,6 +14,8 @@ export type DraftGenerationInput = {
   fullBody?: string | null;
   sourceExcerpt: string | null;
   indiaPriceContext: string;
+  // Opinion fortnightly cadence fallback path — see draft-prompt.ts.
+  forceOpinionTake?: boolean;
 };
 
 export type GenerationOutcome = {

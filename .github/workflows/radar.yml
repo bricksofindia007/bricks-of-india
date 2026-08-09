@@ -39,6 +39,15 @@ jobs:
       - name: RADAR-03 — classify + queue to pending_drafts
         run: node scripts/radar/classify-signals.js
 
+      # RADAR-03b (Nav & Content Overhaul, 2026-08-09) — deterministic
+      # fortnightly Opinion cadence. Runs every day; only acts on the 14th
+      # cycle (see scripts/radar/opinion-cadence.js for the day-check and
+      # idempotency guard). Must run after RADAR-03 in the same job so it
+      # can reclassify one of THIS run's freshly-queued 'news' rows before
+      # tomorrow's 08:30 UTC generate-drafts.yml run ever sees it.
+      - name: RADAR-03b — fortnightly Opinion cadence branch
+        run: node scripts/radar/opinion-cadence.js
+
       # RADAR-08 (scripts/radar-08-reviews.js) removed from this cron
       # 2026-07-30 — reviews are now sourced exclusively by
       # scripts/reviews-source-refresh.mjs (.github/workflows/reviews-weekly-refresh.yml),

@@ -51,6 +51,16 @@ export const UA = 'BricksOfIndia-RadarBot/1.0 (+https://bricksofindia.com)';
 const YOUTUBE_SRC_RE = /youtube\.com|youtu\.be/i;
 const YOUTUBE_IMG_RE = /ytimg\.com|yt3\.ggpht\.com|youtube\.com\/vi\//i;
 const HERO_FALLBACK   = '/fallback-hero.png';
+// §7, Nav & Content Overhaul (2026-08-09) — News articles with no
+// set_number (fan-MOC / community-repost content, ~253 of 286 rows,
+// confirmed live) always end up here: they have no set to resolve a real
+// product image from. The old behavior fell through to the same generic
+// HERO_FALLBACK used for genuine resolution failures on a real set — this
+// asset instead honestly signals "this is community content", and is an
+// original composition (mascots + brand assets), never a rehosted
+// third-party photo. Scoped to news_articles only (see resolveHeroImage) —
+// Guides/Reviews have different shapes and keep the generic fallback.
+const COMMUNITY_SPOTLIGHT_FALLBACK = '/community-spotlight-fallback.png';
 
 const EDITORIAL_CDN_BLOCKLIST = new Set([
   'static1.squarespace.com',       // New Elementary
@@ -175,13 +185,18 @@ export function generateSlug(title: string): string {
     .slice(0, 60);
 }
 
-// MEDIUM-38 (fixed 2026-06-28): opinion -> '/opinion', not '/blog'. Verified
-// live: src/app/blog/page.tsx excludes category='Opinion' from its own
-// listing; src/app/opinion/page.tsx requires it. '/blog' would have published
-// successfully but been orphaned — unreachable from any listing page.
+// Nav & Content Overhaul (2026-08-09): Blog/Opinion retired as standalone
+// sections. Opinion now publishes straight into news_articles with
+// category='Opinion' (fortnightly cadence, see scripts/radar's generation
+// cron) — same table/route News already uses, tagged for inline display.
+// blog_posts is now a dormant, no-longer-written-to table (rollback net for
+// the migrated rows only) — nothing resolves to it anymore. Supersedes
+// MEDIUM-38 (2026-06-28), which had fixed the opinion path to '/opinion' —
+// that fix's own reasoning (don't publish somewhere unreachable/orphaned)
+// is exactly why this table also had to change, not just the path.
 export function resolveTarget(format: string): { table: string; path: string; category: string } {
   if (format === 'guide')   return { table: 'guides',   path: '/guides',  category: 'Guide'   };
-  if (format === 'opinion') return { table: 'blog_posts', path: '/opinion', category: 'Opinion' };
+  if (format === 'opinion') return { table: 'news_articles', path: '/news', category: 'Opinion' };
   // MEDIUM-13/AUDIT-NEW-3 (decided 2026-07-05): future review-format drafts
   // route to the dedicated `reviews` table + /reviews/[slug], not /news. The
   // 36 already-published /news reviews stay where they are — not migrated.
@@ -454,8 +469,19 @@ export async function resolveHeroImage(
     }
   }
 
-  // Final, unconditional floor: every published row gets an image.
-  return heroImage || HERO_FALLBACK;
+  if (heroImage) return heroImage;
+
+  // Final, unconditional floor: every published row gets an image. News
+  // articles with no set_number (fan-MOC/community content, confirmed the
+  // dominant root cause of News fallback cases 2026-08-09) get the honest
+  // Community Spotlight asset instead of the generic fallback — everything
+  // else (a real set whose image resolution genuinely failed, or any other
+  // table) keeps the generic HERO_FALLBACK exactly as before.
+  if (table === 'news_articles') {
+    const hasSetNumber = extractSetNumberCandidates(`${draftTitle ?? ''} ${sourceTitle ?? ''} ${draftBody ?? ''}`).length > 0;
+    if (!hasSetNumber) return COMMUNITY_SPOTLIGHT_FALLBACK;
+  }
+  return HERO_FALLBACK;
 }
 
 // ── Lint summary (for alerts / logs) ──────────────────────────────────────────
@@ -622,6 +648,10 @@ export type PublishableDraft = {
   source_excerpt: string | null;
   lint_result?: LintResult | null;
   updated_at?: string | null;
+  // Guide-format category override (§5, Nav & Content Overhaul, 2026-08-09)
+  // — see the category-resolution comment in publishOneDraft. Undefined for
+  // every other format.
+  draft_category?: string | null;
   // Retailer source pipeline (2026-07-30) — present only for review-format
   // drafts sourced from scripts/reviews-source-refresh.mjs, undefined for
   // every other draft (RADAR news/opinion/guide, and legacy RADAR reviews).
@@ -694,7 +724,15 @@ export async function publishOneDraft(
   }
 
   const format = draft.draft_format || 'news';
-  const { table, path, category } = resolveTarget(format);
+  const { table, path, category: defaultCategory } = resolveTarget(format);
+  // Guide-format category comes from the topic backlog (queue-weekly-
+  // guide.js writes pending_drafts.draft_category) — resolveTarget's fixed
+  // 'Guide' alone would collapse every guide into a bucket that matches
+  // none of /guides' 5 real filter chips (lego-101/Buying Guides/How-To/
+  // Gift Guides/Value Picks, see §2). News/Opinion/Review never populate
+  // this column, so they fall straight through to resolveTarget's fixed
+  // category exactly as before -- unaffected by this.
+  const category = draft.draft_category || defaultCategory;
   const title    = draft.draft_title || draft.source_title || 'Untitled';
   const baseSlug = generateSlug(title);
 
@@ -794,6 +832,13 @@ export async function publishOneDraft(
         title, slug, content: linkedBody, category, excerpt,
         published_at: now, seo_title: title, seo_description: excerpt,
         hero_image: heroImage,
+        // guides reads featured_image_url exclusively (see src/app/guides/
+        // page.tsx and [slug]/page.tsx) -- hero_image exists on that table
+        // too but nothing displays it. Writing both keeps them in sync,
+        // same pattern the blog_posts->guides migration itself uses.
+        // Harmless no-op column for news_articles (no featured_image_url
+        // there to insert into).
+        ...(table === 'guides' ? { featured_image_url: heroImage } : {}),
         ...(reviewVerdict ? { verdict: reviewVerdict } : {}),
         ...(reviewSetNumber ? { set_number: reviewSetNumber } : {}),
       };

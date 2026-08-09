@@ -189,9 +189,16 @@ export async function gateOpenerUniqueness(
   }
 
   try {
-    const [newsRes, blogRes] = await Promise.all([
+    // Nav & Content Overhaul (2026-08-09): blog_posts is now dormant (no
+    // format resolves there anymore, see publish-draft.ts resolveTarget) --
+    // checking it here would compare against a corpus that stops growing,
+    // increasingly useless for catching REUSE of a RECENT template. Swapped
+    // for guides, since §5 turns on weekly Guides generation through this
+    // same gate for the first time and it needs the same opener-uniqueness
+    // protection news/review/opinion already had.
+    const [newsRes, guidesRes] = await Promise.all([
       sb.from('news_articles').select('content').order('created_at', { ascending: false }).limit(30),
-      sb.from('blog_posts').select('content').order('created_at', { ascending: false }).limit(30),
+      sb.from('guides').select('content').order('published_at', { ascending: false }).limit(30),
     ]);
 
     // A query error is infrastructure failure, not "no duplicates". Do not
@@ -199,14 +206,14 @@ export async function gateOpenerUniqueness(
     // read), but do NOT silently pass either — surface a warn so the gate
     // state is visible in lint_result telemetry. (Was: bare catch → pass:ok,
     // i.e. fully fail-open and invisible. 2026-07-02 audit item.)
-    if (newsRes.error || blogRes.error) {
-      const msg = newsRes.error?.message ?? blogRes.error?.message ?? 'unknown';
+    if (newsRes.error || guidesRes.error) {
+      const msg = newsRes.error?.message ?? guidesRes.error?.message ?? 'unknown';
       return { pass: true, severity: 'warn', reason: `gate 8 corpus query failed — duplicate check DEGRADED to batch-only: ${msg}` };
     }
 
     const rows: string[] = [
       ...((newsRes.data ?? []).map((r: { content: string }) => r.content)),
-      ...((blogRes.data ?? []).map((r: { content: string }) => r.content)),
+      ...((guidesRes.data ?? []).map((r: { content: string | null }) => r.content ?? '')),
     ];
 
     for (const row of rows) {
