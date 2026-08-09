@@ -556,7 +556,7 @@
   "meta": {
     "lastUpdated": "2026-08-09",
     "trackerVersion": "v1.6",
-    "currentSprint": "Nav & Content Overhaul: Blog/Opinion retired (redirected + migrated into guides/news_articles), Guides weekly pipeline + Opinion fortnightly cadence built, featured_videos mechanism, News/Reviews image-fallback root-cause fix. PR #22, squash-merged 311b13b. Full detail in BOI_MASTER_TRACKER.md top section."
+    "currentSprint": "Nav & Content Overhaul follow-up (PR #23): image-retry tier (matchLocalSetByTitle) before News fallback, community-spotlight-fallback.png renamed to lego-news-fallback.png, opinion-cadence.js status-filter bug fixed, guide own-domain OG-image bug fixed. Both Opinion and Guides pipelines proven end-to-end with real published articles. Plus: clinic standee PDF delivered + corrected (docs/brand/). Full detail in BOI_MASTER_TRACKER.md top section."
   },
   "kpis": {
     "healthScore": 85,
@@ -816,6 +816,26 @@
       "status": "closed",
       "priority": "P2",
       "affects": "Brand recognition"
+    },
+    {
+      "id": "DEFECT-021",
+      "issue": "scripts/radar/opinion-cadence.js candidate query never filtered by status -- could reclassify an already-rejected (filler) row instead of a genuinely eligible one",
+      "rootCause": "Query selected pending_drafts WHERE draft_format=news AND draft_body IS NULL AND created_at>=today, with no status filter. Confirmed live 2026-08-09 via a forced (--force) end-to-end test: it picked a same-day row classify-signals.js had already rejected as filler (Brickset \"Random X of the day\" pattern, status=rejected) while a real eligible candidate (status=draft) sat right next to it, unpicked.",
+      "solution": "Added .in(\"status\", [\"draft\",\"approved\"]) to the candidate query. Reverted the bad test write, re-ran clean -- correctly selected the eligible candidate, reclassified, generated, and published live (/news/lego-doctor-doom-bust-76345-is-this-13800-display-piece-wort).",
+      "deployedOn": "2026-08-09",
+      "status": "closed",
+      "priority": "P2",
+      "affects": "Opinion fortnightly cadence mechanism (§6, Nav & Content Overhaul)"
+    },
+    {
+      "id": "DEFECT-022",
+      "issue": "resolveHeroImage() scraped our own site's generic default OG image for guide-format drafts instead of honestly finding no image at source",
+      "rootCause": "Guide-format drafts use a synthetic same-site source_url (bricksofindia.com/guides#topic-<slug>) since there is no real external article. The #fragment is never sent to the server, so fetchOgImage() \"succeeded\" by fetching our own live /guides page and scraping its site-wide default og:image (/assets/og-image.jpg) -- a bland but technically-valid-looking result. Caught on the first real Guides pipeline run.",
+      "solution": "resolveHeroImage() now skips fetchOgImage() entirely when source_url is our own domain, going straight to the Rebrickable/local-catalog chain. Corrected the already-published row (guides id 24) from og-image.jpg to the honest generic /fallback-hero.png.",
+      "deployedOn": "2026-08-09",
+      "status": "closed",
+      "priority": "P2",
+      "affects": "Guides weekly pipeline (§5, Nav & Content Overhaul)"
     }
   ],
   "pipeline": [

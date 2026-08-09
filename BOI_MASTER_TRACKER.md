@@ -36,6 +36,36 @@
 
 **Not done this session, flagged not hidden:** `admin/dashboard.html`'s `meta.lastUpdated`/`cadence` were updated for this session's new automated jobs, but the dashboard's broader drift from this tracker (`meta.lastUpdated` was `2026-07-09` before this session, a month behind the tracker's actual content) predates this session and was not fully reconciled — out of scope for this build, noted for a future pass.
 
+### Follow-up — image-retry tier, asset rename, 2 real pipeline bugs found via forced end-to-end proof (PR #23, 2026-08-09)
+
+**Trigger:** Abhinav reviewing the delivered summary — asked for the actual domain breakdown behind "48 hotlinked URLs, 100% fan/community" (not a paraphrase) and for the Opinion/Guides mechanisms to be proven with real before/after rows, not just described as built.
+
+**Domain breakdown, confirmed clean:** `images.squarespace-cdn.com` (30, BrickNerd's own CDN), `live.staticflickr.com` (10, individual builders' Flickr), `media-cdn.brothers-brick.com` (8, Brothers Brick's own CDN). 30+10+8=48. Zero Brickset/Rebrickable (the two real catalog sources). Confirmed against `config/sources.json`'s actual RSS URLs, not assumed.
+
+**News image fallback — real retry before falling back, not just a rename.** Investigated the 6 rows published 2026-08-08 ~09:11 UTC that got the fallback asset: 2 of the 6 turned out to reference a real, already-catalogued official set by NAME only (no formatted set number in the title) — the chain had no way to try that. Added a 3rd tier to `resolveYouTubeHeroImage()` (`matchLocalSetByTitle`, `src/lib/publish-draft.ts`): checks whether a real set's own name (leading "The"/"A"/"An" stripped) appears word-bounded in the article title, against our own `sets` table. Deliberately conservative — validated in SQL before shipping and caught its own false positive first (a set literally named "Building", theme=Promotional, matched "...Already Building More"; excluded before this ever ran for real). Re-ran the actual pipeline function (not reimplemented) against the 6 real rows: "LEGO X-Files Sets Land, But MOC Community Already Building More" now resolves set 21369's real image; the other 5 (genuine fan MOCs + a Build-a-Minifigure lineup with no single catalogued set) correctly still resolve nothing. Wired into the pipeline itself, not just this one-time fix.
+
+**Renamed `community-spotlight-fallback.png` → `lego-news-fallback.png`** (new neutral asset, no third-party photography) — "Community Spotlight" is the real `/community` section's own name/branding; reusing it on News cards made News look like Community content (Abhinav's call). 6 retried rows + 161 more straight-renamed, all News rows now off the retired filename. Old asset left in place, unreferenced — still original art, may suit an actual future `/community` placeholder need.
+
+**Bug 1 — `opinion-cadence.js` candidate query never filtered by `status`.** Found by forcing a real end-to-end run (`--force` flag added) rather than trusting the design: it picked up a same-day row `classify-signals.js` had *already rejected* as filler (Brickset "Random X of the day" pattern) while a real, still-eligible candidate sat right next to it, unpicked. Reverted the bad write, fixed the query (`.in('status', ['draft','approved'])`), re-ran clean. Pushed the corrected run all the way to a real published article: `/news/lego-doctor-doom-bust-76345-is-this-13800-display-piece-wort` (category=Opinion, `opinion_forced_take=true`, real gate-passed content, live now).
+
+**Bug 2 — `resolveHeroImage()` scraped our own site's generic OG image for guide-format drafts.** Guides use a synthetic same-site `source_url` (`bricksofindia.com/guides#topic-<slug>`, no real external source exists). The `#fragment` isn't sent to the server, so `fetchOgImage()` "succeeded" by fetching our own live `/guides` page and grabbing its default `og:image` — a bland but technically-valid-looking result, not the honest "no image at source" the chain is supposed to detect. Caught on the very first real Guides pipeline run: `resolveHeroImage()` now skips `fetchOgImage()` entirely for our own domain. Corrected the already-published row (`guides` id 24) from `og-image.jpg` to the honest generic `/fallback-hero.png`. Real published proof: `/guides/lego-duplo-vs-lego-classic-which-bricks-are-right-for-your-t` (category=Buying Guides, live now).
+
+**Both weekly/fortnightly mechanisms proven queued → generated → published against real production data**, not just triggered — see PR #23 commit message for full before/after values on every row touched.
+
+**Verification:** `npm run build` clean, `tsc --noEmit` clean, 96/96 tests, both checks passed on PR #23, deployed, both new live articles + the renamed asset spot-checked on production post-deploy.
+
+---
+
+## Clinic waiting-room standee — print-ready PDF, 2026-08-09
+
+Not a web-pipeline change — a physical marketing collateral deliverable, noted here for continuity/discoverability only. Full detail lives in [[project_boi_state]] (memory) and the delivered files themselves.
+
+Single-page 4×6in / 300 DPI PDF built via a pure-Pillow raster pipeline (no HTML/CSS/WeasyPrint, per an explicit hard requirement — a prior WeasyPrint-based attempt silently corrupted the QR's fine modules). Real assets used throughout: `public/mascots/blue-fig-pointing.png`, `assets/fonts/Lato-Regular.ttf`/`Lato-Italic.ttf`, Fredoka (Google Font, downloaded — the project's actual chunky display font, not Baloo 2 as the original spec assumed). QR generated fresh via Python `qrcode` (error correction Q), composited via direct pixel paste (zero resampling), decode-verified from the actual final exported file via pyzbar — exact string match confirmed twice (initial delivery and again after a same-day content-only correction pass).
+
+**Correction pass, same day:** two CSS-value regressions against a signed-off reference file (`boi-standee-v3-onbrand_6.html`) — `.prescribed-headline` had shipped red instead of the reference's `#006CB7` blue; `.disclaimer-label` ("DISCLAIMER") was missing entirely, needed `#E4231C` bold uppercase, matched to the reference's literal hex rather than the project's existing (close but not identical, `#E3000B`) brand red. Both fixed, layout re-balanced for a 2px overflow the fix introduced, QR re-verified from the corrected final file (unaffected — the QR bitmap region itself was never touched by either fix, confirmed rather than assumed).
+
+**Delivered:** `docs/brand/bricksofindia-clinic-standee-4x6-300dpi.pdf` + `...-preview.png` (same path, redeployed in place across both passes).
+
 ---
 
 
