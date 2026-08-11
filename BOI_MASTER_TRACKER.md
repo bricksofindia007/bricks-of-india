@@ -1,5 +1,25 @@
 # BOI Master Tracker
 
+## Minifig HQ rebuild + Community relocation — 2026-08-11
+
+**Trigger:** terminal prompt (prescribed build from chat-session Claude) — rename/reposition CMF Tracker to a top-nav page "Minifig HQ", relocate Community out of the top nav into The Lab, strip all ownership-tracking UI from the CMF page, add a click-to-enlarge lightbox, and swap the figure image source to Brickset where available. **Branch `feat/minifig-hq`, not yet merged** — PR open, awaiting review/merge per this task's own "one push to main only, once verified" instruction. Nothing in this entry has touched `main` yet.
+
+**Nav:** `Navbar.tsx`'s `NAV_LINKS` swaps `{ href: '/community', label: 'Community' }` for `{ href: '/minifig-hq', label: 'Minifig HQ' }` in the same array position — top nav count unchanged at 9 (Sets, Themes, Deals, Reviews, News, Guides, Minifig HQ, The Lab, About). `LAB_TOOLS` (`src/lib/lab-tools.ts`, the single source for both `/lab`'s card grid and the Lab dropdown menu) drops the `cmf-tracker` entry and gains a `community` entry pointing at the existing, untouched `/community` route.
+
+**Minifig HQ:** new top-level route `/minifig-hq` (`src/app/minifig-hq/{page.tsx,MinifigHq.tsx}`), not nested under `/lab` — it's a promoted top-nav feature now, not a Lab tool. Old `src/app/lab/cmf-tracker/{page.tsx,CmfTracker.tsx}` left in place, unrouted — same rollback-path convention as the Blog/Opinion retirement (2026-08-09 entry above). `next.config.mjs` gets a permanent redirect `/lab/cmf-tracker` → `/minifig-hq`. `<title>`/meta description/H1 deliberately keep "CMF"/"Collectible Minifigures" explicit for search even though the nav label is "Minifig HQ".
+
+**Tracking stripped, lightbox added:** the old page's ownership checkboxes, "X of Y collected / %" progress bar, Reset button, and "Progress resets on refresh" footer copy are all gone — it was already state-only (`useState`, no `localStorage` ever existed to remove). Clicking a figure now opens a modal (larger image, name, figure number `#71052-N`), closes on backdrop click / close button / Escape.
+
+**Image source swap (Supabase directly, no Netlify involvement):** `cmf_figures.image_url` had only ever come from Rebrickable's small thumbnails (`scripts/sync-cmf-figures.mjs`). Checked Brickset's coverage for individual figure numbers first (HEAD requests against `https://images.brickset.com/sets/images/{figure_number}.jpg`, same pattern as `scripts/populate-article-images.mjs`) across a sample spanning Series 1 (2010) to Series 29 (2026) — full 200 coverage — before committing to the migration. New `image_source` column (migration `20260811000000_cmf_figures_image_source.sql`, applied live via Supabase MCP). Ran `scripts/sync-cmf-figure-images-brickset.mjs` for real against all 427 rows: **427/427 now on Brickset, 0 Rebrickable fallbacks needed, 0 write failures** — confirmed by direct follow-up query, not the script's own log line.
+
+**Netlify Deploy Preview question (explicitly asked in the task):** confirmed, not assumed — this repo's `deploy.yml` only triggers on `push: branches: [main]` (no `pull_request` trigger exists), and `netlify.toml`'s own git-integration build is already disabled (`ignore = "exit 0"`, documented in-file since 2026-07-05). A PR/branch push cannot trigger a Netlify build of any kind here, preview or otherwise — nothing needed disabling.
+
+**Verified locally (`next build && next start` against real Supabase data, not just `next build`):** all 29 series load; 0 occurrences of `collected`/`Reset`/`Progress resets on refresh` in the rendered HTML; `/lab/cmf-tracker` returns a real `308` to `/minifig-hq`; `/community` renders with **zero diff** from before this work; desktop nav markup extracted and confirmed to be exactly the 9 items listed above, no `Community` entry; `/lab`'s card grid confirmed to list `Community` (not `CMF Tracker`) alongside the other 7 live tools.
+
+**Incidental finding, flagged not fixed (out of scope for this task):** `netlify.toml`'s own comment block documents `BRICKSET_API_KEY` as powering "the Brickset image fallback chain in SetImage and ImageWithFallback components" — but neither component actually references that env var; `SetImage.tsx`'s own code comment confirms its Brickset step uses "the public CDN, no API key needed." The env var is real and used elsewhere (`populate-mrp.js`, `technical-hygiene.mjs`), just not for image fallback as documented. Stale doc comment, not a functional bug — noted here rather than silently left for the next person to trip over.
+
+---
+
 ## Nav & Content Overhaul — 2026-08-09
 
 **Trigger:** terminal prompt (prescribed build from chat-session Claude) — retire Blog/Opinion as standalone sections, build a Guides weekly content pipeline, an Opinion fortnightly cadence, a `featured_videos` mechanism, and fix the News/Reviews image-fallback root cause. PR #22, squash-merged as `311b13b`. Full detail in the commit message; summarized here.

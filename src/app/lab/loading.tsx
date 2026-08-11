@@ -5,8 +5,10 @@ export default function Loading() {
         <div className="h-8 w-40 bg-gray-200 rounded-lg mb-6" />
 
         {/* Lab tool card grid skeleton -- also covers data-heavy sub-tools
-            (cmf-tracker, price-drops, retiring-soon, heat-map, etc.) since
-            this loading.tsx cascades to the whole /lab/* subtree. */}
+            (price-drops, retiring-soon, heat-map, etc.) since this
+            loading.tsx cascades to the whole /lab/* subtree. Minifig HQ
+            (formerly cmf-tracker) moved out to a top-level route,
+            2026-08-11 -- no longer part of this subtree. */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {Array.from({ length: 6 }).map((_, i) => (
             <div key={i} className="rounded-2xl border-2 border-border p-6 space-y-3">

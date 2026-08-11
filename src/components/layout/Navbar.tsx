@@ -15,7 +15,7 @@ const NAV_LINKS = [
   { href: '/reviews',    label: 'Reviews'    },
   { href: '/news',       label: 'News'       },
   { href: '/guides',     label: 'Guides'     },
-  { href: '/community',  label: 'Community'  },
+  { href: '/minifig-hq', label: 'Minifig HQ' },
   // '/shareables' temporarily removed (2026-08-08) -- page content isn't
   // ready yet (see src/app/shareables/page.tsx's SHAREABLES_LIVE flag).
   // Re-add this entry when that flag flips back to true.

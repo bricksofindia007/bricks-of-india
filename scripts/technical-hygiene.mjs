@@ -145,7 +145,7 @@ const ROUTES = [
   '/lab',
   '/lab/budget-calculator',
   '/lab/retiring-soon',
-  '/lab/cmf-tracker',
+  '/minifig-hq',
   '/lab/price-drops',
   '/lab/deals',
   '/lab/which-set',

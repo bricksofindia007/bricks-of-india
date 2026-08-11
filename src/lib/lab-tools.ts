@@ -65,11 +65,11 @@ export const LAB_TOOLS: LabTool[] = [
     status: "live",
   },
   {
-    id: "cmf-tracker",
-    name: "CMF Tracker",
-    emoji: "🧍",
-    tagline: "Every Collectible Minifigures series from 2020–2026. Check off what you own.",
-    href: "/lab/cmf-tracker",
+    id: "community",
+    name: "Community",
+    emoji: "🧑‍🤝‍🧑",
+    tagline: "Spotlights, builds, and stories from Indian LEGO fans.",
+    href: "/community",
     status: "live",
   },
   {

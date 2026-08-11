@@ -20,8 +20,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/lab/deals`, priority: 0.7 },
     { url: `${base}/lab/budget-calculator`, priority: 0.7 },
     { url: `${base}/lab/retiring-soon`, priority: 0.7 },
-    { url: `${base}/lab/cmf-tracker`, priority: 0.7 },
     { url: `${base}/lab/price-drops`, priority: 0.7 },
+    { url: `${base}/minifig-hq`, priority: 0.8 }, // graduated to a top-nav page, 2026-08-11 — no longer a /lab tool
     { url: `${base}/compare`, priority: 0.9 },
     { url: `${base}/themes`, priority: 0.8 },
     { url: `${base}/guides`, priority: 0.8 },

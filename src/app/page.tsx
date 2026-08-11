@@ -275,7 +275,7 @@ export default async function HomePage() {
 
             {/* CMF tracker — clickable */}
             <Link
-              href="/lab/cmf-tracker"
+              href="/minifig-hq"
               className="rounded-xl px-4 py-4 text-center transition-opacity hover:opacity-80"
               style={{ border: '2px solid #1a2332', background: 'rgba(26,35,50,0.10)' }}
             >
