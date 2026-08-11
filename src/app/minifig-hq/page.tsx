@@ -7,8 +7,16 @@ import { MinifigHq } from './MinifigHq';
 // description, and the on-page H1 deliberately keep "CMF" / "Collectible
 // Minifigures" explicit for search — the nav rename doesn't change what
 // people actually search for.
+//
+// No trailing "| Bricks of India" here — the root layout's
+// title.template ("%s | Bricks of India") appends it automatically.
+// Confirmed live (2026-08-11): several existing pages (e.g. /deals,
+// /reviews) already double it up by including their own suffix on top
+// of the template — a real, pre-existing, site-wide title bug, flagged
+// separately rather than fixed here (18 files affected, out of scope for
+// this build).
 export const metadata: Metadata = {
-  title: 'Minifig HQ — LEGO CMF Collectible Minifigures Guide | Bricks of India',
+  title: 'Minifig HQ — LEGO CMF Collectible Minifigures Guide',
   description: 'Browse every LEGO Collectible Minifigures (CMF) series from 2010–2026 — every figure, every series, with enlargeable images.',
   alternates: { canonical: 'https://bricksofindia.com/minifig-hq' },
 };
