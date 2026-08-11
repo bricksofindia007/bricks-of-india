@@ -38,6 +38,16 @@ const nextConfig = {
         destination: '/sets',
         permanent: true,
       },
+      // Minifig HQ rebuild, 2026-08-11 -- CMF Tracker promoted from a
+      // /lab tool to its own top-nav page. Old page component
+      // deliberately left in place at src/app/lab/cmf-tracker/, unrouted
+      // (this redirect takes priority over the route match) -- same
+      // rollback-path convention as the Blog/Opinion retirement above.
+      {
+        source: '/lab/cmf-tracker',
+        destination: '/minifig-hq',
+        permanent: true,
+      },
       // Duplicate-article cleanup, 2026-07-08 (VERDICT-RULE-01 / duplicate_title
       // backlog) -- these 5 news_articles rows were deleted as duplicates.
       // Selection rule: real image beats fallback image regardless of slug
