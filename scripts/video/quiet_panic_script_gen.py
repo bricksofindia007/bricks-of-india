@@ -116,6 +116,47 @@ def _gemini_pace() -> None:
 #   binding constraint in the normal case -- the per-segment cap exists
 #   specifically to catch the single-segment-blowout failure mode the
 #   total cap alone missed.
+#
+# PRICE-SEGMENT DYNAMIC CAP (2026-08-12, added after Aston Martin Aramco
+# AMR25 F1 Car (#42240, Rs.24,999) failed all 5 script-gen attempts --
+# words converged 23/18/17/17/17, plateauing 1 word over the total cap,
+# never landing under it): the flat PER_SEGMENT_WORD_CAP=7 above was
+# derived from exactly two calibration prices (Rs.7,499 and Rs.9,999),
+# both under Rs.10,000 -- it silently assumed every real price's spoken
+# form fits in 7 words. It doesn't. price_to_words(24999) + " rupees" is
+# "twenty four thousand nine hundred ninety nine rupees" -- 8 words,
+# because the thousands group itself needs two words ("twenty four")
+# once the price crosses into five figures with a non-round remainder.
+# Confirmed by sweeping every integer price Rs.1,000-99,999 through
+# price_to_words(): EVERY price under Rs.21,121 fits in <=7 words with no
+# exception; from Rs.21,121 up, 58.3% of prices need 8 words. (The two
+# five-digit reference scripts in REFERENCE_SCRIPTS above, Rs.34,900 and
+# Rs.6,900, dodge this only because they're round numbers with no
+# tens/ones remainder -- coincidence, not evidence 5-digit prices are
+# safe.) Since the price phrase is a HARD GATE reproduced verbatim (see
+# PRICE TOKEN rule below) -- the model cannot shorten it without failing
+# a *different*, non-negotiable check -- a flat 7-word cap on whichever
+# segment carries that phrase is not a difficult target, it is a
+# mathematically impossible one for ~46,656 of the 79,000 integer prices
+# >= Rs.20,000. No amount of retrying, feedback, or prompt tuning closes
+# a gap that isn't there to close -- this is exactly why AMR25's segment
+# carrying the price sat at a CONSTANT 8 words across attempts 1, 3, 4,
+# and 5 (matching price_to_words(24999)'s length exactly) while every
+# other segment visibly improved attempt over attempt.
+#   Fix (see check_word_budget()): compute the real price-phrase word
+#   count from price_inr at check time; whichever voice:true segment
+#   actually contains that exact phrase gets a per-segment cap of
+#   max(PER_SEGMENT_WORD_CAP, price_phrase_words) instead of the flat
+#   constant. Every other segment keeps the normal 7-word cap unchanged
+#   -- this does not loosen the check for the failure mode it was built
+#   to catch (a single non-price segment eating the whole budget), only
+#   for the one segment where going over 7 is unavoidable by
+#   construction. TOTAL_WORD_CAP is relaxed by the same, exact overage
+#   (see effective_total_cap in check_word_budget()) -- never more than
+#   the price phrase actually needs, so the TTS-duration calibration
+#   margin (see WORD_CEILING_DERIVATION above) stays intact for the
+#   common case and only gives up exactly as much slack as this one
+#   unavoidable segment requires.
 # ---------------------------------------------------------------------------
 
 TOTAL_WORD_CAP = 16
@@ -524,35 +565,73 @@ class VerdictReasonMissingError(PreTTSValidationError):
     fix."""
 
 
-def check_word_budget(segments: list) -> dict:
+def check_word_budget(segments: list, price_inr) -> dict:
     """Pre-TTS validation, zero ElevenLabs cost either way. Mirrors the
     {'pass', 'detail'} gate-dict shape used throughout generate_quiet_
     panic_video.py's post-render gates -- same philosophy, just against
     word counts instead of measured audio, and executed earlier. See the
-    TOTAL_WORD_CAP / PER_SEGMENT_WORD_CAP derivation comments above
-    PERSONA_RULES for the math."""
+    TOTAL_WORD_CAP / PER_SEGMENT_WORD_CAP / PRICE-SEGMENT DYNAMIC CAP
+    derivation comments above PERSONA_RULES for the math.
+
+    price_inr is required (not optional) -- the whole point of the
+    2026-08-12 fix is that the real per-segment/total budget depends on
+    this specific script's price, not just the two flat module
+    constants. See PRICE-SEGMENT DYNAMIC CAP above for why a flat
+    PER_SEGMENT_WORD_CAP=7 is mathematically unsatisfiable for a real
+    slice of realistic prices."""
+    price_phrase = (price_to_words(price_inr) + ' rupees').lower()
+    price_phrase_words = len(price_phrase.split())
+
     segment_words = [
         (i, len(seg['text'].split()))
         for i, seg in enumerate(segments)
         if seg.get('voice', True)
     ]
     total_words = sum(wc for _, wc in segment_words)
-    over_cap = [(i, wc) for i, wc in segment_words if wc > PER_SEGMENT_WORD_CAP]
+
+    # Best-effort: whichever voice:true segment actually contains the
+    # exact mandatory price phrase gets the dynamic cap below. If none
+    # matches (the model garbled or paraphrased the price token), that's
+    # the separate, unrelated gate_price_token failure downstream -- no
+    # segment gets an exemption here, same as before this fix.
+    price_segment_idx = next(
+        (i for i, seg in enumerate(segments)
+         if seg.get('voice', True) and price_phrase in seg['text'].lower()),
+        None
+    )
+    # Never LOWER than the flat cap -- this only ever widens the price
+    # segment's allowance to fit its own mandatory content, never
+    # tightens anything.
+    price_segment_cap = max(PER_SEGMENT_WORD_CAP, price_phrase_words)
+    effective_total_cap = TOTAL_WORD_CAP + max(0, price_phrase_words - PER_SEGMENT_WORD_CAP)
+
+    over_cap = []
+    for i, wc in segment_words:
+        cap = price_segment_cap if i == price_segment_idx else PER_SEGMENT_WORD_CAP
+        if wc > cap:
+            over_cap.append((i, wc, cap))
 
     problems = []
-    if total_words > TOTAL_WORD_CAP:
-        problems.append(f'total voice-word count {total_words} exceeds the {TOTAL_WORD_CAP}-word cap')
+    if total_words > effective_total_cap:
+        relax_note = (
+            f' (relaxed from {TOTAL_WORD_CAP} -- this price, Rs.{price_inr:,.0f}, needs a '
+            f'{price_phrase_words}-word spoken phrase)' if effective_total_cap != TOTAL_WORD_CAP else ''
+        )
+        problems.append(f'total voice-word count {total_words} exceeds the {effective_total_cap}-word cap{relax_note}')
     if over_cap:
-        detail = ', '.join(f'segment {i} ({wc}w)' for i, wc in over_cap)
-        problems.append(f'per-segment cap ({PER_SEGMENT_WORD_CAP}w) exceeded: {detail}')
+        detail = ', '.join(f'segment {i} ({wc}w, cap {cap}w)' for i, wc, cap in over_cap)
+        problems.append(f'per-segment cap exceeded: {detail}')
 
     return {
         'pass': not problems,
         'detail': '; '.join(problems) if problems else (
-            f'total {total_words}w (cap {TOTAL_WORD_CAP}), all voice segments <= {PER_SEGMENT_WORD_CAP}w'
+            f'total {total_words}w (cap {effective_total_cap}), all voice segments within their per-segment cap'
         ),
         'total_words': total_words,
         'segment_words': segment_words,
+        'price_segment_idx': price_segment_idx,
+        'price_phrase_words': price_phrase_words,
+        'effective_total_cap': effective_total_cap,
     }
 
 
@@ -662,7 +741,7 @@ def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) 
     segments = _extract_json_array(raw_text)
     _validate_segments(segments)
 
-    budget_check = check_word_budget(segments)
+    budget_check = check_word_budget(segments, candidate['price_inr'])
     if not budget_check['pass']:
         raise WordBudgetExceededError(budget_check['detail'], segments=segments, budget=budget_check)
 

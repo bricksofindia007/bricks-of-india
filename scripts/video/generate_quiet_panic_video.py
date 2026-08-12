@@ -931,7 +931,20 @@ def _build_word_cap_feedback(e: PreTTSValidationError) -> str:
     exact number of words that must come out, computed here in code (not
     trusted to the model), for a WordBudgetExceededError. Falls back to
     the plain string for any other PreTTSValidationError subclass (e.g.
-    VerdictReasonMissingError), which has no word-count data to cite."""
+    VerdictReasonMissingError), which has no word-count data to cite.
+
+    UPDATED 2026-08-12 (see PRICE-SEGMENT DYNAMIC CAP in quiet_panic_
+    script_gen.py): reads effective_total_cap and price_segment_idx from
+    the budget dict instead of the flat TOTAL_WORD_CAP/PER_SEGMENT_
+    WORD_CAP constants -- a real, provable bug in the PREVIOUS version of
+    this function, not just a missed optimization. AMR25 (#42240,
+    Rs.24,999) needs an 8-word price segment; the old feedback here would
+    have flagged that segment "OVER the per-segment cap" and told the
+    model to shorten it every single retry, even after the model
+    correctly reproduced the mandatory (hard-gated, verbatim) price
+    phrase -- actively fighting the model to break a DIFFERENT hard gate
+    (PRICE TOKEN) in order to satisfy this one. That is exactly the
+    unwinnable instruction that produced AMR25's real plateau."""
     budget = getattr(e, 'budget', None)
     if not budget:
         return (
@@ -940,23 +953,40 @@ def _build_word_cap_feedback(e: PreTTSValidationError) -> str:
         )
 
     total_words = budget['total_words']
-    overage = total_words - TOTAL_WORD_CAP
+    effective_total_cap = budget.get('effective_total_cap', TOTAL_WORD_CAP)
+    price_segment_idx = budget.get('price_segment_idx')
+    price_phrase_words = budget.get('price_phrase_words', PER_SEGMENT_WORD_CAP)
+    price_segment_cap = max(PER_SEGMENT_WORD_CAP, price_phrase_words)
+    overage = total_words - effective_total_cap
     seg_lines = []
     for i, wc in budget['segment_words']:
         text = e.segments[i].get('text', '') if e.segments and i < len(e.segments) else ''
-        flag = ' -- OVER the per-segment cap' if wc > PER_SEGMENT_WORD_CAP else ''
+        cap = price_segment_cap if i == price_segment_idx else PER_SEGMENT_WORD_CAP
+        flag = f' -- OVER its {cap}-word cap' if wc > cap else (
+            ' -- this is the mandatory price segment, do not shorten it' if i == price_segment_idx else ''
+        )
         seg_lines.append(f'segment {i} ({wc}w{flag}): "{text}"')
+
+    price_note = (
+        f' Segment {price_segment_idx} carries your mandatory price phrase '
+        f'({price_phrase_words} words) -- it is EXEMPT from the normal '
+        f'{PER_SEGMENT_WORD_CAP}-word cap up to {price_segment_cap} words '
+        'precisely because that phrase must be reproduced verbatim; do not '
+        'shorten or reword it to save words.' if price_segment_idx is not None
+        and price_segment_cap > PER_SEGMENT_WORD_CAP else ''
+    )
 
     return (
         f'AUTOMATIC RETRY after pre-TTS validation failure: your voice:true '
-        f'segments totaled {total_words} words against a {TOTAL_WORD_CAP}-word '
-        f'cap -- that is {overage} word(s) too many, and each voice:true '
-        f'segment must also stay at or under {PER_SEGMENT_WORD_CAP} words. '
+        f'segments totaled {total_words} words against a {effective_total_cap}-word '
+        f'cap -- that is {overage} word(s) too many. Every voice:true segment '
+        f'must stay at or under {PER_SEGMENT_WORD_CAP} words, EXCEPT the one '
+        f'carrying your mandatory price phrase.{price_note} '
         f'Your voice:true segments were exactly:\n' + '\n'.join(seg_lines) +
-        f'\nYou MUST cut at least {overage} word(s) total from these '
-        'segments -- shorten the longest one(s) first, and definitely any '
-        'segment flagged OVER above. Do not pad other segments to '
-        'compensate, and do not change any voice:false segment.'
+        f'\nYou MUST cut at least {overage} word(s) total from the segments '
+        'flagged OVER above -- shorten those, not the price segment. Do not '
+        'pad other segments to compensate, and do not change any '
+        'voice:false segment.'
     )
 
 
