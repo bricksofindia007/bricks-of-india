@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { getSecret } from '@/lib/get-secret';
+import { BRAND } from '@/lib/brand';
 
 /**
  * Reverse proxy for the BOI Growth Engine dashboard — a separately
@@ -19,9 +20,17 @@ import { getSecret } from '@/lib/get-secret';
  * job to attach correctly; the actual authentication decision (is this a
  * real logged-in admin?) happens right here, before anything is forwarded.
  *
- * This is the ONLY file this PR adds or changes. No modifications to
- * page.tsx, actions.ts, or any existing content-pipeline review
- * functionality on /admin/pending.
+ * EXCEPTION: /api/resend-webhook. Real bug found live (2026-08-12) when
+ * the webhook was first repointed at this proxied URL — Resend's server-
+ * to-server calls never carry a boi_admin cookie, so isAuthed() always
+ * failed and every real delivery got redirected to /admin/pending
+ * instead of ever reaching the growth-engine app. That path is excluded
+ * from the cookie check here, exactly mirroring how the growth-engine
+ * app's own middleware.ts already excludes it from ITS shared-secret
+ * check (it verifies via Resend's own Svix signature instead — see that
+ * file). This proxy still forwards the request through unchanged either
+ * way, cookie stripped, shared-secret header attached (harmless for the
+ * webhook path; the growth-engine app ignores that header there).
  */
 
 export const dynamic = 'force-dynamic';
@@ -32,8 +41,16 @@ function isAuthed(): boolean {
 }
 
 async function proxy(request: NextRequest): Promise<Response> {
-  if (!isAuthed()) {
-    return NextResponse.redirect(new URL('/admin/pending', request.url));
+  const isWebhook = new URL(request.url).pathname.endsWith('/api/resend-webhook');
+
+  if (!isWebhook && !isAuthed()) {
+    // Second real bug found the same day: new URL('/admin/pending',
+    // request.url) produced a redirect Location pointing at a raw
+    // Netlify deploy-preview origin, not bricksofindia.com — request.url
+    // reflects Netlify's internal request context here, not the public
+    // Host header, confirmed live via a real unauthenticated curl.
+    // Anchored to the real production domain explicitly instead.
+    return NextResponse.redirect(new URL('/admin/pending', BRAND.domain));
   }
 
   const targetBase = process.env.GROWTH_ENGINE_URL;
