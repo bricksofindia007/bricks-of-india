@@ -1,0 +1,42 @@
+name: Weekly Storage Cleanup (dry-run only)
+
+# Runs cleanup-published-assets.js in --dry-run mode on a weekly schedule so
+# the operator has a standing, visible signal of how much cleanup-eligible
+# storage has accumulated (posted_both/discarded video_posts rows, and
+# fully-posted-set shorts/reels/feed assets, per the 72h age guard the
+# script defaults to). Deliberately NOT wired to live deletion yet -- that's
+# a separate decision once a few dry-run cycles have been observed. This
+# workflow does not modify any other existing workflow, pipeline script, or
+# architecture; it only invokes cleanup-published-assets.js.
+#
+# Sunday 04:00 UTC -- checked against this repo's other schedules to avoid
+# collision: retiring-soon.yml (Sunday 02:00 UTC) and health-check.yml
+# (daily 02:30 UTC) are the only other things running that morning.
+on:
+  schedule:
+    - cron: '0 4 * * 0'
+  workflow_dispatch:
+
+jobs:
+  cleanup-dry-run:
+    name: Storage cleanup dry-run
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run cleanup-published-assets.js (dry-run)
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: node cleanup-published-assets.js --dry-run
