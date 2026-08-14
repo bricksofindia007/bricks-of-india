@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import type { CSSProperties } from 'react';
+import { unstable_cache } from 'next/cache';
 import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 
@@ -42,87 +43,118 @@ interface Props {
   searchParams: { store?: string; theme?: string; pct?: string };
 }
 
+// Real bug, found in a Netlify credit-usage audit (2026-08-14): this fetch
+// + computation (all store_prices, all 30-day price_history, every drop
+// across the whole catalogue) ran unconditionally on every request --
+// store/theme/pct only ever filtered the already-fully-computed result in
+// memory, so every request paid the full cost regardless of which (if any)
+// filter was active.
+//
+// Cached here, decoupled from searchParams entirely -- the cache key is
+// fixed, not derived from any filter, since the underlying computation
+// never depended on them in the first place.
+//
+// Revalidate window matches the REAL data cadence, checked directly, not
+// copied from /deals's 6h by assumption: store_prices and price_history --
+// the only two tables this page reads -- are both written exclusively by
+// scripts/scrape-now.mjs ("upserts store_prices and appends to
+// price_history", per that script's own docstring), run every 6 hours via
+// scrape-prices.yml's cron (`0 */6 * * *`). The separate daily
+// snapshot-prices.yml writes to price_snapshots, a table this page never
+// reads -- irrelevant to this cache. 6h landing on the same number as
+// /deals is a real coincidence, not a copy.
+const getPriceDropsData = unstable_cache(
+  async (): Promise<{ allRows: DropRow[]; allThemes: string[] }> => {
+    const supabase = createServerClient();
+    const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
+    const PAGE  = 1000;
+
+    // ── 1. Current prices from store_prices ──────────────────────────────────────
+    const currentMap = new Map<string, { price: number; scraped_at: string }>();
+    for (let offset = 0; ; offset += PAGE) {
+      const { data } = await supabase
+        .from('store_prices')
+        .select('set_id, store_id, price_inr, scraped_at')
+        .not('price_inr', 'is', null)
+        .range(offset, offset + PAGE - 1);
+      if (!data || data.length === 0) break;
+      for (const r of data as { set_id: string; store_id: string; price_inr: number; scraped_at: string }[]) {
+        currentMap.set(`${r.set_id}:${r.store_id}`, { price: r.price_inr, scraped_at: r.scraped_at });
+      }
+      if (data.length < PAGE) break;
+    }
+
+    // ── 2. Baseline prices: oldest 5 pages of price_history in the 30-day window ─
+    // Order ASC → first occurrence per (set_id, store_id) = oldest available price.
+    const baselineMap = new Map<string, number>();
+    for (let page = 0; page < 5; page++) {
+      const { data } = await supabase
+        .from('price_history')
+        .select('set_id, store_id, price_inr')
+        .gte('recorded_at', since)
+        .order('recorded_at', { ascending: true })
+        .range(page * PAGE, page * PAGE + PAGE - 1);
+      if (!data || data.length === 0) break;
+      for (const r of data as { set_id: string; store_id: string; price_inr: number }[]) {
+        const key = `${r.set_id}:${r.store_id}`;
+        if (!baselineMap.has(key)) baselineMap.set(key, r.price_inr);
+      }
+      if (data.length < PAGE) break;
+    }
+
+    // ── 3. Compute drops ──────────────────────────────────────────────────────────
+    type RawDrop = { set_id: string; store_id: string; old_price: number; new_price: number; drop_inr: number; drop_pct: number; scraped_at: string };
+    const rawDrops: RawDrop[] = [];
+
+    for (const [key, cur] of Array.from(currentMap.entries())) {
+      const baseline = baselineMap.get(key);
+      if (!baseline) continue;
+      if (cur.price >= baseline) continue;
+      const drop_inr = baseline - cur.price;
+      const drop_pct = (drop_inr / baseline) * 100;
+      if (drop_inr < 200 && drop_pct < 5) continue;
+      const [set_id, store_id] = key.split(':');
+      rawDrops.push({ set_id, store_id, old_price: baseline, new_price: cur.price, drop_inr, drop_pct, scraped_at: cur.scraped_at });
+    }
+
+    // ── 4. Fetch set metadata for matched set_ids ─────────────────────────────────
+    const setIds = Array.from(new Set(rawDrops.map(d => d.set_id)));
+    const setsMap = new Map<string, { name: string; theme: string | null; image_url: string | null }>();
+    for (let i = 0; i < setIds.length; i += 200) {
+      const { data } = await supabase
+        .from('sets')
+        .select('set_number, name, theme, image_url')
+        .in('set_number', setIds.slice(i, i + 200));
+      for (const s of (data ?? []) as { set_number: string; name: string; theme: string | null; image_url: string | null }[]) {
+        setsMap.set(s.set_number, { name: s.name, theme: s.theme, image_url: s.image_url });
+      }
+    }
+
+    // ── 5. Build full rows ────────────────────────────────────────────────────────
+    const allRows: DropRow[] = rawDrops
+      .map(d => {
+        const set = setsMap.get(d.set_id);
+        if (!set) return null;
+        return { ...d, name: set.name, theme: set.theme, image_url: set.image_url };
+      })
+      .filter((r): r is DropRow => r !== null);
+
+    // Unique themes for filter (before applying theme filter)
+    const allThemes = Array.from(new Set(allRows.map(r => r.theme).filter((t): t is string => !!t))).sort();
+
+    return { allRows, allThemes };
+  },
+  ['lab-price-drops-data'],
+  { revalidate: 21600 }, // 6h — matches scrape-prices.yml's real cron, see comment above
+);
+
 export default async function PriceDropsPage({ searchParams }: Props) {
-  const supabase     = createServerClient();
   const storeFilter  = searchParams.store  || '';
   const themeFilter  = searchParams.theme  || '';
   const pctFilter    = parseInt(searchParams.pct || '0', 10);
 
-  const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
-  const PAGE  = 1000;
-
-  // ── 1. Current prices from store_prices ──────────────────────────────────────
-  const currentMap = new Map<string, { price: number; scraped_at: string }>();
-  for (let offset = 0; ; offset += PAGE) {
-    const { data } = await supabase
-      .from('store_prices')
-      .select('set_id, store_id, price_inr, scraped_at')
-      .not('price_inr', 'is', null)
-      .range(offset, offset + PAGE - 1);
-    if (!data || data.length === 0) break;
-    for (const r of data as { set_id: string; store_id: string; price_inr: number; scraped_at: string }[]) {
-      currentMap.set(`${r.set_id}:${r.store_id}`, { price: r.price_inr, scraped_at: r.scraped_at });
-    }
-    if (data.length < PAGE) break;
-  }
-
-  // ── 2. Baseline prices: oldest 5 pages of price_history in the 30-day window ─
-  // Order ASC → first occurrence per (set_id, store_id) = oldest available price.
-  const baselineMap = new Map<string, number>();
-  for (let page = 0; page < 5; page++) {
-    const { data } = await supabase
-      .from('price_history')
-      .select('set_id, store_id, price_inr')
-      .gte('recorded_at', since)
-      .order('recorded_at', { ascending: true })
-      .range(page * PAGE, page * PAGE + PAGE - 1);
-    if (!data || data.length === 0) break;
-    for (const r of data as { set_id: string; store_id: string; price_inr: number }[]) {
-      const key = `${r.set_id}:${r.store_id}`;
-      if (!baselineMap.has(key)) baselineMap.set(key, r.price_inr);
-    }
-    if (data.length < PAGE) break;
-  }
-
-  // ── 3. Compute drops ──────────────────────────────────────────────────────────
-  type RawDrop = { set_id: string; store_id: string; old_price: number; new_price: number; drop_inr: number; drop_pct: number; scraped_at: string };
-  const rawDrops: RawDrop[] = [];
-
-  for (const [key, cur] of Array.from(currentMap.entries())) {
-    const baseline = baselineMap.get(key);
-    if (!baseline) continue;
-    if (cur.price >= baseline) continue;
-    const drop_inr = baseline - cur.price;
-    const drop_pct = (drop_inr / baseline) * 100;
-    if (drop_inr < 200 && drop_pct < 5) continue;
-    const [set_id, store_id] = key.split(':');
-    rawDrops.push({ set_id, store_id, old_price: baseline, new_price: cur.price, drop_inr, drop_pct, scraped_at: cur.scraped_at });
-  }
-
-  // ── 4. Fetch set metadata for matched set_ids ─────────────────────────────────
-  const setIds = Array.from(new Set(rawDrops.map(d => d.set_id)));
-  const setsMap = new Map<string, { name: string; theme: string | null; image_url: string | null }>();
-  for (let i = 0; i < setIds.length; i += 200) {
-    const { data } = await supabase
-      .from('sets')
-      .select('set_number, name, theme, image_url')
-      .in('set_number', setIds.slice(i, i + 200));
-    for (const s of (data ?? []) as { set_number: string; name: string; theme: string | null; image_url: string | null }[]) {
-      setsMap.set(s.set_number, { name: s.name, theme: s.theme, image_url: s.image_url });
-    }
-  }
-
-  // ── 5. Build full rows ────────────────────────────────────────────────────────
-  let allRows: DropRow[] = rawDrops
-    .map(d => {
-      const set = setsMap.get(d.set_id);
-      if (!set) return null;
-      return { ...d, name: set.name, theme: set.theme, image_url: set.image_url };
-    })
-    .filter((r): r is DropRow => r !== null);
-
-  // Unique themes for filter (before applying theme filter)
-  const allThemes = Array.from(new Set(allRows.map(r => r.theme).filter((t): t is string => !!t))).sort();
+  const { allRows: cachedRows, allThemes } = await getPriceDropsData();
+  let allRows = cachedRows;
 
   // Apply filters
   if (storeFilter) allRows = allRows.filter(r => r.store_id === storeFilter);
