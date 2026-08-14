@@ -16,6 +16,9 @@ import { buildProductSchema, buildFAQSchema } from '@/lib/schemas';
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
 export const revalidate = 3600;
 
+export async function generateStaticParams() {
+  return [];
+}
 
 interface Props {
   params: { slug: string };
