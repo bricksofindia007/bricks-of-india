@@ -1,4 +1,6 @@
-import { headers } from 'next/headers';
+'use client';
+
+import { usePathname } from 'next/navigation';
 
 const LABELS: Record<string, string> = {
   compare:  'Compare Prices',
@@ -23,7 +25,16 @@ function segmentLabel(seg: string): string {
 }
 
 export function BreadcrumbSchema() {
-  const pathname = headers().get('x-pathname') ?? '/';
+  // Real bug, found live in a Netlify credit-usage audit (2026-08-14):
+  // headers() is a server-only Dynamic API -- calling it here, in a
+  // component rendered unconditionally by the root layout, forced every
+  // route in the app into dynamic (per-request) rendering, regardless of
+  // any individual page's own revalidate export. usePathname() reads the
+  // same current-path value client-side via Next's routing context
+  // instead, with no server-side Dynamic API involved -- confirmed via a
+  // real production build that this alone restores static/ISR rendering
+  // app-wide (see PR description for the before/after route table).
+  const pathname = usePathname() ?? '/';
   if (!pathname || pathname === '/') return null;
 
   const segments = pathname.split('/').filter(Boolean);
