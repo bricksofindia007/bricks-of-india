@@ -3,6 +3,27 @@ import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { THEMES } from '@/lib/brand';
 
+// Real bug, found in a Netlify credit-usage audit (2026-08-14): this route
+// had no revalidate export at all, so it was purely build-time static --
+// the only way it could ever pick up a newly-added set/guide/news/review
+// was a full site rebuild (see the "Daily Cron Rebuild" investigation).
+// The dynamic-rendering fixes in #30/#31 didn't touch this file at all; it
+// was static before them and stays static after -- ISR here is additive,
+// not a side effect of that work.
+//
+// 24h chosen from real evidence, not copied from /deals's 6h by
+// assumption: content that actually changes this sitemap's set of URLs
+// updates on a WEEKLY cadence, not continuously --
+// .github/workflows/sync-catalogue.yml (new sets) runs Sunday 02:00 UTC,
+// generate-guide-weekly.yml (new guides) runs Thursday 04:20 UTC. Queried
+// live: real growth.sets insert timestamps land in weekly bursts exactly
+// matching the Sunday sync (2026-08-09, -08-02, -07-26, -07-19, all ~7
+// days apart -- 26 to 251 new rows per burst, zero on the days between).
+// 24h keeps the sitemap within at most one day of whatever a given week's
+// ingestion added, without revalidating far more often than the
+// underlying data ever actually changes.
+export const revalidate = 86400;
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = 'https://bricksofindia.com';
   const supabase = createServerClient();
