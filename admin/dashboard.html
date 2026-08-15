@@ -554,9 +554,9 @@
 <!-- =================================================================== -->
 <script id="boi-data" type="application/json">{
   "meta": {
-    "lastUpdated": "2026-08-11",
+    "lastUpdated": "2026-08-15",
     "trackerVersion": "v1.6",
-    "currentSprint": "Minifig HQ rebuild + Community relocation: CMF Tracker promoted from a /lab tool to a top-nav page at /minifig-hq (301 from /lab/cmf-tracker), all ownership-tracking UI stripped, click-to-enlarge lightbox added, figure images swapped to Brickset (427/427 rows, 0 fallbacks needed). Community removed from top nav, relocated to The Lab card grid -- /community itself untouched. Branch feat/minifig-hq, PR open, NOT YET MERGED to main. Full detail in BOI_MASTER_TRACKER.md top section."
+    "currentSprint": "Supabase storage crisis + Netlify credit crisis, root-caused and fixed: Supabase social-assets had a 982 MB backlog of never-cleaned-up published render files (cleanup script + weekly dry-run monitor, PR #29, confirmed 283 MB after). Netlify: 5 independent dynamic-rendering root causes found and fixed, all merged to main (PRs #30/#31/#32/#33/#36) -- root-layout headers() forcing every route dynamic, missing generateStaticParams() on sets/[slug] + guides/[slug], /lab/price-drops recomputing on every request, dead x-pathname middleware, sitemap.xml with no ISR. Plus a platform-level fix with NO code change -- both Netlify projects restricted to Git-only production deploys in the dashboard directly, not in git. Set 72152-1 posted live to YouTube + Instagram (posted_sets id=60). Standing open item: issue #37 (cron-pause), blocked on a real production deploy + live-confirmed sitemap ISR. Full detail in BOI_MASTER_TRACKER.md top section."
   },
   "kpis": {
     "healthScore": 85,
@@ -1795,6 +1795,13 @@
       "mode": "auto",
       "owner": "GitHub Actions — radar.yml (RADAR-03b step)",
       "notes": "scripts/radar/opinion-cadence.js. Deterministic day-count check; reclassifies one of that days queued News candidates to Opinion. Logs to opinion_cadence_log."
+    },
+    {
+      "feature": "Storage cleanup monitor (dry-run)",
+      "frequency": "Weekly Sunday 04:00 UTC",
+      "mode": "auto",
+      "owner": "GitHub Actions cron 0 4 * * 0 — cleanup-published-assets.yml",
+      "notes": "Dry-run only, no live deletion wired to a schedule. cleanup-published-assets.js against social-assets — surfaces file count + full list in the run summary so accumulation is visible before it becomes a quota incident again. Built after the 982 MB backlog found 2026-08-15 (PR #29); real live cleanup already run once that session, bucket confirmed at 283 MB after."
     }
   ]
 }</script>
