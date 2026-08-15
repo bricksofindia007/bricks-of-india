@@ -48,6 +48,15 @@
 # SCHEDULED DAILY BUILD — Setup instructions
 # ─────────────────────────────────────────────────────────────────────────────
 #
+# UNDER REVIEW as of 2026-08-15 — see GitHub issue #37. This mechanism was
+# built 2026-04-12 as the only way to get fresh content onto a purely
+# static site (no ISR/revalidate pattern existed yet at the time). Several
+# routes now have real ISR (see BOI_MASTER_TRACKER.md's 2026-08-15 entry),
+# which may make this daily rebuild partly or fully redundant -- but that
+# is NOT yet confirmed live in production, and issue #37 lays out exactly
+# what has to be true before anyone pauses this. Do not disable based on
+# this note alone; read the issue first.
+#
 # Netlify scheduled builds (native) require a paid plan.
 # The free approach: create a Build Hook in Netlify, then ping it daily via
 # a free cron service (cron-job.org). Zero cost, same result.
