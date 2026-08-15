@@ -120,6 +120,12 @@ def main() -> None:
     length_issues = caption_writer.find_length_violation(caption_text)
     if length_issues:
         raise RuntimeError('Refusing to post — ' + '; '.join(length_issues))
+    invented_structure = caption_writer.find_invented_structure(caption_text)
+    if invented_structure:
+        raise RuntimeError(
+            'Refusing to post — caption invents a structured label this schema has no '
+            f'data to support (Phase 4d): {invented_structure}'
+        )
 
     # ── Step 6: Publish ───────────────────────────────────────────────────────
     platforms = {'ig_feed': False, 'ig_reels': False, 'yt_shorts': False}

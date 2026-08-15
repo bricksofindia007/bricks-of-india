@@ -56,6 +56,20 @@ The wallet is always a character.
 Output format: Instagram caption only. No preamble. No "Here is your \
 caption:". Just the caption text."""
 
+# Scope constraint, added 2026-08-16 (Phase 4d): a real caption (40902-1 da
+# Vinci, Phase 4c's verification sample) came back with a "VERDICT: IMPORT
+# ONLY" line -- the codex's own structured verdict system (PAGE 13), which is
+# real and correct for other BOI content types (reviews, articles) that
+# genuinely have a rating/verdict in their input data. Captions never do --
+# set_data here is only set_num/name/theme/num_parts/usd_price/source, no
+# rating or verdict field anywhere in it. This is added IN CODE, not in
+# BOI_Codex_v2.md itself -- that file is a shared source used by other call
+# sites (newsletter, RADAR) where the verdict system is legitimate; editing
+# it to ban something only wrong for THIS call site would break it there.
+CAPTION_SCOPE_NOTE = """This caption has no rating, score, or verdict data attached to it. Do not \
+include a VERDICT line, a rating, a score, or any other structured all-caps \
+label — write flowing caption prose only, ending with the required sign-off."""
+
 # Used when source is lego_coming_soon / lego_com — set hasn't released in India.
 DISCLAIMER = """🛑 Please do not ask when this set releases in India. \
 I don't know. LEGO doesn't know. Nobody knows. \
@@ -125,8 +139,10 @@ End the caption with exactly this text, no modifications:
                 config=types.GenerateContentConfig(
                     # Codex prepended ahead of the existing SYSTEM_PROMPT, not
                     # merged into or replacing it -- SYSTEM_PROMPT itself is
-                    # untouched by this change.
-                    system_instruction=_load_codex() + '\n\n---\n\n' + SYSTEM_PROMPT,
+                    # untouched by this change. CAPTION_SCOPE_NOTE appended
+                    # last (Phase 4d) so its "don't do X" constraint has
+                    # recency over the codex's own verdict-system material.
+                    system_instruction=_load_codex() + '\n\n---\n\n' + SYSTEM_PROMPT + '\n\n' + CAPTION_SCOPE_NOTE,
                 ),
             )
             caption = response.text.strip()
@@ -238,6 +254,31 @@ def find_length_violation(caption_text: str) -> list[str]:
             'runaway or malformed generation, not normal length variance'
         ]
     return []
+
+
+# Real bug found live (2026-08-16, Phase 4c's own verification sample,
+# 40902-1 da Vinci): the model produced "VERDICT: IMPORT ONLY" -- lifting the
+# codex's structured verdict system (PAGE 13), which is real and correct for
+# other content types (reviews, articles) that have an actual verdict in
+# their input data. Captions never do -- set_data has no rating/verdict
+# field. This is the same class of problem as newsletter/generate.py's
+# find_invalid_rating_scale(): the model inventing structure the schema
+# doesn't support. Same fix shape: prompt-level constraint (CAPTION_SCOPE_NOTE
+# above) plus a permanent code-level backstop, since prompts alone drift.
+#
+# Generic, not scoped to just "VERDICT" -- any all-caps word (2+ letters)
+# immediately followed by a colon at the start of a line. Confirmed against
+# all 6 real pre-codex caption samples in this migration (Death Star x2, da
+# Vinci x2, Doctor Doom Bust x2): this pattern appears in zero of them, so
+# it isn't part of the intended prose format at all.
+_INVENTED_STRUCTURE_RE = re.compile(r'^[A-Z]{2,}:', re.MULTILINE)
+
+
+def find_invented_structure(caption_text: str) -> list[str]:
+    """Flags any line starting with an all-caps label + colon -- a
+    structured element this schema has no data to support. Returns the
+    matched labels found, empty if none."""
+    return [m.group(0) for m in _INVENTED_STRUCTURE_RE.finditer(caption_text or '')]
 
 
 if __name__ == '__main__':
