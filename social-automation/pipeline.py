@@ -107,6 +107,20 @@ def main() -> None:
     caption_text = caption_writer.generate_caption(set_data)
     print(f'[pipeline] Caption preview (first 120 chars): {caption_text[:120]}...')
 
+    # Quality gates (Phase 4c, 2026-08-16) -- raise, don't post an off-voice or
+    # malformed caption. An uncaught exception here is already handled by this
+    # file's own __main__ block (logs, emails failure, exits 1) -- no separate
+    # handling needed, same pattern newsletter/generate.py's gates rely on.
+    offvoice = caption_writer.find_offvoice_phrases(caption_text)
+    if offvoice:
+        raise RuntimeError(
+            'Refusing to post — caption contains phrase(s) the Voice Codex '
+            f'explicitly bans (docs/codex/BOI_Codex_v2.md, PAGE 17): {offvoice}'
+        )
+    length_issues = caption_writer.find_length_violation(caption_text)
+    if length_issues:
+        raise RuntimeError('Refusing to post — ' + '; '.join(length_issues))
+
     # ── Step 6: Publish ───────────────────────────────────────────────────────
     platforms = {'ig_feed': False, 'ig_reels': False, 'yt_shorts': False}
 
