@@ -5,6 +5,8 @@
 > **Last updated:** 2026-05-09
 >
 > **Addendum 2026-06-21 (consolidation audit):** This sub-tracker is significantly stale. Items below reflect state as of 2026-05-09. Completed items since then tracked in BOI_MASTER_TRACKER.md. Key drift: WEB-01→04 shown as 🔴 below but completed by Day 14 (2026-05-14). SCRAPE-03 shown as 🔴 but shipped Day 30. store_prices shown as 492 rows; current count UNVERIFIED. Section B.1 page statuses correct for launch state but do not reflect subsequent additions.
+>
+> **Addendum 2026-08-16 (Gemini model migration, Phase 6):** Further drift, noted for accuracy only — this file is not actively maintained (last real content update 2026-05-09; the 2026-06-21 entry above was itself an archival/drift note, not new tracked work). Line 20's "✅ Voice Codex v2" and line 53's "🔴 WEB-01 4 lint gates (spec at Codex Page 20)" both predate the Codex's current, much larger form — it now grounds real generation in two separate pipelines (social captions and the boi-growth-engine newsletter), neither of which existed when this file was last touched. Full current state: `GEMINI_MIGRATION_FINAL_REPORT.md` (repo root). Model pin (`gemini-3.1-flash-lite`), codex grounding, and gates for captions and newsletter are committed locally on `chore/gemini-model-migration` in both `bricks-of-india` and `boi-growth-engine` — not yet pushed, not yet merged to main. #1/#3/#4 (RADAR, VID-P4, VID-QP) remain on `gemini-2.5-flash`/`gemini-2.5-flash-lite`, deliberately deferred (see that report §3).
 
 ---
 
