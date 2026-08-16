@@ -1176,9 +1176,13 @@ try {
     } else {
       const { updated_at } = await res.json();
       const ageDays = Math.floor((Date.now() - new Date(updated_at)) / 86_400_000);
-      // Same cadence as ig-token-refresh.yml: 45-day proactive rotation
-      // window, ~60-day hard Meta expiry (long-lived token lifetime).
-      if (ageDays >= 60) {
+      // Explicit NaN guard (2026-08-16, caught in pre-merge testing): a
+      // missing/malformed updated_at silently produced "NaN days ... ✓" on
+      // the SUCCESS path with the check above absent -- looks fine, isn't.
+      // Fail loud instead of reporting false confidence.
+      if (Number.isNaN(ageDays)) {
+        alertFail('ExtDependencies', `IG_ACCESS_TOKEN expiry check: API response missing/invalid updated_at (got "${updated_at}") — cannot compute rotation age`);
+      } else if (ageDays >= 60) {
         alertFail('ExtDependencies', `IG_ACCESS_TOKEN last rotated ${ageDays} days ago — past the ~60-day hard expiry, social automation is likely down`);
       } else if (ageDays >= 45) {
         log('ExtDependencies', `IG_ACCESS_TOKEN: ${ageDays} days since last rotation — due for ig-token-refresh.yml's next 1st/15th tick ⚠️`);
