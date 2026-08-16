@@ -1,0 +1,84 @@
+name: Populate MRP from Brickset
+
+# Recurring version of scripts/populate-mrp.js, a script that existed since
+# 2026-05-28 but was NEVER wired into any scheduled workflow (confirmed via
+# `grep -rl populate-mrp .github/workflows/` before this file existed --
+# zero matches). It only ever ran manually, so lego_mrp_inr silently drifted
+# stale against every set added or newly-priced by Brickset since the last
+# manual run -- the direct cause of a real 21-set sync gap found during the
+# 2026-08-16 catalogue-audit MRP-universe investigation (BOI_MASTER_TRACKER.md).
+#
+# Schedule: Monday 02:00 UTC (07:30 IST) -- 30 min before mrp-refresh.yml
+# (02:30 UTC, which re-verifies MRP against live Toycra prices, a different
+# check) and ~80 min before catalogue-audit.yml (03:20 UTC, which reports
+# lego_mrp_inr coverage), so that check always sees the week's freshest
+# Brickset-derived data, same reasoning as mrp-refresh.yml's own schedule
+# comment. Checked against every other Monday-morning schedule in this repo
+# (see catalogue-audit.yml/mrp-refresh.yml/content-quality.yml/snapshot-
+# prices.yml/video-rejection-reminder.yml/monthly-audit-reminder.yml/
+# technical-hygiene.yml/code-audit.yml's own schedule comments) -- 02:00 UTC
+# Monday was free.
+
+on:
+  schedule:
+    - cron: '0 2 * * 1'  # 02:00 UTC Monday = 07:30 IST
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (print stats but skip Supabase writes)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  populate:
+    name: Populate lego_mrp_inr from Brickset
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      BRICKSET_API_KEY:          ${{ secrets.BRICKSET_API_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run populate-mrp.js
+        id: populate
+        continue-on-error: true
+        run: node scripts/populate-mrp.js ${{ inputs.dry_run == true && '--dry-run' || '' }}
+
+      # Same reusable failure-alert pattern as mrp-refresh.yml/
+      # reviews-weekly-refresh.yml -- see scripts/workflow-failure-notify.mjs.
+      - name: Send failure alert
+        if: steps.populate.outcome == 'failure'
+        continue-on-error: true
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL:    ${{ secrets.BRIEF_EMAIL }}
+          WORKFLOW_NAME:  populate-mrp
+          STEP_OUTCOMES:  '{"Run populate-mrp.js": "${{ steps.populate.outcome }}"}'
+        run: node scripts/workflow-failure-notify.mjs
+
+      # Same false-green guard as mrp-refresh.yml (LOW-28) -- continue-on-error
+      # above means the job's own conclusion would otherwise be "success"
+      # regardless of whether the script actually failed.
+      - name: Fail job if populate step failed
+        if: always()
+        run: |
+          if [ "${{ steps.populate.outcome }}" = "failure" ]; then
+            echo "::error::populate-mrp.js failed — see step log above; alert email already sent"
+            exit 1
+          fi
+          echo "populate-mrp.js completed successfully."

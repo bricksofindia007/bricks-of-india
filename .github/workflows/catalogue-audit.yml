@@ -87,10 +87,11 @@ jobs:
         run: |
           EXISTING=$(gh issue list --state open --search "MRP-coverage gap in:title" --json number --jq '.[0].number')
           if [ -n "$EXISTING" ]; then
-            gh issue comment "$EXISTING" --body "Still failing as of $(date -u +%Y-%m-%dT%H:%M:%SZ) — run ${{ github.run_id }}."
+            gh issue comment "$EXISTING" --body "Still failing as of $(date -u +%Y-%m-%dT%H:%M:%SZ) — run ${{ github.run_id }}. See the run log for the exact list of listed sets still missing lego_mrp_inr."
           else
             gh issue create --title "MRP-coverage gap: catalogue-audit failed" \
-              --body "Coverage below threshold. Run ${{ github.run_id }}." --label "catalogue-audit-failed"
+              --body "One or more actively-listed sets (Toycra and/or MyBrickHouse, active or not) are missing lego_mrp_inr — rule is 100% coverage, no percentage threshold. See the run log (step: Run catalogue audit) for the exact list of set numbers. Run ${{ github.run_id }}." \
+              --label "catalogue-audit-failed"
           fi
 
       - name: Open issue on failure
@@ -115,7 +116,7 @@ jobs:
                 '',
                 '**Checks run:**',
                 '- sets row count ≥ 8,000 (note: ~26k Rebrickable entries dedup to ~10k unique set_numbers)',
-                '- ≥ 50% of sets have lego_mrp_inr',
+                '- 100% of LISTED sets (any store_prices row, Toycra/MyBrickHouse, active or not) have lego_mrp_inr — no percentage threshold, fixed 2026-08-16 (was wrongly checking the full sets catalogue scoped to year>=2020, ~40% of ~8,656 mostly-unlisted sets)',
                 '- ≥ 80% of sets have image_url',
                 '- Each scraper last ran ≤ 8 days ago',
                 '- /api/sets/search?q=Concorde returns > 0 results',
