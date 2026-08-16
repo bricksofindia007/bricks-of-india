@@ -121,6 +121,118 @@ def _gemini_pace() -> None:
 TOTAL_WORD_CAP = 16
 PER_SEGMENT_WORD_CAP = 7
 
+# ---------------------------------------------------------------------------
+# CAPTION LENGTH BUDGET (added 2026-08-16 -- closes the "reading-floor
+# duration gap" found 2026-08-01, see BOI_MASTER_TRACKER.md's VID-QP
+# Backlog entry). TOTAL_WORD_CAP/PER_SEGMENT_WORD_CAP above only see
+# voice:true segments; a voice:false segment's real duration is
+# max(sfx_native_duration, reading_floor) where reading_floor scales with
+# CAPTION TEXT LENGTH, not word count on a voice-word budget. Once
+# captions started being written with "full wit and specificity" (the
+# 2026-07-31 persona rule) instead of kept minimal, reading_floor could
+# exceed the SFX-native floor these caps were originally derived against
+# -- confirmed live: a Spider-Man vs. Hulk generation passed both the
+# word-budget and banned-construction gates cleanly, but real measured
+# duration came in 2.02s over the 60.5s ceiling, entirely from long
+# voice-off captions. The post-render gate_duration in
+# generate_quiet_panic_video.py still catches this correctly (nothing
+# broken ships), but it costs a full TTS render to find out -- this check
+# catches it before any ElevenLabs call, same philosophy as
+# check_word_budget() above. Confirmed hitting ~1/3 of recent generate
+# runs (2/6 gate_duration results 2026-07-30 to 2026-08-14) before this
+# fix.
+#
+# Mirrors generate_quiet_panic_video.py's own formula exactly (same
+# READING_SPEED_CPS, same max(sfx_native, reading_floor) shape, same live
+# ffprobe measurement of bumpers/SFX rather than a hardcoded duration --
+# a hardcoded duration is exactly the failure mode a parallel 2026-08-16
+# investigation found and fixed elsewhere, in technical-hygiene.mjs's
+# IG-token-expiry check; not repeating it here). Voice:true segments'
+# contribution is estimated at the SLOWER 0.95s/word punchy rate (see
+# WORD_CEILING_DERIVATION above) -- the conservative choice, since this
+# check runs before TTS and can't yet know the real per-segment rate.
+# ---------------------------------------------------------------------------
+READING_SPEED_CPS = 15.0          # chars/sec, matches generate_quiet_panic_video.py
+VOICE_WORD_RATE_CONSERVATIVE = 0.95  # s/word, punchy-fragment rate (upper bound)
+DURATION_TARGET_MAX = 55.0        # matches generate_quiet_panic_video.py
+DURATION_TOLERANCE = 0.10         # matches generate_quiet_panic_video.py
+DURATION_CEILING = DURATION_TARGET_MAX * (1 + DURATION_TOLERANCE)  # 60.5s
+
+SFX_LIBRARY_DIR = BASE_DIR.parent.parent / 'assets' / 'sfx' / 'library'
+BUMPERS_DIR = BASE_DIR.parent.parent / 'assets' / 'bumpers'
+INTRO_BUMPER = BUMPERS_DIR / 'intro_final.mp3'
+OUTRO_BUMPER = BUMPERS_DIR / 'outro_final.mp3'
+
+
+def _ffprobe_duration(path: Path) -> float:
+    """Local duplicate of generate_quiet_panic_video.py's ffprobe_duration()
+    -- kept local per this file's own zero-cross-import convention (see
+    module docstring). Live-measured, never hardcoded: bumpers and SFX
+    files do get replaced (e.g. intro_final.mp3's v2 swap, 2026-07-30),
+    and a stale constant here would silently drift from what actually
+    renders, same failure mode this fix exists to close elsewhere."""
+    import subprocess
+    result = subprocess.run(
+        ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+         '-of', 'default=noprint_wrappers=1:nokey=1', str(path)],
+        capture_output=True, text=True, check=True,
+    )
+    return float(result.stdout.strip())
+
+
+def check_caption_length_budget(segments: list) -> dict:
+    """Pre-TTS validation, zero ElevenLabs cost. Estimates total assembled
+    duration (bumpers + voice:true segments at the conservative word rate
+    + voice:false segments at max(sfx_native, reading_floor)) and flags
+    scripts already projected over DURATION_CEILING before any TTS call
+    is made. This is an ESTIMATE, not a replacement for the post-render
+    gate_duration in generate_quiet_panic_video.py -- voice:true segments'
+    real TTS duration can still vary from the conservative estimate used
+    here, so a script can pass this check and still fail the real gate
+    (rarer, since this deliberately over-estimates voice:true time). It
+    cannot happen the other way: this check is strictly more conservative
+    than the real render, so it will never falsely block a script that
+    would have passed."""
+    intro_duration = _ffprobe_duration(INTRO_BUMPER)
+    outro_duration = _ffprobe_duration(OUTRO_BUMPER)
+
+    voice_word_total = sum(
+        len(seg['text'].split()) for seg in segments if seg.get('voice', True)
+    )
+    voice_estimate = voice_word_total * VOICE_WORD_RATE_CONSERVATIVE
+
+    voiceless_detail = []
+    voiceless_total = 0.0
+    for i, seg in enumerate(segments):
+        if seg.get('voice', True):
+            continue
+        sfx_tag = seg.get('sfx_tag')
+        sfx_path = SFX_LIBRARY_DIR / f'{sfx_tag}.mp3'
+        sfx_native = _ffprobe_duration(sfx_path) if sfx_path.exists() else 0.0
+        reading_floor = len(seg['text']) / READING_SPEED_CPS
+        seg_duration = max(sfx_native, reading_floor)
+        voiceless_total += seg_duration
+        if reading_floor > sfx_native:
+            voiceless_detail.append(
+                f'segment {i} caption ({len(seg["text"])} chars) reads at {reading_floor:.1f}s, '
+                f'over its {sfx_tag} SFX native {sfx_native:.1f}s'
+            )
+
+    estimated_total = intro_duration + outro_duration + voice_estimate + voiceless_total
+    over_by = estimated_total - DURATION_CEILING
+
+    if over_by <= 0:
+        return {
+            'pass': True,
+            'detail': f'estimated {estimated_total:.1f}s (ceiling {DURATION_CEILING:.1f}s) -- OK',
+            'estimated_total': estimated_total,
+        }
+    detail = f'estimated {estimated_total:.1f}s exceeds the {DURATION_CEILING:.1f}s ceiling by {over_by:.1f}s'
+    if voiceless_detail:
+        detail += '; ' + '; '.join(voiceless_detail)
+    return {'pass': False, 'detail': detail, 'estimated_total': estimated_total}
+
+
 PERSONA_RULES = """
 PERSONA: "The Overly Serious Whisperer" -- series banner "The Quiet Panic".
 
@@ -211,13 +323,26 @@ hit a duration target):
   captions aren't TTS-bound, so they don't need to shrink either).
 - WORD CAPS BELOW APPLY ONLY TO voice:true SEGMENTS (clarified 2026-07-31
   -- this was ambiguous before and nearby caps were bleeding into caption
-  quality). voice:false captions have NO word-count constraint at all --
-  their timing comes from the SFX asset's native length / reading-speed
-  floor, never from word count. Write voice:false captions with the SAME
-  wit, specificity, and full joke-carrying weight as voice:true lines --
-  do not write them shorter or blander just because they sit next to a
+  quality). voice:false captions have no WORD-count constraint -- their
+  timing comes from the SFX asset's native length / reading-speed floor,
+  never from word count. Write voice:false captions with the SAME wit,
+  specificity, and full joke-carrying weight as voice:true lines -- do
+  not write them shorter or blander just because they sit next to a
   capped segment. A caption is not a placeholder; it's read on-screen and
   needs to land on its own.
+  CAPTION LENGTH (added 2026-08-16 -- closed a real gap where long
+  voice:false captions alone pushed real renders over the duration
+  ceiling): a caption read at ~15 characters/second must not run
+  noticeably longer than its sfx_tag's own native length, or its reading
+  time becomes the actual binding duration instead of the SFX cue --
+  quietly inflating total runtime even though every voice:true word cap
+  passed. Keep voice:false captions to roughly 60-70 characters or fewer
+  as a safe default (most cues in the library run 2-4.5s native, which is
+  the room that buys); if pairing with brick_snap_short (0.7s) or
+  brick_snap_body (1.1s), keep that specific caption noticeably shorter
+  still. This is a guideline for you to self-check against, not something
+  you can compute exactly -- the pipeline verifies the real number after
+  you write it and will send back specific feedback if it's over.
 - HARD WORD CEILING, voice:true segments only (recalibrated 2026-07-31
   against real measured TTS/SFX durations -- a first test on Rapunzel's
   Castle (43297) at the old 26-42 word range measured 72.50s total, 12s
@@ -513,6 +638,12 @@ class WordBudgetExceededError(PreTTSValidationError):
     """Raised by check_word_budget() via generate_quiet_panic_script()."""
 
 
+class CaptionLengthExceededError(PreTTSValidationError):
+    """Raised by check_caption_length_budget() via generate_quiet_panic_script()
+    -- added 2026-08-16, closes the reading-floor duration gap (see the
+    CAPTION LENGTH BUDGET comment block above)."""
+
+
 class VerdictReasonMissingError(PreTTSValidationError):
     """Raised by check_verdict_reason() via generate_quiet_panic_script()
     -- added 2026-08-01 after a fresh generation shipped a bare "Verdict:
@@ -665,6 +796,19 @@ def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) 
     budget_check = check_word_budget(segments)
     if not budget_check['pass']:
         raise WordBudgetExceededError(budget_check['detail'], segments=segments, budget=budget_check)
+
+    caption_check = check_caption_length_budget(segments)
+    if not caption_check['pass']:
+        # NOT passing budget=caption_check here: _build_word_cap_feedback()
+        # in generate_quiet_panic_video.py assumes a truthy `budget` means
+        # WordBudgetExceededError's specific {'total_words', 'segment_words'}
+        # shape and would KeyError on this check's differently-shaped dict.
+        # Falls back to the generic string-detail retry message instead,
+        # which already cites the specific over-budget segment(s) -- see
+        # check_caption_length_budget()'s docstring. If retries plateau the
+        # way the word-budget ones once did (2026-08-03), give this its own
+        # code-computed feedback branch the same way that was fixed.
+        raise CaptionLengthExceededError(caption_check['detail'], segments=segments)
 
     verdict_check = check_verdict_reason(segments)
     if not verdict_check['pass']:
