@@ -48,6 +48,7 @@ from quiet_panic_script_gen import (  # noqa: E402
     generate_quiet_panic_script,
     PreTTSValidationError,
     check_verdict_reason,
+    check_caption_length_budget,
     TOTAL_WORD_CAP,
     PER_SEGMENT_WORD_CAP,
 )
@@ -906,8 +907,35 @@ def gate_vocab_complexity(script_text: str) -> dict:
 
 def run_all_gates(segments: list, total_duration: float, price_inr: int) -> dict:
     full_text = ' '.join(s['text'] for s in segments)
+
+    # SHADOW MODE (2026-08-16): check_caption_length_budget() no longer
+    # gates generation (see CaptionLengthExceededError's docstring in
+    # quiet_panic_script_gen.py) -- called here, non-blocking, purely to
+    # log its pass/fail verdict + estimated duration + per-segment
+    # breakdown into gate_results alongside the real gate_duration result
+    # below, so the two are directly comparable per run. A failure in this
+    # check must never affect anything downstream -- wrapped defensively
+    # so a bug in the estimate itself (e.g. a missing SFX file) can't take
+    # down a real generation run over a non-blocking diagnostic.
+    try:
+        pre_tts = check_caption_length_budget(segments)
+        pre_tts_pass = pre_tts['pass']
+        pre_tts_duration = pre_tts['estimated_total']
+        pre_tts_detail = pre_tts['detail']
+        pre_tts_segments = pre_tts['segments']
+    except Exception as e:
+        print(f'  WARN: pre-TTS caption-length shadow check failed (non-fatal, gate_results unaffected): {e}', file=sys.stderr)
+        pre_tts_pass = None
+        pre_tts_duration = None
+        pre_tts_detail = f'shadow check error: {e}'
+        pre_tts_segments = None
+
     return {
         'duration': gate_duration(total_duration),
+        'pre_tts_estimate_pass': pre_tts_pass,
+        'pre_tts_estimate_duration': pre_tts_duration,
+        'pre_tts_estimate_detail': pre_tts_detail,
+        'pre_tts_estimate_segments': pre_tts_segments,
         'price_token': gate_price_token(full_text, price_inr),
         'verdict': gate_verdict(full_text),
         'verdict_reason': check_verdict_reason(segments),

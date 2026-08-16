@@ -192,7 +192,14 @@ def check_caption_length_budget(segments: list) -> dict:
     (rarer, since this deliberately over-estimates voice:true time). It
     cannot happen the other way: this check is strictly more conservative
     than the real render, so it will never falsely block a script that
-    would have passed."""
+    would have passed.
+
+    SHADOW MODE (2026-08-16): this function no longer gates generation --
+    see CaptionLengthExceededError's docstring and generate_quiet_panic_
+    video.py's run_all_gates(), which now calls this and folds the result
+    into gate_results as pre_tts_estimate_pass/_duration/_detail/_segments,
+    directly alongside the real gate_duration result for per-run
+    comparison. Return shape unchanged so that wiring is additive only."""
     intro_duration = _ffprobe_duration(INTRO_BUMPER)
     outro_duration = _ffprobe_duration(OUTRO_BUMPER)
 
@@ -201,10 +208,14 @@ def check_caption_length_budget(segments: list) -> dict:
     )
     voice_estimate = voice_word_total * VOICE_WORD_RATE_CONSERVATIVE
 
+    segment_breakdown = []
     voiceless_detail = []
     voiceless_total = 0.0
     for i, seg in enumerate(segments):
         if seg.get('voice', True):
+            segment_breakdown.append({
+                'index': i, 'voice': True, 'word_count': len(seg['text'].split()),
+            })
             continue
         sfx_tag = seg.get('sfx_tag')
         sfx_path = SFX_LIBRARY_DIR / f'{sfx_tag}.mp3'
@@ -212,6 +223,12 @@ def check_caption_length_budget(segments: list) -> dict:
         reading_floor = len(seg['text']) / READING_SPEED_CPS
         seg_duration = max(sfx_native, reading_floor)
         voiceless_total += seg_duration
+        segment_breakdown.append({
+            'index': i, 'voice': False, 'sfx_tag': sfx_tag,
+            'char_count': len(seg['text']), 'sfx_native_s': round(sfx_native, 2),
+            'reading_floor_s': round(reading_floor, 2), 'estimated_duration_s': round(seg_duration, 2),
+            'reading_floor_binding': reading_floor > sfx_native,
+        })
         if reading_floor > sfx_native:
             voiceless_detail.append(
                 f'segment {i} caption ({len(seg["text"])} chars) reads at {reading_floor:.1f}s, '
@@ -226,11 +243,12 @@ def check_caption_length_budget(segments: list) -> dict:
             'pass': True,
             'detail': f'estimated {estimated_total:.1f}s (ceiling {DURATION_CEILING:.1f}s) -- OK',
             'estimated_total': estimated_total,
+            'segments': segment_breakdown,
         }
     detail = f'estimated {estimated_total:.1f}s exceeds the {DURATION_CEILING:.1f}s ceiling by {over_by:.1f}s'
     if voiceless_detail:
         detail += '; ' + '; '.join(voiceless_detail)
-    return {'pass': False, 'detail': detail, 'estimated_total': estimated_total}
+    return {'pass': False, 'detail': detail, 'estimated_total': estimated_total, 'segments': segment_breakdown}
 
 
 PERSONA_RULES = """
@@ -639,9 +657,22 @@ class WordBudgetExceededError(PreTTSValidationError):
 
 
 class CaptionLengthExceededError(PreTTSValidationError):
-    """Raised by check_caption_length_budget() via generate_quiet_panic_script()
-    -- added 2026-08-16, closes the reading-floor duration gap (see the
-    CAPTION LENGTH BUDGET comment block above)."""
+    """Added 2026-08-16 alongside check_caption_length_budget() to close the
+    reading-floor duration gap (see the CAPTION LENGTH BUDGET comment block
+    above) as a real pre-TTS gate -- raised from generate_quiet_panic_
+    script()'s call site at the time.
+
+    CURRENTLY UNUSED (shadow mode, same day): backtested against the only
+    4 real gate_duration-PASSING scripts with recoverable per-segment
+    source data (0/4 would have been falsely blocked, but one -- Rapunzel's
+    Castle -- estimated only 0.2s under the ceiling against a real 58.6s
+    render, a thin enough margin that blocking on it felt premature with
+    n=4). Per operator instruction, downgraded to non-blocking: check_
+    caption_length_budget() now runs from generate_quiet_panic_video.py's
+    run_all_gates() instead, purely logged into gate_results for
+    comparison against real gate_duration results over several live
+    Mon/Wed/Fri cycles. Kept defined (not deleted) so reinstating the
+    raise later is a small, reviewable diff instead of reconstructing it."""
 
 
 class VerdictReasonMissingError(PreTTSValidationError):
@@ -797,18 +828,19 @@ def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) 
     if not budget_check['pass']:
         raise WordBudgetExceededError(budget_check['detail'], segments=segments, budget=budget_check)
 
-    caption_check = check_caption_length_budget(segments)
-    if not caption_check['pass']:
-        # NOT passing budget=caption_check here: _build_word_cap_feedback()
-        # in generate_quiet_panic_video.py assumes a truthy `budget` means
-        # WordBudgetExceededError's specific {'total_words', 'segment_words'}
-        # shape and would KeyError on this check's differently-shaped dict.
-        # Falls back to the generic string-detail retry message instead,
-        # which already cites the specific over-budget segment(s) -- see
-        # check_caption_length_budget()'s docstring. If retries plateau the
-        # way the word-budget ones once did (2026-08-03), give this its own
-        # code-computed feedback branch the same way that was fixed.
-        raise CaptionLengthExceededError(caption_check['detail'], segments=segments)
+    # SHADOW MODE (2026-08-16, per operator instruction): check_caption_
+    # length_budget() intentionally NOT called here anymore, and does not
+    # gate generation. Moved downstream to generate_quiet_panic_video.py's
+    # run_all_gates(), which calls it non-blocking and folds the result
+    # into gate_results (pre_tts_estimate_pass/_duration/_detail/_segments)
+    # alongside the real post-render gate_duration -- lets the two be
+    # compared per real run, over several Mon/Wed/Fri cycles, before any
+    # decision to reinstate this as a real pre-TTS gate. Generation control
+    # flow (this retry loop, TOTAL_SCRIPT_GEN_ATTEMPTS, etc.) is completely
+    # unaffected by the caption-length estimate now -- only check_word_
+    # budget() and check_verdict_reason() below can still trigger a retry.
+    # See CaptionLengthExceededError's docstring for why the exception
+    # class itself is kept (unused for now) rather than deleted.
 
     verdict_check = check_verdict_reason(segments)
     if not verdict_check['pass']:
