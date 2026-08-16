@@ -39,6 +39,11 @@ jobs:
           NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+          # Fine-grained PAT, "Secrets: read" -- default GITHUB_TOKEN cannot
+          # read repo secrets metadata. Used only to read IG_ACCESS_TOKEN's
+          # `updated_at` for the expiry check (12h) -- never reads the
+          # secret's value. Same PAT ig-token-refresh.yml already uses.
+          ADMIN_PAT: ${{ secrets.ADMIN_PAT }}
           CHROME_PATH: /usr/bin/chromium-browser
           BRICKSET_API_KEY: ${{ secrets.BRICKSET_API_KEY }}
           REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}

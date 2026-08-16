@@ -1146,18 +1146,46 @@ try {
   }
 } catch (e) { alertFail('ExtDependencies', `GH_DISPATCH_TOKEN check error: ${e.message.slice(0, 60)}`); }
 
-// 12h: IG_ACCESS_TOKEN — expiry warning (expires ~2026-07-23, action by 2026-07-16)
+// 12h: IG_ACCESS_TOKEN — expiry warning
+//
+// Bug fixed 2026-08-16: this used to compare against a HARDCODED expiry
+// date ('2026-07-23') that was only ever correct for the token live when
+// this line was written. ig-token-refresh.yml rotates the real secret
+// every ~45-60 days (last confirmed successful rotation: 2026-08-15, per
+// its own run history), but nothing here ever updated the constant --
+// so this check kept reporting "EXPIRED 19+ days ago" against a token
+// that had in fact already been rotated, while social-automation.yml's
+// own logs showed successful IG posts the whole time (false alarm,
+// confirmed 2026-08-16 investigation). Fixed to read the IG_ACCESS_TOKEN
+// GitHub Secret's own `updated_at` metadata via the GitHub API -- the
+// same live signal ig-token-refresh.yml's own 45-day proactive timer
+// already trusts -- instead of a stale literal. Needs ADMIN_PAT (not the
+// default GITHUB_TOKEN, which cannot read secrets metadata) -- see
+// ig-token-refresh.yml's own header comment for why.
 try {
-  const IG_EXPIRY = new Date('2026-07-23T00:00:00Z');
-  const daysLeft = Math.floor((IG_EXPIRY - Date.now()) / 86_400_000);
-  if (daysLeft < 0) {
-    alertFail('ExtDependencies', `IG_ACCESS_TOKEN EXPIRED ${Math.abs(daysLeft)} days ago — social automation is down`);
-  } else if (daysLeft <= 14) {
-    alertFail('ExtDependencies', `IG_ACCESS_TOKEN expires in ${daysLeft} days (${IG_EXPIRY.toISOString().slice(0, 10)}) — re-exchange NOW`);
-  } else if (daysLeft <= 30) {
-    log('ExtDependencies', `IG_ACCESS_TOKEN: ${daysLeft} days until expiry — schedule re-exchange ⚠️`);
+  const adminPat = process.env.ADMIN_PAT ?? '';
+  if (!adminPat) {
+    alertFail('ExtDependencies', 'IG_ACCESS_TOKEN expiry check: ADMIN_PAT not set — cannot read secret rotation metadata');
   } else {
-    log('ExtDependencies', `IG_ACCESS_TOKEN: ${daysLeft} days until expiry ✓`);
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/actions/secrets/IG_ACCESS_TOKEN`, {
+      headers: { Authorization: `Bearer ${adminPat}`, 'User-Agent': 'BOI-TechHygiene/1.0' },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) {
+      alertFail('ExtDependencies', `IG_ACCESS_TOKEN expiry check: GitHub API returned HTTP ${res.status} reading secret metadata`);
+    } else {
+      const { updated_at } = await res.json();
+      const ageDays = Math.floor((Date.now() - new Date(updated_at)) / 86_400_000);
+      // Same cadence as ig-token-refresh.yml: 45-day proactive rotation
+      // window, ~60-day hard Meta expiry (long-lived token lifetime).
+      if (ageDays >= 60) {
+        alertFail('ExtDependencies', `IG_ACCESS_TOKEN last rotated ${ageDays} days ago — past the ~60-day hard expiry, social automation is likely down`);
+      } else if (ageDays >= 45) {
+        log('ExtDependencies', `IG_ACCESS_TOKEN: ${ageDays} days since last rotation — due for ig-token-refresh.yml's next 1st/15th tick ⚠️`);
+      } else {
+        log('ExtDependencies', `IG_ACCESS_TOKEN: ${ageDays} days since last rotation (of a ~45-day cycle) ✓`);
+      }
+    }
   }
 } catch (e) { alertFail('ExtDependencies', `IG token expiry check error: ${e.message.slice(0, 60)}`); }
 
