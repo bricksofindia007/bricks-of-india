@@ -3,7 +3,9 @@ name: Sync LEGO Catalogue
 on:
   schedule:
     # Every Sunday 02:00 UTC (07:30 IST) — before weekend content work
-    - cron: '0 2 * * 0'
+    # Staggered 2026-08-16 (was 0 2 * * 0) -- collided with retiring-soon.yml
+    # at the exact same minute every Sunday; both touch catalogue/sets tables.
+    - cron: '15 2 * * 0'  # 02:15 UTC Sunday = 07:45 IST
   workflow_dispatch:
 
 jobs:

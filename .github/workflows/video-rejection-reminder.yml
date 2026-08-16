@@ -10,7 +10,9 @@ name: VID-P4 Rejection Review Reminder
 
 on:
   schedule:
-    - cron: '0 3 * * 1'  # every Monday, 03:00 UTC
+    # Staggered 2026-08-16 (was 0 3 * * 1) -- collided with content-quality.yml/
+    # snapshot-prices.yml at the same minute on Mondays.
+    - cron: '40 3 * * 1'  # every Monday, 03:40 UTC = 09:10 IST
   workflow_dispatch:  # manual trigger for testing
 
 jobs:

@@ -3,7 +3,9 @@ name: Catalogue Health Audit
 on:
   schedule:
     # Every Monday 03:30 UTC (09:00 IST) — first thing Monday morning
-    - cron: '30 3 * * 1'
+    # Staggered 2026-08-16 (was 30 3 * * 1) -- collided with
+    # video-generate-quiet-panic.yml at the exact same minute on Mondays.
+    - cron: '20 3 * * 1'  # 03:20 UTC Monday = 08:50 IST
   workflow_dispatch:
 
 jobs:
