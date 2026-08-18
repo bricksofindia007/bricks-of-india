@@ -17,9 +17,11 @@ through TTS -> gates -> assembly -> audio QC -> quiet_panic_posts insert.
 import argparse
 import json
 import os
+import random
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -911,6 +913,126 @@ def gate_vocab_complexity(script_text: str) -> dict:
     return {'pass': ok, 'detail': 'clean' if ok else f'found: {hits}'}
 
 
+# Added 2026-08-19 (Kakamora audit): all 7 gates above check structure/
+# format only -- none check whether the script is actually coherent English
+# or whether price comparisons are plausible. This let a real published
+# script end in the nonsensical, unreferenced phrase "No stranding." and
+# claim "Or two movie tickets" against Rs 4499 (implies Rs 2,249/ticket --
+# real Indian movie tickets run roughly Rs 100-1000) pass every existing
+# gate. Two new gates below close both gaps. VID-P4 (engine.py/gates.py)
+# already has a price-plausibility gate (gate_price_math, subscription-
+# style comparisons) but shares the same coherence blind spot -- see
+# gates.py's new gate_coherence_llm_judge(), added the same day.
+
+_QP_PRICE_CLAIM_RE = re.compile(
+    r"\b(?:that'?s|that\s+is|or)\b\s+"
+    r"(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+"
+    r"(?:full\s+|whole\s+|nearly\s+|almost\s+|roughly\s+|about\s+)?"
+    r"(?:(week|month|year)'?s?\s*(?:of\s+)?)?"
+    r"([a-zA-Z][a-zA-Z' -]*?)"
+    r"(?=[.!?]|$)",
+    re.IGNORECASE,
+)
+_QP_QTY_WORDS = {
+    'a': 1, 'an': 1, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+    'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+}
+# (substring key, low_inr, high_inr) -- evidence-based from 15 real
+# published quiet_panic_posts scripts (2026-08-19 audit), not guessed.
+# Ranges are generous (casual/hyperbolic comparisons, not price quotes) --
+# real observed spread already includes "one Swiggy order" at both
+# Rs 1549 and Rs 2999 across different scripts, and "one phone bill" at
+# Rs 4499. The point is catching WILDLY wrong claims (the real Kakamora
+# "two movie tickets" = Rs 4499 case), not nitpicking normal variance.
+_QP_COMPARISON_REFERENCE = [
+    ('swiggy deliveries', 4000, 12000),   # "a month of Swiggy deliveries"
+    ('swiggy order', 300, 3500),
+    ('movie ticket', 100, 1000),
+    ('phone emi', 1500, 18000),
+    ('phone bill', 300, 5000),
+    ('return flight', 2500, 35000),
+]
+_QP_PRICE_CLAIM_RATIO_LOW, _QP_PRICE_CLAIM_RATIO_HIGH = 0.4, 2.0  # wider than VID-P4's 0.5-1.5 -- QP's style is more hyperbolic
+
+
+def gate_price_plausibility(full_text: str, price_inr: float) -> dict:
+    """Reference-table plausibility check for price comparisons ("That's
+    one Swiggy order", "Or two movie tickets", etc.). Same mechanism/
+    philosophy as VID-P4's gates.py gate_price_math() (no reference price
+    for an unrecognized comparison item -> can't verify, don't fail it),
+    adapted to VID-QP's actual comparison vocabulary -- single-instance
+    items rather than VID-P4's subscription-style claims."""
+    for m in _QP_PRICE_CLAIM_RE.finditer(full_text):
+        qty_word, duration, item_phrase = m.groups()
+        qty = int(qty_word) if qty_word.isdigit() else _QP_QTY_WORDS.get(qty_word.lower())
+        if qty is None:
+            continue
+        low_item = item_phrase.lower().strip()
+        ref_mid = None
+        matched_key = None
+        for key, ref_low, ref_high in _QP_COMPARISON_REFERENCE:
+            if key in low_item:
+                ref_mid = (ref_low + ref_high) / 2
+                matched_key = key
+                break
+        if ref_mid is None:
+            continue  # no reference for this comparison -- can't verify, don't fail it
+        claimed_value = qty * ref_mid
+        if not (_QP_PRICE_CLAIM_RATIO_LOW * price_inr <= claimed_value <= _QP_PRICE_CLAIM_RATIO_HIGH * price_inr):
+            return {
+                'pass': False,
+                'detail': f"claim {m.group(0)!r} (matched reference {matched_key!r}) implies ~Rs {claimed_value:,.0f}, "
+                          f"but set price is Rs {price_inr:,.0f} (outside "
+                          f"{_QP_PRICE_CLAIM_RATIO_LOW}x-{_QP_PRICE_CLAIM_RATIO_HIGH}x tolerance)",
+            }
+    return {'pass': True, 'detail': 'no implausible comparisons found (or none recognized against the reference table)'}
+
+
+def gate_coherence_llm_judge(full_text: str) -> dict:
+    """LLM-as-judge: does this read as complete, coherent English -- not a
+    garbled or nonsensical fragment (e.g. the real published Kakamora
+    script's ending "No stranding." with no clear referent to anything
+    earlier in the script)? Model-agnostic by design: a post-hoc check on
+    the FINAL text, independent of which provider (Gemini/Groq/Cerebras)
+    generated it. Uses Groq (cheapest currently-active provider).
+
+    Fails OPEN (pass=True with a WARNING detail) if the judge call itself
+    errors -- a transient judge-API hiccup blocking ALL publishing would be
+    a worse regression than occasionally missing a coherence problem,
+    especially now that generation itself already has real retry/backoff
+    (see _retry_backoff_sleep())."""
+    groq_key = os.environ.get('GROQ_API_KEY', '').strip()
+    if not groq_key:
+        return {'pass': True, 'detail': 'SKIPPED: GROQ_API_KEY not set (fail-open, judge unavailable)'}
+    judge_prompt = (
+        "You are a strict but fair editor reviewing a short video script that will be "
+        "read aloud verbatim. Reply with exactly one line: 'COHERENT' if the script "
+        "reads as complete, sensible English with no garbled, truncated, or nonsensical "
+        "fragments (for example, an ending like 'No stranding.' with no clear referent "
+        "to anything earlier in the script would NOT be coherent) -- or "
+        "'INCOHERENT: <short reason>' if it does not.\n\nSCRIPT:\n" + full_text
+    )
+    try:
+        resp = requests.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            headers={'Authorization': f'Bearer {groq_key}', 'Content-Type': 'application/json'},
+            json={
+                'model': 'llama-3.3-70b-versatile',
+                'messages': [{'role': 'user', 'content': judge_prompt}],
+                'max_tokens': 200,
+                'temperature': 0.0,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        verdict = resp.json()['choices'][0]['message']['content'].strip()
+        if verdict.upper().startswith('COHERENT'):
+            return {'pass': True, 'detail': verdict}
+        return {'pass': False, 'detail': verdict}
+    except Exception as e:
+        return {'pass': True, 'detail': f'SKIPPED: judge call failed ({e}) -- fail-open, not blocking on judge availability'}
+
+
 def run_all_gates(segments: list, total_duration: float, price_inr: int) -> dict:
     full_text = ' '.join(s['text'] for s in segments)
 
@@ -922,6 +1044,8 @@ def run_all_gates(segments: list, total_duration: float, price_inr: int) -> dict
         'sfx_tags': gate_sfx_tags(segments),
         'banned_constructions': gate_banned_constructions(full_text),
         'vocab_complexity': gate_vocab_complexity(full_text),
+        'price_plausibility': gate_price_plausibility(full_text, price_inr),
+        'coherence': gate_coherence_llm_judge(full_text),
     }
 
     # SHADOW MODE (2026-08-16), gated (2026-08-18) behind
@@ -1026,6 +1150,23 @@ def _build_word_cap_feedback(e: PreTTSValidationError) -> str:
     )
 
 
+def _retry_backoff_sleep(attempt: int, provider_failure: bool) -> None:
+    """Exponential backoff with jitter between script-gen retry attempts.
+
+    Added 2026-08-19: the retry loop previously had zero delay between
+    attempts of any kind. provider_failure=True (both Gemini and Cerebras
+    failed, not just a content-gate miss) gets a longer base delay -- a real
+    provider outage deserves more time to clear than a quality-gate retry,
+    which just needs a fresh model draw. Doubling each attempt, jitter
+    avoids concurrent runs retrying in lockstep.
+    """
+    base = (8 if provider_failure else 3) * (2 ** (attempt - 1))
+    base = min(base, 90 if provider_failure else 30)
+    delay = max(1.0, base + base * random.uniform(-0.3, 0.3))
+    print(f'  Backing off {delay:.1f}s before retry...', file=sys.stderr)
+    time.sleep(delay)
+
+
 # ---------------------------------------------------------------------------
 # Full per-candidate pipeline
 # ---------------------------------------------------------------------------
@@ -1048,6 +1189,12 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
     print(f'\n=== Processing {set_title} (#{set_number}) ===')
 
     segments = candidate.get('segments')
+    # None for the hand-authored (--test-batch) path below -- no LLM call
+    # happens, so there's no provider/token usage to record. Added
+    # 2026-08-19 alongside quiet_panic_posts' new tracking columns.
+    script_provider = None
+    script_input_tokens = None
+    script_output_tokens = None
     if not segments:
         script_gen_meta = {
             'set_number': set_number,
@@ -1069,8 +1216,12 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
             mode_label = mode if attempt == 1 else f'{mode}, auto-retry' if mode != initial_mode else mode
             print(f'  No pre-authored segments -- calling script-gen ({mode_label} mode), attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}...')
             try:
-                segments = generate_quiet_panic_script(script_gen_meta, revision_context=revision_context)
-                print(f'  script-gen returned {len(segments)} segment(s) on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}')
+                script_gen_result = generate_quiet_panic_script(script_gen_meta, revision_context=revision_context)
+                segments = script_gen_result.segments
+                script_provider = script_gen_result.provider
+                script_input_tokens = script_gen_result.input_tokens
+                script_output_tokens = script_gen_result.output_tokens
+                print(f'  script-gen returned {len(segments)} segment(s) on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS} (provider: {script_provider})')
                 break
             except PreTTSValidationError as e:
                 # Each attempt's rejection reason logged individually (word
@@ -1096,6 +1247,28 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
                         'original_script': ' '.join(s.get('text', '') for s in e.segments),
                         'rejection_reason': _build_word_cap_feedback(e),
                     }
+                if attempt < MAX_SCRIPT_GEN_ATTEMPTS:
+                    _retry_backoff_sleep(attempt, provider_failure=False)
+            except Exception as e:
+                # Added 2026-08-19: previously uncaught here -- generate_
+                # quiet_panic_script()'s own Gemini try/except only covers
+                # the Gemini call; _call_cerebras() runs unguarded after it,
+                # so when BOTH providers fail (confirmed live 2026-08-18,
+                # run 32159269849: Gemini 503 "high demand" then Cerebras
+                # 402 "payment required"), this propagated straight out of
+                # the retry loop entirely -- the whole candidate crashed on
+                # attempt 3/6 instead of getting the other 3 attempts, so a
+                # genuinely transient Gemini issue got ZERO chance to clear
+                # via retry. Longer backoff than a content-gate miss (this
+                # is a real provider outage, not a quality issue) and still
+                # bounded by MAX_SCRIPT_GEN_ATTEMPTS -- if every attempt
+                # exhausts, ScriptGenExhaustedError still fires below exactly
+                # as before, just after genuinely trying, not crashing on
+                # the first double-failure.
+                print(f'  Both providers failed on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}: {e}', file=sys.stderr)
+                attempts_log.append(f'both providers failed: {e}')
+                if attempt < MAX_SCRIPT_GEN_ATTEMPTS:
+                    _retry_backoff_sleep(attempt, provider_failure=True)
 
         if segments is None:
             # Not a crash -- a genuine, expected terminal outcome for this
@@ -1300,6 +1473,9 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
         'gate_results': gate_results,
         'status': status,
         'reworked_from': reworked_from,
+        'provider': script_provider,
+        'input_tokens': script_input_tokens,
+        'output_tokens': script_output_tokens,
     }
     inserted = sb.table('quiet_panic_posts').insert(row).execute()
     post_id = inserted.data[0]['id']

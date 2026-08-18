@@ -55,5 +55,6 @@ jobs:
           BRICKSET_API_KEY: ${{ secrets.BRICKSET_API_KEY }}
           REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
           GEMINI_SOCIAL_API_KEY: ${{ secrets.GEMINI_SOCIAL_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
         run: python rework_quiet_panic.py --poll-and-rework

@@ -61,6 +61,7 @@ jobs:
         working-directory: scripts/video
         env:
           GEMINI_SOCIAL_API_KEY: ${{ secrets.GEMINI_SOCIAL_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
           SET_NUMBER: ${{ inputs.set_number }}
           SET_TITLE: ${{ inputs.set_title }}

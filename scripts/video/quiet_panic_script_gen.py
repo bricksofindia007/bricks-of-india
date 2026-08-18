@@ -27,11 +27,21 @@ import re
 import sys
 import time
 from pathlib import Path
+from typing import NamedTuple
 
+import requests
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).parent
 load_dotenv(BASE_DIR / '.env')
+
+# config/feature_flags.py lives at repo root, not on sys.path when this
+# script's caller runs with working-directory: scripts/video. Not a break
+# from this file's isolation-from-engine.py/publish.py precedent (see
+# get_secret()'s docstring above) -- feature_flags.py is a generic
+# repo-root utility, not engine.py/publish.py-specific.
+sys.path.insert(0, str((BASE_DIR.parent.parent).resolve()))
+from config.feature_flags import FEATURE_FLAGS  # noqa: E402
 
 
 def get_secret(name: str, default: str = '') -> str:
@@ -42,9 +52,16 @@ def get_secret(name: str, default: str = '') -> str:
 
 
 GEMINI_SOCIAL_API_KEY = get_secret('GEMINI_SOCIAL_API_KEY')
+GROQ_API_KEY = get_secret('GROQ_API_KEY')
 CEREBRAS_API_KEY = get_secret('CEREBRAS_API_KEY')
 
-CODEX_PATH = BASE_DIR.parent.parent / 'docs' / 'codex' / 'BOI_Codex_v2.md'
+# Condensed, voice-only extract (not the full BOI_Codex_v2.md) -- see
+# docs/codex/BOI_Codex_v2_qp_condensed.md's header for the full rationale
+# and exactly what was kept/cut. Added 2026-08-19: the full codex (~9,573
+# est. tokens) was the confirmed dominant driver of Cerebras token cost for
+# this pipeline, most of it article-format mechanics VID-QP's own gates
+# never check (India Paragraph, affiliate codes, article lint gates, etc.).
+CODEX_PATH = BASE_DIR.parent.parent / 'docs' / 'codex' / 'BOI_Codex_v2_qp_condensed.md'
 
 # Same rate-limiter shape as engine.py's _gemini_pace() -- duplicated
 # constant/logic, not imported, per this format's standing isolation
@@ -763,7 +780,27 @@ def check_verdict_reason(segments: list) -> dict:
 # imported from it.
 # ---------------------------------------------------------------------------
 
-def _call_gemini(system_prompt: str, task_prompt: str) -> str:
+class ScriptGenCallResult(NamedTuple):
+    """One provider call's raw result. Added 2026-08-19 alongside
+    quiet_panic_posts' new provider/input_tokens/output_tokens columns
+    (migration 20260819000000_video_provider_tracking)."""
+    text: str
+    provider: str  # 'gemini' | 'groq' | 'cerebras'
+    input_tokens: int | None
+    output_tokens: int | None
+
+
+class GeneratedScript(NamedTuple):
+    """generate_quiet_panic_script()'s return value -- parsed segments plus
+    which provider/tokens actually produced them (distinct from
+    ScriptGenCallResult, whose .text is the raw pre-parse string)."""
+    segments: list
+    provider: str
+    input_tokens: int | None
+    output_tokens: int | None
+
+
+def _call_gemini(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
     if not GEMINI_SOCIAL_API_KEY:
         raise RuntimeError('GEMINI_SOCIAL_API_KEY not set.')
     _gemini_pace()
@@ -777,10 +814,46 @@ def _call_gemini(system_prompt: str, task_prompt: str) -> str:
     )
     if not resp.text or not resp.text.strip():
         raise RuntimeError('Gemini returned empty text.')
-    return resp.text.strip()
+    usage = getattr(resp, 'usage_metadata', None)
+    in_tok = getattr(usage, 'prompt_token_count', None) if usage else None
+    out_tok = getattr(usage, 'candidates_token_count', None) if usage else None
+    return ScriptGenCallResult(resp.text.strip(), 'gemini', in_tok, out_tok)
 
 
-def _call_cerebras(system_prompt: str, task_prompt: str) -> str:
+def _call_groq(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
+    """Added 2026-08-19 as the new default Gemini fallback -- see
+    config/feature_flags.py's 'cerebras_fallback_enabled' docstring for why
+    Cerebras moved to opt-in (payment-blocked, 402, since 2026-08-18).
+    Groq's free tier fails with 429 on rate-limit, not a permanent-until-
+    paid 402."""
+    if not GROQ_API_KEY:
+        raise RuntimeError('GROQ_API_KEY not set.')
+    resp = requests.post(
+        'https://api.groq.com/openai/v1/chat/completions',
+        headers={'Authorization': f'Bearer {GROQ_API_KEY}', 'Content-Type': 'application/json'},
+        json={
+            'model': 'llama-3.3-70b-versatile',
+            'messages': [
+                {'role': 'system', 'content': system_prompt},
+                {'role': 'user', 'content': task_prompt},
+            ],
+            'max_tokens': 2048,
+            'temperature': 0.7,
+        },
+        timeout=60,
+    )
+    if resp.status_code == 429:
+        raise RuntimeError('Groq rate-limited (429).')
+    resp.raise_for_status()
+    data = resp.json()
+    content = data['choices'][0]['message']['content']
+    if not content or not content.strip():
+        raise RuntimeError('Groq returned empty content.')
+    usage = data.get('usage', {})
+    return ScriptGenCallResult(content.strip(), 'groq', usage.get('prompt_tokens'), usage.get('completion_tokens'))
+
+
+def _call_cerebras(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
     if not CEREBRAS_API_KEY:
         raise RuntimeError('CEREBRAS_API_KEY not set.')
     from cerebras.cloud.sdk import Cerebras
@@ -791,20 +864,31 @@ def _call_cerebras(system_prompt: str, task_prompt: str) -> str:
             {'role': 'system', 'content': system_prompt},
             {'role': 'user', 'content': task_prompt},
         ],
+        # Added 2026-08-19, matching src/lib/providers/cerebras.ts's existing
+        # precedent (article pipeline) -- gpt-oss-120b is a reasoning model
+        # and burns tokens on hidden chain-of-thought before the real
+        # content; this call previously had no cap at all.
+        max_tokens=8192,
     )
     content = resp.choices[0].message.content
     if not content or not content.strip():
         raise RuntimeError('Cerebras returned empty content.')
-    return content.strip()
+    usage = getattr(resp, 'usage', None)
+    in_tok = getattr(usage, 'prompt_tokens', None) if usage else None
+    out_tok = getattr(usage, 'completion_tokens', None) if usage else None
+    return ScriptGenCallResult(content.strip(), 'cerebras', in_tok, out_tok)
 
 
-def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) -> list:
+def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) -> GeneratedScript:
     """candidate: {'set_number', 'set_title', 'price_inr', 'pieces', 'theme'}.
     revision_context (optional): {'original_script', 'rejection_reason'} --
     when present, the prompt instructs a targeted revision instead of a
-    fresh take. Returns a list of segment dicts (text/target_duration/
-    voice/sfx_tag), same shape generate_quiet_panic_video.py's
-    process_candidate() already expects for a hand-authored candidate."""
+    fresh take. Returns GeneratedScript(segments, provider, input_tokens,
+    output_tokens) -- .segments is the segment dict list (text/
+    target_duration/voice/sfx_tag) generate_quiet_panic_video.py's
+    process_candidate() expects. (Return shape changed 2026-08-19 from a
+    bare list to this NamedTuple so provider/token usage can be persisted
+    -- see GeneratedScript's docstring.)"""
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         codex=_load_codex(),
         persona_rules=PERSONA_RULES,
@@ -812,16 +896,28 @@ def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) 
     )
     task_prompt = _build_task_prompt(candidate, revision_context)
 
-    raw_text = None
+    call_result = None
     try:
-        raw_text = _call_gemini(system_prompt, task_prompt)
+        call_result = _call_gemini(system_prompt, task_prompt)
     except Exception as e:
-        print(f'WARN: Gemini script-gen failed ({e}), falling back to Cerebras.', file=sys.stderr)
+        print(f'WARN: Gemini script-gen failed ({e}), falling back to Groq.', file=sys.stderr)
 
-    if raw_text is None:
-        raw_text = _call_cerebras(system_prompt, task_prompt)
+    if call_result is None:
+        try:
+            call_result = _call_groq(system_prompt, task_prompt)
+        except Exception as e:
+            print(f'WARN: Groq script-gen failed ({e}), falling back.', file=sys.stderr)
 
-    segments = _extract_json_array(raw_text)
+    if call_result is None:
+        if not FEATURE_FLAGS.get('cerebras_fallback_enabled', False):
+            raise RuntimeError(
+                "Gemini and Groq both unavailable/failed, and Cerebras fallback is disabled "
+                "(config/feature_flags.py 'cerebras_fallback_enabled' is False -- Cerebras is "
+                "payment-blocked as of 2026-08-18, see CLAUDE.md)."
+            )
+        call_result = _call_cerebras(system_prompt, task_prompt)
+
+    segments = _extract_json_array(call_result.text)
     _validate_segments(segments)
 
     budget_check = check_word_budget(segments)
@@ -846,7 +942,7 @@ def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) 
     if not verdict_check['pass']:
         raise VerdictReasonMissingError(verdict_check['detail'], segments=segments)
 
-    return segments
+    return GeneratedScript(segments, call_result.provider, call_result.input_tokens, call_result.output_tokens)
 
 
 # ---------------------------------------------------------------------------
@@ -878,8 +974,9 @@ def main():
     if args.original_script and args.rejection_reason:
         revision_context = {'original_script': args.original_script, 'rejection_reason': args.rejection_reason}
 
-    segments = generate_quiet_panic_script(candidate, revision_context=revision_context)
-    print(json.dumps(segments, indent=2))
+    result = generate_quiet_panic_script(candidate, revision_context=revision_context)
+    print(f'[provider: {result.provider}, input_tokens: {result.input_tokens}, output_tokens: {result.output_tokens}]', file=sys.stderr)
+    print(json.dumps(result.segments, indent=2))
 
 
 if __name__ == '__main__':

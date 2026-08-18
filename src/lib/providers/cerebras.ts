@@ -41,9 +41,12 @@ export class CerebrasProvider implements Provider {
       throw err;
     }
 
-    const json = await res.json() as { choices?: { message?: { content?: string } }[] };
+    const json = await res.json() as {
+      choices?: { message?: { content?: string } }[];
+      usage?: { prompt_tokens?: number; completion_tokens?: number };
+    };
     const text = json.choices?.[0]?.message?.content;
     if (!text) throw new Error('Cerebras: empty response content');
-    return { text };
+    return { text, inputTokens: json.usage?.prompt_tokens, outputTokens: json.usage?.completion_tokens };
   }
 }

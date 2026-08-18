@@ -1,8 +1,10 @@
 import { buildSystemPrompt, buildUserPrompt, parseDraftResponse } from './prompts/draft-prompt';
-import { GeminiProvider, CerebrasProvider } from './providers';
+import { GeminiProvider, GroqProvider, CerebrasProvider } from './providers';
+import type { Provider } from './providers';
 import { isCerebrasEligible } from './source-quality';
 import { lintDraft, type LintResult } from './lint';
 import { runHardRules, type HardRuleResult, type DraftFormat } from './hard-rules';
+import { FEATURE_FLAGS } from './feature-flags';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type DraftGenerationInput = {
@@ -25,7 +27,7 @@ export type GenerationOutcome = {
   rating: number | null;
   format: string;
   wordCount: number;
-  provider: 'gemini' | 'cerebras';
+  provider: 'gemini' | 'groq' | 'cerebras';
   requiresManualApproval: boolean;
   failoverUsed: boolean;
   lintResult: LintResult | null;
@@ -42,12 +44,21 @@ export type GenerationOutcome = {
 // attempted-both-failed case should be deleted). String-matching error
 // messages for this would be fragile; a dedicated error type is the same
 // pattern already used for LintFailedError in publish-draft.ts.
+// Widened 2026-08-19: was hardcoded to exactly Gemini+Cerebras. Fallback
+// chain is now Gemini -> Groq -> (Cerebras, only if feature-flags.ts's
+// cerebrasFallbackEnabled is true) -- fallbackProvider/fallbackMessage
+// record whichever fallback was actually attempted last (Groq in the
+// normal case, Cerebras only if that flag is on and Groq also failed).
+// generate-approved-drafts.ts's consumer updated accordingly -- it used to
+// read .cerebrasMessage directly, which would have silently misattributed
+// a Groq failure as a Cerebras one if left as-is.
 export class BothProvidersFailedError extends Error {
   constructor(
     public readonly geminiMessage: string,
-    public readonly cerebrasMessage: string,
+    public readonly fallbackProvider: string,
+    public readonly fallbackMessage: string,
   ) {
-    super(`Both providers failed — Gemini: ${geminiMessage} | Cerebras: ${cerebrasMessage}`);
+    super(`Both providers failed — Gemini: ${geminiMessage} | ${fallbackProvider}: ${fallbackMessage}`);
     this.name = 'BothProvidersFailedError';
   }
 }
@@ -84,6 +95,7 @@ export async function generateWithFailover(
   input: DraftGenerationInput,
   sb: SupabaseClient,
   geminiKey: string,
+  groqKey: string | undefined,
   cerebrasKey: string | undefined,
   batchOpeners?: string[],   // bodies accepted earlier in this same batch run (Gate 8 same-batch race fix, 2026-07-02)
 ): Promise<GenerationOutcome> {
@@ -146,43 +158,66 @@ export async function generateWithFailover(
   vlog(`Gemini failed: ${errMsg}`);
   vlog(`Error classification: ${retryable ? 'RETRYABLE (429/5xx)' : 'NON-RETRYABLE — will not failover'}`);
 
-  if (!retryable || !cerebrasKey) {
+  // Fallback chain: Groq always attempted (if a key is configured), then
+  // Cerebras only if feature-flags.ts's cerebrasFallbackEnabled is true.
+  // Added 2026-08-19 -- see that flag's docstring for why Cerebras moved to
+  // opt-in (payment-blocked, 402, since 2026-08-18).
+  const candidates: { name: 'groq' | 'cerebras'; provider: Provider }[] = [];
+  if (groqKey) candidates.push({ name: 'groq', provider: new GroqProvider(groqKey) });
+  if (cerebrasKey && FEATURE_FLAGS.cerebrasFallbackEnabled) {
+    candidates.push({ name: 'cerebras', provider: new CerebrasProvider(cerebrasKey) });
+  }
+
+  if (!retryable || candidates.length === 0) {
     throw geminiErr;
   }
 
+  // Same eligibility gate for every fallback candidate, not just Cerebras --
+  // it checks the SOURCE content's quality (fullBody/excerpt length), not
+  // anything provider-specific, so it applies regardless of which fallback
+  // is being tried. Name kept as isCerebrasEligible (not renamed) to avoid
+  // churn in source-quality.ts and its own tests; see that function's
+  // docstring for the actual eligibility logic.
   const fullBodyLen = (input.fullBody ?? '').length;
   const excerptLen  = (input.sourceExcerpt ?? '').length;
   const eligible    = isCerebrasEligible({ source_excerpt: input.sourceExcerpt, fullBody: input.fullBody });
-  vlog(`Cerebras eligibility: fullBody_len=${fullBodyLen} excerpt_len=${excerptLen} → ${eligible ? 'ELIGIBLE' : 'INELIGIBLE (both < 200 chars)'}`);
+  vlog(`Fallback eligibility: fullBody_len=${fullBodyLen} excerpt_len=${excerptLen} → ${eligible ? 'ELIGIBLE' : 'INELIGIBLE (both < 200 chars)'}`);
 
   if (!eligible) {
     throw new Error(
-      `Gemini failed (retryable) and Cerebras not eligible (fullBody and excerpt both < 200 chars): ${(geminiErr as Error).message}`,
+      `Gemini failed (retryable) and fallback not eligible (fullBody and excerpt both < 200 chars): ${(geminiErr as Error).message}`,
     );
   }
 
-  // ── Cerebras failover ─────────────────────────────────────────────────────────
-  // Cerebras publishes identically to Gemini — gates-only, no probation.
-  vlog('Triggering Cerebras failover...');
-  const cerebras = new CerebrasProvider(cerebrasKey);
-  vlog('Calling Cerebras gpt-oss-120b...');
+  // ── Fallback attempts, in order ──────────────────────────────────────────────
+  // Same probation-free, gates-only publish policy as the original
+  // Cerebras-only path -- whichever fallback succeeds publishes identically
+  // to Gemini.
+  let parsed: ReturnType<typeof parseDraftResponse> | undefined;
+  let usedProvider: 'groq' | 'cerebras' | undefined;
+  let lastFallbackMsg = '';
+  for (const { name, provider } of candidates) {
+    vlog(`Triggering ${name} failover...`);
+    try {
+      const { text } = await provider.call({ systemPrompt, userPrompt });
+      vlog(`${name} returned ${text.length} chars — parsing...`);
+      parsed = parseDraftResponse(text, input.format);
+      usedProvider = name;
+      break;
+    } catch (fallbackErr) {
+      lastFallbackMsg = fallbackErr instanceof Error ? fallbackErr.message : String(fallbackErr);
+      vlog(`${name} failed: ${lastFallbackMsg.slice(0, 120)}`);
+    }
+  }
 
-  let parsed: ReturnType<typeof parseDraftResponse>;
-  try {
-    const { text } = await cerebras.call({ systemPrompt, userPrompt });
-    vlog(`Cerebras returned ${text.length} chars — parsing...`);
-    parsed = parseDraftResponse(text, input.format);
-  } catch (cerebrasErr) {
-    // Both providers genuinely attempted and both failed to produce usable
-    // content — this is the case Abhinav's policy (2026-06-28) targets for
-    // delete, distinct from Gemini-non-retryable-Cerebras-never-tried (which
-    // stays a plain Error, still retried automatically). Covers both a real
-    // Cerebras API/network failure and a malformed/unparseable Cerebras
-    // response (empty output, missing BOI_DRAFT markers) — either way,
-    // Cerebras did not deliver usable content.
-    const cerebrasMsg = cerebrasErr instanceof Error ? cerebrasErr.message : String(cerebrasErr);
-    vlog(`Cerebras also failed: ${cerebrasMsg.slice(0, 120)}`);
-    throw new BothProvidersFailedError((geminiErr as Error).message, cerebrasMsg);
+  if (!parsed || !usedProvider) {
+    // All configured/eligible fallbacks genuinely attempted and failed to
+    // produce usable content — this is the case Abhinav's policy
+    // (2026-06-28) targets for delete, distinct from Gemini-non-retryable-
+    // fallback-never-tried (which stays a plain Error, still retried
+    // automatically). fallbackProvider records whichever was tried last.
+    const lastTried = candidates[candidates.length - 1]?.name ?? 'none';
+    throw new BothProvidersFailedError((geminiErr as Error).message, lastTried, lastFallbackMsg);
   }
   vlog(`Parsed: title="${parsed.title.slice(0, 60)}" wordCount=${parsed.wordCount} verdict=${parsed.verdict}`);
 
@@ -191,7 +226,7 @@ export async function generateWithFailover(
   const hardFail  = hardRules.some(r => !r.pass);
   lintSummary(lint);
   vlog(`Gate 7: hardFail=${hardFail} failures=${hardRules.filter(r => !r.pass).map(r => r.id).join(',') || 'none'}`);
-  vlog(`Routing: provider=cerebras requiresManualApproval=${hardFail} failoverUsed=true`);
+  vlog(`Routing: provider=${usedProvider} requiresManualApproval=${hardFail} failoverUsed=true`);
 
   return {
     title:   parsed.title,
@@ -200,7 +235,7 @@ export async function generateWithFailover(
     rating:  parsed.rating,
     format:  parsed.format,
     wordCount: parsed.wordCount,
-    provider: 'cerebras',
+    provider: usedProvider,
     requiresManualApproval: hardFail,
     failoverUsed: true,
     lintResult: lint,

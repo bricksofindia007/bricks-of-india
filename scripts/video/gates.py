@@ -13,9 +13,11 @@ catch.
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 
+import requests
 from num2words import num2words
 
 BANNED_PATTERNS = [
@@ -356,6 +358,58 @@ def gate_no_store_names(script: str) -> GateResult:
     return GateResult("G9_no_store_names", True)
 
 
+# Added 2026-08-19 (Kakamora audit, VID-QP): G1-G9 above check structure/
+# format only -- none check whether the script is actually coherent
+# English. VID-QP's real published output for Kakamora (#43293) ended in
+# the nonsensical, unreferenced phrase "No stranding." and passed every one
+# of ITS gates; VID-P4 already has a price-plausibility gate (G8 above,
+# gate_price_math) that VID-QP lacked, so this repo confirmed VID-P4 does
+# NOT share that half of the gap, but DOES share this one -- no existing
+# G1-G9 gate here would have caught a "No stranding."-style ending either.
+def gate_coherence_llm_judge(script: str) -> GateResult:
+    """LLM-as-judge: does this read as complete, coherent English -- not a
+    garbled or nonsensical fragment? Model-agnostic by design: a post-hoc
+    check on the FINAL script text, independent of which provider (Gemini/
+    Groq/Cerebras) generated it. Uses Groq (cheapest currently-active
+    provider) for a small, cheap classification call.
+
+    Fails OPEN (pass=True with a WARNING detail) if the judge call itself
+    errors -- a transient judge-API hiccup blocking ALL publishing would be
+    a worse regression than occasionally missing a coherence problem,
+    especially now that generation itself already has real retry/backoff
+    (see engine.py's _retry_backoff_sleep())."""
+    groq_key = os.environ.get("GROQ_API_KEY", "").strip()
+    if not groq_key:
+        return GateResult("G10_coherence", True, "SKIPPED: GROQ_API_KEY not set (fail-open, judge unavailable)")
+    judge_prompt = (
+        "You are a strict but fair editor reviewing a short video script that will be "
+        "read aloud verbatim. Reply with exactly one line: 'COHERENT' if the script "
+        "reads as complete, sensible English with no garbled, truncated, or nonsensical "
+        "fragments (for example, an ending like 'No stranding.' with no clear referent "
+        "to anything earlier in the script would NOT be coherent) -- or "
+        "'INCOHERENT: <short reason>' if it does not.\n\nSCRIPT:\n" + script
+    )
+    try:
+        resp = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": [{"role": "user", "content": judge_prompt}],
+                "max_tokens": 200,
+                "temperature": 0.0,
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        verdict = resp.json()["choices"][0]["message"]["content"].strip()
+        if verdict.upper().startswith("COHERENT"):
+            return GateResult("G10_coherence", True, verdict)
+        return GateResult("G10_coherence", False, verdict)
+    except Exception as e:
+        return GateResult("G10_coherence", True, f"SKIPPED: judge call failed ({e}) -- fail-open, not blocking on judge availability")
+
+
 def _levenshtein(a: str, b: str) -> int:
     m, n = len(a), len(b)
     dp = [[0] * (n + 1) for _ in range(m + 1)]
@@ -502,5 +556,6 @@ def run_all_gates(
     report.results.append(gate_no_first_person_build(script))
     report.results.append(gate_opener_uniqueness(script, recent_scripts))
     report.results.append(gate_price_math(script, price_inr))
+    report.results.append(gate_coherence_llm_judge(script))
     report.results.append(gate_no_store_names(script))
     return report

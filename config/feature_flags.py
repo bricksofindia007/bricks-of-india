@@ -31,4 +31,15 @@ FEATURE_FLAGS = {
     # promote the shadow check into a REAL blocking gate. Leave False until
     # that product decision is made explicitly.
     "qp_shadow_mode_estimate": False,
+
+    # Cerebras fallback (VID-P4 engine.py, VID-QP quiet_panic_script_gen.py).
+    # Added 2026-08-19: Cerebras has been payment-blocked (402 "Payment
+    # required") since at least 2026-08-18 and Abhinav cannot add a payment
+    # method to that account (see CLAUDE.md). Fallback order is now
+    # Gemini -> Groq (free tier, 429 on limit rather than a permanent 402).
+    # The Cerebras integration code is kept intact, not deleted, behind this
+    # flag -- so it can be re-enabled with a one-line diff if billing is
+    # ever resolved, without a rewrite. Leave False until Abhinav confirms
+    # Cerebras billing is fixed.
+    "cerebras_fallback_enabled": False,
 }
