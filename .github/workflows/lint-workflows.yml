@@ -1,0 +1,55 @@
+name: Lint Workflows
+
+# Enforces CLAUDE.md's "all workflows require timeout-minutes" rule on any
+# PR touching .github/workflows/**. Added 2026-08-18 after
+# video-generate-daily.yml's `generate` job (no timeout-minutes) hung on a
+# stalled apt-get update and burned the full GitHub Actions 6-hour default
+# job ceiling, silently eating that day's entire scheduled VID-P4 run.
+#
+# Scoped to only the workflow files THIS PR changes (via git diff against
+# the PR's base ref), not every file in .github/workflows/ -- two
+# pre-existing files (video-feasibility-test.yml,
+# video-script-gen-test-quiet-panic.yml) don't have enough run history yet
+# to size a real timeout and are deliberately left unset for manual sizing
+# later (see their absence from the 2026-08-18 timeout-minutes audit). A
+# directory-wide check would permanently block unrelated PRs on those two
+# until someone fixes them specifically; a diff-scoped check enforces the
+# rule on everything new or changed going forward without that side effect.
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/**'
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    # This job's own runtime should be seconds (a git diff + a small Python
+    # script over a handful of YAML files) -- 5 min is already generous
+    # headroom, not sized off historical data since this workflow is new.
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install PyYAML
+        run: pip install pyyaml
+
+      - name: Find changed workflow files
+        id: changed
+        run: |
+          FILES=$(git diff --name-only "origin/${{ github.event.pull_request.base.ref }}"...HEAD -- '.github/workflows/*.yml')
+          echo "files<<EOF" >> "$GITHUB_OUTPUT"
+          echo "$FILES" >> "$GITHUB_OUTPUT"
+          echo "EOF" >> "$GITHUB_OUTPUT"
+          echo "Changed workflow files:"
+          echo "$FILES"
+
+      - name: Check every changed job has timeout-minutes
+        if: steps.changed.outputs.files != ''
+        run: python .github/scripts/lint_workflow_timeouts.py ${{ steps.changed.outputs.files }}

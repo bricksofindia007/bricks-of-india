@@ -53,6 +53,12 @@ from quiet_panic_script_gen import (  # noqa: E402
     PER_SEGMENT_WORD_CAP,
 )
 
+# config/feature_flags.py lives at repo root (this file is at
+# <root>/scripts/video/), not on sys.path by default when this script runs
+# with working-directory: scripts/video (see video-generate-quiet-panic.yml).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from config.feature_flags import FEATURE_FLAGS  # noqa: E402
+
 # Retry budget for script-gen's pre-TTS validation (added 2026-08-01 after
 # a real 3-for-3 miss streak on Rapunzel's Castle in production CI, all
 # WordBudgetExceededError -- each attempt costs one LLM call and zero
@@ -908,34 +914,8 @@ def gate_vocab_complexity(script_text: str) -> dict:
 def run_all_gates(segments: list, total_duration: float, price_inr: int) -> dict:
     full_text = ' '.join(s['text'] for s in segments)
 
-    # SHADOW MODE (2026-08-16): check_caption_length_budget() no longer
-    # gates generation (see CaptionLengthExceededError's docstring in
-    # quiet_panic_script_gen.py) -- called here, non-blocking, purely to
-    # log its pass/fail verdict + estimated duration + per-segment
-    # breakdown into gate_results alongside the real gate_duration result
-    # below, so the two are directly comparable per run. A failure in this
-    # check must never affect anything downstream -- wrapped defensively
-    # so a bug in the estimate itself (e.g. a missing SFX file) can't take
-    # down a real generation run over a non-blocking diagnostic.
-    try:
-        pre_tts = check_caption_length_budget(segments)
-        pre_tts_pass = pre_tts['pass']
-        pre_tts_duration = pre_tts['estimated_total']
-        pre_tts_detail = pre_tts['detail']
-        pre_tts_segments = pre_tts['segments']
-    except Exception as e:
-        print(f'  WARN: pre-TTS caption-length shadow check failed (non-fatal, gate_results unaffected): {e}', file=sys.stderr)
-        pre_tts_pass = None
-        pre_tts_duration = None
-        pre_tts_detail = f'shadow check error: {e}'
-        pre_tts_segments = None
-
-    return {
+    result = {
         'duration': gate_duration(total_duration),
-        'pre_tts_estimate_pass': pre_tts_pass,
-        'pre_tts_estimate_duration': pre_tts_duration,
-        'pre_tts_estimate_detail': pre_tts_detail,
-        'pre_tts_estimate_segments': pre_tts_segments,
         'price_token': gate_price_token(full_text, price_inr),
         'verdict': gate_verdict(full_text),
         'verdict_reason': check_verdict_reason(segments),
@@ -943,6 +923,64 @@ def run_all_gates(segments: list, total_duration: float, price_inr: int) -> dict
         'banned_constructions': gate_banned_constructions(full_text),
         'vocab_complexity': gate_vocab_complexity(full_text),
     }
+
+    # SHADOW MODE (2026-08-16), gated (2026-08-18) behind
+    # config/feature_flags.py's "qp_shadow_mode_estimate" (default False --
+    # see that file for why comment-only gating isn't enough). When on:
+    # check_caption_length_budget() does NOT gate generation (see
+    # CaptionLengthExceededError's docstring in quiet_panic_script_gen.py)
+    # -- called here, non-blocking, purely to log its pass/fail verdict +
+    # estimated duration + per-segment breakdown into gate_results
+    # alongside the real gate_duration result above, so the two are
+    # directly comparable per run. A failure in this check must never
+    # affect anything downstream -- wrapped defensively so a bug in the
+    # estimate itself (e.g. a missing SFX file) can't take down a real
+    # generation run over a non-blocking diagnostic.
+    if FEATURE_FLAGS.get('qp_shadow_mode_estimate', False):
+        try:
+            pre_tts = check_caption_length_budget(segments)
+            pre_tts_pass = pre_tts['pass']
+            pre_tts_duration = pre_tts['estimated_total']
+            pre_tts_detail = pre_tts['detail']
+            pre_tts_segments = pre_tts['segments']
+        except Exception as e:
+            print(f'  WARN: pre-TTS caption-length shadow check failed (non-fatal, gate_results unaffected): {e}', file=sys.stderr)
+            pre_tts_pass = None
+            pre_tts_duration = None
+            pre_tts_detail = f'shadow check error: {e}'
+            pre_tts_segments = None
+
+        # This MUST be a {'pass':..., 'detail':...}-shaped dict like every
+        # other entry here -- both process_candidate()'s own gate_results
+        # loop below (which does result["pass"]/result["detail"]
+        # unconditionally, no isinstance check) and
+        # publish_quiet_panic.py's assert_all_gates_passed() require it.
+        # The original 2026-08-16 version wrote 4 flat, non-dict keys
+        # (pre_tts_estimate_pass/_duration/_detail/_segments) straight
+        # into this dict, which crashed the very next scheduled run with
+        # `TypeError: 'bool' object is not subscriptable` at the print
+        # loop below.
+        #
+        # 'pass' is hardcoded True regardless of the actual shadow verdict
+        # (see 'shadow_pass') -- this entry must never affect all_passed /
+        # block generation (all_passed = all(r['pass'] for r in
+        # gate_results.values()) has no per-key skip logic, so a real
+        # False here would silently make this "non-blocking, purely
+        # logged" shadow check start gating generation, contradicting its
+        # own docstring). The leading "_" also follows this codebase's
+        # existing metadata-not-a-gate convention (see publish.py's
+        # assert_all_gates_passed docstring, generalized 2026-07-07) --
+        # downstream consumers that check key.startswith('_') skip this
+        # entirely rather than relying on the forced True.
+        result['_pre_tts_estimate'] = {
+            'pass': True,
+            'detail': f'[non-blocking shadow check, shadow_pass={pre_tts_pass}] {pre_tts_detail}',
+            'shadow_pass': pre_tts_pass,
+            'estimated_total': pre_tts_duration,
+            'segments': pre_tts_segments,
+        }
+
+    return result
 
 
 def _build_word_cap_feedback(e: PreTTSValidationError) -> str:

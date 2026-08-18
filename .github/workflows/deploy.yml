@@ -35,6 +35,10 @@ jobs:
   build-and-deploy:
     name: Build & Deploy
     runs-on: ubuntu-latest
+    # 10 most recent runs: 1m24s-1m40s (fast-failing) up to 8m53s (real
+    # successful builds) (gh run list --workflow=deploy.yml --limit 10,
+    # 2026-08-18). 2x observed max successful runtime.
+    timeout-minutes: 20
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 

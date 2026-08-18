@@ -27,6 +27,12 @@ on:
 jobs:
   rework:
     runs-on: ubuntu-latest
+    # 10 most recent runs: 1m47s-8m38s (gh run list
+    # --workflow=video-rework-poller-quiet-panic.yml --limit 10,
+    # 2026-08-18). ~2x observed max (one 8m38s outlier among mostly 1-4min
+    # runs -- occasional real rework processing, not treated as a hang
+    # signal).
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
 
