@@ -52,4 +52,15 @@ jobs:
 
       - name: Check every changed job has timeout-minutes
         if: steps.changed.outputs.files != ''
-        run: python .github/scripts/lint_workflow_timeouts.py ${{ steps.changed.outputs.files }}
+        # CHANGED_FILES is newline-separated (one path per line). Passing it
+        # via ${{ ... }} interpolation directly in `run:` breaks: embedded
+        # newlines become literal new shell command lines, not argument
+        # separators -- caught live on this workflow's own first PR (#43),
+        # every file after the first was executed as its own (invalid)
+        # shell command ("Permission denied", exit 126) instead of being
+        # passed as an argument. Routing through an env var and leaving
+        # $CHANGED_FILES unquoted lets bash word-split on the embedded
+        # newlines correctly into separate positional arguments.
+        env:
+          CHANGED_FILES: ${{ steps.changed.outputs.files }}
+        run: python .github/scripts/lint_workflow_timeouts.py $CHANGED_FILES
