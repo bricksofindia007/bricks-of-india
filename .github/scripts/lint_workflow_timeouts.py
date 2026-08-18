@@ -15,19 +15,42 @@ Scoped to specific files (the PR's changed workflow files), not the whole
 .github/workflows/ directory -- see lint-workflows.yml's comment for why:
 two pre-existing files (video-feasibility-test.yml,
 video-script-gen-test-quiet-panic.yml) don't have enough run history yet to
-size a real timeout and are deliberately left for manual setting, so a
-directory-wide check would permanently fail on unrelated PRs until someone
-fixes those two specifically.
+size a real timeout and are deliberately left for manual setting.
+
+That diff-scoping alone isn't sufficient, though: PR #43 (2026-08-19) added
+GROQ_API_KEY to those same two files for an unrelated reason (new fallback
+provider secret), which pulled them into the changed-files set and broke
+the "unrelated PRs won't be blocked" assumption above on this PR itself --
+verified via `gh run list --workflow=<file> --limit 10`, which showed only
+2 completed runs for video-feasibility-test.yml and 0 for
+video-script-gen-test-quiet-panic.yml, both below the ~3-run minimum needed
+to size a real value (not just still-unscoped-by-luck). So an explicit
+exemption list is needed too, independent of diff scoping. Remove an entry
+here once that file has enough real run history for a human to size
+timeout-minutes properly -- this is a deliberate, temporary carve-out, not
+a general escape hatch.
 """
+import os
 import sys
 import yaml
+
+# See module docstring. Keyed by basename so it matches regardless of the
+# path form (relative/absolute) the caller passes.
+NO_TIMEOUT_HISTORY_YET = {
+    "video-feasibility-test.yml",
+    "video-script-gen-test-quiet-panic.yml",
+}
 
 if len(sys.argv) < 2:
     print("No workflow files given -- nothing to check.")
     sys.exit(0)
 
 violations = []
+skipped = []
 for path in sys.argv[1:]:
+    if os.path.basename(path) in NO_TIMEOUT_HISTORY_YET:
+        skipped.append(path)
+        continue
     try:
         with open(path, "r", encoding="utf-8") as f:
             doc = yaml.safe_load(f)
@@ -58,4 +81,7 @@ if violations:
     print("for a human to set once there's real data, don't guess.")
     sys.exit(1)
 
-print(f"OK: {len(sys.argv) - 1} changed workflow file(s) checked, every job has timeout-minutes.")
+if skipped:
+    print(f"SKIPPED (no timeout history yet, see NO_TIMEOUT_HISTORY_YET): {', '.join(skipped)}")
+checked = len(sys.argv) - 1 - len(skipped)
+print(f"OK: {checked} changed workflow file(s) checked, every job has timeout-minutes.")
