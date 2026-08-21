@@ -19,6 +19,13 @@ on:
 jobs:
   generate:
     runs-on: ubuntu-latest
+    # Backstop for the 2026-08-18 incident: this job hung silently for the
+    # full GitHub Actions 6h default ceiling (run 32090212913, cancelled by
+    # "exceeded the maximum execution time of 6h0m0s") mid apt-get update,
+    # burning the entire scheduled slot with no story generated. Normal
+    # runtime is 14-16 min (5 most recent successful runs); 30 min gives
+    # headroom (~2x) while failing fast instead of silently eating 6 hours.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -27,6 +34,33 @@ jobs:
           python-version: '3.11'
 
       - name: Install system dependencies
+        # Step-level backstop, tighter than the job-level one above -- this
+        # exact step is where the 2026-08-18 hang happened (dead silence
+        # 02:00:48-08:00:08 UTC, run 32090212913). 8 min is comfortably
+        # above its normal ~1-2 min (see video-generate-quiet-panic.yml's
+        # 2026-08-17 run: "Install ffmpeg" completed in under a minute).
+        #
+        # NOTE: an earlier version of this fix also added
+        # `-o Dir::Etc::sourceparts=/dev/null` to skip
+        # /etc/apt/sources.list.d/ (reasoning: that directory holds
+        # third-party sources this workflow never uses -- azure-cli,
+        # packages.microsoft.com, dl.google.com/chrome -- which the hang's
+        # log showed being fetched right before it went silent). That
+        # broke this step outright on its own first real test run
+        # (workflow_dispatch 32158702499, 2026-08-18 16:09 UTC):
+        # `E: Unable to locate package ffmpeg`. Ubuntu 24.04's GitHub
+        # runner image registers its actual package sources via the
+        # newer deb822 format at
+        # /etc/apt/sources.list.d/ubuntu.sources -- NOT the legacy
+        # /etc/apt/sources.list -- so sourceparts=/dev/null was wiping out
+        # the real Ubuntu sources too, not just the unrelated third-party
+        # ones. Reverted. The timeout-minutes above already fully solves
+        # the actual observed problem (a silent 6h hang) on their own --
+        # a stall now fails in <=8 min instead of 6h, regardless of which
+        # source it's on -- so scoping apt sources further isn't needed to
+        # fix this incident, and this specific scoping approach is
+        # confirmed unsafe on this runner image.
+        timeout-minutes: 8
         run: sudo apt-get update -y && sudo apt-get install -y ffmpeg
 
       - name: Install Python dependencies
@@ -38,6 +72,7 @@ jobs:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GEMINI_SOCIAL_API_KEY: ${{ secrets.GEMINI_SOCIAL_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
           ELEVENLABS_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}

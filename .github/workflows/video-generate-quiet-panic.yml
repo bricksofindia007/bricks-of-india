@@ -42,6 +42,11 @@ on:
 jobs:
   generate:
     runs-on: ubuntu-latest
+    # 10 most recent runs: successful runs range 4m12s-19m49s (gh run list
+    # --workflow=video-generate-quiet-panic.yml --limit 10, 2026-08-18) --
+    # wide variance from the up-to-5x script-gen retry loop on pre-TTS
+    # rejection, not a hang signal. ~2x observed max successful runtime.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
 
@@ -53,6 +58,20 @@ jobs:
         run: pip install -r scripts/video/requirements.txt
 
       - name: Install ffmpeg
+        # Step-level backstop, same precedent as video-generate-daily.yml's
+        # identical step (added 2026-08-18 for the 6h apt-get hang there).
+        # This step didn't have one until run 32179596753 (2026-08-18)
+        # proved it needed it: a genuinely slow Azure archive mirror (not a
+        # total stall -- packages kept trickling in, just far slower than
+        # normal, e.g. one single small package took 4+ min between
+        # progress lines) ate the entire 40-min job-level timeout before
+        # ever reaching script-gen, and got cancelled by that job-level
+        # ceiling rather than failing fast. The job-level timeout did its
+        # job (bounded the run, no repeat of the 6h VID-P4 incident) but 8
+        # min here lets a slow-mirror run fail fast enough to leave real
+        # headroom for a manual retry within the same investigation
+        # window, instead of burning the full 40-min budget on apt alone.
+        timeout-minutes: 8
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Validate candidate and assemble render input
@@ -132,6 +151,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ELEVENLABS_API_KEY_ASMR: ${{ secrets.ELEVENLABS_API_KEY_ASMR }}
           GEMINI_SOCIAL_API_KEY: ${{ secrets.GEMINI_SOCIAL_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
           BRICKSET_API_KEY: ${{ secrets.BRICKSET_API_KEY }}
           REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}

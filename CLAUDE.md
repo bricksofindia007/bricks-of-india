@@ -36,6 +36,30 @@ SESSION START: Read `BOI_MASTER_TRACKER.md` — header block (metadata, current 
 
 ---
 
+## Staged/experimental code rules
+
+**Gate activation with `config/feature_flags.py`, not comments or commit messages.** A comment like `# SHADOW MODE (2026-08-16)... hold for 08-22` or a commit message titled `"Staged: ... (hold for 08-22)"` is not enforced by CI and goes live the moment it's merged, regardless of the wording's intent. Incident: commit `7fc986d` (merged 2026-08-16) added a shadow-mode diagnostic to `generate_quiet_panic_video.py`'s `run_all_gates()` gated only by such a comment; it crashed the very next scheduled VID-QP run (2026-08-17) with `TypeError: 'bool' object is not subscriptable` because the "non-blocking, purely logged" code was, in fact, live and unconditionally executed. Fixed 2026-08-18.
+
+Any code merged to main but not yet meant to be active must check an explicit flag from `config/feature_flags.py` (a plain dict, flags default `False`) at the call site:
+```python
+from config.feature_flags import FEATURE_FLAGS
+if FEATURE_FLAGS.get("some_flag", False):
+    ...
+```
+Flipping a flag to `True` is then a deliberate, reviewable, one-line diff — not a side effect of an unrelated merge landing on its intended date.
+
+**Existing precedent for a different (also-acceptable) pattern:** `src/lib/lab-tools.ts`'s `coming_soon: true` / `href: null` fields, checked by `src/components/ui/LabStrip.tsx`, gate LAB-02's tile the same way — a real, checked field, not a comment. Either pattern (a `config/feature_flags.py` entry, or an explicit checked field local to the feature) is fine; an unenforced comment alone is not.
+
+---
+
+## GitHub Actions workflow rules
+
+**Every job requires `timeout-minutes`.** Without one, a hung step falls back to GitHub Actions' 6-hour default job ceiling — `video-generate-daily.yml`'s `generate` job did exactly this on 2026-08-18 (stalled `apt-get update`, cancelled after the full 6h, that day's VID-P4 run silently lost). Size it to ~2-2.5x the job's observed normal runtime (`gh run list --workflow=<file> --limit 10` to measure). If fewer than ~3 completed runs exist to measure from, don't guess — leave it unset and flag it for a human to size once there's real data (see `video-feasibility-test.yml` / `video-script-gen-test-quiet-panic.yml`, both deliberately left unset as of 2026-08-18 for this reason).
+
+**Enforced by `.github/workflows/lint-workflows.yml`** on any PR touching `.github/workflows/**` — fails if a changed workflow's job lacks `timeout-minutes`. Scoped to only the files the PR actually changes (via `git diff` against the PR base), not the whole directory, specifically so the two pre-existing unset files above don't permanently block unrelated PRs.
+
+---
+
 ## Next.js / Netlify rules
 
 **Next.js middleware:** to expose request data to Server Components via `headers()`, use `NextResponse.next({ request: { headers } })`. `response.headers.set()` is browser-only and invisible to `headers()` — silent failure, no error thrown.

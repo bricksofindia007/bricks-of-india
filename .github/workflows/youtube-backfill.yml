@@ -6,6 +6,10 @@ on:
 jobs:
   backfill:
     runs-on: ubuntu-latest
+    # 8 most recent runs: 43s-9m43s (gh run list
+    # --workflow=youtube-backfill.yml --limit 10, 2026-08-18). ~2x observed
+    # max.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 

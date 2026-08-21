@@ -15,6 +15,7 @@ export class GeminiProvider implements Provider {
         contents         : [{ role: 'user', parts: [{ text: userPrompt }] }],
         generationConfig : { temperature: MODEL_CONFIG.temperature, maxOutputTokens: MODEL_CONFIG.maxOutputTokens },
       });
-    return { text: result.response.text() };
+    const usage = result.response.usageMetadata;
+    return { text: result.response.text(), inputTokens: usage?.promptTokenCount, outputTokens: usage?.candidatesTokenCount };
   }
 }

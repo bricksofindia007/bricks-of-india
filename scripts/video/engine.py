@@ -26,12 +26,19 @@ import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
 import requests
 from dotenv import load_dotenv
 
 from secrets_util import get_secret
+
+# config/feature_flags.py lives at repo root (this file is at
+# <root>/scripts/video/), not on sys.path when this script runs with
+# working-directory: scripts/video (see video-generate-daily.yml).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from config.feature_flags import FEATURE_FLAGS  # noqa: E402
 
 load_dotenv()
 
@@ -712,7 +719,72 @@ def _gemini_pace() -> None:
     _last_gemini_call_at = time.time()
 
 
-def generate_script(title: str, price_inr: float, pieces: int | None, theme: str | None, retry_note: str | None = None) -> str:
+class BothProvidersFailedError(Exception):
+    """Raised by generate_script() when both Gemini and Cerebras fail (or
+    Cerebras is unavailable/empty) for a single attempt. Added 2026-08-19 --
+    replaces the previous print+sys.exit(1), which killed the whole process
+    instantly instead of letting run_gates_with_one_retry()'s loop catch it,
+    back off, and retry (see that function's except clause)."""
+
+
+class ScriptGenResult(NamedTuple):
+    """Added 2026-08-19 alongside video_posts' new provider/input_tokens/
+    output_tokens columns (migration 20260819000000_video_provider_tracking)
+    -- generate_script() previously returned only the raw text, so which
+    provider actually served a given generation (and at what token cost)
+    was never persisted anywhere, which is why the 2026-08-05/06 Cerebras
+    token spike couldn't be fully reconciled from video_posts alone."""
+    text: str
+    provider: str  # 'gemini' | 'groq' | 'cerebras'
+    input_tokens: int | None
+    output_tokens: int | None
+
+
+def _try_groq(system_prompt: str, task_prompt: str) -> ScriptGenResult | None:
+    """Returns None (never raises) on any failure -- unavailable key, rate
+    limit, empty response -- so callers fall through to the next provider
+    the same way a Gemini failure already does. Added 2026-08-19 as the new
+    default Gemini fallback; see config/feature_flags.py's
+    'cerebras_fallback_enabled' for why Cerebras moved to opt-in (payment-
+    blocked, 402, since 2026-08-18). Groq's free tier fails with 429 on
+    rate-limit, not a permanent-until-paid 402 -- existing retry/backoff
+    logic already handles 429s from other providers the same way."""
+    groq_key = get_secret("GROQ_API_KEY")
+    if not groq_key:
+        print("WARN: GROQ_API_KEY not set, skipping Groq.", file=sys.stderr)
+        return None
+    try:
+        resp = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+            json={
+                "model": "llama-3.3-70b-versatile",
+                "messages": [
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": task_prompt},
+                ],
+                "max_tokens": 2048,
+                "temperature": 0.7,
+            },
+            timeout=60,
+        )
+        if resp.status_code == 429:
+            print("WARN: Groq rate-limited (429), falling back.", file=sys.stderr)
+            return None
+        resp.raise_for_status()
+        data = resp.json()
+        content = data["choices"][0]["message"]["content"]
+        if not content or not content.strip():
+            print("WARN: Groq returned empty content, falling back.", file=sys.stderr)
+            return None
+        usage = data.get("usage", {})
+        return ScriptGenResult(content.strip(), "groq", usage.get("prompt_tokens"), usage.get("completion_tokens"))
+    except Exception as e:
+        print(f"WARN: Groq failed ({e}), falling back.", file=sys.stderr)
+        return None
+
+
+def generate_script(title: str, price_inr: float, pieces: int | None, theme: str | None, retry_note: str | None = None) -> ScriptGenResult:
     task_prompt = prompts.build_task_prompt(title, price_inr, pieces, theme)
     if retry_note:
         task_prompt = f"{task_prompt}\n\n{retry_note}"
@@ -730,17 +802,30 @@ def generate_script(title: str, price_inr: float, pieces: int | None, theme: str
                 config=types.GenerateContentConfig(system_instruction=prompts.SYSTEM_PROMPT),
             )
             if resp.text and resp.text.strip():
-                return resp.text.strip()
-            print("WARN: Gemini returned empty text, falling back to Cerebras.", file=sys.stderr)
+                usage = getattr(resp, "usage_metadata", None)
+                in_tok = getattr(usage, "prompt_token_count", None) if usage else None
+                out_tok = getattr(usage, "candidates_token_count", None) if usage else None
+                return ScriptGenResult(resp.text.strip(), "gemini", in_tok, out_tok)
+            print("WARN: Gemini returned empty text, falling back.", file=sys.stderr)
         except Exception as e:
-            print(f"WARN: Gemini failed ({e}), falling back to Cerebras.", file=sys.stderr)
+            print(f"WARN: Gemini failed ({e}), falling back.", file=sys.stderr)
     else:
-        print("WARN: GEMINI_SOCIAL_API_KEY not set, going straight to Cerebras.", file=sys.stderr)
+        print("WARN: GEMINI_SOCIAL_API_KEY not set, going straight to fallback.", file=sys.stderr)
+
+    groq_result = _try_groq(prompts.SYSTEM_PROMPT, task_prompt)
+    if groq_result is not None:
+        return groq_result
+
+    if not FEATURE_FLAGS.get("cerebras_fallback_enabled", False):
+        raise BothProvidersFailedError(
+            "Gemini and Groq both unavailable/failed, and Cerebras fallback is disabled "
+            "(config/feature_flags.py 'cerebras_fallback_enabled' is False -- Cerebras is "
+            "payment-blocked as of 2026-08-18, see CLAUDE.md)."
+        )
 
     cerebras_key = get_secret("CEREBRAS_API_KEY")
     if not cerebras_key:
-        print("ERROR: Both Gemini and Cerebras unavailable (no CEREBRAS_API_KEY). Cannot generate script.", file=sys.stderr)
-        sys.exit(1)
+        raise BothProvidersFailedError("Gemini, Groq, and Cerebras all unavailable (no CEREBRAS_API_KEY).")
 
     try:
         from cerebras.cloud.sdk import Cerebras
@@ -756,16 +841,27 @@ def generate_script(title: str, price_inr: float, pieces: int | None, theme: str
                 {"role": "system", "content": prompts.SYSTEM_PROMPT},
                 {"role": "user", "content": task_prompt},
             ],
+            max_tokens=8192,  # reasoning model burns tokens on chain-of-thought before content
         )
         content = resp.choices[0].message.content
         if content and content.strip():
-            return content.strip()
+            usage = getattr(resp, "usage", None)
+            in_tok = getattr(usage, "prompt_tokens", None) if usage else None
+            out_tok = getattr(usage, "completion_tokens", None) if usage else None
+            return ScriptGenResult(content.strip(), "cerebras", in_tok, out_tok)
     except Exception as e:
-        print(f"ERROR: Cerebras also failed: {e}", file=sys.stderr)
-        sys.exit(1)
+        # Added 2026-08-19: this used to be print+sys.exit(1) -- a hard
+        # process exit, not even a catchable exception, so a double-provider
+        # failure killed the whole run instantly on whichever attempt hit it
+        # (confirmed live 2026-08-18, run 32159269849: Gemini 503 "high
+        # demand" then Cerebras 402 "payment required", attempt 3/6 --
+        # attempts 4-6 never got a chance to run). Raising instead lets
+        # run_gates_with_one_retry()'s loop catch it, back off, and actually
+        # retry up to MAX_GENERATION_ATTEMPTS, giving a transient issue like
+        # that 503 a real chance to clear.
+        raise BothProvidersFailedError(f"Cerebras also failed: {e}") from e
 
-    print("ERROR: Both providers returned empty content.", file=sys.stderr)
-    sys.exit(1)
+    raise BothProvidersFailedError("Both providers returned empty content.")
 
 
 def get_recent_scripts(sb, n: int = 30) -> list[str]:
@@ -807,6 +903,27 @@ GENERIC_RETRY_NOTE = (
 )
 
 
+def _retry_backoff_sleep(attempt: int, provider_failure: bool = False) -> None:
+    """Exponential backoff with jitter between generation retry attempts.
+
+    Added 2026-08-19: MAX_GENERATION_ATTEMPTS's retry loop previously had
+    zero delay between attempts -- confirmed live 2026-08-18 (run
+    32159269849): a sustained Gemini "high demand" 503 meant every attempt
+    immediately re-triggered the Gemini->Cerebras fallback chain back to
+    back, with no chance for the transient issue to clear. provider_failure
+    =True (both Gemini and Cerebras failed this attempt, not just a
+    content-gate miss) gets a longer base delay -- a real provider outage
+    deserves more time to clear than a quality-gate retry, which just needs
+    a fresh model draw. Doubling each attempt; jitter avoids every
+    concurrent run retrying in lockstep.
+    """
+    base = (8 if provider_failure else 4) * (2 ** (attempt - 1))
+    base = min(base, 90 if provider_failure else 60)
+    delay = max(1.0, base + base * random.uniform(-0.3, 0.3))
+    print(f"  Backing off {delay:.1f}s before retry...", file=sys.stderr)
+    time.sleep(delay)
+
+
 def _word_count_retry_note(n: int) -> str:
     if n > 110:
         return (
@@ -823,7 +940,10 @@ def _word_count_retry_note(n: int) -> str:
     )
 
 
-def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport]:
+def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport, str, int | None, int | None]:
+    """Returns (sanitized_script, gate_report, provider, input_tokens,
+    output_tokens) -- provider/token fields added 2026-08-19, see
+    ScriptGenResult's docstring."""
     recent = get_recent_scripts(sb)
 
     def sets_lookup(set_number: str) -> dict | None:
@@ -833,12 +953,29 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
     retry_note = None
     report = None
     for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
-        raw_script = generate_script(candidate["title"], candidate["price_inr"], candidate.get("pieces"), candidate.get("theme"), retry_note=retry_note)
-        report = gates.run_all_gates(raw_script, candidate.get("pieces"), sets_lookup, recent, candidate["price_inr"])
+        try:
+            raw_script = generate_script(candidate["title"], candidate["price_inr"], candidate.get("pieces"), candidate.get("theme"), retry_note=retry_note)
+        except BothProvidersFailedError as e:
+            # Added 2026-08-19: BothProvidersFailedError used to be an
+            # instant sys.exit(1) inside generate_script() -- confirmed live
+            # 2026-08-18 (run 32159269849), a transient Gemini 503 combined
+            # with Cerebras's 402 killed the whole run on attempt 3/6, never
+            # giving attempts 4-6 a chance. Caught here now: back off
+            # (longer than a content-gate retry -- this is a real provider
+            # outage) and retry, same as any other gate failure, still
+            # bounded by MAX_GENERATION_ATTEMPTS.
+            print(f"Both providers failed on attempt {attempt}/{MAX_GENERATION_ATTEMPTS}: {e}", file=sys.stderr)
+            if attempt < MAX_GENERATION_ATTEMPTS:
+                _retry_backoff_sleep(attempt, provider_failure=True)
+                print(f"Regenerating (attempt {attempt + 1}/{MAX_GENERATION_ATTEMPTS})...", file=sys.stderr)
+                continue
+            print(f"ERROR: both providers failed {MAX_GENERATION_ATTEMPTS} times. Aborting, not publishing.", file=sys.stderr)
+            sys.exit(1)
+        report = gates.run_all_gates(raw_script.text, candidate.get("pieces"), sets_lookup, recent, candidate["price_inr"])
         if report.all_passed:
             # Sanitized text, not raw -- this is what actually reaches TTS
             # and gets stored as the canonical script (see gates.sanitize_script).
-            return report.sanitized_script, report
+            return report.sanitized_script, report, raw_script.provider, raw_script.input_tokens, raw_script.output_tokens
         print(f"Gate failure on attempt {attempt}:", file=sys.stderr)
         for r in report.results:
             if not r.passed:
@@ -851,6 +988,7 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
                 retry_note = _word_count_retry_note(len(report.sanitized_script.split()))
             else:
                 retry_note = GENERIC_RETRY_NOTE
+            _retry_backoff_sleep(attempt)
             print(f"Regenerating (attempt {attempt + 1}/{MAX_GENERATION_ATTEMPTS})...", file=sys.stderr)
 
     print(f"ERROR: script failed gates {MAX_GENERATION_ATTEMPTS} times. Aborting, not publishing.", file=sys.stderr)
@@ -1430,11 +1568,18 @@ def _make_placeholder_anchor(path: Path, color: tuple[int, int, int], label: str
 
 # ── DB write ────────────────────────────────────────────────────────────────────
 
-def insert_video_post(sb, candidate: dict, script: str, gate_report: gates.GateReport, video_path: Path) -> tuple[str, int]:
+def insert_video_post(
+    sb, candidate: dict, script: str, gate_report: gates.GateReport, video_path: Path,
+    provider: str | None = None, input_tokens: int | None = None, output_tokens: int | None = None,
+) -> tuple[str, int]:
     """Returns (video_id, story_number). story_number is assigned by the
     video_posts_story_number_trigger DB trigger (COALESCE(MAX(story_number),0)+1)
     -- only known for certain once the row exists, hence returned here
-    rather than predicted beforehand."""
+    rather than predicted beforehand.
+
+    provider/input_tokens/output_tokens added 2026-08-19 (migration
+    20260819000000_video_provider_tracking) -- see ScriptGenResult's
+    docstring for why."""
     row = {
         "set_title": candidate["title"],
         "set_number": candidate.get("set_number"),
@@ -1447,6 +1592,9 @@ def insert_video_post(sb, candidate: dict, script: str, gate_report: gates.GateR
         "video_path": str(video_path),
         "status": "rendered",
         "piece_count_discrepancy": candidate.get("piece_count_discrepancy"),
+        "provider": provider,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
     }
     res = sb.table("video_posts").insert(row).execute()
     video_id, story_number = res.data[0]["id"], res.data[0]["story_number"]
@@ -1988,7 +2136,7 @@ def main() -> None:
         print(f"Selected: {candidate['title']} ({candidate['product_url']})")
         print(f"Using {len(image_paths)} studio image(s) for this render.")
 
-        script, report = run_gates_with_one_retry(sb, candidate)
+        script, report, script_provider, script_input_tokens, script_output_tokens = run_gates_with_one_retry(sb, candidate)
         print("\n--- SCRIPT ---")
         print(script)
         print("--- END SCRIPT ---\n")
@@ -2037,7 +2185,10 @@ def main() -> None:
         captioned_path.rename(output_path)
         print(f"Captioned (sole output for this run): {output_path}")
 
-        video_id, story_number = insert_video_post(sb, candidate, script, report, output_path)
+        video_id, story_number = insert_video_post(
+            sb, candidate, script, report, output_path,
+            provider=script_provider, input_tokens=script_input_tokens, output_tokens=script_output_tokens,
+        )
         print(f"video_posts row inserted: {video_id} (Story #{story_number})")
 
         print(f"Applying Story #{story_number} badge...")
