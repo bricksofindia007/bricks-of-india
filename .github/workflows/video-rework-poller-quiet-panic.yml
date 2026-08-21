@@ -44,6 +44,15 @@ jobs:
         run: pip install -r scripts/video/requirements.txt
 
       - name: Install ffmpeg
+        # Step-level backstop, same precedent as video-generate-daily.yml's
+        # and video-generate-quiet-panic.yml's identical step -- see the
+        # latter's comment for the live incident (run 32179596753,
+        # 2026-08-18) that proved this gap real: a slow (not fully stalled)
+        # apt mirror can eat a job's entire timeout-minutes budget on this
+        # step alone. This job's own timeout-minutes is already only 18 min
+        # (tighter than the 40-min generate workflow), so failing fast here
+        # matters even more for leaving room to notice and retry.
+        timeout-minutes: 8
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
       - name: Poll for rejected Quiet Panic rows and rework them
