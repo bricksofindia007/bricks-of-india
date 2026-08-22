@@ -350,6 +350,41 @@ def resolve_catalog_match(sb, title: str, candidates: list[str]) -> tuple[str | 
     match's title comes from ONE source of truth (this function) rather
     than being carried as an independently-set string from
     build_candidate() onward.
+
+    2026-08-22, same day, second fix: making a failed match REJECT the
+    candidate outright (get_candidates()'s caller) turned this function's
+    fixed ">= 2 words" threshold into a real regression, not just caught in
+    review -- it went live (PR #45) and was only caught by a live full-pool
+    scan afterward. The threshold was calibrated for its ORIGINAL, softer
+    consequence (skip pieces/theme enrichment, still use the candidate) and
+    was never re-examined against the new, harder consequence (drop the
+    candidate entirely). It fails systematically whenever either side has
+    only 1 meaningful word after stopword filtering -- structurally
+    impossible to reach 2-word overlap even for a correct match. Confirmed
+    live: catalog name "Grond" (set 40893) vs retailer title "LEGO Icons
+    The Lord of the Rings: Grond Decor Model 40893" -- 1-word overlap
+    ("grond"), a real match, rejected. Same pattern for "The Darksaber"
+    (40917), "Flower Wall" (11503) vs "LEGO Botanicals Flower", "Douglas
+    DC-3 PAN AM Airliner" (11378) vs the terse-but-legitimate retailer
+    title "LEGO Icons Douglas" (terse titles are explicitly fine per this
+    ticket's own Section 0 -- "LEGO Icons Ford" for "Ford Model T" is not a
+    mismatch, just terse) -- 54 of 454 real MyBrickHouse candidates
+    rejected in one live scan, most on inspection genuinely correct
+    matches caught by this exact edge case, not real mismatches.
+
+    Fixed: required overlap is now min(2, the SMALLER side's word count) --
+    a 1-meaningful-word catalog name or title only ever needs that 1 word
+    to be present (still a real, specific signal: "grond"/"darksaber" are
+    not generic), while both-sides-2+-words candidates keep the original
+    >=2 threshold that guards against the real "1701" numeric-coincidence
+    case (catalog name "Basic Building Set Trial Size" has 3 meaningful
+    words, well above 1, so that guard is unaffected). A 0-meaningful-word
+    side never confirms -- there's no real signal to require at all in
+    that case, unlike the 1-word case.
+
+    Re-verified against both the original false-positive guard case and
+    the real #40/#46 mismatch cases after this second fix -- see the PR
+    that ships it for the live re-run.
     """
     title_words = _meaningful_words(title)
     for n in candidates:
@@ -358,8 +393,11 @@ def resolve_catalog_match(sb, title: str, candidates: list[str]) -> tuple[str | 
             continue
         row = res.data[0]
         name_words = _meaningful_words(row.get("name") or "")
+        if not title_words or not name_words:
+            continue  # no meaningful words on one side at all -- no real signal to require
         overlap = title_words & name_words
-        if len(overlap) >= 2:
+        required_overlap = min(2, len(title_words), len(name_words))
+        if len(overlap) >= required_overlap:
             return n, row.get("name"), row.get("pieces"), row.get("theme")
     return None, None, None, None
 
