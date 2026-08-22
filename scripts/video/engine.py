@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import math
 import os
 import random
 import sys
@@ -1360,6 +1361,76 @@ def slugify(title: str) -> str:
 # earlier "rupees" vs "RS" bug was caught by transcription, not by trusting
 # the input. openai-whisper's default segmentation is already sentence/
 # phrase-level, not word-level, matching the approved style directly.
+#
+# 2026-08-21 addition, real incident (story #43, video_posts id
+# cc843a50-d5ee-467f-ae05-d328e2582c49): the "base" model (cheapest/least
+# accurate tier) mis-heard "For the die-hard Andy Weir fan" as "...for the
+# diehard" / "and the rear fan..." -- a segment-boundary split that
+# corrupted the two-word author name into "rear", burned onto the actual
+# video. The transcribe-the-real-audio design stays (still the only thing
+# catching genuine TTS mispronunciation) -- the fix is making Whisper's
+# recognition smarter about known vocabulary, via `initial_prompt`, plus a
+# guardrail gate for when the bias still isn't enough (see
+# gates.gate_caption_fidelity). initial_prompt nudges recognition toward
+# the correct word only when the audio is genuinely ambiguous -- it does
+# not override a clearly, consistently mispronounced word, since that's
+# still the thing this whole design exists to catch.
+
+_MULTIWORD_PROPER_NOUN_RE = re.compile(r"[A-Z][a-zA-Z']*(?:\s+[A-Z][a-zA-Z']*)+")
+
+
+def extract_caption_glossary(sanitized_script: str, set_title: str) -> list[str]:
+    """Pulls likely named entities out of a script + set title, for biasing
+    Whisper's transcription (initial_prompt below) and for
+    gates.gate_caption_fidelity's post-transcription fuzzy-match check.
+
+    Two sources:
+      1. sanitized_script -- multi-word runs of Title-Case tokens (catches
+         "Andy Weir", "Ryland Grace", etc). Deliberately does NOT exclude
+         a run that happens to start a sentence (e.g. "Ryland Grace,
+         saving Earth..." -- "Ryland Grace" is literally this sentence's
+         first two words) -- the regex already requires 2+ consecutive
+         Title-Case words to match at all, which is itself a strong enough
+         signal; a same-sentence *single* capitalized word being ambiguous
+         (ordinary sentence-initial capitalization) doesn't carry over to
+         a genuine multi-word run, and excluding position-0 runs would
+         have silently dropped "Ryland Grace" from this exact real script.
+      2. set_title -- video_posts has no separate franchise/IP column
+         (checked 2026-08-21); set_title is the only title-like field
+         available. Only keeps a title-derived term if it also appears
+         verbatim (case-insensitive) somewhere in sanitized_script --
+         titles are Title-Case for their entire length (e.g. "LEGO Star
+         Wars The Razor Crest" is one unbroken 5-word capitalized run), so
+         without this filter, title-derived terms are frequently compound
+         phrases nobody ever actually says as a unit (that script says
+         "This is The Razor Crest" and, separately, "a Star Wars fan" --
+         never the two together). Verified live: without this filter,
+         "Star Wars The Razor Crest" false-positived at 72% similarity
+         against real, correct captions for a real published story (#28).
+    """
+    terms: list[str] = []
+
+    for sentence in re.split(r"(?<=[.!?])\s+", sanitized_script.strip()):
+        for match in _MULTIWORD_PROPER_NOUN_RE.finditer(sentence.strip()):
+            terms.append(match.group().strip())
+
+    script_norm = re.sub(r"[^\w\s]", " ", sanitized_script.lower())
+    script_norm = re.sub(r"\s+", " ", script_norm)
+    for match in _MULTIWORD_PROPER_NOUN_RE.finditer(set_title):
+        candidate = match.group().strip()
+        candidate_norm = re.sub(r"[^\w\s]", " ", candidate.lower()).strip()
+        if f" {candidate_norm} " in f" {script_norm} ":
+            terms.append(candidate)
+
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for t in terms:
+        key = t.lower()
+        if key not in seen:
+            seen.add(key)
+            deduped.append(t)
+    return deduped
+
 
 _CAPTION_FONT_CANDIDATES = [
     "C:/Windows/Fonts/arialbd.ttf",
@@ -1380,14 +1451,60 @@ def _caption_font(size: int):
     return ImageFont.load_default()
 
 
-def transcribe_for_captions(audio_path: Path) -> list[dict]:
+_MAX_CAPTION_SEGMENT_SECONDS = 12.0
+
+
+def _cap_caption_segment_duration(segments: list[dict], max_seconds: float = _MAX_CAPTION_SEGMENT_SECONDS) -> list[dict]:
+    """Splits any segment longer than max_seconds into shorter, evenly-timed
+    sub-segments by word count. Whisper's segmentation is normally already
+    phrase-level (this is a no-op almost always) -- added 2026-08-21
+    because `initial_prompt` (see transcribe_for_captions) can unpredictably
+    suppress segmentation on the "base" model in a way that does NOT
+    reliably correlate with prompt length or which specific terms it
+    contains: verified on the same audio, same-length prompts --
+    "Andy Weir, Ryland Grace." produced 10 normal phrase-level segments,
+    while "Ryland Grace, Netflix Premium." collapsed to 3 segments (one a
+    single 30-second block covering nearly half the video). Not something
+    that can be reliably engineered around by curating prompt wording --
+    this is a structural safety net against ANY cause of an oversized
+    segment, not a fix for one specific prompt-wording quirk. No word-level
+    timestamps exist to split on precisely (that would need
+    word_timestamps=True, a bigger change than this bug needs) -- an even
+    word-count split across the segment's original time span is an
+    approximation, not exact per-word timing, but keeps every on-screen
+    caption card within a readable duration."""
+    capped: list[dict] = []
+    for seg in segments:
+        duration = seg["end"] - seg["start"]
+        words = seg["text"].split()
+        if duration <= max_seconds or len(words) <= 1:
+            capped.append(seg)
+            continue
+        n_chunks = max(2, math.ceil(duration / max_seconds))
+        chunk_size = math.ceil(len(words) / n_chunks)
+        for i in range(0, len(words), chunk_size):
+            chunk_words = words[i:i + chunk_size]
+            if not chunk_words:
+                continue
+            frac_start = i / len(words)
+            frac_end = min(1.0, (i + chunk_size) / len(words))
+            capped.append({
+                "start": seg["start"] + frac_start * duration,
+                "end": seg["start"] + frac_end * duration,
+                "text": " ".join(chunk_words),
+            })
+    return capped
+
+
+def transcribe_for_captions(audio_path: Path, initial_prompt: str | None = None) -> list[dict]:
     import whisper
     model = whisper.load_model("base")
-    result = model.transcribe(str(audio_path))
-    return [
+    result = model.transcribe(str(audio_path), initial_prompt=initial_prompt)
+    segments = [
         {"start": s["start"], "end": s["end"], "text": s["text"].strip()}
         for s in result["segments"] if s["text"].strip()
     ]
+    return _cap_caption_segment_duration(segments)
 
 
 def _wrap_caption_text(draw, text: str, font, max_width: int) -> list[str]:
@@ -1832,12 +1949,20 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
     total_duration = assemble_video(image_paths, audio_path, output_path, placeholder_anchors=False)
     print(f"Rendered: {output_path} ({total_duration:.1f}s)")
 
+    caption_glossary = extract_caption_glossary(script, row["set_title"])
+    caption_initial_prompt = ", ".join(caption_glossary) + "." if caption_glossary else None
+    print(f"Caption glossary ({len(caption_glossary)} term(s)): {caption_glossary}")
+
     print("Transcribing rendered audio for captions (Whisper)...")
-    segments = transcribe_for_captions(output_path)
+    segments = transcribe_for_captions(output_path, initial_prompt=caption_initial_prompt)
     captioned_path = output_path.with_name(output_path.stem + "_captioned.mp4")
     burn_captions(output_path, segments, captioned_path)
     output_path.unlink()
     captioned_path.rename(output_path)
+
+    caption_fidelity_result = gates.gate_caption_fidelity(caption_glossary, segments)
+    report.results.append(caption_fidelity_result)
+    print(f"  [{'PASS' if caption_fidelity_result.passed else 'FAIL'}] {caption_fidelity_result.gate}: {caption_fidelity_result.reason}")
 
     print(f"Applying Story #{row['story_number']} badge...")
     badged_path = output_path.with_name(output_path.stem + "_badged.mp4")
@@ -2163,10 +2288,24 @@ def main() -> None:
         if total_duration > 90:
             print("WARNING: video exceeds 90s — IG Reels/YT Shorts may reject or truncate.")
 
+        caption_glossary = extract_caption_glossary(script, candidate["title"])
+        caption_initial_prompt = ", ".join(caption_glossary) + "." if caption_glossary else None
+        print(f"Caption glossary ({len(caption_glossary)} term(s)): {caption_glossary}")
+
         print("Transcribing rendered audio for captions (Whisper, catches real TTS pronunciation)...")
-        segments = transcribe_for_captions(output_path)
+        segments = transcribe_for_captions(output_path, initial_prompt=caption_initial_prompt)
         captioned_path = output_path.with_name(output_path.stem + "_captioned.mp4")
         burn_captions(output_path, segments, captioned_path)
+
+        # G11: run before insert_video_post below so the very first
+        # gate_results write already includes it, not just the later
+        # timing-augmented update -- see gates.gate_caption_fidelity's
+        # docstring for why this can't be part of run_all_gates() (it
+        # needs the actual rendered captions, which don't exist yet at
+        # pre-TTS gate time).
+        caption_fidelity_result = gates.gate_caption_fidelity(caption_glossary, segments)
+        report.results.append(caption_fidelity_result)
+        print(f"  [{'PASS' if caption_fidelity_result.passed else 'FAIL'}] {caption_fidelity_result.gate}: {caption_fidelity_result.reason}")
 
         # Bug found 2026-07-06, confirmed via SHA256 (not just file size):
         # the pre-caption render (output_path) and the captioned render
