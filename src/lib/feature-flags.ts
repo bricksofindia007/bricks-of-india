@@ -36,7 +36,24 @@ export const FEATURE_FLAGS = {
   // flag stops that: Groq fallback is skipped entirely until Abhinav
   // explicitly enables it after reviewing the rollout's evidence (real TPM
   // probe + 3-sample sanity check against src/lib/hard-rules.ts).
-  articleGroqFallbackEnabled: false,
+  //
+  // Flipped true 2026-08-22 (FINAL ARCHITECTURE PASS) per explicit
+  // instruction, evidence reviewed -- this also restores a working
+  // fallback for the silent-delete bug described above. IMPORTANT CAVEAT,
+  // confirmed live via `gh secret list`: GROQ_API_KEY is NOT currently a
+  // GitHub repo secret -- it only exists in a local scripts/test/.env
+  // (explicitly marked "local/test credential only" when first provided).
+  // Flipping this flag is therefore currently a functional no-op in
+  // production: GroqProvider's fetch will still be attempted, but every
+  // real scheduled workflow run has an empty apiKey, so Groq will 401
+  // immediately and generateWithFailover() falls through to
+  // BothProvidersFailedError exactly as before. Real Groq calls (and the
+  // silent-delete fix) will not take effect until Abhinav adds
+  // GROQ_API_KEY as an actual repo secret -- deliberately not done here,
+  // per the earlier explicit instruction not to add it without a
+  // dedicated decision. scripts/canary/model_canary.py's daily run
+  // reports this exact condition ("SECRET NOT CONFIGURED") until resolved.
+  articleGroqFallbackEnabled: true,
 
   // Which model groq.ts's GroqProvider targets, once
   // articleGroqFallbackEnabled above is true. qwen/qwen3.6-27b chosen after
