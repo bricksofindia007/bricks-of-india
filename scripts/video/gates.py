@@ -377,7 +377,20 @@ def gate_coherence_llm_judge(script: str) -> GateResult:
     errors -- a transient judge-API hiccup blocking ALL publishing would be
     a worse regression than occasionally missing a coherence problem,
     especially now that generation itself already has real retry/backoff
-    (see engine.py's _retry_backoff_sleep())."""
+    (see engine.py's _retry_backoff_sleep()).
+
+    2026-08-22: model swapped llama-3.3-70b-versatile -> qwen/qwen3.6-27b.
+    The old model was already decommissioned on Groq (confirmed live via a
+    real 404 model_not_found during the qwen rollout evidence pass) -- this
+    gate had been silently fail-open on EVERY call since that deprecation,
+    never actually judging anything. Not flag-gated: this is a bug fix
+    restoring already-intended behavior (the gate was never meant to be a
+    no-op), not new capability, and gate results here are advisory/logged
+    for human review only (VID-P4 has no auto-publish path) -- a real
+    judge verdict newly appearing can only add information, never block
+    anything by itself. reasoning_effort='none' required for qwen -- absent
+    it, qwen burns its output budget on hidden <think> reasoning and
+    returns no visible verdict (confirmed empirically during this rollout)."""
     groq_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not groq_key:
         return GateResult("G10_coherence", True, "SKIPPED: GROQ_API_KEY not set (fail-open, judge unavailable)")
@@ -394,10 +407,11 @@ def gate_coherence_llm_judge(script: str) -> GateResult:
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
             json={
-                "model": "llama-3.3-70b-versatile",
+                "model": "qwen/qwen3.6-27b",
                 "messages": [{"role": "user", "content": judge_prompt}],
                 "max_tokens": 200,
                 "temperature": 0.0,
+                "reasoning_effort": "none",
             },
             timeout=30,
         )

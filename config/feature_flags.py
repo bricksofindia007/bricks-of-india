@@ -42,4 +42,28 @@ FEATURE_FLAGS = {
     # ever resolved, without a rewrite. Leave False until Abhinav confirms
     # Cerebras billing is fixed.
     "cerebras_fallback_enabled": False,
+
+    # VID-QP Groq fallback (quiet_panic_script_gen.py's _call_groq(), only
+    # QP -- VID-P4's engine.py Groq fallback is unconditional/unflagged,
+    # unchanged by this pass). Added 2026-08-22 (qwen rollout evidence
+    # pass): Groq previously fired unconditionally the moment Gemini
+    # failed, targeting the now-decommissioned llama-3.3-70b-versatile
+    # (confirmed dead, live 404) -- effectively a silent no-op. Swapping to
+    # a model that actually works (qwen/qwen3.6-27b, see the flag below)
+    # behind the SAME unconditional call would put live qwen output into
+    # production with zero review the moment this merges. This flag stops
+    # that: Groq fallback is now skipped entirely (falls through to the
+    # Cerebras check, or raises) until Abhinav explicitly enables it after
+    # reviewing the rollout's evidence (5-set P4 comparison + QP voice
+    # test). Leave False until that review happens.
+    "qp_groq_fallback_enabled": False,
+
+    # Which model quiet_panic_script_gen.py's _call_groq() targets, once
+    # qp_groq_fallback_enabled above is True. qwen/qwen3.6-27b chosen over
+    # the dead llama-3.3-70b-versatile after real Groq-side testing (fits
+    # the trimmed codex's TPM budget, reasoning_effort='none' required --
+    # see _call_groq()'s docstring). Kept as its own flag value (not
+    # hardcoded in _call_groq()) so a future model swap or rollback is a
+    # one-line config change, not a code change.
+    "qp_groq_fallback_model": "qwen/qwen3.6-27b",
 }
