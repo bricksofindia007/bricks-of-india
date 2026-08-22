@@ -1102,6 +1102,31 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
 
 # ── STEP 6: TTS ─────────────────────────────────────────────────────────────────
 
+# 2026-08-22: made explicit, not fixed by guesswork. The elevenlabs SDK's
+# ElevenLabs() constructor already defaults `timeout` to 240 -- that value
+# was silently in effect the whole time, just invisible in this file and
+# one SDK upgrade away from changing without anyone noticing. No real
+# ElevenLabs call-duration history exists to size a tighter number with
+# the same evidence this codebase uses for other timeouts (e.g. the GH
+# Actions timeout-minutes audit, sized off `gh run list`) -- so this keeps
+# the SDK's own considered default rather than inventing an unverified
+# shorter one.
+TTS_TIMEOUT_S = 240.0
+TTS_MAX_ATTEMPTS = 3
+
+
+class TTSGenerationError(Exception):
+    """Raised by generate_tts() when every ElevenLabs attempt fails.
+    Added 2026-08-22 -- same failure class as the original VID-P4 6-hour
+    hang incident (unbounded external call, no retry): generate_tts() had
+    no explicit timeout and no retry/backoff at all, just a bare SDK call
+    with nothing catching a timeout, a transient 5xx, or a network drop.
+    Any single ElevenLabs hiccup would propagate as a raw, uncaught SDK
+    exception straight out of generate_tts() and kill the whole run --
+    same shape as the pre-fix script-generation path (see
+    BothProvidersFailedError's docstring, engine.py:824)."""
+
+
 def generate_tts(script: str, output_path: Path) -> None:
     # Currency AND piece-count spoken-word expansion happen here, at the TTS
     # boundary only -- the stored script (video_posts.script, captions) keeps
@@ -1122,24 +1147,38 @@ def generate_tts(script: str, output_path: Path) -> None:
         sys.exit(1)
 
     from elevenlabs.client import ElevenLabs
-    client = ElevenLabs(api_key=api_key)
-    audio_chunks = client.text_to_speech.convert(
-        voice_id,
-        text=tts_text,
-        # Verified live 2026-07-05: the brief's "eleven_flash_v2.5" (period)
-        # 400s with "invalid_uid" -- ElevenLabs' real model ID uses an
-        # underscore, confirmed against their own docs.
-        model_id=TTS_MODEL_ID,
-        output_format="mp3_44100_128",
-        # Voice A/B/C test, operator-confirmed 2026-07-06: Test B (this
-        # model + similarity_boost 0.9) over Test C (eleven_multilingual_v2,
-        # 2x the cost per char). Locked as the standing default, not just
-        # that one test's settings -- do not revert without a new test.
-        voice_settings=TTS_VOICE_SETTINGS,
-    )
-    with open(output_path, "wb") as f:
-        for chunk in audio_chunks:
-            f.write(chunk)
+
+    last_error: Exception | None = None
+    for attempt in range(1, TTS_MAX_ATTEMPTS + 1):
+        try:
+            client = ElevenLabs(api_key=api_key, timeout=TTS_TIMEOUT_S)
+            audio_chunks = client.text_to_speech.convert(
+                voice_id,
+                text=tts_text,
+                # Verified live 2026-07-05: the brief's "eleven_flash_v2.5" (period)
+                # 400s with "invalid_uid" -- ElevenLabs' real model ID uses an
+                # underscore, confirmed against their own docs.
+                model_id=TTS_MODEL_ID,
+                output_format="mp3_44100_128",
+                # Voice A/B/C test, operator-confirmed 2026-07-06: Test B (this
+                # model + similarity_boost 0.9) over Test C (eleven_multilingual_v2,
+                # 2x the cost per char). Locked as the standing default, not just
+                # that one test's settings -- do not revert without a new test.
+                voice_settings=TTS_VOICE_SETTINGS,
+            )
+            with open(output_path, "wb") as f:
+                for chunk in audio_chunks:
+                    f.write(chunk)
+            return
+        except Exception as e:
+            last_error = e
+            print(f"WARN: ElevenLabs TTS call failed on attempt {attempt}/{TTS_MAX_ATTEMPTS}: {e}", file=sys.stderr)
+            if attempt < TTS_MAX_ATTEMPTS:
+                # provider_failure=True -- same longer backoff class as a
+                # real script-gen provider outage, not a content-gate miss.
+                _retry_backoff_sleep(attempt, provider_failure=True)
+
+    raise TTSGenerationError(f"ElevenLabs TTS failed {TTS_MAX_ATTEMPTS} attempt(s): {last_error}")
 
 
 def generate_silent_placeholder_audio(output_path: Path, duration_s: float) -> None:
