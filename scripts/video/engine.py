@@ -323,7 +323,7 @@ def _meaningful_words(text: str) -> set[str]:
     return {w for w in words if w not in _GENERIC_TITLE_WORDS and len(w) > 1}
 
 
-def resolve_catalog_match(sb, title: str, candidates: list[str]) -> tuple[str | None, int | None, str | None]:
+def resolve_catalog_match(sb, title: str, candidates: list[str]) -> tuple[str | None, str | None, int | None, str | None]:
     """Cross-checks each candidate set-number against our catalog, requiring
     real keyword overlap between the candidate's title and the catalog's
     own name for that set -- not just a numeric coincidence.
@@ -338,8 +338,18 @@ def resolve_catalog_match(sb, title: str, candidates: list[str]) -> tuple[str | 
     (also covers Minas Tirith, the Eiffel Tower, etc. this session) -- the
     catalog NAME field is the reliable signal, not theme.
 
-    Returns (None, None, None) if no candidate validates -- the caller
-    must not fall back to an unconfirmed guess for pieces/theme.
+    Returns (None, None, None, None) if no candidate validates -- the
+    caller must not fall back to an unconfirmed guess for set_number,
+    title, pieces, or theme (see 2026-08-22 title/set_number mismatch
+    incident, stories #40/#46: silently trusting an unconfirmed
+    set_number_candidates[0] guess is exactly what let a title for one
+    physical set reach production paired with the set_number/price/URL of
+    a completely different one -- see get_candidates()'s caller).
+
+    2026-08-22: now also returns the catalog's own `name`, so a confirmed
+    match's title comes from ONE source of truth (this function) rather
+    than being carried as an independently-set string from
+    build_candidate() onward.
     """
     title_words = _meaningful_words(title)
     for n in candidates:
@@ -350,8 +360,8 @@ def resolve_catalog_match(sb, title: str, candidates: list[str]) -> tuple[str | 
         name_words = _meaningful_words(row.get("name") or "")
         overlap = title_words & name_words
         if len(overlap) >= 2:
-            return n, row.get("pieces"), row.get("theme")
-    return None, None, None
+            return n, row.get("name"), row.get("pieces"), row.get("theme")
+    return None, None, None, None
 
 
 # Bug found 2026-07-06/07, in two stages:
@@ -652,24 +662,64 @@ def get_candidates(sb, limit: int = 10, pool_size: int = 30) -> list[dict]:
 
     # Attach catalog enrichment (confidence-checked, see resolve_catalog_match)
     # + a one-line reason.
-    for c in fresh[:limit]:
-        confirmed_number, pieces, theme = resolve_catalog_match(sb, c["title"], c["set_number_candidates"])
-        drop = drops.get(c["set_number"])
-        discrepancy = None
-        if confirmed_number:
-            # Use the CONFIRMED number everywhere downstream (Brickset image
-            # lookup, video_posts storage, already_used tracking) -- not
-            # just for the enrichment facts. Keeping the unvalidated
-            # best-guess here would still send the wrong number to Brickset
-            # even after fixing the pieces/theme data.
-            c["set_number"] = confirmed_number
-            # Title + script piece count: see resolve_title_and_pieces()'s
-            # docstring -- catalog vs. retailer-title conflicts beyond a
-            # trivial tolerance are flagged, not auto-resolved either way.
-            c["title"], pieces, discrepancy = resolve_title_and_pieces(c["title"], pieces)
+    #
+    # 2026-08-22 -- title/set_number mismatch incident (stories #40, #46):
+    # a candidate whose set_number couldn't be confirmed against its own
+    # title used to fall through silently, keeping the unvalidated
+    # set_number_candidates[0] guess paired with the (real, correct) title
+    # -- no consistency check between them at that point. That guess then
+    # flowed into Brickset image lookup, video_posts storage, and
+    # already_used tracking as if it were trustworthy, while the title
+    # stayed accurate for a DIFFERENT physical set. Script generation wrote
+    # an accurate script for the title; image sourcing correctly fetched
+    # real photos for the set_number; nothing downstream cross-checks the
+    # two, so nothing caught it -- one instance (#40) reached
+    # status='approved' before a manual audit found it.
+    #
+    # Fix: a candidate that resolve_catalog_match() cannot confirm is
+    # rejected here, not carried forward with an unconfirmed guess. This is
+    # the single fix for both the root cause (title/set_number desync can
+    # no longer happen -- a confirmed match's title now comes from
+    # resolve_catalog_match()'s own canonical `name`, not an independently
+    # carried string) and the "stop the spend before it happens" goal a
+    # separate pre-generation gate would otherwise exist for: an unconfirmed
+    # candidate never leaves this function, so no LLM/TTS call is ever made
+    # against one.
+    confirmed_candidates = []
+    for c in fresh:
+        if len(confirmed_candidates) >= limit:
+            break
+        confirmed_number, canonical_name, pieces, theme = resolve_catalog_match(sb, c["title"], c["set_number_candidates"])
+        if not confirmed_number:
+            print(f"REJECTED (no confirmed catalog match): {c['title']!r} -- candidates tried: {c['set_number_candidates']}", file=sys.stderr)
+            continue
+
+        # Use the CONFIRMED number everywhere downstream (Brickset image
+        # lookup, video_posts storage, already_used tracking) -- not just
+        # for the enrichment facts. Keeping the unvalidated best-guess here
+        # would still send the wrong number to Brickset even after fixing
+        # the pieces/theme data.
+        c["set_number"] = confirmed_number
+
+        # Piece-count cross-check still runs against the RETAILER's own
+        # title text first (a genuine, separate signal -- e.g. a box
+        # printed "3599 pieces" that disagrees with the catalog's stored
+        # value) -- see resolve_title_and_pieces()'s docstring. Its
+        # returned title is discarded below in favor of the catalog's own
+        # canonical name; only pieces/discrepancy from this call are kept.
+        _retailer_title_with_pieces, pieces, discrepancy = resolve_title_and_pieces(c["title"], pieces)
+
+        # Single source of truth for the title itself: the catalog's own
+        # name for the CONFIRMED set_number, not the retailer's title
+        # string (which is what desynced from set_number in the first
+        # place) and not resolve_title_and_pieces()'s piece-count-patched
+        # variant of it.
+        c["title"] = canonical_name
+
         c["pieces"] = pieces
         c["theme"] = theme
         c["piece_count_discrepancy"] = discrepancy
+        drop = drops.get(c["set_number"])
         if c.get("set_number") in priority_set_numbers:
             # Overrides the normal price-drop/recency reason entirely -- this
             # candidate isn't here because of price or recency, it's here
@@ -686,11 +736,12 @@ def get_candidates(sb, limit: int = 10, pool_size: int = 30) -> list[dict]:
                 f"catalog says {discrepancy['catalog']}, retailer title says {discrepancy['retailer_title']} "
                 f"-- needs manual resolution, no piece count will be stated"
             )
-        elif confirmed_number:
-            reason += f", catalog match: {theme} theme, {pieces} pieces"
         else:
-            reason += " (no confident catalog match -- no piece/theme fact)"
+            reason += f", catalog match: {theme} theme, {pieces} pieces"
         c["reason"] = reason
+        confirmed_candidates.append(c)
+
+    fresh = confirmed_candidates
 
     return fresh[:limit]
 
