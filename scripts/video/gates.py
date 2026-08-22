@@ -410,6 +410,88 @@ def gate_coherence_llm_judge(script: str) -> GateResult:
         return GateResult("G10_coherence", True, f"SKIPPED: judge call failed ({e}) -- fail-open, not blocking on judge availability")
 
 
+# Added 2026-08-21 -- real incident, story #43 (video_posts id
+# cc843a50-d5ee-467f-ae05-d328e2582c49): engine.py's transcribe_for_captions()
+# deliberately transcribes the ACTUAL rendered TTS audio via openai-whisper
+# ("base" model) rather than trusting video_posts.script, specifically to
+# catch genuine TTS mispronunciation (see engine.py's caption-block comment,
+# and the earlier "rupees" vs "RS" incident that motivated that design). That
+# design is correct and stays -- but it means the burned-in caption can
+# diverge from the script on words Whisper itself mishears, and "base" is
+# whisper's cheapest/least accurate tier. Confirmed live: "For the die-hard
+# Andy Weir fan" was transcribed as "...for the diehard" / "and the rear
+# fan..." -- a segment-boundary split that corrupted the two-word author name
+# into "rear". engine.py's transcribe_for_captions() now biases Whisper with
+# an initial_prompt built from extract_caption_glossary() (this doesn't
+# override a genuinely mispronounced word -- it's a soft nudge, not a hard
+# vocabulary list) -- this gate is the safety net for when that bias still
+# isn't enough. Deliberately does NOT attempt automatic text-correction here:
+# a second layer of guessing on top of an already-uncertain ASR pass risks a
+# new class of silent errors. This only flags for human review, the same as
+# every other gate -- passed=False + reason land in gate_results, which a
+# human already checks before ever moving a row past pending_approval (VID-P4
+# has no auto-publish path).
+def gate_caption_fidelity(glossary: list[str], caption_segments: list[dict]) -> GateResult:
+    """G11: does the burned-in caption text (Whisper's ASR hypothesis, NOT
+    the script) still contain each glossary term, or at least a close,
+    recognizable variant of it? Two failure modes, both flagged:
+      - term missing entirely (best candidate window is a poor match --
+        this is what "Andy Weir" -> "rear"/"and the" does: the real words
+        aren't a garbled spelling of the name, they're different words)
+      - term present only as a low-similarity variant (a genuine near-miss
+        spelling, e.g. a hypothetical "Jugaad" -> "Jugad")
+    Fails OPEN on an empty glossary -- nothing to check is not evidence of
+    a problem, consistent with G10's fail-open-on-unavailable pattern.
+
+    Thresholds picked and verified against real data, not guessed: 0.75
+    correctly treats real exact/near-exact matches (casing/apostrophe
+    noise) as present across 3 real clean stories (Messi, Tintin, Razor
+    Crest -- 7 glossary terms, zero false positives); 0.35 floor correctly
+    separates the real "Andy Weir" corruption (45% similarity to its best
+    candidate window, "india where") from a merely-missing term with no
+    plausible candidate at all.
+    """
+    if not glossary:
+        return GateResult("G11_caption_fidelity", True, "No glossary terms extracted -- nothing to check.")
+
+    HIGH_SIM = 0.75
+    LOW_SIM_FLOOR = 0.35
+
+    caption_text = " ".join(s.get("text", "") for s in caption_segments)
+    caption_norm = re.sub(r"[^\w\s]", " ", caption_text.lower())
+    caption_words = caption_norm.split()
+    caption_joined = " " + " ".join(caption_words) + " "
+
+    failures = []
+    for term in glossary:
+        term_norm = re.sub(r"[^\w\s]", " ", term.lower())
+        term_norm = re.sub(r"\s+", " ", term_norm).strip()
+        if not term_norm:
+            continue
+        if f" {term_norm} " in caption_joined:
+            continue  # exact (case/punctuation-insensitive) match -- cheapest path first
+
+        term_word_count = len(term_norm.split())
+        best_sim, best_window = 0.0, ""
+        for i in range(len(caption_words) - term_word_count + 1):
+            window = " ".join(caption_words[i:i + term_word_count])
+            dist = _levenshtein(term_norm, window)
+            sim = 1 - dist / max(len(term_norm), len(window), 1)
+            if sim > best_sim:
+                best_sim, best_window = sim, window
+
+        if best_sim >= HIGH_SIM:
+            continue  # close spelling/casing variant -- treat as present
+        elif best_sim >= LOW_SIM_FLOOR:
+            failures.append(f"{term!r} present only as a low-similarity variant ({best_sim * 100:.0f}% match: {best_window!r})")
+        else:
+            failures.append(f"{term!r} missing from captions (best candidate {best_sim * 100:.0f}% match: {best_window!r})")
+
+    if failures:
+        return GateResult("G11_caption_fidelity", False, "; ".join(failures))
+    return GateResult("G11_caption_fidelity", True, f"All {len(glossary)} glossary term(s) confirmed in captions.")
+
+
 def _levenshtein(a: str, b: str) -> int:
     m, n = len(a), len(b)
     dp = [[0] * (n + 1) for _ in range(m + 1)]
