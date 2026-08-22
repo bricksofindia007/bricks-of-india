@@ -43,9 +43,10 @@ FEATURE_FLAGS = {
     # Cerebras billing is fixed.
     "cerebras_fallback_enabled": False,
 
-    # VID-QP Groq fallback (quiet_panic_script_gen.py's _call_groq(), only
-    # QP -- VID-P4's engine.py Groq fallback is unconditional/unflagged,
-    # unchanged by this pass). Added 2026-08-22 (qwen rollout evidence
+    # VID-QP Groq fallback (quiet_panic_script_gen.py's _call_groq() --
+    # VID-P4's own engine.py Groq fallback has its own separate flag pair
+    # below, p4_groq_fallback_enabled/p4_groq_fallback_model, added in the
+    # FINAL ARCHITECTURE PASS). Added 2026-08-22 (qwen rollout evidence
     # pass): Groq previously fired unconditionally the moment Gemini
     # failed, targeting the now-decommissioned llama-3.3-70b-versatile
     # (confirmed dead, live 404) -- effectively a silent no-op. Swapping to
@@ -66,4 +67,17 @@ FEATURE_FLAGS = {
     # hardcoded in _call_groq()) so a future model swap or rollback is a
     # one-line config change, not a code change.
     "qp_groq_fallback_model": "qwen/qwen3.6-27b",
+
+    # VID-P4 Groq fallback (engine.py's _try_groq()). Added 2026-08-22 as
+    # part of the FINAL ARCHITECTURE PASS -- same reasoning as
+    # qp_groq_fallback_enabled/qp_groq_fallback_model above, brought to
+    # parity: _try_groq() previously fired unconditionally on Gemini
+    # failure, targeting the dead llama-3.3-70b-versatile. Separate from
+    # QP's flags because Phase A's evidence showed materially worse qwen
+    # results against VID-P4's prompt (word-count overruns on 4/5 test
+    # sets, bad price math on 2/5) -- P4 and QP must be independently
+    # enable-able, not coupled to the same switch, so a decision on one
+    # pipeline never silently drags the other along.
+    "p4_groq_fallback_enabled": False,
+    "p4_groq_fallback_model": "qwen/qwen3.6-27b",
 }
