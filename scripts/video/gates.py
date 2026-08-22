@@ -431,17 +431,21 @@ def gate_coherence_llm_judge(script: str) -> GateResult:
 # every other gate -- passed=False + reason land in gate_results, which a
 # human already checks before ever moving a row past pending_approval (VID-P4
 # has no auto-publish path).
-def gate_caption_fidelity(glossary: list[str], caption_segments: list[dict]) -> GateResult:
+_CAPTION_NUMERAL_RE = re.compile(r"\b[\d,]+\b")
+
+
+def gate_caption_fidelity(glossary: list[str], caption_segments: list[dict], numerals: list[str] | None = None) -> GateResult:
     """G11: does the burned-in caption text (Whisper's ASR hypothesis, NOT
-    the script) still contain each glossary term, or at least a close,
-    recognizable variant of it? Two failure modes, both flagged:
+    the script) still contain each glossary term (or numeral), or at least
+    a close, recognizable variant of it? Two failure modes for word terms,
+    both flagged:
       - term missing entirely (best candidate window is a poor match --
         this is what "Andy Weir" -> "rear"/"and the" does: the real words
         aren't a garbled spelling of the name, they're different words)
       - term present only as a low-similarity variant (a genuine near-miss
         spelling, e.g. a hypothetical "Jugaad" -> "Jugad")
-    Fails OPEN on an empty glossary -- nothing to check is not evidence of
-    a problem, consistent with G10's fail-open-on-unavailable pattern.
+    Fails OPEN when there's nothing to check at all -- consistent with
+    G10's fail-open-on-unavailable pattern.
 
     Thresholds picked and verified against real data, not guessed: 0.75
     correctly treats real exact/near-exact matches (casing/apostrophe
@@ -450,9 +454,21 @@ def gate_caption_fidelity(glossary: list[str], caption_segments: list[dict]) -> 
     separates the real "Andy Weir" corruption (45% similarity to its best
     candidate window, "india where") from a merely-missing term with no
     plausible candidate at all.
+
+    2026-08-22 addition: `numerals` (see engine.py's
+    extract_caption_numerals()) closes a real gap the word-only version
+    had -- story #48's "Porsche 911 GT3 R..." was transcribed as "...
+    Porsche 9, whatever GT3R...", "911" replaced by "whatever" entirely,
+    and the word-only glossary check had no way to catch it (bare numbers
+    were never in its regex's scope). Numerals are checked for EXACT
+    presence only (comma-stripped, so "1,313" vs "1313" formatting
+    differences don't matter) -- no fuzzy fallback, unlike word terms: a
+    "70% similar" digit string isn't a meaningful category the way a close
+    spelling variant is. Either the number survived transcription intact,
+    or it was replaced by something else entirely, same as "911" was.
     """
-    if not glossary:
-        return GateResult("G11_caption_fidelity", True, "No glossary terms extracted -- nothing to check.")
+    if not glossary and not numerals:
+        return GateResult("G11_caption_fidelity", True, "No glossary terms or numerals extracted -- nothing to check.")
 
     HIGH_SIM = 0.75
     LOW_SIM_FLOOR = 0.35
@@ -463,11 +479,13 @@ def gate_caption_fidelity(glossary: list[str], caption_segments: list[dict]) -> 
     caption_joined = " " + " ".join(caption_words) + " "
 
     failures = []
+    checked = 0
     for term in glossary:
         term_norm = re.sub(r"[^\w\s]", " ", term.lower())
         term_norm = re.sub(r"\s+", " ", term_norm).strip()
         if not term_norm:
             continue
+        checked += 1
         if f" {term_norm} " in caption_joined:
             continue  # exact (case/punctuation-insensitive) match -- cheapest path first
 
@@ -487,9 +505,16 @@ def gate_caption_fidelity(glossary: list[str], caption_segments: list[dict]) -> 
         else:
             failures.append(f"{term!r} missing from captions (best candidate {best_sim * 100:.0f}% match: {best_window!r})")
 
+    if numerals:
+        caption_digit_strings = {m.group().replace(",", "") for m in _CAPTION_NUMERAL_RE.finditer(caption_text)}
+        for num in numerals:
+            checked += 1
+            if num not in caption_digit_strings:
+                failures.append(f"{num!r} (numeral) missing from captions -- not found as any digit run in the transcription")
+
     if failures:
         return GateResult("G11_caption_fidelity", False, "; ".join(failures))
-    return GateResult("G11_caption_fidelity", True, f"All {len(glossary)} glossary term(s) confirmed in captions.")
+    return GateResult("G11_caption_fidelity", True, f"All {checked} glossary term(s)/numeral(s) confirmed in captions.")
 
 
 def _levenshtein(a: str, b: str) -> int:
