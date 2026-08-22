@@ -24,6 +24,7 @@ import os
 import random
 import sys
 import time
+import unicodedata
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -319,7 +320,18 @@ _GENERIC_TITLE_WORDS = {
 
 
 def _meaningful_words(text: str) -> set[str]:
-    words = re.findall(r"[a-z0-9]+", text.lower())
+    # Accent-fold before the ASCII-only regex -- found 2026-08-22 via a
+    # broader retailer audit: catalog name "French Café" vs retailer title
+    # "French Cafe" shared zero meaningful words without this, since
+    # [a-z0-9]+ can't match "é" at all (the regex just silently drops it,
+    # leaving "caf" instead of "cafe"). NFKD decomposes "é" into "e" +a
+    # combining accent mark; stripping combining marks (unicode category
+    # Mn) leaves plain "e" for comparison, without touching how the
+    # ORIGINAL text is displayed anywhere else -- this function only ever
+    # feeds the overlap set, never a stored/displayed string.
+    folded = unicodedata.normalize("NFKD", text)
+    folded = "".join(c for c in folded if not unicodedata.combining(c))
+    words = re.findall(r"[a-z0-9]+", folded.lower())
     return {w for w in words if w not in _GENERIC_TITLE_WORDS and len(w) > 1}
 
 
@@ -1521,6 +1533,46 @@ def extract_caption_glossary(sanitized_script: str, set_title: str) -> list[str]
     return deduped
 
 
+_NUMERAL_RE = re.compile(r"\b[\d,]+\b")
+
+
+def extract_caption_numerals(sanitized_script: str) -> list[str]:
+    """Pulls multi-digit numbers out of a script -- a separate, adjacent
+    check to extract_caption_glossary()'s word-based terms, for the same
+    reason: Whisper doesn't just mishear names, it can mishear numbers too.
+    Added 2026-08-22, real incident: story #48's "LEGO Technic Porsche 911
+    GT3 R..." was transcribed as "...Porsche 9, whatever GT3R...", "911"
+    replaced by "whatever" -- G11 didn't catch it because bare numbers
+    were never in scope for extract_caption_glossary() (its regex only
+    matches Title-Case WORD runs).
+
+    Returns normalized (comma-stripped) digit strings, e.g. "1,313" ->
+    "1313" -- caption text is normalized the same way before comparison,
+    so formatting differences (Whisper's comma placement, if any) don't
+    matter. Deliberately excludes single-digit numbers ("8-speed
+    gearbox") -- low specificity, a single-digit ASR slip is a much lower-
+    stakes and much noisier thing to gate on than a multi-digit identifier
+    like a model number, piece count, or price.
+
+    Unlike glossary terms (checked with a fuzzy-match fallback -- a real
+    near-miss spelling is still meaningful signal), numerals are checked
+    for EXACT presence only in gates.gate_caption_fidelity(). A "70%
+    similar" digit string isn't a meaningful category the way a close
+    spelling variant is -- either the number is there or it was replaced
+    by something else entirely (as "911" was, by "whatever").
+    """
+    numerals: list[str] = []
+    seen: set[str] = set()
+    for match in _NUMERAL_RE.finditer(sanitized_script):
+        digits = match.group().replace(",", "")
+        if len(digits) < 2 or not digits.isdigit():
+            continue
+        if digits not in seen:
+            seen.add(digits)
+            numerals.append(digits)
+    return numerals
+
+
 _CAPTION_FONT_CANDIDATES = [
     "C:/Windows/Fonts/arialbd.ttf",
     "C:/Windows/Fonts/arial.ttf",
@@ -2039,8 +2091,10 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
     print(f"Rendered: {output_path} ({total_duration:.1f}s)")
 
     caption_glossary = extract_caption_glossary(script, row["set_title"])
-    caption_initial_prompt = ", ".join(caption_glossary) + "." if caption_glossary else None
+    caption_numerals = extract_caption_numerals(script)
+    caption_initial_prompt = ", ".join(caption_glossary + caption_numerals) + "." if (caption_glossary or caption_numerals) else None
     print(f"Caption glossary ({len(caption_glossary)} term(s)): {caption_glossary}")
+    print(f"Caption numerals ({len(caption_numerals)}): {caption_numerals}")
 
     print("Transcribing rendered audio for captions (Whisper)...")
     segments = transcribe_for_captions(output_path, initial_prompt=caption_initial_prompt)
@@ -2049,7 +2103,7 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
     output_path.unlink()
     captioned_path.rename(output_path)
 
-    caption_fidelity_result = gates.gate_caption_fidelity(caption_glossary, segments)
+    caption_fidelity_result = gates.gate_caption_fidelity(caption_glossary, segments, numerals=caption_numerals)
     report.results.append(caption_fidelity_result)
     print(f"  [{'PASS' if caption_fidelity_result.passed else 'FAIL'}] {caption_fidelity_result.gate}: {caption_fidelity_result.reason}")
 
@@ -2378,8 +2432,10 @@ def main() -> None:
             print("WARNING: video exceeds 90s — IG Reels/YT Shorts may reject or truncate.")
 
         caption_glossary = extract_caption_glossary(script, candidate["title"])
-        caption_initial_prompt = ", ".join(caption_glossary) + "." if caption_glossary else None
+        caption_numerals = extract_caption_numerals(script)
+        caption_initial_prompt = ", ".join(caption_glossary + caption_numerals) + "." if (caption_glossary or caption_numerals) else None
         print(f"Caption glossary ({len(caption_glossary)} term(s)): {caption_glossary}")
+        print(f"Caption numerals ({len(caption_numerals)}): {caption_numerals}")
 
         print("Transcribing rendered audio for captions (Whisper, catches real TTS pronunciation)...")
         segments = transcribe_for_captions(output_path, initial_prompt=caption_initial_prompt)
@@ -2392,7 +2448,7 @@ def main() -> None:
         # docstring for why this can't be part of run_all_gates() (it
         # needs the actual rendered captions, which don't exist yet at
         # pre-TTS gate time).
-        caption_fidelity_result = gates.gate_caption_fidelity(caption_glossary, segments)
+        caption_fidelity_result = gates.gate_caption_fidelity(caption_glossary, segments, numerals=caption_numerals)
         report.results.append(caption_fidelity_result)
         print(f"  [{'PASS' if caption_fidelity_result.passed else 'FAIL'}] {caption_fidelity_result.gate}: {caption_fidelity_result.reason}")
 
