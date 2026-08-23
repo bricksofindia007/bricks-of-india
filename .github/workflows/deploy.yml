@@ -1,23 +1,30 @@
-name: Build & Deploy to Netlify
+name: Build & Deploy to Netlify (inert — see below)
+
+# 2026-08-23: the netlify-cli deploy step that used to live here has been
+# REMOVED, not replaced. Deploys now happen exclusively through Netlify's
+# own native git integration, which the Deploys tab has confirmed already
+# builds this project successfully on push to main when nothing else
+# competes with it. Prior to today, this workflow's own `netlify-cli
+# deploy --build --prod` call was itself the thing preventing that native
+# integration from ever getting a clean run -- see git history/PR for the
+# full incident (deploy.yml's CLI call started failing with a real,
+# non-transient `JSONHTTPError: Forbidden` once "Enforce deployment
+# methods" was set to Git-only on the Netlify dashboard; every deploy
+# since had been silently failing at that step, not because of exhausted
+# credits despite that being the original suspicion).
+#
+# This file is kept only as a record of intent -- which paths this repo
+# considers "site-relevant" for a production deploy -- and as a home for
+# `workflow_dispatch` if a manual no-op trigger is ever useful. It runs no
+# build, installs nothing, and calls Netlify in no way. If this file is
+# ever deleted entirely, nothing is lost: the paths list below has no
+# operational effect anymore, since Netlify's own git integration (not
+# this workflow) now owns the real build+publish path.
 
 on:
   push:
     branches:
       - main
-    # Real fix for repeatedly-raised "unnecessary Netlify builds" (2026-07-05):
-    # netlify.toml's `ignore` field does NOT govern this -- verified against
-    # netlify-cli's own docs and --help output that `netlify deploy --build`
-    # is a manual command that always builds unless --no-build is passed,
-    # completely independent of Netlify's git-integration build-skip engine
-    # (which `ignore` controls, and which this repo already disables via
-    # `ignore = "exit 0"` -- meaning that field currently does nothing at
-    # all, since deploys happen through this workflow's explicit CLI call,
-    # not through Netlify's own webhook-triggered builds). This `paths:`
-    # filter is what actually controls whether a real build+deploy runs.
-    # Inclusion list (not paths-ignore) deliberately -- new non-site
-    # directories added later (another scripts/<tool>/ subtree, another
-    # docs/ file) are safe by default and never accidentally trigger a
-    # deploy unless someone explicitly adds them here.
     paths:
       - "src/**"
       - "public/**"
@@ -32,49 +39,10 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-and-deploy:
-    name: Build & Deploy
+  record-of-intent:
+    name: No-op (deploys happen via Netlify's native git integration)
     runs-on: ubuntu-latest
-    # 10 most recent runs: 1m24s-1m40s (fast-failing) up to 8m53s (real
-    # successful builds) (gh run list --workflow=deploy.yml --limit 10,
-    # 2026-08-18). 2x observed max successful runtime.
-    timeout-minutes: 20
-    env:
-      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
+    timeout-minutes: 2
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Setup Node 20
-        uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build & Deploy
-        env:
-          NETLIFY_AUTH_TOKEN: ${{ secrets.NETLIFY_AUTH_TOKEN }}
-          NETLIFY_SITE_ID: ${{ secrets.NETLIFY_SITE_ID }}
-          REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
-          BRICKSET_API_KEY: ${{ secrets.BRICKSET_API_KEY }}
-          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          NEXT_PUBLIC_GA_MEASUREMENT_ID: ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
-          NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
-        run: npx netlify-cli@latest deploy --build --prod
-
-      # Recrawl acceleration used to ping Google's sitemap endpoint here,
-      # but that endpoint was deprecated by Google in June 2023 and always
-      # returns 404 -- confirmed live on this exact step (see
-      # BOI_MASTER_TRACKER.md §Recrawl acceleration for the real response).
-      # Removed rather than left in place returning 404 forever, which
-      # would just be noise in deploy logs for someone debugging later.
-      # Replaced by IndexNow (src/lib/indexnow.ts): article publishes
-      # submit their own URL immediately (publish-draft.ts), and sets
-      # submit via the incremental sync wired into scrape-prices.yml,
-      # scoped to actual changed URLs rather than a deploy-time signal.
+      - name: No-op
+        run: echo "This workflow no longer builds or deploys anything. Netlify's native git integration handles production deploys directly on push to main -- see this file's header comment for why."
