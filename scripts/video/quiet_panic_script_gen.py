@@ -973,30 +973,57 @@ def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) 
     )
     task_prompt = _build_task_prompt(candidate, revision_context)
 
-    call_result = None
-    try:
-        call_result = _call_gemini(system_prompt, task_prompt)
-    except Exception as e:
-        print(f'WARN: Gemini script-gen failed ({e}), falling back to Groq.', file=sys.stderr)
-
-    # 2026-08-22 (qwen rollout): Groq fallback is now gated behind
-    # 'qp_groq_fallback_enabled' (config/feature_flags.py), OFF by default.
-    # Previously Groq fired unconditionally on any Gemini failure -- fine
-    # while it silently 404'd against a dead model every time (a no-op in
-    # practice), but wiring a MODEL THAT ACTUALLY WORKS behind the exact
-    # same unconditional call would mean qwen output could reach production
-    # the moment this merges, with no review. Abhinav flips this flag after
-    # reviewing the qwen rollout evidence.
-    if call_result is None and FEATURE_FLAGS.get('qp_groq_fallback_enabled', False):
+    # 2026-08-23: FORCE_PROVIDER, a narrow, explicit one-off override for
+    # manual re-generation only -- NOT wired into the scheduled poller's
+    # normal env (video-rework-poller-quiet-panic.yml never sets this var,
+    # so its cron runs are unaffected by construction, not just
+    # convention). Does NOT change qp_groq_fallback_enabled's meaning or
+    # the standing Gemini-primary policy -- this only applies within a
+    # single invocation where the caller has explicitly set the env var,
+    # e.g. to force a real Groq/qwen generation for one specific row after
+    # Gemini already produced an incoherent result on it twice. Checked
+    # here, before the Gemini attempt, per the explicit ask; only 'groq'
+    # is a recognized value (Cerebras/Gemini forcing wasn't requested and
+    # isn't implemented). Sets call_result directly and skips straight to
+    # the shared post-processing below (segment validation/budget/verdict
+    # checks) -- deliberately NOT a separate early-return branch, so this
+    # override can never accidentally skip a real gate the normal path
+    # enforces.
+    force_provider = os.environ.get('FORCE_PROVIDER', '').strip().lower()
+    if force_provider == 'groq':
+        print('FORCE_PROVIDER=groq set -- skipping Gemini entirely for this call.', file=sys.stderr)
         trimmed_system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
             codex=_load_trimmed_codex(),
             persona_rules=PERSONA_RULES,
             references=_build_reference_block(),
         )
+        call_result = _call_groq(trimmed_system_prompt, task_prompt)
+    else:
+        call_result = None
         try:
-            call_result = _call_groq(trimmed_system_prompt, task_prompt)
+            call_result = _call_gemini(system_prompt, task_prompt)
         except Exception as e:
-            print(f'WARN: Groq script-gen failed ({e}), falling back.', file=sys.stderr)
+            print(f'WARN: Gemini script-gen failed ({e}), falling back to Groq.', file=sys.stderr)
+
+        # 2026-08-22 (qwen rollout): Groq fallback is now gated behind
+        # 'qp_groq_fallback_enabled' (config/feature_flags.py), OFF by
+        # default. Previously Groq fired unconditionally on any Gemini
+        # failure -- fine while it silently 404'd against a dead model
+        # every time (a no-op in practice), but wiring a MODEL THAT
+        # ACTUALLY WORKS behind the exact same unconditional call would
+        # mean qwen output could reach production the moment this merges,
+        # with no review. Abhinav flips this flag after reviewing the
+        # qwen rollout evidence.
+        if call_result is None and FEATURE_FLAGS.get('qp_groq_fallback_enabled', False):
+            trimmed_system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+                codex=_load_trimmed_codex(),
+                persona_rules=PERSONA_RULES,
+                references=_build_reference_block(),
+            )
+            try:
+                call_result = _call_groq(trimmed_system_prompt, task_prompt)
+            except Exception as e:
+                print(f'WARN: Groq script-gen failed ({e}), falling back.', file=sys.stderr)
 
     if call_result is None:
         if not FEATURE_FLAGS.get('cerebras_fallback_enabled', False):
