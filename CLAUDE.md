@@ -8,9 +8,11 @@
 
 SESSION START: Read `BOI_MASTER_TRACKER.md` — header block (metadata, current blockers, carry-overs, lab status, deadlines). Confirm the HEAD commit field matches `git log -1 --format="%H"`. Paste summary to strategic layer. Do not use `docs/SESSION_START_CHECKLIST.md` — that file's handover-doc protocol was abandoned after Day 35 and is queued for archival.
 
-**Dashboard sync:** see `BOI_MASTER_TRACKER.md` § Auto-update protocol — every state change updates `admin/dashboard.html` in the same commit.
+**Dashboard sync:** see `BOI_MASTER_TRACKER.md` § Auto-update protocol — every state change updates `admin/dashboard.html` in the same commit. Enforced on PRs by `.github/workflows/lint-tracker-dashboard-sync.yml` (added 2026-08-23, after a 30-day ground-truth audit found the rule recurring as an unenforced, self-reported violation rather than the exception) — does not cover the docs-only-direct-push fast path below, by design.
 
 **Dashboard validation:** at session start, confirm `admin/dashboard.html` JSON parses cleanly before doing anything else. If it doesn't, fix first.
+
+**Issue-filing is binding, not optional.** Any future action item, pending decision, or "revisit later" note surfaced during a session — a deferred fix, an accepted risk, an operator-owned follow-up, a "not done this session, flagged not hidden" note — must be filed as a real GitHub issue before the session or PR is considered complete. A mention in chat, a commit message, or a tracker paragraph does not satisfy this — none of those are visible to anyone (including a future session) who isn't specifically reading git history end-to-end. Added 2026-08-23 after a 30-day audit found multiple real, still-open items (a confirmed-reachable, unpatched CVE deferred with a documented rationale; an operator-owned credential/OAuth follow-up; a documented internal-tooling reconciliation gap) living only in commit bodies and tracker prose, with zero corresponding issue, invisible to anything but a targeted grep. The tracker entry may still carry the full reasoning/context — the issue is the pointer that makes the item discoverable at all, not a replacement for that detail.
 
 **Brief files:** task briefs live in `briefs/`. Read the relevant brief before executing any scoped task.
 
