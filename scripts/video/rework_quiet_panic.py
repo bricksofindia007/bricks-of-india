@@ -164,12 +164,62 @@ def poll_and_rework() -> int:
     return exit_code
 
 
+def rework_one_by_id(sb, row_id: str) -> int:
+    """Targeted rework for a single row, bypassing fetch_rejected_queue()'s
+    escalation-gated queue fetch entirely -- calls the same real rework_one()
+    every automated poll goes through, just without the "2 rejected rows for
+    this set_number -> stop and escalate instead" check first.
+
+    Added 2026-08-23 for a real, evidence-based case: Kakamora's rework row
+    (26c3605e) is set_number 43293's SECOND rejected row (the original
+    67245eff is also status='rejected'), so poll_and_rework()'s normal queue
+    fetch would immediately hit ESCALATION_THRESHOLD=2 and refuse to
+    generate anything -- correct default behavior (don't loop an automated
+    rework a 3rd time without a human back in the loop), but this specific
+    3rd attempt IS the human explicitly back in the loop, requesting it by
+    id by name. Does not touch or bypass fetch_rejected_queue()/
+    poll_and_rework()'s own escalation logic for any OTHER row -- the
+    scheduled cron's normal runs are completely unaffected, since this
+    function is only ever reached via the --row-id CLI flag, never via
+    --poll-and-rework.
+
+    Does not check or require status='rejected' on the target row (unlike
+    the queue-based path) -- the caller is asserting this specific row is
+    ready for rework by id, not asking this function to also re-derive
+    that from status. Still requires a non-null rejection_reason, same
+    substantive precondition the queue path enforces, just not gated on
+    status specifically."""
+    res = sb.table('quiet_panic_posts').select('*').eq('id', row_id).limit(1).execute()
+    if not res.data:
+        print(f'ERROR: no quiet_panic_posts row with id {row_id}', file=sys.stderr)
+        return 1
+    row = res.data[0]
+    if not row.get('rejection_reason'):
+        print(f'ERROR: row {row_id} has no rejection_reason set -- not actionable.', file=sys.stderr)
+        return 1
+
+    print(f"--- Targeted rework: {row_id} ({row['set_title']}, set {row['set_number']}) ---")
+    try:
+        result = rework_one(sb, row)
+        print(f"  Reworked -> new row {result['post_id']} (status={result['status']})")
+    except Exception as e:
+        print(f'ERROR: rework failed for {row_id}: {e}', file=sys.stderr)
+        return 1
+
+    sb.table('quiet_panic_posts').update({'reworked': True}).eq('id', row_id).execute()
+    return 0
+
+
 def main():
     parser = argparse.ArgumentParser(description='Quiet Panic rejection-rework poller.')
     parser.add_argument('--poll-and-rework', action='store_true', help='Poll quiet_panic_posts for rejected rows with a reason and rework them.')
+    parser.add_argument('--row-id', default=None, help='Targeted rework for one specific quiet_panic_posts row id, bypassing the escalation-gated queue fetch. Manual use only -- not called by the scheduled poller.')
     args = parser.parse_args()
 
-    if args.poll_and_rework:
+    if args.row_id:
+        sb = gqpv.get_supabase()
+        sys.exit(rework_one_by_id(sb, args.row_id))
+    elif args.poll_and_rework:
         sys.exit(poll_and_rework())
     else:
         parser.print_help()
