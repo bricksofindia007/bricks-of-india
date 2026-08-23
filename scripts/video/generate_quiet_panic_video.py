@@ -1566,7 +1566,17 @@ def main():
     exhausted = None
     for candidate in candidates:
         try:
-            results.append(process_candidate(candidate))
+            # 2026-08-24: --test-batch previously never threaded
+            # reworked_from through at all, even though process_candidate()
+            # has always accepted it -- every hand-authored --test-batch
+            # render (RB20, WALL-E, etc.) has been a FRESH candidate, never
+            # a rework, so this gap was never hit until now: a genuine
+            # human-finalized rework (Kakamora, reworked_from the original
+            # 67245eff row) needed hand-authored segments AND a real
+            # reworked_from link, and --test-batch could only give one or
+            # the other. Optional key on the candidate dict, defaults to
+            # None (unchanged behavior) if absent.
+            results.append(process_candidate(candidate, reworked_from=candidate.get('reworked_from')))
         except ScriptGenExhaustedError as e:
             # Genuine terminal outcome, not a crash -- exit gracefully
             # (status 0) so the calling workflow's later steps still run
