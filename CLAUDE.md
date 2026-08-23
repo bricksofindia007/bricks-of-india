@@ -123,6 +123,8 @@ When adding a new model (a new fallback provider, a primary-model swap, a new pi
 
 A known, already-accepted failure condition (e.g. Cerebras's payment-block, 402, tracked via `cerebras_fallback_enabled`) should be classified as such explicitly in the check function, not left to trip the canary red every day for a condition that's already flagged off and understood.
 
+**Route every secret through `secrets_util.get_secret()`, not a bare `os.environ.get()`** — even in this canary itself. Confirmed real, 2026-08-23: the canary's own first live GitHub Actions run failed both `GEMINI_SOCIAL_API_KEY` and `CEREBRAS_API_KEY` checks with `'ascii' codec can't encode character '﻿'` — a BOM byte in those secrets, an already-documented gotcha (see "Known Netlify Gotchas" below) that every real pipeline script already routes around, but this canary bypassed by reading the key directly. Fixed same day. The irony is the point: a tool built to catch silent failures needs the same care as the code it's watching, or it becomes a second source of exactly the false-negative/false-positive noise it exists to eliminate.
+
 ---
 
 ## RADAR pipeline rules
