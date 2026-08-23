@@ -882,7 +882,24 @@ def _call_groq(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
     Retry-After header when present -- this is a single fallback call, not
     a batch, so it doesn't need QP voice-test's 65s inter-call pacing, but
     silently giving up on the very first rate-limit hit isn't real handling
-    either."""
+    either.
+
+    max_tokens tightened 2048 -> 1024, 2026-08-23: a real, deterministic
+    413 ("Request too large... Limit 8000, Requested 8493") hit on a
+    revision-mode call (trimmed-codex system prompt + a task prompt
+    carrying the full previous script + rejection reason, both absent
+    from the fresh-mode prompts the trimmed codex was originally sized
+    against). Confirmed live via the raw error body that Groq's own
+    "Requested" figure is prompt_tokens + max_tokens, not prompt_tokens
+    alone (6445 + 2048 = 8493, the exact number in the error) -- so
+    reducing the RESERVED output budget, not the prompt content, closes
+    the gap without touching any instruction text. 1024 still has real
+    headroom: every real completion observed so far (fresh and revision
+    mode) has landed under 450 output tokens for this format's genuinely
+    short (16-word voice budget, 8 segments) target. Retrying this
+    specific error was never going to help -- it's deterministic on
+    prompt size, not transient -- so this fixes the root cause rather
+    than papering over it with more retries."""
     if not GROQ_API_KEY:
         raise RuntimeError('GROQ_API_KEY not set.')
     model = FEATURE_FLAGS.get('qp_groq_fallback_model', 'llama-3.3-70b-versatile')
@@ -892,7 +909,7 @@ def _call_groq(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
             {'role': 'system', 'content': system_prompt},
             {'role': 'user', 'content': task_prompt},
         ],
-        'max_tokens': 2048,
+        'max_tokens': 1024,
         'temperature': 0.7,
     }
     if model.startswith('qwen/'):
