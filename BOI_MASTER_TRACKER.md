@@ -1,6 +1,21 @@
 # BOI Master Tracker
 
+## Retroactive backfill — 6 shipped items found untracked by the 2026-08-23 ground-truth audit
+
+A 30-day activity-ledger reconciliation (every merged PR/commit/issue vs. this file) found these real, already-shipped, already-merged items with zero prior mention anywhere in this tracker. Logged here as historical record — all are done, not open items. See issues #52–56 for the separate, still-open follow-up items the same audit found living only in commit/tracker prose with no issue.
+
+- **PR #49 + #50 (2026-08-23) — qwen/qwen3.6-27b rollout across all 3 pipelines.** Wired `qwen/qwen3.6-27b` (via Groq) as the Gemini fallback for VID-QP script-gen and the article pipeline, gated behind new feature flags (`qp_groq_fallback_enabled`, `articleGroqFallbackEnabled`) reviewed and flipped on with real evidence (5-set VID-P4 comparison, live Groq voice tests). Fixed `gate_coherence_llm_judge()` in both video pipelines, which had been silently fail-open for an unknown period — it targeted a Groq model (`llama-3.3-70b-versatile`) that had been decommissioned, confirmed via a live 404. Added a daily model canary (`.github/workflows/model-canary.yml`) that fails loudly on a dead model or missing secret instead of silently degrading, the same failure class that let the coherence-gate bug go unnoticed. VID-P4's own Groq fallback stays flagged off — a real re-test against its self-correcting retry loop showed 0/5 candidates converging cleanly, not the improvement needed to enable it.
+- **PR #43 (2026-08-21) — VID-P4 hang + VID-QP gate-results crash, permanent fixes.** Root-caused and fixed a VID-P4 pipeline hang and a VID-QP `gate_results` crash, both permanent structural fixes rather than one-off patches (6 real commits: `2a494ec`, `a25c645`, `9c4f541`, `32ed993`, `319895e`, `36e1732`).
+- **PR #42 (2026-08-16) — Catalogue Health Audit fix.** Fixed the catalogue-audit workflow to check MRP coverage against actually-listed sets, not the full catalogue (which included thousands of never-stocked sets, producing a permanently-failing coverage percentage) — plus scheduled `populate-mrp.js` to run automatically going forward instead of requiring a manual trigger.
+- **PR #27 (2026-08-12) — growth-proxy webhook auth-bypass + redirect-host fix.** A real security fix on the bricks-of-india → BOI Growth Engine reverse-proxy route: closed a webhook authentication bypass and a redirect-host bug in the same pass.
+- **PR #24 (2026-08-12) — reverse-proxy route for BOI Growth Engine dashboard.** Added `src/app/admin/pending/growth/[[...path]]/route.ts` — the cross-repo infrastructure that lets `bricksofindia.com/admin/pending/growth` transparently proxy to the separately-deployed, shared-secret-gated `boi-growth-engine` dashboard. New file only; nothing else under `/admin/pending` touched.
+- **PR #19–21 (2026-08-08) — UI/content polish batch.** #19: button contrast fix, footer Instagram handle fix, `/precision` finalize. #20: `/precision` mascots, full-color icons, bold CTA copy. #21: temporarily unpublished `/shareables` (coming-soon page + noindex, not a redirect or 404 — matches the existing pattern used for `/precision` and `/admin/pending`).
+
+---
+
 ## VID-P4 Backlog — Candidate-Matching Follow-ups (not fixed, flagged for a future session) — 2026-08-22
+
+**Tracked as [issue #56](https://github.com/bricksofindia007/bricks-of-india/issues/56) as of 2026-08-23.**
 
 Found during the broader MyBrickHouse/Toycra retailer audit run alongside the title/set_number mismatch remediation (stories #40/#46, root-cause fixes `bbac0bd`/`5db115d`/`50a3b57`/`4bd477d`, all merged to `main`). These are real, confirmed gaps in `resolve_catalog_match()`'s title-vs-catalog-name matching — not retailer data corruption, not a wrong-video risk (a rejected candidate is just skipped, never used), so lower priority than the corruption fixes. Missed-candidate completeness issues, not correctness risks.
 
@@ -750,7 +765,7 @@ actually needed, rather than pointing two sessions at one working tree.
 
 | ID | Task | Status | Notes |
 |----|------|--------|-------|
-| DASH-01 | `admin/dashboard.html` full reconciliation with tracker | 🟡 Deferred (Abhinav, 2026-08-09) | `meta.lastUpdated` was `2026-07-09` (a month behind the tracker) before the Nav & Content Overhaul session, which patched `meta`/`cadence` for its own 3 new jobs but did not do a full pass. Internal tracking artifact, not user-facing — explicitly not worth a standalone session. Pick up next time this file is open for something else. |
+| DASH-01 | `admin/dashboard.html` full reconciliation with tracker | 🟡 Deferred (Abhinav, 2026-08-09) — tracked as [issue #54](https://github.com/bricksofindia007/bricks-of-india/issues/54) as of 2026-08-23 | `meta.lastUpdated` was `2026-07-09` (a month behind the tracker) before the Nav & Content Overhaul session, which patched `meta`/`cadence` for its own 3 new jobs but did not do a full pass. Internal tracking artifact, not user-facing — explicitly not worth a standalone session. Pick up next time this file is open for something else. |
 | CATALOG-05 | Theme backfill — older sets missing from theme pages | 🔴 Not started | Depends on full sync completing all 27 pages (Rebrickable daily quota currently limits one-shot runs). |
 | DATA-01 | Reconcile `store_prices` (scraper) ↔ `prices` (frontend) | ✅ Done 2026-05-09 | commit `9ced905`. /sets, /sets/page/[page], /compare all now read store_prices. Price filter on /compare operates on live store prices. DEFECT-009 logged. |
 | ADMIN-CLEANUP-01 | Remove Netlify legacy secrets from GitHub Secrets (NETLIFY_AUTH_TOKEN, NETLIFY_SITE_ID) | 🟡 Deferred | Noted "LEGACY — pending removal in ADMIN-CLEANUP-01" in `.env.example` (commit 4a39ca5). Netlify is still the origin host so removing now is low-risk but not urgent. |
@@ -2444,6 +2459,8 @@ Decision deferred to Day 3 open.
 - **Dependencies:** None for the stopgap; LOW-43 depends on this being stable in the interim.
 
 #### LOW-43: Meta System User Token — durable IG-TOK-01 close
+
+**Tracked as [issue #53](https://github.com/bricksofindia007/bricks-of-india/issues/53) as of 2026-08-23.**
 - **What:** Replace the current 60-day re-exchange stopgap with a permanent, non-expiring Meta System User token — the only fix that removes the recurring ~60-day cycle entirely. Re-exchanging an already-long-lived token cannot produce a true indefinite token; that's a Meta API limitation, not something `ig-token-refresh.yml` can code around (see **§Session — 2026-07-26** at top of file for the full root-cause writeup of why the re-exchange approach is structurally a stopgap, not a fix).
 - **Context (2026-07-26):** `IG_ACCESS_TOKEN` is currently a genuine, verified-working 60-day token (re-exchanged from a real short-lived token, confirmed `expires_in: 5184000`), and both the `expires_in >= 30 days` refusal gate and the alerting path to Abhinav's inbox are now correctly wired and verified (see Follow-up 1 and Follow-up 3 sessions, same date). This is the **one remaining non-durable piece of the whole IG pipeline** — everything downstream of the token itself is solid.
 - **Action needed:** Abhinav to retry System User creation in Meta Business Manager — previously blocked by a UI chicken-and-egg issue around app-to-Business-Portfolio assignment; worth checking whether that's cleared since May before assuming it's still stuck. Steps once unblocked: create System User → assign the LegoAutoPosts app → generate token with `instagram_basic`, `instagram_content_publish`, `pages_read_engagement`, `pages_show_list` → update the `IG_ACCESS_TOKEN` secret.
@@ -2454,6 +2471,8 @@ Decision deferred to Day 3 open.
 - **Dependencies:** IG-TOK-01 (this closes IG-TOK-01 permanently once done)
 
 #### YT-OAUTH-01: YouTube OAuth sensitive scope Google verification
+
+**Tracked as [issue #55](https://github.com/bricksofindia007/bricks-of-india/issues/55) as of 2026-08-23** (combined with MEDIUM-56 below — real state independently re-verified during that audit: `video_posts` rows with `status='posted_both'` as recently as 2026-08-22 confirm YouTube posting genuinely works, the heartbeat table is trustworthy).
 - **What:** (a) Record OAuth scope justification video per Google requirements — not yet recorded. (b) Await Google reviewer response (submitted 2026-06-02, ~4–6 week review)
 - **Source:** Current blockers § — 19 days elapsed as of 2026-06-21
 - **Status:** pending — Abhinav action required (step a); Google review external (step b)
@@ -3036,6 +3055,8 @@ Decision deferred to Day 3 open.
 - **Dependencies:** none
 
 #### NX-DOS-01: Next.js DoS advisory (GHSA-m99w-x7hq-7vfj) — accepted risk, deferred
+
+**Tracked as [issue #52](https://github.com/bricksofindia007/bricks-of-india/issues/52) as of 2026-08-23**, with an explicit periodic-recheck acceptance criterion (re-check `@netlify/plugin-nextjs` Next.js 15/16 compatibility at least monthly), not just a one-time deferral note.
 - **What:** `GHSA-m99w-x7hq-7vfj` (CVE-2026-64641) — denial of service via crafted requests causing excessive CPU usage, affecting Next.js App Router applications with at least one Server Action. Confirmed reachable in this app: App Router ✓, Server Actions in `contact.ts`, `newsletter.ts`, `admin/pending/actions.ts` ✓. Found during CODE-AUDIT-01's `npm audit` triage (2026-07-26) — one of 7 advisories newly published against `next@14.2.35` since the Jul 13/20 code-audit runs.
 - **No 14.x patch exists.** Confirmed via npm's full version history: `14.2.35` (our current version) is the last stable 14.x release Next.js has ever published — everything since is `14.3.0-canary.*` prereleases only. The only fixes are `15.5.21` and `16.2.11`, both major-version jumps past 14.x.
 - **Why deferred, not fixed now:** the upgrade path has one unverified compatibility blocker — `@netlify/plugin-nextjs` (required for Server Actions support per this file's Next.js/Netlify rules section) declares no `peerDependencies` constraint on `next`'s version in its own `package.json`, so npm cannot catch an incompatibility automatically. Compatibility with Next 15/16 was not verified against Netlify's own release notes/changelog — doing that properly requires actually testing the upgrade against a real build, not just reading docs.
@@ -3220,6 +3241,8 @@ Decision deferred to Day 3 open.
 - **Dependencies:** LAB-06 live (✅ done)
 
 #### MEDIUM-56: YouTube OAuth state — verify heartbeat vs known invalid_grant
+
+**Resolved, verified 2026-08-23 (tracked under [issue #55](https://github.com/bricksofindia007/bricks-of-india/issues/55)):** ran this entry's own diagnostic query for real. `social_automation_heartbeat` for `platform='youtube'`: `last_success_at`=2026-08-22, `last_failure_at`=null. Cross-checked against `video_posts` (not just the heartbeat table alone) — real rows with `status='posted_both'` as recently as 2026-08-22 (id `dd137c4d...`, NINJAGO Wolf Mask Shadow Dojo). The heartbeat's "success" reflects genuine posts, not a silent skip. Question answered: (a) — resolved, not (b).
 - **What:** `social_automation_heartbeat` recorded a YouTube `status='success'` at 2026-06-27T09:19Z. Day 35 Ground Truth documented YouTube as `invalid_grant`-blocked since Day 34 (Google verification review submitted 2026-06-02). Either (a) OAuth was silently resolved, or (b) the heartbeat records "success" even when YouTube posts are gracefully skipped. Diagnostic: `SELECT * FROM social_automation_heartbeat WHERE platform='youtube' ORDER BY last_attempt_at DESC LIMIT 5` and cross-check against the GHA social-automation run log for that timestamp. Update YT-OAUTH-01 with current actual state.
 - **Source:** B3; heartbeat-vs-INVALID_GRANT discrepancy surfaced in consolidation audit 2026-06-27
 - **Status:** needs verification — Abhinav terminal diagnostic
@@ -3593,7 +3616,7 @@ Decision deferred to Day 3 open.
 #### INFRA-03 / Phase 8 status (checked 2026-06-21)
 
 Searched all `.md` files for `INFRA-03`, `Phase 8`, and `LEGO Search Pulse`:
-- **INFRA-03** (GHA migration): ✅ Done — commit `8992aef`. Netlify is origin host only; GHA handles all builds. No unresolved Netlify constraint exists. BOI_WEB_TRACKER.md line 73 confirms Done status.
+- **INFRA-03** (GHA migration): ✅ Done — commit `8992aef`. Netlify is origin host only; GHA handles all builds. No unresolved Netlify constraint exists. `docs/archive/BOI_WEB_TRACKER.md` line 73 confirms Done status (path corrected 2026-08-23 — `BOI_WEB_TRACKER.md` was archived to `docs/archive/` on 2026-06-27, commit `9da6bf9`, after this audit-log entry was originally written; historical status text above left as-is, describing what was true when this entry was written — see the NETLIFY-CREDITS entry near the top of this file for INFRA-03's current, superseded state as of 2026-08-23).
 - **Phase 8** (LEGO Search Pulse / LAB-07): ✅ Live at `/lab/heat-map` since Day 10 (commit `d5d1641`). `BOI_WEB_TRACKER.md` §E shows PULSE-02 as `🟡 Status uncertain` (stale from 2026-05-02 audit) but master tracker §Phase status overrides: Phase 8 ✅ Live.
 - **Finding:** No undocumented Phase 8 / INFRA-03 blocker exists in any tracker file. No D2 gap added.
 
