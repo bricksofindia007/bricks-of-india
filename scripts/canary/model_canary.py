@@ -29,10 +29,26 @@ Every new model integration added to production code must get a
 corresponding check added here (see CLAUDE.md's "Staged/experimental code
 rules" section, where this requirement is documented for future sessions).
 """
-import os
 import sys
+from pathlib import Path
 
 import requests
+
+# BOM-safe secret loading -- reuses the existing, already-proven helper
+# (scripts/video/secrets_util.py) instead of a bare os.environ.get(). Real
+# bug found 2026-08-23, live in this exact script's first real GitHub
+# Actions run: GEMINI_SOCIAL_API_KEY and CEREBRAS_API_KEY both carry a
+# leading U+FEFF byte in this repo's GitHub Secrets (confirmed via the
+# canary's own real failure: "'ascii' codec can't encode character
+# '﻿'"). This is NOT a new production issue -- secrets_util.py's own
+# docstring documents this exact pair of secrets having this exact problem,
+# confirmed live 2026-07-06, and every real pipeline script already routes
+# through get_secret() to strip it. This canary script bypassed that
+# existing fix by using os.environ.get() directly, so it failed on two
+# perfectly healthy secrets on its very first real run -- fixed here by
+# reusing the same helper, not reinventing it.
+sys.path.insert(0, str(Path(__file__).parent.parent / 'video'))
+from secrets_util import get_secret  # noqa: E402
 
 
 class CanaryResult:
@@ -43,7 +59,7 @@ class CanaryResult:
 
 
 def check_gemini(label: str, secret_name: str, model: str) -> CanaryResult:
-    api_key = os.environ.get(secret_name, '').strip()
+    api_key = get_secret(secret_name)
     if not api_key:
         return CanaryResult(label, False, f'SECRET NOT CONFIGURED: {secret_name} is empty/unset')
     try:
@@ -58,7 +74,7 @@ def check_gemini(label: str, secret_name: str, model: str) -> CanaryResult:
 
 
 def check_groq(label: str, model: str) -> CanaryResult:
-    api_key = os.environ.get('GROQ_API_KEY', '').strip()
+    api_key = get_secret('GROQ_API_KEY')
     if not api_key:
         return CanaryResult(label, False, 'SECRET NOT CONFIGURED: GROQ_API_KEY is empty/unset')
     try:
@@ -85,7 +101,7 @@ def check_groq(label: str, model: str) -> CanaryResult:
 
 
 def check_cerebras(label: str, model: str) -> CanaryResult:
-    api_key = os.environ.get('CEREBRAS_API_KEY', '').strip()
+    api_key = get_secret('CEREBRAS_API_KEY')
     if not api_key:
         return CanaryResult(label, False, 'SECRET NOT CONFIGURED: CEREBRAS_API_KEY is empty/unset')
     try:
