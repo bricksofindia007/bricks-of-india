@@ -18,6 +18,7 @@ Meant to run exactly once, in GitHub Actions (where the real secrets
 exist), then be deleted -- not a permanent addition.
 """
 import sys
+import time
 from datetime import datetime, timezone
 
 from model_canary import check_gemini
@@ -31,6 +32,13 @@ t1 = datetime.now(timezone.utc).isoformat()
 print(f'GEMINI_API_KEY call fired at {t0}, completed at {t1}')
 print(f'  result: ok={r1.ok} detail={r1.detail}')
 print()
+
+# Deliberate gap -- the two calls otherwise land under 1s apart (confirmed
+# live on the first real run of this probe), too close together to be
+# reliably distinguishable on a usage dashboard that buckets by minute/
+# second. 15s gives clean separation without being an unreasonable wait.
+print('  (waiting 15s so the two calls land clearly apart on a usage graph)')
+time.sleep(15)
 
 t2 = datetime.now(timezone.utc).isoformat()
 r2 = check_gemini('video pipelines (GEMINI_SOCIAL_API_KEY)', 'GEMINI_SOCIAL_API_KEY', 'gemini-2.5-flash')
