@@ -23,6 +23,15 @@ on:
   schedule:
     - cron: '0 * * * *'
   workflow_dispatch:  # manual trigger still available for testing
+    inputs:
+      row_id:
+        description: 'OPTIONAL: target one specific quiet_panic_posts row id directly (bypasses the escalation-gated queue fetch -- see rework_quiet_panic.py::rework_one_by_id()). Leave blank for the normal poll-and-rework behavior. Scheduled cron runs never set this -- unaffected either way.'
+        required: false
+        type: string
+      force_provider:
+        description: "OPTIONAL: force a specific provider for this dispatch only (only 'groq' is recognized). Leave blank for the standing Gemini-primary policy. Scheduled cron runs never set this -- unaffected either way."
+        required: false
+        type: string
 
 jobs:
   rework:
@@ -66,4 +75,13 @@ jobs:
           GEMINI_SOCIAL_API_KEY: ${{ secrets.GEMINI_SOCIAL_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
-        run: python rework_quiet_panic.py --poll-and-rework
+          # Only set on a manual workflow_dispatch that explicitly filled
+          # this input -- github.event.inputs is empty/absent on schedule
+          # triggers, so FORCE_PROVIDER is unset (falsy) on every cron run.
+          FORCE_PROVIDER: ${{ github.event.inputs.force_provider }}
+        run: |
+          if [ -n "${{ github.event.inputs.row_id }}" ]; then
+            python rework_quiet_panic.py --row-id "${{ github.event.inputs.row_id }}"
+          else
+            python rework_quiet_panic.py --poll-and-rework
+          fi
