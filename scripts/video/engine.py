@@ -911,8 +911,8 @@ def _try_groq(system_prompt: str, task_prompt: str) -> ScriptGenResult | None:
         return None
 
 
-def generate_script(title: str, price_inr: float, pieces: int | None, theme: str | None, retry_note: str | None = None) -> ScriptGenResult:
-    task_prompt = prompts.build_task_prompt(title, price_inr, pieces, theme)
+def generate_script(title: str, price_inr: float, pieces: int | None, theme: str | None, retry_note: str | None = None, set_number: str | None = None) -> ScriptGenResult:
+    task_prompt = prompts.build_task_prompt(title, price_inr, pieces, theme, set_number=set_number)
     if retry_note:
         task_prompt = f"{task_prompt}\n\n{retry_note}"
 
@@ -1031,10 +1031,12 @@ MAX_GENERATION_ATTEMPTS = 6
 # 90-110 (up to 157 words), because the model was faithfully complying with
 # the wrong instruction it was given. Fixed by computing the note from the
 # actual failed attempt's word count and the real 90-110 band, every time.
-GENERIC_RETRY_NOTE = (
-    "Your last attempt failed a quality gate. Re-read the hard rules above "
-    "and try again, especially the 90-110 word count."
-)
+#
+# GENERIC_RETRY_NOTE removed 2026-08-23 -- it was the fallback for any
+# non-word-count gate failure and never described what actually failed
+# (see _build_retry_note()'s docstring for the real regression this
+# caused). Superseded by _build_retry_note(), which covers every failing
+# gate by name and reason, not just word count.
 
 
 def _retry_backoff_sleep(attempt: int, provider_failure: bool = False) -> None:
@@ -1061,17 +1063,46 @@ def _retry_backoff_sleep(attempt: int, provider_failure: bool = False) -> None:
 def _word_count_retry_note(n: int) -> str:
     if n > 110:
         return (
-            f"Your last attempt was {n} words -- that FAILS the 90-110 word hard rule "
-            f"(too long by {n - 110}). Cut it down to land inside 90-110: remove "
-            f"qualifying phrases and shorten the story section first, never cut the "
-            f"punchline or the price. Count your words before answering."
+            f"word count {n} -- FAILS the 90-110 word hard rule (too long by {n - 110}). "
+            f"Cut it down to land inside 90-110: remove qualifying phrases and shorten "
+            f"the story section first, never cut the punchline or the price."
         )
     return (
-        f"Your last attempt was {n} words -- that FAILS the 90-110 word hard rule "
-        f"(too short by {90 - n}). Add real content to land inside 90-110 -- more story "
-        f"detail, the LEGO fact, or INDIANIZATION texture -- never pad with filler. Count "
-        f"your words before answering."
+        f"word count {n} -- FAILS the 90-110 word hard rule (too short by {90 - n}). "
+        f"Add real content to land inside 90-110 -- more story detail, the LEGO fact, "
+        f"or INDIANIZATION texture -- never pad with filler."
     )
+
+
+def _build_retry_note(report: "gates.GateReport") -> str:
+    """Builds retry feedback covering EVERY failing gate from the previous
+    attempt, not just word count.
+
+    Added 2026-08-23 -- real, confirmed bug found via the qwen fallback
+    diagnostic pass: the retry loop only ever branched on G1_word_count.
+    Any other gate failure (price math, banned patterns, a hallucinated
+    fact) fell through to a generic, word-count-flavored note
+    (GENERIC_RETRY_NOTE, now removed) that never told the model what
+    actually went wrong. Live evidence this caused real regressions, not
+    just theoretical: a 3-attempt qwen retry sequence on Ford Model T
+    passed word count on attempt 1 but hallucinated a nonexistent set
+    number ("1919") -- the retry note said nothing about that failure at
+    all, so attempt 2 regenerated blind and introduced a DIFFERENT new
+    problem (missing rupee symbol) instead of converging. Each attempt's
+    feedback must name every real failure from the attempt it's
+    responding to, so the model fixes what's actually wrong instead of
+    guessing.
+    """
+    lines = ["Your last attempt failed the following quality gate(s):"]
+    for r in report.results:
+        if not r.passed:
+            if r.gate == "G1_word_count":
+                n = len(report.sanitized_script.split())
+                lines.append(f"- {_word_count_retry_note(n)}")
+            else:
+                lines.append(f"- {r.gate}: {r.reason}")
+    lines.append("Fix ALL of the above in this attempt -- do not regenerate blind and risk introducing a new problem elsewhere in the script.")
+    return "\n".join(lines)
 
 
 def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport, str, int | None, int | None]:
@@ -1088,7 +1119,7 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
     report = None
     for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
         try:
-            raw_script = generate_script(candidate["title"], candidate["price_inr"], candidate.get("pieces"), candidate.get("theme"), retry_note=retry_note)
+            raw_script = generate_script(candidate["title"], candidate["price_inr"], candidate.get("pieces"), candidate.get("theme"), retry_note=retry_note, set_number=candidate.get("set_number"))
         except BothProvidersFailedError as e:
             # Added 2026-08-19: BothProvidersFailedError used to be an
             # instant sys.exit(1) inside generate_script() -- confirmed live
@@ -1115,13 +1146,7 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
             if not r.passed:
                 print(f"  {r.gate}: {r.reason}", file=sys.stderr)
         if attempt < MAX_GENERATION_ATTEMPTS:
-            word_count_failed = next(
-                (r for r in report.results if r.gate == "G1_word_count" and not r.passed), None
-            )
-            if word_count_failed:
-                retry_note = _word_count_retry_note(len(report.sanitized_script.split()))
-            else:
-                retry_note = GENERIC_RETRY_NOTE
+            retry_note = _build_retry_note(report)
             _retry_backoff_sleep(attempt)
             print(f"Regenerating (attempt {attempt + 1}/{MAX_GENERATION_ATTEMPTS})...", file=sys.stderr)
 
