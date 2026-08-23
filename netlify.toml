@@ -1,19 +1,25 @@
 [build]
   command = "npm run build"
   publish = ".next"
-  # `ignore = "exit 0"` means "always skip" -- deliberately left as-is, not
-  # changed to a conditional path check, 2026-07-05. This field only governs
-  # Netlify's OWN git-integration builds; the actual deploy mechanism is
-  # .github/workflows/deploy.yml's explicit `netlify-cli deploy --build --prod`
-  # call. If Netlify's git integration is connected to this repo at all,
-  # switching this to a conditional (path-aware) check would REACTIVATE
-  # Netlify's own build-on-push behavior alongside the GH-Actions-triggered
-  # one -- doubling builds on exactly the site-relevant commits that matter,
-  # the opposite of the goal. The real fix lives in deploy.yml's `paths:`
-  # filter. Do not change this value without first confirming (Netlify
-  # dashboard -> Site configuration -> Build & deploy -> whether a GitHub
-  # deploy trigger is actually connected) that no second build path exists.
-  ignore = "exit 0"
+  # `ignore = "exit 0"` REMOVED 2026-08-23. It was added 2026-04-23
+  # (commit 8992aef, INFRA-03) to unconditionally skip Netlify's own
+  # native git-integration builds, deliberately routing all production
+  # deploys through .github/workflows/deploy.yml's GitHub-Actions-driven
+  # `netlify-cli deploy --build --prod` call instead -- at the time,
+  # Netlify's pricing metered build minutes separately from the deploy
+  # itself, so building on GHA's free minutes and only "receiving the
+  # pre-built artifact" on Netlify's side genuinely saved build-minute
+  # cost. Two things have since made that rationale obsolete: (1) Netlify's
+  # current credit-based pricing bills a production deploy at a flat 15
+  # credits regardless of where the build runs -- the build itself is
+  # already covered, build minutes are not metered separately anymore
+  # (confirmed via Netlify's own current pricing docs); (2) the "Enforce
+  # deployment methods: Git-only" dashboard restriction (set after
+  # INFRA-03) rejects deploy.yml's CLI/API-token-authenticated call
+  # outright (`JSONHTTPError: Forbidden`, confirmed live) -- so the CLI
+  # path this flag was protecting was no longer even a viable deploy
+  # path. Native git integration is now the sole real deploy mechanism;
+  # see docs/DEPLOYMENT.md for the corrected architecture.
 
 [build.environment]
   NODE_VERSION = "20"

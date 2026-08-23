@@ -1,7 +1,9 @@
 # Deployment Guide — Bricks of India
 
-Builds run on **GitHub Actions** (free minutes). Netlify receives only the
-pre-built artifact. This protects the 50 Netlify build-credit limit.
+Production deploys run entirely on **Netlify's native git integration** —
+Netlify detects a push to `main`, builds, and publishes on its own
+infrastructure. There is no GitHub-Actions-driven build or CLI/API call in
+the deploy path anymore.
 
 ---
 
@@ -9,9 +11,39 @@ pre-built artifact. This protects the 50 Netlify build-credit limit.
 
 | Trigger | What happens |
 |---------|-------------|
-| Push to `main` | GHA runs `npm run build`, then `netlify-cli deploy --prod` |
-| `workflow_dispatch` | Same as above, manually triggered from GitHub Actions tab |
-| Netlify detects a push | `ignore = "exit 0"` in `netlify.toml` tells Netlify to skip — 0 credits consumed |
+| Push to `main` | Netlify's native git integration builds (`npm run build`) and publishes directly — no GitHub Actions involvement. |
+| `.github/workflows/deploy.yml` | Kept inert as a record of which paths count as "site-relevant" (its own `paths:` filter) and a home for a manual no-op `workflow_dispatch`. It runs no build and calls Netlify in no way. |
+
+### Why this changed (history, so this isn't rediscovered from scratch)
+
+This repo originally (2026-04-23, commit `8992aef`, INFRA-03) moved
+production builds *off* Netlify and onto GitHub Actions on purpose:
+`deploy.yml` ran `npm run build` + `netlify-cli deploy --build --prod`,
+and `netlify.toml` carried `ignore = "exit 0"` to unconditionally skip
+Netlify's own native git-integration build — at the time, Netlify's
+pricing metered build minutes separately from the deploy itself, so
+building on GHA's free minutes and only publishing the pre-built artifact
+to Netlify genuinely saved cost.
+
+That architecture was retired 2026-08-23, for two independent reasons:
+
+1. **Netlify's "Enforce deployment methods" dashboard setting was later
+   set to Git-only production deploys.** This rejects any CLI/API-token-
+   authenticated deploy outright — confirmed live, `deploy.yml`'s CLI step
+   had been failing every single run since at least 2026-08-14 with
+   `JSONHTTPError: Forbidden`, not because of exhausted build credits (the
+   original suspicion), but because the deploy *method itself* was no
+   longer permitted.
+2. **Netlify's current credit-based pricing bills a production deploy at
+   a flat 15 credits regardless of where the build runs** — the build
+   itself is already covered; build minutes are not metered separately
+   the way they were under the pricing model INFRA-03 was designed
+   against. The original cost-saving rationale for keeping builds off
+   Netlify no longer applies.
+
+Both `deploy.yml`'s CLI deploy step and `netlify.toml`'s `ignore = "exit
+0"` have been removed accordingly. Netlify's native git integration is
+now the sole real deploy mechanism.
 
 ---
 
@@ -21,12 +53,14 @@ Go to: **GitHub repo → Settings → Secrets and variables → Actions → New 
 
 Add each secret below exactly as named (case-sensitive).
 
-### Required for Netlify deploy (2 secrets)
+### Netlify deploy secrets — NO LONGER NEEDED (2026-08-23)
 
-| Secret name | Where to get it |
-|-------------|-----------------|
-| `NETLIFY_AUTH_TOKEN` | Netlify → User settings (avatar top-right) → Applications → Personal access tokens → **New access token**. Scope: full access. |
-| `NETLIFY_SITE_ID` | Netlify dashboard → select the **bricksofindia.com** site → **Site configuration** → scroll to **Site information** → copy the **Site ID** (looks like `xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx`). |
+`NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID` were only required for
+`deploy.yml`'s `netlify-cli deploy` call, which has been removed (see
+"Why this changed" above). Deploys no longer use these secrets at all —
+left here as a historical note in case either secret still exists in
+GitHub Secrets and someone wonders what it was for. Safe to leave in
+place (unused) or remove; not consumed by any current workflow.
 
 ### Required for the Next.js build (7 secrets)
 
@@ -120,30 +154,20 @@ or are not referenced in `src/` — they do not need to be added to Netlify.
 
 ---
 
-## Testing the workflow
+## Testing a deploy
 
-After adding all 9 secrets:
-
-1. Go to: **GitHub repo → Actions → Build & Deploy to Netlify**
-2. Click **Run workflow** → **Run workflow** (uses `main` branch)
-3. Watch the run. It should:
-   - Install deps (~60 s)
-   - Build Next.js (~2–4 min)
-   - Deploy to Netlify (~30 s)
-4. After the run is green, visit **bricksofindia.com** to confirm the live site
+1. Push a site-relevant change to `main` (`src/**`, `public/**`,
+   `package.json`, `next.config.mjs`, etc.).
+2. Check **Netlify → bricksofindia.com → Deploys**. A new deploy should
+   appear automatically, triggered by Netlify's own git integration —
+   no GitHub Actions run is involved in building or publishing it.
+3. Watch it reach **"Published"**. If it shows **"Skipped"** or never
+   appears at all, something is still telling Netlify's native
+   integration not to build — check `netlify.toml` for a re-added
+   `ignore` field and the Netlify dashboard's own build-trigger settings
+   first.
+4. Once published, visit **bricksofindia.com** to confirm the live site
    is serving the new build.
-
----
-
-## Verifying Netlify credits are no longer being consumed
-
-After INFRA-03 is live:
-
-1. Push a trivial change to `main` (e.g., add a blank line to `README.md`).
-2. Check **Netlify → bricksofindia.com → Deploys**.
-3. The deploy status should show **"Skipped"** or **"Build cancelled"** — NOT
-   a new build. If a build still runs, verify that `ignore = "exit 0"` is
-   present in `netlify.toml` and that the file was deployed correctly.
 
 ---
 
