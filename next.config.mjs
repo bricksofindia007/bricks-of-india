@@ -1,4 +1,7 @@
 /** @type {import('next').NextConfig} */
+// 2026-08-23: no-op comment, diagnostic commit testing whether Netlify's
+// native git integration deploys independently of deploy.yml's netlify-cli
+// step.
 const nextConfig = {
   async redirects() {
     return [
