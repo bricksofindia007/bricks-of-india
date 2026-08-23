@@ -71,18 +71,32 @@ HARD RULES: 90-110 words total, no exceptions. Spoken English with contractions.
 Draft the script, then count your words. If over 110, cut it down — remove qualifying phrases and shorten the story section first, never cut the punchline or the price. Output ONLY the final compressed script."""
 
 
-def build_task_prompt(title: str, price_inr: float, pieces: int | None, theme: str | None) -> str:
+def build_task_prompt(title: str, price_inr: float, pieces: int | None, theme: str | None, set_number: str | None = None) -> str:
     """Assemble the per-video task input handed to the model alongside SYSTEM_PROMPT.
 
     Deliberately does not include the store/retailer name -- see the 2026-07-06
     amendment above. The store stays fine in video_posts DB records (internal
     tracking); it must never reach the model or the spoken script.
+
+    Amended 2026-08-23 (qwen fallback diagnostic pass): set_number param added.
+    The task prompt previously never told the model the real set number at
+    all -- confirmed as the real cause of a live hallucinated-set-number
+    failure (qwen invented "1919" for the real Ford Model T set 11376,
+    caught by G5_factuality). "Invent nothing" already covered piece count/
+    theme but had no anchor for set numbers since none was ever supplied.
+    Optional (default None) so existing callers that don't have a confirmed
+    number yet don't break -- but engine.py's real call site always has one
+    by this point (resolve_catalog_match() confirms it before generation is
+    ever attempted), so it's passed there.
     """
     lines = [
         f"Set: {title}",
         f"This LEGO set — '{title}' — is manufactured by LEGO.",
         f"Price: ₹{price_inr:,.0f}",
     ]
+    if set_number:
+        lines.append(f"Set number: {set_number}")
+        lines.append(f"If you mention a set number in the script, it must be exactly {set_number} — never invent, guess, or restate a different number.")
     if pieces is not None:
         lines.append(f"Piece count: {pieces}")
     if theme:
