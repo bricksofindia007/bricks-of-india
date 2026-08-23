@@ -63,6 +63,14 @@ CEREBRAS_API_KEY = get_secret('CEREBRAS_API_KEY')
 # never check (India Paragraph, affiliate codes, article lint gates, etc.).
 CODEX_PATH = BASE_DIR.parent.parent / 'docs' / 'codex' / 'BOI_Codex_v2_qp_condensed.md'
 
+# Groq-fallback-path-only codex, added 2026-08-22 (qwen rollout). The full
+# CODEX_PATH document above exceeds Groq's free-tier 8,000 TPM cap (confirmed
+# live, 413 on every model tried) -- this trimmed copy is used ONLY when
+# _call_groq() is the active provider; Gemini's primary call always uses the
+# full, untrimmed codex. See TRIMMED_CODEX_PATH's own file header for the
+# real trim rationale and provenance.
+TRIMMED_CODEX_PATH = BASE_DIR.parent.parent / 'docs' / 'codex' / 'BOI_Codex_v2_qp_trimmed.md'
+
 # Same rate-limiter shape as engine.py's _gemini_pace() -- duplicated
 # constant/logic, not imported, per this format's standing isolation
 # precedent from engine.py/publish.py.
@@ -171,6 +179,7 @@ PER_SEGMENT_WORD_CAP = 7
 # ---------------------------------------------------------------------------
 READING_SPEED_CPS = 15.0          # chars/sec, matches generate_quiet_panic_video.py
 VOICE_WORD_RATE_CONSERVATIVE = 0.95  # s/word, punchy-fragment rate (upper bound)
+DURATION_TARGET_MIN = 45.0        # matches generate_quiet_panic_video.py
 DURATION_TARGET_MAX = 55.0        # matches generate_quiet_panic_video.py
 DURATION_TOLERANCE = 0.10         # matches generate_quiet_panic_video.py
 DURATION_CEILING = DURATION_TARGET_MAX * (1 + DURATION_TOLERANCE)  # 60.5s
@@ -531,6 +540,16 @@ def _load_codex() -> str:
     return CODEX_PATH.read_text(encoding='utf-8')
 
 
+def _load_trimmed_codex() -> str:
+    """Groq-fallback-path-only variant of _load_codex() -- see
+    TRIMMED_CODEX_PATH's docstring. Deliberately a separate function (not a
+    param on _load_codex()) so every call site is explicit about which
+    codex it's building against."""
+    if not TRIMMED_CODEX_PATH.exists():
+        raise FileNotFoundError(f'BOI_Codex_v2_qp_trimmed.md not found at {TRIMMED_CODEX_PATH}')
+    return TRIMMED_CODEX_PATH.read_text(encoding='utf-8')
+
+
 SYSTEM_PROMPT_TEMPLATE = """You are the script-writing engine for Bricks of India's "Quiet Panic" \
 short-video format on Instagram Reels / YouTube Shorts.
 
@@ -581,6 +600,24 @@ def _build_task_prompt(candidate: dict, revision_context: dict = None) -> str:
         f'"{price_phrase}"',
         f'- Piece count: {candidate.get("pieces", "unknown")}',
         f'- Theme: {candidate.get("theme", "unknown")}',
+        '',
+        # Added 2026-08-22 (qwen rollout evidence pass): the duration gate's
+        # real word budget (see TOTAL_WORD_CAP/PER_SEGMENT_WORD_CAP's
+        # derivation comment above -- these are measured against real
+        # ffprobe'd bumper/SFX durations, not guessed) was previously only
+        # enforced AFTER generation, by check_word_budget() + a corrective
+        # retry loop. Live qwen testing (Groq, this rollout) showed 3 of 4
+        # clean generations ran 12-25s over the duration gate's target
+        # before any retry correction -- stating the real numeric budget up
+        # front, not just relying on the retry loop to catch it, cuts
+        # wasted generation attempts regardless of which provider is
+        # writing. Applies to every provider, not qwen-specific.
+        f'WORD BUDGET (hard constraint, not a suggestion): total words across '
+        f'ALL voice:true segments must be {TOTAL_WORD_CAP} or fewer. No single '
+        f'segment may exceed {PER_SEGMENT_WORD_CAP} words. This is measured '
+        f'against real render timing -- going over produces a video outside '
+        f'the {DURATION_TARGET_MIN:.0f}-{DURATION_TARGET_MAX:.0f}s target duration. Count your words '
+        f'before finalizing.',
     ]
 
     if revision_context:
@@ -825,32 +862,65 @@ def _call_groq(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
     config/feature_flags.py's 'cerebras_fallback_enabled' docstring for why
     Cerebras moved to opt-in (payment-blocked, 402, since 2026-08-18).
     Groq's free tier fails with 429 on rate-limit, not a permanent-until-
-    paid 402."""
+    paid 402.
+
+    2026-08-22 (qwen rollout): model and reasoning_effort now read from
+    config/feature_flags.py's 'qp_groq_fallback_model' (defaults to the
+    previous, now-decommissioned 'llama-3.3-70b-versatile' if unset, so a
+    missing flag entry fails loudly via Groq's own 404 rather than silently
+    picking a different model). reasoning_effort='none' hardcoded for the
+    qwen family specifically -- confirmed empirically (this rollout) that
+    without it, qwen burns its entire output budget on hidden <think>
+    reasoning and returns no usable script. If a future model swap targets
+    a non-qwen reasoning model, this param needs re-deriving, not blindly
+    reused (see gpt-oss's different reasoning_effort convention, 'low'/
+    'medium'/'high', found during the same rollout's QP voice test).
+
+    429 handling: added 2026-08-22 after a real 429 was hit during this
+    rollout's article-pipeline sanity testing (same Groq org-level 8,000
+    TPM cap applies here). One bounded retry, honoring the server's
+    Retry-After header when present -- this is a single fallback call, not
+    a batch, so it doesn't need QP voice-test's 65s inter-call pacing, but
+    silently giving up on the very first rate-limit hit isn't real handling
+    either."""
     if not GROQ_API_KEY:
         raise RuntimeError('GROQ_API_KEY not set.')
-    resp = requests.post(
-        'https://api.groq.com/openai/v1/chat/completions',
-        headers={'Authorization': f'Bearer {GROQ_API_KEY}', 'Content-Type': 'application/json'},
-        json={
-            'model': 'llama-3.3-70b-versatile',
-            'messages': [
-                {'role': 'system', 'content': system_prompt},
-                {'role': 'user', 'content': task_prompt},
-            ],
-            'max_tokens': 2048,
-            'temperature': 0.7,
-        },
-        timeout=60,
-    )
-    if resp.status_code == 429:
-        raise RuntimeError('Groq rate-limited (429).')
-    resp.raise_for_status()
-    data = resp.json()
-    content = data['choices'][0]['message']['content']
-    if not content or not content.strip():
-        raise RuntimeError('Groq returned empty content.')
-    usage = data.get('usage', {})
-    return ScriptGenCallResult(content.strip(), 'groq', usage.get('prompt_tokens'), usage.get('completion_tokens'))
+    model = FEATURE_FLAGS.get('qp_groq_fallback_model', 'llama-3.3-70b-versatile')
+    body = {
+        'model': model,
+        'messages': [
+            {'role': 'system', 'content': system_prompt},
+            {'role': 'user', 'content': task_prompt},
+        ],
+        'max_tokens': 2048,
+        'temperature': 0.7,
+    }
+    if model.startswith('qwen/'):
+        body['reasoning_effort'] = 'none'
+
+    for attempt in (1, 2):
+        resp = requests.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            headers={'Authorization': f'Bearer {GROQ_API_KEY}', 'Content-Type': 'application/json'},
+            json=body,
+            timeout=60,
+        )
+        if resp.status_code == 429:
+            if attempt == 2:
+                raise RuntimeError('Groq rate-limited (429) after one retry.')
+            retry_after = resp.headers.get('Retry-After')
+            delay = float(retry_after) + 1.0 if retry_after else 20.0
+            print(f'WARN: Groq 429, retrying once after {delay:.1f}s...', file=sys.stderr)
+            time.sleep(delay)
+            continue
+        resp.raise_for_status()
+        data = resp.json()
+        content = data['choices'][0]['message']['content']
+        if not content or not content.strip():
+            raise RuntimeError('Groq returned empty content.')
+        usage = data.get('usage', {})
+        return ScriptGenCallResult(content.strip(), 'groq', usage.get('prompt_tokens'), usage.get('completion_tokens'))
+    raise RuntimeError('Groq call failed: unreachable retry exhaustion.')  # pragma: no cover
 
 
 def _call_cerebras(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
@@ -889,6 +959,13 @@ def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) 
     process_candidate() expects. (Return shape changed 2026-08-19 from a
     bare list to this NamedTuple so provider/token usage can be persisted
     -- see GeneratedScript's docstring.)"""
+    # Gemini's primary call always gets the full, untrimmed codex. The Groq
+    # fallback path gets a separate, smaller system prompt built from the
+    # trimmed codex (see TRIMMED_CODEX_PATH) -- persona_rules/references are
+    # identical in both; only the codex portion differs, since that's what
+    # blew Groq's TPM budget. Built once here, not inside _call_groq(), so
+    # a Cerebras-fallback caller further down still gets the full codex
+    # Cerebras itself was always sized for.
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         codex=_load_codex(),
         persona_rules=PERSONA_RULES,
@@ -902,18 +979,31 @@ def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) 
     except Exception as e:
         print(f'WARN: Gemini script-gen failed ({e}), falling back to Groq.', file=sys.stderr)
 
-    if call_result is None:
+    # 2026-08-22 (qwen rollout): Groq fallback is now gated behind
+    # 'qp_groq_fallback_enabled' (config/feature_flags.py), OFF by default.
+    # Previously Groq fired unconditionally on any Gemini failure -- fine
+    # while it silently 404'd against a dead model every time (a no-op in
+    # practice), but wiring a MODEL THAT ACTUALLY WORKS behind the exact
+    # same unconditional call would mean qwen output could reach production
+    # the moment this merges, with no review. Abhinav flips this flag after
+    # reviewing the qwen rollout evidence.
+    if call_result is None and FEATURE_FLAGS.get('qp_groq_fallback_enabled', False):
+        trimmed_system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+            codex=_load_trimmed_codex(),
+            persona_rules=PERSONA_RULES,
+            references=_build_reference_block(),
+        )
         try:
-            call_result = _call_groq(system_prompt, task_prompt)
+            call_result = _call_groq(trimmed_system_prompt, task_prompt)
         except Exception as e:
             print(f'WARN: Groq script-gen failed ({e}), falling back.', file=sys.stderr)
 
     if call_result is None:
         if not FEATURE_FLAGS.get('cerebras_fallback_enabled', False):
             raise RuntimeError(
-                "Gemini and Groq both unavailable/failed, and Cerebras fallback is disabled "
-                "(config/feature_flags.py 'cerebras_fallback_enabled' is False -- Cerebras is "
-                "payment-blocked as of 2026-08-18, see CLAUDE.md)."
+                "Gemini failed, Groq fallback is disabled or also failed, and Cerebras "
+                "fallback is disabled (config/feature_flags.py 'cerebras_fallback_enabled' "
+                "is False -- Cerebras is payment-blocked as of 2026-08-18, see CLAUDE.md)."
             )
         call_result = _call_cerebras(system_prompt, task_prompt)
 

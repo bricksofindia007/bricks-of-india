@@ -162,8 +162,15 @@ export async function generateWithFailover(
   // Cerebras only if feature-flags.ts's cerebrasFallbackEnabled is true.
   // Added 2026-08-19 -- see that flag's docstring for why Cerebras moved to
   // opt-in (payment-blocked, 402, since 2026-08-18).
+  // 2026-08-22 (qwen rollout): groqKey alone used to be enough to try Groq
+  // unconditionally -- harmless while it targeted a dead model (always
+  // 404'd, fell straight through), but see feature-flags.ts's
+  // articleGroqFallbackEnabled docstring for why a working model behind
+  // the same unconditional call is exactly what must NOT ship silently.
   const candidates: { name: 'groq' | 'cerebras'; provider: Provider }[] = [];
-  if (groqKey) candidates.push({ name: 'groq', provider: new GroqProvider(groqKey) });
+  if (groqKey && FEATURE_FLAGS.articleGroqFallbackEnabled) {
+    candidates.push({ name: 'groq', provider: new GroqProvider(groqKey) });
+  }
   if (cerebrasKey && FEATURE_FLAGS.cerebrasFallbackEnabled) {
     candidates.push({ name: 'cerebras', provider: new CerebrasProvider(cerebrasKey) });
   }

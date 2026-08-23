@@ -850,37 +850,62 @@ def _try_groq(system_prompt: str, task_prompt: str) -> ScriptGenResult | None:
     'cerebras_fallback_enabled' for why Cerebras moved to opt-in (payment-
     blocked, 402, since 2026-08-18). Groq's free tier fails with 429 on
     rate-limit, not a permanent-until-paid 402 -- existing retry/backoff
-    logic already handles 429s from other providers the same way."""
+    logic already handles 429s from other providers the same way.
+
+    2026-08-22 (qwen rollout, FINAL ARCHITECTURE PASS): this call was
+    previously unconditional (any caller reaching generate_script()'s
+    fallback chain always tried Groq) and targeted the now-decommissioned
+    llama-3.3-70b-versatile (confirmed dead, live 404) -- harmless in
+    practice only because it always failed and fell through to Cerebras/
+    raised. Brought in line with VID-QP's and the article pipeline's same
+    fix: model/reasoning_effort now read from config/feature_flags.py's
+    'p4_groq_fallback_model', and the whole call is gated by the caller
+    (generate_script()) behind 'p4_groq_fallback_enabled' (default False)
+    so a model that actually works can't reach production output
+    unreviewed. One bounded 429 retry honoring Retry-After, matching the
+    same pattern added to quiet_panic_script_gen.py's _call_groq() and
+    groq.ts's GroqProvider earlier this rollout."""
     groq_key = get_secret("GROQ_API_KEY")
     if not groq_key:
         print("WARN: GROQ_API_KEY not set, skipping Groq.", file=sys.stderr)
         return None
+    model = FEATURE_FLAGS.get("p4_groq_fallback_model", "llama-3.3-70b-versatile")
+    body = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": task_prompt},
+        ],
+        "max_tokens": 2048,
+        "temperature": 0.7,
+    }
+    if model.startswith("qwen/"):
+        body["reasoning_effort"] = "none"
     try:
-        resp = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
-            json={
-                "model": "llama-3.3-70b-versatile",
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": task_prompt},
-                ],
-                "max_tokens": 2048,
-                "temperature": 0.7,
-            },
-            timeout=60,
-        )
-        if resp.status_code == 429:
-            print("WARN: Groq rate-limited (429), falling back.", file=sys.stderr)
-            return None
-        resp.raise_for_status()
-        data = resp.json()
-        content = data["choices"][0]["message"]["content"]
-        if not content or not content.strip():
-            print("WARN: Groq returned empty content, falling back.", file=sys.stderr)
-            return None
-        usage = data.get("usage", {})
-        return ScriptGenResult(content.strip(), "groq", usage.get("prompt_tokens"), usage.get("completion_tokens"))
+        for attempt in (1, 2):
+            resp = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+                json=body,
+                timeout=60,
+            )
+            if resp.status_code == 429:
+                if attempt == 2:
+                    print("WARN: Groq rate-limited (429) after one retry, falling back.", file=sys.stderr)
+                    return None
+                retry_after = resp.headers.get("Retry-After")
+                delay = float(retry_after) + 1.0 if retry_after else 20.0
+                print(f"WARN: Groq 429, retrying once after {delay:.1f}s...", file=sys.stderr)
+                time.sleep(delay)
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"]
+            if not content or not content.strip():
+                print("WARN: Groq returned empty content, falling back.", file=sys.stderr)
+                return None
+            usage = data.get("usage", {})
+            return ScriptGenResult(content.strip(), "groq", usage.get("prompt_tokens"), usage.get("completion_tokens"))
     except Exception as e:
         print(f"WARN: Groq failed ({e}), falling back.", file=sys.stderr)
         return None
@@ -914,9 +939,16 @@ def generate_script(title: str, price_inr: float, pieces: int | None, theme: str
     else:
         print("WARN: GEMINI_SOCIAL_API_KEY not set, going straight to fallback.", file=sys.stderr)
 
-    groq_result = _try_groq(prompts.SYSTEM_PROMPT, task_prompt)
-    if groq_result is not None:
-        return groq_result
+    # 2026-08-22 (qwen rollout, FINAL ARCHITECTURE PASS): gated behind
+    # 'p4_groq_fallback_enabled', same reasoning as VID-QP's
+    # 'qp_groq_fallback_enabled' and the article pipeline's
+    # 'articleGroqFallbackEnabled' -- this call used to fire unconditionally,
+    # harmless only because the model it targeted was already dead. Default
+    # False until Abhinav reviews this rollout's P4-specific evidence.
+    if FEATURE_FLAGS.get("p4_groq_fallback_enabled", False):
+        groq_result = _try_groq(prompts.SYSTEM_PROMPT, task_prompt)
+        if groq_result is not None:
+            return groq_result
 
     if not FEATURE_FLAGS.get("cerebras_fallback_enabled", False):
         raise BothProvidersFailedError(

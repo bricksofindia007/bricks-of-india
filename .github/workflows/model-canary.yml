@@ -1,0 +1,54 @@
+name: Model Canary
+
+# Daily check that every model referenced in production code across all 3
+# content pipelines still responds -- catches silent model deprecation
+# before it becomes a weeks-long blind spot. Built 2026-08-22 after
+# discovering gate_coherence_llm_judge (both video pipelines) had been
+# silently fail-open for an unknown period: it targeted a Groq model
+# (llama-3.3-70b-versatile) that Groq had decommissioned, and the gate's
+# own fail-open-on-error design (correct for tolerating a transient judge
+# outage) meant nothing ever surfaced the permanent failure. This workflow
+# is the opposite failure mode on purpose: it fails LOUDLY and shows up in
+# normal GitHub Actions notifications the moment any referenced model (or
+# its backing secret) stops working, rather than degrading silently.
+#
+# Any new model integration added to production code (a new fallback
+# provider, a primary-model swap, etc.) must get a corresponding check
+# added to scripts/canary/model_canary.py -- see CLAUDE.md's
+# "Staged/experimental code rules" section.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 08:30 IST, after the RADAR/video generation windows
+  workflow_dispatch:
+
+jobs:
+  canary:
+    runs-on: ubuntu-latest
+    # Real calls are tiny (max_tokens ~20, one-word replies) against 4
+    # models total -- no observed-runtime history yet to size this off of
+    # (first run), but this is a small enough, boundable workload that a
+    # generous fixed ceiling is safe without guessing at a tighter number
+    # (see CLAUDE.md's "don't guess, leave unset if <3 runs" rule -- this
+    # differs by being a clearly small, boundable task rather than an
+    # unbounded one, so a conservative fixed value is reasonable here
+    # rather than leaving it unset).
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install canary dependencies
+        run: pip install -r scripts/canary/requirements.txt
+
+      - name: Run model canary
+        working-directory: scripts/canary
+        env:
+          GEMINI_SOCIAL_API_KEY: ${{ secrets.GEMINI_SOCIAL_API_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+        run: python model_canary.py

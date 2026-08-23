@@ -113,6 +113,16 @@ When adding price display to any new page, always use `store_prices`, never `pri
 
 ---
 
+## Model canary rules
+
+**Every model integration used by production code (primary or fallback, any of the 3 content pipelines) must have a check in `scripts/canary/model_canary.py`, run daily by `.github/workflows/model-canary.yml`.** Added 2026-08-22 after `gate_coherence_llm_judge` (both video pipelines) was found to have been silently fail-open for an unknown period — it targeted a Groq model (`llama-3.3-70b-versatile`) that had been decommissioned, and the gate's own correct fail-open-on-transient-error design meant the permanent failure never surfaced anywhere. This canary exists to fail loudly instead.
+
+When adding a new model (a new fallback provider, a primary-model swap, a new pipeline entirely): add a corresponding `check_*()` call in `model_canary.py`'s `main()`. A missing/empty API key must be reported as its own distinct "SECRET NOT CONFIGURED" failure, not silently skipped — a model integration whose secret was never provisioned is exactly the same class of invisible gap as a dead model (confirmed real 2026-08-22: `GROQ_API_KEY` was never added as a repo secret at all, meaning every Groq call site — including the coherence-gate fix itself — has been fail-open in production regardless of which model it's configured to use).
+
+A known, already-accepted failure condition (e.g. Cerebras's payment-block, 402, tracked via `cerebras_fallback_enabled`) should be classified as such explicitly in the check function, not left to trip the canary red every day for a condition that's already flagged off and understood.
+
+---
+
 ## RADAR pipeline rules
 
 **RADAR-04 does NOT run inside `radar.yml`.** Never add generation to `radar.yml` — that workflow is RADAR-01/02/03 only (fetch → dedupe → classify). Mixing generation into the ingestion cron burns Gemini quota on unreviewed signals indiscriminately (DEFECT-012).

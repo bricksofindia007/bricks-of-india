@@ -1000,7 +1000,16 @@ def gate_coherence_llm_judge(full_text: str) -> dict:
     errors -- a transient judge-API hiccup blocking ALL publishing would be
     a worse regression than occasionally missing a coherence problem,
     especially now that generation itself already has real retry/backoff
-    (see _retry_backoff_sleep())."""
+    (see _retry_backoff_sleep()).
+
+    2026-08-22: model swapped llama-3.3-70b-versatile -> qwen/qwen3.6-27b,
+    same fix and same rationale as gates.py's gate_coherence_llm_judge()
+    (VID-P4) -- the old model is decommissioned on Groq (confirmed live,
+    404 model_not_found), so this gate has been silently fail-open on
+    every call, never actually judging anything. Not flag-gated: a bug fix
+    restoring intended behavior, not new capability; gate results here are
+    logged for human review only, never auto-blocking. reasoning_effort=
+    'none' required for qwen (confirmed empirically during this rollout)."""
     groq_key = os.environ.get('GROQ_API_KEY', '').strip()
     if not groq_key:
         return {'pass': True, 'detail': 'SKIPPED: GROQ_API_KEY not set (fail-open, judge unavailable)'}
@@ -1017,10 +1026,11 @@ def gate_coherence_llm_judge(full_text: str) -> dict:
             'https://api.groq.com/openai/v1/chat/completions',
             headers={'Authorization': f'Bearer {groq_key}', 'Content-Type': 'application/json'},
             json={
-                'model': 'llama-3.3-70b-versatile',
+                'model': 'qwen/qwen3.6-27b',
                 'messages': [{'role': 'user', 'content': judge_prompt}],
                 'max_tokens': 200,
                 'temperature': 0.0,
+                'reasoning_effort': 'none',
             },
             timeout=30,
         )
