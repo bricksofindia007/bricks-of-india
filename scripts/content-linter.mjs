@@ -11,6 +11,29 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { checkReviewSourceGates } from '../src/lib/review-source-quality.ts';
+import { reconcileIssues } from './lib/content-quality-reconcile.mjs';
+
+// Every check_name this script can produce -- see reconcileIssues'
+// docstring for why this must be exhaustive and kept in sync with every
+// flag(...) call below (including checkReviewSourceGates' dynamic
+// checkName values). An issue type left off this list is invisible to
+// this script's own reconciliation (never matched as "still open", so
+// silently reinserted as if new every run) but -- critically -- is also
+// exactly what protects check_names OTHER scripts own (e.g. visual-
+// renderer.mjs's page_load_error) from being wrongly auto-resolved here.
+const OWNED_CHECK_NAMES = [
+  'bad_opener', 'broken_image', 'capitalisation_error', 'consecutive_blank_lines',
+  'double_space', 'draft_marker_leaked', 'duplicate_image', 'duplicate_opener',
+  'duplicate_title', 'forbidden_word', 'html_comment_visible', 'india_paragraph_marker',
+  'jaiman_reference', 'markdown_asterisk', 'markdown_bold', 'markdown_header',
+  'markdown_list', 'missing_image', 'missing_india_paragraph', 'missing_signoff',
+  'missing_store_mention', 'missing_verdict', 'placeholder_image', 'script_injection',
+  'thin_content', 'trailing_space', 'verdict_drift', 'wall_of_text',
+  'word_count_high', 'word_count_low',
+  // from checkReviewSourceGates (src/lib/review-source-quality.ts):
+  'review_source_no_fabrication', 'review_source_verdict_validity',
+  'review_source_disclaimer_consistency', 'source_freshness_stale',
+];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
@@ -375,86 +398,15 @@ for (const [url, entries] of Object.entries(imageMap)) {
 // BOI Fix Brief (2026-08-24), Phase 0.2: this used to be a blind INSERT
 // of every currently-detected issue, every single run, with no lookup
 // against already-open rows for the same (article_slug, check_name).
-// Since this script runs daily and never stopped re-flagging an
-// unresolved issue, the SAME real problem accumulated a fresh row every
-// day it stayed open -- verified live: 19,288 open rows collapsed to
-// just 1,154 distinct real issues (16.7x duplication), and both "New
-// issues today" and "Total open" in content-quality-report.mjs were
-// silently capped at PostgREST's 1000-row default, coincidentally
-// producing an identical, misleading pair of numbers.
-//
-// Now: upsert by (article_slug, check_name) against the currently-open
-// set (paginated fetch, matching CLAUDE.md's documented PostgREST
-// 1000-row-cap workaround). A recurring issue just touches checked_at
-// (first_seen_at stays put -- it's not new). A genuinely new issue gets
-// a fresh row with first_seen_at = checked_at = RUN_AT. Anything that
-// was open before this run but wasn't re-detected this run is no longer
-// present -- auto-resolved (resolved_at = RUN_AT), closing the loop
-// that previously only the auto-fixer or a manual chat-session fix
-// could close.
-
-console.log(`\nReconciling ${issues.length} detected issue(s) against currently-open rows…`);
-
-const openByKey = new Map(); // `${slug}|${check}` -> { id, resolved: false (still to prove) }
-{
-  const PAGE = 1000;
-  let offset = 0;
-  for (;;) {
-    const { data: page, error } = await sb
-      .from('content_quality_issues')
-      .select('id, article_slug, check_name')
-      .eq('resolved', false)
-      .range(offset, offset + PAGE - 1);
-    if (error) { console.error('Open-issue fetch error:', error.message); break; }
-    for (const row of page ?? []) openByKey.set(`${row.article_slug}|${row.check_name}`, row.id);
-    if (!page || page.length < PAGE) break;
-    offset += PAGE;
-  }
-}
-console.log(`  ${openByKey.size} currently-open row(s) found to reconcile against.`);
-
-const seenKeys = new Set();
-let inserted = 0, touched = 0;
+// See reconcileIssues() in lib/content-quality-reconcile.mjs for the
+// full history, including the same-day follow-up fix (this script's
+// FIRST version of reconciliation scoped its open-lookup/auto-resolve
+// across the whole table, not just its own check_names, and wrongly
+// auto-resolved 184+ real open issues belonging to visual-renderer.mjs
+// on its first live run -- now fixed via OWNED_CHECK_NAMES scoping).
 const BATCH = 50;
-for (let i = 0; i < issues.length; i += BATCH) {
-  const batch = issues.slice(i, i + BATCH);
-  await Promise.all(batch.map(async (issue) => {
-    const key = `${issue.article_slug}|${issue.check_name}`;
-    seenKeys.add(key);
-    const existingId = openByKey.get(key);
-    if (existingId) {
-      // Recurring: touch checked_at/detail/severity only -- first_seen_at
-      // (and id, resolved history) stays untouched. This is what makes
-      // "new since <cutoff>" meaningful going forward.
-      const { error } = await sb.from('content_quality_issues')
-        .update({ checked_at: issue.checked_at, detail: issue.detail, severity: issue.severity, auto_fixable: issue.auto_fixable })
-        .eq('id', existingId);
-      if (error) console.error(`Update error (${key}):`, error.message);
-      else touched++;
-    } else {
-      const { error } = await sb.from('content_quality_issues').insert({ ...issue, first_seen_at: issue.checked_at });
-      if (error) console.error(`Insert error (${key}):`, error.message);
-      else inserted++;
-    }
-  }));
-}
-
-// Auto-resolve: previously open, not re-detected this run.
-const goneKeys = [...openByKey.keys()].filter(k => !seenKeys.has(k));
-let resolved = 0;
-for (let i = 0; i < goneKeys.length; i += BATCH) {
-  const batch = goneKeys.slice(i, i + BATCH);
-  await Promise.all(batch.map(async (key) => {
-    const id = openByKey.get(key);
-    const { error } = await sb.from('content_quality_issues')
-      .update({ resolved: true, resolved_at: RUN_AT, fix_detail: 'Auto-resolved: no longer detected by content-linter.mjs' })
-      .eq('id', id);
-    if (error) console.error(`Auto-resolve error (${key}):`, error.message);
-    else resolved++;
-  }));
-}
-
-console.log(`  ${inserted} new issue(s), ${touched} recurring issue(s) touched, ${resolved} auto-resolved (no longer detected).`);
+console.log(`\nReconciling ${issues.length} detected issue(s)…`);
+await reconcileIssues(sb, issues, OWNED_CHECK_NAMES, 'content-linter.mjs');
 
 console.log(`Writing ${imageRegistryRows.length} image registry rows…`);
 for (let i = 0; i < imageRegistryRows.length; i += BATCH) {
