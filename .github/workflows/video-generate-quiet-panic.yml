@@ -42,6 +42,10 @@ on:
         description: 'OPTIONAL: quiet_panic_posts row id this render is a human-finalized rework of. When set, the normal "set_number not already claimed" eligibility check is skipped -- a rework is BY DEFINITION for an already-claimed set. Leave blank for a fresh candidate.'
         required: false
         type: string
+      rerender_id:
+        description: 'OPTIONAL: quiet_panic_posts.id to re-render IN PLACE with a corrected segments_json (fresh TTS/SFX/render/gates -- same row id/sequence_number, only content refreshed, never a new row). When set, segments_json is REQUIRED and set_number/reworked_from are ignored entirely -- this bypasses candidate selection/eligibility altogether, same as reworked_from does, but updates the existing row instead of inserting a new one.'
+        required: false
+        type: string
 
 jobs:
   generate:
@@ -80,6 +84,7 @@ jobs:
 
       - name: Validate candidate and assemble render input
         id: validate
+        if: inputs.rerender_id == ''
         working-directory: scripts/video
         env:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -194,7 +199,15 @@ jobs:
           CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
           BRICKSET_API_KEY: ${{ secrets.BRICKSET_API_KEY }}
           REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
-        run: python generate_quiet_panic_video.py --test-batch candidate.json
+          RERENDER_ID: ${{ inputs.rerender_id }}
+          RERENDER_SEGMENTS_JSON: ${{ inputs.segments_json }}
+        run: |
+          if [ -n "$RERENDER_ID" ]; then
+            echo "$RERENDER_SEGMENTS_JSON" > rerender_segments.json
+            python generate_quiet_panic_video.py --rerender-id "$RERENDER_ID" --rerender-segments rerender_segments.json
+          else
+            python generate_quiet_panic_video.py --test-batch candidate.json
+          fi
 
       # Two possible non-crash notification outcomes from the render step:
       # 'pending_approval' (gates passed, video ready) or

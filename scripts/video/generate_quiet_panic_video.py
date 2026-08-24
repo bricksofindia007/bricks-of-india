@@ -1181,113 +1181,27 @@ def _retry_backoff_sleep(attempt: int, provider_failure: bool) -> None:
 # Full per-candidate pipeline
 # ---------------------------------------------------------------------------
 
-def process_candidate(candidate: dict, reworked_from: str = None, revision_context: dict = None) -> dict:
-    """reworked_from: id of the quiet_panic_posts row this render is a
-    targeted rework of (None for a fresh candidate). revision_context:
-    {'original_script', 'rejection_reason'} passed through to script-gen
-    when candidate has no pre-authored 'segments' -- see
-    quiet_panic_script_gen.py. Ignored if candidate['segments'] is already
-    provided (the --test-batch hand-authored path)."""
-    set_number = candidate['set_number']
-    set_title = candidate['set_title']
-    price_inr = candidate['price_inr']
-    fallback_image_url = candidate.get('image_url', '')
+def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_image_url: str, segments: list) -> dict:
+    """The actual render pipeline (TTS -> gates -> images -> audio mix ->
+    video assembly -> Storage upload), factored out of process_candidate()
+    on 2026-08-24 so a second caller (rerender_quiet_panic_post(), an
+    in-place re-render of an EXISTING row) can reuse it without also
+    re-running script-gen or performing a DB insert -- process_candidate()
+    always INSERTs a new row (see its own docstring/comments), which is
+    correct for a fresh candidate or a reworked_from-linked new row, but
+    wrong for "fix this row's script text and re-render in place",
+    exactly the gap VID-P4's engine.py:rerender_video_post() already
+    covers for that pipeline (mirrored here). Caller supplies a fully
+    hand-authored (or script-gen'd) segments array -- this function never
+    calls script-gen itself and never touches Supabase for anything other
+    than the Storage upload.
 
+    Returns a dict with keys: segments (mutated in place with
+    measured_duration added), gate_results, all_passed,
+    total_video_duration, output_path, storage_url, full_script_text.
+    """
     work_dir = TEMP_DIR / f'qp_{set_number}'
     work_dir.mkdir(exist_ok=True)
-
-    print(f'\n=== Processing {set_title} (#{set_number}) ===')
-
-    segments = candidate.get('segments')
-    # None for the hand-authored (--test-batch) path below -- no LLM call
-    # happens, so there's no provider/token usage to record. Added
-    # 2026-08-19 alongside quiet_panic_posts' new tracking columns.
-    script_provider = None
-    script_input_tokens = None
-    script_output_tokens = None
-    if not segments:
-        script_gen_meta = {
-            'set_number': set_number,
-            'set_title': set_title,
-            'price_inr': price_inr,
-            'pieces': candidate.get('pieces'),
-            'theme': candidate.get('theme'),
-        }
-        initial_mode = 'revision' if revision_context else 'fresh'
-        attempts_log = []
-        segments = None
-        for attempt in range(1, MAX_SCRIPT_GEN_ATTEMPTS + 1):
-            # After attempt 1, revision_context may have been set below from
-            # the previous attempt's own failure (auto-retry-with-feedback,
-            # not the caller's original mode) -- log which is actually
-            # happening this attempt, not just the mode process_candidate()
-            # started in.
-            mode = 'revision' if revision_context else 'fresh'
-            mode_label = mode if attempt == 1 else f'{mode}, auto-retry' if mode != initial_mode else mode
-            print(f'  No pre-authored segments -- calling script-gen ({mode_label} mode), attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}...')
-            try:
-                script_gen_result = generate_quiet_panic_script(script_gen_meta, revision_context=revision_context)
-                segments = script_gen_result.segments
-                script_provider = script_gen_result.provider
-                script_input_tokens = script_gen_result.input_tokens
-                script_output_tokens = script_gen_result.output_tokens
-                print(f'  script-gen returned {len(segments)} segment(s) on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS} (provider: {script_provider})')
-                break
-            except PreTTSValidationError as e:
-                # Each attempt's rejection reason logged individually (word
-                # count, which segments) -- a real record for diagnosing a
-                # deeper prompt-calibration issue if this keeps happening,
-                # not just "it failed". Zero ElevenLabs cost per attempt.
-                print(f'  REJECTED pre-TTS on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS} (zero ElevenLabs cost incurred): {e}', file=sys.stderr)
-                attempts_log.append(str(e))
-                # Feed this attempt's actual failure back into the next one
-                # (added 2026-08-03 after Ariel's Royal Wedding Boat (43299)
-                # missed 5/5 in one run, 17-22 words each): without this,
-                # every retry called script-gen with the exact same
-                # fresh-mode prompt and zero information about what went
-                # wrong, so all 5 attempts were independent draws from the
-                # same distribution rather than corrective ones. Reuses the
-                # existing revision_context mechanism (same one operator
-                # rejections use) -- the "previous script" is this failed
-                # attempt's own output, and the "rejection reason" is the
-                # exact pre-TTS validation detail (segment-by-segment word
-                # counts), not a vague retry.
-                if e.segments is not None:
-                    revision_context = {
-                        'original_script': ' '.join(s.get('text', '') for s in e.segments),
-                        'rejection_reason': _build_word_cap_feedback(e),
-                    }
-                if attempt < MAX_SCRIPT_GEN_ATTEMPTS:
-                    _retry_backoff_sleep(attempt, provider_failure=False)
-            except Exception as e:
-                # Added 2026-08-19: previously uncaught here -- generate_
-                # quiet_panic_script()'s own Gemini try/except only covers
-                # the Gemini call; _call_cerebras() runs unguarded after it,
-                # so when BOTH providers fail (confirmed live 2026-08-18,
-                # run 32159269849: Gemini 503 "high demand" then Cerebras
-                # 402 "payment required"), this propagated straight out of
-                # the retry loop entirely -- the whole candidate crashed on
-                # attempt 3/6 instead of getting the other 3 attempts, so a
-                # genuinely transient Gemini issue got ZERO chance to clear
-                # via retry. Longer backoff than a content-gate miss (this
-                # is a real provider outage, not a quality issue) and still
-                # bounded by MAX_SCRIPT_GEN_ATTEMPTS -- if every attempt
-                # exhausts, ScriptGenExhaustedError still fires below exactly
-                # as before, just after genuinely trying, not crashing on
-                # the first double-failure.
-                print(f'  Both providers failed on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}: {e}', file=sys.stderr)
-                attempts_log.append(f'both providers failed: {e}')
-                if attempt < MAX_SCRIPT_GEN_ATTEMPTS:
-                    _retry_backoff_sleep(attempt, provider_failure=True)
-
-        if segments is None:
-            # Not a crash -- a genuine, expected terminal outcome for this
-            # run (added 2026-08-01 after a real 3-for-3 miss streak on
-            # Rapunzel's Castle in production). The caller (main()) turns
-            # this into a graceful, non-failing exit so the workflow can
-            # still notify the operator instead of silently producing
-            # nothing with no visible signal beyond an empty inbox.
-            raise ScriptGenExhaustedError(set_title, set_number, attempts_log)
 
     client = ElevenLabs(api_key=ELEVENLABS_API_KEY_ASMR)
 
@@ -1470,9 +1384,189 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
         else:
             print(f'  WARNING: {output_path} failed the post-render validity check (corrupt?) -- skipping Storage upload.', file=sys.stderr)
 
+    full_script_text = ' '.join(s['text'] for s in segments)
+    return {
+        'segments': segments,
+        'gate_results': gate_results,
+        'all_passed': all_passed,
+        'total_video_duration': total_video_duration,
+        'output_path': output_path,
+        'storage_url': storage_url,
+        'full_script_text': full_script_text,
+    }
+
+
+def rerender_quiet_panic_post(post_id: str, segments: list) -> dict:
+    """In-place re-render of an EXISTING quiet_panic_posts row: fresh TTS,
+    fresh SFX mix, fresh video assembly, fresh gate run against a new,
+    already-approved segments array. Unlike process_candidate() (always
+    INSERTs a new row), this UPDATEs the existing row in place --
+    id/sequence_number/reworked_from are never touched, only the
+    render-derived content fields (script/video_path/storage_url/
+    gate_results/status). No script-gen call ever happens here -- the
+    caller must supply a fully hand-authored segments array, since a
+    segment's voice/sfx_tag assignment can't be mechanically re-derived
+    from the row's stored flat `script` text alone (unlike VID-P4's
+    engine.py:rerender_video_post(), which only has to re-sanitize a
+    single flat string). Mirrors that function's contract: aborts without
+    writing anything if the new segments don't pass gates clean, rather
+    than silently forcing a publish_blocked status through.
+    """
+    sb = get_supabase()
+    row_res = sb.table('quiet_panic_posts').select('*').eq('id', post_id).single().execute()
+    row = row_res.data
+    if not row:
+        print(f'ERROR: no quiet_panic_posts row found for id {post_id}', file=sys.stderr)
+        sys.exit(1)
+
+    print(f'\n=== Re-rendering Sequence #{row.get("sequence_number")}: {row["set_title"]} (id {post_id}) ===')
+
+    render_result = _render_segments_core(row['set_number'], row['set_title'], row['price_inr'], row.get('image_url', ''), segments)
+
+    if not render_result['all_passed']:
+        print('ERROR: new segments do not pass gates clean -- aborting, not updating the row.', file=sys.stderr)
+        for name, result in render_result['gate_results'].items():
+            print(f'  [{"PASS" if result["pass"] else "FAIL"}] {name}: {result["detail"]}', file=sys.stderr)
+        sys.exit(1)
+
+    update_row = {
+        'script': render_result['full_script_text'],
+        'video_path': str(render_result['output_path']),
+        'storage_url': render_result['storage_url'],
+        'gate_results': render_result['gate_results'],
+        'status': 'pending_approval',
+    }
+    sb.table('quiet_panic_posts').update(update_row).eq('id', post_id).execute()
+    print(f'  quiet_panic_posts {post_id} updated in place. status=pending_approval, storage_url={render_result["storage_url"]}')
+
+    return {
+        'post_id': post_id,
+        'sequence_number': row.get('sequence_number'),
+        'set_title': row['set_title'],
+        'set_number': row['set_number'],
+        'gate_results': render_result['gate_results'],
+        'total_duration': render_result['total_video_duration'],
+        'storage_url': render_result['storage_url'],
+    }
+
+
+def process_candidate(candidate: dict, reworked_from: str = None, revision_context: dict = None) -> dict:
+    """reworked_from: id of the quiet_panic_posts row this render is a
+    targeted rework of (None for a fresh candidate). revision_context:
+    {'original_script', 'rejection_reason'} passed through to script-gen
+    when candidate has no pre-authored 'segments' -- see
+    quiet_panic_script_gen.py. Ignored if candidate['segments'] is already
+    provided (the --test-batch hand-authored path)."""
+    set_number = candidate['set_number']
+    set_title = candidate['set_title']
+    price_inr = candidate['price_inr']
+    fallback_image_url = candidate.get('image_url', '')
+
+    print(f'\n=== Processing {set_title} (#{set_number}) ===')
+
+    segments = candidate.get('segments')
+    # None for the hand-authored (--test-batch) path below -- no LLM call
+    # happens, so there's no provider/token usage to record. Added
+    # 2026-08-19 alongside quiet_panic_posts' new tracking columns.
+    script_provider = None
+    script_input_tokens = None
+    script_output_tokens = None
+    if not segments:
+        script_gen_meta = {
+            'set_number': set_number,
+            'set_title': set_title,
+            'price_inr': price_inr,
+            'pieces': candidate.get('pieces'),
+            'theme': candidate.get('theme'),
+        }
+        initial_mode = 'revision' if revision_context else 'fresh'
+        attempts_log = []
+        segments = None
+        for attempt in range(1, MAX_SCRIPT_GEN_ATTEMPTS + 1):
+            # After attempt 1, revision_context may have been set below from
+            # the previous attempt's own failure (auto-retry-with-feedback,
+            # not the caller's original mode) -- log which is actually
+            # happening this attempt, not just the mode process_candidate()
+            # started in.
+            mode = 'revision' if revision_context else 'fresh'
+            mode_label = mode if attempt == 1 else f'{mode}, auto-retry' if mode != initial_mode else mode
+            print(f'  No pre-authored segments -- calling script-gen ({mode_label} mode), attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}...')
+            try:
+                script_gen_result = generate_quiet_panic_script(script_gen_meta, revision_context=revision_context)
+                segments = script_gen_result.segments
+                script_provider = script_gen_result.provider
+                script_input_tokens = script_gen_result.input_tokens
+                script_output_tokens = script_gen_result.output_tokens
+                print(f'  script-gen returned {len(segments)} segment(s) on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS} (provider: {script_provider})')
+                break
+            except PreTTSValidationError as e:
+                # Each attempt's rejection reason logged individually (word
+                # count, which segments) -- a real record for diagnosing a
+                # deeper prompt-calibration issue if this keeps happening,
+                # not just "it failed". Zero ElevenLabs cost per attempt.
+                print(f'  REJECTED pre-TTS on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS} (zero ElevenLabs cost incurred): {e}', file=sys.stderr)
+                attempts_log.append(str(e))
+                # Feed this attempt's actual failure back into the next one
+                # (added 2026-08-03 after Ariel's Royal Wedding Boat (43299)
+                # missed 5/5 in one run, 17-22 words each): without this,
+                # every retry called script-gen with the exact same
+                # fresh-mode prompt and zero information about what went
+                # wrong, so all 5 attempts were independent draws from the
+                # same distribution rather than corrective ones. Reuses the
+                # existing revision_context mechanism (same one operator
+                # rejections use) -- the "previous script" is this failed
+                # attempt's own output, and the "rejection reason" is the
+                # exact pre-TTS validation detail (segment-by-segment word
+                # counts), not a vague retry.
+                if e.segments is not None:
+                    revision_context = {
+                        'original_script': ' '.join(s.get('text', '') for s in e.segments),
+                        'rejection_reason': _build_word_cap_feedback(e),
+                    }
+                if attempt < MAX_SCRIPT_GEN_ATTEMPTS:
+                    _retry_backoff_sleep(attempt, provider_failure=False)
+            except Exception as e:
+                # Added 2026-08-19: previously uncaught here -- generate_
+                # quiet_panic_script()'s own Gemini try/except only covers
+                # the Gemini call; _call_cerebras() runs unguarded after it,
+                # so when BOTH providers fail (confirmed live 2026-08-18,
+                # run 32159269849: Gemini 503 "high demand" then Cerebras
+                # 402 "payment required"), this propagated straight out of
+                # the retry loop entirely -- the whole candidate crashed on
+                # attempt 3/6 instead of getting the other 3 attempts, so a
+                # genuinely transient Gemini issue got ZERO chance to clear
+                # via retry. Longer backoff than a content-gate miss (this
+                # is a real provider outage, not a quality issue) and still
+                # bounded by MAX_SCRIPT_GEN_ATTEMPTS -- if every attempt
+                # exhausts, ScriptGenExhaustedError still fires below exactly
+                # as before, just after genuinely trying, not crashing on
+                # the first double-failure.
+                print(f'  Both providers failed on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}: {e}', file=sys.stderr)
+                attempts_log.append(f'both providers failed: {e}')
+                if attempt < MAX_SCRIPT_GEN_ATTEMPTS:
+                    _retry_backoff_sleep(attempt, provider_failure=True)
+
+        if segments is None:
+            # Not a crash -- a genuine, expected terminal outcome for this
+            # run (added 2026-08-01 after a real 3-for-3 miss streak on
+            # Rapunzel's Castle in production). The caller (main()) turns
+            # this into a graceful, non-failing exit so the workflow can
+            # still notify the operator instead of silently producing
+            # nothing with no visible signal beyond an empty inbox.
+            raise ScriptGenExhaustedError(set_title, set_number, attempts_log)
+
+    render_result = _render_segments_core(set_number, set_title, price_inr, fallback_image_url, segments)
+    segments = render_result['segments']
+    gate_results = render_result['gate_results']
+    all_passed = render_result['all_passed']
+    total_video_duration = render_result['total_video_duration']
+    output_path = render_result['output_path']
+    storage_url = render_result['storage_url']
+    full_script_text = render_result['full_script_text']
+
     # 8. DB insert.
     status = 'pending_approval' if all_passed else 'publish_blocked'
-    full_script_text = ' '.join(s['text'] for s in segments)
+    sb = get_supabase()
     row = {
         'set_title': set_title,
         'set_number': set_number,
@@ -1549,10 +1643,23 @@ def main():
     parser = argparse.ArgumentParser(description='Quiet Panic script-to-video generation (standalone, no engine.py/publish.py/gates.py imports).')
     parser.add_argument('--test-batch', type=str, help='Path to a JSON file of candidate dicts (segments + set metadata) to process.')
     parser.add_argument('--build-sfx-manifest', action='store_true', help='Measure peak dB for every assets/sfx/library/*.mp3 file and write peak_levels.json, then exit.')
+    parser.add_argument('--rerender-id', type=str, help='quiet_panic_posts.id to re-render in place (fresh TTS, fresh SFX mix, fresh render, fresh gates -- same row id/sequence_number, only content refreshed). Requires --rerender-segments.')
+    parser.add_argument('--rerender-segments', type=str, help='Path to a JSON file containing just the new segments array (no candidate wrapper) for --rerender-id. VID-QP has no way to mechanically re-derive voice/sfx_tag assignments from stored flat script text, unlike VID-P4\'s --rerender, so the full segments array must be supplied.')
     args = parser.parse_args()
 
     if args.build_sfx_manifest:
         build_sfx_peak_manifest()
+        return
+
+    if args.rerender_id:
+        if not args.rerender_segments:
+            print('ERROR: --rerender-id requires --rerender-segments.', file=sys.stderr)
+            sys.exit(1)
+        with open(args.rerender_segments) as f:
+            new_segments = json.load(f)
+        result = rerender_quiet_panic_post(args.rerender_id, new_segments)
+        print(f"\nRe-render complete for Sequence #{result['sequence_number']} ({args.rerender_id}).")
+        print(f"  storage_url: {result['storage_url']}")
         return
 
     if not args.test_batch:
