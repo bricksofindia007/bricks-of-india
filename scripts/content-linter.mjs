@@ -302,12 +302,38 @@ for (const art of all) {
   if (!imgUrl && hasSetNumber) {
     flag(art, 'missing_image', 'critical', 'No image URL set', false);
   } else {
-    // exclude YouTube maxresdefault and canonical fallback from placeholder check
-    const CANONICAL_FALLBACK = '/fallback-hero.png';
-    if (imgUrl !== CANONICAL_FALLBACK && (/placeholder|no-image|fallback|blank/i.test(imgUrl) || (/\bdefault\b/i.test(imgUrl) && !/ytimg\.com|youtube/i.test(imgUrl))))
-      flag(art, 'placeholder_image', 'critical', `Placeholder image URL: ${imgUrl.slice(0, 80)}`, false);
-    if (!imageMap[imgUrl]) imageMap[imgUrl] = [];
-    imageMap[imgUrl].push({ slug: art.slug, section });
+    // BOI Fix Brief (2026-08-24), Phase 2.1: exclude every KNOWN,
+    // intentional shared fallback asset, not just the generic one --
+    // publish-draft.ts's NEWS_FALLBACK_ASSET ('/lego-news-fallback.png',
+    // added 2026-08-09, Nav & Content Overhaul §7) is a deliberate,
+    // approved design choice for fan-MOC/community-repost news articles
+    // (~253/286 rows, confirmed live that session): they have no
+    // set_number, so there is structurally no real product photo to
+    // source, and this asset honestly signals "community content"
+    // instead of silently reusing the generic sourcing-failure fallback.
+    // This check never got updated for it -- confirmed live 2026-08-24:
+    // 197 of these correctly-functioning articles were flagged
+    // 'placeholder_image' critical (100% of the real count), and since
+    // all 197 legitimately share the exact same URL, the imageMap
+    // dedup below counted them all as 'duplicate_image' too (178 of
+    // 208 open rows). Neither is a real sourcing failure -- both are
+    // this check not knowing about a real, working, intentional
+    // design. Same reasoning extends to every other known intentional
+    // fallback: skip both checks entirely for any of them, and skip
+    // adding them to imageMap at all -- many articles legitimately
+    // sharing one deliberate placeholder was never the kind of mistake
+    // the duplicate-image check exists to catch (two DIFFERENT real
+    // products accidentally ending up with the same scraped photo).
+    const KNOWN_INTENTIONAL_FALLBACKS = new Set([
+      '/fallback-hero.png',       // generic sourcing-failure fallback (already excluded pre-2026-08-24)
+      '/lego-news-fallback.png',  // news: fan-MOC/community articles with no set_number to source from
+    ]);
+    if (!KNOWN_INTENTIONAL_FALLBACKS.has(imgUrl)) {
+      if (/placeholder|no-image|fallback|blank/i.test(imgUrl) || (/\bdefault\b/i.test(imgUrl) && !/ytimg\.com|youtube/i.test(imgUrl)))
+        flag(art, 'placeholder_image', 'critical', `Placeholder image URL: ${imgUrl.slice(0, 80)}`, false);
+      if (!imageMap[imgUrl]) imageMap[imgUrl] = [];
+      imageMap[imgUrl].push({ slug: art.slug, section });
+    }
   }
 }
 
