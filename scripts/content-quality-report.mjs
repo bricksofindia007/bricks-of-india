@@ -44,26 +44,53 @@ const since24h = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 const dateStr  = new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
 // ── Query data ────────────────────────────────────────────────────────────────
+//
+// BOI Fix Brief (2026-08-24), Phase 0.2: "New issues today" and "Total
+// open (all time)" used to both come from plain .select() row arrays
+// with no {count:'exact'} -- silently capped at PostgREST's 1000-row
+// default. Verified live: real total open was 19,288, not 1,000 (the
+// two figures only ever matched by coincidence of both hitting the same
+// cap). Fixed: real counts via {count:'exact', head:true}, and "new"
+// now means first_seen_at-based (genuinely new detections, per the
+// content-linter.mjs upsert fix landing alongside this) rather than
+// checked_at-based (which -- before that fix -- meant "every issue
+// re-detected today," i.e. nearly the entire open backlog, every day).
+// newIssues (the actual row array, still capped at 1000 by design) is
+// kept only for rendering individual issue rows in the email body --
+// its .length is no longer used for the headline count.
 
-const [{ data: todayIssues }, { data: fixLog }, { data: imageIssues }, { data: allOpen }] = await Promise.all([
-  sb.from('content_quality_issues').select('*').gte('checked_at', since24h).eq('resolved', false),
+const [
+  { data: todayIssues },
+  { data: fixLog },
+  { data: imageIssues },
+  { count: totalOpenCount },
+  { count: criticalOpenCount },
+  { count: warningOpenCount },
+  { count: infoOpenCount },
+  { count: newTodayCount },
+] = await Promise.all([
+  sb.from('content_quality_issues').select('*').gte('first_seen_at', since24h).eq('resolved', false),
   sb.from('content_fix_log').select('*').gte('fixed_at', since24h),
   sb.from('content_image_registry').select('*').gte('checked_at', since24h),
-  sb.from('content_quality_issues').select('id, severity').eq('resolved', false),
+  sb.from('content_quality_issues').select('*', { count: 'exact', head: true }).eq('resolved', false),
+  sb.from('content_quality_issues').select('*', { count: 'exact', head: true }).eq('resolved', false).eq('severity', 'critical'),
+  sb.from('content_quality_issues').select('*', { count: 'exact', head: true }).eq('resolved', false).eq('severity', 'warning'),
+  sb.from('content_quality_issues').select('*', { count: 'exact', head: true }).eq('resolved', false).eq('severity', 'info'),
+  sb.from('content_quality_issues').select('*', { count: 'exact', head: true }).gte('first_seen_at', since24h).eq('resolved', false),
 ]);
 
 const newIssues  = todayIssues ?? [];
 const fixes      = fixLog      ?? [];
 const imgReg     = imageIssues ?? [];
-const openIssues = allOpen     ?? [];
 
 const bySeverity = { critical: 0, warning: 0, info: 0 };
 for (const i of newIssues) bySeverity[i.severity] = (bySeverity[i.severity] || 0) + 1;
 
-const totalOpen = { critical: 0, warning: 0, info: 0 };
-for (const i of openIssues) totalOpen[i.severity] = (totalOpen[i.severity] || 0) + 1;
+const totalOpen = { critical: criticalOpenCount ?? 0, warning: warningOpenCount ?? 0, info: infoOpenCount ?? 0 };
+const totalOpenAll = totalOpenCount ?? 0;
+const newTodayAll  = newTodayCount ?? newIssues.length;
 
-const isClean = newIssues.length === 0;
+const isClean = newTodayAll === 0;
 const subject = isClean
   ? `BOI Content Quality — All clear ✅ ${dateStr}`
   : `BOI Content Quality — ${bySeverity.critical} critical, ${bySeverity.warning} warnings ${dateStr}`;
@@ -190,9 +217,9 @@ ${sectionHeader('Image Health', undefined, SAFFRON)}
 ${sectionHeader('System Stats', undefined, GRAY)}
 <tr><td style="padding:8px 0 16px;">
 <table width="100%" cellpadding="0" cellspacing="0">
-  ${stat('New issues today', newIssues.length)}
+  ${stat('New issues today', newTodayAll)}
   ${stat('Auto-fixes applied', fixes.length, GREEN)}
-  ${stat('Total open (all time)', openIssues.length)}
+  ${stat('Total open (all time)', totalOpenAll)}
   ${stat('Critical open', totalOpen.critical, totalOpen.critical > 0 ? RED : GREEN)}
   ${stat('Warning open', totalOpen.warning, totalOpen.warning > 0 ? AMBER : GREEN)}
   ${stat('System ran', new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }) + ' IST')}
@@ -227,6 +254,6 @@ if (sendErr) {
 
 console.log(`Report sent: ${sendData?.id}`);
 console.log(`Subject: ${subject}`);
-console.log(`New issues: ${newIssues.length} (${bySeverity.critical} critical, ${bySeverity.warning} warnings, ${bySeverity.info} info)`);
+console.log(`New issues: ${newTodayAll} (${bySeverity.critical} critical, ${bySeverity.warning} warnings, ${bySeverity.info} info)`);
 console.log(`Auto-fixes applied: ${fixes.length}`);
-console.log(`Total open: ${openIssues.length}`);
+console.log(`Total open: ${totalOpenAll}`);
