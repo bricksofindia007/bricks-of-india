@@ -15,6 +15,11 @@ on:
   schedule:
     - cron: '30 0 * * *'
   workflow_dispatch:  # manual trigger for testing
+    inputs:
+      rerender_id:
+        description: 'OPTIONAL: video_posts.id to re-render in place (re-sanitized script, fresh TTS, fresh Whisper captions, new badge -- same storage_url, status/story_number/id untouched). Leave blank for the normal daily --cloud-generate run. engine.py --rerender already existed for this; this input just gives it a cloud path, since VID-P4 has no local render environment (Stage 2 cloud pivot, 2026-07-06).'
+        required: false
+        type: string
 
 jobs:
   generate:
@@ -79,4 +84,10 @@ jobs:
           BRICKSET_API_KEY: ${{ secrets.BRICKSET_API_KEY }}
           REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
-        run: python engine.py --cloud-generate
+          RERENDER_ID: ${{ github.event.inputs.rerender_id }}
+        run: |
+          if [ -n "$RERENDER_ID" ]; then
+            python engine.py --rerender "$RERENDER_ID"
+          else
+            python engine.py --cloud-generate
+          fi
