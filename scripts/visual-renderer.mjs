@@ -11,6 +11,19 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { reconcileIssues } from './lib/content-quality-reconcile.mjs';
+
+// Every check_name this script can produce -- see reconcileIssues'
+// docstring (lib/content-quality-reconcile.mjs) for why this must be
+// exhaustive and scoped: content_quality_issues is shared with content-
+// linter.mjs and reviews-source-refresh.mjs, and an under-scoped list
+// here would wrongly auto-resolve THEIR open issues, or (before this
+// fix existed at all) collide with the partial unique index added
+// 2026-08-24 and silently drop whole insert batches.
+const OWNED_CHECK_NAMES = [
+  'font_body', 'horizontal_scroll', 'html_comment_visible', 'image_render_broken',
+  'mobile_overflow', 'page_load_error', 'placeholder_text', 'raw_markdown_visible',
+];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
@@ -255,13 +268,21 @@ for (const art of articles) {
 await browser.close();
 
 // ── Write to DB ───────────────────────────────────────────────────────────────
-
-const BATCH = 50;
-console.log(`\nWriting ${issues.length} visual issues to DB…`);
-for (let i = 0; i < issues.length; i += BATCH) {
-  const { error } = await sb.from('content_quality_issues').insert(issues.slice(i, i + BATCH));
-  if (error) console.error('Insert error:', error.message);
-}
+//
+// BOI Fix Brief (2026-08-24), Phase 0.2 follow-up: this used to be a
+// blind INSERT with no dedup, same as content-linter.mjs before that
+// fix -- and after content-linter.mjs's fix added a partial unique
+// index on (article_slug, check_name) WHERE resolved=false, this exact
+// blind insert started hard-failing on every recurring visual issue
+// ("duplicate key value violates unique constraint
+// content_quality_issues_open_unique", confirmed live, 4 failed batches
+// on the first run after that index existed -- and since Supabase
+// batch-inserts fail atomically per batch of 50, an unknown number of
+// genuinely-new issues in those same batches were silently lost too,
+// not just the 4 duplicates). Now reconciles the same way content-
+// linter.mjs does, scoped to this script's own check_names only.
+console.log(`\nReconciling ${issues.length} visual issue(s)…`);
+await reconcileIssues(sb, issues, OWNED_CHECK_NAMES, 'visual-renderer.mjs');
 
 // ── Summary ───────────────────────────────────────────────────────────────────
 
