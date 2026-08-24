@@ -38,6 +38,10 @@ on:
         description: 'OPTIONAL: hand-authored segment script as a JSON array (text/target_duration/voice/sfx_tag per segment), same schema as briefs/VID-QP-01.md section 6. Leave blank to auto-generate via script-gen (fresh mode) instead.'
         required: false
         type: string
+      reworked_from:
+        description: 'OPTIONAL: quiet_panic_posts row id this render is a human-finalized rework of. When set, the normal "set_number not already claimed" eligibility check is skipped -- a rework is BY DEFINITION for an already-claimed set. Leave blank for a fresh candidate.'
+        required: false
+        type: string
 
 jobs:
   generate:
@@ -82,6 +86,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SET_NUMBER: ${{ inputs.set_number }}
           SEGMENTS_JSON: ${{ inputs.segments_json }}
+          REWORKED_FROM: ${{ inputs.reworked_from }}
         run: |
           python - <<'PYEOF'
           import json
@@ -92,8 +97,40 @@ jobs:
 
           set_number = os.environ.get('SET_NUMBER', '').strip()
           segments_json_raw = os.environ.get('SEGMENTS_JSON', '').strip()
+          reworked_from = os.environ.get('REWORKED_FROM', '').strip()
 
-          if set_number:
+          if reworked_from:
+              # A rework is BY DEFINITION for an already-claimed set --
+              # check_set_number()'s "not already claimed" eligibility
+              # check does not apply here (added 2026-08-24, Kakamora's
+              # human-finalized rework -- the normal fresh-candidate path
+              # has no way to render a rework at all). price_inr comes
+              # from the ORIGINAL row being reworked, matching
+              # rework_quiet_panic.py's rework_one()'s own convention
+              # (same real candidate data as the original), not a fresh
+              # store_prices lookup.
+              sb = sel.get_supabase()
+              orig = sb.table('quiet_panic_posts').select('set_number,set_title,price_inr').eq('id', reworked_from).limit(1).execute()
+              if not orig.data:
+                  print(f"ERROR: reworked_from row {reworked_from!r} not found in quiet_panic_posts", file=sys.stderr)
+                  sys.exit(1)
+              orig_row = orig.data[0]
+              set_number = orig_row['set_number']
+              set_row = sb.table('sets').select('name,theme,pieces,image_url').eq('set_number', set_number).limit(1).execute()
+              if not set_row.data:
+                  print(f"ERROR: set_number {set_number!r} not found in sets table", file=sys.stderr)
+                  sys.exit(1)
+              s = set_row.data[0]
+              result = {
+                  'set_number': set_number,
+                  'set_title': orig_row['set_title'],
+                  'price_inr': orig_row['price_inr'],
+                  'theme': s['theme'],
+                  'pieces': s['pieces'],
+                  'image_url': s['image_url'],
+              }
+              print(f"reworked_from={reworked_from} -- using original row's set_number/price_inr, catalog's theme/pieces/image_url.")
+          elif set_number:
               result = sel.check_set_number(set_number)
               if not result.get('eligible'):
                   print(f"ERROR: set_number {set_number!r} is not eligible: {result.get('reason')}", file=sys.stderr)
@@ -128,6 +165,8 @@ jobs:
               'theme': result.get('theme'),
               'image_url': result['image_url'],
           }
+          if reworked_from:
+              candidate_entry['reworked_from'] = reworked_from
           if segments_json_raw:
               candidate_entry['segments'] = json.loads(segments_json_raw)
               print('Hand-authored segments_json provided -- render will use it as-is.')
