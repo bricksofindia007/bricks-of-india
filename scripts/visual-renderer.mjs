@@ -71,6 +71,25 @@ const BANNED_TEXT = ['Lorem ipsum', '[object Object]', 'undefined', 'null'];
 const RAW_MD_RE   = /\*\*[^*]+\*\*|\*[^*\n]+\*|^#{1,6}\s/m;
 const issues = [];
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// BOI Fix Brief (2026-08-24), Phase 1.1: this loop is sequential (not the
+// unbounded Promise.allSettled burst that caused the 2026-08-04
+// HeroImages WAF-403 incident, see that check's comments above), but at
+// ~195 articles x 2 viewports = ~390 fast, back-to-back page.goto()
+// calls with no delay between them, it was still sustained enough to
+// trip Netlify's own edge rate-limiting (this site runs on Netlify, not
+// Cloudflare -- confirmed via live Cache-Status: Netlify Edge headers).
+// Verified live: a random sample of 9 URLs flagged 403 by this exact
+// check all returned clean 200s (or a clean redirect to one) when
+// fetched from an outside environment/UA/IP -- checker artifact, not a
+// real block; nothing to fix on the content side. Same fix shape as
+// HeroImages: a short pause between requests, plus one narrow retry
+// after a longer delay specifically for a transient 403 (not other
+// non-ok statuses, which are still real failures).
+const PAGE_LOAD_PAUSE_MS  = 250;
+const RETRY_403_DELAY_MS  = 3000;
+
 function flag(art, checkName, severity, detail) {
   issues.push({
     checked_at:   RUN_AT,
@@ -105,7 +124,13 @@ for (const art of articles) {
     // page_load_error
     let loadOk = false;
     try {
-      const response = await page.goto(art._url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      let response = await page.goto(art._url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      if (response && response.status() === 403) {
+        // Narrow retry, 403 only (see comment above the constants) --
+        // absorbs transient rate-limiting, doesn't mask a real failure.
+        await sleep(RETRY_403_DELAY_MS);
+        response = await page.goto(art._url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      }
       if (!response || !response.ok()) {
         flag(art, 'page_load_error', 'critical', `HTTP ${response?.status() ?? 'none'} on ${vp.name}`);
       } else {
@@ -118,6 +143,7 @@ for (const art of articles) {
       await page.close();
       continue;
     }
+    await sleep(PAGE_LOAD_PAUSE_MS);
 
     if (!loadOk) { await page.close(); continue; }
 
