@@ -12,18 +12,13 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { reconcileIssues } from './lib/content-quality-reconcile.mjs';
+import { CHECK_NAME_OWNERS } from './lib/content-quality-check-ownership.mjs';
 
-// Every check_name this script can produce -- see reconcileIssues'
-// docstring (lib/content-quality-reconcile.mjs) for why this must be
-// exhaustive and scoped: content_quality_issues is shared with content-
-// linter.mjs and reviews-source-refresh.mjs, and an under-scoped list
-// here would wrongly auto-resolve THEIR open issues, or (before this
-// fix existed at all) collide with the partial unique index added
-// 2026-08-24 and silently drop whole insert batches.
-const OWNED_CHECK_NAMES = [
-  'font_body', 'horizontal_scroll', 'html_comment_visible', 'image_render_broken',
-  'mobile_overflow', 'page_load_error', 'placeholder_text', 'raw_markdown_visible',
-];
+// Single source of truth (scripts/lib/content-quality-check-ownership.mjs),
+// CI-verified against every real flag(...) call in this file
+// (.github/workflows/content-quality-ownership-lint.yml) -- see
+// reconcileIssues' docstring for why this list must be exhaustive and scoped.
+const OWNED_CHECK_NAMES = CHECK_NAME_OWNERS['visual-renderer.mjs'];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {

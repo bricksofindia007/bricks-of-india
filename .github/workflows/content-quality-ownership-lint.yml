@@ -1,0 +1,49 @@
+name: Lint content_quality_issues Ownership
+
+# BOI Fix Brief (2026-08-24), Phase 0.2 incident addendum, item 4.
+#
+# content_quality_issues turned out to be shared by 4 independent scripts
+# (content-linter.mjs, visual-renderer.mjs, reviews-source-refresh.mjs,
+# guide-staleness-guard.js) with previously-implicit check_name ownership
+# boundaries. content-linter.mjs's first reconciliation fix didn't know
+# that and wrongly auto-resolved 187 real open issues it has no ability to
+# detect at all, simply because nothing declared which script owns which
+# check_name. scripts/lint-check-name-ownership.mjs (see that file, and
+# scripts/lib/content-quality-check-ownership.mjs, for the full mechanism)
+# makes this bug class fail CI instead of shipping: any new check_name
+# introduced by a registered writer without a manifest update, or any new
+# writer script that doesn't register at all, fails this check.
+#
+# Scoped to PRs touching the writer scripts, the shared reconcile/manifest
+# modules, or this workflow itself -- same paths-filter pattern as
+# lint-workflows.yml and lint-tracker-dashboard-sync.yml.
+
+on:
+  pull_request:
+    paths:
+      - 'scripts/content-linter.mjs'
+      - 'scripts/visual-renderer.mjs'
+      - 'scripts/reviews-source-refresh.mjs'
+      - 'scripts/radar/guide-staleness-guard.js'
+      - 'scripts/lib/content-quality-reconcile.mjs'
+      - 'scripts/lib/content-quality-check-ownership.mjs'
+      - 'src/lib/review-source-quality.ts'
+      - '.github/workflows/content-quality-ownership-lint.yml'
+
+jobs:
+  ownership-lint:
+    runs-on: ubuntu-latest
+    # Trivial static-analysis script, no deps beyond Node itself -- no
+    # historical run data yet (new workflow), sized generously per the
+    # same first-run reasoning lint-workflows.yml and
+    # lint-tracker-dashboard-sync.yml both used.
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check content_quality_issues.check_name ownership
+        run: node scripts/lint-check-name-ownership.mjs

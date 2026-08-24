@@ -12,28 +12,13 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { checkReviewSourceGates } from '../src/lib/review-source-quality.ts';
 import { reconcileIssues } from './lib/content-quality-reconcile.mjs';
+import { CHECK_NAME_OWNERS } from './lib/content-quality-check-ownership.mjs';
 
-// Every check_name this script can produce -- see reconcileIssues'
-// docstring for why this must be exhaustive and kept in sync with every
-// flag(...) call below (including checkReviewSourceGates' dynamic
-// checkName values). An issue type left off this list is invisible to
-// this script's own reconciliation (never matched as "still open", so
-// silently reinserted as if new every run) but -- critically -- is also
-// exactly what protects check_names OTHER scripts own (e.g. visual-
-// renderer.mjs's page_load_error) from being wrongly auto-resolved here.
-const OWNED_CHECK_NAMES = [
-  'bad_opener', 'broken_image', 'capitalisation_error', 'consecutive_blank_lines',
-  'double_space', 'draft_marker_leaked', 'duplicate_image', 'duplicate_opener',
-  'duplicate_title', 'forbidden_word', 'html_comment_visible', 'india_paragraph_marker',
-  'jaiman_reference', 'markdown_asterisk', 'markdown_bold', 'markdown_header',
-  'markdown_list', 'missing_image', 'missing_india_paragraph', 'missing_signoff',
-  'missing_store_mention', 'missing_verdict', 'placeholder_image', 'script_injection',
-  'thin_content', 'trailing_space', 'verdict_drift', 'wall_of_text',
-  'word_count_high', 'word_count_low',
-  // from checkReviewSourceGates (src/lib/review-source-quality.ts):
-  'review_source_no_fabrication', 'review_source_verdict_validity',
-  'review_source_disclaimer_consistency', 'source_freshness_stale',
-];
+// Single source of truth (scripts/lib/content-quality-check-ownership.mjs),
+// CI-verified against every real flag(...)/checkReviewSourceGates call in
+// this file (.github/workflows/content-quality-ownership-lint.yml) -- see
+// reconcileIssues' docstring for why this list must be exhaustive.
+const OWNED_CHECK_NAMES = CHECK_NAME_OWNERS['content-linter.mjs'];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {

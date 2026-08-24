@@ -43,6 +43,33 @@ export async function reconcileIssues(sb, issues, ownedCheckNames, sourceLabel) 
     console.warn(`  WARNING: ${unowned.length} detected issue(s) have a check_name not in ownedCheckNames (${[...new Set(unowned.map(i => i.check_name))].join(', ')}) -- these will still be written, but won't participate in auto-resolve scoping. Add them to ownedCheckNames.`);
   }
 
+  // De-dup the CALLER's own batch by (article_slug, check_name) before
+  // anything else. Found live (2026-08-24): visual-renderer.mjs calls
+  // flag(art, 'page_load_error', ...) once per viewport, so an article
+  // that fails on BOTH desktop and mobile produces two issues sharing
+  // one key within a SINGLE run -- and since openByKey below is a
+  // point-in-time snapshot, not updated as each batch writes, two
+  // same-key issues landing in the same Promise.all(batch.map(...))
+  // pass could both see "not yet open" and both attempt an INSERT,
+  // racing each other into the same duplicate-key error this whole
+  // module exists to prevent. Merge instead: keep the most severe
+  // severity, join every distinct detail with '; '.
+  const SEVERITY_RANK = { critical: 3, warning: 2, info: 1 };
+  const dedupedByKey = new Map();
+  for (const issue of issues) {
+    const key = `${issue.article_slug}|${issue.check_name}`;
+    const existing = dedupedByKey.get(key);
+    if (!existing) { dedupedByKey.set(key, { ...issue }); continue; }
+    if ((SEVERITY_RANK[issue.severity] ?? 0) > (SEVERITY_RANK[existing.severity] ?? 0)) existing.severity = issue.severity;
+    if (issue.detail && !existing.detail.includes(issue.detail)) existing.detail = `${existing.detail}; ${issue.detail}`;
+    existing.auto_fixable = existing.auto_fixable || issue.auto_fixable;
+  }
+  const dedupedIssues = [...dedupedByKey.values()];
+  if (dedupedIssues.length !== issues.length) {
+    console.log(`  [${sourceLabel}] merged ${issues.length - dedupedIssues.length} same-run duplicate detection(s) (e.g. one check_name failing on multiple viewports) before writing.`);
+  }
+  issues = dedupedIssues;
+
   // Paginated fetch (PostgREST 1000-row cap, per CLAUDE.md), scoped to
   // only this caller's own check_names.
   const openByKey = new Map(); // `${slug}|${check}` -> id
