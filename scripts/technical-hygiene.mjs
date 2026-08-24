@@ -1249,12 +1249,25 @@ try {
 } catch (e) { alertFail('DataPipeline', `price_snapshots check error: ${e.message.slice(0, 80)}`); }
 
 // 13c: content_fix_log — at least 1 row in last 7 days (auto-fixer ran)
+//
+// BOI Fix Brief (2026-08-24), Phase 0.1: this check queried a
+// non-existent `created_at` column (the table's real timestamp column
+// is `fixed_at` -- see migration 20260529000000). Supabase's response
+// destructuring here only reads `count`, never `error`, so the query
+// error was silently swallowed and every run fell through to the
+// false-negative "no rows... acceptable" branch below -- regardless of
+// how many real fixes had actually been logged. Verified live: the
+// table had 12 real rows in the prior 7 days at the moment this bug's
+// last false report went out, including the exact 2 fixes that same
+// day's CQS report had already cited by name. The auto-fixer's writes
+// were never broken; only this check's read was.
 try {
   const cutoff = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  const { count } = await sb.from('content_fix_log').select('*', { count: 'exact', head: true }).gte('created_at', cutoff);
+  const { count, error } = await sb.from('content_fix_log').select('*', { count: 'exact', head: true }).gte('fixed_at', cutoff);
+  if (error) throw error;
   if (!count || count === 0) log('DataPipeline', 'content_fix_log: no rows in last 7 days — auto-fixer may not have run (acceptable if no issues)');
   else log('DataPipeline', `content_fix_log: ${count} fix(es) in last 7 days ✓`);
-} catch (e) { log('DataPipeline', `content_fix_log check skipped: ${e.message.slice(0, 60)}`); }
+} catch (e) { alertFail('DataPipeline', `content_fix_log check error: ${e.message.slice(0, 80)}`); }
 
 // 13d: newsletter_subscribers — table queryable
 try {
