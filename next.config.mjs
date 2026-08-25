@@ -16,6 +16,73 @@ const nextConfig = {
       // Old page components deliberately left in place, unrouted, as a
       // rollback path (see CLAUDE.md-documented past-migration convention)
       // -- these redirects are what actually makes them unreachable.
+      //
+      // BUG FOUND + FIXED 2026-08-25 (BOI Fix Brief issue #75): the blanket
+      // /blog/:slug -> /guides/:slug rule below never accounted for the
+      // Opinion carve-out this same comment describes -- it sent all 12
+      // real Opinion-category /blog/ URLs to a /guides/:slug destination
+      // that was never created for them (they migrated to news_articles,
+      // not guides). Confirmed live: /blog/lego-investment-india-2026 was
+      // serving 308 -> /guides/lego-investment-india-2026 -> 404, a
+      // redirect chain to a dead page, for all 12 since the 2026-08-09
+      // migration. Next.js matches redirects in array order and stops at
+      // the first match, so these 12 explicit overrides must stay ordered
+      // before the generic /blog/:slug rule immediately below.
+      {
+        source: '/blog/afols-with-kids-sharing-bricks-sharing-pain',
+        destination: '/news/afols-with-kids-sharing-bricks-sharing-pain',
+        permanent: true,
+      },
+      {
+        source: '/blog/certified-store-india-charges-too-much',
+        destination: '/news/certified-store-india-charges-too-much',
+        permanent: true,
+      },
+      {
+        source: '/blog/is-lego-worth-price-india-2026',
+        destination: '/news/is-lego-worth-price-india-2026',
+        permanent: true,
+      },
+      {
+        source: '/blog/lego-collections-sharing-with-kids-or-keeping-it-separate',
+        destination: '/news/lego-collections-sharing-with-kids-or-keeping-it-separate',
+        permanent: true,
+      },
+      {
+        source: '/blog/lego-investment-india-2026',
+        destination: '/news/lego-investment-india-2026',
+        permanent: true,
+      },
+      {
+        source: '/blog/lego-sets-destroy-wallet-2026',
+        destination: '/news/lego-sets-destroy-wallet-2026',
+        permanent: true,
+      },
+      {
+        source: '/blog/lego-should-manufacture-in-india',
+        destination: '/news/lego-should-manufacture-in-india',
+        permanent: true,
+      },
+      {
+        source: '/blog/lego-technic-vs-city-india',
+        destination: '/news/lego-technic-vs-city-india',
+        permanent: true,
+      },
+      {
+        source: '/blog/star-wars-lego-will-bankrupt-you',
+        destination: '/news/star-wars-lego-will-bankrupt-you',
+        permanent: true,
+      },
+      {
+        source: '/blog/this-cyberpunk-ronin-robot-cool-build-but-whats-its-story',
+        destination: '/news/this-cyberpunk-ronin-robot-cool-build-but-whats-its-story',
+        permanent: true,
+      },
+      {
+        source: '/blog/why-indian-lego-prices-high-honest-truth',
+        destination: '/news/why-indian-lego-prices-high-honest-truth',
+        permanent: true,
+      },
       {
         source: '/blog/:slug',
         destination: '/guides/:slug',
@@ -34,6 +101,21 @@ const nextConfig = {
       {
         source: '/opinion',
         destination: '/news',
+        permanent: true,
+      },
+      // BOI Fix Brief issue #77 (2026-08-26) -- duplicate-review cleanup.
+      // Two set/set pairs each had two live reviews; the weaker one of
+      // each pair was removed from the `reviews` table (see fix log) and
+      // needs a real redirect, not a dangling 404, since both had been
+      // live and indexed for days-to-weeks before removal.
+      {
+        source: '/reviews/lego-collectible-minifigures-71053-shrek-series-smash-mouth-',
+        destination: '/reviews/lego-shrek-collectable-minifigures-71053-a-fairy-tale-worth-',
+        permanent: true,
+      },
+      {
+        source: '/reviews/lego-sea-serpent-40912-worth',
+        destination: '/reviews/lego-40912-sea-serpent-gwp-2026-worth-the-23300-price-tag',
         permanent: true,
       },
       {
