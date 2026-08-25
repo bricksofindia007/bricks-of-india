@@ -1652,6 +1652,31 @@ try {
 // 16a. Every set in the reviews table must have at least one store_prices row.
 //      A reviewed set with no prices means the compare sidebar is empty on the
 //      review page — the most important commercial surface on the site.
+//
+// BOI Fix Brief (2026-08-24/25): do NOT try to exclude GWP/promotional sets
+// from this check via a category heuristic (theme, set_number prefix,
+// lego_mrp_inr nullness) -- two different heuristics were tried and both
+// failed real validation (32% and 44% false-exclusion against the live
+// catalog). Confirmed live via a direct MyBrickHouse site check across 6
+// real GWP-shaped sets (2026-08-25): whether a given GWP is independently
+// purchasable is genuinely per-set, not per-category -- 40896 (X-Files:
+// Scully's Lab) sells standalone at MyBrickHouse; 40919 (Gremlins: Gizmo
+// and Stripe), a structurally identical "themed GWP tied to a diorama/
+// figure purchase," does not, and only its parent set (21361) does.
+// src/app/reviews/[slug]/page.tsx already gets this right -- it queries
+// store_prices for the review's own linked set_number directly, across
+// every tracked store, with no category shortcut anywhere. That -- a
+// direct store_prices-by-exact-set_id check, nothing else -- is the
+// correct and only reliable signal. This check already does the same
+// thing (see the query below), which is why the "false positives" some
+// of these alerts produce are actually genuine, correctly-detected
+// priceless sets, not a check bug -- the real gap is that this check
+// can't yet distinguish "genuinely, permanently has no independent
+// price" (matches Abhinav's own locked HIGH-49 policy -- correct to
+// never show that price-comparison messaging) from "just hasn't been
+// scraped/discovered yet" (a real backlog item). That distinction needs
+// a real permanence marker set at review time, not a live-inferred
+// heuristic -- tracked as open, not attempted here.
 try {
   const { data: allReviewedSets } = await sb.from('reviews').select('set_id, title');
   // Exclude reviews with no matched catalog set (added 2026-08-03 -- a
