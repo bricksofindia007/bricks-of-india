@@ -95,6 +95,22 @@ export default async function ReviewPage({ params }: Props) {
     ?? activePrices.sort((a, b) => a.price_inr - b.price_inr)[0]
     ?? null;
 
+  // GWP pricing rule (BOI Fix Brief issue #78, decided by Abhinav): the
+  // store_prices check above is ALWAYS the first and only source of truth
+  // for whether to show a price — is_gwp never suppresses a real listed
+  // price (see 40896/40891, both GWP-origin sets a tracked store sells
+  // standalone). is_gwp + gwp_parent_set_number only kick in here, as a
+  // fallback explanation, when store_prices genuinely has nothing.
+  let gwpParentSet: { set_number: string; name: string } | null = null;
+  if (!hasPrices && set?.is_gwp && set?.gwp_parent_set_number) {
+    const { data: parent } = await supabase
+      .from('sets')
+      .select('set_number, name')
+      .eq('set_number', set.gwp_parent_set_number)
+      .single();
+    gwpParentSet = parent ?? null;
+  }
+
   const stars = review.rating != null ? '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating) : null;
   const badge = verdictBadge(review.verdict);
   const shareUrl = `https://bricksofindia.com/reviews/${params.slug}`;
@@ -215,9 +231,33 @@ export default async function ReviewPage({ params }: Props) {
                   <h3 className="font-heading text-dark text-xl mb-1">{set.name}</h3>
                   <p className="font-price text-gray-400 text-sm mb-3">Set #{set.set_number}</p>
 
-                  {/* Store prices — always shown, "Not listed" fallback per store */}
+                  {/* Store prices — always checked first (issue #78: store_prices
+                      is the sole source of truth for whether a price shows, GWP
+                      status never overrides a real listing). Only when no tracked
+                      store has this set's own set_id AND it's a confirmed GWP do
+                      we replace the per-store grid with an explanation instead of
+                      a bare "Not listed" for every row. */}
                   <div className="border-t border-border pt-3 mb-3">
                     <p className="text-xs text-gray-400 uppercase tracking-wide font-bold mb-2">Prices in India</p>
+                    {!hasPrices && set.is_gwp ? (
+                      <p className="text-sm text-dark">
+                        This is a Gift-with-Purchase
+                        {gwpParentSet ? (
+                          <>
+                            {' '}— LEGO includes it free with a qualifying purchase of{' '}
+                            <Link
+                              href={`/sets/${gwpParentSet.set_number}-${gwpParentSet.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                              className="text-primary font-bold hover:underline"
+                            >
+                              {gwpParentSet.name} (#{gwpParentSet.set_number})
+                            </Link>.
+                          </>
+                        ) : (
+                          ', included free above a LEGO.com spend threshold during a promotional period.'
+                        )}{' '}
+                        It isn&apos;t sold on its own, so there&apos;s no store price to compare.
+                      </p>
+                    ) : (
                     <div className="space-y-2">
                       {TRACKED_STORES.map((store) => {
                         const sp = storePriceMap.get(store.id);
@@ -254,6 +294,7 @@ export default async function ReviewPage({ params }: Props) {
                         );
                       })}
                     </div>
+                    )}
                     {bestStorePrice?.in_stock && (
                       <a
                         href={bestStorePrice.product_url}
