@@ -1667,16 +1667,20 @@ try {
 // store_prices for the review's own linked set_number directly, across
 // every tracked store, with no category shortcut anywhere. That -- a
 // direct store_prices-by-exact-set_id check, nothing else -- is the
-// correct and only reliable signal. This check already does the same
-// thing (see the query below), which is why the "false positives" some
-// of these alerts produce are actually genuine, correctly-detected
-// priceless sets, not a check bug -- the real gap is that this check
-// can't yet distinguish "genuinely, permanently has no independent
-// price" (matches Abhinav's own locked HIGH-49 policy -- correct to
-// never show that price-comparison messaging) from "just hasn't been
-// scraped/discovered yet" (a real backlog item). That distinction needs
-// a real permanence marker set at review time, not a live-inferred
-// heuristic -- tracked as open, not attempted here.
+// correct and only reliable signal.
+//
+// GWP pricing rule finalized 2026-08-26 (issue #78) -- the permanence
+// marker flagged as an open gap above now exists: sets.is_gwp (set
+// directly at review time / by this session's known-case backfill, not
+// inferred). store_prices is still checked FIRST and is still the only
+// thing that decides whether a price shows (is_gwp never suppresses a
+// real listing -- 40896/40891 both prove a GWP-origin set can still be
+// sold standalone). is_gwp only changes what an absence of a price
+// *means*: a non-GWP set with no store_prices row is still a real,
+// actionable gap (new/unscraped, or a set_id linkage bug); a confirmed
+// is_gwp set with no store_prices row is expected, correct state and no
+// longer counted as a failure here -- it's surfaced separately, at info
+// level, so the split stays visible rather than silently dropped.
 try {
   const { data: allReviewedSets } = await sb.from('reviews').select('set_id, title');
   // Exclude reviews with no matched catalog set (added 2026-08-03 -- a
@@ -1690,19 +1694,24 @@ try {
   // null.
   const reviewedSets = allReviewedSets.filter(r => r.set_id != null);
   const { data: setRows } = await sb.from('sets')
-    .select('id, set_number')
+    .select('id, set_number, is_gwp')
     .in('id', reviewedSets.map(r => r.set_id));
-  const setNumberMap = Object.fromEntries(setRows.map(s => [s.id, s.set_number]));
-  const setNumbers = Object.values(setNumberMap);
+  const setMap = Object.fromEntries(setRows.map(s => [s.id, s]));
+  const setNumbers = setRows.map(s => s.set_number);
   const { data: priceRows } = await sb.from('store_prices')
     .select('set_id')
     .in('set_id', setNumbers);
   const pricedSetNumbers = new Set(priceRows.map(p => p.set_id));
-  const missing = reviewedSets.filter(r => !pricedSetNumbers.has(setNumberMap[r.set_id]));
+  const unpriced = reviewedSets.filter(r => !pricedSetNumbers.has(setMap[r.set_id]?.set_number));
+  const missing = unpriced.filter(r => !setMap[r.set_id]?.is_gwp);
+  const expectedGwp = unpriced.filter(r => setMap[r.set_id]?.is_gwp);
   if (missing.length > 0) {
     alertFail('ReviewedSetPrices', `${missing.length} reviewed set(s) have no store_prices: ${missing.map(r => r.title).join(', ')}`);
   } else {
-    log('ReviewedSetPrices', `all ${reviewedSets.length} reviewed sets have store_prices ✓`);
+    log('ReviewedSetPrices', `all ${reviewedSets.length - expectedGwp.length} non-GWP reviewed sets have store_prices ✓`);
+  }
+  if (expectedGwp.length > 0) {
+    log('ReviewedSetPrices', `${expectedGwp.length} confirmed-GWP reviewed set(s) correctly excluded (no independent price expected): ${expectedGwp.map(r => r.title).join(', ')}`);
   }
 } catch (e) { alertFail('ReviewedSetPrices', `check failed: ${e.message.slice(0, 80)}`); }
 
