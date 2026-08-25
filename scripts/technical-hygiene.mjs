@@ -756,9 +756,40 @@ try {
   const missingYear   = buildable.filter(s => s.year == null).length;
   const pctPieces = total ? Math.round((missingPieces / total) * 100) : 0;
   const pctYear   = total ? Math.round((missingYear   / total) * 100) : 0;
-  log('CatalogCoverage', `Buildable sets missing pieces: ${missingPieces}/${total} (${pctPieces}%) | missing year: ${missingYear}/${total} (${pctYear}%) [${allSets.length - total} non-buildable merch/bundle products excluded]`);
-  if (pctPieces > 5) alertFail('CatalogCoverage', `${pctPieces}% of buildable sets missing pieces data — catalogue may be degraded`);
-  if (pctYear   > 5) alertFail('CatalogCoverage', `${pctYear}% of buildable sets missing year data — catalogue may be degraded`);
+
+  // BOI Fix Brief (2026-08-24/25), Phase 4.1: no persisted history existed
+  // for this metric -- "trend log" in this check's own section header
+  // turned out to mean "visible across successive weekly emails," not a
+  // real table. Now logs every run to catalog_coverage_trend and reports
+  // the delta against the immediately-prior logged run, so a real
+  // growing/shrinking/stable trend is visible starting from this run
+  // (the very first logged row has nothing prior to compare against --
+  // reported as such, not silently omitted).
+  let trendNote = ' [first logged run -- no prior baseline to compare against]';
+  try {
+    const { data: prior } = await sb.from('catalog_coverage_trend')
+      .select('logged_at, missing_pieces_pct, missing_year_pct')
+      .order('logged_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (prior) {
+      const daysAgo = Math.round((Date.now() - new Date(prior.logged_at).getTime()) / 86_400_000);
+      const deltaPieces = pctPieces - Number(prior.missing_pieces_pct);
+      const deltaYear   = pctYear   - Number(prior.missing_year_pct);
+      const fmt = (d) => d === 0 ? 'no change' : `${d > 0 ? '+' : ''}${d}pp`;
+      trendNote = ` [vs. ${daysAgo}d ago: pieces ${fmt(deltaPieces)}, year ${fmt(deltaYear)}]`;
+    }
+    await sb.from('catalog_coverage_trend').insert({
+      total_buildable: total, missing_pieces: missingPieces, missing_pieces_pct: pctPieces,
+      missing_year: missingYear, missing_year_pct: pctYear,
+    });
+  } catch (e) {
+    trendNote = ` [trend logging failed, non-fatal: ${e.message.slice(0, 60)}]`;
+  }
+
+  log('CatalogCoverage', `Buildable sets missing pieces: ${missingPieces}/${total} (${pctPieces}%) | missing year: ${missingYear}/${total} (${pctYear}%) [${allSets.length - total} non-buildable merch/bundle products excluded]${trendNote}`);
+  if (pctPieces > 5) alertFail('CatalogCoverage', `${pctPieces}% of buildable sets missing pieces data — catalogue may be degraded${trendNote}`);
+  if (pctYear   > 5) alertFail('CatalogCoverage', `${pctYear}% of buildable sets missing year data — catalogue may be degraded${trendNote}`);
 } catch (e) {
   alertFail('CatalogCoverage', `Sets coverage check failed: ${e.message.slice(0, 80)}`);
 }
