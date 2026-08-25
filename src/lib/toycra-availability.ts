@@ -27,14 +27,37 @@
  * false negatives (a genuinely-available set phrased unusually) are
  * possible and should be caught by editorial review, not assumed
  * impossible.
+ *
+ * BOI Fix Brief (2026-08-24), Phase 2.3: the window itself had a real,
+ * confirmed-live bug, distinct from the whole-sentence problem above.
+ * NEAR_PRICE_RE's two alternatives each capture context on only ONE side
+ * of the match (either "toycra" onward to the price, or the price onward
+ * to "toycra") -- so text immediately AFTER a "...₹41,199 — Toycra"-style
+ * match (e.g. "doesn't currently list it") fell completely outside the
+ * captured window and was invisible to the hedge check, regardless of
+ * window size. Confirmed live: 2 real articles stating "MyBrickHouse has
+ * this set for ₹X — Toycra doesn't currently list it" -- a textbook
+ * hedge -- evaluated genuinelyAvailableAtToycra() = true, because the
+ * regex capture ended exactly at the word "toycra" and never saw what
+ * came after it. Separately, "doesn't/does not currently list/carry/
+ * stock/sell" was never in HEDGE_RE at all -- would still have been
+ * invisible even with a wider window. Fixed both: scan every "toycra"
+ * occurrence and build a window spanning BOTH directions from it, and
+ * added the missing negation-of-availability hedge pattern.
  */
 
-const NEAR_PRICE_RE = /toycra[^.]{0,80}₹[\d,]+|₹[\d,]+[^.]{0,80}toycra/i;
-const HEDGE_RE = /will (be|appear)|expect|likely|eventually|usually list|to watch for|potentially|or it might|not yet confirmed|no specific.*pricing|shortly after|to stock it eventually|not carry|will not find|might be (the )?(primary|available|an import)/i;
+const HEDGE_RE = /will (be|appear)|expect|likely|eventually|usually list|to watch for|potentially|or it might|not yet confirmed|no specific.*pricing|shortly after|to stock it eventually|not carry|will not find|might be (the )?(primary|available|an import)|does(n't| not)\s*(currently\s*)?(list|carry|stock|sell|have)/i;
+const WINDOW_CHARS = 80;
 
 export function genuinelyAvailableAtToycra(content: string | null | undefined): boolean {
   const text = content || '';
-  const match = NEAR_PRICE_RE.exec(text);
-  if (!match) return false;
-  return !HEDGE_RE.test(match[0]);
+  const toycraRe = /toycra/gi;
+  let m: RegExpExecArray | null;
+  while ((m = toycraRe.exec(text)) !== null) {
+    const start = Math.max(0, m.index - WINDOW_CHARS);
+    const end = Math.min(text.length, m.index + m[0].length + WINDOW_CHARS);
+    const window = text.slice(start, end);
+    if (/₹[\d,]+/.test(window) && !HEDGE_RE.test(window)) return true;
+  }
+  return false;
 }
