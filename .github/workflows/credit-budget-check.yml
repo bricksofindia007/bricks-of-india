@@ -83,6 +83,7 @@ jobs:
           echo "Estimated credits used: $CREDITS_USED / $TIER2_BUDGET_CREDITS ($PCT%)"
 
       - name: Upsert standing tracking issue
+        id: issue
         if: steps.count.outputs.tier != '0'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -131,19 +132,89 @@ jobs:
           EXISTING=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
 
           if [ -z "$EXISTING" ]; then
+            # First time this cycle hitting a threshold at all -- always fresh
+            # information, always worth an email alongside the new issue.
             gh issue create --title "$TITLE" --body "$BODY" --label "credit-budget-alert"
+            echo "notify_email=true" >> "$GITHUB_OUTPUT"
           else
             gh issue edit "$EXISTING" --body "$BODY"
 
-            # Only post a fresh comment when 100% is crossed for the first time
-            # this cycle -- avoid a daily duplicate comment once already over
-            # budget. Detected by searching existing comments for this cycle's
-            # start date tagged alongside "EXCEEDED", not a hidden state field.
+            # Only post a fresh comment (and email) the first time THIS tier is
+            # crossed THIS cycle -- avoid a daily duplicate once already past a
+            # threshold. Detected by searching existing comments for this
+            # tier's marker text alongside this cycle's start date, not a
+            # hidden state field. Symmetric for both tiers: a carried-over
+            # issue from a prior cycle re-crossing 80% gets its own fresh
+            # comment+email too, not just the 100% escalation.
             if [ "$TIER" = "100" ]; then
-              ALREADY_ESCALATED=$(gh issue view "$EXISTING" --json comments \
-                | jq --arg c "$CYCLE_START" '[.comments[] | select(.body | contains("EXCEEDED") and contains($c))] | length')
-              if [ "${ALREADY_ESCALATED:-0}" = "0" ]; then
-                gh issue comment "$EXISTING" --body "🚨 **EXCEEDED** — cycle starting $CYCLE_START now at $CREDITS_USED / $TIER2_BUDGET_CREDITS credits ($COMMIT_COUNT commits). Consider re-adding netlify.toml's \`ignore = \"exit 0\"\` guard until the next cycle if deploys aren't essential."
-              fi
+              MARKER="EXCEEDED"
+              COMMENT_BODY="🚨 **EXCEEDED** — cycle starting $CYCLE_START now at $CREDITS_USED / $TIER2_BUDGET_CREDITS credits ($COMMIT_COUNT commits). Consider re-adding netlify.toml's \`ignore = \"exit 0\"\` guard until the next cycle if deploys aren't essential."
+            else
+              MARKER="80% of Tier 2"
+              COMMENT_BODY="⚠️ **80% of Tier 2 deploy budget reached** — cycle starting $CYCLE_START now at $CREDITS_USED / $TIER2_BUDGET_CREDITS credits ($COMMIT_COUNT commits)."
+            fi
+
+            ALREADY_NOTIFIED=$(gh issue view "$EXISTING" --json comments \
+              | jq --arg m "$MARKER" --arg c "$CYCLE_START" '[.comments[] | select(.body | contains($m) and contains($c))] | length')
+            if [ "${ALREADY_NOTIFIED:-0}" = "0" ]; then
+              gh issue comment "$EXISTING" --body "$COMMENT_BODY"
+              echo "notify_email=true" >> "$GITHUB_OUTPUT"
             fi
           fi
+
+      # A GitHub issue alone doesn't reliably reach Abhinav -- he doesn't
+      # check GitHub regularly, and the original Netlify email is what
+      # caught the Aug 23 incident in the first place. This reuses the
+      # RESEND_API_KEY/BRIEF_EMAIL secrets already provisioned in this repo
+      # (health-check.yml, monthly-audit-reminder.yml, etc.) rather than
+      # adding a new credential, and follows monthly-audit-reminder.yml's
+      # own direct-fetch pattern (no npm install needed for one email).
+      # Gated on the exact same notify_email flag as the issue
+      # comment/creation above, so it fires at the same 80%/100% crossings,
+      # not on every daily run once already past a threshold.
+      - name: Send email alert (Resend)
+        if: steps.issue.outputs.notify_email == 'true'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL: ${{ secrets.BRIEF_EMAIL }}
+          CYCLE_START: ${{ steps.count.outputs.cycle_start }}
+          COMMIT_COUNT: ${{ steps.count.outputs.commit_count }}
+          CREDITS_USED: ${{ steps.count.outputs.credits_used }}
+          PCT: ${{ steps.count.outputs.pct }}
+          TIER2_BUDGET_CREDITS: ${{ env.TIER2_BUDGET_CREDITS }}
+          TIER: ${{ steps.count.outputs.tier }}
+        run: |
+          node -e "
+            (async () => {
+              const apiKey = process.env.RESEND_API_KEY.split(String.fromCharCode(65279)).join('');
+              const tier = process.env.TIER;
+              const subject = tier === '100'
+                ? 'BOI Netlify credit budget EXCEEDED this cycle'
+                : 'BOI Netlify credit budget at 80% this cycle';
+              const headline = tier === '100'
+                ? 'Tier 2 (deploy) budget EXCEEDED for the current billing cycle.'
+                : '80% of the Tier 2 (deploy) budget reached for the current billing cycle.';
+              const lines = [
+                headline,
+                '',
+                \`Cycle start: \${process.env.CYCLE_START}\`,
+                \`Commits to main this cycle: \${process.env.COMMIT_COUNT}\`,
+                \`Estimated credits used: \${process.env.CREDITS_USED} / \${process.env.TIER2_BUDGET_CREDITS} (\${process.env.PCT}%)\`,
+                '',
+                'Full framework: docs/CREDIT_BUDGET.md',
+                'Tracking issue: search open issues for Netlify Deploy Credit Budget Tracker',
+              ];
+              const res = await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: { Authorization: \`Bearer \${apiKey}\`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  from: 'Bricks of India <abhinav@bricksofindia.com>',
+                  to: [process.env.BRIEF_EMAIL],
+                  subject,
+                  text: lines.join('\n'),
+                }),
+              });
+              if (!res.ok) { console.error(\`Resend failed (\${res.status}): \${await res.text()}\`); process.exit(1); }
+              console.log('Credit budget alert email sent:', subject);
+            })();
+          "

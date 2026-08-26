@@ -69,6 +69,13 @@ above. At 80% of budget it opens (or updates, if already open) a standing
 tracking issue with a warning; at 100% it escalates the language. See the
 workflow file itself for the exact logic.
 
+A GitHub issue alone doesn't reliably reach anyone who doesn't check
+GitHub regularly — the original Netlify email is what caught the
+2026-08-23 incident in the first place. The same 80%/100% crossings also
+send an email via Resend, reusing the `RESEND_API_KEY`/`BRIEF_EMAIL`
+secrets already provisioned in this repo (same ones `health-check.yml`
+and `monthly-audit-reminder.yml` use) — no new credential added.
+
 This only covers Tier 2 (deploy count). It cannot see Tier 1 usage
 (Compute/Bandwidth/Requests) — that side has no git-visible signal at all
 and has to come from the dashboard. That's the next section.
