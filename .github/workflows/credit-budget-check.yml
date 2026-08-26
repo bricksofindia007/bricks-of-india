@@ -1,0 +1,149 @@
+name: Credit Budget Check
+
+# Daily Tier 2 (deploy budget) tracker — see docs/CREDIT_BUDGET.md for the
+# full framework. Counts real commits to `main` since the current billing
+# cycle's start date via plain `git log`, multiplies by 15 (credits per
+# native Netlify deploy), and compares against the 350-credit Tier 2
+# budget. Zero new credentials: no Netlify API access, just git history
+# and the same GITHUB_TOKEN every workflow in this repo already gets.
+#
+# Built 2026-08-26 in direct response to the incident this same day's
+# CREDIT_BUDGET.md documents: 28 commits to main in one morning
+# (2026-08-23) each triggered a real native deploy before anyone noticed,
+# because netlify.toml's ignore = "exit 0" guard had been removed. That
+# guard is back (commit fc92f6c) as a full blanket block — this workflow
+# is the earlier-warning half of the fix, so a real budget can eventually
+# replace the blanket block instead of just living with it forever.
+
+on:
+  schedule:
+    - cron: '15 3 * * *'  # 03:15 UTC = 08:45 IST — distinct minute from the other daily crons in this repo
+  workflow_dispatch:
+
+jobs:
+  check-budget:
+    name: Count deploys this cycle and flag if over threshold
+    runs-on: ubuntu-latest
+    # Checkout + a git rev-list count + a gh issue upsert -- no installs,
+    # no network calls beyond the GitHub API itself. Should take well
+    # under a minute; 5 min is generous headroom, not sized from run
+    # history since this workflow is new (same reasoning as
+    # lint-workflows.yml's own timeout-minutes: 5).
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      TIER2_BUDGET_CREDITS: 350
+      CREDITS_PER_DEPLOY: 15
+      # Billing cycle reset day — see docs/CREDIT_BUDGET.md's "Billing
+      # cycle" note (observed to float between the 22nd and 23rd; 23 is
+      # the anchor confirmed against the 2026-08-23 incident timeline).
+      # Adjust here if a future cycle boundary is confirmed to land on 22.
+      CYCLE_RESET_DAY: 23
+
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Compute cycle start and count real deploys
+        id: count
+        run: |
+          set -euo pipefail
+
+          TODAY_DAY=$(date -u +%-d)
+          THIS_MONTH_RESET=$(date -u +%Y-%m)-$(printf '%02d' "$CYCLE_RESET_DAY")
+
+          if [ "$TODAY_DAY" -ge "$CYCLE_RESET_DAY" ]; then
+            CYCLE_START="$THIS_MONTH_RESET"
+          else
+            # Before this month's reset day -> current cycle started last month's reset day.
+            PREV_MONTH_ANCHOR=$(date -u -d "$(date -u +%Y-%m-01) -1 day" +%Y-%m)
+            CYCLE_START="${PREV_MONTH_ANCHOR}-$(printf '%02d' "$CYCLE_RESET_DAY")"
+          fi
+          CYCLE_START_TS="${CYCLE_START}T00:00:00Z"
+
+          COMMIT_COUNT=$(git rev-list --count main --since="$CYCLE_START_TS")
+          CREDITS_USED=$(( COMMIT_COUNT * CREDITS_PER_DEPLOY ))
+          PCT=$(( CREDITS_USED * 100 / TIER2_BUDGET_CREDITS ))
+
+          TIER=0
+          if [ "$PCT" -ge 100 ]; then TIER=100; elif [ "$PCT" -ge 80 ]; then TIER=80; fi
+
+          echo "cycle_start=$CYCLE_START_TS" >> "$GITHUB_OUTPUT"
+          echo "commit_count=$COMMIT_COUNT" >> "$GITHUB_OUTPUT"
+          echo "credits_used=$CREDITS_USED" >> "$GITHUB_OUTPUT"
+          echo "pct=$PCT" >> "$GITHUB_OUTPUT"
+          echo "tier=$TIER" >> "$GITHUB_OUTPUT"
+
+          echo "Cycle start: $CYCLE_START_TS"
+          echo "Commits to main this cycle: $COMMIT_COUNT"
+          echo "Estimated credits used: $CREDITS_USED / $TIER2_BUDGET_CREDITS ($PCT%)"
+
+      - name: Upsert standing tracking issue
+        if: steps.count.outputs.tier != '0'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CYCLE_START: ${{ steps.count.outputs.cycle_start }}
+          COMMIT_COUNT: ${{ steps.count.outputs.commit_count }}
+          CREDITS_USED: ${{ steps.count.outputs.credits_used }}
+          PCT: ${{ steps.count.outputs.pct }}
+          TIER: ${{ steps.count.outputs.tier }}
+        run: |
+          set -euo pipefail
+          TITLE="Netlify Deploy Credit Budget Tracker"
+          TODAY=$(date -u +%Y-%m-%d)
+
+          if [ "$TIER" = "100" ]; then
+            STATUS_LINE="🚨 **Tier 2 deploy budget EXCEEDED** — every further push to main this cycle bills a native deploy beyond the planned budget."
+          else
+            STATUS_LINE="⚠️ **80% of Tier 2 deploy budget reached** — approaching the planned per-cycle limit."
+          fi
+
+          BODY=$(cat <<EOF
+          ## Netlify Deploy Credit Budget — Tier 2 (deploy budget)
+
+          Auto-updated daily by \`.github/workflows/credit-budget-check.yml\`.
+          Full framework: \`docs/CREDIT_BUDGET.md\` (this covers Tier 2 only —
+          Tier 1 keep-alive reserve is tracked manually in that doc's log,
+          this workflow has no visibility into it).
+
+          $STATUS_LINE
+
+          | | |
+          |---|---|
+          | Billing cycle start | $CYCLE_START |
+          | Commits to \`main\` this cycle | $COMMIT_COUNT |
+          | Estimated credits used (commits × 15) | $CREDITS_USED |
+          | Tier 2 budget | $TIER2_BUDGET_CREDITS |
+          | % of budget | ${PCT}% |
+          | Last checked | $TODAY (UTC) |
+          EOF
+          )
+
+          # `// empty` matters here: with no match, `.[0]` is null and plain
+          # `.number` on that would print the literal text "null" (jq's raw
+          # mode unquotes strings, it doesn't suppress null) -- which would
+          # make the `[ -z "$EXISTING" ]` check below false when it should
+          # be true, and send a real issue number of "null" into gh issue edit.
+          EXISTING=$(gh issue list --state open --search "\"$TITLE\" in:title" --json number --jq '.[0].number // empty')
+
+          if [ -z "$EXISTING" ]; then
+            gh issue create --title "$TITLE" --body "$BODY" --label "credit-budget-alert"
+          else
+            gh issue edit "$EXISTING" --body "$BODY"
+
+            # Only post a fresh comment when 100% is crossed for the first time
+            # this cycle -- avoid a daily duplicate comment once already over
+            # budget. Detected by searching existing comments for this cycle's
+            # start date tagged alongside "EXCEEDED", not a hidden state field.
+            if [ "$TIER" = "100" ]; then
+              ALREADY_ESCALATED=$(gh issue view "$EXISTING" --json comments \
+                | jq --arg c "$CYCLE_START" '[.comments[] | select(.body | contains("EXCEEDED") and contains($c))] | length')
+              if [ "${ALREADY_ESCALATED:-0}" = "0" ]; then
+                gh issue comment "$EXISTING" --body "🚨 **EXCEEDED** — cycle starting $CYCLE_START now at $CREDITS_USED / $TIER2_BUDGET_CREDITS credits ($COMMIT_COUNT commits). Consider re-adding netlify.toml's \`ignore = \"exit 0\"\` guard until the next cycle if deploys aren't essential."
+              fi
+            fi
+          fi
