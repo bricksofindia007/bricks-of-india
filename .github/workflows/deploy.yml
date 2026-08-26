@@ -1,11 +1,8 @@
 name: Build & Deploy to Netlify (inert — see below)
 
 # 2026-08-23: the netlify-cli deploy step that used to live here has been
-# REMOVED, not replaced. Deploys now happen exclusively through Netlify's
-# own native git integration, which the Deploys tab has confirmed already
-# builds this project successfully on push to main when nothing else
-# competes with it. Prior to today, this workflow's own `netlify-cli
-# deploy --build --prod` call was itself the thing preventing that native
+# REMOVED, not replaced. This workflow's own `netlify-cli deploy --build
+# --prod` call had itself been the thing preventing Netlify's native git
 # integration from ever getting a clean run -- see git history/PR for the
 # full incident (deploy.yml's CLI call started failing with a real,
 # non-transient `JSONHTTPError: Forbidden` once "Enforce deployment
@@ -13,13 +10,33 @@ name: Build & Deploy to Netlify (inert — see below)
 # since had been silently failing at that step, not because of exhausted
 # credits despite that being the original suspicion).
 #
+# CORRECTION, 2026-08-26: the line originally here claimed "the Deploys
+# tab has confirmed [native git integration] already builds this project
+# successfully on push to main" -- that was wrong, not just optimistic.
+# Pulling the actual Deploys tab entries for that morning showed every
+# commit up to and including the one that made this claim (`e3e69e2`)
+# was Canceled; the first real "Completed" native build didn't happen
+# until the very next commit (`0055651`) removed netlify.toml's
+# `ignore = "exit 0"` guard minutes later. That removal is *why* native
+# builds started working, not confirmation they already were.
+#
+# Native git integration builds are CURRENTLY BLOCKED again: 0055651's
+# removal of the guard led to 28 unbudgeted native deploys in one
+# morning before anyone noticed, so `ignore = "exit 0"` was restored in
+# `fc92f6c` (2026-08-26) as a full, blunt, emergency stop-gap -- not a
+# smarter conditional one, on purpose, to stop the bleeding immediately.
+# Revisit this comment (and the blanket guard itself) once
+# `docs/CREDIT_BUDGET.md`'s credit-budget framework is stable enough to
+# support a real conditional deploy-skip instead of an always-skip one.
+#
 # This file is kept only as a record of intent -- which paths this repo
 # considers "site-relevant" for a production deploy -- and as a home for
 # `workflow_dispatch` if a manual no-op trigger is ever useful. It runs no
 # build, installs nothing, and calls Netlify in no way. If this file is
 # ever deleted entirely, nothing is lost: the paths list below has no
-# operational effect anymore, since Netlify's own git integration (not
-# this workflow) now owns the real build+publish path.
+# operational effect on its own -- whatever currently governs the real
+# build+publish path (native git integration, gated by netlify.toml's
+# `ignore` field) does so independently of this workflow either way.
 
 on:
   push:
