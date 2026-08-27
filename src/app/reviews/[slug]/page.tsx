@@ -23,6 +23,8 @@ const TRACKED_STORES = [
   { id: 'mybrickhouse', name: 'MyBrickHouse' },
 ];
 
+const STORE_NAMES: Record<string, string> = Object.fromEntries(TRACKED_STORES.map((s) => [s.id, s.name]));
+
 // Verdict-driven badge — NOT rating-driven. A null rating (IMPORT ONLY: an
 // availability call, not a quality score) still needs a badge that reflects
 // what the review actually says. WAIT is deliberately neutral (no badge) —
@@ -118,7 +120,7 @@ export default async function ReviewPage({ params }: Props) {
 
   return (
     <div className="bg-white min-h-screen">
-      <JsonLd data={buildReviewSchema(review, review.title, set)} />
+      <JsonLd data={buildReviewSchema(review, review.title, set, activePrices, STORE_NAMES, params.slug)} />
       {/* Hero */}
       <div className="bg-dark py-12 px-4">
         <div className="max-w-site mx-auto">
