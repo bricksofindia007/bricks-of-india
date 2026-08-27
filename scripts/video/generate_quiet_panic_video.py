@@ -37,6 +37,7 @@ if not hasattr(Image, "ANTIALIAS"):
     Image.ANTIALIAS = Image.LANCZOS
 
 from moviepy.editor import AudioFileClip, ImageClip, VideoClip, concatenate_videoclips  # noqa: E402
+from postgrest.exceptions import APIError as PostgrestAPIError  # noqa: E402
 from supabase import create_client  # noqa: E402
 from elevenlabs.client import ElevenLabs  # noqa: E402
 
@@ -219,6 +220,44 @@ def get_supabase():
         print('ERROR: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set.', file=sys.stderr)
         sys.exit(1)
     return create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+
+# Bounded retry for PGRST303 ("JWT issued at future") on the quiet_panic_posts
+# insert only -- confirmed 2026-08-26 (run 32929263494, commit 7764d0f) as a
+# transient PostgREST/Supabase-side clock-skew condition, not a stale-token
+# issue: get_supabase() here is already called fresh, immediately before this
+# insert, not held across the ~13min render -- so there is no long-lived
+# client/token to go stale. That run's video rendered and uploaded to Storage
+# successfully; only this insert failed, orphaning the post. Zero PGRST303
+# occurrences in this workflow's history before or since.
+#
+# Deliberately narrow: this retries exactly one call, catches exactly this
+# error code, and is not a generalized retry-on-any-APIError wrapper. Do not
+# extend this pattern to other Supabase calls in this pipeline without a
+# similar confirmed-transient failure to justify it -- see BOI_MASTER_TRACKER.md's
+# "Retry-amplification fix" entry (2026-08-19, commit 32ed993): a prior
+# zero-delay retry loop in this same file hammered a transient Gemini 503
+# back-to-back on every attempt, killing the run before the issue could
+# clear -- the reason this retry has an explicit backoff instead of a tight
+# loop, and is scoped to one call instead of a blanket wrapper.
+QUIET_PANIC_INSERT_MAX_ATTEMPTS = 3
+QUIET_PANIC_INSERT_RETRY_BACKOFF_SECONDS = 5.0
+
+
+def insert_quiet_panic_row(sb, row: dict):
+    for attempt in range(1, QUIET_PANIC_INSERT_MAX_ATTEMPTS + 1):
+        try:
+            return sb.table('quiet_panic_posts').insert(row).execute()
+        except PostgrestAPIError as e:
+            if e.code != 'PGRST303' or attempt == QUIET_PANIC_INSERT_MAX_ATTEMPTS:
+                raise
+            print(
+                f'  WARNING: quiet_panic_posts insert hit PGRST303 (JWT issued '
+                f'at future) on attempt {attempt}/{QUIET_PANIC_INSERT_MAX_ATTEMPTS} '
+                f'-- retrying in {QUIET_PANIC_INSERT_RETRY_BACKOFF_SECONDS:.0f}s...',
+                file=sys.stderr,
+            )
+            time.sleep(QUIET_PANIC_INSERT_RETRY_BACKOFF_SECONDS)
 
 
 def video_file_is_valid(path: Path) -> bool:
@@ -1581,7 +1620,7 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
         'input_tokens': script_input_tokens,
         'output_tokens': script_output_tokens,
     }
-    inserted = sb.table('quiet_panic_posts').insert(row).execute()
+    inserted = insert_quiet_panic_row(sb, row)
     post_id = inserted.data[0]['id']
     rework_note = f' (reworked_from={reworked_from})' if reworked_from else ''
     print(f'  Inserted quiet_panic_posts row {post_id} (status={status}){rework_note}')
