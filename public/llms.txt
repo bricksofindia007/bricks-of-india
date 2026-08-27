@@ -20,7 +20,7 @@
 - [Reviews](https://www.bricksofindia.com/reviews): Independent LEGO set reviews — India price, local availability, honest verdict
 - [News](https://www.bricksofindia.com/news): LEGO news written from an India perspective (100+ original news articles)
 - [Guides](https://www.bricksofindia.com/guides): LEGO 101 for Indian fans — buying, storing, themes, customs duties (9 guides)
-- [Opinion](https://www.bricksofindia.com/opinion): Commentary on LEGO pricing, certified stores, and Indian hobby culture
+- [Opinion](https://www.bricksofindia.com/news?category=Opinion): Commentary on LEGO pricing, certified stores, and Indian hobby culture
 - [Community](https://www.bricksofindia.com/community): Indian AFOL builder spotlights and community stories
 
 ### The Lab — experimental tools
