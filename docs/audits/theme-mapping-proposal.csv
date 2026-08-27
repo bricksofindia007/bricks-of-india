@@ -30,10 +30,10 @@ Unknown,230,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme
 Clocks and Watches,225,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 Harry Potter,216,DIRECT_MATCH,Harry Potter,,,,,
 Minecraft,212,DIRECT_MATCH,Minecraft,,,,,
-Police,207,NEEDS_DECISION,,,7.2,7.2,DEDICATED_THEME,"15/207 (7.2%) ever tracked, 207 sets -- proposed own theme"
+Police,207,SUBTHEME_OF_CURATED,City,"operator override: city-lineage pattern, not a standalone theme despite auto-classify",7.2,7.2,DEDICATED_THEME,"15/207 (7.2%) ever tracked, 207 sets -- proposed own theme"
 Brickheadz,200,DIRECT_MATCH,BrickHeadz,,,,,
-Christmas,199,NEEDS_DECISION,,,4.0,4.0,EXCLUDE,8/199 (4.0%) ever tracked -- below 5% threshold
-Racers,195,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/195 (0.0%) ever tracked -- below 5% threshold
+Christmas,199,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 8/199 (4.0%) ever tracked -- below 5% threshold),4.0,4.0,EXCLUDE,8/199 (4.0%) ever tracked -- below 5% threshold
+Racers,195,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/195 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/195 (0.0%) ever tracked -- below 5% threshold
 Non-fiction Books,185,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 Other,180,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 Storage,176,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
@@ -44,11 +44,11 @@ Magnets,147,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme
 Disney Princess,140,SUBTHEME_OF_CURATED,Disney,"proposed mapping, needs sign-off",,,,
 Bulk Bricks,136,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 Educational and Dacta,135,EXCLUDE_EDU_ROBOTICS,,no curated theme covers this; exclude or new 'Education' theme,,,,
-Primo,134,NEEDS_DECISION,,,3.0,3.0,EXCLUDE,4/134 (3.0%) ever tracked -- below 5% threshold
+Primo,134,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 4/134 (3.0%) ever tracked -- below 5% threshold),3.0,3.0,EXCLUDE,4/134 (3.0%) ever tracked -- below 5% threshold
 Spider-Man,133,SUBTHEME_OF_CURATED,Marvel,"proposed mapping, needs sign-off",,,,
 Jurassic World,133,DIRECT_MATCH,Jurassic World,,,,,
 Bag and Luggage Tags,133,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-Construction,128,NEEDS_DECISION,,,7.8,7.0,DEDICATED_THEME,"10/128 (7.8%) ever tracked, 128 sets -- proposed own theme"
+Construction,128,SUBTHEME_OF_CURATED,City,"operator override: city-lineage pattern, not a standalone theme despite auto-classify",7.8,7.0,DEDICATED_THEME,"10/128 (7.8%) ever tracked, 128 sets -- proposed own theme"
 Monthly Mini Model Build,127,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 Fire,126,NEEDS_DECISION,,,,,,
 Super Mario,119,DIRECT_MATCH,Super Mario,,,,,
@@ -62,16 +62,16 @@ Trains,103,NEEDS_DECISION,,,,,,
 Avengers,102,SUBTHEME_OF_CURATED,Marvel,"proposed mapping, needs sign-off",,,,
 LEGO Ideas and CUUSOO,102,SUBTHEME_OF_CURATED,Ideas,"proposed mapping, needs sign-off",,,,
 Posters and Art Prints,101,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-9V,100,NEEDS_DECISION,,,1.0,1.0,EXCLUDE,1/100 (1.0%) ever tracked -- below 5% threshold
+9V,100,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 1/100 (1.0%) ever tracked -- below 5% threshold),1.0,1.0,EXCLUDE,1/100 (1.0%) ever tracked -- below 5% threshold
 Legends of Chima,97,NEEDS_DECISION,,,,,,
 DOTS,94,DIRECT_MATCH,Dots,,,,,
-Fabuland,92,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/92 (0.0%) ever tracked -- below 5% threshold
-Universal Building Set,88,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/88 (0.0%) ever tracked -- below 5% threshold
-Belville,87,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/87 (0.0%) ever tracked -- below 5% threshold
+Fabuland,92,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/92 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/92 (0.0%) ever tracked -- below 5% threshold
+Universal Building Set,88,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/88 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/88 (0.0%) ever tracked -- below 5% threshold
+Belville,87,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/87 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/87 (0.0%) ever tracked -- below 5% threshold
 Icons,86,DIRECT_MATCH,Icons,,,,,
-Soccer,86,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/86 (0.0%) ever tracked -- below 5% threshold
+Soccer,86,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/86 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/86 (0.0%) ever tracked -- below 5% threshold
 Audio and Visual Media,84,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-Clikits,83,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/83 (0.0%) ever tracked -- below 5% threshold
+Clikits,83,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/83 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/83 (0.0%) ever tracked -- below 5% threshold
 Classic Space,81,SUBTHEME_OF_CURATED,Classic,"proposed mapping, needs sign-off",,,,
 Classic,79,DIRECT_MATCH,Classic,,,,,
 Traffic,75,NEEDS_DECISION,,,,,,
@@ -80,33 +80,33 @@ FIRST LEGO League,73,EXCLUDE_EDU_ROBOTICS,,no curated theme covers this; exclude
 Train,72,NEEDS_DECISION,,,,,,
 Knights Kingdom II,71,NEEDS_DECISION,,,,,,
 Legoville,70,NEEDS_DECISION,,,,,,
-4.5V,70,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/70 (0.0%) ever tracked -- below 5% threshold
-BrickLink Designer Program,68,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/68 (0.0%) ever tracked -- below 5% threshold
+4.5V,70,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/70 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/70 (0.0%) ever tracked -- below 5% threshold
+BrickLink Designer Program,68,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/68 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/68 (0.0%) ever tracked -- below 5% threshold
 Dreamzzz,68,DIRECT_MATCH,Dreamzzz,,,,,
-Dimensions,68,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/68 (0.0%) ever tracked -- below 5% threshold
-Samsonite,67,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/67 (0.0%) ever tracked -- below 5% threshold
-Freestyle,67,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/67 (0.0%) ever tracked -- below 5% threshold
+Dimensions,68,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/68 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/68 (0.0%) ever tracked -- below 5% threshold
+Samsonite,67,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/67 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/67 (0.0%) ever tracked -- below 5% threshold
+Freestyle,67,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/67 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/67 (0.0%) ever tracked -- below 5% threshold
 LEGO Exclusive,67,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-Scala,66,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/66 (0.0%) ever tracked -- below 5% threshold
-Pirates I,65,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/65 (0.0%) ever tracked -- below 5% threshold
-Bricks & More,64,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/64 (0.0%) ever tracked -- below 5% threshold
+Scala,66,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/66 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/66 (0.0%) ever tracked -- below 5% threshold
+Pirates I,65,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/65 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/65 (0.0%) ever tracked -- below 5% threshold
+Bricks & More,64,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/64 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/64 (0.0%) ever tracked -- below 5% threshold
 Easter,60,NEEDS_DECISION,,,,,,
 The Infinity Saga,58,SUBTHEME_OF_CURATED,Marvel,"proposed mapping, needs sign-off",,,,
-Playhouse,58,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/58 (0.0%) ever tracked -- below 5% threshold
-Monkie Kid,58,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/58 (0.0%) ever tracked -- below 5% threshold
+Playhouse,58,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/58 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/58 (0.0%) ever tracked -- below 5% threshold
+Monkie Kid,58,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/58 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/58 (0.0%) ever tracked -- below 5% threshold
 Super Heroes Marvel,56,SUBTHEME_OF_CURATED,Marvel,"proposed mapping, needs sign-off",,,,
 Botanicals,56,SUBTHEME_OF_CURATED,Botanical,"proposed mapping, needs sign-off",,,,
 Cars,56,SUBTHEME_OF_CURATED,Disney,"proposed mapping, needs sign-off",,,,
-Airport,55,NEEDS_DECISION,,,7.3,7.3,DEDICATED_THEME,"4/55 (7.3%) ever tracked, 55 sets -- proposed own theme"
-Studios,53,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/53 (0.0%) ever tracked -- below 5% threshold
-12V,51,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/51 (0.0%) ever tracked -- below 5% threshold
+Airport,55,SUBTHEME_OF_CURATED,City,"operator override: city-lineage pattern, not a standalone theme despite auto-classify",7.3,7.3,DEDICATED_THEME,"4/55 (7.3%) ever tracked, 55 sets -- proposed own theme"
+Studios,53,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/53 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/53 (0.0%) ever tracked -- below 5% threshold
+12V,51,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/51 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/51 (0.0%) ever tracked -- below 5% threshold
 Architecture,51,DIRECT_MATCH,Architecture,,,,,
 Ultimate Collector Series,50,SUBTHEME_OF_CURATED,Icons,"proposed mapping, needs sign-off",,,,
 Classic Basic,49,SUBTHEME_OF_CURATED,Classic,"proposed mapping, needs sign-off",,,,
-Legoland Parks,49,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/49 (0.0%) ever tracked -- below 5% threshold
+Legoland Parks,49,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/49 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/49 (0.0%) ever tracked -- below 5% threshold
 NXT,48,EXCLUDE_EDU_ROBOTICS,,no curated theme covers this; exclude or new 'Education' theme,,,,
 Database Sets,48,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-Exo-Force,48,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/48 (0.0%) ever tracked -- below 5% threshold
+Exo-Force,48,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/48 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/48 (0.0%) ever tracked -- below 5% threshold
 Games,47,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 Halloween,47,NEEDS_DECISION,,,,,,
 Designer Sets,46,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
@@ -114,178 +114,178 @@ Make & Create,44,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real 
 Bricktober,44,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 The LEGO Batman Movie,44,SUBTHEME_OF_CURATED,DC,"proposed mapping, needs sign-off",,,,
 The LEGO Movie II,44,SUBTHEME_OF_CURATED,Ninjago,"proposed mapping, needs sign-off",,,,
-Heroes,43,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/43 (0.0%) ever tracked -- below 5% threshold
-Elves,42,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/42 (0.0%) ever tracked -- below 5% threshold
+Heroes,43,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/43 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/43 (0.0%) ever tracked -- below 5% threshold
+Elves,42,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/42 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/42 (0.0%) ever tracked -- below 5% threshold
 Frozen,39,SUBTHEME_OF_CURATED,Disney,"proposed mapping, needs sign-off",,,,
-Expert Builder,39,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/39 (0.0%) ever tracked -- below 5% threshold
-Arctic,39,NEEDS_DECISION,,,7.7,7.7,DEDICATED_THEME,"3/39 (7.7%) ever tracked, 39 sets -- proposed own theme"
+Expert Builder,39,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/39 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/39 (0.0%) ever tracked -- below 5% threshold
+Arctic,39,SUBTHEME_OF_CURATED,City,"operator override: city-lineage pattern, not a standalone theme despite auto-classify",7.7,7.7,DEDICATED_THEME,"3/39 (7.7%) ever tracked, 39 sets -- proposed own theme"
 Collectible Minifigures,38,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
 WeDo,37,EXCLUDE_EDU_ROBOTICS,,no curated theme covers this; exclude or new 'Education' theme,,,,
-Mixels,37,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/37 (0.0%) ever tracked -- below 5% threshold
+Mixels,37,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/37 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/37 (0.0%) ever tracked -- below 5% threshold
 Chinese Traditional Festivals,37,NEEDS_DECISION,,,,,,
 Early Creator,37,SUBTHEME_OF_CURATED,Creator,"proposed mapping, needs sign-off",,,,
 The LEGO Ninjago Movie,37,SUBTHEME_OF_CURATED,Ninjago,"proposed mapping, needs sign-off",,,,
 Town Jr.,35,NEEDS_DECISION,,,,,,
 Castle,35,NEEDS_DECISION,,,,,,
 Western,35,NEEDS_DECISION,,,,,,
-Modulex,35,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/35 (0.0%) ever tracked -- below 5% threshold
+Modulex,35,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/35 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/35 (0.0%) ever tracked -- below 5% threshold
 The LEGO Movie,35,SUBTHEME_OF_CURATED,Ninjago,"proposed mapping, needs sign-off",,,,
-Hero Factory,34,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/34 (0.0%) ever tracked -- below 5% threshold
+Hero Factory,34,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/34 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/34 (0.0%) ever tracked -- below 5% threshold
 RCX,33,EXCLUDE_EDU_ROBOTICS,,no curated theme covers this; exclude or new 'Education' theme,,,,
 Mindstorms,33,EXCLUDE_EDU_ROBOTICS,,no curated theme covers this; exclude or new 'Education' theme,,,,
 Chinese (Lunar) New Year,32,NEEDS_DECISION,,,,,,
 Villains,32,SUBTHEME_OF_CURATED,DC,"proposed mapping, needs sign-off",,,,
-Basketball,32,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/32 (0.0%) ever tracked -- below 5% threshold
+Basketball,32,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/32 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/32 (0.0%) ever tracked -- below 5% threshold
 Pick A Model,32,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 SPIKE,32,EXCLUDE_EDU_ROBOTICS,,no curated theme covers this; exclude or new 'Education' theme,,,,
 Valentine,32,NEEDS_DECISION,,,,,,
-Hidden Side,32,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/32 (0.0%) ever tracked -- below 5% threshold
+Hidden Side,32,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/32 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/32 (0.0%) ever tracked -- below 5% threshold
 Toy Story,32,SUBTHEME_OF_CURATED,Disney,"proposed mapping, needs sign-off",,,,
-Pokémon,31,NEEDS_DECISION,,,,,,
-Bob the Builder,31,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/31 (0.0%) ever tracked -- below 5% threshold
+Pokémon,31,EXCLUDE_LONGTAIL,,applied: no theme link (0/31 sets ever tracked in store_prices -- 0%),,,,
+Bob the Builder,31,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/31 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/31 (0.0%) ever tracked -- below 5% threshold
 Coast Guard,31,NEEDS_DECISION,,,,,,
 Fantasy Era,31,NEEDS_DECISION,,,,,,
-Ferrari,30,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/30 (0.0%) ever tracked -- below 5% threshold
-Speedorz,30,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/30 (0.0%) ever tracked -- below 5% threshold
-System,30,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/30 (0.0%) ever tracked -- below 5% threshold
+Ferrari,30,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/30 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/30 (0.0%) ever tracked -- below 5% threshold
+Speedorz,30,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/30 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/30 (0.0%) ever tracked -- below 5% threshold
+System,30,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/30 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/30 (0.0%) ever tracked -- below 5% threshold
 World City,30,NEEDS_DECISION,,,,,,
 Hospital,30,NEEDS_DECISION,,,,,,
 Ninja,30,SUBTHEME_OF_CURATED,Ninjago,"proposed mapping, needs sign-off",,,,
 Value Packs,30,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-Juniors,29,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/29 (0.0%) ever tracked -- below 5% threshold
-Jack Stone,28,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/28 (0.0%) ever tracked -- below 5% threshold
-HO 1:87 Vehicles,27,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/27 (0.0%) ever tracked -- below 5% threshold
+Juniors,29,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/29 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/29 (0.0%) ever tracked -- below 5% threshold
+Jack Stone,28,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/28 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/28 (0.0%) ever tracked -- below 5% threshold
+HO 1:87 Vehicles,27,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/27 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/27 (0.0%) ever tracked -- below 5% threshold
 Super Heroes DC,27,SUBTHEME_OF_CURATED,DC,"proposed mapping, needs sign-off",,,,
 Vehicle,27,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-Homemaker,26,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/26 (0.0%) ever tracked -- below 5% threshold
-Desert,26,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/26 (0.0%) ever tracked -- below 5% threshold
-Stuntz,26,NEEDS_DECISION,,,7.7,7.7,DEDICATED_THEME,"2/26 (7.7%) ever tracked, 26 sets -- proposed own theme"
-Harbor,26,NEEDS_DECISION,,,3.8,3.8,EXCLUDE,1/26 (3.8%) ever tracked -- below 5% threshold
+Homemaker,26,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/26 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/26 (0.0%) ever tracked -- below 5% threshold
+Desert,26,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/26 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/26 (0.0%) ever tracked -- below 5% threshold
+Stuntz,26,SUBTHEME_OF_CURATED,City,"operator override: city-lineage pattern, not a standalone theme despite auto-classify",7.7,7.7,DEDICATED_THEME,"2/26 (7.7%) ever tracked, 26 sets -- proposed own theme"
+Harbor,26,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 1/26 (3.8%) ever tracked -- below 5% threshold),3.8,3.8,EXCLUDE,1/26 (3.8%) ever tracked -- below 5% threshold
 Life On Mars,26,NEEDS_DECISION,,,,,,
-Town Plan,26,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/26 (0.0%) ever tracked -- below 5% threshold
-Jungle,26,NEEDS_DECISION,,,7.7,7.7,DEDICATED_THEME,"2/26 (7.7%) ever tracked, 26 sets -- proposed own theme"
+Town Plan,26,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/26 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/26 (0.0%) ever tracked -- below 5% threshold
+Jungle,26,SUBTHEME_OF_CURATED,City,"operator override: city-lineage pattern, not a standalone theme despite auto-classify",7.7,7.7,DEDICATED_THEME,"2/26 (7.7%) ever tracked, 26 sets -- proposed own theme"
 Space,26,NEEDS_DECISION,,,,,,
-Sonic The Hedgehog,25,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/25 (0.0%) ever tracked -- below 5% threshold
+Sonic The Hedgehog,25,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/25 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/25 (0.0%) ever tracked -- below 5% threshold
 Editions,25,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 Lion Knights,25,NEEDS_DECISION,,,,,,
-VIDIYO,24,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/24 (0.0%) ever tracked -- below 5% threshold
+VIDIYO,24,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/24 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/24 (0.0%) ever tracked -- below 5% threshold
 Atlantis,24,NEEDS_DECISION,,,,,,
 RoboRiders,24,NEEDS_DECISION,,,,,,
-Orient Expedition,24,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/24 (0.0%) ever tracked -- below 5% threshold
-RC,24,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/24 (0.0%) ever tracked -- below 5% threshold
+Orient Expedition,24,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/24 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/24 (0.0%) ever tracked -- below 5% threshold
+RC,24,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/24 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/24 (0.0%) ever tracked -- below 5% threshold
 Space Port,23,NEEDS_DECISION,,,,,,
-Indiana Jones,23,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/23 (0.0%) ever tracked -- below 5% threshold
+Indiana Jones,23,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/23 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/23 (0.0%) ever tracked -- below 5% threshold
 Power Miners,23,NEEDS_DECISION,,,,,,
-The Hobbit,23,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/23 (0.0%) ever tracked -- below 5% threshold
+The Hobbit,23,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/23 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/23 (0.0%) ever tracked -- below 5% threshold
 Rattles,23,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-4 Juniors,22,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/22 (0.0%) ever tracked -- below 5% threshold
-Dino,22,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/22 (0.0%) ever tracked -- below 5% threshold
+4 Juniors,22,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/22 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/22 (0.0%) ever tracked -- below 5% threshold
+Dino,22,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/22 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/22 (0.0%) ever tracked -- below 5% threshold
 Building Set with People,22,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 Farm,22,NEEDS_DECISION,,,,,,
 City Center,21,NEEDS_DECISION,,,,,,
-Boat,21,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/21 (0.0%) ever tracked -- below 5% threshold
-Teenage Mutant Ninja Turtles,21,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/21 (0.0%) ever tracked -- below 5% threshold
+Boat,21,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/21 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/21 (0.0%) ever tracked -- below 5% threshold
+Teenage Mutant Ninja Turtles,21,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/21 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/21 (0.0%) ever tracked -- below 5% threshold
 Knights Kingdom I,21,NEEDS_DECISION,,,,,,
-Modular Buildings,21,NEEDS_DECISION,,,23.8,23.8,CATCHALL_LICENSED_COLLABS,"5/21 (23.8%) ever tracked, 21 sets (<25) -- proposed fold into new catch-all theme"
-Master Builder Academy,21,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/21 (0.0%) ever tracked -- below 5% threshold
-Extreme Team,21,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/21 (0.0%) ever tracked -- below 5% threshold
+Modular Buildings,21,DEDICATED_THEME_NEW,Special Releases,"applied: new theme (renamed from proposed ""Licensed Collabs"" -- 3 of 13 are LEGO-internal lines, not licensed IP)",23.8,23.8,CATCHALL_LICENSED_COLLABS,"5/21 (23.8%) ever tracked, 21 sets (<25) -- proposed fold into new catch-all theme"
+Master Builder Academy,21,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/21 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/21 (0.0%) ever tracked -- below 5% threshold
+Extreme Team,21,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/21 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/21 (0.0%) ever tracked -- below 5% threshold
 Mars Mission,21,NEEDS_DECISION,,,,,,
-LEGO Art,20,NEEDS_DECISION,,,40.0,40.0,CATCHALL_LICENSED_COLLABS,"8/20 (40.0%) ever tracked, 20 sets (<25) -- proposed fold into new catch-all theme"
+LEGO Art,20,DEDICATED_THEME_NEW,Special Releases,"applied: new theme (renamed from proposed ""Licensed Collabs"" -- 3 of 13 are LEGO-internal lines, not licensed IP)",40.0,40.0,CATCHALL_LICENSED_COLLABS,"8/20 (40.0%) ever tracked, 20 sets (<25) -- proposed fold into new catch-all theme"
 LEGO Originals,20,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-Galidor,20,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/20 (0.0%) ever tracked -- below 5% threshold
+Galidor,20,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/20 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/20 (0.0%) ever tracked -- below 5% threshold
 Powered Up,19,EXCLUDE_EDU_ROBOTICS,,no curated theme covers this; exclude or new 'Education' theme,,,,
-Hockey,19,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/19 (0.0%) ever tracked -- below 5% threshold
+Hockey,19,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/19 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/19 (0.0%) ever tracked -- below 5% threshold
 Serious Play,19,EXCLUDE_EDU_ROBOTICS,,no curated theme covers this; exclude or new 'Education' theme,,,,
-Xtra,19,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/19 (0.0%) ever tracked -- below 5% threshold
+Xtra,19,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/19 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/19 (0.0%) ever tracked -- below 5% threshold
 Insectoids,19,NEEDS_DECISION,,,,,,
 Power Functions,19,EXCLUDE_EDU_ROBOTICS,,no curated theme covers this; exclude or new 'Education' theme,,,,
 Mickey & Friends,19,SUBTHEME_OF_CURATED,Disney,"proposed mapping, needs sign-off",,,,
 Winnie the Pooh,19,SUBTHEME_OF_CURATED,Disney,"proposed mapping, needs sign-off",,,,
 Znap,19,EXCLUDE_EDU_ROBOTICS,,no curated theme covers this; exclude or new 'Education' theme,,,,
 Animal Crossing,18,NEEDS_DECISION,,,5.6,5.6,CATCHALL_LICENSED_COLLABS,"1/18 (5.6%) ever tracked, 18 sets (<25) -- proposed fold into new catch-all theme"
-Dino Island,18,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/18 (0.0%) ever tracked -- below 5% threshold
-Competition,18,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/18 (0.0%) ever tracked -- below 5% threshold
-Cities of Wonders,18,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/18 (0.0%) ever tracked -- below 5% threshold
-Paradisa,18,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/18 (0.0%) ever tracked -- below 5% threshold
-Pirates of the Caribbean,18,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/18 (0.0%) ever tracked -- below 5% threshold
+Dino Island,18,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/18 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/18 (0.0%) ever tracked -- below 5% threshold
+Competition,18,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/18 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/18 (0.0%) ever tracked -- below 5% threshold
+Cities of Wonders,18,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/18 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/18 (0.0%) ever tracked -- below 5% threshold
+Paradisa,18,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/18 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/18 (0.0%) ever tracked -- below 5% threshold
+Pirates of the Caribbean,18,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/18 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/18 (0.0%) ever tracked -- below 5% threshold
 Building,18,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-Thomas & Friends,18,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/18 (0.0%) ever tracked -- below 5% threshold
-The Lord of the Rings,18,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/18 (0.0%) ever tracked -- below 5% threshold
+Thomas & Friends,18,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/18 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/18 (0.0%) ever tracked -- below 5% threshold
+The Lord of the Rings,18,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/18 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/18 (0.0%) ever tracked -- below 5% threshold
 UFO,17,NEEDS_DECISION,,,,,,
 Kingdoms,17,NEEDS_DECISION,,,,,,
 Space Police III,17,NEEDS_DECISION,,,,,,
 Rock Raiders,17,NEEDS_DECISION,,,,,,
 Mission Deep Sea,17,NEEDS_DECISION,,,,,,
-Little Robots,16,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/16 (0.0%) ever tracked -- below 5% threshold
+Little Robots,16,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/16 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/16 (0.0%) ever tracked -- below 5% threshold
 Guardians of the Galaxy,16,SUBTHEME_OF_CURATED,Marvel,"proposed mapping, needs sign-off",,,,
-Model Team,16,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/16 (0.0%) ever tracked -- below 5% threshold
-McDonalds,16,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/16 (0.0%) ever tracked -- below 5% threshold
-Constraction,16,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/16 (0.0%) ever tracked -- below 5% threshold
+Model Team,16,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/16 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/16 (0.0%) ever tracked -- below 5% threshold
+McDonalds,16,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/16 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/16 (0.0%) ever tracked -- below 5% threshold
+Constraction,16,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/16 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/16 (0.0%) ever tracked -- below 5% threshold
 Justice League,16,SUBTHEME_OF_CURATED,DC,"proposed mapping, needs sign-off",,,,
 Marvel,16,DIRECT_MATCH,Marvel,,,,,
-X-Pod,16,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/16 (0.0%) ever tracked -- below 5% threshold
+X-Pod,16,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/16 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/16 (0.0%) ever tracked -- below 5% threshold
 Fright Knights,16,NEEDS_DECISION,,,,,,
 Futuron,16,NEEDS_DECISION,,,,,,
-Dinosaurs,16,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/16 (0.0%) ever tracked -- below 5% threshold
+Dinosaurs,16,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/16 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/16 (0.0%) ever tracked -- below 5% threshold
 Spidey and His Amazing Friends,16,SUBTHEME_OF_CURATED,Marvel,"proposed mapping, needs sign-off",,,,
-Pirates II,15,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/15 (0.0%) ever tracked -- below 5% threshold
-Ultra Agents,15,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/15 (0.0%) ever tracked -- below 5% threshold
-Race,15,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/15 (0.0%) ever tracked -- below 5% threshold
-One Piece,15,NEEDS_DECISION,,,33.3,33.3,CATCHALL_LICENSED_COLLABS,"5/15 (33.3%) ever tracked, 15 sets (<25) -- proposed fold into new catch-all theme"
-SpongeBob SquarePants,14,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/14 (0.0%) ever tracked -- below 5% threshold
+Pirates II,15,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/15 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/15 (0.0%) ever tracked -- below 5% threshold
+Ultra Agents,15,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/15 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/15 (0.0%) ever tracked -- below 5% threshold
+Race,15,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/15 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/15 (0.0%) ever tracked -- below 5% threshold
+One Piece,15,DEDICATED_THEME_NEW,Special Releases,"applied: new theme (renamed from proposed ""Licensed Collabs"" -- 3 of 13 are LEGO-internal lines, not licensed IP)",33.3,33.3,CATCHALL_LICENSED_COLLABS,"5/15 (33.3%) ever tracked, 15 sets (<25) -- proposed fold into new catch-all theme"
+SpongeBob SquarePants,14,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/14 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/14 (0.0%) ever tracked -- below 5% threshold
 Mickey Mouse,14,SUBTHEME_OF_CURATED,Disney,"proposed mapping, needs sign-off",,,,
-Airlines,14,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/14 (0.0%) ever tracked -- below 5% threshold
-Monster Fighters,14,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/14 (0.0%) ever tracked -- below 5% threshold
-Skylines,14,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/14 (0.0%) ever tracked -- below 5% threshold
-Ferries,14,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/14 (0.0%) ever tracked -- below 5% threshold
+Airlines,14,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/14 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/14 (0.0%) ever tracked -- below 5% threshold
+Monster Fighters,14,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/14 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/14 (0.0%) ever tracked -- below 5% threshold
+Skylines,14,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/14 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/14 (0.0%) ever tracked -- below 5% threshold
+Ferries,14,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/14 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/14 (0.0%) ever tracked -- below 5% threshold
 Superman,13,SUBTHEME_OF_CURATED,DC,"proposed mapping, needs sign-off",,,,
-Agents,13,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/13 (0.0%) ever tracked -- below 5% threshold
+Agents,13,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/13 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/13 (0.0%) ever tracked -- below 5% threshold
 Playsets,13,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 Dragon Knights,13,NEEDS_DECISION,,,,,,
-Off-Road,13,NEEDS_DECISION,,,15.4,15.4,CATCHALL_LICENSED_COLLABS,"2/13 (15.4%) ever tracked, 13 sets (<25) -- proposed fold into new catch-all theme"
+Off-Road,13,DEDICATED_THEME_NEW,Special Releases,"applied: new theme (renamed from proposed ""Licensed Collabs"" -- 3 of 13 are LEGO-internal lines, not licensed IP)",15.4,15.4,CATCHALL_LICENSED_COLLABS,"2/13 (15.4%) ever tracked, 13 sets (<25) -- proposed fold into new catch-all theme"
 Toolo,13,EXCLUDE_EDU_ROBOTICS,,no curated theme covers this; exclude or new 'Education' theme,,,,
 Black Knights,13,NEEDS_DECISION,,,,,,
 Blacktron II,13,NEEDS_DECISION,,,,,,
 EV3,13,EXCLUDE_EDU_ROBOTICS,,no curated theme covers this; exclude or new 'Education' theme,,,,
-Island Xtreme Stunts,13,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/13 (0.0%) ever tracked -- below 5% threshold
+Island Xtreme Stunts,13,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/13 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/13 (0.0%) ever tracked -- below 5% threshold
 DC Super Hero Girls,12,SUBTHEME_OF_CURATED,DC,"proposed mapping, needs sign-off",,,,
-Divers,12,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/12 (0.0%) ever tracked -- below 5% threshold
+Divers,12,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/12 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/12 (0.0%) ever tracked -- below 5% threshold
 Series 29 Minifigures,12,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
-Bluey,12,NEEDS_DECISION,,,83.3,83.3,CATCHALL_LICENSED_COLLABS,"10/12 (83.3%) ever tracked, 12 sets (<25) -- proposed fold into new catch-all theme"
+Bluey,12,DEDICATED_THEME_NEW,Special Releases,"applied: new theme (renamed from proposed ""Licensed Collabs"" -- 3 of 13 are LEGO-internal lines, not licensed IP)",83.3,83.3,CATCHALL_LICENSED_COLLABS,"10/12 (83.3%) ever tracked, 12 sets (<25) -- proposed fold into new catch-all theme"
 Galaxy Squad,12,NEEDS_DECISION,,,,,,
-Dino Attack / Dino 2010,12,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/12 (0.0%) ever tracked -- below 5% threshold
-Gabby's Dollhouse,12,NEEDS_DECISION,,,25.0,25.0,CATCHALL_LICENSED_COLLABS,"3/12 (25.0%) ever tracked, 12 sets (<25) -- proposed fold into new catch-all theme"
+Dino Attack / Dino 2010,12,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/12 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/12 (0.0%) ever tracked -- below 5% threshold
+Gabby's Dollhouse,12,DEDICATED_THEME_NEW,Special Releases,"applied: new theme (renamed from proposed ""Licensed Collabs"" -- 3 of 13 are LEGO-internal lines, not licensed IP)",25.0,25.0,CATCHALL_LICENSED_COLLABS,"3/12 (25.0%) ever tracked, 12 sets (<25) -- proposed fold into new catch-all theme"
 Series 28 Minifigures,12,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
 Mars Exploration,12,NEEDS_DECISION,,,,,,
-Minitalia,11,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/11 (0.0%) ever tracked -- below 5% threshold
-Res-Q,11,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/11 (0.0%) ever tracked -- below 5% threshold
-Overwatch,11,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/11 (0.0%) ever tracked -- below 5% threshold
-Wicked,11,NEEDS_DECISION,,,9.1,9.1,CATCHALL_LICENSED_COLLABS,"1/11 (9.1%) ever tracked, 11 sets (<25) -- proposed fold into new catch-all theme"
-Peppa Pig,11,NEEDS_DECISION,,,63.6,63.6,CATCHALL_LICENSED_COLLABS,"7/11 (63.6%) ever tracked, 11 sets (<25) -- proposed fold into new catch-all theme"
-Gravity Games,11,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/11 (0.0%) ever tracked -- below 5% threshold
-Unikitty!,11,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/11 (0.0%) ever tracked -- below 5% threshold
+Minitalia,11,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/11 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/11 (0.0%) ever tracked -- below 5% threshold
+Res-Q,11,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/11 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/11 (0.0%) ever tracked -- below 5% threshold
+Overwatch,11,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/11 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/11 (0.0%) ever tracked -- below 5% threshold
+Wicked,11,DEDICATED_THEME_NEW,Special Releases,"applied: new theme (renamed from proposed ""Licensed Collabs"" -- 3 of 13 are LEGO-internal lines, not licensed IP)",9.1,9.1,CATCHALL_LICENSED_COLLABS,"1/11 (9.1%) ever tracked, 11 sets (<25) -- proposed fold into new catch-all theme"
+Peppa Pig,11,DEDICATED_THEME_NEW,Special Releases,"applied: new theme (renamed from proposed ""Licensed Collabs"" -- 3 of 13 are LEGO-internal lines, not licensed IP)",63.6,63.6,CATCHALL_LICENSED_COLLABS,"7/11 (63.6%) ever tracked, 11 sets (<25) -- proposed fold into new catch-all theme"
+Gravity Games,11,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/11 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/11 (0.0%) ever tracked -- below 5% threshold
+Unikitty!,11,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/11 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/11 (0.0%) ever tracked -- below 5% threshold
 Ice Planet 2002,10,NEEDS_DECISION,,,,,,
 Thanksgiving,10,NEEDS_DECISION,,,,,,
 VIP Add-On Packs,10,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-Scooby-Doo,10,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/10 (0.0%) ever tracked -- below 5% threshold
-Vikings,9,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
-Trolls: World Tour,9,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
-Action Wheelers,9,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
+Scooby-Doo,10,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/10 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/10 (0.0%) ever tracked -- below 5% threshold
+Vikings,9,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/9 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
+Trolls: World Tour,9,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/9 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
+Action Wheelers,9,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/9 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
 Alien Conquest,9,NEEDS_DECISION,,,,,,
-Minions,9,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
+Minions,9,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/9 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
 Exploriens,9,NEEDS_DECISION,,,,,,
-Pharaoh's Quest,9,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
-Pirates III,9,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
-Cargo,9,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
+Pharaoh's Quest,9,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/9 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
+Pirates III,9,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/9 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
+Cargo,9,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/9 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
 Hobby Sets,9,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-Gears,9,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
-World Racers,9,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
+Gears,9,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/9 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
+World Racers,9,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/9 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
 Time Cruisers,9,NEEDS_DECISION,,,,,,
 X-Men,9,SUBTHEME_OF_CURATED,Marvel,"proposed mapping, needs sign-off",,,,
 Aquaraiders II,9,NEEDS_DECISION,,,,,,
-Avatar,9,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
+Avatar,9,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/9 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
 M:Tron,9,NEEDS_DECISION,,,,,,
-Little Forest Friends,9,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
+Little Forest Friends,9,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/9 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/9 (0.0%) ever tracked -- below 5% threshold
 Spyrius,8,NEEDS_DECISION,,,,,,
 DC Comics,8,SUBTHEME_OF_CURATED,DC,"proposed mapping, needs sign-off",,,,
 Aquanauts,8,NEEDS_DECISION,,,,,,
@@ -293,61 +293,61 @@ Discovery,8,NEEDS_DECISION,,,,,,
 Control Lab,8,EXCLUDE_EDU_ROBOTICS,,no curated theme covers this; exclude or new 'Education' theme,,,,
 Royal Knights,8,NEEDS_DECISION,,,,,,
 Mission Deep Freeze,8,NEEDS_DECISION,,,,,,
-The Lone Ranger,8,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/8 (0.0%) ever tracked -- below 5% threshold
+The Lone Ranger,8,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/8 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/8 (0.0%) ever tracked -- below 5% threshold
 Captain America,8,SUBTHEME_OF_CURATED,Marvel,"proposed mapping, needs sign-off",,,,
 Brick Sketches,8,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-Wednesday,7,NEEDS_DECISION,,,42.9,42.9,CATCHALL_LICENSED_COLLABS,"3/7 (42.9%) ever tracked, 7 sets (<25) -- proposed fold into new catch-all theme"
+Wednesday,7,DEDICATED_THEME_NEW,Special Releases,"applied: new theme (renamed from proposed ""Licensed Collabs"" -- 3 of 13 are LEGO-internal lines, not licensed IP)",42.9,42.9,CATCHALL_LICENSED_COLLABS,"3/7 (42.9%) ever tracked, 7 sets (<25) -- proposed fold into new catch-all theme"
 Hydronauts,7,NEEDS_DECISION,,,,,,
-Alpha Team,7,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/7 (0.0%) ever tracked -- below 5% threshold
-Factory,7,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/7 (0.0%) ever tracked -- below 5% threshold
-Jake and the Never Land Pirates,7,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/7 (0.0%) ever tracked -- below 5% threshold
+Alpha Team,7,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/7 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/7 (0.0%) ever tracked -- below 5% threshold
+Factory,7,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/7 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/7 (0.0%) ever tracked -- below 5% threshold
+Jake and the Never Land Pirates,7,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/7 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/7 (0.0%) ever tracked -- below 5% threshold
 Series 27 Minifigures,7,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
 Jumbo Bricks,7,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 My Town,7,NEEDS_DECISION,,,,,,
 Mosaic,7,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 Black Falcons,7,NEEDS_DECISION,,,,,,
 Learning,7,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-Protectors,6,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/6 (0.0%) ever tracked -- below 5% threshold
-Gas Station,6,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/6 (0.0%) ever tracked -- below 5% threshold
+Protectors,6,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/6 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/6 (0.0%) ever tracked -- below 5% threshold
+Gas Station,6,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/6 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/6 (0.0%) ever tracked -- below 5% threshold
 Soft Bricks,6,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-Angry Birds,6,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/6 (0.0%) ever tracked -- below 5% threshold
-Ben 10,6,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/6 (0.0%) ever tracked -- below 5% threshold
+Angry Birds,6,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/6 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/6 (0.0%) ever tracked -- below 5% threshold
+Ben 10,6,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/6 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/6 (0.0%) ever tracked -- below 5% threshold
 Creator Expert,6,SUBTHEME_OF_CURATED,Creator,"proposed mapping, needs sign-off",,,,
 Princess Castle,6,NEEDS_DECISION,,,,,,
 UCS,6,SUBTHEME_OF_CURATED,Icons,"proposed mapping, needs sign-off",,,,
 Blacktron I,6,NEEDS_DECISION,,,,,,
 Iron Man,6,SUBTHEME_OF_CURATED,Marvel,"proposed mapping, needs sign-off",,,,
 Dolls,6,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
-Pirates,6,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/6 (0.0%) ever tracked -- below 5% threshold
-Formula 1,6,NEEDS_DECISION,,,16.7,16.7,CATCHALL_LICENSED_COLLABS,"1/6 (16.7%) ever tracked, 6 sets (<25) -- proposed fold into new catch-all theme"
+Pirates,6,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/6 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/6 (0.0%) ever tracked -- below 5% threshold
+Formula 1,6,DEDICATED_THEME_NEW,Special Releases,"applied: new theme (renamed from proposed ""Licensed Collabs"" -- 3 of 13 are LEGO-internal lines, not licensed IP)",16.7,16.7,CATCHALL_LICENSED_COLLABS,"1/6 (16.7%) ever tracked, 6 sets (<25) -- proposed fold into new catch-all theme"
 Inventor,6,EXCLUDE_EDU_ROBOTICS,,no curated theme covers this; exclude or new 'Education' theme,,,,
-Prince of Persia,6,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/6 (0.0%) ever tracked -- below 5% threshold
+Prince of Persia,6,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/6 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/6 (0.0%) ever tracked -- below 5% threshold
 Space Police I,6,NEEDS_DECISION,,,,,,
 Space Police II,6,NEEDS_DECISION,,,,,,
-eLAB,5,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/5 (0.0%) ever tracked -- below 5% threshold
-Dora the Explorer,5,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/5 (0.0%) ever tracked -- below 5% threshold
+eLAB,5,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/5 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/5 (0.0%) ever tracked -- below 5% threshold
+Dora the Explorer,5,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/5 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/5 (0.0%) ever tracked -- below 5% threshold
 Forestmen,5,NEEDS_DECISION,,,,,,
-Fortnite,5,NEEDS_DECISION,,,80.0,80.0,CATCHALL_LICENSED_COLLABS,"4/5 (80.0%) ever tracked, 5 sets (<25) -- proposed fold into new catch-all theme"
+Fortnite,5,DEDICATED_THEME_NEW,Special Releases,"applied: new theme (renamed from proposed ""Licensed Collabs"" -- 3 of 13 are LEGO-internal lines, not licensed IP)",80.0,80.0,CATCHALL_LICENSED_COLLABS,"4/5 (80.0%) ever tracked, 5 sets (<25) -- proposed fold into new catch-all theme"
 Launch Command,5,NEEDS_DECISION,,,,,,
-Despicable Me 4,5,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/5 (0.0%) ever tracked -- below 5% threshold
-Nike,5,NEEDS_DECISION,,,80.0,80.0,CATCHALL_LICENSED_COLLABS,"4/5 (80.0%) ever tracked, 5 sets (<25) -- proposed fold into new catch-all theme"
-Outback,5,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/5 (0.0%) ever tracked -- below 5% threshold
-Speed Slammers,5,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/5 (0.0%) ever tracked -- below 5% threshold
+Despicable Me 4,5,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/5 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/5 (0.0%) ever tracked -- below 5% threshold
+Nike,5,DEDICATED_THEME_NEW,Special Releases,"applied: new theme (renamed from proposed ""Licensed Collabs"" -- 3 of 13 are LEGO-internal lines, not licensed IP)",80.0,80.0,CATCHALL_LICENSED_COLLABS,"4/5 (80.0%) ever tracked, 5 sets (<25) -- proposed fold into new catch-all theme"
+Outback,5,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/5 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/5 (0.0%) ever tracked -- below 5% threshold
+Speed Slammers,5,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/5 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/5 (0.0%) ever tracked -- below 5% threshold
 Stingrays,5,NEEDS_DECISION,,,,,,
 Advent,5,NEEDS_DECISION,,,,,,
 Planes,4,SUBTHEME_OF_CURATED,Disney,"proposed mapping, needs sign-off",,,,
 Unitron,4,NEEDS_DECISION,,,,,,
-Fusion,4,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/4 (0.0%) ever tracked -- below 5% threshold
-Sports,4,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/4 (0.0%) ever tracked -- below 5% threshold
+Fusion,4,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/4 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/4 (0.0%) ever tracked -- below 5% threshold
+Sports,4,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/4 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/4 (0.0%) ever tracked -- below 5% threshold
 DC Comics Super Heroes,4,SUBTHEME_OF_CURATED,DC,"proposed mapping, needs sign-off",,,,
 Marvel Super Heroes,4,SUBTHEME_OF_CURATED,Marvel,"proposed mapping, needs sign-off",,,,
 Learning at Home,4,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 Marvel Series 2,4,SUBTHEME_OF_CURATED,Marvel,"proposed mapping, needs sign-off",,,,
-RoboForce,4,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/4 (0.0%) ever tracked -- below 5% threshold
+RoboForce,4,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/4 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/4 (0.0%) ever tracked -- below 5% threshold
 Aquasharks,4,NEEDS_DECISION,,,,,,
-Speed Racer,4,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/4 (0.0%) ever tracked -- below 5% threshold
+Speed Racer,4,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/4 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/4 (0.0%) ever tracked -- below 5% threshold
 Doc McStuffins,4,SUBTHEME_OF_CURATED,Disney,"proposed mapping, needs sign-off",,,,
-Forma,4,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/4 (0.0%) ever tracked -- below 5% threshold
+Forma,4,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/4 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/4 (0.0%) ever tracked -- below 5% threshold
 Series 25 Minifigures,3,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
 Jurassic World: Fallen Kingdom,3,SUBTHEME_OF_CURATED,Jurassic World,"proposed mapping, needs sign-off",,,,
 Series 19 Minifigures,3,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
@@ -357,7 +357,7 @@ Series 22 Minifigures,3,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- o
 Sculptures,3,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 Aquaraiders I,3,NEEDS_DECISION,,,,,,
 Miles From Tomorrowland,3,SUBTHEME_OF_CURATED,Disney,"proposed mapping, needs sign-off",,,,
-Zooters,3,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/3 (0.0%) ever tracked -- below 5% threshold
+Zooters,3,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/3 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/3 (0.0%) ever tracked -- below 5% threshold
 Dark Forest,3,NEEDS_DECISION,,,,,,
 Lightyear,3,SUBTHEME_OF_CURATED,Disney,"proposed mapping, needs sign-off",,,,
 Series 21 Minifigures,3,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
@@ -369,29 +369,29 @@ Series 10 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- o
 Series 1 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
 Books,2,EXCLUDE_MERCH_NONBUILDABLE,,no theme link at all -- not a real theme,,,,
 Marvel Series 1,2,SUBTHEME_OF_CURATED,Marvel,"proposed mapping, needs sign-off",,,,
-Looney Tunes,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
-Dungeons & Dragons,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
-Universe,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+Looney Tunes,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+Dungeons & Dragons,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+Universe,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
 DFB Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
 Jurassic Park III,2,SUBTHEME_OF_CURATED,Jurassic World,"proposed mapping, needs sign-off",,,,
 Iron Man and His Awesome Friends,2,SUBTHEME_OF_CURATED,Marvel,"proposed mapping, needs sign-off",,,,
 DC Super Heroes,2,SUBTHEME_OF_CURATED,DC,"proposed mapping, needs sign-off",,,,
 Series 9 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
-Spybotics,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+Spybotics,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
 Series 7 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
 Series 6 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
-Avatar: The Last Airbender,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
-Fantastic Beasts,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+Avatar: The Last Airbender,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+Fantastic Beasts,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
 Series 5 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
 Series 4 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
-Stranger Things,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+Stranger Things,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
 Series 24 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
 Series 23 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
-Team GB,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+Team GB,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
 Series 20 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
 Series 2 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
 Series 18 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
-The Legend of Zelda,2,NEEDS_DECISION,,,50.0,50.0,CATCHALL_LICENSED_COLLABS,"1/2 (50.0%) ever tracked, 2 sets (<25) -- proposed fold into new catch-all theme"
+The Legend of Zelda,2,DEDICATED_THEME_NEW,Special Releases,"applied: new theme (renamed from proposed ""Licensed Collabs"" -- 3 of 13 are LEGO-internal lines, not licensed IP)",50.0,50.0,CATCHALL_LICENSED_COLLABS,"1/2 (50.0%) ever tracked, 2 sets (<25) -- proposed fold into new catch-all theme"
 Series 17 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
 The LEGO Batman Movie Series 1,2,SUBTHEME_OF_CURATED,DC,"proposed mapping, needs sign-off",,,,
 The LEGO Batman Movie Series 2,2,SUBTHEME_OF_CURATED,DC,"proposed mapping, needs sign-off",,,,
@@ -399,21 +399,21 @@ Series 16 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- o
 Series 15 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
 Series 14 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
 Series 13 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
-The Muppets,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
-The Powerpuff Girls,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
-The Simpsons Series 1,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
-The Simpsons Series 2,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+The Muppets,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+The Powerpuff Girls,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+The Simpsons Series 1,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+The Simpsons Series 2,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
 Series 12 Minifigures,2,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
-Harry Potter and Fantastic Beasts Series 2,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
-Harry Potter and Fantastic Beasts Series 1,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+Harry Potter and Fantastic Beasts Series 2,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+Harry Potter and Fantastic Beasts Series 1,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
 Disney Series 1,2,SUBTHEME_OF_CURATED,Disney,"proposed mapping, needs sign-off",,,,
-Wolfpack,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
-Ghostbusters,2,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+Wolfpack,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
+Ghostbusters,2,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/2 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/2 (0.0%) ever tracked -- below 5% threshold
 Disney Series 2,2,SUBTHEME_OF_CURATED,Disney,"proposed mapping, needs sign-off",,,,
 Series 3 Minifigures,1,EXCLUDE_MINIFIG_SERIES,,"collectible minifig series -- own micro-category, not a theme",,,,
-Horizon Adventures,1,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/1 (0.0%) ever tracked -- below 5% threshold
+Horizon Adventures,1,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/1 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/1 (0.0%) ever tracked -- below 5% threshold
 Spider-Man - Across the Spider-Verse,1,SUBTHEME_OF_CURATED,Marvel,"proposed mapping, needs sign-off",,,,
-Mini,1,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/1 (0.0%) ever tracked -- below 5% threshold
-KPop Demon Hunters,1,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/1 (0.0%) ever tracked -- below 5% threshold
-The Hobbit and Lord of the Rings,1,NEEDS_DECISION,,,0.0,0.0,EXCLUDE,0/1 (0.0%) ever tracked -- below 5% threshold
+Mini,1,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/1 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/1 (0.0%) ever tracked -- below 5% threshold
+KPop Demon Hunters,1,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/1 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/1 (0.0%) ever tracked -- below 5% threshold
+The Hobbit and Lord of the Rings,1,EXCLUDE_LONGTAIL,,applied: no theme link (longtail check: 0/1 (0.0%) ever tracked -- below 5% threshold),0.0,0.0,EXCLUDE,0/1 (0.0%) ever tracked -- below 5% threshold
 Aquazone,1,NEEDS_DECISION,,,,,,

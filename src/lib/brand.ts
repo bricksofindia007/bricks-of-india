@@ -81,6 +81,14 @@ export const THEMES = [
   { name: "Bionicle",        slug: "bionicle",        emoji: "🦾",  image: "/theme-cards/bionicle.webp",        accentColor: "#78716C" },
   { name: "Nexo Knights",    slug: "nexo-knights",    emoji: "🛡️", image: "/theme-cards/nexo-knights.webp",    accentColor: "#2563EB" },
   { name: "Legends of Chima",slug: "legends-of-chima",emoji: "🦁",  image: "/theme-cards/legends-of-chima.webp",accentColor: "#CA8A04" },
+  // Added 2026-08-28 (long-tail resolution, same audit): shared catch-all
+  // for raw themes with real but modest India tracking (>=5%, <25 sets) --
+  // both genuine third-party licensed collabs (Bluey, Peppa Pig, One Piece,
+  // Gabby's Dollhouse, Nike, Fortnite, Wednesday, Wicked, Formula 1, Zelda)
+  // and LEGO's own small internal format/genre lines (LEGO Art, Modular
+  // Buildings, Off-Road) -- named "Special Releases" rather than "Licensed
+  // Collabs" specifically because that last group isn't licensed IP.
+  { name: "Special Releases",slug: "special-releases",emoji: "✨",  image: "/theme-cards/special-releases.webp",accentColor: "#7C2D92" },
 ] as const;
 
 export const PRICE_RANGES = [
