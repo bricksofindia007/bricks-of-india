@@ -5,6 +5,7 @@ import { createServerClient } from '@/lib/supabase';
 import { ThemeGrid } from '@/components/sets/ThemeGrid';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { THEMES } from '@/lib/brand';
+import { rawThemesFor } from '@/lib/themeMapping';
 import { getThemeCardUrl, getThemeCardOgUrl } from '@/lib/themeCard';
 import { JsonLd } from '@/components/JsonLd';
 import { buildItemListSchema } from '@/lib/schemas';
@@ -40,14 +41,36 @@ export default async function ThemePage({ params }: Props) {
   // Rebrickable is queried offline (GitHub Actions) and data is stored in Supabase.
   const supabase = createServerClient();
 
-  const { data: rawSets } = await supabase
-    .from('sets')
-    .select('*')
-    .ilike('theme', `%${theme.name}%`)
-    .order('year', { ascending: false })
-    .limit(200);
+  // Two populations, merged: (1) the existing substring match on the
+  // curated theme's own name -- covers direct/near matches (e.g. "Star
+  // Wars"); (2) raw Rebrickable subtheme values explicitly mapped to this
+  // curated theme (e.g. "Batman" -> dc) via themeMapping.ts -- the ilike
+  // above alone would miss these, since "Batman" doesn't contain "DC". See
+  // docs/audits/theme-mapping-proposal.csv for the full mapping this
+  // was built from.
+  const mappedRawThemes = rawThemesFor(theme.slug);
+  const [{ data: ilikeSets }, { data: mappedSets }] = await Promise.all([
+    supabase
+      .from('sets')
+      .select('*')
+      .ilike('theme', `%${theme.name}%`)
+      .order('year', { ascending: false })
+      .limit(200),
+    mappedRawThemes.length > 0
+      ? supabase
+          .from('sets')
+          .select('*')
+          .in('theme', mappedRawThemes)
+          .order('year', { ascending: false })
+          .limit(200)
+      : Promise.resolve({ data: [] as any[] }),
+  ]);
 
-  const setsArr = rawSets ?? [];
+  const seen = new Set<string>();
+  const setsArr = [...(ilikeSets ?? []), ...(mappedSets ?? [])]
+    .filter((s) => (seen.has(s.set_number) ? false : (seen.add(s.set_number), true)))
+    .sort((a, b) => (b.year ?? 0) - (a.year ?? 0))
+    .slice(0, 200);
 
   // Fetch current prices from store_prices (new pipeline).
   // Gracefully skip if the table doesn't exist yet (pre-migration).

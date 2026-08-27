@@ -73,6 +73,14 @@ export const THEMES = [
   { name: "Dreamzzz",        slug: "dreamzzz",        emoji: "🌙",  image: "/theme-cards/dreamzzz.webp",        accentColor: "#4F46E5" },
   { name: "Classic",         slug: "classic",         emoji: "🧱",  image: "/theme-cards/classic.webp",         accentColor: "#F59E0B" },
   { name: "Seasonal",        slug: "seasonal",        emoji: "🎄",  image: "/theme-cards/seasonal.webp",        accentColor: "#DC2626" },
+  // Added 2026-08-28 (BOI Fix Brief theme-mapping audit): large, distinct
+  // fandoms that don't fold into any theme above -- see
+  // docs/audits/theme-mapping-proposal.csv. Theme-card art is a placeholder
+  // copy of _default for now (verify-theme-cards.mjs hard-fails the build
+  // on a missing card) -- real artwork is a follow-up, not done here.
+  { name: "Bionicle",        slug: "bionicle",        emoji: "🦾",  image: "/theme-cards/bionicle.webp",        accentColor: "#78716C" },
+  { name: "Nexo Knights",    slug: "nexo-knights",    emoji: "🛡️", image: "/theme-cards/nexo-knights.webp",    accentColor: "#2563EB" },
+  { name: "Legends of Chima",slug: "legends-of-chima",emoji: "🦁",  image: "/theme-cards/legends-of-chima.webp",accentColor: "#CA8A04" },
 ] as const;
 
 export const PRICE_RANGES = [

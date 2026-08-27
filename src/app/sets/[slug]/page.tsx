@@ -4,8 +4,9 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
 import { getSet } from '@/lib/rebrickable';
-import { formatPrice, slugify, whatsappShareUrl, socialCardImage, setMetaDescription } from '@/lib/utils';
+import { formatPrice, whatsappShareUrl, socialCardImage, setMetaDescription } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
+import { resolveThemeSlug } from '@/lib/themeMapping';
 import { Badge, BestPriceBadge, OutOfStockBadge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { SetCard } from '@/components/sets/SetCard';
@@ -222,12 +223,25 @@ export default async function SetPage({ params }: Props) {
           <span>/</span>
           <Link href="/compare" className="hover:text-accent-blue">Sets</Link>
           <span>/</span>
-          {set.theme && (
-            <>
-              <Link href={`/themes/${slugify(set.theme)}`} className="hover:text-accent-blue">{set.theme}</Link>
-              <span>/</span>
-            </>
-          )}
+          {set.theme && (() => {
+            // Was `/themes/${slugify(set.theme)}` unconditionally -- 404'd
+            // for any raw theme (Rebrickable's full taxonomy) that isn't
+            // one of the curated /themes/ pages. resolveThemeSlug() only
+            // returns a slug for a theme actually reviewed/mapped to a
+            // real page; everything else renders as plain unlinked text
+            // instead of a dead link. See docs/audits/theme-mapping-proposal.csv.
+            const themeSlug = resolveThemeSlug(set.theme);
+            return (
+              <>
+                {themeSlug ? (
+                  <Link href={`/themes/${themeSlug}`} className="hover:text-accent-blue">{set.theme}</Link>
+                ) : (
+                  <span>{set.theme}</span>
+                )}
+                <span>/</span>
+              </>
+            );
+          })()}
           <span className="text-dark font-bold truncate">{set.name}</span>
         </nav>
       </div>
