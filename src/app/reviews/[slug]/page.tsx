@@ -15,6 +15,15 @@ import { buildReviewSchema } from '@/lib/schemas';
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
 export const revalidate = 3600;
 
+// Netlify credit audit (2026-08-29): same missing-generateStaticParams gap
+// as /news/[slug] — see that file's comment for the full explanation.
+// Confirmed via a real production build: this route showed `ƒ` (full SSR
+// per request) despite the revalidate export above. Empty array: 177
+// reviews rows, no per-review traffic-ranking data to justify a bounded
+// static list (same reasoning as /sets/[slug]).
+export async function generateStaticParams() {
+  return [];
+}
 
 interface Props { params: { slug: string } }
 

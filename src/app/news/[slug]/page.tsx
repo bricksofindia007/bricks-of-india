@@ -17,6 +17,22 @@ import { buildArticleSchema, buildFAQSchema, buildReviewSchema, verdictToRating 
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
 export const revalidate = 3600;
 
+// Netlify credit audit (2026-08-29): this route had `revalidate` but no
+// `generateStaticParams` at all, which per Next.js's own rule means "no
+// static params known -> render fully dynamically on every request" --
+// the revalidate export above was silently inert. Confirmed via a real
+// production build: showed up as `ƒ` (full SSR per request), not `●`
+// (ISR), unlike /sets/[slug] and /guides/[slug] which both already had
+// this. Empty array, not the full slug list -- same reasoning as
+// /sets/[slug] (383 news_articles rows, no per-article traffic-ranking
+// data exists to justify a bounded static list; guides' 24-row full-list
+// approach doesn't fit here). dynamicParams stays true (default), so the
+// first request for any slug still renders on demand and gets cached for
+// `revalidate` seconds after that -- real ISR, not a behavior change for
+// visitors, just for the Function invocation count.
+export async function generateStaticParams() {
+  return [];
+}
 
 interface Props { params: { slug: string } }
 
