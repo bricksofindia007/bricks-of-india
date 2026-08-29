@@ -112,7 +112,7 @@ export default async function NewsArticlePage({ params }: Props) {
         </div>
 
         {/* Share */}
-        <div className="flex gap-3 mb-8 pb-8 border-b-2 border-border">
+        <div className="flex flex-wrap gap-3 mb-8 pb-8 border-b-2 border-border">
           <a href={whatsappShareUrl(waText, shareUrl)} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-2 bg-[#25D366] text-white font-bold px-4 py-2 rounded-lg text-sm">📱 WhatsApp</a>
           <a href={twitterShareUrl(article.title, shareUrl)} target="_blank" rel="noopener noreferrer"
