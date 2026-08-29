@@ -71,6 +71,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // 0.5 -- lower than Tier 1 but still above the lowest static pages
   // (/legal/* at 0.3), since Tier 2 still includes plenty of real,
   // legitimately older sets.
+  //
+  // noindex_override (2026-08-29): same "don't list a noindexed page"
+  // reasoning as the tier3 exclusion above, for the separate tier2/
+  // year<2020/zero-price-history-ever cutoff -- see
+  // src/app/sets/[slug]/page.tsx's generateMetadata for the matching
+  // robots-meta side of this, and migration
+  // 20260829010000_tier2_stale_noindex_override.sql for why this is its
+  // own column rather than a index_tier='tier3' reclassification.
   const PAGE = 1000;
   const allSets: { set_number: string; name: string; updated_at: string; index_tier: string }[] = [];
   for (let offset = 0; ; offset += PAGE) {
@@ -78,6 +86,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       .from('sets')
       .select('set_number, name, updated_at, index_tier')
       .neq('index_tier', 'tier3')
+      .eq('noindex_override', false)
       .order('year', { ascending: false })
       .order('set_number', { ascending: true })
       .range(offset, offset + PAGE - 1);

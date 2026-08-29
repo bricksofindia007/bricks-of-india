@@ -82,7 +82,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // Rebrickable fallback path (no DB row) has no index_tier at all and
     // is intentionally left unrestricted -- it's a live, uncached lookup
     // for a set not yet in our catalog, not a known-noindex case.
-    ...(set.index_tier === 'tier3' && { robots: { index: false, follow: true } }),
+    //
+    // noindex_override (2026-08-29): a second, independent noindex signal
+    // -- currently the tier2/year<2020/zero-price-history-ever cutoff (see
+    // migration 20260829010000_tier2_stale_noindex_override.sql). Kept
+    // separate from index_tier deliberately (that column is DB-trigger-
+    // maintained and would silently get recomputed away from a manual
+    // 'tier3' override on the next Rebrickable metadata resync -- see the
+    // migration's own comment). Same follow:true treatment as tier3.
+    ...((set.index_tier === 'tier3' || set.noindex_override) && { robots: { index: false, follow: true } }),
     openGraph: {
       title: `${set.name} (${set.set_number}) — Best Price in India`,
       description: `Compare ${set.name} prices across Indian stores. Best deal updated every 6 hours.`,
