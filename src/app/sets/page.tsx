@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import Image from 'next/image';
+import { unstable_cache } from 'next/cache';
 import { createServerClient } from '@/lib/supabase';
 import { SetCard } from '@/components/sets/SetCard';
 import { MASCOTS, THEMES } from '@/lib/brand'; // THEMES used as fallback only
@@ -58,6 +59,40 @@ function buildUrl(
   return qs ? `/sets?${qs}` : '/sets';
 }
 
+// Netlify credit audit (2026-08-29): this ran a full paginated scan of
+// store_prices (every row, every store) on EVERY /sets request regardless
+// of which filters were active — filters only ever sort/slice the
+// already-fully-fetched priceMap afterward (isPriceMode branch below), and
+// the no-filter path never touched allPrices for its own query but still
+// paid to fetch it for the per-card best-price badges. Same root pattern
+// as the already-fixed /lab/price-drops bug (2026-08-15, see that file's
+// comment) — the fetch is decoupled from searchParams and cached here.
+// Revalidate matches store_prices' real write cadence: scrape-prices.yml's
+// `0 */6 * * *` cron — same real cadence already derived for
+// /lab/price-drops, not copied from /deals's unrelated 6h value.
+type PriceRow = {
+  set_id: string; price_inr: number;
+  in_stock: boolean; store_id: string; product_url: string | null;
+};
+const getAllSetsStorePrices = unstable_cache(
+  async (): Promise<PriceRow[]> => {
+    const supabase = createServerClient();
+    const allPrices: PriceRow[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data } = await supabase
+        .from('store_prices')
+        .select('set_id, price_inr, in_stock, store_id, product_url')
+        .range(offset, offset + 999);
+      if (!data || data.length === 0) break;
+      allPrices.push(...(data as PriceRow[]));
+      if (data.length < 1000) break;
+    }
+    return allPrices;
+  },
+  ['sets-page-all-store-prices'],
+  { revalidate: 21600 }, // 6h — matches scrape-prices.yml
+);
+
 export default async function SetsPage({ searchParams }: Props) {
   const supabase    = createServerClient();
   const pageNum     = Math.max(1, parseInt(searchParams.page || '1') || 1);
@@ -82,20 +117,7 @@ export default async function SetsPage({ searchParams }: Props) {
   }
 
   // ── 1. All store_prices (filtering + card display) ────────────────────────
-  type PriceRow = {
-    set_id: string; price_inr: number;
-    in_stock: boolean; store_id: string; product_url: string | null;
-  };
-  const allPrices: PriceRow[] = [];
-  for (let offset = 0; ; offset += 1000) {
-    const { data } = await supabase
-      .from('store_prices')
-      .select('set_id, price_inr, in_stock, store_id, product_url')
-      .range(offset, offset + 999);
-    if (!data || data.length === 0) break;
-    allPrices.push(...(data as PriceRow[]));
-    if (data.length < 1000) break;
-  }
+  const allPrices = await getAllSetsStorePrices();
 
   // Best-price map: one row per set (in-stock preferred, then cheapest)
   const priceMap: Record<string, {

@@ -90,7 +90,7 @@ dashboard (`Usage & billing` tab), most conveniently from a screenshot.
 
 | Date checked | Compute (credits) | Bandwidth (credits) | Requests (credits) | Total non-deploy credits | Cycle-to-date % of Tier 1 (650) | Notes |
 |---|---|---|---|---|---|---|
-| _(fill in)_ | | | | | | |
+| 2026-08-29 | 222 (22.2 GB-hours) — this week alone | _(not read off dashboard this session)_ | _(not read off dashboard this session)_ | ≥222 | ≥34% | Reported by Abhinav, not screenshot-verified. Prior two full billing months each ran 71–73 GB-hours of Serverless Functions compute — same order of magnitude, so this isn't a one-week spike. PR (this commit's branch) converts `/news/[slug]`, `/reviews/[slug]`, `/community/[slug]` from full SSR-per-request to ISR (missing `generateStaticParams` was silently making their existing `revalidate` exports inert — confirmed via a real production build), and caches the full `store_prices` table scan on `/sets` and the category-filter query on `/news` (both previously re-run from scratch on every request). No live before/after Compute number yet — needs a dashboard check one cycle after this ships. |
 
 Once at least one full cycle of real rows exists here, Tier 1's 600/650
 figures above should be replaced with an actual observed number — that's
