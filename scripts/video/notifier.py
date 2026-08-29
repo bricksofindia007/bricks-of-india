@@ -95,7 +95,10 @@ def send_publish_notification(video_post: dict, ig_result: dict | None, yt_resul
         print(f'[notifier] Failed to send publish notification: {exc}')
 
 
-def send_ready_for_review_notification(story_number: int, set_title: str, storage_url: str, qc_frame_urls: list[str] | None) -> None:
+def send_ready_for_review_notification(
+    story_number: int, set_title: str, storage_url: str, qc_frame_urls: list[str] | None,
+    escalation_note: dict | None = None,
+) -> None:
     """
     Fires once per day, right after --cloud-generate lands a fresh candidate
     in status='pending_approval' -- closes the "how will I know a new one is
@@ -104,9 +107,43 @@ def send_ready_for_review_notification(story_number: int, set_title: str, storag
     (story number, storage_url, qc_frame_urls). Same Resend path as
     send_publish_notification/send_skip_notification -- no new email
     mechanism.
+
+    escalation_note added 2026-08-29 (Gate Remediation Architecture,
+    engine.build_escalation_note()) -- None for a clean story (every gate
+    passed, or a failure was fully auto-remediated), in which case this
+    email renders exactly as it always did: a story with zero unresolved
+    flags must look identical to one that passed every gate clean. When
+    present, it renders FIRST, above the subject line's own visual weight
+    (red banner, before the QC frames) -- this is the fix for the actual
+    trigger incident (story #54): a failing gate must never require the
+    reviewer to go query gate_results themselves to find out.
     """
     safe_title = (set_title or 'Unknown set').replace('﻿', '')
-    subject = f'📋 VID-P4 Story #{story_number} ready for review — {safe_title}'
+    subject_prefix = '🚩 ' if escalation_note else '📋 '
+    subject = f'{subject_prefix}VID-P4 Story #{story_number} ready for review — {safe_title}'
+
+    escalation_html = ''
+    if escalation_note:
+        gates_rows = ''
+        for g in escalation_note.get('gates', []):
+            gates_rows += f"""
+<tr>
+  <td style="padding:6px 10px;border-bottom:1px solid #f5c6c6;"><code>{g.get('gate', '')}</code></td>
+  <td style="padding:6px 10px;border-bottom:1px solid #f5c6c6;">{g.get('what_it_caught', '')}</td>
+  <td style="padding:6px 10px;border-bottom:1px solid #f5c6c6;color:#888;font-size:12px;">{g.get('technical_reason', '')}</td>
+</tr>"""
+        escalation_html = f"""
+<div style="background:#fdecea;border:1px solid #f5c6c6;border-radius:6px;padding:14px 16px;margin-bottom:20px;">
+  <p style="margin:0 0 8px;font-weight:bold;color:#a33;">⚠️ This story has an unresolved gate issue — remediation was attempted first, this is what's left.</p>
+  <table style="border-collapse:collapse;width:100%;margin-bottom:8px;">
+    <tr style="text-align:left;font-size:12px;color:#a33;">
+      <th style="padding:4px 10px;">Gate</th><th style="padding:4px 10px;">What it caught</th><th style="padding:4px 10px;">Technical detail</th>
+    </tr>
+    {gates_rows}
+  </table>
+  <p style="margin:8px 0 4px;"><strong>Remediation attempted:</strong> {escalation_note.get('remediation_attempted', '')}</p>
+  <p style="margin:0;"><strong>Decision needed:</strong> {escalation_note.get('decision_needed', '')}</p>
+</div>"""
 
     frames_html = ''
     for url in (qc_frame_urls or []):
@@ -114,6 +151,7 @@ def send_ready_for_review_notification(story_number: int, set_title: str, storag
 
     html = f"""
 <h2>Story #{story_number} ready for review</h2>
+{escalation_html}
 <p><strong>Set:</strong> {safe_title}</p>
 <p><strong>Video:</strong> <a href="{storage_url}">{storage_url}</a></p>
 <h3>QC Frames</h3>
