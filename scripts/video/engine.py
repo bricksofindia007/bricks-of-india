@@ -1105,6 +1105,51 @@ def _build_retry_note(report: "gates.GateReport") -> str:
     return "\n".join(lines)
 
 
+def _try_tier1_pre_tts_remediation(
+    raw_script_text: str, pieces: int | None, sets_lookup, recent: list[str], price_inr: float,
+) -> gates.GateReport | None:
+    """Gate Remediation Architecture (2026-08-29), Tier 1 for pre-TTS gates:
+    a deterministic, durable, in-place fix, tried BEFORE a real regeneration
+    attempt is spent. Currently one case (see gates.GATE_REMEDIATION_TIER's
+    G2 entry): a whole-script quote wrap, safe to strip because it changes
+    zero words. Returns a freshly re-verified GateReport if the fix resolved
+    EVERY currently-failing gate, else None -- the caller falls through to
+    the existing regenerate-and-retry path exactly as before, so a partial
+    fix (quote-wrap plus something else) never silently ships.
+    """
+    fixed_raw = gates.strip_wrapping_quotes(raw_script_text)
+    if fixed_raw == raw_script_text.strip():
+        return None  # not quote-wrapped -- nothing for this fix to do
+    new_report = gates.run_all_gates(fixed_raw, pieces, sets_lookup, recent, price_inr)
+    return new_report if new_report.all_passed else None
+
+
+def build_escalation_note(report: gates.GateReport, remediation_attempted: str) -> dict:
+    """Gate Remediation Architecture (2026-08-29), Tier 3: the structured
+    note attached to a story whenever it reaches a human with a gate
+    failure that survived every remediation attempt. This is meant to be
+    the FIRST thing a reviewer sees -- not raw data pulled from
+    gate_results on request (the exact gap story #54 exposed). One entry
+    per still-failing gate; `decision_needed` is deliberately generic
+    (approve/reject/manually fix) rather than gate-specific -- the actual
+    judgment call always belongs to the reviewer, this note's job is only
+    to make sure they don't have to go digging for what happened first.
+    """
+    failing = [r for r in report.results if not r.passed]
+    return {
+        "gates": [
+            {
+                "gate": r.gate,
+                "what_it_caught": gates.GATE_PLAIN_LANGUAGE.get(r.gate, r.gate),
+                "technical_reason": r.reason,
+            }
+            for r in failing
+        ],
+        "remediation_attempted": remediation_attempted,
+        "decision_needed": "approve with the known issue below, reject, or manually fix and re-render",
+    }
+
+
 def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport, str, int | None, int | None]:
     """Returns (sanitized_script, gate_report, provider, input_tokens,
     output_tokens) -- provider/token fields added 2026-08-19, see
@@ -1141,6 +1186,12 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
             # Sanitized text, not raw -- this is what actually reaches TTS
             # and gets stored as the canonical script (see gates.sanitize_script).
             return report.sanitized_script, report, raw_script.provider, raw_script.input_tokens, raw_script.output_tokens
+
+        tier1_report = _try_tier1_pre_tts_remediation(raw_script.text, candidate.get("pieces"), sets_lookup, recent, candidate["price_inr"])
+        if tier1_report is not None:
+            print(f"Tier-1 auto-fix (quote-wrap strip) resolved the gate failure on attempt {attempt} -- no regeneration spent.", file=sys.stderr)
+            return tier1_report.sanitized_script, tier1_report, raw_script.provider, raw_script.input_tokens, raw_script.output_tokens
+
         print(f"Gate failure on attempt {attempt}:", file=sys.stderr)
         for r in report.results:
             if not r.passed:
@@ -1154,6 +1205,33 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
     for r in report.results:
         status = "PASS" if r.passed else "FAIL"
         print(f"  [{status}] {r.gate}: {r.reason}", file=sys.stderr)
+
+    # Gate Remediation Architecture (2026-08-29), Tier 3 for the case where
+    # no video_posts row ever gets created at all: previously this was a
+    # bare sys.exit(1) -- visible only as a red GitHub Actions run, with no
+    # escalation_note and no notification, the same "reaches Abhinav as a
+    # bare flag" gap story #54 exposed one layer downstream. send_skip_
+    # notification() already existed for a different failure class (a
+    # publish-time hard-guard trip) and already accepts a gate_failures
+    # list -- reused here rather than inventing a second email path.
+    try:
+        import notifier as notifier_mod
+        note = build_escalation_note(
+            report,
+            remediation_attempted=f"Regenerated {MAX_GENERATION_ATTEMPTS} time(s) with gate-specific feedback each attempt "
+                                   "(see _build_retry_note); tier-1 deterministic auto-fix also attempted where applicable. "
+                                   "No video was rendered -- TTS is never called against a script that hasn't passed every pre-TTS gate.",
+        )
+        gate_failures = [f"{g['gate']}: {g['what_it_caught']} ({g['technical_reason']})" for g in note["gates"]]
+        candidate_title = candidate.get("title") or "today's candidate"
+        notifier_mod.send_skip_notification(
+            reason=f"Script for {candidate_title!r} failed quality gates {MAX_GENERATION_ATTEMPTS} times in a row -- no video produced today.",
+            candidate_title=candidate.get("title"),
+            gate_failures=gate_failures,
+        )
+    except Exception as exc:
+        print(f"WARN: failed to send skip notification for exhausted gate retries: {exc}", file=sys.stderr)
+
     sys.exit(1)
 
 
@@ -1801,6 +1879,99 @@ def burn_captions(video_path: Path, segments: list[dict], output_path: Path) -> 
     final.write_videofile(str(output_path), fps=FPS, codec="libx264", audio_codec="aac", logger=None)
 
 
+# ── Gate Remediation Architecture (2026-08-29), Tier 2 for G11 ─────────────
+#
+# One automatic re-render on a G11 (caption-fidelity) failure, before it
+# ever reaches a human. Unlike G1-G10 (a script problem, fixed by
+# regenerating the SCRIPT), G11 is a rendering/ASR-layer problem -- the
+# script already passed every pre-TTS gate, including G5 factuality, so the
+# TEXT is not in question. What's resolvable by regeneration here is the
+# render itself: ElevenLabs' TTS output and Whisper's transcription of it
+# are each not fully deterministic run-to-run, so a second independent
+# take is a genuine remediation attempt, not theater -- the same
+# "resolvable by regeneration" logic Tier 2 already uses for a bad script,
+# one layer further down the pipeline.
+MAX_CAPTION_ATTEMPTS = 2  # 1 real render + 1 automatic retry on G11 failure
+
+
+def render_with_caption_gate(
+    script: str,
+    image_paths: list[Path],
+    output_path: Path,
+    set_title: str,
+    placeholder_anchors: bool = False,
+    no_tts: bool = False,
+) -> tuple[float, list[dict], gates.GateResult, bool]:
+    """Generates TTS, assembles the video, transcribes it, burns captions,
+    and checks G11 -- retrying the WHOLE sequence once (fresh TTS call,
+    fresh Whisper pass) if G11 fails, before accepting a final result.
+    Shared by both the daily generation path (main()) and --rerender, so
+    this remediation isn't something only fresh stories get.
+
+    Returns (total_duration, caption_segments, g11_result, retried).
+    `retried` lets the caller build an accurate escalation_note distinguishing
+    "failed once, fixed itself" from "failed twice, needs a human."
+
+    Never retries a --no-tts dry run: there's no real audio divergence to
+    retry against a silent placeholder track, and it would spend real
+    Whisper compute re-transcribing silence for no reason.
+
+    On exit, output_path holds exactly one file: the captioned render.
+    Same single-artifact rule as the rest of this pipeline (see the
+    pre-caption/captioned collapse this replaces) -- no second file left on
+    disk that could be mistakenly referenced as "the" video for this run.
+    """
+    caption_glossary = extract_caption_glossary(script, set_title)
+    caption_numerals = extract_caption_numerals(script)
+    caption_initial_prompt = ", ".join(caption_glossary + caption_numerals) + "." if (caption_glossary or caption_numerals) else None
+    print(f"Caption glossary ({len(caption_glossary)} term(s)): {caption_glossary}")
+    print(f"Caption numerals ({len(caption_numerals)}): {caption_numerals}")
+
+    retried = False
+    for attempt in range(1, MAX_CAPTION_ATTEMPTS + 1):
+        audio_path = TEMP_DOWNLOAD / "voiceover.mp3"
+        if no_tts:
+            est_duration = estimate_voiceover_duration_s(script)
+            audio_path = TEMP_DOWNLOAD / "voiceover_silent.wav"
+            generate_silent_placeholder_audio(audio_path, est_duration)
+            print(f"--no-tts: silent placeholder audio, estimated duration {est_duration:.1f}s")
+        else:
+            generate_tts(script, audio_path)
+
+        total_duration = assemble_video(image_paths, audio_path, output_path, placeholder_anchors=placeholder_anchors)
+        print(f"\nRendered: {output_path}")
+        print(f"Total duration: {total_duration:.1f}s")
+        if total_duration > 90:
+            print("WARNING: video exceeds 90s — IG Reels/YT Shorts may reject or truncate.")
+
+        print("Transcribing rendered audio for captions (Whisper, catches real TTS pronunciation)...")
+        segments = transcribe_for_captions(output_path, initial_prompt=caption_initial_prompt)
+        captioned_path = output_path.with_name(output_path.stem + "_captioned.mp4")
+        burn_captions(output_path, segments, captioned_path)
+
+        g11_result = gates.gate_caption_fidelity(caption_glossary, segments, numerals=caption_numerals)
+        print(f"  [{'PASS' if g11_result.passed else 'FAIL'}] {g11_result.gate}: {g11_result.reason}")
+
+        # Bug found 2026-07-06, confirmed via SHA256 (not just file size):
+        # the pre-caption render and the captioned render used to coexist
+        # as two files, and video_posts.video_path pointed at the WRONG
+        # one. Collapse to exactly one artifact per attempt, every attempt.
+        output_path.unlink()
+        captioned_path.rename(output_path)
+
+        if g11_result.passed or no_tts or attempt == MAX_CAPTION_ATTEMPTS:
+            if retried:
+                print(f"Captioned (after {attempt} attempt(s), sole output for this run): {output_path}")
+            else:
+                print(f"Captioned (sole output for this run): {output_path}")
+            return total_duration, segments, g11_result, retried
+
+        retried = True
+        print(f"G11 failed on attempt {attempt}/{MAX_CAPTION_ATTEMPTS} -- re-rendering once (fresh TTS + Whisper pass) before escalating.", file=sys.stderr)
+
+    raise AssertionError("unreachable -- loop always returns on its final attempt")
+
+
 # ── STEP 6c: story badge ────────────────────────────────────────────────────
 #
 # "Story #N" pill, matching src/components/ui/Taglines.tsx::TaglineChip's
@@ -1925,6 +2096,7 @@ def _make_placeholder_anchor(path: Path, color: tuple[int, int, int], label: str
 def insert_video_post(
     sb, candidate: dict, script: str, gate_report: gates.GateReport, video_path: Path,
     provider: str | None = None, input_tokens: int | None = None, output_tokens: int | None = None,
+    escalation_note: dict | None = None,
 ) -> tuple[str, int]:
     """Returns (video_id, story_number). story_number is assigned by the
     video_posts_story_number_trigger DB trigger (COALESCE(MAX(story_number),0)+1)
@@ -1933,7 +2105,11 @@ def insert_video_post(
 
     provider/input_tokens/output_tokens added 2026-08-19 (migration
     20260819000000_video_provider_tracking) -- see ScriptGenResult's
-    docstring for why."""
+    docstring for why.
+
+    escalation_note added 2026-08-29 (Gate Remediation Architecture,
+    migration 20260829000000_video_posts_escalation_note): None for a
+    clean story -- see engine.build_escalation_note()."""
     row = {
         "set_title": candidate["title"],
         "set_number": candidate.get("set_number"),
@@ -1949,6 +2125,7 @@ def insert_video_post(
         "provider": provider,
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
+        "escalation_note": escalation_note,
     }
     res = sb.table("video_posts").insert(row).execute()
     video_id, story_number = res.data[0]["id"], res.data[0]["story_number"]
@@ -2170,38 +2347,34 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
         sys.exit(1)
     print(f"Using {len(image_paths)} studio image(s) for this re-render.")
 
-    audio_path = TEMP_DOWNLOAD / "voiceover.mp3"
-    if no_tts:
-        est_duration = estimate_voiceover_duration_s(script)
-        audio_path = TEMP_DOWNLOAD / "voiceover_silent.wav"
-        generate_silent_placeholder_audio(audio_path, est_duration)
-        print(f"--no-tts: silent placeholder audio, estimated duration {est_duration:.1f}s")
-    else:
-        generate_tts(script, audio_path)
-
     slug = slugify(row["set_title"])
     date_str = datetime.now().strftime("%Y-%m-%d")
     output_path = OUTPUT_DIR / f"{date_str}_{slug}_rerender.mp4"
 
-    total_duration = assemble_video(image_paths, audio_path, output_path, placeholder_anchors=False)
-    print(f"Rendered: {output_path} ({total_duration:.1f}s)")
-
-    caption_glossary = extract_caption_glossary(script, row["set_title"])
-    caption_numerals = extract_caption_numerals(script)
-    caption_initial_prompt = ", ".join(caption_glossary + caption_numerals) + "." if (caption_glossary or caption_numerals) else None
-    print(f"Caption glossary ({len(caption_glossary)} term(s)): {caption_glossary}")
-    print(f"Caption numerals ({len(caption_numerals)}): {caption_numerals}")
-
-    print("Transcribing rendered audio for captions (Whisper)...")
-    segments = transcribe_for_captions(output_path, initial_prompt=caption_initial_prompt)
-    captioned_path = output_path.with_name(output_path.stem + "_captioned.mp4")
-    burn_captions(output_path, segments, captioned_path)
-    output_path.unlink()
-    captioned_path.rename(output_path)
-
-    caption_fidelity_result = gates.gate_caption_fidelity(caption_glossary, segments, numerals=caption_numerals)
+    # Gate Remediation Architecture (2026-08-29): shared with main()'s
+    # generation path -- one automatic re-render if G11 fails, before this
+    # ever needs a second manual --rerender invocation. See
+    # render_with_caption_gate()'s docstring.
+    total_duration, segments, caption_fidelity_result, g11_retried = render_with_caption_gate(
+        script, image_paths, output_path, row["set_title"], placeholder_anchors=False, no_tts=no_tts,
+    )
     report.results.append(caption_fidelity_result)
-    print(f"  [{'PASS' if caption_fidelity_result.passed else 'FAIL'}] {caption_fidelity_result.gate}: {caption_fidelity_result.reason}")
+
+    escalation_note = None
+    if not caption_fidelity_result.passed:
+        # g11_retried is only False here under --no-tts (dry run -- the
+        # automatic re-render is deliberately skipped, see
+        # render_with_caption_gate's docstring); any real run that still
+        # fails at this point already went through the 1 automatic retry.
+        retry_note = (
+            "1 automatic re-render (fresh TTS + Whisper pass) was also attempted and still failed"
+            if g11_retried else
+            "--no-tts dry run: the automatic re-render is skipped by design (no real audio to retry against)"
+        )
+        escalation_note = build_escalation_note(
+            report,
+            remediation_attempted=f"Manual --rerender requested by operator; {retry_note}.",
+        )
 
     print(f"Applying Story #{row['story_number']} badge...")
     badged_path = output_path.with_name(output_path.stem + "_badged.mp4")
@@ -2218,7 +2391,10 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
 
     # status/story_number/id deliberately absent from this update -- a
     # re-render refreshes content, it never changes a row's identity or
-    # workflow state.
+    # workflow state. escalation_note IS explicitly included, both ways --
+    # a re-render that fixes the problem must clear a stale note the same
+    # way a re-render that doesn't must write a fresh one (never leave the
+    # OLD note sitting there implying nothing was tried).
     sb.table("video_posts").update({
         "script": script,
         "script_chars": len(script),
@@ -2226,8 +2402,11 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
         "video_path": str(output_path),
         "storage_url": storage_url,
         "qc_frame_urls": qc_urls,
+        "escalation_note": escalation_note,
     }).eq("id", video_id).execute()
     print(f"video_posts {video_id} updated in place (status untouched). storage_url: {storage_url}")
+    if escalation_note:
+        print(f"  escalation_note written -- G11 still failing after remediation, see gate_results/escalation_note.", file=sys.stderr)
 
     return {
         "video_id": video_id,
@@ -2508,68 +2687,40 @@ def main() -> None:
         for r in report.results:
             print(f"  [{'PASS' if r.passed else 'FAIL'}] {r.gate}: {r.reason}")
 
-        audio_path = TEMP_DOWNLOAD / "voiceover.mp3"
-        if args.no_tts:
-            est_duration = estimate_voiceover_duration_s(script)
-            audio_path = TEMP_DOWNLOAD / "voiceover_silent.wav"
-            generate_silent_placeholder_audio(audio_path, est_duration)
-            print(f"--no-tts: silent placeholder audio, estimated duration {est_duration:.1f}s")
-        else:
-            generate_tts(script, audio_path)
-
         slug = slugify(candidate["title"])
         date_str = datetime.now().strftime("%Y-%m-%d")
         output_path = OUTPUT_DIR / f"{date_str}_{slug}.mp4"
 
-        total_duration = assemble_video(image_paths, audio_path, output_path, placeholder_anchors=args.placeholder_anchors)
-        print(f"\nRendered: {output_path}")
-        print(f"Total duration: {total_duration:.1f}s")
-        if total_duration > 90:
-            print("WARNING: video exceeds 90s — IG Reels/YT Shorts may reject or truncate.")
-
-        caption_glossary = extract_caption_glossary(script, candidate["title"])
-        caption_numerals = extract_caption_numerals(script)
-        caption_initial_prompt = ", ".join(caption_glossary + caption_numerals) + "." if (caption_glossary or caption_numerals) else None
-        print(f"Caption glossary ({len(caption_glossary)} term(s)): {caption_glossary}")
-        print(f"Caption numerals ({len(caption_numerals)}): {caption_numerals}")
-
-        print("Transcribing rendered audio for captions (Whisper, catches real TTS pronunciation)...")
-        segments = transcribe_for_captions(output_path, initial_prompt=caption_initial_prompt)
-        captioned_path = output_path.with_name(output_path.stem + "_captioned.mp4")
-        burn_captions(output_path, segments, captioned_path)
-
-        # G11: run before insert_video_post below so the very first
-        # gate_results write already includes it, not just the later
-        # timing-augmented update -- see gates.gate_caption_fidelity's
-        # docstring for why this can't be part of run_all_gates() (it
-        # needs the actual rendered captions, which don't exist yet at
-        # pre-TTS gate time).
-        caption_fidelity_result = gates.gate_caption_fidelity(caption_glossary, segments, numerals=caption_numerals)
+        # Gate Remediation Architecture (2026-08-29), Tier 2 for G11: one
+        # automatic re-render on failure before this ever reaches a human --
+        # see render_with_caption_gate()'s docstring. G11 runs inside this
+        # call (not part of run_all_gates() above -- it needs the actual
+        # rendered captions, which don't exist yet at pre-TTS gate time).
+        total_duration, segments, caption_fidelity_result, g11_retried = render_with_caption_gate(
+            script, image_paths, output_path, candidate["title"], placeholder_anchors=args.placeholder_anchors, no_tts=args.no_tts,
+        )
         report.results.append(caption_fidelity_result)
-        print(f"  [{'PASS' if caption_fidelity_result.passed else 'FAIL'}] {caption_fidelity_result.gate}: {caption_fidelity_result.reason}")
 
-        # Bug found 2026-07-06, confirmed via SHA256 (not just file size):
-        # the pre-caption render (output_path) and the captioned render
-        # (captioned_path) coexisted as two files after every run, and
-        # video_posts.video_path pointed at output_path -- the file actually
-        # uploaded and posted to both IG and YouTube for the first live post
-        # was byte-identical to the pre-caption intermediate, not the
-        # captioned one, despite the caption-burn step running successfully
-        # in that same invocation.
-        #
-        # Fix: collapse to exactly one artifact per run. Delete the
-        # pre-caption intermediate and have captioned_path take over
-        # output_path's name -- there is no second file left on disk that
-        # could ever be mistakenly referenced as "the" video for this run.
-        output_path.unlink()
-        captioned_path.rename(output_path)
-        print(f"Captioned (sole output for this run): {output_path}")
+        escalation_note = None
+        if not caption_fidelity_result.passed:
+            retry_note = (
+                "1 automatic re-render (fresh TTS + Whisper pass) was also attempted and still failed"
+                if g11_retried else
+                "--no-tts dry run: the automatic re-render is skipped by design (no real audio to retry against)"
+            )
+            escalation_note = build_escalation_note(
+                report,
+                remediation_attempted=f"{retry_note}.",
+            )
 
         video_id, story_number = insert_video_post(
             sb, candidate, script, report, output_path,
             provider=script_provider, input_tokens=script_input_tokens, output_tokens=script_output_tokens,
+            escalation_note=escalation_note,
         )
         print(f"video_posts row inserted: {video_id} (Story #{story_number})")
+        if escalation_note:
+            print(f"  escalation_note written -- G11 still failing after remediation, see gate_results/escalation_note.", file=sys.stderr)
 
         print(f"Applying Story #{story_number} badge...")
         badged_path = output_path.with_name(output_path.stem + "_badged.mp4")
@@ -2622,6 +2773,7 @@ def main() -> None:
                 set_title=candidate["title"],
                 storage_url=storage_url,
                 qc_frame_urls=qc_urls,
+                escalation_note=escalation_note,
             )
 
         return
