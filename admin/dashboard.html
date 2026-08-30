@@ -554,7 +554,7 @@
 <!-- =================================================================== -->
 <script id="boi-data" type="application/json">{
   "meta": {
-    "lastUpdated": "2026-08-15",
+    "lastUpdated": "2026-08-30",
     "trackerVersion": "v1.6",
     "currentSprint": "Supabase storage crisis + Netlify credit crisis, root-caused and fixed: Supabase social-assets had a 982 MB backlog of never-cleaned-up published render files (cleanup script + weekly dry-run monitor, PR #29, confirmed 283 MB after). Netlify: 5 independent dynamic-rendering root causes found and fixed, all merged to main (PRs #30/#31/#32/#33/#36) -- root-layout headers() forcing every route dynamic, missing generateStaticParams() on sets/[slug] + guides/[slug], /lab/price-drops recomputing on every request, dead x-pathname middleware, sitemap.xml with no ISR. Plus a platform-level fix with NO code change -- both Netlify projects restricted to Git-only production deploys in the dashboard directly, not in git. Set 72152-1 posted live to YouTube + Instagram (posted_sets id=60). Standing open item: issue #37 (cron-pause), blocked on a real production deploy + live-confirmed sitemap ISR. Full detail in BOI_MASTER_TRACKER.md top section."
   },
@@ -565,9 +565,9 @@
     "openP1": 0,
     "netlifyMinutesLeft": 9999,
     "netlifyResetDate": "2026-06-22",
-    "daysSinceLastDeploy": 0,
-    "lastDeployDate": "2026-05-25",
-    "lastDeployCommit": "6120fca · DEFECT-005 closed. VOICE_EXAMPLES tightened with verbatim Codex exemplars. LAB-06 /lab/deals live.",
+    "daysSinceLastDeploy": 1,
+    "lastDeployDate": "2026-08-29",
+    "lastDeployCommit": "c98a8fe · fix(netlify): stop /news, /reviews, /community, /sets from burning Serverless Function GB-hours (#90). Published via a deliberate manual lock/unlock/roll-forward during the Aug 23 cycle's credit freeze -- see top-of-file entry. main is 4 commits ahead of this (PRs #92/#93/#94 + a robots.txt fix), all merged but not yet published, held behind the same freeze.",
     "voiceTestStatus": "Pending",
     "geoScore": 26,
     "geoScoreTarget": 75,
