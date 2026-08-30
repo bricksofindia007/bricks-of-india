@@ -1162,6 +1162,7 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
 
     retry_note = None
     report = None
+    provider_error: BothProvidersFailedError | None = None
     for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
         try:
             raw_script = generate_script(candidate["title"], candidate["price_inr"], candidate.get("pieces"), candidate.get("theme"), retry_note=retry_note, set_number=candidate.get("set_number"))
@@ -1174,13 +1175,27 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
             # (longer than a content-gate retry -- this is a real provider
             # outage) and retry, same as any other gate failure, still
             # bounded by MAX_GENERATION_ATTEMPTS.
+            provider_error = e
             print(f"Both providers failed on attempt {attempt}/{MAX_GENERATION_ATTEMPTS}: {e}", file=sys.stderr)
             if attempt < MAX_GENERATION_ATTEMPTS:
                 _retry_backoff_sleep(attempt, provider_failure=True)
                 print(f"Regenerating (attempt {attempt + 1}/{MAX_GENERATION_ATTEMPTS})...", file=sys.stderr)
                 continue
+            # Final attempt, still a provider outage: break instead of the
+            # old sys.exit(1) here (issue #97) -- that used to skip the
+            # escalation_note/notifier block below entirely, since it fired
+            # inline before the loop ever exited normally. Confirmed live
+            # 2026-08-30 (run 33295285576): a fully silent run, no email,
+            # no escalation_note, no video_posts row -- visible only as a
+            # red Actions run, the exact gap this whole architecture exists
+            # to close, just re-opened on a branch PR #92 didn't cover.
             print(f"ERROR: both providers failed {MAX_GENERATION_ATTEMPTS} times. Aborting, not publishing.", file=sys.stderr)
-            sys.exit(1)
+            break
+        # Reset on any successful generate_script() call -- essential, or a
+        # provider failure on an earlier attempt (e.g. attempt 1) would still
+        # be blamed below even though a later attempt (e.g. attempt 2) went
+        # on to fail on content gates instead, a genuinely different reason.
+        provider_error = None
         report = gates.run_all_gates(raw_script.text, candidate.get("pieces"), sets_lookup, recent, candidate["price_inr"])
         if report.all_passed:
             # Sanitized text, not raw -- this is what actually reaches TTS
@@ -1200,6 +1215,28 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
             retry_note = _build_retry_note(report)
             _retry_backoff_sleep(attempt)
             print(f"Regenerating (attempt {attempt + 1}/{MAX_GENERATION_ATTEMPTS})...", file=sys.stderr)
+
+    if provider_error is not None:
+        # Issue #97 fix (2026-08-30): the loop ended via break on a final-
+        # attempt provider outage, not content-gate exhaustion -- `report`
+        # here is either None or stale from an earlier attempt, so this
+        # can't reuse the gate-exhaustion tail block below (that block
+        # assumes `report` reflects the actual reason generation stopped).
+        # Same send_skip_notification() call, gate_failures=None since
+        # there's no gate list to show -- the reason string carries the
+        # actual cause instead.
+        try:
+            import notifier as notifier_mod
+            candidate_title = candidate.get("title") or "today's candidate"
+            notifier_mod.send_skip_notification(
+                reason=f"Script for {candidate_title!r} could not be generated -- both providers "
+                       f"(Gemini and Groq/Cerebras) were unavailable on attempt {MAX_GENERATION_ATTEMPTS}/{MAX_GENERATION_ATTEMPTS}: {provider_error}",
+                candidate_title=candidate.get("title"),
+                gate_failures=None,
+            )
+        except Exception as exc:
+            print(f"WARN: failed to send skip notification for provider outage: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     print(f"ERROR: script failed gates {MAX_GENERATION_ATTEMPTS} times. Aborting, not publishing.", file=sys.stderr)
     for r in report.results:
