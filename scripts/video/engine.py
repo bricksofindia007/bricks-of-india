@@ -2369,6 +2369,31 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
         for r in report.results:
             status = "PASS" if r.passed else "FAIL"
             print(f"  [{status}] {r.gate}: {r.reason}", file=sys.stderr)
+        # Issue #99 fix (2026-08-30): this used to be a bare sys.exit(1).
+        # The "manual, human-attended" assumption behind that didn't hold --
+        # --rerender runs exclusively via video-generate-daily.yml (cron or
+        # workflow_dispatch) on an ephemeral GitHub Actions runner (VID-P4
+        # has had no local execution path since the Stage 2 cloud pivot,
+        # 2026-07-06), so this failure was exactly as silent as #97's, just
+        # on a different call site. A real `report` already exists here,
+        # unlike #97's provider-outage branch, so this reuses the existing
+        # gate-exhaustion notification shape directly.
+        try:
+            import notifier as notifier_mod
+            note = build_escalation_note(
+                report,
+                remediation_attempted="existing script re-validated against current gates after a rerender request; "
+                                       "no regeneration attempted -- this is a manual rerender path, not a fresh generation retry.",
+            )
+            gate_failures = [f"{g['gate']}: {g['what_it_caught']} ({g['technical_reason']})" for g in note["gates"]]
+            notifier_mod.send_skip_notification(
+                reason=f"Re-render requested for {row['set_title']!r} (id {video_id}), but the existing script no "
+                       f"longer passes gates after re-sanitization -- aborting, not re-rendering.",
+                candidate_title=row.get("set_title"),
+                gate_failures=gate_failures,
+            )
+        except Exception as exc:
+            print(f"WARN: failed to send skip notification for rerender gate failure: {exc}", file=sys.stderr)
         sys.exit(1)
     script = report.sanitized_script
     print("--- SCRIPT (post-fix) ---")
