@@ -270,6 +270,40 @@ def download_master_assets_if_missing(sb) -> None:
         print(f"Downloaded {filename} ({len(data)} bytes)")
 
 
+def _download_master_assets_or_notify(sb, candidate_title: str | None) -> None:
+    """Issue #98 fix (2026-08-30): download_master_assets_if_missing() has
+    zero error handling around its Storage .download() call, and neither
+    real call site (main()'s --cloud-generate branch, rerender_video_post())
+    wrapped it either -- a genuine failure (network error, bucket permission
+    change, missing object) propagated as an uncaught traceback: a crash,
+    not even a clean sys.exit(1), and completely invisible to the notifier.
+
+    assemble_video()'s own missing-assets guard is deliberately NOT the fix
+    target: by the time either call site reaches assemble_video(), this
+    function has already run and either succeeded (files exist) or raised --
+    that guard is effectively unreachable through the real failure mode and
+    stays untouched. download_master_assets_if_missing() itself has `sb` but
+    no story/candidate context to build a useful notification from, so the
+    wrapping happens here, one level up, where each call site's own context
+    (or lack of it -- main()'s branch calls this before a candidate is even
+    selected) is available.
+    """
+    try:
+        download_master_assets_if_missing(sb)
+    except Exception as e:
+        print(f"ERROR: failed to download master assets: {e}", file=sys.stderr)
+        try:
+            import notifier as notifier_mod
+            notifier_mod.send_skip_notification(
+                reason=f"Could not download master assets (intro/outro clips) from Supabase Storage -- {e}",
+                candidate_title=candidate_title,
+                gate_failures=None,
+            )
+        except Exception as exc:
+            print(f"WARN: failed to send skip notification for master-asset download failure: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 # ── STEP 3: candidate selection ────────────────────────────────────────────────
 
 import re  # noqa: E402
@@ -2375,7 +2409,7 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
     print(script)
     print("--- END SCRIPT ---")
 
-    download_master_assets_if_missing(sb)
+    _download_master_assets_or_notify(sb, candidate_title=row.get("set_title"))
 
     image_candidate = {"title": row["set_title"], "set_number": row.get("set_number")}
     image_paths = resolve_candidate_images(image_candidate)
@@ -2676,7 +2710,9 @@ def main() -> None:
             args.pick = 1  # cloud generation always takes the top-ranked candidate
 
         if not args.placeholder_anchors:
-            download_master_assets_if_missing(sb)
+            # No candidate has been selected yet at this point (see below) --
+            # nothing more specific than None to pass as candidate_title.
+            _download_master_assets_or_notify(sb, candidate_title=None)
 
         candidate = None
         image_paths: list[Path] = []
