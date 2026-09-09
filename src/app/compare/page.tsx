@@ -16,11 +16,13 @@ export const metadata: Metadata = {
 
 const PAGE_SIZE = 24;
 
+type SearchParams = { q?: string; theme?: string; price?: string; page?: string; noPrice?: string };
+
 interface Props {
-  searchParams: Promise<{ q?: string; theme?: string; price?: string; page?: string; noPrice?: string }>;
+  searchParams: Promise<SearchParams>;
 }
 
-function buildUrl(current: Props['searchParams'], overrides: Partial<Props['searchParams']>): string {
+function buildUrl(current: SearchParams, overrides: Partial<SearchParams>): string {
   const params = new URLSearchParams();
   const merged = { ...current, ...overrides };
   if (merged.q)                           params.set('q',       merged.q);
