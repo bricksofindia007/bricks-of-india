@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
+import { cookies, type UnsafeUnwrappedCookies } from 'next/headers';
 import { getSecret } from '@/lib/get-secret';
 import { BRAND } from '@/lib/brand';
 
@@ -36,7 +36,7 @@ import { BRAND } from '@/lib/brand';
 export const dynamic = 'force-dynamic';
 
 function isAuthed(): boolean {
-  const pw = cookies().get('boi_admin')?.value;
+  const pw = (cookies() as unknown as UnsafeUnwrappedCookies).get('boi_admin')?.value;
   return !!pw && pw === process.env.ADMIN_PASSWORD;
 }
 

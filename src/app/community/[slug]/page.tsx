@@ -21,9 +21,10 @@ export async function generateStaticParams() {
   return [];
 }
 
-interface Props { params: { slug: string } }
+interface Props { params: Promise<{ slug: string }> }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params;
   const { data: spotlight } = await supabase
     .from('community_spotlights')
     .select('builder_name, location, bio')
@@ -40,7 +41,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function SpotlightPage({ params }: Props) {
+export default async function SpotlightPage(props: Props) {
+  const params = await props.params;
   const { data: spotlight } = await supabase
     .from('community_spotlights')
     .select('*')

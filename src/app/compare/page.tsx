@@ -17,7 +17,7 @@ export const metadata: Metadata = {
 const PAGE_SIZE = 24;
 
 interface Props {
-  searchParams: { q?: string; theme?: string; price?: string; page?: string; noPrice?: string };
+  searchParams: Promise<{ q?: string; theme?: string; price?: string; page?: string; noPrice?: string }>;
 }
 
 function buildUrl(current: Props['searchParams'], overrides: Partial<Props['searchParams']>): string {
@@ -36,7 +36,8 @@ function stripSuffix(setNum: string): string {
   return setNum.replace(/-\d+$/, '');
 }
 
-export default async function ComparePage({ searchParams }: Props) {
+export default async function ComparePage(props: Props) {
+  const searchParams = await props.searchParams;
   const q              = (searchParams.q ?? '').trim();
   const themeFilter    = searchParams.theme ?? '';
   const priceFilter    = searchParams.price ?? '';

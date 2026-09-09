@@ -35,13 +35,13 @@ const PRICE_BANDS: Record<string, { min: number; max: number; label: string }> =
 };
 
 interface Props {
-  searchParams: {
+  searchParams: Promise<{
     page?:    string;
     theme?:   string;
     sort?:    string;
     instock?: string;
     price?:   string;
-  };
+  }>;
 }
 
 function buildUrl(
@@ -93,7 +93,8 @@ const getAllSetsStorePrices = unstable_cache(
   { revalidate: 21600 }, // 6h — matches scrape-prices.yml
 );
 
-export default async function SetsPage({ searchParams }: Props) {
+export default async function SetsPage(props: Props) {
+  const searchParams = await props.searchParams;
   const supabase    = createServerClient();
   const pageNum     = Math.max(1, parseInt(searchParams.page || '1') || 1);
   const themeFilter = searchParams.theme || '';

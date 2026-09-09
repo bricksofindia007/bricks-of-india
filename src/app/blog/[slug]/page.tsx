@@ -17,9 +17,10 @@ import { buildArticleSchema, buildFAQSchema } from '@/lib/schemas';
 export const revalidate = 3600;
 
 
-interface Props { params: { slug: string } }
+interface Props { params: Promise<{ slug: string }> }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params;
   const { data: post } = await supabase.from('blog_posts').select('*').eq('slug', params.slug).neq('category', 'Opinion').single();
   if (!post) return { title: 'Post Not Found' };
   return {
@@ -36,7 +37,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function BlogPostPage({ params }: Props) {
+export default async function BlogPostPage(props: Props) {
+  const params = await props.params;
   const { data: post } = await supabase.from('blog_posts').select('*').eq('slug', params.slug).neq('category', 'Opinion').single();
   if (!post) notFound();
   const cleanContent = post.content

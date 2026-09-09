@@ -12,7 +12,8 @@ export const metadata: Metadata = {
 
 const BLOG_CATEGORIES = ['Buying Guides', 'How-To', 'Gift Guides', 'Value Picks'];
 
-export default async function BlogPage({ searchParams }: { searchParams: { category?: string } }) {
+export default async function BlogPage(props: { searchParams: Promise<{ category?: string }> }) {
+  const searchParams = await props.searchParams;
   const category = searchParams.category || '';
   let query = supabase.from('blog_posts').select('*').neq('category', 'Opinion').order('published_at', { ascending: false });
   if (category) query = query.eq('category', category);

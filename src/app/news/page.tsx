@@ -39,7 +39,8 @@ const getAllNewsArticles = unstable_cache(
   { revalidate: 300 },
 );
 
-export default async function NewsPage({ searchParams }: { searchParams: { category?: string } }) {
+export default async function NewsPage(props: { searchParams: Promise<{ category?: string }> }) {
+  const searchParams = await props.searchParams;
   const category = searchParams.category || '';
   const allArticles = await getAllNewsArticles();
   const articles = category ? allArticles.filter((a: any) => a.category === category) : allArticles;

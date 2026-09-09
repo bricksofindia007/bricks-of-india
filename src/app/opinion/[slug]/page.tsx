@@ -12,9 +12,10 @@ import { Byline } from '@/components/content/Byline';
 import { JsonLd } from '@/components/JsonLd';
 import { buildArticleSchema } from '@/lib/schemas';
 
-interface Props { params: { slug: string } }
+interface Props { params: Promise<{ slug: string }> }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params;
   const { data: post } = await supabase
     .from('blog_posts')
     .select('title, excerpt, hero_image, seo_title, seo_description, category')
@@ -34,7 +35,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function OpinionPostPage({ params }: Props) {
+export default async function OpinionPostPage(props: Props) {
+  const params = await props.params;
   const { data: post } = await supabase
     .from('blog_posts')
     .select('*')

@@ -11,14 +11,15 @@ import { JsonLd } from '@/components/JsonLd';
 import { buildItemListSchema } from '@/lib/schemas';
 
 interface Props {
-  params: { theme: string };
+  params: Promise<{ theme: string }>;
 }
 
 export async function generateStaticParams() {
   return THEMES.map((t) => ({ theme: t.slug }));
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params;
   const theme = THEMES.find((t) => t.slug === params.theme);
   if (!theme) return { title: 'Theme Not Found' };
   return {
@@ -33,7 +34,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function ThemePage({ params }: Props) {
+export default async function ThemePage(props: Props) {
+  const params = await props.params;
   const theme = THEMES.find((t) => t.slug === params.theme);
   if (!theme) notFound();
 
