@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
-import { cookies } from 'next/headers';
+import { cookies, type UnsafeUnwrappedCookies } from 'next/headers';
 import { createServerClient } from '@/lib/supabase';
 import { login, logout, approveDraft, rejectDraft, approveAll, generateArticle, publishDraft } from './actions';
 import { GenerateBatchButton } from './GenerateBatchButton';
@@ -15,7 +15,7 @@ export const metadata: Metadata = {
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
 function isAuthed(): boolean {
-  const pw = cookies().get('boi_admin')?.value;
+  const pw = (cookies() as unknown as UnsafeUnwrappedCookies).get('boi_admin')?.value;
   return !!pw && pw === process.env.ADMIN_PASSWORD;
 }
 
@@ -237,10 +237,11 @@ function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filter
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 interface Props {
-  searchParams: { status?: string; format?: string; domain?: string; genError?: string; genDraftId?: string };
+  searchParams: Promise<{ status?: string; format?: string; domain?: string; genError?: string; genDraftId?: string }>;
 }
 
-export default async function AdminPendingPage({ searchParams }: Props) {
+export default async function AdminPendingPage(props: Props) {
+  const searchParams = await props.searchParams;
   if (!isAuthed()) return <LoginPage />;
 
   const genError    = searchParams.genError ? decodeURIComponent(searchParams.genError) : null;

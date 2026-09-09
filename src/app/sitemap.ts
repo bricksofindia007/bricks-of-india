@@ -23,6 +23,10 @@ import { THEMES } from '@/lib/brand';
 // ingestion added, without revalidating far more often than the
 // underlying data ever actually changes.
 export const revalidate = 86400;
+// Next 15: fetch() is uncached by default, independent of revalidate above --
+// without this, the Supabase reads below become per-request and the route
+// drops from ISR to full SSR. Scoped per-route, not the root layout.
+export const fetchCache = 'default-cache';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = 'https://bricksofindia.com';

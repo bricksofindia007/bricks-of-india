@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import type { Metadata } from 'next';
 import { MASCOTS } from '@/lib/brand';
 
@@ -37,9 +38,9 @@ export default function CalendarPage() {
             Sign up for the newsletter and we&apos;ll tell you when new sets hit Indian stores.
             Before your wallet even knows what&apos;s happening.
           </p>
-          <a href="/#newsletter" className="inline-block bg-primary text-white font-bold px-6 py-2 rounded-lg hover:bg-yellow-400 hover:text-dark transition-colors">
+          <Link href="/#newsletter" className="inline-block bg-primary text-white font-bold px-6 py-2 rounded-lg hover:bg-yellow-400 hover:text-dark transition-colors">
             Subscribe to Deals Newsletter →
-          </a>
+          </Link>
         </div>
 
         <div className="space-y-8">

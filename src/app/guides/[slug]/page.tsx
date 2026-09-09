@@ -9,14 +9,15 @@ import { JsonLd } from '@/components/JsonLd';
 import { buildArticleSchema } from '@/lib/schemas';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 
-interface Props { params: { slug: string } }
+interface Props { params: Promise<{ slug: string }> }
 
 export async function generateStaticParams() {
   const { data } = await supabase.from('guides').select('slug');
   return (data ?? []).map((g: { slug: string }) => ({ slug: g.slug }));
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params;
   const { data: guide } = await supabase.from('guides').select('title, excerpt, featured_image_url').eq('slug', params.slug).single();
   if (!guide) return { title: 'Guide Not Found' };
   return {
@@ -31,7 +32,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function GuideArticlePage({ params }: Props) {
+export default async function GuideArticlePage(props: Props) {
+  const params = await props.params;
   const { data: guide } = await supabase.from('guides').select('*').eq('slug', params.slug).single();
   if (!guide) notFound();
 

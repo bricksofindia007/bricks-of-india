@@ -29,11 +29,12 @@ function fmtInr(n: number) {
   return `₹${Math.round(n).toLocaleString('en-IN')}`;
 }
 
-export default async function BudgetCalculatorPage({
-  searchParams,
-}: {
-  searchParams: { min?: string; max?: string };
-}) {
+export default async function BudgetCalculatorPage(
+  props: {
+    searchParams: Promise<{ min?: string; max?: string }>;
+  }
+) {
+  const searchParams = await props.searchParams;
   const min = Math.max(0, parseInt(searchParams.min ?? '1000', 10) || 0);
   const max = Math.max(min, parseInt(searchParams.max ?? '5000', 10) || 5000);
 

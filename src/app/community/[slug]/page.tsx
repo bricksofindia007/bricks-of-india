@@ -9,6 +9,10 @@ import { JsonLd } from '@/components/JsonLd';
 // Netlify's Next runtime persists rendered pages ACROSS deploys when no
 // revalidate is set. Hourly ISR caps staleness at 60 min, permanently.
 export const revalidate = 3600;
+// Next 15: fetch() is uncached by default, independent of revalidate above --
+// without this, the Supabase reads below become per-request and the route
+// drops from ISR to full SSR. Scoped per-route, not the root layout.
+export const fetchCache = 'default-cache';
 
 // Netlify credit audit (2026-08-29): this route had neither revalidate
 // nor generateStaticParams — confirmed via a real production build as
@@ -21,9 +25,10 @@ export async function generateStaticParams() {
   return [];
 }
 
-interface Props { params: { slug: string } }
+interface Props { params: Promise<{ slug: string }> }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params;
   const { data: spotlight } = await supabase
     .from('community_spotlights')
     .select('builder_name, location, bio')
@@ -40,7 +45,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function SpotlightPage({ params }: Props) {
+export default async function SpotlightPage(props: Props) {
+  const params = await props.params;
   const { data: spotlight } = await supabase
     .from('community_spotlights')
     .select('*')

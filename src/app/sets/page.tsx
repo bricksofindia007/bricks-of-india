@@ -34,19 +34,21 @@ const PRICE_BANDS: Record<string, { min: number; max: number; label: string }> =
   '10k':   { min: 10000, max: 9_999_999, label: '₹10,000+' },
 };
 
+type SearchParams = {
+  page?:    string;
+  theme?:   string;
+  sort?:    string;
+  instock?: string;
+  price?:   string;
+};
+
 interface Props {
-  searchParams: {
-    page?:    string;
-    theme?:   string;
-    sort?:    string;
-    instock?: string;
-    price?:   string;
-  };
+  searchParams: Promise<SearchParams>;
 }
 
 function buildUrl(
-  base: Props['searchParams'],
-  override: Partial<Props['searchParams']>,
+  base: SearchParams,
+  override: Partial<SearchParams>,
 ): string {
   const merged = { ...base, ...override };
   const p = new URLSearchParams();
@@ -93,7 +95,8 @@ const getAllSetsStorePrices = unstable_cache(
   { revalidate: 21600 }, // 6h — matches scrape-prices.yml
 );
 
-export default async function SetsPage({ searchParams }: Props) {
+export default async function SetsPage(props: Props) {
+  const searchParams = await props.searchParams;
   const supabase    = createServerClient();
   const pageNum     = Math.max(1, parseInt(searchParams.page || '1') || 1);
   const themeFilter = searchParams.theme || '';

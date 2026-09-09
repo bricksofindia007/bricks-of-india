@@ -16,13 +16,17 @@ import { buildProductSchema, buildFAQSchema } from '@/lib/schemas';
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
 export const revalidate = 3600;
+// Next 15: fetch() is uncached by default, independent of revalidate above --
+// without this, the Supabase reads below become per-request and the route
+// drops from ISR to full SSR. Scoped per-route, not the root layout.
+export const fetchCache = 'default-cache';
 
 export async function generateStaticParams() {
   return [];
 }
 
 interface Props {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 // ── The 2 stores we actively track ───────────────────────────────────────────
@@ -69,7 +73,8 @@ async function getSetData(slug: string) {
   };
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params;
   const set = await getSetData(params.slug);
   if (!set) return { title: 'Set Not Found' };
   return {
@@ -105,7 +110,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function SetPage({ params }: Props) {
+export default async function SetPage(props: Props) {
+  const params = await props.params;
   const set = await getSetData(params.slug);
   if (!set) notFound();
 

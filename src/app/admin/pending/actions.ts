@@ -12,7 +12,7 @@ export async function login(formData: FormData) {
   const correct = process.env.ADMIN_PASSWORD;
   if (!correct) throw new Error('ADMIN_PASSWORD env var not set');
   if (pw === correct) {
-    cookies().set('boi_admin', pw, {
+    (await cookies()).set('boi_admin', pw, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: 60 * 60 * 8,
@@ -24,7 +24,7 @@ export async function login(formData: FormData) {
 }
 
 export async function logout() {
-  cookies().delete('boi_admin');
+  (await cookies()).delete('boi_admin');
   redirect('/admin/pending');
 }
 
@@ -133,7 +133,7 @@ export async function generateArticle(formData: FormData) {
 // ── Trigger batch generation via GitHub Actions ───────────────────────────────
 
 export async function triggerBatchGeneration(): Promise<{ ok: boolean; error?: string }> {
-  const pw = cookies().get('boi_admin')?.value;
+  const pw = (await cookies()).get('boi_admin')?.value;
   if (!pw || pw !== process.env.ADMIN_PASSWORD) return { ok: false, error: 'Unauthorized' };
   const token = process.env.GH_DISPATCH_TOKEN;
   if (!token) return { ok: false, error: 'GH_DISPATCH_TOKEN not set — add to Netlify environment variables' };
