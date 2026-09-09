@@ -16,6 +16,12 @@ import { BRAND, MASCOTS, THEMES } from '@/lib/brand';
 import { supabase, createServerClient } from '@/lib/supabase';
 
 export const revalidate = 3600; // re-fetch from Supabase at most every hour
+// Next 15: fetch() is uncached by default, independent of the revalidate
+// export above -- without this, every Supabase read on this page becomes
+// a per-request dynamic fetch and the route silently drops from ISR to
+// full SSR. Scoped here (not the root layout) since other routes are
+// dynamic on purpose. See docs/ or the Next 15 upgrade audit for detail.
+export const fetchCache = 'default-cache';
 
 export const metadata: Metadata = {
   title: 'Bricks of India — LEGO Price Comparison & Reviews in India 2026',

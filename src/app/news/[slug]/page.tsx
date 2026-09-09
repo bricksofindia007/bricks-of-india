@@ -16,6 +16,10 @@ import { buildArticleSchema, buildFAQSchema, buildReviewSchema, verdictToRating 
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
 export const revalidate = 3600;
+// Next 15: fetch() is uncached by default, independent of revalidate above --
+// without this, the Supabase reads below become per-request and the route
+// drops from ISR to full SSR. Scoped per-route, not the root layout.
+export const fetchCache = 'default-cache';
 
 // Netlify credit audit (2026-08-29): this route had `revalidate` but no
 // `generateStaticParams` at all, which per Next.js's own rule means "no

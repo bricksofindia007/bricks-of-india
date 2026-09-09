@@ -15,6 +15,10 @@ export const metadata: Metadata = {
 };
 
 export const revalidate = 21600; // 6 hours
+// Next 15: fetch() is uncached by default, independent of revalidate above --
+// without this, the Supabase reads below become per-request and the route
+// drops from ISR to full SSR. Scoped per-route, not the root layout.
+export const fetchCache = 'default-cache';
 
 // A set is a "deal" when any tracked store's price is ≥10% below the 30-day
 // average for that set. Fallback when history is thin: price < MSRP × 1.35.
