@@ -1,0 +1,37 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bricks-of-india",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2024-12-30",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      // Required for Pages Router's res.revalidate(); OpenNext's docs don't
+      // explicitly confirm whether App Router's revalidatePath()/revalidateTag()
+      // also need it. admin/pending/actions.ts calls revalidatePath() on every
+      // publish/approve action, so this is included as the safe default rather
+      // than omitted and found out the hard way -- costs nothing to have.
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "bricks-of-india"
+    }
+  ],
+  "r2_buckets": [
+    {
+      // OpenNext's fixed binding-name convention for its R2 incremental
+      // cache override -- not a free choice, must match what
+      // open-next.config.ts's r2-incremental-cache override expects.
+      "binding": "NEXT_INC_CACHE_R2_BUCKET",
+      "bucket_name": "bricksofindia-next-cache"
+    }
+  ]
+  // No "images" binding yet -- deliberately left out. Whether to use
+  // Cloudflare Images, a custom loader, or `unoptimized` everywhere is a
+  // pending decision (see docs/ or the image-optimization data-gathering
+  // report) for the ~14 files still on next/image's default optimizer.
+  // Validated in this branch's local wrangler dev run: see the PR / commit
+  // for what actually happens to those images with no binding configured.
+}
