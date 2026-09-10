@@ -38,6 +38,40 @@
       "bucket_name": "bricksofindia-next-cache"
     }
   ],
+  // Two Durable Object classes, both from OpenNext's own binding-name/
+  // class-name convention (opennext.js.org/cloudflare/caching), matched in
+  // open-next.config.ts's queue/tagCache overrides:
+  //   - DOQueueHandler: required for the site's Time-Based (ISR) revalidation
+  //     on the 7 live ISR routes. Its absence is what this binding fixes --
+  //     without it, OpenNext falls back to a no-op DummyQueue that throws
+  //     `FatalError: Dummy queue is not implemented` the moment a stale ISR
+  //     page tries to actually revalidate in the background (confirmed live
+  //     via wrangler tail against the first preview deploy).
+  //   - DOShardedTagCache: required for On-Demand revalidation specifically
+  //     (revalidateTag/revalidatePath/res.revalidate) per the docs' own
+  //     inline comment next to this binding -- covers admin/pending/
+  //     actions.ts's revalidatePath() calls on every publish/approve action
+  //     (the same code path WORKER_SELF_REFERENCE above was already added
+  //     for).
+  // NEXT_CACHE_DO_PURGE/BucketCachePurge (the docs' third, optional DO) is
+  // deliberately NOT added -- it only buffers Cache-API purge requests
+  // through an intermediary Durable Object to dodge purge-API rate limits
+  // at higher traffic. open-next.config.ts uses cachePurge: purgeCache({
+  // type: "direct" }) instead, which calls the Cache API directly with no
+  // extra binding -- the right fit for this site's publish volume (one
+  // admin, occasional manual approvals), not a corner cut.
+  "durable_objects": {
+    "bindings": [
+      { "name": "NEXT_CACHE_DO_QUEUE", "class_name": "DOQueueHandler" },
+      { "name": "NEXT_TAG_CACHE_DO_SHARDED", "class_name": "DOShardedTagCache" }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["DOQueueHandler", "DOShardedTagCache"]
+    }
+  ],
   // Cloudflare Images binding -- routes next/image's default optimizer
   // (still used by the ~14 local-static-asset files from the image-data
   // audit) through Cloudflare's image transformation. The DB-driven
