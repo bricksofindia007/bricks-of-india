@@ -37,11 +37,32 @@
       "binding": "NEXT_INC_CACHE_R2_BUCKET",
       "bucket_name": "bricksofindia-next-cache"
     }
-  ]
-  // No "images" binding yet -- deliberately left out. Whether to use
-  // Cloudflare Images, a custom loader, or `unoptimized` everywhere is a
-  // pending decision (see docs/ or the image-optimization data-gathering
-  // report) for the ~14 files still on next/image's default optimizer.
-  // Validated in this branch's local wrangler dev run: see the PR / commit
-  // for what actually happens to those images with no binding configured.
+  ],
+  // Cloudflare Images binding -- routes next/image's default optimizer
+  // (still used by the ~14 local-static-asset files from the image-data
+  // audit) through Cloudflare's image transformation. The DB-driven
+  // (Rebrickable/Brickset/etc.) and YouTube-thumbnail images are already
+  // explicitly `unoptimized` in code and never call this endpoint at all,
+  // regardless of this binding's presence.
+  //
+  // OpenNext's docs (opennext.js.org/cloudflare/howtos/image) show only
+  // this one field for the binding approach -- no next.config change is
+  // documented for this path (next.config changes are only shown for the
+  // alternative custom-loader approach, not used here). Verified this
+  // empirically in this branch's build+dev validation rather than trusting
+  // that reading alone.
+  //
+  // Origin restriction: the docs say "restrict the image origins that can
+  // be transformed to where your images are hosted, i.e. a R2 bucket" --
+  // R2 is given as the docs' own example, not a requirement; our
+  // optimizable images are same-origin static assets served via the
+  // Worker's own ASSETS binding, not R2. This restriction is a Cloudflare
+  // dashboard "Sources" setting (developers.cloudflare.com/images/transform-images/sources/),
+  // not a wrangler.jsonc/code setting, and it needs the Worker's actual
+  // deployed domain to configure -- which doesn't exist until a real
+  // `wrangler deploy` happens. Flagged as a required post-deploy step, not
+  // implemented here since there is nothing to configure it against yet.
+  "images": {
+    "binding": "IMAGES"
+  }
 }
