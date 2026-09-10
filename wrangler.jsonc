@@ -2,8 +2,18 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "bricks-of-india",
   "main": ".open-next/worker.js",
-  "compatibility_date": "2024-12-30",
-  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  // Set to today's date rather than pinned to the documented-template
+  // minimum -- Cloudflare's guidance is to use the latest date to maximize
+  // compatibility. This also clears two dates relevant to this exact
+  // adapter: a module-export resolution fix (needs >=2025-05-05) and
+  // process.env population under Workers (needs >=2025-04-01).
+  "compatibility_date": "2026-09-09",
+  // nodejs_compat omitted, not just left off the list: for compatibility_date
+  // >= 2026-08-04 it's on by default, and Cloudflare's own guidance is to
+  // omit it from new configs (existing ones aren't required to remove it --
+  // it's treated as redundant either way, not a hard failure, confirmed
+  // directly against Cloudflare's changelog post for this exact change).
+  "compatibility_flags": ["global_fetch_strictly_public"],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
