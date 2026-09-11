@@ -29,6 +29,14 @@ exemption list is needed too, independent of diff scoping. Remove an entry
 here once that file has enough real run history for a human to size
 timeout-minutes properly -- this is a deliberate, temporary carve-out, not
 a general escape hatch.
+
+deploy-cloudflare.yml added 2026-09-11 for the same reason, on day one of
+its own existence: the Cloudflare Workers CI/CD pipeline (build job
+unattended, deploy job gated on the "production" GitHub Environment's
+required-reviewer rule) has zero real runs yet, so neither its build nor
+deploy job timeout can be sized from data. Remove once
+`gh run list --workflow=deploy-cloudflare.yml --limit 10` shows ~3+
+completed runs.
 """
 import os
 import sys
@@ -39,6 +47,7 @@ import yaml
 NO_TIMEOUT_HISTORY_YET = {
     "video-feasibility-test.yml",
     "video-script-gen-test-quiet-panic.yml",
+    "deploy-cloudflare.yml",
 }
 
 if len(sys.argv) < 2:
