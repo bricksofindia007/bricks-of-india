@@ -69,6 +69,16 @@ jobs:
           name: opennext-build
           path: .open-next/
           retention-days: 1
+          # .open-next/ is a dot-prefixed (hidden) directory -- v4's default
+          # include-hidden-files: false excludes the entire tree, not just
+          # dotfiles within it, so without this the step "succeeds" (warn,
+          # not error, on zero matches) while silently uploading nothing.
+          # Caught for real: this run's own first execution
+          # (2026-09-11, run 34632500369) reported "Worker saved in
+          # `.open-next/worker.js`" immediately followed by "No files were
+          # found with the provided path: .open-next/." for exactly this
+          # reason -- confirmed via the actual job log, not guessed.
+          include-hidden-files: true
 
   deploy:
     name: Deploy (wrangler)
