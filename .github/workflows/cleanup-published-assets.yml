@@ -16,6 +16,11 @@ on:
   schedule:
     - cron: '0 4 * * 0'
   workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run only (no deletions)? Uncheck only for a deliberate, monitored live pass -- scheduled runs always stay dry-run regardless of this default.'
+        type: boolean
+        default: true
 
 jobs:
   cleanup-dry-run:
@@ -35,8 +40,17 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run cleanup-published-assets.js (dry-run)
+      - name: Run cleanup-published-assets.js
         env:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: node cleanup-published-assets.js --dry-run
+        # Scheduled runs always stay dry-run, no matter what the workflow_dispatch
+        # default above says -- only an explicit manual dispatch with dry_run=false
+        # can trigger a live pass. This keeps the weekly cadence a pure observation
+        # signal until a separate decision is made to run it live on schedule too.
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.dry_run }}" != "false" ]; then
+            node cleanup-published-assets.js --dry-run
+          else
+            node cleanup-published-assets.js
+          fi
