@@ -47,7 +47,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # 22, matching the deploy job below -- wrangler requires >=22
+          # there, and there's no reason for the two jobs in one pipeline
+          # to run different Node versions. This job happened to succeed
+          # on 20 (confirmed against run 34635918668, 2026-09-11), but
+          # matching them removes an unexplained difference rather than
+          # leaving one job on a version the other can't use.
+          node-version: '22'
           cache: 'npm'
 
       - run: npm ci
@@ -90,7 +96,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          # Root cause, confirmed directly from run 34673605998's own log
+          # (2026-09-12, triggered by PR #83's merge): "Wrangler requires
+          # at least Node.js v22.0.0. You are using v20.20.2." wrangler
+          # itself refused to start -- failed before any Cloudflare API
+          # call, nothing was deployed, production unaffected by that
+          # attempt.
+          node-version: '22'
           cache: 'npm'
 
       - run: npm ci
