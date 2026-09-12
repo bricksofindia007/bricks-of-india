@@ -56,18 +56,28 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   const { data: review } = await supabase.from('reviews').select('*, sets(name)').eq('slug', params.slug).single();
   if (!review) return { title: 'Review Not Found' };
   const ratingBlurb = review.rating != null ? `${review.rating}/5 stars. ` : '';
+  // issue #109: review.sets is null whenever a review has no matched catalog
+  // set, and review.title (the fallback) is often already a full, pre-written
+  // title that starts with "LEGO" itself -- unconditionally prepending "LEGO "
+  // then doubled it ("LEGO LEGO ..."). setName is the single source of truth
+  // for both the title fields below and the description (which previously
+  // read review.sets?.name directly with no fallback at all, producing the
+  // literal string "the LEGO undefined." whenever sets was null -- same root
+  // cause, fixed in the same pass since it's the same missing-fallback bug).
+  const setName = review.sets?.name || review.title;
+  const productName = /^lego\b/i.test(setName) ? setName : `LEGO ${setName}`;
   return {
-    title: `LEGO ${review.sets?.name || review.title} Review — Is It Worth Buying in India?`,
-    description: `Our honest verdict on the LEGO ${review.sets?.name}. ${ratingBlurb}Read the full review including price comparison and buying advice for India.`,
+    title: `${productName} Review — Is It Worth Buying in India?`,
+    description: `Our honest verdict on the ${productName}. ${ratingBlurb}Read the full review including price comparison and buying advice for India.`,
     alternates: { canonical: `https://bricksofindia.com/reviews/${params.slug}` },
     openGraph: {
-      title: `LEGO ${review.sets?.name || review.title} Review — Bricks of India`,
+      title: `${productName} Review — Bricks of India`,
       description: `${ratingBlurb}Honest verdict with live India price comparison.`,
       images: socialCardImage(review.hero_image) ? [{ url: socialCardImage(review.hero_image)! }] : [],
     },
     twitter: {
       card: review.hero_image ? 'summary_large_image' : 'summary',
-      title: `LEGO ${review.sets?.name || review.title} Review — Bricks of India`,
+      title: `${productName} Review — Bricks of India`,
       description: `${ratingBlurb}Honest verdict with live India price comparison.`,
       images: socialCardImage(review.hero_image) ? [socialCardImage(review.hero_image)!] : undefined,
     },
