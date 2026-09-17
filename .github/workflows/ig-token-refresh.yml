@@ -99,14 +99,41 @@ jobs:
             echo "::error::FB_APP_ID / FB_APP_SECRET secrets not set — see workflow header runbook"
             exit 1
           fi
-          RESP=$(curl -sf "https://graph.facebook.com/v19.0/oauth/access_token" \
+
+          # Strip BOM/whitespace -- same precedent as RESEND_API_KEY below
+          # and CLAUDE.md's documented getSecret() pattern (Cerebras/Supabase
+          # incidents). Confirmed real and necessary here 2026-09-17: a
+          # freshly-rotated FB_APP_SECRET (pasted from the Meta App
+          # Dashboard) carried one stray trailing byte that behaved like an
+          # embedded literal newline -- broke both this exchange call
+          # ("Error validating client secret") and, unencoded, an app-token
+          # lookup (curl exit 3, malformed URL). Stripping proved to be
+          # exactly the fix: the same call with the stripped value
+          # succeeded immediately. Applied to all three Graph-bound values,
+          # not just the one that broke this time.
+          FB_APP_ID=$(printf '%s' "$FB_APP_ID" | python3 -c "import sys; print(sys.stdin.read().lstrip('﻿').strip())")
+          FB_APP_SECRET=$(printf '%s' "$FB_APP_SECRET" | python3 -c "import sys; print(sys.stdin.read().lstrip('﻿').strip())")
+          IG_ACCESS_TOKEN=$(printf '%s' "$IG_ACCESS_TOKEN" | python3 -c "import sys; print(sys.stdin.read().lstrip('﻿').strip())")
+
+          # -f dropped (was -sf) -- it discards the response body on a
+          # non-2xx, which is exactly why the original "Error validating
+          # client secret" incident took two separate debug-branch dispatch
+          # runs to even see. -w captures the real status code instead so a
+          # future failure is diagnosable from the normal run log directly.
+          RESP=$(curl -s -w '\n%{http_code}' "https://graph.facebook.com/v19.0/oauth/access_token" \
             --data-urlencode "grant_type=fb_exchange_token" \
             --data-urlencode "client_id=${FB_APP_ID}" \
             --data-urlencode "client_secret=${FB_APP_SECRET}" \
             --data-urlencode "fb_exchange_token=${IG_ACCESS_TOKEN}")
-          NEW_TOKEN=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))")
+          HTTP_STATUS=$(echo "$RESP" | tail -n1)
+          BODY=$(echo "$RESP" | sed '$d')
+          if [ "$HTTP_STATUS" -lt 200 ] || [ "$HTTP_STATUS" -ge 300 ]; then
+            echo "::error::Exchange call failed, HTTP ${HTTP_STATUS}: ${BODY}"
+            exit 1
+          fi
+          NEW_TOKEN=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token',''))")
           if [ -z "$NEW_TOKEN" ]; then
-            echo "::error::Exchange returned no access_token: $(echo "$RESP" | head -c 200)"
+            echo "::error::Exchange returned no access_token: $(echo "$BODY" | head -c 200)"
             exit 1
           fi
           echo "::add-mask::$NEW_TOKEN"
@@ -115,7 +142,7 @@ jobs:
           # Still detected and tracked (see header comment) -- but no longer
           # refuses to save. A short-lived-but-valid token beats an
           # unrotated one; the streak check below is the new safety net.
-          EXPIRES_IN=$(echo "$RESP" | python3 -c "import sys,json; print(json.load(sys.stdin).get('expires_in', 0))")
+          EXPIRES_IN=$(echo "$BODY" | python3 -c "import sys,json; print(json.load(sys.stdin).get('expires_in', 0))")
           echo "New token expires_in: ${EXPIRES_IN}s"
           MIN_EXPIRES_IN=$((30 * 24 * 60 * 60))
           if [ "$EXPIRES_IN" -lt "$MIN_EXPIRES_IN" ]; then
