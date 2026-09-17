@@ -59,29 +59,32 @@ FEATURE_FLAGS = {
     # test).
     #
     # Flipped True 2026-08-22 (FINAL ARCHITECTURE PASS) per explicit
-    # instruction, evidence reviewed. IMPORTANT CAVEAT, confirmed live via
-    # `gh secret list`: GROQ_API_KEY is NOT currently a GitHub repo secret
-    # -- it only exists in this developer's local scripts/test/.env
-    # (explicitly marked "local/test credential only" when first provided).
-    # Flipping this flag is therefore currently a functional no-op in
-    # production: _call_groq() will hit `if not GROQ_API_KEY: raise
-    # RuntimeError`, fail cleanly, and fall through to Cerebras/raise, same
-    # as if this flag were still False. Real Groq calls will not happen in
-    # any scheduled workflow until Abhinav adds GROQ_API_KEY as an actual
-    # repo secret -- that step was deliberately NOT taken here, per the
-    # earlier explicit instruction not to add it without a dedicated
-    # decision. scripts/canary/model_canary.py's daily run will report this
-    # exact condition ("SECRET NOT CONFIGURED") until it's resolved.
+    # instruction, evidence reviewed.
+    #
+    # UPDATE 2026-09-17: the caveat originally written here (GROQ_API_KEY
+    # not a real repo secret, flag a functional no-op) is stale and wrong
+    # as of `gh secret list` run this session -- GROQ_API_KEY has been a
+    # real repo secret since 2026-08-22. Real Groq calls have been firing
+    # in production; they were failing on a dead model (qwen/qwen3.6-27b,
+    # see the flag below), not a missing secret. Left uncorrected before
+    # now, this caveat would have wrongly suggested the model swap below
+    # doesn't matter in production -- it does.
     "qp_groq_fallback_enabled": True,
 
     # Which model quiet_panic_script_gen.py's _call_groq() targets, once
-    # qp_groq_fallback_enabled above is True. qwen/qwen3.6-27b chosen over
-    # the dead llama-3.3-70b-versatile after real Groq-side testing (fits
-    # the trimmed codex's TPM budget, reasoning_effort='none' required --
-    # see _call_groq()'s docstring). Kept as its own flag value (not
-    # hardcoded in _call_groq()) so a future model swap or rollback is a
-    # one-line config change, not a code change.
-    "qp_groq_fallback_model": "qwen/qwen3.6-27b",
+    # qp_groq_fallback_enabled above is True. qwen/qwen3.6-27b (chosen
+    # 2026-08-22 over the dead llama-3.3-70b-versatile) was itself
+    # decommissioned by 2026-09-17 (live 404, model_not_found, confirmed
+    # via model_canary.py's real daily run three days straight) -- Groq
+    # rotates its Preview-tier Qwen point releases without a formal
+    # deprecations-page entry, unlike GA model removals. Moved to
+    # openai/gpt-oss-120b, Groq's own repeated recommended replacement and
+    # a GA production model, not Preview. reasoning_effort='low' required
+    # for gpt-oss (different convention than qwen's 'none') -- see
+    # _call_groq()'s docstring. Kept as its own flag value (not hardcoded
+    # in _call_groq()) so a future model swap or rollback is a one-line
+    # config change, not a code change.
+    "qp_groq_fallback_model": "openai/gpt-oss-120b",
 
     # VID-P4 Groq fallback (engine.py's _try_groq()). Added 2026-08-22 as
     # part of the FINAL ARCHITECTURE PASS -- same reasoning as
@@ -106,6 +109,13 @@ FEATURE_FLAGS = {
     # decision: enable only if the re-test showed real improvement: it did
     # not. Leave False until P4-specific prompt/model iteration produces
     # real evidence of convergence.
+    # Model string updated 2026-09-17 alongside qp_groq_fallback_model
+    # (qwen/qwen3.6-27b decommissioned -> openai/gpt-oss-120b) purely so no
+    # production code path references a dead model, even a disabled one --
+    # this does NOT address the content-quality gap (word-count overruns,
+    # bad price math) documented above that's the actual reason this stays
+    # False. Re-enabling still requires new P4-specific evidence against
+    # whichever model is configured here, not just a live-model check.
     "p4_groq_fallback_enabled": False,
-    "p4_groq_fallback_model": "qwen/qwen3.6-27b",
+    "p4_groq_fallback_model": "openai/gpt-oss-120b",
 }
