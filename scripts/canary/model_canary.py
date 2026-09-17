@@ -93,7 +93,15 @@ def check_groq(label: str, model: str) -> CanaryResult:
         body = {
             'model': model,
             'messages': [{'role': 'user', 'content': 'Reply with exactly one word: OK'}],
-            'max_tokens': 20,
+            # 200, not 20 -- gpt-oss models emit a separate visible
+            # `reasoning` field before `content` even at reasoning_effort
+            # 'low' (confirmed empirically 2026-09-17: a real call against
+            # this exact one-word prompt spent all 20 of a 20-token budget
+            # on 14 reasoning tokens, finish_reason='length', content='').
+            # 20 was sized for qwen's reasoning_effort='none', which has no
+            # visible reasoning step at all -- not a safe assumption for
+            # every future model this check might target.
+            'max_tokens': 200,
         }
         if model.startswith('qwen/'):
             body['reasoning_effort'] = 'none'
@@ -108,8 +116,19 @@ def check_groq(label: str, model: str) -> CanaryResult:
         if resp.status_code == 404:
             return CanaryResult(label, False, f'{model}: 404 -- likely decommissioned/model_not_found. Raw: {resp.text[:200]}')
         resp.raise_for_status()
-        raw = resp.json()
-        return CanaryResult(label, True, f'DEBUG raw response: {raw}')
+        message = resp.json()['choices'][0]['message']
+        content = message.get('content')
+        if not content or not content.strip():
+            # Real gap found 2026-09-17: this function used to report OK
+            # on ANY 200-response regardless of content, unlike
+            # check_gemini/check_cerebras which both already guard against
+            # empty output. A finish_reason='length' truncation with a
+            # populated `reasoning` field but empty `content` would have
+            # passed silently -- exactly the kind of "looks fine, does
+            # nothing" failure this whole canary exists to catch.
+            reasoning_note = f" (reasoning field present: {message['reasoning'][:80]!r})" if message.get('reasoning') else ''
+            return CanaryResult(label, False, f'{model} returned empty content{reasoning_note} -- finish_reason={resp.json()["choices"][0].get("finish_reason")!r}')
+        return CanaryResult(label, True, f'{model} responded: {content.strip()[:50]!r}')
     except Exception as e:
         return CanaryResult(label, False, f'{model} call failed: {e}')
 
