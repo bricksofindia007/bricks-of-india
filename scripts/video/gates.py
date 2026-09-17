@@ -409,9 +409,22 @@ def gate_coherence_llm_judge(script: str) -> GateResult:
     no-op), not new capability, and gate results here are advisory/logged
     for human review only (VID-P4 has no auto-publish path) -- a real
     judge verdict newly appearing can only add information, never block
-    anything by itself. reasoning_effort='none' required for qwen -- absent
-    it, qwen burns its output budget on hidden <think> reasoning and
-    returns no visible verdict (confirmed empirically during this rollout)."""
+    anything by itself.
+
+    2026-09-17: same failure mode recurred -- qwen/qwen3.6-27b was itself
+    decommissioned (live 404, confirmed via model_canary.py's real run
+    three days straight), so this hardcoded call had gone back to silently
+    fail-open on every call via the except-and-pass below, exactly the bug
+    this docstring describes above. This model string was NOT covered by
+    model_canary.py's Groq check (that check validates the model name
+    referenced in feature_flags.py/config, not this separate hardcoded
+    literal) -- a real gap in the canary's coverage, not just bad luck.
+    Swapped to openai/gpt-oss-120b, same replacement used everywhere else
+    this rollout (Groq's own recommended replacement, GA not Preview).
+    reasoning_effort='low' for gpt-oss (qwen's 'none' equivalent -- absent
+    some low-reasoning setting, these models burn output budget on hidden
+    <think> reasoning and return no visible verdict, confirmed empirically
+    for qwen during the original rollout)."""
     groq_key = os.environ.get("GROQ_API_KEY", "").strip()
     if not groq_key:
         return GateResult("G10_coherence", True, "SKIPPED: GROQ_API_KEY not set (fail-open, judge unavailable)")
@@ -428,11 +441,11 @@ def gate_coherence_llm_judge(script: str) -> GateResult:
             "https://api.groq.com/openai/v1/chat/completions",
             headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
             json={
-                "model": "qwen/qwen3.6-27b",
+                "model": "openai/gpt-oss-120b",
                 "messages": [{"role": "user", "content": judge_prompt}],
                 "max_tokens": 200,
                 "temperature": 0.0,
-                "reasoning_effort": "none",
+                "reasoning_effort": "low",
             },
             timeout=30,
         )

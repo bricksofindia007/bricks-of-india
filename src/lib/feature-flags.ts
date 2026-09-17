@@ -56,12 +56,18 @@ export const FEATURE_FLAGS = {
   articleGroqFallbackEnabled: true,
 
   // Which model groq.ts's GroqProvider targets, once
-  // articleGroqFallbackEnabled above is true. qwen/qwen3.6-27b chosen after
-  // a real live max_tokens=1 TPM probe against the real buildSystemPrompt()
-  // + buildUserPrompt() output (prompt_tokens=3321, well under Groq's
-  // 8,000 TPM cap -- no trimming needed, unlike VID-QP's much larger
-  // codex-assembled prompt). Kept as its own flag value, not hardcoded in
+  // articleGroqFallbackEnabled above is true. Swapped 2026-09-17: qwen/
+  // qwen3.6-27b (chosen 2026-08-22) was itself decommissioned without a
+  // formal deprecations-page entry -- Groq rotates its Preview-tier Qwen
+  // point releases (3-32b -> 3.6-27b -> 3.8-27b) without the same notice
+  // as GA models, so pinning to one is exactly what killed this fallback
+  // twice now (first llama-3.3-70b-versatile, then qwen3.6-27b). Moved to
+  // openai/gpt-oss-120b -- Groq's own recommended replacement for BOTH
+  // prior deprecations (console.groq.com/docs/deprecations) and a GA
+  // production model, not Preview. Confirmed live via a real Groq API
+  // call before this change shipped (model_canary.py workflow_dispatch
+  // run, not just docs). Kept as its own flag value, not hardcoded in
   // groq.ts, so a future model swap or rollback is a one-line config
   // change.
-  articleGroqFallbackModel: 'qwen/qwen3.6-27b',
+  articleGroqFallbackModel: 'openai/gpt-oss-120b',
 } as const;

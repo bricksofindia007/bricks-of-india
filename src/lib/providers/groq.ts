@@ -3,12 +3,17 @@ import { FEATURE_FLAGS } from '../feature-flags';
 
 // 2026-08-22 (qwen rollout evidence pass): default model swapped from the
 // now-decommissioned llama-3.3-70b-versatile (confirmed dead, live 404) to
-// FEATURE_FLAGS.articleGroqFallbackModel (qwen/qwen3.6-27b) -- see that
-// flag's docstring for why this whole path is also gated behind
+// qwen/qwen3.6-27b. 2026-09-17: qwen3.6-27b itself went dead the same way
+// (live 404, model_not_found) -- Groq rotates its Preview-tier Qwen point
+// releases without a formal deprecations-page entry, so pinning to one is
+// what killed this fallback twice now. Moved to openai/gpt-oss-120b, a GA
+// production model and Groq's own repeated recommended replacement for
+// both prior deprecations. See FEATURE_FLAGS.articleGroqFallbackModel's
+// docstring for why this path is also gated behind
 // articleGroqFallbackEnabled at the call site (generate-with-failover.ts),
 // not just here. Kept as a fallback literal (not required) so a missing
 // flag entry still resolves to a real model string rather than undefined.
-const DEFAULT_GROQ_MODEL = 'qwen/qwen3.6-27b';
+const DEFAULT_GROQ_MODEL = 'openai/gpt-oss-120b';
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 
 export class GroqProvider implements Provider {
@@ -30,12 +35,15 @@ export class GroqProvider implements Provider {
     // reasoning_effort is a vendor-specific param -- qwen accepts only
     // 'none'/'default'; without it, qwen burns its whole output budget on
     // hidden <think> reasoning and returns empty content (confirmed
-    // empirically during this rollout's VID-QP testing). Only applied for
-    // the qwen family -- a future non-qwen reasoning model swap (e.g.
-    // gpt-oss, which uses 'low'/'medium'/'high' instead) would need this
-    // re-derived, not blindly reused.
+    // empirically during this rollout's VID-QP testing). gpt-oss uses a
+    // different convention ('low'/'medium'/'high', no 'none') -- 'low' set
+    // here 2026-09-17 for the same reason qwen needed 'none': this is a
+    // short one-shot fallback call, not worth spending output budget on
+    // hidden reasoning for.
     if (model.startsWith('qwen/')) {
       body.reasoning_effort = 'none';
+    } else if (model.startsWith('openai/gpt-oss')) {
+      body.reasoning_effort = 'low';
     }
 
     // 429 handling: added 2026-08-22 after a real 429 was hit live during

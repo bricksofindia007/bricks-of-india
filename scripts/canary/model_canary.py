@@ -9,17 +9,29 @@ via a live 404 during the qwen rollout evidence pass).
 Checks, one per (provider, model, secret) actually used in production:
   - Gemini gemini-2.5-flash            (VID-P4 + VID-QP, GEMINI_SOCIAL_API_KEY)
   - Gemini gemini-2.5-flash-lite       (article pipeline, GEMINI_API_KEY)
-  - Groq   qwen/qwen3.6-27b            (all 3 pipelines' fallback, GROQ_API_KEY)
+  - Groq   openai/gpt-oss-120b         (all 3 pipelines' fallback via
+                                         feature_flags.py, GROQ_API_KEY)
   - Cerebras gpt-oss-120b              (all 3 pipelines' fallback, flagged off
                                          but code kept live -- CEREBRAS_API_KEY)
 
 A missing/empty secret is reported as its OWN distinct failure ("secret not
-configured"), not silently skipped and not conflated with "model dead" --
-see the qwen rollout's own real finding that GROQ_API_KEY has never been
-added as a repo secret at all, which independently makes every Groq call
-site (including this fixed coherence gate) fail open in production
-regardless of which model is configured. This canary is the mechanism that
-would have caught that gap immediately instead of it going unnoticed.
+configured"), not silently skipped and not conflated with "model dead".
+
+2026-09-17: qwen/qwen3.6-27b (the model this check previously targeted) was
+itself decommissioned -- this canary caught it correctly (3 days red before
+anyone was watching manually), confirming the design works. Swapped to
+openai/gpt-oss-120b, Groq's own recommended replacement and a GA model
+rather than a Preview-tier Qwen point release (which is what got pinned and
+killed twice now: llama-3.3-70b-versatile, then qwen3.6-27b).
+
+KNOWN GAP found during this same fix: gates.py's gate_coherence_llm_judge()
+hardcodes its own Groq model string independently of feature_flags.py --
+this check validates the feature_flags.py value (what the other 3 call
+sites read), not that separate hardcoded literal. Both happened to be the
+same dead model this time, so the fix landed together, but this check
+would NOT by itself catch that specific call site drifting from the others
+in the future. Flagged, not fixed here -- wiring gates.py to read from
+feature_flags.py too is a real option but a separate, deliberate change.
 
 Exit code is non-zero if ANY check fails -- this workflow is meant to show
 up red in normal GitHub Actions notifications on failure, the opposite
@@ -85,6 +97,8 @@ def check_groq(label: str, model: str) -> CanaryResult:
         }
         if model.startswith('qwen/'):
             body['reasoning_effort'] = 'none'
+        elif model.startswith('openai/gpt-oss'):
+            body['reasoning_effort'] = 'low'
         resp = requests.post(
             'https://api.groq.com/openai/v1/chat/completions',
             headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
@@ -133,7 +147,7 @@ def main() -> int:
     checks = [
         check_gemini('gemini-2.5-flash (video pipelines)', 'GEMINI_SOCIAL_API_KEY', 'gemini-2.5-flash'),
         check_gemini('gemini-2.5-flash-lite (article pipeline)', 'GEMINI_API_KEY', 'gemini-2.5-flash-lite'),
-        check_groq('qwen/qwen3.6-27b (all 3 pipelines\' Groq fallback)', 'qwen/qwen3.6-27b'),
+        check_groq('openai/gpt-oss-120b (all 3 pipelines\' Groq fallback)', 'openai/gpt-oss-120b'),
         check_cerebras('gpt-oss-120b (all 3 pipelines\' Cerebras fallback, flagged off)', 'gpt-oss-120b'),
     ]
 

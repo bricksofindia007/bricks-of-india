@@ -915,6 +915,8 @@ def _try_groq(system_prompt: str, task_prompt: str) -> ScriptGenResult | None:
     }
     if model.startswith("qwen/"):
         body["reasoning_effort"] = "none"
+    elif model.startswith("openai/gpt-oss"):
+        body["reasoning_effort"] = "low"
     try:
         for attempt in (1, 2):
             resp = requests.post(

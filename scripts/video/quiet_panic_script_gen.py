@@ -993,6 +993,8 @@ def _call_groq(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
     }
     if model.startswith('qwen/'):
         body['reasoning_effort'] = 'none'
+    elif model.startswith('openai/gpt-oss'):
+        body['reasoning_effort'] = 'low'
 
     for attempt in (1, 2):
         resp = requests.post(
