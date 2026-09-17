@@ -1,5 +1,48 @@
 # BOI Master Tracker
 
+## Storage-quota / infra remediation — verification pass, 2026-09-17T19:41Z
+
+**Every "done" line below was re-verified with fresh evidence in this pass** (re-run workflows, re-queried the DB, fresh curls, fresh `gh api` calls) — none transcribed from earlier-session memory. Run IDs, commit hashes, and exact numbers are from checks performed at or right before the timestamp above.
+
+### Done and verified tonight
+
+1. **Netlify build hook "Daily Cron Rebuild" — still deleted.** Fresh `GET /sites/{id}/build_hooks` at 19:41Z: `[]`.
+
+2. **DB retention — live, verified via fresh query.** `raw_signals`: 37,948/48,278 rows have `raw_payload IS NULL` (unchanged from the one-time pass, confirming nothing since has un-nulled them). `content_quality_issues_archive`: 26,289 rows. `content_quality_issues` still holding the 164 FK-blocked rows (`resolved=true`, eligible by date, `content_fix_log.issue_id` still references them). `.github/workflows/retention-cleanup.yml` confirmed present on `main` at commit `5633ec4` (PR #132, merged 2026-09-17T11:40:13Z), `cron: '0 5 * * 0'` (weekly, live — not dry-run-forced).
+
+3. **code-audit manifest drift — still fixed, re-confirmed on a fresh dispatched run.** Run [35265394692](https://github.com/bricksofindia007/bricks-of-india/actions/runs/35265394692): `LINT_OUTCOME: success`, `TYPECHECK_OUTCOME: success`, `SECRETS_OUTCOME: success` (`✅ Secrets manifest audit passed — 27 secrets · 41 workflows · 362 references verified`), `AUDIT_OUTCOME: failure` — confirmed the only remaining red is npm's `9 vulnerabilities (2 moderate, 7 high)`, i.e. still exactly PR #41's scope, not this fix.
+
+4. **Model Canary — still green, real content re-confirmed.** Fresh dispatch, run [35265509128](https://github.com/bricksofindia007/bricks-of-india/actions/runs/35265509128): all 4 checks `[OK]`, including `openai/gpt-oss-120b (all 3 pipelines' Groq fallback): ... responded: 'OK'` — real visible content, not empty (the `max_tokens`/empty-guard fix from PR #131 holding up on repeat runs, not a one-off).
+
+5. **Both PRs live in production — re-verified with a fresh curl right now, not the earlier check.** `curl -I https://bricksofindia.com/` at 19:33Z: `200`, `Server: cloudflare`, `x-opennext: 1`. Same for `www.bricksofindia.com`.
+
+6. **FB_APP_SECRET root cause fixed, IG_ACCESS_TOKEN rotated — confirmed, with a real caveat surfaced by this verification pass, not assumed away.** `gh api .../actions/secrets/IG_ACCESS_TOKEN` → `updated_at: 2026-09-17T18:20:34Z` (fresh check, unchanged since the rotation — no further rotation has happened, correctly, since `due_check`'s 45-day gate keeps it skipped). PR #134 (`237b100`, merged) confirmed present on `main`. **Runway is NOT 60 days** — the real Graph API exchange response captured during the rotation showed `expires_in: 564110` (≈6.53 days), meaning realistic expiry is **~2026-09-24**, roughly 21 days before `due_check` would next attempt a rotation (~2026-11-01). The workflow's own designed backstop for this (short-lived-streak alert) also failed the same run on the `ADMIN_PAT` scope gap (see below). **Filed as issue #135**, not silently absorbed into "done."
+
+7. **Issue #133 — was still open at verification time (not already closed as assumed); closed now with full evidence, including the #135 caveat.** State before this pass: `OPEN`. Closed 2026-09-17T19:4x with a comment citing PR #134's exact fix and cross-linking #135 so the closure doesn't overclaim.
+
+8. **boi-growth-engine#2 — confirmed still closed** (`closedAt: 2026-09-17T19:08:35Z`), with the real before/after `growth.ingestion_runs` evidence and the real `growth.platform_metrics_daily` row already attached from the original close.
+
+9. **cron-job.org stale trigger — reported by Abhinav as found inactive and deleted.** **Not independently verified** — no access to that account from this session (external, third-party service, was already the case before tonight). Recorded on Abhinav's word, flagged here as such rather than presented as independently confirmed.
+
+10. **Netlify billing — real overage independently confirmed via a fresh API call, downgrade-scheduled date confirmed directly.** `GET /accounts` at 19:34Z shows `"scheduled_downgrade_date": "2026-09-23"` and `"usages_exceeded": [{"usage_type":"credits","limit_type":"enforced","exceeded_at":"2026-09-01T13:41:19Z"}]` still present — real, current API state, not a stale cached flag. **Could not independently verify the specific "1,100.4/1,000 credits" figure** — the same endpoint's `credits.used` field reads `0` for the *current* cycle (started 2026-08-23), which doesn't contradict an overage total from a *prior* cycle/rolled-up figure, but this session has no endpoint access that shows that exact number directly. Taking Abhinav's figure on his own dashboard access, not re-derived here.
+
+11. **Cloudflare DNS — reported by Abhinav as confirmed clean, stale `_acme-challenge` CNAME found and deleted.** **Not independently verified** — this session still has zero Cloudflare API token (checked again tonight, `.env.local` has none), exactly the same access gap flagged in every earlier pass. Recorded on Abhinav's word.
+
+### New, found only by this verification pass
+
+- **Issue #135 filed**: `IG_ACCESS_TOKEN`'s real remaining life (~6.5 days per the actual Graph response, not 60) combined with the 45-day `due_check` gate and the broken streak-alert backstop means a real, near-term (~2026-09-24) risk of the exact same symptom (Instagram posting breaks) recurring with no automated warning. Not fixed in this pass — flagged, not silently rolled into "done."
+- **Two more deploy-pipeline runs are sitting unapproved**, beyond the one already known: `35258978678` (triggered by PR #134's merge) and `35217316912`. Neither approved in this pass — no explicit go-ahead was given for these specific runs, and per this session's own standing rule, approval is never assumed from an earlier turn's approval of a different run. Left pending, flagged here so they're not lost track of.
+
+### Still open — recorded accurately, not marked resolved
+
+- **Netlify downgrade completion** — `scheduled_downgrade_date: 2026-09-23` confirmed via fresh API call tonight, but the actual plan change hasn't happened yet. Needs a real check **on/after 2026-09-23** that the account actually shows Free plan — not assumed from the scheduled-state field alone.
+- **quiet-panic-assets cleanup** — still nothing deleted. The eligibility numbers from the earlier pass (14 `posted_both` objects/68MB eligible, 3 `rejected`/15MB blocked by the same `posted_at`-never-set gap as VID-P4's `discarded` state, 2 orphaned objects/~9.2MB) came from direct SQL, not a run of the actual cleanup automation itself — needs a clean pass through real tooling before any live-delete go-ahead, per the explicit instruction that this needs its own separate approval round.
+- **social-assets schedule (dry-run → live-scheduled)** — still an open decision, still Abhinav's to make. **Fresh count tonight, not the 09-12 figure**: a dispatched dry-run just now (run [35265686557](https://github.com/bricksofindia007/bricks-of-india/actions/runs/35265686557)) shows **248 files currently eligible** under the 72h age guard — materially different from the "~979, unchanged for weeks" figure on record before, because the 2026-09-12 live run (1,087 files deleted) reset the baseline; 248 is 5 days of re-accumulation since, not a stale multi-week backlog.
+- **Weekly Technical Hygiene / Catalogue Health Audit — confirmed still failing, fresh counts pulled tonight, not the earlier snapshot.** Catalogue Health Audit (run [35265787057](https://github.com/bricksofindia007/bricks-of-india/actions/runs/35265787057)): **48 of 1,159** listed sets now missing `lego_mrp_inr` (was 47/1,154 at the last check — real drift, not copied). Weekly Technical Hygiene (run [35265783243](https://github.com/bricksofindia007/bricks-of-india/actions/runs/35265783243)): 6 distinct failing checks right now (`LabData`, `CatalogCoverage` 9% missing pieces data, `ImageHealth` 1 null hero_image, `ContentIntegrity` ALL-CAPS in 2 articles, `ReviewedSetPrices` 13 reviewed sets missing `store_prices` — was 16, `ReviewRouting` 1 slug collision) — real, current, unrelated to tonight's infra work, not actioned.
+- **PR #41** — re-checked tonight, still `OPEN`, still the 9-vulnerability npm-audit blocker, untouched.
+- **ADMIN_PAT missing `Variables: write`** — last real evidence is the 2026-09-17T18:20Z run's `HTTP 403` on the variables-write call. Could not re-test tonight (`due_check` only runs the exchange/streak steps when `due=true`, which won't be true again until ~2026-11-01 barring the #135 scenario) — recorded as "last confirmed broken at 18:20Z," not re-verified fresh, and flagged as such rather than implied to be freshly checked.
+- **Migration plan steps 1 (cancel stale workflow run) and 2 (Cloudflare Images Sources restriction)** — step 1 re-checked directly tonight: run `34635918668` is still `status: waiting`, genuinely untouched. Step 2 (Cloudflare Images) **could not be checked at all** — no Cloudflare API token available in this session, same gap as the DNS item above; recorded as unconfirmed, not assumed untouched or assumed done.
+
 ## Storage-quota incident investigation + remediation pass — 2026-09-17
 
 **Trigger:** Abhinav asked for a read-only audit of a reported 457MB/500MB Supabase capacity figure, a cluster of GH Actions failures, and a Netlify pre-downgrade safety check. Investigation, then a directed remediation pass, then a comprehensive cross-repo failure sweep, then a second directed remediation pass — all same session, real evidence at every step, nothing here written on assumption.
