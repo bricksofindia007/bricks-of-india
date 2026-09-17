@@ -108,8 +108,8 @@ def check_groq(label: str, model: str) -> CanaryResult:
         if resp.status_code == 404:
             return CanaryResult(label, False, f'{model}: 404 -- likely decommissioned/model_not_found. Raw: {resp.text[:200]}')
         resp.raise_for_status()
-        content = resp.json()['choices'][0]['message']['content']
-        return CanaryResult(label, True, f'{model} responded: {content.strip()[:50]!r}')
+        raw = resp.json()
+        return CanaryResult(label, True, f'DEBUG raw response: {raw}')
     except Exception as e:
         return CanaryResult(label, False, f'{model} call failed: {e}')
 
