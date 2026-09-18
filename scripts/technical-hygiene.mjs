@@ -732,6 +732,23 @@ const NON_BUILDABLE_THEMES = new Set([
   'Bag and Luggage Tags', 'Houseware', 'Video Games and Accessories',
   'Key Chain', 'Story Books', 'Gear', 'Stationery and Office Supplies',
   'Storage', 'Non-fiction Books', 'Ideas Books', 'Clocks and Watches',
+  // Added 2026-09-18 (issue #124): these 5 crept into the catalogue since
+  // the list above was written and are the same class of non-buildable
+  // merchandise (no meaningful single piece count), not a new gap.
+  // Confirmed directly against live data before adding: Clothing &
+  // Footwear (615/617, 99.7% missing), Activity Books (214/216, 99.1%),
+  // Posters and Art Prints (97/98, 99.0%), Tabletop Games and Puzzles
+  // (80/100, 80.0%), Audio and Visual Media (67/78, 85.9%) -- together
+  // 1,146 of the reported 1,696 "missing" (67.6%). Excluding them drops
+  // the genuine buildable-catalogue gap from 9.1% (1696/18639) to 3.6%
+  // (623/17530), back under this check's 5% threshold -- same fix shape
+  // as the original HIGH-48 investigation this list came from (27.6% ->
+  // ~6% after the first exclusion pass). 'Seasonal' (64.6% missing, 113
+  // total) deliberately NOT added -- unlike these 5, it's a mixed
+  // category that can contain real buildable ornaments/sets alongside
+  // non-buildable decor, so a blanket exclusion isn't as clearly correct.
+  'Clothing & Footwear', 'Activity Books', 'Posters and Art Prints',
+  'Tabletop Games and Puzzles', 'Audio and Visual Media',
 ]);
 const BUNDLE_NAME_RE = /\b(bundle|pack|advent|gift set|collection|kit)\b/i;
 
