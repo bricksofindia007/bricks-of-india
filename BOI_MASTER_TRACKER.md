@@ -1,5 +1,24 @@
 # BOI Master Tracker
 
+## Deploy queue resolved — 467e0af/d880193 approved, 76fb2ac/c0d4b88 cancelled — 2026-09-18T04:35Z
+
+**`467e0af` (PR #136 — #124 + #128) — approved by Abhinav, deployed.** Ancestry checked per `DEPLOY_POLICY.md` before approving: walked the full chain back to baseline (`ab350fe`) — `76fb2ac`/#131 (Tier 2, touches `gate_coherence_llm_judge()`) and `237b100`/#134 (Tier 2, auth-adjacent) were both already explicitly approved by Abhinav earlier this session; no unapproved Tier 2 ancestor remained. Run `35304459830`, Build + Deploy both `success`.
+
+**`d880193` (the DEPLOY_POLICY.md tree-ancestry-check commit) — re-checked and approved by terminal, Tier 1.** At the time this commit was written, its ancestry included the still-unapproved `467e0af`, so it was correctly held rather than auto-approved. Re-checked immediately after `467e0af`'s approval above: ancestry now clean (no unapproved Tier 2 remaining anywhere in the chain), so it qualifies as genuine Tier 1 (pure docs) in its own right — approved by terminal per the policy's own "Tier 1 → proceed, don't ask" rule, not re-escalated. Confirmed it still needed its **own** separate approval click — approving `467e0af`'s run does not auto-approve a different run, even with overlapping content. Run `35307203939`, Build + Deploy both `success`.
+
+**`76fb2ac` (run `35216648484`) and `c0d4b88` (run `35217316912`) — cancelled per Abhinav's explicit instruction, both confirmed `status: completed, conclusion: cancelled`.**
+
+**Real reasoning, re-derived fresh against the state at cancellation time (not the earlier "harmless" read from before #136 shipped):** both commits pre-date `next.config.mjs`'s #128 redirect rule and `publish-draft.ts`'s cross-table slug-uniqueness guard, both confirmed present in every diff from `76fb2ac`/`c0d4b88` to the current live tree. Deploying either now would have:
+- Reverted the just-verified `/news/lego-the-endurance-10335-worth-22899` → `/reviews/...` redirect (real `308` confirmed live) back to serving the original live duplicate-content `200`, since Next.js bakes `redirects()` into the build at compile time — an older build without that rule simply doesn't have it.
+- Reverted `publish-draft.ts`'s slug-uniqueness check back to single-table-only, re-opening the exact collision class #128 was filed for on the next new review/news publish.
+
+**Confirmed NOT actually at risk from either commit, despite being older:** `scripts/technical-hygiene.mjs` (#124's fix) runs directly off `main` via its own GitHub Actions workflow, independent of which Cloudflare build is live — #124 stays fixed regardless of this deploy-queue state. Same for `secrets-manifest.json`, `retention-cleanup.mjs`/`.yml`, `ig-token-refresh.yml`, and both tracker/policy docs — none are part of the deployed Worker bundle.
+
+**Current live state, confirmed via `gh run list` + a real curl at logging time:** commit `d880193`, run `35307203939`. Redirect confirmed live and correct.
+
+---
+
+
 ## Deploy Policy created + first real classifications logged — 2026-09-18T04:10Z
 
 **`.github/DEPLOY_POLICY.md` created** (commit `64a700e`) — Tier 1/Tier 2 criteria for every future production-deploy decision, provided verbatim by Abhinav, not drafted by terminal. Core principle: not "how much testing," but "if this is wrong, how would we find out, and how bad is it meanwhile."
