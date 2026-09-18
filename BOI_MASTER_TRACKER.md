@@ -1,5 +1,23 @@
 # BOI Master Tracker
 
+## Deploy Policy created + first real classifications logged — 2026-09-18T04:10Z
+
+**`.github/DEPLOY_POLICY.md` created** (commit `64a700e`) — Tier 1/Tier 2 criteria for every future production-deploy decision, provided verbatim by Abhinav, not drafted by terminal. Core principle: not "how much testing," but "if this is wrong, how would we find out, and how bad is it meanwhile."
+
+**Four queued Cloudflare Workers deployments classified against it, same session the policy was created:**
+
+| Commit | Contents (verified via `git diff --stat` against what's live) | Classification | Action |
+|---|---|---|---|
+| `76fb2ac` (PR #131 merge) | Diff vs. currently-live `237b100`: `.github/secrets-manifest.json`, `ig-token-refresh.yml`, `retention-cleanup.yml`, `retention-cleanup.mjs`, tracker docs — **zero of these are in the Next.js build**. Deploying this now would be functionally identical to what's live. | Tier 1 by the letter (no runtime-logic diff, reversible, doesn't touch the Tier 2 list) | **Not approved** — stale/out-of-order run, recommended for cancellation on hygiene grounds (deploying it gains nothing), not safety grounds. Left as-is pending Abhinav's word on cancelling. |
+| `c0d4b88` (tracker docs commit) | Diff vs. live: exactly one file, `ig-token-refresh.yml` (GH Actions workflow, not in the site build). | Tier 1 by the letter | Same as above — not approved, recommended cancel, not touched. |
+| `467e0af` (PR #136, #124+#128) | Diff vs. live: `next.config.mjs` (the #128 redirect) and `src/lib/publish-draft.ts` (cross-table slug guard) — **both genuinely in the deployed runtime**. | **Tier 2** — fails Tier 1 criterion 1's real-evidence bar: the redirect can't be tested until deployed (confirmed still 200, not 308, as of this entry), and the new guard was type-checked/CI-passed but never exercised against real duplicate-slug data. Default-rule fallback also applies (genuine uncertainty). | **Held for Abhinav.** Recommendation attached: approve — low blast radius (a routing redirect + a stricter-only uniqueness check), worst case no worse than the current known duplicate-content state. |
+| `64a700e` (this DEPLOY_POLICY.md commit) | Pure docs, zero code. | **Tier 1** — criterion 1 (docs-only), criterion 2 (reversible), criterion 3 (touches nothing on the Tier 2 list) all clean. | **Approved and deployed** by terminal per the policy's own "terminal proceeds, log it, don't ask" — run [35305615427](https://github.com/bricksofindia007/bricks-of-india/actions/runs/35305615427), Build + Deploy both `success`. |
+
+**Correction on the record:** an earlier same-session report claimed approving `76fb2ac`/`c0d4b88` would be a live-site regression, reasoned from git ancestry alone without checking the actual diff. Checked directly afterward (`git diff --stat`) — that claim was overstated; the real issue with both is staleness/pointlessness, not risk. Recorded here so the correction has the same visibility as the original claim did.
+
+---
+
+
 ## Storage-quota / infra remediation — verification pass, 2026-09-17T19:41Z
 
 **Every "done" line below was re-verified with fresh evidence in this pass** (re-run workflows, re-queried the DB, fresh curls, fresh `gh api` calls) — none transcribed from earlier-session memory. Run IDs, commit hashes, and exact numbers are from checks performed at or right before the timestamp above.
