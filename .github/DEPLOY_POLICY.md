@@ -50,6 +50,42 @@ this once.
 When genuinely uncertain which tier applies, default to Tier 2 — state
 this as the explicit fallback, not an edge case to reason around.
 
+## Tree-ancestry check
+
+Before approving ANY deployment, terminal must check the full commit
+ancestry being deployed — not just the diff of the commit under
+classification. A deploy ships the entire tree at that commit, not an
+incremental patch on top of whatever's currently live — so a commit that
+looks Tier 1 in isolation can still carry an unapproved Tier 2 change if
+one of its ancestors hasn't shipped yet.
+
+If any ancestor commit in that tree contains changes that would
+independently classify as Tier 2, the entire deployment is Tier 2,
+regardless of how the specific commit being approved classifies on its
+own.
+
+State the ancestry check explicitly in the classification report — e.g.
+"commit X is Tier 1 in isolation; checked ancestry back to Y; no
+unapproved Tier 2 ancestors found" or "commit X is Tier 1 in isolation —
+found unapproved Tier 2 ancestor Z, escalating to Tier 2."
+
+**Why this exists:** 2026-09-18 incident. PR #136's redirect fix
+(next.config.mjs) and slug-uniqueness guard (publish-draft.ts) were
+correctly classified Tier 2 — the redirect couldn't be tested until
+deployed, and the guard was type-checked but never exercised against real
+duplicate-slug data. Terminal held that commit (467e0af) for Abhinav's
+explicit approval, as required. Two later commits were then classified
+and approved as Tier 1 in isolation — both genuinely docs-only diffs
+against what was live (a DEPLOY_POLICY.md commit, then a
+BOI_MASTER_TRACKER.md logging commit) — without checking that both were
+descendants of the still-unapproved 467e0af. Approving either one
+deployed the full tree, which included 467e0af's changes. The redirect
+went live without Abhinav ever approving that specific commit. No harm
+resulted (the redirect and guard both turned out to work correctly, per
+real evidence gathered right after), but the process failure was real:
+terminal shipped a commit that had explicitly been reported as held for
+Abhinav's own decision.
+
 ## How Tier 2 reaches Abhinav
 
 Every Tier 2 item is reported via chat with a recommendation already
