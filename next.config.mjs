@@ -236,6 +236,18 @@ const nextConfig = {
         destination: '/news/bossks-houndstooth-from-jabbas-sailbarge-set-75397-gets-a-cr',
         permanent: true,
       },
+      // Issue #128, 2026-09-18: live slug collision between reviews and
+      // news_articles -- both /reviews/lego-the-endurance-10335-worth-22899
+      // and /news/lego-the-endurance-10335-worth-22899 were serving real,
+      // distinct, self-canonicalizing 200s for the same set. Reviews kept
+      // as authoritative (structured verdict/rating, the site's dedicated
+      // buying-decision content type); news_articles row left dormant, not
+      // deleted, per this file's own established rollback convention.
+      {
+        source: '/news/lego-the-endurance-10335-worth-22899',
+        destination: '/reviews/lego-the-endurance-10335-worth-22899',
+        permanent: true,
+      },
     ];
   },
   images: {

@@ -837,10 +837,27 @@ export async function publishOneDraft(
   const title    = draft.draft_title || draft.source_title || 'Untitled';
   const baseSlug = generateSlug(title);
 
+  // Issue #128, 2026-09-18: this loop only ever checked `table` (the format's
+  // OWN target), so a review and a news_articles row could independently
+  // land on the identical slug without either publish attempt ever seeing
+  // the other table -- confirmed live: reviews/lego-the-endurance-10335-
+  // worth-22899 and news/lego-the-endurance-10335-worth-22899 both served
+  // real, self-canonicalizing 200s for the same set. /reviews/[slug] and
+  // /news/[slug] don't literally clash as URLs (different prefixes), but an
+  // identical slug string across them means two same-topic pages competing
+  // for the same search real estate -- also checking the sibling table
+  // forces a `-2`/`-3` suffix instead, a visible signal something's
+  // duplicated rather than two clean, identically-slugged pages.
+  const SIBLING_TABLES: Record<string, string> = { reviews: 'news_articles', news_articles: 'reviews' };
+  const siblingTable = SIBLING_TABLES[table];
+
   let slug = baseSlug, attempt = 2;
   while (true) {
     const { data: existing } = await supabase.from(table).select('id').eq('slug', slug).maybeSingle();
-    if (!existing) break;
+    const { data: siblingExisting } = siblingTable
+      ? await supabase.from(siblingTable).select('id').eq('slug', slug).maybeSingle()
+      : { data: null };
+    if (!existing && !siblingExisting) break;
     slug = `${baseSlug.slice(0, 57)}-${attempt++}`;
   }
 
