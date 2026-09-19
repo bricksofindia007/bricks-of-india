@@ -1,0 +1,66 @@
+name: VID Retry Missing Platform
+
+# Issue #137, 2026-09-19. Finds video_posts/quiet_panic_posts rows stuck at
+# status='posted_ig' or 'posted_yt' -- one platform succeeded, the other
+# failed, and confirmed via grep before this existed that nothing ever
+# retried the missing one. Real example this was built against: story #61
+# (The Fire Knight Mech), posted_yt since 2026-09-18, Instagram never
+# retried.
+#
+# Deliberately a SEPARATE scheduled step, not folded into the existing
+# */15min poller -- running independently of already_published_today_ist's
+# daily cap is the current interim behavior, not a decided answer to
+# whether completing a stuck platform should consume today's publish slot.
+# See engine.py::retry_missing_platforms_all()'s own comment; that question
+# is Abhinav's to decide, not assumed here.
+#
+# Hourly at :45 -- checked against this repo's other hourly crons before
+# picking the minute: VID-QP Rework Poller runs on the hour (0 * * * *),
+# VID-QP Publish Poller at :17 (17 * * * *).
+
+on:
+  schedule:
+    - cron: '45 * * * *'
+  workflow_dispatch:  # manual trigger for testing
+
+jobs:
+  retry:
+    runs-on: ubuntu-latest
+    # No prior runs to measure yet -- a handful of single API calls at
+    # most (one per stuck row), same class of small workload as the
+    # publish pollers this mirrors. Matches their timeout as a starting
+    # point rather than leaving it unset, since the shape is already known
+    # even without run history.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y ffmpeg tesseract-ocr
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/video/requirements.txt
+
+      - name: Retry missing platform — VID-P4 (video_posts)
+        working-directory: scripts/video
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
+        run: python engine.py --retry-missing-platform
+
+      - name: Retry missing platform — VID-QP (quiet_panic_posts)
+        working-directory: scripts/video
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
+        run: python publish_quiet_panic.py --retry-missing-platform

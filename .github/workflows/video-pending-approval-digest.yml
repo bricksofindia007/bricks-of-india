@@ -1,0 +1,51 @@
+name: VID Pending-Approval Digest
+
+# Issue #137, 2026-09-19. Daily digest of every pending_approval row across
+# video_posts (VID-P4) and quiet_panic_posts (VID-QP) -- neither pipeline
+# had a recurring reminder before this: send_ready_for_review_notification
+# fires once, at generation time, then never again. This is why #49/#55/
+# #62/#66 had no way of resurfacing to Abhinav after their one-time email.
+# Silent no-op when both tables are empty -- see
+# engine.py::check_and_send_pending_approval_digest().
+#
+# 03:25 UTC -- after VID-P4 Daily Cloud Generation (00:30 UTC) and clear of
+# every other daily cron in this repo (checked against the full list in
+# .github/workflows/*.yml before picking this minute).
+
+on:
+  schedule:
+    - cron: '25 3 * * *'  # 03:25 UTC = 08:55 IST
+  workflow_dispatch:  # manual trigger for testing
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    # No prior runs to measure yet -- same class of small, boundable
+    # workload as video-rejection-reminder.yml (two simple selects + one
+    # conditional email), so its observed 1m54s-2m55s range is used as the
+    # baseline rather than leaving this unset.
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y ffmpeg
+
+      - name: Install Python dependencies
+        # Full requirements.txt, not just supabase/resend -- engine.py
+        # imports moviepy/PIL/numpy/whisper unconditionally at module load
+        # regardless of which CLI flag is used. Matches the other
+        # video-*.yml workflows' install step.
+        run: pip install -r scripts/video/requirements.txt
+
+      - name: Check and send pending-approval digest if non-empty
+        working-directory: scripts/video
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: python engine.py --check-pending-approval-digest

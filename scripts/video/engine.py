@@ -2356,6 +2356,109 @@ def check_and_send_rejection_reminder(sb) -> None:
     print(f"last_reminder_sent_at updated to {now_utc.isoformat()}.")
 
 
+def check_and_send_pending_approval_digest(sb) -> None:
+    """
+    Issue #137, 2026-09-19: --check-pending-approval-digest entry point, run
+    DAILY by video-pending-approval-digest.yml -- no interval-state table
+    needed here unlike check_and_send_rejection_reminder above, since the
+    schedule itself is already the interval (daily cron, daily digest).
+    Silent no-op when both video_posts and quiet_panic_posts have zero
+    pending_approval rows -- this is what #49/#55/#62/#66 needed: nothing
+    ever resurfaced an unreviewed candidate after its one-time
+    ready-for-review email, so this exists to close that gap.
+    """
+    import notifier as notifier_mod
+
+    now_utc = datetime.now(timezone.utc)
+
+    vidp4_res = (
+        sb.table("video_posts")
+        .select("story_number, set_title, created_at")
+        .eq("status", "pending_approval")
+        .order("created_at")
+        .execute()
+    )
+    qp_res = (
+        sb.table("quiet_panic_posts")
+        .select("set_title, created_at")
+        .eq("status", "pending_approval")
+        .order("created_at")
+        .execute()
+    )
+
+    rows = []
+    for r in vidp4_res.data or []:
+        created = datetime.fromisoformat(r["created_at"])
+        rows.append({
+            "pipeline": "VID-P4",
+            "story_number": r.get("story_number"),
+            "set_title": r.get("set_title"),
+            "days_pending": (now_utc - created).days,
+        })
+    for r in qp_res.data or []:
+        created = datetime.fromisoformat(r["created_at"])
+        rows.append({
+            "pipeline": "VID-QP",
+            "story_number": None,
+            "set_title": r.get("set_title"),
+            "days_pending": (now_utc - created).days,
+        })
+
+    if not rows:
+        print("Pending-approval digest: zero pending rows across both pipelines. No-op.")
+        return
+
+    rows.sort(key=lambda r: r["days_pending"], reverse=True)
+    print(f"Sending pending-approval digest: {len(rows)} row(s) ({len(vidp4_res.data or [])} VID-P4, {len(qp_res.data or [])} VID-QP).")
+    notifier_mod.send_pending_approval_digest(rows)
+
+
+def retry_missing_platforms_all(sb) -> None:
+    """
+    Issue #137, 2026-09-19: --retry-missing-platform entry point. Finds every
+    video_posts row stuck at status='posted_ig' or 'posted_yt' and retries
+    the missing platform via publish.retry_missing_platform() -- confirmed
+    via grep before this existed that no code path anywhere ever revisited
+    these rows. Real example this was built against: story #61 (The Fire
+    Knight Mech), posted_yt since 2026-09-18, Instagram never retried.
+
+    DELIBERATELY runs independently of already_published_today_ist()'s
+    one-publish-per-day cap -- completing a platform on content that's
+    already partially live is a different kind of action than generating
+    and posting new content, and folding this into the capped poll-and-
+    publish loop would silently decide that open question (should
+    finishing count against the same slot as new content?) rather than
+    surfacing it. Whether that's the right permanent answer is explicitly
+    Abhinav's call, not assumed here -- this function's independence from
+    the cap is the current interim behavior, not a closed decision.
+    """
+    import publish as publish_mod
+
+    stuck_res = (
+        sb.table("video_posts")
+        .select("*")
+        .in_("status", ["posted_ig", "posted_yt"])
+        .order("story_number")
+        .execute()
+    )
+    stuck_rows = stuck_res.data
+
+    if not stuck_rows:
+        print("retry_missing_platforms_all: zero posted_ig/posted_yt rows. No-op.")
+        return
+
+    print(f"retry_missing_platforms_all: {len(stuck_rows)} row(s) with a missing platform.")
+    for video_post in stuck_rows:
+        vid = video_post["id"]
+        missing = "yt" if video_post["status"] == "posted_ig" else "ig"
+        print(f"\n--- Retrying {missing} for {vid} ({video_post['set_title']}, story #{video_post.get('story_number')}) ---")
+        result = publish_mod.retry_missing_platform(sb, video_post)
+        if "error" in result:
+            print(f"Retry still failing for {vid} ({result['platform']}): {result['error']}", file=sys.stderr)
+        else:
+            print(f"Retry succeeded for {vid} ({result['platform']}).")
+
+
 # ── Re-render (full pipeline re-run against an EXISTING row) ────────────────────
 #
 # Process rule going forward: any post-hoc script/data correction always
@@ -2546,12 +2649,22 @@ def main() -> None:
     parser.add_argument("--resend-notification", type=str, help="video_posts.id to re-send the Stage F publish notification for, using its already-stored results (does not re-post)")
     parser.add_argument("--rerender", type=str, help="video_posts.id to fully re-render (re-sanitized script, new TTS, new images, new Whisper captions, new badge) and re-upload to its existing storage_url. Never touches status/story_number/id.")
     parser.add_argument("--check-rejection-reminder", action="store_true", help="weekly cron entry point: send the biweekly content_rejections review reminder if 14+ days have passed since the last one AND at least one row is still review_status='pending'. Silent no-op otherwise.")
+    parser.add_argument("--check-pending-approval-digest", action="store_true", help="daily cron entry point: send a digest of every pending_approval row across video_posts and quiet_panic_posts. Silent no-op if both are empty.")
+    parser.add_argument("--retry-missing-platform", action="store_true", help="find every status='posted_ig'/'posted_yt' row and retry the platform that's missing. Deliberately runs independently of already_published_today_ist's daily cap -- see engine.py's own comment on retry_missing_platforms_all() for why, and the open question this leaves for Abhinav.")
     args = parser.parse_args()
 
     sb = get_supabase()
 
     if args.check_rejection_reminder:
         check_and_send_rejection_reminder(sb)
+        return
+
+    if args.check_pending_approval_digest:
+        check_and_send_pending_approval_digest(sb)
+        return
+
+    if args.retry_missing_platform:
+        retry_missing_platforms_all(sb)
         return
 
     if args.rerender:

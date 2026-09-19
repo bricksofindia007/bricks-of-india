@@ -211,6 +211,58 @@ def send_rejection_reminder(pending_rows: list[dict]) -> None:
         print(f'[notifier] Failed to send rejection reminder: {exc}')
 
 
+def send_pending_approval_digest(rows: list[dict]) -> None:
+    """
+    Issue #137, 2026-09-19: daily digest of everything sitting in
+    pending_approval, across both video_posts and quiet_panic_posts --
+    neither pipeline had any recurring reminder for this backlog before now
+    (send_ready_for_review_notification fires once, at generation time,
+    then never again). Caller's responsibility to only call this with a
+    non-empty list -- this function just renders whatever it's given, same
+    split-of-responsibility as send_rejection_reminder.
+
+    rows: dicts with pipeline ('VID-P4' or 'VID-QP'), story_number
+    (nullable -- quiet_panic_posts doesn't have one), set_title,
+    created_at, days_pending (int, computed by the caller so this function
+    doesn't need its own notion of "now").
+    """
+    count = len(rows)
+    subject = f'📋 VID pending-approval digest — {count} item{"s" if count != 1 else ""} waiting'
+
+    rows_html = ''
+    for row in rows:
+        safe_title = (row.get('set_title') or 'Unknown set').replace('﻿', '')
+        story = row.get('story_number')
+        story_label = f'#{story}' if story is not None else '—'
+        rows_html += f"""
+<tr>
+  <td style="padding:6px 10px;border-bottom:1px solid #eee;">{row.get('pipeline', '?')}</td>
+  <td style="padding:6px 10px;border-bottom:1px solid #eee;">{story_label}</td>
+  <td style="padding:6px 10px;border-bottom:1px solid #eee;">{safe_title}</td>
+  <td style="padding:6px 10px;border-bottom:1px solid #eee;">{row.get('days_pending', '?')}</td>
+</tr>"""
+
+    html = f"""
+<h2>Pending Approval — {count} item{'s' if count != 1 else ''} waiting</h2>
+<p>Everything below is sitting in status='pending_approval' across VID-P4 and VID-QP. Nothing here re-fires after its one-time ready-for-review email until now -- this is the recurring reminder.</p>
+<table style="border-collapse:collapse;width:100%;">
+<tr style="background:#f5f5f5;text-align:left;">
+  <th style="padding:6px 10px;">Pipeline</th>
+  <th style="padding:6px 10px;">Story #</th>
+  <th style="padding:6px 10px;">Title</th>
+  <th style="padding:6px 10px;">Days Pending</th>
+</tr>
+{rows_html}
+</table>
+<hr>
+<p style="color:#888;font-size:12px;">Bricks of India — bricksofindia.com — VID-P4 / VID-QP</p>
+"""
+    try:
+        _send(subject, html)
+    except Exception as exc:
+        print(f'[notifier] Failed to send pending-approval digest: {exc}')
+
+
 def send_skip_notification(reason: str, candidate_title: str | None = None, gate_failures: list[str] | None = None) -> None:
     """
     Stage E requirement: if a day is skipped (gates failed / candidate pool
