@@ -63,7 +63,7 @@ class GateFailureError(Exception):
     """Raised by assert_all_gates_passed() -- never caught silently by callers."""
 
 
-def assert_all_gates_passed(gate_results: dict) -> None:
+def assert_all_gates_passed(video_post: dict) -> None:
     """
     Hard guardrail. Reads the actual stored gate_results dict (not a flag the
     caller sets) and raises if ANY gate's "pass" key is not True. Every
@@ -78,13 +78,34 @@ def assert_all_gates_passed(gate_results: dict) -> None:
     had all passed. Real gate names never start with "_" (see gates.py's
     G1-G9 naming), so this is a safe, future-proof distinction rather than a
     second one-off exact-string carve-out.
+
+    Issue #137, 2026-09-19: this guard predates the `gate_override` column
+    (added PR #92) and never learned about it -- an approver explicitly
+    overriding a marginal gate failure (real reason recorded on the row) had
+    no effect here at all, so the row still hit this raise at publish time
+    and landed in publish_blocked regardless of the override. Confirmed
+    live: stories #54 and #59, both gate_override=true with a real reason on
+    record, both silently blocked anyway. Takes the full row now (not just
+    gate_results) so it can see the override. Still refuses to publish on a
+    bare gate_override=true with no reason -- a recorded reason is required,
+    so this can't become a silent blanket bypass.
     """
+    gate_results = video_post.get('gate_results') or {}
     failed = [
         gate for gate, result in gate_results.items()
         if not gate.startswith('_') and not result.get('pass', False)
     ]
-    if failed:
-        raise GateFailureError(f'Refusing to publish: gate(s) failed: {", ".join(failed)}')
+    if not failed:
+        return
+
+    gate_override = video_post.get('gate_override') is True
+    override_reason = (video_post.get('gate_override_reason') or '').strip()
+    if gate_override and override_reason:
+        print(f"Gate override honored -- bypassing failed gate(s) {', '.join(failed)}. "
+              f"Reason on record: {override_reason!r}")
+        return
+
+    raise GateFailureError(f'Refusing to publish: gate(s) failed: {", ".join(failed)}')
 
 
 class CaptionsMissingError(Exception):
@@ -501,6 +522,39 @@ def post_youtube_short(video_path: str, title: str, description: str) -> dict:
 
 # ── Orchestration ─────────────────────────────────────────────────────────────
 
+def _resolve_local_video_path(video_post: dict) -> str:
+    """
+    video_path is a path on whatever machine rendered the video -- that's
+    this machine for a local run, but a GitHub Actions runner (the cloud
+    poller, or a one-off run triggered via workflow_dispatch) never has it
+    locally. Resolve to an actual local file either way: use it directly if
+    present, otherwise download it from storage_url (which must already be
+    set in that case -- the render step is responsible for uploading before
+    this function's caller ever runs on a different box). Extracted out of
+    publish_video_post (issue #137) so retry_missing_platform() below can
+    reuse it without duplicating the download logic.
+    """
+    local_video_path = video_post['video_path']
+    storage_url = video_post.get('storage_url')
+
+    if Path(local_video_path).exists():
+        return local_video_path
+
+    if not storage_url:
+        raise RuntimeError(
+            f"video_path {local_video_path!r} does not exist on this machine and no "
+            f"storage_url is set -- cannot recover the video file to publish it."
+        )
+    print(f'[publish] {local_video_path} not present locally -- downloading from {storage_url}')
+    tmp_path = Path(tempfile.gettempdir()) / f"{video_post['id']}.mp4"
+    resp = requests.get(storage_url, timeout=120, stream=True)
+    resp.raise_for_status()
+    with open(tmp_path, 'wb') as f:
+        for chunk in resp.iter_content(chunk_size=1 << 20):
+            f.write(chunk)
+    return str(tmp_path)
+
+
 def publish_video_post(sb, video_post: dict) -> dict:
     """
     Full publish flow for one video_posts row: hard gate check, storage
@@ -520,32 +574,10 @@ def publish_video_post(sb, video_post: dict) -> dict:
     and assert_story_badge_present() raise -- those are the cases where
     nothing should be attempted at all.
     """
-    assert_all_gates_passed(video_post['gate_results'])
+    assert_all_gates_passed(video_post)
 
-    # video_path is a path on whatever machine rendered the video -- that's
-    # this machine for a local run, but a GitHub Actions runner (the cloud
-    # poller, or today's one-off run triggered via workflow_dispatch) never
-    # has it locally. Resolve to an actual local file either way: use it
-    # directly if present, otherwise download it from storage_url (which
-    # must already be set in that case -- the render step is responsible for
-    # uploading before this function's caller ever runs on a different box).
-    local_video_path = video_post['video_path']
+    local_video_path = _resolve_local_video_path(video_post)
     storage_url = video_post.get('storage_url')
-
-    if not Path(local_video_path).exists():
-        if not storage_url:
-            raise RuntimeError(
-                f"video_path {local_video_path!r} does not exist on this machine and no "
-                f"storage_url is set -- cannot recover the video file to publish it."
-            )
-        print(f'[publish] {local_video_path} not present locally -- downloading from {storage_url}')
-        tmp_path = Path(tempfile.gettempdir()) / f"{video_post['id']}.mp4"
-        resp = requests.get(storage_url, timeout=120, stream=True)
-        resp.raise_for_status()
-        with open(tmp_path, 'wb') as f:
-            for chunk in resp.iter_content(chunk_size=1 << 20):
-                f.write(chunk)
-        local_video_path = str(tmp_path)
 
     # Hard guard, same tier as assert_all_gates_passed above: captions are
     # burned into the pixels with no separate track to trust, so verify the
@@ -616,3 +648,69 @@ def publish_video_post(sb, video_post: dict) -> dict:
 
     results['errors'] = errors
     return results
+
+
+def retry_missing_platform(sb, video_post: dict) -> dict:
+    """
+    Issue #137, 2026-09-19: confirmed via grep that no code path anywhere
+    ever revisited a posted_ig/posted_yt row to attempt the platform that
+    failed the first time -- real example, story #61 (The Fire Knight
+    Mech), status='posted_yt', a real live yt_video_id, ig_media_id still
+    null, posted 2026-09-18, never retried.
+
+    Deliberately attempts ONLY the missing platform -- re-running
+    publish_video_post() here would be wrong and dangerous, since it tries
+    BOTH platforms unconditionally and would re-post to the one that
+    already succeeded, creating a real duplicate. Refuses to run at all
+    unless video_post['status'] is exactly 'posted_ig' or 'posted_yt' --
+    every other status (including 'posted_both') is out of scope for this
+    function on purpose.
+
+    Returns {'platform': 'ig'|'yt', 'result': {...}} on success, or
+    {'platform': 'ig'|'yt', 'error': str} on a retry that still failed --
+    never raises, same failure-signaling convention as publish_video_post.
+    """
+    status = video_post['status']
+    if status not in ('posted_ig', 'posted_yt'):
+        raise ValueError(
+            f"retry_missing_platform called on video_posts {video_post['id']} with "
+            f"status={status!r} -- only 'posted_ig'/'posted_yt' are valid, refusing to "
+            f"guess which platform is 'missing' for any other status."
+        )
+
+    missing_platform = 'yt' if status == 'posted_ig' else 'ig'
+    local_video_path = _resolve_local_video_path(video_post)
+
+    if missing_platform == 'ig':
+        storage_url = video_post.get('storage_url')
+        if not storage_url:
+            return {'platform': 'ig', 'error': 'no storage_url on record -- cannot retry IG without it'}
+        caption = build_ig_caption(video_post['script'])
+        try:
+            ig_result = post_instagram_reels(storage_url, caption)
+        except Exception as exc:
+            print(f'[publish] IG retry failed for {video_post["id"]}: {exc}', file=sys.stderr)
+            return {'platform': 'ig', 'error': str(exc)}
+        sb.table('video_posts').update({
+            'ig_media_id': ig_result['media_id'],
+            'ig_permalink': ig_result['permalink'],
+            'ig_raw_response': ig_result['raw_response'],
+            'status': 'posted_both',
+        }).eq('id', video_post['id']).execute()
+        print(f'[publish] IG retry succeeded for {video_post["id"]}: {ig_result["permalink"]}')
+        return {'platform': 'ig', 'result': ig_result}
+
+    yt_meta = build_yt_metadata(video_post['set_title'], video_post.get('set_number'), video_post['script'])
+    try:
+        yt_result = post_youtube_short(local_video_path, yt_meta['title'], yt_meta['description'])
+    except Exception as exc:
+        print(f'[publish] YouTube retry failed for {video_post["id"]}: {exc}', file=sys.stderr)
+        return {'platform': 'yt', 'error': str(exc)}
+    sb.table('video_posts').update({
+        'yt_video_id': yt_result['video_id'],
+        'yt_url': yt_result['url'],
+        'yt_raw_response': yt_result['raw_response'],
+        'status': 'posted_both',
+    }).eq('id', video_post['id']).execute()
+    print(f'[publish] YouTube retry succeeded for {video_post["id"]}: {yt_result["url"]}')
+    return {'platform': 'yt', 'result': yt_result}
