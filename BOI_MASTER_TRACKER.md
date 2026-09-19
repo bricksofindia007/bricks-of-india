@@ -1,5 +1,28 @@
 # BOI Master Tracker
 
+## Issue #141 RESOLVED — instagram_basic scope added, real IG posts confirmed, PR #143 merged — 2026-09-19T09:26Z
+
+**Fix:** Abhinav regenerated the BOI_Automation System User token in Meta Business Manager (LegoAutoPosts app, never-expiring) with `instagram_basic` added alongside the existing `instagram_content_publish` and `pages_read_engagement`. `IG_ACCESS_TOKEN` GitHub secret updated by terminal via `gh secret set` — confirmed via `gh api .../actions/secrets/IG_ACCESS_TOKEN`: `updated_at: 2026-09-19T06:32:42Z`.
+
+**Verified, not assumed — 3 independent checks, all pass:**
+1. `debug_token`: `type: SYSTEM_USER, expires_at: 0`, scopes now `[instagram_basic, instagram_content_publish, pages_read_engagement, public_profile]` — `instagram_basic` confirmed present.
+2. `GET /me/accounts?fields=instagram_business_account`: `instagram_business_account linked: True` for the BricksofIndia Page (was `False` before the fix).
+3. Direct `GET /{ig-user-id}` (previously code 100/subcode 33): now succeeds, returns `username: "bricksofindia"`.
+
+**Real-world confirmation, stronger than a manual test:** the actual hourly `video-retry-missing-platform.yml` cron fired on its own schedule ~27 min after the secret update (run [35433471741](https://github.com/bricksofindia007/bricks-of-india/actions/runs/35433471741), `event: schedule`) and posted both previously-stuck rows for real: VID-P4 story #61 ("The Fire Knight Mech", `d908539d-...`) → `https://www.instagram.com/reel/DddpA1fDXNG/`, and a VID-QP row (`b15dcee7-...`) → `https://www.instagram.com/reel/DddpHDDjwoN/`. Both confirmed `status: posted_both` with real `ig_media_id` values in the DB.
+
+**Correction to the original stuck-rows list:** story #54 and #59 were never actually in a stuck/missing-platform state — fresh query showed both at `status: approved` (queued, never yet attempted), not touched by the retry job by design. Not force-published to generate extra evidence; the two genuine unattended successes above are sufficient. Flagging the correction plainly rather than silently letting the original (inaccurate) framing stand.
+
+**Issue #141 closed** with the full evidence above.
+
+**PR #143 merged** (`fix(ig-token-refresh): skip fb_exchange_token entirely for System User tokens`, squash-merged, branch deleted) — now that the System User token is confirmed the permanent strategy (not interim), the guard preventing `ig-token-refresh.yml`'s 45-day auto-rotation from risking it is correct to ship. CI green (lint, verify-no-email-in-client-bundle, snapshot-tests all passed) before merge.
+
+**Not yet actioned:** the merge queued a new Cloudflare deploy run for this commit — not approved here, no explicit go-ahead given for this specific new run (the prior go-ahead was scoped to the #21–#24 queue only). Flagging for a separate decision, same pattern as before.
+
+**App Review prep (PR #142, issue for icon/screencast/privacy-policy work):** per the handoff's own contingency, since the scope fix alone resolved posting, this now downgrades to backlog — no reason to keep building App Review submission assets when the actual permission gap is closed via Standard Access (System User token in the same Business Portfolio, no Advanced Access/App Review needed for this permission). PR #142 left open, not merged, not actioned further unless Abhinav wants the App Review work done anyway for other reasons.
+
+---
+
 ## Deploy queue resolved — #24 (31d500d) approved, #21/#22/#23 cancelled — 2026-09-19T06:03Z
 
 Per Abhinav's explicit instruction: approved run **#24** (commit `31d500d`, run `35424857835`) only — linear descendant of #23/#22/#21, ships all three's changes via ancestry. **Ancestry checked before approving**, per `.github/DEPLOY_POLICY.md`: `git diff --stat 9eb6280..31d500d -- src/ next.config.mjs package.json package-lock.json` returned empty — zero change to the deployed Next.js/Cloudflare bundle since the last successful deploy (`9eb6280`, run #20). Only files touched: `BOI_MASTER_TRACKER.md`, `docs/audits/BOI_360_AUDIT_2026-09-19.md`, `scripts/video/engine.py`, `scripts/video/publish_quiet_panic.py` — docs and Python video-pipeline scripts, none in the deployed bundle. Tier 1 by the letter, confirmed not just assumed.
