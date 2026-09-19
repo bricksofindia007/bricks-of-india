@@ -86,9 +86,40 @@ jobs:
             echo "Not due yet (45-day proactive schedule, ${AGE_DAYS}/45 days elapsed) -- skipping this run."
           fi
 
+      - name: Skip exchange if token is a non-expiring System User token
+        id: type_check
+        if: steps.due_check.outputs.due == 'true'
+        env:
+          FB_APP_ID: ${{ secrets.FB_APP_ID }}
+          FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+        run: |
+          set -euo pipefail
+          # 2026-09-19: fb_exchange_token is documented for exchanging
+          # short/long-lived USER tokens. A Meta System User token (the
+          # durable fix for #135, non-expiring, minted directly in Business
+          # Manager rather than through the OAuth flow) is a different token
+          # type -- what this exchange call actually does when handed one
+          # as input is untested and not worth risking against a currently-
+          # working non-expiring token. debug_token's own type field is the
+          # ground truth here, not an assumption about the token's age.
+          FB_APP_ID=$(printf '%s' "$FB_APP_ID" | python3 -c "import sys; print(sys.stdin.read().lstrip(chr(65279)).strip())")
+          FB_APP_SECRET=$(printf '%s' "$FB_APP_SECRET" | python3 -c "import sys; print(sys.stdin.read().lstrip(chr(65279)).strip())")
+          IG_ACCESS_TOKEN=$(printf '%s' "$IG_ACCESS_TOKEN" | python3 -c "import sys; print(sys.stdin.read().lstrip(chr(65279)).strip())")
+          APP_TOKEN="${FB_APP_ID}|${FB_APP_SECRET}"
+          TOKEN_TYPE=$(curl -s "https://graph.facebook.com/debug_token?input_token=${IG_ACCESS_TOKEN}&access_token=${APP_TOKEN}" \
+            | python3 -c "import sys,json; print(json.load(sys.stdin).get('data',{}).get('type',''))")
+          echo "Current token type: ${TOKEN_TYPE}"
+          if [ "$TOKEN_TYPE" = "SYSTEM_USER" ]; then
+            echo "is_system_user=true" >> "$GITHUB_OUTPUT"
+            echo "Token is a non-expiring System User token -- skipping the fb_exchange_token call entirely (not applicable to this token type)."
+          else
+            echo "is_system_user=false" >> "$GITHUB_OUTPUT"
+          fi
+
       - name: Exchange for fresh 60-day token
         id: exchange
-        if: steps.due_check.outputs.due == 'true'
+        if: steps.due_check.outputs.due == 'true' && steps.type_check.outputs.is_system_user != 'true'
         env:
           FB_APP_ID: ${{ secrets.FB_APP_ID }}
           FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
@@ -153,7 +184,7 @@ jobs:
           fi
 
       - name: Validate new token against Graph /me
-        if: steps.due_check.outputs.due == 'true'
+        if: steps.due_check.outputs.due == 'true' && steps.type_check.outputs.is_system_user != 'true'
         env:
           NEW_TOKEN: ${{ steps.exchange.outputs.new_token }}
         run: |
@@ -162,7 +193,7 @@ jobs:
             || { echo "::error::New token failed /me validation — NOT updating secret"; exit 1; }
 
       - name: Update IG_ACCESS_TOKEN repo secret
-        if: steps.due_check.outputs.due == 'true'
+        if: steps.due_check.outputs.due == 'true' && steps.type_check.outputs.is_system_user != 'true'
         env:
           GH_TOKEN: ${{ secrets.ADMIN_PAT }}
           NEW_TOKEN: ${{ steps.exchange.outputs.new_token }}
@@ -176,7 +207,7 @@ jobs:
           echo "IG_ACCESS_TOKEN rotated OK."
 
       - name: Track short-lived-rotation streak + alert at 2 in a row
-        if: steps.due_check.outputs.due == 'true'
+        if: steps.due_check.outputs.due == 'true' && steps.type_check.outputs.is_system_user != 'true'
         env:
           GH_TOKEN: ${{ secrets.ADMIN_PAT }}
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
