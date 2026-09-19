@@ -1,5 +1,39 @@
 # BOI Master Tracker
 
+## Evening handoff session — toycra investigation, monthly 360° audit, App Review prep — 2026-09-19T05:35Z
+
+Executed the 3-item [ACTION] list from the 2026-09-18 evening handoff, in priority order. All 4 [CONFIRMED] items from that handoff (VID-QP Rework Poller runs, Social Automation's real error, #123/#124's Supabase-quota-via-pydantic-error root cause, boi-growth-engine's nightly ingestion fix) were spot-checked earlier this session and found accurate — no drift, not re-litigated here.
+
+### 1. toycra scrape-threshold alert — root-caused, filed as issue #140
+
+Real root cause confirmed, not assumed: `scripts/scrape-now.mjs` is pure upsert, no reconciliation logic anywhere that ever sets `in_stock=false` for a product that vanishes from the feed. **213 phantom `in_stock=true` toycra rows** never expire, dragging the rolling freshness percentage below `health-check.mjs`'s 80% alert threshold (Check 5b) even though the scraper itself is working correctly — a real run (`35418865843`) fetched/matched/upserted exactly 636 rows, matching the "fresh" count precisely, zero errors. Oldest stale row: 2026-04-21 (~5 months). Newest: 2026-09-18 (1 day before the alert fired) — an ongoing, continuous leak, not a one-time event. **No fix approach decided** (immediate expiry vs. N-strikes-before-expiring) — flagged for a real design decision, not assumed.
+
+### 2. Monthly BOI 360° evidence audit — run per `docs/AUDIT_RUNBOOK.md`, report: `docs/audits/BOI_360_AUDIT_2026-09-19.md`
+
+**Headline: no conflicts with this tracker's own recent (09-17/09-18) entries.** Everything independently re-derived (the 09-13/09-14 storage-quota cascade, catalogue-audit's 48-set MRP gap, code-audit's 9-vuln npm-audit failure, technical-hygiene's ReviewRouting collision) matched what was already logged here, with the Supabase project itself now confirmed `ACTIVE_HEALTHY` and total bucket storage at 507MB.
+
+**One genuinely new finding, not previously in this tracker: the Meta `(#10) Application does not have permission for this action` error is now confirmed recurring in a second, independent pipeline** (`video-retry-missing-platform.yml`'s first real run, 09-19 04:39 UTC), not just `social-automation.yml`. Filed as **issue #141**. It also surfaced that `posted_sets`' daily-cadence metric (32/34 days in the last 35) is silently counting IG-failed/YouTube-only partial successes as "posted" — the real IG success rate is materially lower than that number suggests.
+
+**Flagged, not actioned:** two Cloudflare Workers production-deploy runs are currently sitting at `Deploy (wrangler): waiting` — `35421858547` (commit `ba8195e`, PR #139) and its descendant (commit `46cbda4`, this session's own audit-report commit). Ancestry checked back to the last-approved `d880193`: zero diff to `src/`, `next.config.mjs`, `package.json`, or `package-lock.json` across the whole chain — Tier 1 by the letter on the deployed bundle itself. **Not approved anyway** — PR #138's underlying changes touch video-pipeline gate/approval logic (Tier 2 criterion 1's carve-out), even though that code isn't part of what Wrangler would ship, so this was judged ambiguous rather than clean, and left for Abhinav's explicit go-ahead per the default rule.
+
+Full parts A–G, evidence tags, and the OPERATOR-CONFIRM list are in the audit report itself — not duplicated here.
+
+### 3. Instagram App Review prep — NOT submitted, per explicit instruction
+
+Opened **PR #142**: adds `/legal/data-deletion` (didn't exist — Meta requires a working Data Deletion Instructions URL) and an "INSTAGRAM AND FACEBOOK" disclosure section to `/legal/privacy` (previously zero mention of the Graph API integration). Both needed for App Review; neither existed before tonight. Real `npm run build` confirms both routes compile and prerender correctly. **Not merged** — needs Abhinav's review of the actual wording first.
+
+**Real finding while checking `pages_read_engagement` (explicitly asked for in the handoff): the current System User token is missing the `instagram_basic` scope.** `debug_token` response: `type: SYSTEM_USER, expires_at: 0, scopes: [instagram_content_publish, pages_read_engagement, public_profile]` — no `instagram_basic`. Meta's Content Publishing API (`POST /{ig-user-id}/media`, exactly the call failing with `(#10)` in issues #140's/#141's evidence) requires `instagram_basic` + `instagram_content_publish` together. **This may be the actual, smaller fix** — regenerating the System User token in Meta Business Manager with `instagram_basic` added — rather than requiring full App Review completion, if the IG account and the app sit in the same Business Portfolio (Standard Access, no review needed). Not confirmed with certainty from this session (would need the token regenerated and a real post attempted); posted as a comment on issue #141 with the exact reasoning, and Abhinav may want to try that before investing further in the icon/screencast side of App Review prep.
+
+**Still needed for App Review, not producible from this terminal session:** app icon, confirmed display name (both Meta App Dashboard UI settings, not queryable/settable via the Graph API used here), and a screencast demonstrating `instagram_content_publish` usage (real screen recording).
+
+### [BLOCKED ON ABHINAV] — reconfirmed, not attempted
+
+- **Netlify Free-tier downgrade** — `scheduled_downgrade_date: 2026-09-23` per the tracker's own 09-17T19:41Z check; not re-hit tonight since nothing changes before that date. Still nothing to check until 09-23.
+- **boi-growth-engine's Netlify site down on `usage_exceeded`** — same billing block as above, Abhinav's call; not attempted.
+- **Resend webhook — correction, not "still blocked."** The handoff's item ("#122, needs `RESEND_WEBHOOK_SECRET` + dashboard toggle") **pointed at the wrong issue**: `bricks-of-india#122` is the unrelated Growth Engine reverse-proxy 502 (`GROWTH_ENGINE_URL`/`GROWTH_PROXY_SHARED_SECRET`, still open, still real, still blocked). The actual Resend-webhook item is **`boi-growth-engine#1`, already CLOSED 2026-08-23** with real evidence (129 `growth.newsletter_events` rows, real `sent`/`delivered` pairs). **Re-checked fresh tonight**: `growth.newsletter_events` now has 298 rows, but `max(received_at)` is **2026-09-01** — 18 days stale as of this entry. This is not a new, separate webhook problem — it lines up exactly with the already-known Netlify `usage_exceeded` outage (the webhook endpoint is Netlify-hosted); once that's resolved (post-09-23), webhook events should resume without any separate action. Flagging the correction plainly rather than carrying the wrong issue number forward.
+
+---
+
 ## Deploy queue resolved — 467e0af/d880193 approved, 76fb2ac/c0d4b88 cancelled — 2026-09-18T04:35Z
 
 **`467e0af` (PR #136 — #124 + #128) — approved by Abhinav, deployed.** Ancestry checked per `DEPLOY_POLICY.md` before approving: walked the full chain back to baseline (`ab350fe`) — `76fb2ac`/#131 (Tier 2, touches `gate_coherence_llm_judge()`) and `237b100`/#134 (Tier 2, auth-adjacent) were both already explicitly approved by Abhinav earlier this session; no unapproved Tier 2 ancestor remained. Run `35304459830`, Build + Deploy both `success`.
