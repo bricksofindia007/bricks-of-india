@@ -1,5 +1,25 @@
 # BOI Master Tracker
 
+## Code-10 Instagram permission error — full diagnosis, #135 resolution, defensive fix — 2026-09-19T05:50Z
+
+Prescribed task (business-impacting: every approved video with a pending IG leg stuck). Ran the 3 required diagnostic steps with real evidence, no guess-patching:
+
+**1. Full raw error body** (previous session's finding only had the truncated message — `_ig_check()` drops everything else). Reproduced the exact failing call live: `{"error": {"message": "(#10) Application does not have permission for this action", "type": "OAuthException", "code": 10, "fbtrace_id": "A1GJFDZPopXwyw-I6cXZ7FY"}}` — no `error_subcode`, the generic missing-permission shape, not an expired-token (190) or most broken-link (subcoded) shape.
+
+**2. Token scopes** — already found last pass (`instagram_content_publish`, `pages_read_engagement`, `public_profile`; **`instagram_basic` missing**), re-confirmed still current.
+
+**3. Page↔IG link check** — `GET /me/accounts?fields=instagram_business_account` returns `instagram_business_account linked: False` for the BricksofIndia Page. Can't fully distinguish "genuinely unlinked" from "invisible to a token missing `instagram_basic`" from this alone — both flagged, neither asserted.
+
+**Diagnosis: all 3 failures are consistent with one root cause — missing `instagram_basic` scope on the System User token.** Not fixable from this repo — needs Abhinav to regenerate the System User token in Meta Business Manager with `instagram_basic` added. Full evidence + exact recommended step posted to **issue #141** (already existed from last pass — the prescription's claim that this was "currently untracked" was stale; corrected rather than filing a duplicate).
+
+**Issue #135 (short-lived-token gate gap): recommended CLOSE, not fixed via the interim gate-timing options.** The System User migration (#135's own suggested fix #3) already shipped last pass — `debug_token` confirms `type: SYSTEM_USER, expires_at: 0`, so the ~60-day exchange-cycle risk #135 describes no longer applies. Posted the recommendation + evidence to #135 directly (not closed here — Abhinav's call).
+
+**New risk found and fixed defensively, not left as a loose end: `ig-token-refresh.yml`'s auto-rotation job would still attempt `fb_exchange_token` against the System User token on its next 45-day tick (~2026-11-01)** — untested and potentially unsafe (that grant type is documented for user tokens, not System User tokens). **PR #143**: adds a `debug_token` type check that skips the exchange (and downstream validate/update-secret/streak steps) entirely when `type == SYSTEM_USER`. YAML-validated, not merged — changes designed rotation behavior, left for review per this session's own default.
+
+**Process note:** the first two attempts at the diagnostic/fix workflow edits had broken YAML (embedded multi-line Python scripts under-indented relative to the `run: |` block scalar, which silently truncates the block and breaks the whole file's parse — this is exactly why `gh workflow run` failed with a misleading "Workflow does not have workflow_dispatch trigger" error twice before the actual cause was found). Fixed by writing heredoc content to a file and `sed`-dedenting a fixed-width prefix before invoking `python3`, rather than embedding multi-line Python directly in a `run:` block. Worth remembering for any future workflow debug job using this pattern.
+
+---
+
 ## Evening handoff session — toycra investigation, monthly 360° audit, App Review prep — 2026-09-19T05:35Z
 
 Executed the 3-item [ACTION] list from the 2026-09-18 evening handoff, in priority order. All 4 [CONFIRMED] items from that handoff (VID-QP Rework Poller runs, Social Automation's real error, #123/#124's Supabase-quota-via-pydantic-error root cause, boi-growth-engine's nightly ingestion fix) were spot-checked earlier this session and found accurate — no drift, not re-litigated here.
