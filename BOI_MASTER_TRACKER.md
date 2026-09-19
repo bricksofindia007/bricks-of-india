@@ -1,5 +1,17 @@
 # BOI Master Tracker
 
+## Deploy queue resolved — #24 (31d500d) approved, #21/#22/#23 cancelled — 2026-09-19T06:03Z
+
+Per Abhinav's explicit instruction: approved run **#24** (commit `31d500d`, run `35424857835`) only — linear descendant of #23/#22/#21, ships all three's changes via ancestry. **Ancestry checked before approving**, per `.github/DEPLOY_POLICY.md`: `git diff --stat 9eb6280..31d500d -- src/ next.config.mjs package.json package-lock.json` returned empty — zero change to the deployed Next.js/Cloudflare bundle since the last successful deploy (`9eb6280`, run #20). Only files touched: `BOI_MASTER_TRACKER.md`, `docs/audits/BOI_360_AUDIT_2026-09-19.md`, `scripts/video/engine.py`, `scripts/video/publish_quiet_panic.py` — docs and Python video-pipeline scripts, none in the deployed bundle. Tier 1 by the letter, confirmed not just assumed.
+
+**Cancelled #21 (`ba8195e`), #22 (`46cbda4`), #23 (`e8f52a2`)** as redundant — confirmed `conclusion: cancelled` for all three via `gh run list`.
+
+**Live verification, not just "run succeeded":** `gh api .../deployments?environment=production` shows the #24 deployment record's status history ending in `success`; the #22 and #23 deployment records (created before cancellation) both end in `error`, never reaching `success` — confirms they did NOT ship, only #24 did. Fresh `curl -I https://bricksofindia.com/` at 06:01:40Z: `200`, `x-opennext: 1`, live and healthy. No visible content difference to check beyond this (the diff since #20 is entirely non-runtime files), so deployment-record status is the correct verification here, not a visual site diff.
+
+Both #21/#22/#23 are closed out by this entry — no separate tracker action needed on them individually, since none reached deployment and their content is fully superseded by #24 being live.
+
+---
+
 ## Code-10 Instagram permission error — full diagnosis, #135 resolution, defensive fix — 2026-09-19T05:50Z
 
 Prescribed task (business-impacting: every approved video with a pending IG leg stuck). Ran the 3 required diagnostic steps with real evidence, no guess-patching:
