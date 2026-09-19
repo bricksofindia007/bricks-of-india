@@ -516,13 +516,22 @@ def poll_and_publish() -> int:
     return exit_code
 
 
-def retry_missing_platforms_all(sb) -> None:
+def retry_missing_platforms_all(sb) -> bool:
     """
     Issue #137, 2026-09-19: mirrors engine.py's retry_missing_platforms_all()
     for quiet_panic_posts. Deliberately independent of
     already_published_today_ist()'s daily cap -- same open question flagged
     there (should completing a stuck platform consume today's slot?),
     surfaced for Abhinav rather than decided here.
+
+    Returns False if any retry is still failing -- found live during this
+    fix's own first real run (issue #137, 2026-09-19): every retry failing
+    (the known IG permission gap) still left the job green, since
+    retry_missing_platform() correctly never raises. The caller uses this
+    return value for a real exit code so a persistent failure is actually
+    visible in the Actions tab, not silently green -- the same failure
+    class this whole issue exists to catch. Processes every stuck row
+    regardless of earlier failures.
     """
     stuck_res = (
         sb.table('quiet_panic_posts')
@@ -535,9 +544,10 @@ def retry_missing_platforms_all(sb) -> None:
 
     if not stuck_rows:
         print('[publish_quiet_panic] retry_missing_platforms_all: zero posted_ig/posted_yt rows. No-op.')
-        return
+        return True
 
     print(f'[publish_quiet_panic] retry_missing_platforms_all: {len(stuck_rows)} row(s) with a missing platform.')
+    any_failed = False
     for post in stuck_rows:
         pid = post['id']
         missing = 'yt' if post['status'] == 'posted_ig' else 'ig'
@@ -545,8 +555,11 @@ def retry_missing_platforms_all(sb) -> None:
         result = retry_missing_platform(sb, post)
         if 'error' in result:
             print(f"Retry still failing for {pid} ({result['platform']}): {result['error']}", file=sys.stderr)
+            any_failed = True
         else:
             print(f"Retry succeeded for {pid} ({result['platform']}).")
+
+    return not any_failed
 
 
 def main():
@@ -558,7 +571,8 @@ def main():
     if args.poll_and_publish:
         sys.exit(poll_and_publish())
     elif args.retry_missing_platform:
-        retry_missing_platforms_all(get_supabase())
+        all_succeeded = retry_missing_platforms_all(get_supabase())
+        sys.exit(0 if all_succeeded else 1)
     else:
         parser.print_help()
 

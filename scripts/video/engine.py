@@ -2413,7 +2413,7 @@ def check_and_send_pending_approval_digest(sb) -> None:
     notifier_mod.send_pending_approval_digest(rows)
 
 
-def retry_missing_platforms_all(sb) -> None:
+def retry_missing_platforms_all(sb) -> bool:
     """
     Issue #137, 2026-09-19: --retry-missing-platform entry point. Finds every
     video_posts row stuck at status='posted_ig' or 'posted_yt' and retries
@@ -2445,9 +2445,20 @@ def retry_missing_platforms_all(sb) -> None:
 
     if not stuck_rows:
         print("retry_missing_platforms_all: zero posted_ig/posted_yt rows. No-op.")
-        return
+        return True
 
+    # Return value used by the CLI dispatch to set a real exit code -- found
+    # live during this fix's own first real run (issue #137, 2026-09-19):
+    # every retry failing (the known IG permission gap) still left the job
+    # green, because retry_missing_platform() correctly never raises (by
+    # design -- see its own docstring) and nothing here turned that into a
+    # job-level signal. That's the exact "green checkmark hides a real
+    # failure" pattern this whole issue set out to fix -- would have been
+    # ironic to reintroduce it in the fix meant to close the gap. Processes
+    # every stuck row regardless of earlier failures either way -- one
+    # platform's outage must not block retrying a different row.
     print(f"retry_missing_platforms_all: {len(stuck_rows)} row(s) with a missing platform.")
+    any_failed = False
     for video_post in stuck_rows:
         vid = video_post["id"]
         missing = "yt" if video_post["status"] == "posted_ig" else "ig"
@@ -2455,8 +2466,11 @@ def retry_missing_platforms_all(sb) -> None:
         result = publish_mod.retry_missing_platform(sb, video_post)
         if "error" in result:
             print(f"Retry still failing for {vid} ({result['platform']}): {result['error']}", file=sys.stderr)
+            any_failed = True
         else:
             print(f"Retry succeeded for {vid} ({result['platform']}).")
+
+    return not any_failed
 
 
 # ── Re-render (full pipeline re-run against an EXISTING row) ────────────────────
@@ -2664,8 +2678,8 @@ def main() -> None:
         return
 
     if args.retry_missing_platform:
-        retry_missing_platforms_all(sb)
-        return
+        all_succeeded = retry_missing_platforms_all(sb)
+        sys.exit(0 if all_succeeded else 1)
 
     if args.rerender:
         result = rerender_video_post(sb, args.rerender, no_tts=args.no_tts)
