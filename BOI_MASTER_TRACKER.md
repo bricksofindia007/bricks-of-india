@@ -1,5 +1,20 @@
 # BOI Master Tracker
 
+## Deploy queue resolved (Tier 2 sign-off) — #27 (b1898f3) approved, #25/#26 cancelled — 2026-09-19T09:38Z
+
+**Tier 2 approval, per Abhinav directly.** PR #143's merge (`a1ca480`) queued a production deploy requiring explicit sign-off under `.github/DEPLOY_POLICY.md` Tier 2 criterion 1 — the change touches `ig-token-refresh.yml`'s token-handling logic (auth/credential-adjacent), even though it doesn't touch anything in the actual deployed Next.js/Cloudflare bundle. Abhinav reviewed and approved.
+
+**Ancestry checked before approving, per policy:** `git diff --stat 31d500d..b1898f3 -- src/ next.config.mjs package.json package-lock.json` (full range from the last successful deploy, #24) returned empty — zero change to the deployed bundle anywhere in the chain. The only real changes across #25/#26/#27: `.github/workflows/ig-token-refresh.yml` (PR #143, the Tier 2 change just approved) and two docs-only `BOI_MASTER_TRACKER.md` commits.
+
+**Approved #27 (`b1898f3`), not #26 (`a1ca480`) literally** — #27 is the current tip and a direct descendant of #26, so approving it ships #26's (the actually-Tier-2) change along with zero additional runtime diff. **Cancelled #25 and #26 as redundant**, same consolidation pattern as the prior deploy queue (#21–#24). Both confirmed `conclusion: cancelled` via `gh run list`.
+
+**Deploy succeeded — both jobs green, Version ID recorded, live-verified:**
+- Build (Next.js + OpenNext Cloudflare): success, 2m9s.
+- Deploy (wrangler): success, 1m0s. **Current Version ID: `d2c8fe68-b350-4857-8ea2-845df03ce8f0`**.
+- `curl -I https://bricksofindia.com/` at 09:37:08Z: `200`, healthy.
+
+---
+
 ## Issue #141 RESOLVED — instagram_basic scope added, real IG posts confirmed, PR #143 merged — 2026-09-19T09:26Z
 
 **Fix:** Abhinav regenerated the BOI_Automation System User token in Meta Business Manager (LegoAutoPosts app, never-expiring) with `instagram_basic` added alongside the existing `instagram_content_publish` and `pages_read_engagement`. `IG_ACCESS_TOKEN` GitHub secret updated by terminal via `gh secret set` — confirmed via `gh api .../actions/secrets/IG_ACCESS_TOKEN`: `updated_at: 2026-09-19T06:32:42Z`.
