@@ -1,5 +1,27 @@
 # BOI Master Tracker
 
+## GSC crawl-health flags live-verified — split verdict, no code fix needed — 2026-09-20
+
+Live-checked the two coverage-report flags from the prior pass (homepage not indexed, 1,073 pages with server error 5xx) via GSC's URL Inspection **live test** (not the cached coverage report) — per the leading hypothesis that this was residue from the real Sep 8-14 storage-quota/outage window. **Real verdict: not a single story — a clean, fully-explained split, no code fix needed either way.**
+
+**1. Homepage — live-tested, healthy right now.** URL Inspection live test (tested Sep 20, 2026, 3:24 PM): **"URL is available to Google" / "Page can be indexed."** The cached "not indexed" flag is stale; this is outage residue that will clear on Google's next recrawl.
+
+**2. Sample of 10 URLs from the "Server error (5xx)" bucket — all real HTTP 200 right now** (direct `curl` to production, all 10): `/sets/2252-basic-set`, `/sets/40785-northern-lights-diorama`, `/sets/21153-the-wool-farm`, `/sets/40193-512-s`, `/sets/853805-lion-shield`, `/sets/1330-redblack-plates`, `/sets/10-universal-building-set`, `/sets/3936-emmas-fashion-design-studio`, `/sets/60348-lunar-roving-vehicle`, `/sets/5009133-kids-long-sleeve-dear-santa-t-shirt`.
+
+**Ran real GSC live URL Inspection on 4 of the 10 — not a uniform "all healthy" result:**
+- `/sets/40785-northern-lights-diorama` (year 2025) — **"URL is available to Google, but has issues" / Page availability: "Page can be indexed."** Healthy. (The one flagged "issue" is an unrelated Product-snippet schema warning, already reflected site-wide in the Shopping stat from the prior pass — not an indexing blocker.)
+- `/sets/60348-lunar-roving-vehicle` (year 2022) — same: **healthy, page can be indexed.**
+- `/sets/2252-basic-set` (year 1997) — **"URL is not available to Google" / "Excluded by 'noindex' tag."** Not a server error anymore — a real, current, *different* state.
+- `/sets/21153-the-wool-farm` (year 2019) — same: **"Excluded by 'noindex' tag,"** live, right now.
+
+**Root cause of the split, confirmed directly against the DB, not guessed:** `src/app/sets/[slug]/page.tsx` applies `robots: { index: false, follow: true }` when `set.index_tier === 'tier3' OR set.noindex_override`. Queried `noindex_override` for all 9 non-merch sets in the sample: **it's `true` for every set with `year < 2020`, `false` for every set with `year >= 2020` — a 100% clean match**, including all 4 that got a real live GSC test. This is `noindex_override`'s already-shipped, intentional behavior (PR #93, `fix(seo): noindex stale tier2 sets (year<2020, zero price history ever)`) — a deliberate SEO decision, not a bug. The 10th sample URL (`5009133`, a T-shirt) is `index_tier=tier3` (non-buildable merch), same intentional mechanism, different field.
+
+**So, precisely: this is neither "everything's healthy, pure outage residue" nor "a real current bug" — it's both, split cleanly by `noindex_override`/`index_tier`.** Pages not caught by that rule (year ≥ 2020) are genuinely healthy now — real outage residue, self-clearing as Google recrawls, no action needed. Pages caught by it (year < 2020, or non-buildable merch) are correctly, deliberately excluded right now — the cached "Server error (5xx)" reason for those is itself just stale (superseded by the deliberate noindex, applied around the same window), not a live problem to fix. **No code changes made — nothing here needs one.**
+
+**5. GA4 sanity-check — genuinely blocked, different reason than GSC.** Not a data problem — an access problem: the `bricksofindia007@gmail.com` Google account (the one with real GSC access) has exactly **one** GA4 property reachable, and it's an unrelated **"WeddingRishta.com"** property (matrimonial site) — not Bricks of India's real property (`G-NXGQHSWSYY` per `NEXT_PUBLIC_GA_MEASUREMENT_ID`, confirmed from `.env.local`). Confirmed by checking the account/property switcher directly — only one Analytics account (`WeddingRishta`, 107079500) is listed. Could not cross-reference impressions-drop against real GA4 traffic. Flagging plainly rather than guessing: GA4 access for BOI's actual property needs to be separately shared with this account (or checked directly by Abhinav) before this specific cross-check is possible.
+
+---
+
 ## AEO/GEO Search Console data pull — real numbers, data-gathering only, no fix — 2026-09-20
 
 GSC access was provisioned since the last pass (which reported this fully blocked — no API/secret integration existed). **Confirmed reachable, not assumed:** no programmatic credential exists anywhere (no GitHub secret, no service-account JSON in the repo — grepped and checked `gh secret list` fresh, nothing GSC-related). Access is interactive-browser-only, via Claude in Chrome, and only works under the **`bricksofindia007@gmail.com`** Google account — the other signed-in account in this browser profile (`bhargav.abhinav@gmail.com`) has zero Search Console properties at all ("Oops, you don't have access to this property"). Worth flagging precisely: this is browser-session access, not something a future non-interactive/API-only session can reach.
