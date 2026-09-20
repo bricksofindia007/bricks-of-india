@@ -1,5 +1,47 @@
 # BOI Master Tracker
 
+## AEO/GEO Search Console data pull — real numbers, data-gathering only, no fix — 2026-09-20
+
+GSC access was provisioned since the last pass (which reported this fully blocked — no API/secret integration existed). **Confirmed reachable, not assumed:** no programmatic credential exists anywhere (no GitHub secret, no service-account JSON in the repo — grepped and checked `gh secret list` fresh, nothing GSC-related). Access is interactive-browser-only, via Claude in Chrome, and only works under the **`bricksofindia007@gmail.com`** Google account — the other signed-in account in this browser profile (`bhargav.abhinav@gmail.com`) has zero Search Console properties at all ("Oops, you don't have access to this property"). Worth flagging precisely: this is browser-session access, not something a future non-interactive/API-only session can reach.
+
+**Core commercial price-comparison queries — every one still shows real, current zero clicks and poor position (3-month window, Jun 18 – Sep 17, 2026):**
+
+| Query | Clicks | Impressions | Avg. position |
+|---|---|---|---|
+| lego price | 0 | 8 | 29.9 |
+| lego sale | 0 | 30 | 47.7 |
+| lego discount | 0 | 5 | 48.2 |
+| lego deals | 0 | 2 | 50.5 |
+| lego offers | 0 | 2 | 47.5 |
+| buy lego india | 0 | 2 | 43.0 |
+| buy lego in india | 0 | 2 | 43.5 |
+| lego price india | 0 | 1 | 45.0 |
+| lego prices in india | 0 | 2 | 54.0 |
+| lego india price | 0 | 2 | 52.0 |
+| lego star wars price | 0 | 3 | 50.0 |
+| lego clearance sale india | 0 | 2 | 54.5 |
+| second hand lego india | 0 | 2 | 58.5 |
+| lego competitors in india | 0 | 2 | 61.5 |
+| why lego is so expensive in india | 0 | 1 | 36.0 |
+| average price of lego sets | 0 | 1 | 52.0 |
+| lego resale prices | 0 | 1 | 62.0 |
+
+**Site-wide totals, same 3-month window:** 6 total clicks, 1,580 total impressions, 0.4% average CTR, **47.3 average position** — across all 340 distinct queries that had any impression, not one shows a clearly-attributable nonzero click (the 6 site-wide clicks fall into GSC's privacy-redacted low-volume query bucket, not any named row). Best-positioned commercial query found: "lego price" at position 29.9 (page 3) — still far outside realistic click territory.
+
+**Has anything moved since the August audit?** No exact historical figures from that audit exist in this repo to diff against line-by-line (it was an external/strategic-layer finding, not a committed report) — but directionally, current data is a full, direct confirmation of "not ranking," not an improvement: universally poor position (30s-60s, i.e. page 3+) and literally zero attributable clicks on every commercial query checked. If anything this reads as comprehensive site-wide invisibility on commercial intent, not a narrow gap.
+
+**Organic trend around the Cloudflare migration (2026-09-12) — a real, visible, but early signal, not yet a confirmed multi-week trend:**
+- Immediate pre-migration window (Sep 1-11, 11 days): 232 impressions, ~21.1/day, avg position ~32.3.
+- Immediate post-migration window (Sep 12-17, 6 days — the most recent data GSC has, ~3-day reporting lag from today): 49 impressions, ~8.2/day, avg position ~33.2.
+- **Impressions dropped roughly 60% day-for-day; average position stayed essentially flat** (32.3 → 33.2, within normal noise). Clicks were already ~0/day on both sides of the migration, so no click-level effect is measurable either way.
+- Caveat, stated plainly: only 6 days of post-migration data exist yet — real, but too short a window to call this a confirmed trend rather than a possible early signal. Worth re-checking in another 2-3 weeks once more post-migration data accumulates.
+
+**Directly relevant context surfaced along the way, not separately investigated (out of this pass's data-only scope):** GSC's own Overview flags **"Your homepage isn't indexed."** Site-wide indexing: 12,239 indexed / 3,533 not indexed. Top non-indexed reasons: excluded by `noindex` tag (1,227), **server error 5xx (1,073)**, crawled-currently-not-indexed (781), duplicate/different-canonical-chosen (115), page-with-redirect (106), not found/404 (125), soft 404 (68). The 1,073 5xx count in particular is a real, current number worth a look, but is a separate investigation from what this pass was scoped to pull.
+
+**No changes made anywhere** — this was data-gathering only, per explicit instruction. Ranking strategy is Abhinav's call.
+
+---
+
 ## Issue #150 root-caused and fixed — health-check parsing bug, not a real token problem — 2026-09-20
 
 Follow-up to the prior round's "investigate #150" ask (that round stopped at "needs reading the live secret's actual shape"). Did that now, via a throwaway debug workflow that read `YOUTUBE_CLIENT_SECRETS`'s keys only — never printed sensitive values (`token`, `refresh_token`, `client_secret`), only key names and the non-sensitive `expiry` field itself.
