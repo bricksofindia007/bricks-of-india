@@ -1,5 +1,19 @@
 # BOI Master Tracker
 
+## Issue #150 root-caused and fixed — health-check parsing bug, not a real token problem — 2026-09-20
+
+Follow-up to the prior round's "investigate #150" ask (that round stopped at "needs reading the live secret's actual shape"). Did that now, via a throwaway debug workflow that read `YOUTUBE_CLIENT_SECRETS`'s keys only — never printed sensitive values (`token`, `refresh_token`, `client_secret`), only key names and the non-sensitive `expiry` field itself.
+
+**Real code path:** `scripts/health-check.mjs` Check 6b — `JSON.parse(ytSecrets)` → `new Date(creds.expiry)` → `.toISOString()`, which throws `RangeError: Invalid time value` when `creds.expiry` is `undefined`.
+
+**Real current secret shape, confirmed directly:** `['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret', 'scopes']` — **no `expiry` field at all**, and no `expiry_date` alt-key either. That's exactly Google's `google-auth-library` `Credentials.to_json()` shape (what `social-automation/publisher.py`'s `_load_youtube_credentials()` produces internally after a real `creds.refresh()` call), **not** `youtube_oauth_helper.py`'s custom shape (which adds a hand-written `expiry` string) that this check was written to always expect. Something along the way re-saved the secret using the library's own serialization, silently dropping the custom tracking field — not something any workflow in this repo does automatically (grepped: nothing calls `gh secret set YOUTUBE_CLIENT_SECRETS` anywhere), so this was a manual re-save at some point, not an automation bug elsewhere.
+
+**Determined: a parsing bug in the health-check itself, not a real expired/malformed token.** The token is live and working — Check 6c's own real upload heartbeat confirmed a genuine successful upload both immediately before and after this fix (`last success 20.3h ago`, unaffected throughout, since Check 6c reads a separate `social_automation_heartbeat` table from real pipeline activity, not this file).
+
+**Fix (Tier 1 — a monitoring/health-check script's parsing logic, not auth/credential-handling code; fully reversible; no gated pipeline/coherence-judge code touched), PR #155 (merged), closed with evidence:** a missing `expiry` field is now a distinct, informational, non-failing case (points to Check 6c as the real working/not-working signal) instead of an uncaught crash; a present-but-genuinely-unparseable `expiry` value still correctly raises `yt-token-malformed` — that distinction preserved, not papered over. **Verified live**, not just by reading the diff: dispatched the real `BOI Health Check` workflow against production secrets (run [35497486014](https://github.com/bricksofindia007/bricks-of-india/actions/runs/35497486014)) — `[6b]` logs the new informational message, `[6c]` confirms real heartbeat success, `yt-token-malformed` no longer appears anywhere in the run's failure list, `conclusion: success`.
+
+---
+
 ## Two confirmed active bugs fixed — broken hero image + retention-cleanup real bug — 2026-09-20
 
 Follow-up session, narrow scope: fix the two bugs the prior follow-up round found and filed (issue #150 was investigated separately and left open — its root cause needs reading the live `YOUTUBE_CLIENT_SECRETS` secret's actual shape, out of scope here).
