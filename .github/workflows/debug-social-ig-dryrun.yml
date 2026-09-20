@@ -2,6 +2,9 @@ name: DEBUG — social-automation IG dry-run (throwaway)
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/social-automation-ig-token-bom-strip
 
 jobs:
   dryrun:
