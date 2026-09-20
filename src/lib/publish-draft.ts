@@ -79,6 +79,18 @@ const EDITORIAL_CDN_BLOCKLIST = new Set([
   'i.imgur.com',                   // Imgur
   'external-preview.redd.it',      // Reddit preview
   'preview.redd.it',               // Reddit preview
+  'blogger.googleusercontent.com', // Blogspot/Blogger-hosted images -- confirmed
+                                    // real 2026-09-20: a Blogspot-sourced News
+                                    // article's hero_image (this exact host)
+                                    // was flagged image_render_broken
+                                    // (naturalWidth=0) by the live visual
+                                    // renderer; re-tested directly against a
+                                    // real headless browser afterward and the
+                                    // URL loaded fine, so the CDN itself is
+                                    // intermittently unreliable rather than
+                                    // permanently dead -- exactly the failure
+                                    // mode this blocklist exists to route
+                                    // around rather than gamble on again.
 ]);
 
 const LEGO_THEME_KEYWORDS = [
