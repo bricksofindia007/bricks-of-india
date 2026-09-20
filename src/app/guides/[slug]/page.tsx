@@ -55,7 +55,7 @@ export default async function GuideArticlePage(props: Props) {
           <span>/</span>
           <Link href="/guides" className="hover:text-accent-blue">Guides</Link>
           <span>/</span>
-          <span className="text-dark font-bold truncate">{guide.title}</span>
+          <span className="text-dark font-bold truncate min-w-0 flex-1">{guide.title}</span>
         </nav>
       </div>
 

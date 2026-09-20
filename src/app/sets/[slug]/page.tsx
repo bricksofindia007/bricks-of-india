@@ -256,7 +256,7 @@ export default async function SetPage(props: Props) {
               </>
             );
           })()}
-          <span className="text-dark font-bold truncate">{set.name}</span>
+          <span className="text-dark font-bold truncate min-w-0 flex-1">{set.name}</span>
         </nav>
       </div>
 
