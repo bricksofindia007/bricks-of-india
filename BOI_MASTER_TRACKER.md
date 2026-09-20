@@ -1,5 +1,51 @@
 # BOI Master Tracker
 
+## RLFM readiness check — GA4 resolved (access confirmed, real bot-contamination finding) + CQS example backfill — 2026-09-20
+
+Follow-up to the same-day RLFM readiness pass below. Two gaps closed: item 2 needed more than 3 concrete examples, and item 5 was re-scoped by Abhinav around a specific GA4 discrepancy to resolve rather than an access check. **No fixes made** — same honest-assessment scope as the parent pass.
+
+### Item 2 addendum — 6 verified `duplicate_opener` example pairs (real content pulled)
+
+Pulled real title + opening-sentence pairs directly from `news_articles` for 6 of the 155 non-self-referential matches (in addition to the 3 already reported), confirming the same pattern every time — genuinely distinct articles sharing only the "Your wallet called" / "Your wallet can relax" house-style opener:
+- *Autistic AFOLs Share Their LEGO Journey* ↔ *LEGO Doctor Doom Bust (76345)* — both open "Your wallet called."
+- *Axo-Tron Returns* ↔ *LEGO Koi Model Captures Graceful Motion* — both "Your wallet can relax for now."
+- *BrickLink Designer Program Gets a Makeover* ↔ *LEGO Bricklink Designer Program Series 6* — both "LEGO fans, brace yourselves."
+- *Buck Rogers Thunderfighter Fan Build* ↔ *The LEGO Donkey Kong Arcade (2000)* — both "Your wallet can relax."
+- *Build Your Own Giant LEGO Pine Tree* ↔ *LEGO Composition Techniques* — both "Your wallet can breathe easy this week."
+- *Insane LEGO Creature Built for Bio-Cup Tournament* ↔ *Video Game Worlds Collide in BobaLUG's Latest* — both "Your wallet can breathe easy."
+
+Confirms the earlier conclusion: this is a check-precision limitation (first-sentence-only comparison), not real duplicate content.
+
+### Item 5 — GA4: access now confirmed, discrepancy resolved, and a real bot-contamination finding surfaced
+
+**Access status corrected:** GA4 access to the real BOI property (`bricksofindia.com`, account "Bricks of India" 390952799, property 532483851, measurement ID `G-NXGQHSWSYY`) **is now live** — found under a Google identity/session slot (`authuser=2`) that the prior same-day check hadn't reached (it had only found the unrelated "WeddingRishta" property on the slots it tried). This is newly-confirmed, real access, not previously verified in this pass.
+
+**"No data received in past 48 hours" vs. Reports showing traffic — resolved, real evidence:** Checked Admin > Data Streams directly, right now: it shows a green **"Data collection is active in the past 48 hours"** for the `bricksofindia.com` stream — not a warning. Whatever produced the "no data" flag either was transient/has since cleared, or was seen against the wrong account — current, direct evidence shows no active gap.
+
+**gtag/GA4 snippet — confirmed firing correctly in production.** `curl`-fetched the live homepage HTML: the real `gtag('config', 'G-NXGQHSWSYY', {...})` call is present and correctly configured. A live browser check (homepage, `/news`, `/sets`) confirmed the GA4 collect beacon actually fires on every page load with the correct `tid` and page path, `cid` persisting across pages. One anomaly worth naming: the collect endpoint returned HTTP 503 in the test browser on every request — flagged honestly, but not treated as a real production failure, since GA4 beacons are fire-and-forget/best-effort and real traffic is clearly being recorded (Data Streams active, real Reports data below) — more likely a local automated-browser artifact than a dropped-hit problem at scale.
+
+**Real 3-month channel breakdown (Jun 20 – Sep 19, 2026, matching the GSC pull window):** Total 5,438 sessions, 483 engaged (8.88% engagement rate), 19,836 events, 5.2K active users.
+
+| Channel | Sessions | Engaged | Engagement rate |
+|---|---|---|---|
+| Direct | 5,108 (93.93%) | 313 | 6.13% |
+| AI Assistant | 166 (3.05%) | 92 | 55.42% |
+| Organic Search | 109 (2%) | 61 | 55.96% |
+| Unassigned | 25 (0.46%) | 11 | 44% |
+| Organic Social | 22 (0.4%) | 3 | 13.64% |
+| Referral | 2 (0.04%) | 2 | 100% |
+
+This tracks closely with the numbers Abhinav had already pulled (Organic Search 109 is an exact match; Direct/AI Assistant are a few points higher, consistent with several more days of data landing since that earlier pull) — confirmed real, not fabricated to match.
+
+**Direct-traffic engagement-rate anomaly — confirmed real, and root cause identified: likely bot/crawler contamination, not a genuine site-quality signal.** Three independent real signals triangulate to the same cause:
+1. **Browser breakdown within Direct:** Chrome = 4,997 of 5,108 Direct sessions (97.83%) at only **5.24%** engagement rate. Every other browser inside Direct is dramatically higher — Safari 64.81%, "(not set)" 100%, Edge 64%, Firefox 29.17%. Chrome alone is dragging the whole channel's average down to 6.13%.
+2. **Geography of all 5.2K active users:** **Singapore = 4.1K (79%)** — vs. Mumbai 61, New York 47, San Jose 40, Los Angeles 36, Bengaluru 32. Singapore accounting for 4 in 5 "active users" on an India-focused LEGO price-comparison site is not a plausible organic audience.
+3. **GA4's own automated anomaly detection independently flagged September 5, 2026** (not Sep 8-12) with two paired findings: "Chrome traffic dropped to zero, down from 270" and "Singapore traffic dropped to zero, compared to the previous week's 259" — the same day Direct-channel sessions crashed to 1 against an expected 167, with no corresponding drop in any other channel.
+
+Reading these together: a sustained volume of low/zero-engagement automated traffic — most likely a bot, scraper, or monitoring service running standard/headless Chrome from Singapore-based infrastructure — is inflating Direct sessions and active-user counts site-wide, and briefly went quiet on Sep 5 before resuming. This is real traffic hitting the real site, not a tracking bug — but it means genuine human/organic traffic is meaningfully smaller than the raw totals suggest. **Flagged for a real decision** (e.g., a GA4 traffic filter excluding this pattern) rather than fixed in this pass. The originally-referenced "Sep 8-12 outage" does not appear in GA4's own anomaly detection at all — the real, sharp anomaly is Sep 5, and it's fully explained by this same bot-traffic pattern pausing and resuming, not a genuine site outage.
+
+---
+
 ## RLFM content/trust readiness check — real numbers, honest-assessment pass — 2026-09-20
 
 Explicit scope for this pass: report what's found, fix only what's small/clean/Tier-1, flag anything bigger for a real decision. **No fixes made in this pass** — every item below is data-gathering to inform Abhinav's own RLFM go/no-go call.
