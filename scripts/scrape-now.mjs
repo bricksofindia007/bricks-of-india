@@ -254,6 +254,41 @@ async function main() {
       }
     }
 
+    // ── Reconcile stale in_stock rows (#140) ────────────────────────────────
+    // This scraper only ever upserts what's in the current feed fetch --
+    // nothing previously flipped in_stock=false for a row that stops
+    // appearing (product genuinely out of stock / delisted). Those rows
+    // accumulate as phantom in_stock=true forever. N-strikes: a row not
+    // touched by an upsert in ~3 missed 6h scrape cycles (18h) is treated
+    // as genuinely gone. 20h cutoff (vs. the exact 18h) absorbs normal
+    // schedule jitter so one transient site hiccup doesn't flip a real
+    // in-stock item false on a single missed run.
+    const staleCutoff = new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString();
+    const { data: staleRows, error: staleSelErr } = await supabase
+      .from('store_prices')
+      .select('set_id')
+      .eq('store_id', store.id)
+      .eq('in_stock', true)
+      .lt('scraped_at', staleCutoff);
+    if (staleSelErr) {
+      console.error(`  Reconciliation select error: ${staleSelErr.message}`);
+    } else if ((staleRows ?? []).length > 0) {
+      if (DRY_RUN) {
+        console.log(`  [DRY RUN] Would reconcile ${staleRows.length} stale in_stock=true row(s) -> false (not seen in >20h): ${staleRows.slice(0, 5).map((r) => r.set_id).join(', ')}${staleRows.length > 5 ? ', ...' : ''}`);
+      } else {
+        const { error: reconErr } = await supabase
+          .from('store_prices')
+          .update({ in_stock: false })
+          .eq('store_id', store.id)
+          .eq('in_stock', true)
+          .lt('scraped_at', staleCutoff);
+        if (reconErr) console.error(`  Reconciliation update error: ${reconErr.message}`);
+        else console.log(`  Reconciled ${staleRows.length} stale in_stock=true row(s) -> false (not seen in >20h)`);
+      }
+    } else {
+      console.log(`  Reconciliation: no stale in_stock rows for ${store.name}`);
+    }
+
     // ── Append to price_history ─────────────────────────────────────────────
     // All matched+deduped products with a real price get a history row.
     // This is append-only — used for deal calculations and trend analysis.
