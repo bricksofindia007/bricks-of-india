@@ -1,5 +1,48 @@
 # BOI Master Tracker
 
+## Registration/newsletter investigation + backlog registered — 2026-09-20
+
+### 1. Email capture — real mechanism as it exists today
+
+**One signup surface exists on the whole live site**: the `<NewsletterSignup />` section at the very bottom of the homepage (`src/app/page.tsx`, last section before the footer). No other page has its own signup form — `/calendar`'s "Subscribe to Deals Newsletter" button and similar links elsewhere just link to `/#newsletter`. **That anchor is currently dead** — nothing in the codebase sets `id="newsletter"` anywhere near the component, so those links land on the homepage top, not the signup form. Small, real, not fixed in this pass (investigation only).
+
+**On submit** (`src/app/actions/newsletter.ts`): validates the email, inserts directly into `public.newsletter_subscribers` (service-role client, `{ email }` only — no name/consent-source captured), then sends a single confirmation/welcome email via Resend. **This is single opt-in** — the "confirmation" is a courtesy welcome email, not a double opt-in click-to-verify link; there is no token/verification step at all.
+
+**Real current subscriber count: 1 row.** `bhargav.abhishek@gmail.com`, subscribed 2026-05-10, `is_active: true` — almost certainly a founder test signup from initial build/testing, not organic growth. Four-plus months live, one row.
+
+**Same pipeline as growth-engine, or separate? — Both, in a specific and important way.** `public.newsletter_subscribers` (this table) and the `growth` schema (`growth.subscribers`, `growth.newsletter_drafts`, `growth.newsletter_events`) live in the **same Supabase project** (confirmed via project ref), and a real, working sync script exists (`boi-growth-engine/newsletter/subscriber_sync.py`) that mirrors `public.newsletter_subscribers` → `growth.subscribers` one-way, meant to run immediately before every draft-generation and every send. **But it has never been exercised for a real send** — see item 2. The two pools are connected in code, not yet in practice.
+
+### 2. Newsletter — real content of the last 2 sent issues, and the real pending backlog
+
+**Only 2 issues have ever actually been sent** (not drafts) — Issue #4 and Issue #5, both on 2026-08-11, three hours apart, both via real Resend broadcasts with real broadcast IDs. Issues #1-3 were dismissed (never sent); **issues #6 through #10 (five drafts) are all currently sitting in `pending_approval`**, spanning 2026-08-12 through 2026-09-14 — over a month of unapproved backlog, not just the single "issue #10" the task referenced.
+
+**Important, real caveat: both sent issues went to a named test list, not real subscribers.** `newsletter/send.py` has an explicit `--test-recipients` flag, documented as "required for the Phase 5 prompt's mandated first real send... before this is ever pointed at the full subscriber list" — and both #4 and #5 used it. Confirmed directly from `growth.newsletter_events` (298 real rows): the only 3 recipient addresses across both sends are `bhargav.abhinav@gmail.com`, `perfectsmiles.mumbai@gmail.com` (Abhinav's two test addresses), and `abhinav@bricksofindia.com` (an automatic founder's-copy send, separate from the broadcast). **Zero real subscribers have ever received a newsletter.** The production recipient path (`get_active_recipients()`, reading `growth.subscribers` minus real unsubscribes) is real, working code — it has simply never been used for an actual send.
+
+**Real structure, both issues (5 sections):** an opening "boi_take" editorial hot-take (both #4 and #5 used the identical LEGO Doctor Doom Bust ₹13,800 hook, since they were sent same-day as pipeline validation); a "big one" headline LEGO-news blurb; 5 price-radar drop captions; 5 review-verdict digest lines; one featured-set spotlight (both used the same Tintin Moon Rocket 15%-drop item). Real subjects: *"Issue #4: New Wednesday LEGO Sets Announced, But When Will They Land in India?"* and *"Issue #5: LEGO Harry Potter Ministry of Magic (76476) Announced: A Collector's Edition Worth the Price?"*
+
+**Issue #10 (pending_approval, created 2026-09-14), real content:** subject *"LEGO The Legend of Zelda 77094 Ocarina of Time - Link & Epona Revealed!"* Opens with real self-aware commentary on slow growth ("our current 175 followers have a projected date of July 17, 2085, to hit our target of 10,000"), headlines the Zelda 77094 Nintendo collab, and features a verified 33% price drop on the Princess Leia (Boushh) Helmet (₹8,999 → ₹5,999) alongside 4 more price-radar items and 5 review-verdict digest lines. Structurally identical to #4/#5 — genuinely ready to send, just never approved.
+
+### 3. Backlog registered — not urgent, not forgotten
+
+Every item's status below is freshly confirmed today (2026-09-20), not copied from the list as given — several numbers had moved.
+
+| Item | Real current status |
+|---|---|
+| **Theme taxonomy** | 6 raw values still untriaged: Animal Crossing (19 sets, was 18), Throwbot Slizer (17), Quatro (9), Classic Castle (7), Shrek (3), Series 8 Minifigures (2) — **57 sets total** (was ~56; normal catalogue drift). Renders as unlinked plain text, not a 404 — deliberate existing fallback, no urgency. |
+| **Social-assets cleanup: dry-run → live decision** | Fresh dry-run dispatched just now (run `35521148424`): **288 files currently eligible** under the 72h age guard — up from 276 two days ago, 248 five days before that (real accumulation, ~12-15/day). Still Abhinav's decision: flip the schedule to live, or keep manual `workflow_dispatch` only. |
+| **GH_DISPATCH_TOKEN** | Real, more precise framing: filed as part of issue #123 (secrets/env parity gap) — this secret exists in GitHub Actions (unchanged since 2026-05-27, 116 days) but was **never migrated to the Cloudflare Worker's secret store** post-Netlify-migration, so the admin-UI batch-generation button is very likely broken live (not live-tested — would trigger a real workflow dispatch just to confirm). Whether the token itself also needs regenerating is unconfirmed; the migration gap is the one thing confirmed real. |
+| **ADMIN_PAT: needs `Variables: write`** | Real, unresolved. Last confirmed broken: `HTTP 403` on 2026-09-17T18:20Z. No fresher check exists — the workflow's own `due_check` gate only exercises this path when due, next due ~2026-11-01 (barring an early IG-token event). Recorded as last-known-broken, not re-verified today. |
+| **Monthly 360° audit — not automated as cron** | Confirmed, still the right call: `docs/AUDIT_RUNBOOK.md` explicitly states this is read-only judgment work meant to be run by whoever's doing the monthly review, human or session — not a Tier 1 config change. Left as a reminder-only cron (fires, doesn't run anything), correctly. |
+| **Instagram App Review** | Still not submitted, and now lower-priority than when this item was first framed: the actual Instagram-posting permission gap was resolved via a System User token scope fix (Standard Access, no App Review needed for that permission) on 2026-09-19. PR #142 (`/legal/data-deletion` + privacy-policy disclosure) is still open, still real prep work, just no longer blocking anything live. |
+| **PR #142** | Confirmed still `OPEN`, not merged, not closed — last updated today (tracker-sync touch only, no new content). Abhinav's call: close as no-longer-needed, or keep for a future real App Review submission. |
+| **CQS duplicate-detection threshold** | Re-confirmed this same session's earlier RLFM pass: 165 `duplicate_opener` warnings, ~94% of which are the shared "Your wallet called" house-catchphrase false-positive (first-sentence-only comparison window). Real precision-vs-recall design call, not a code bug — still unfixed, still flagged. |
+| **Dormant `blog_posts` rows** | **Real count is 25, not 10** — and all 25 (not a subset) have an identical-slug live counterpart in `guides` (14) or `news_articles`/Opinion (11), confirming the whole table is fully superseded migration leftover, correctly never deleted (kept for rollback safety), never written to. The "10" figure traces to a different, unrelated number from this session's CQS work (10 self-referential `duplicate_opener` flags caused by these same dormant rows) — corrected here rather than carried forward. |
+| **CGI LEGO pipeline exploration** | Confirmed dormant — zero code, zero new file activity; only pre-existing doc mentions (tracker, two audit docs). No movement since 2026-08-23. |
+| **Netlify downgrade** | Not yet due — `scheduled_downgrade_date: 2026-09-23` confirmed fresh via the Netlify Accounts API just now, unchanged, still 3 days out. Real check still needs to happen on/after 09-23. |
+| **Watchlist/price-alerts feature** | Confirmed not started — zero references anywhere in `src/` (`watchlist`, `price_alert`), no GitHub issue or PR. Purely an idea under consideration, nothing built. |
+
+---
+
 ## RLFM readiness check — GA4 resolved (access confirmed, real bot-contamination finding) + CQS example backfill — 2026-09-20
 
 Follow-up to the same-day RLFM readiness pass below. Two gaps closed: item 2 needed more than 3 concrete examples, and item 5 was re-scoped by Abhinav around a specific GA4 discrepancy to resolve rather than an access check. **No fixes made** — same honest-assessment scope as the parent pass.
