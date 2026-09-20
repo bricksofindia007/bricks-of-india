@@ -283,6 +283,21 @@ try {
 }
 
 // ── Check 6b: YouTube token expiry ───────────────────────────────────────────
+// #150, root-caused 2026-09-20: the live secret's real shape (confirmed via a
+// throwaway debug workflow reading its keys only, never its values) is
+// `['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret',
+// 'scopes']` -- no `expiry` field at all. That's exactly Google
+// google-auth-library's own `Credentials.to_json()` shape (what
+// publisher.py's _load_youtube_credentials() produces after a real
+// creds.refresh() call), not youtube_oauth_helper.py's shape (which adds a
+// custom `expiry` string this check was written to read). Something along
+// the way re-saved the secret using the library's own serialization,
+// dropping the custom field -- not a credential problem (the token itself is
+// live and working: Check 6c's real upload heartbeat confirms real
+// successful uploads), a parsing bug in this check's own assumption that
+// `expiry` is always present. Missing `expiry` is now a distinct, non-failing
+// case -- Check 6c is the authoritative "does it still work" signal; this
+// check can only warn on it, never crash on it.
 try {
   const ytSecrets = (process.env.YOUTUBE_CLIENT_SECRETS || '').replace(/^﻿/, '').trim();
   if (!ytSecrets) {
@@ -293,15 +308,22 @@ try {
     );
   } else {
     const creds = JSON.parse(ytSecrets);
-    const expiry = new Date(creds.expiry);
-    const daysLeft = Math.floor((expiry - new Date()) / (1000 * 60 * 60 * 24));
-    console.log(`[6b] YouTube token: expires in ${daysLeft} day(s) (${expiry.toISOString().slice(0, 10)})`);
-    if (daysLeft <= 3) {
-      failures.push('yt-token-expiring');
-      await sendAlert(
-        '⚠️ BOI Health Alert — YouTube token expiring',
-        `Token expires in ${daysLeft} day(s) — re-auth required via social-automation/youtube_oauth_helper.py.\n\nUpdate YOUTUBE_CLIENT_SECRETS in GitHub Secrets before it expires.`
-      );
+    if (creds.expiry === undefined || creds.expiry === null) {
+      console.log('[6b] YouTube token: no custom `expiry` field in the stored secret (shape matches google-auth-library\'s own Credentials.to_json(), not youtube_oauth_helper.py\'s) -- expiry countdown unavailable; see Check 6c for the real working/not-working signal.');
+    } else {
+      const expiry = new Date(creds.expiry);
+      if (isNaN(expiry.getTime())) {
+        throw new Error(`creds.expiry is present but not a valid date: ${JSON.stringify(creds.expiry)}`);
+      }
+      const daysLeft = Math.floor((expiry - new Date()) / (1000 * 60 * 60 * 24));
+      console.log(`[6b] YouTube token: expires in ${daysLeft} day(s) (${expiry.toISOString().slice(0, 10)})`);
+      if (daysLeft <= 3) {
+        failures.push('yt-token-expiring');
+        await sendAlert(
+          '⚠️ BOI Health Alert — YouTube token expiring',
+          `Token expires in ${daysLeft} day(s) — re-auth required via social-automation/youtube_oauth_helper.py.\n\nUpdate YOUTUBE_CLIENT_SECRETS in GitHub Secrets before it expires.`
+        );
+      }
     }
   }
 } catch (e) {
