@@ -1,0 +1,135 @@
+name: Workflow Freshness Watchdog
+
+# #121: technical-hygiene.yml's last real run predated the Cloudflare
+# Workers cutover by 5 days (#115) and nothing in the repo would have
+# surfaced that staleness on its own -- it took a manual audit to notice.
+# Any scheduled workflow could silently stop running (misconfigured cron,
+# a GitHub Actions outage, a bad commit disabling it) with nothing
+# currently checking except a human happening to run `gh run list`.
+#
+# This checks each watched workflow's most recent completed run timestamp
+# via the GitHub Actions API and alerts if it's older than a multiple of
+# its own expected interval (read from WATCHLIST below, not derived from
+# history -- a workflow can go stale before it has enough history to infer
+# an interval from). Same alert channel as health-check.yml /
+# credit-budget-check.yml (Resend email, already-provisioned secrets, no
+# new credential).
+
+on:
+  schedule:
+    - cron: '0 3 * * *'  # 03:00 UTC = 08:30 IST, daily
+  workflow_dispatch:
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check workflow freshness
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          node -e '
+            const { execSync } = require("child_process");
+            const repo = process.env.GITHUB_REPOSITORY;
+
+            // filename -> [expected interval hours, alert multiple]. Interval
+            // read directly off each workflow'"'"'s own cron schedule; multiple
+            // is slack before alerting (avoids false alarms from ordinary
+            // scheduling jitter or a workflow that legitimately skips a run
+            // via an internal gate, e.g. ig-token-refresh'"'"'s 45-day timer --
+            // which is deliberately NOT on this list for that reason).
+            const WATCHLIST = {
+              "technical-hygiene.yml":      [7 * 24, 2],
+              "catalogue-audit.yml":        [7 * 24, 2],
+              "code-audit.yml":             [7 * 24, 2],
+              "health-check.yml":           [24, 2],
+              "social-automation.yml":      [24, 2],
+              "scrape-prices.yml":          [6, 3],
+              "generate-drafts.yml":        [24, 2],
+              "radar.yml":                  [24, 2],
+              "model-canary.yml":           [24, 2],
+              "snapshot-prices.yml":        [24, 2],
+              "retiring-soon.yml":          [7 * 24, 2],
+              "reviews-weekly-refresh.yml": [7 * 24, 2],
+              "sync-catalogue.yml":         [7 * 24, 2],
+              "retention-cleanup.yml":      [7 * 24, 2],
+              "credit-budget-check.yml":    [24, 2],
+            };
+
+            const stale = [];
+            const errors = [];
+            for (const [file, [hours, mult]] of Object.entries(WATCHLIST)) {
+              try {
+                const out = execSync(
+                  `gh api "repos/${repo}/actions/workflows/${file}/runs?per_page=1&status=completed"`,
+                  { encoding: "utf8" }
+                );
+                const runs = JSON.parse(out).workflow_runs || [];
+                if (runs.length === 0) {
+                  stale.push({ file, reason: "no completed runs found at all" });
+                  continue;
+                }
+                const lastRun = new Date(runs[0].created_at);
+                const ageHours = (Date.now() - lastRun.getTime()) / 3600000;
+                const thresholdHours = hours * mult;
+                if (ageHours > thresholdHours) {
+                  stale.push({
+                    file,
+                    reason: `last run ${ageHours.toFixed(1)}h ago, expected within ~${thresholdHours}h (${hours}h interval x${mult})`,
+                    lastRun: runs[0].created_at,
+                  });
+                }
+              } catch (e) {
+                errors.push({ file, error: e.message.slice(0, 200) });
+              }
+            }
+
+            const fs = require("fs");
+            fs.writeFileSync("/tmp/stale.json", JSON.stringify(stale));
+            fs.writeFileSync("/tmp/errors.json", JSON.stringify(errors));
+            console.log(`Checked ${Object.keys(WATCHLIST).length} workflows: ${stale.length} stale, ${errors.length} check errors.`);
+            for (const s of stale) console.log(`  STALE: ${s.file} -- ${s.reason}`);
+            for (const e of errors) console.log(`  ERROR checking ${e.file}: ${e.error}`);
+          '
+          echo "stale_count=$(node -e 'console.log(JSON.parse(require("fs").readFileSync("/tmp/stale.json")).length)')" >> "$GITHUB_OUTPUT"
+
+      - name: Send email alert (Resend)
+        if: steps.check.outputs.stale_count != '0'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL: ${{ secrets.BRIEF_EMAIL }}
+        run: |
+          node -e '
+            (async () => {
+              const apiKey = process.env.RESEND_API_KEY.split(String.fromCharCode(65279)).join("").trim();
+              const stale = JSON.parse(require("fs").readFileSync("/tmp/stale.json"));
+              const errors = JSON.parse(require("fs").readFileSync("/tmp/errors.json"));
+              const lines = [
+                `${stale.length} watched workflow(s) have gone stale -- no recent run within their expected interval.`,
+                "",
+                ...stale.map((s) => `- ${s.file}: ${s.reason}`),
+                ...(errors.length ? ["", `${errors.length} workflow(s) could not be checked:`, ...errors.map((e) => `- ${e.file}: ${e.error}`)] : []),
+                "",
+                "Check: https://github.com/'"$GITHUB_REPOSITORY"'/actions",
+              ];
+              const resp = await fetch("https://api.resend.com/emails", {
+                method: "POST",
+                headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  from: "BOI Alerts <alerts@bricksofindia.com>",
+                  to: [process.env.BRIEF_EMAIL || "abhinav@bricksofindia.com"],
+                  subject: `BOI Watchdog: ${stale.length} scheduled workflow(s) gone stale`,
+                  text: lines.join("\n"),
+                }),
+              });
+              if (!resp.ok) {
+                console.error("Email send failed:", resp.status, await resp.text());
+                process.exit(1);
+              }
+              console.log("Alert email sent.");
+            })();
+          '
