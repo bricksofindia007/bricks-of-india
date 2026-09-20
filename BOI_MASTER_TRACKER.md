@@ -1,5 +1,51 @@
 # BOI Master Tracker
 
+## RLFM content/trust readiness check — real numbers, honest-assessment pass — 2026-09-20
+
+Explicit scope for this pass: report what's found, fix only what's small/clean/Tier-1, flag anything bigger for a real decision. **No fixes made in this pass** — every item below is data-gathering to inform Abhinav's own RLFM go/no-go call.
+
+### 1. Site-wide broken link sweep
+
+**Real coverage, stated plainly:** full crawl of all 725 non-sets pages (22 static + 457 news + 195 reviews + 26 guides + 25 blog) — every one of these was actually fetched and every link on it extracted and checked. Sets pages (26,008 total) were **not** fully crawled — a random sample of 500 (1.9%) was used instead; full coverage of all 26,008 wasn't feasible in one pass.
+
+**Result: 0 confirmed genuinely broken links, internal or external**, after correcting two real methodology artifacts found along the way (both from this session's own crawl tooling, not the site):
+- **3,671 unique internal links found across the crawl — 67 initially flagged, all 67 false positives.** 34 were real internal paths that timed out purely because this session's own 20-way-concurrent crawl was hammering the server; individually re-checked with a generous timeout afterward, all 34 returned real 200s in under 1.5s. The other 33 were a link-classifier bug in this session's own script (WhatsApp/Twitter share-intent URLs like `wa.me/?text=...bricksofindia.com...` got misclassified as "internal" because the classifier string-matched on `bricksofindia.com` appearing anywhere in the URL, including inside a share-text query parameter) — not a site issue at all.
+- **1,279 unique external links found — 0 confirmed broken.** Two genuinely retailer-checkable domains (`toycra.com`, `mybrickhouse.com`, 218 links): the fast first-pass crawl flagged all 218 as broken (HTTP 429) — this was the crawl's own request burst rate-limiting itself, confirmed by a careful, properly-paced recheck (real browser UA, 400ms spacing): **0 of 218 still broken.** The remaining 999 external links are `amazon.in`/`flipkart.com` search-query fallback links (`/s?k=LEGO+{set}` style, not product deep-links) generated on set pages as a "check other marketplaces" convenience — both platforms aggressively block rapid/non-browser HTTP traffic regardless of realistic headers (confirmed directly: a single careful GET still got 503/403), so exhaustive automated verification of all 999 isn't reliably possible by this method; a paced sample of the first 811 checked before this was cut short for time all returned real 200s, and by construction a search-query URL essentially can't 404 the way a product deep-link can. The remaining 62 external links (Rebrickable, Brickset, YouTube, Brothers Brick, and other real citations) passed cleanly in the original full crawl with no issues at all.
+
+### 2. CQS warnings/info — real category breakdown
+
+**Warnings (226):** `duplicate_opener` 165 (73%), `duplicate_title` 26, `duplicate_image` 14, `word_count_low` 12, `missing_store_mention` 6, `bad_opener` 2, `wall_of_text` 1.
+**Info (40):** `word_count_high` 40 (100%).
+
+**The dominant category needed a real look, not just a count — and it's mostly a check-methodology artifact, not real duplicate content.** Of the 165 `duplicate_opener` flags: **10** are a genuine (if minor) migration side-effect — the same slug/content exists in both the live table (`news_articles`/`guides`) and the dormant, superseded `blog_posts` table (kept for rollback safety per the Nav & Content Overhaul migration), so the check compares a row against its own already-migrated twin and trivially scores 100%. The other **155** all trace to one real, precise mechanism: the check's `duplicate_opener` logic (`scripts/content-linter.mjs`) compares only the literal *first sentence* via Jaccard similarity — and "Your wallet called." (a deliberate, recurring house-style catchphrase, confirmed in the actual article content) is a single 3-word sentence that scores 100% identical to itself every time it's used, regardless of how different the rest of the article is. Verified directly against real content: `lego-doctor-doom-bust-76345-...`, `cyberpunk-towers-in-olive-green-...`, and `brickzonehub-launches-display-frame-...` all open with "Your wallet called." followed by completely different, unrelated topics — genuinely distinct articles, not duplicates, flagged only because the comparison window is too short to see past the shared catchphrase. **Not fixed here** — the right comparison window/threshold is a real editorial-voice-vs-check-precision tradeoff, not a mechanical bug, so this is flagged for a real decision rather than patched.
+
+### 3. Price accuracy across all tracked retailers (both of them — `toycra` and `mybrickhouse`, confirmed via `scripts/lib/retailer-fetch.mjs`, no others exist)
+
+| Retailer | Freshness (in-stock rows scraped <7h) | Live accuracy spot-check |
+|---|---|---|
+| toycra | 627/629 = **99.7%** | 5/5 sampled prices matched the real live Shopify listing exactly |
+| mybrickhouse | 736/737 = **99.9%** | 5/5 sampled prices matched the real live Shopify listing exactly |
+
+The #140 reconciliation fix is holding for toycra; mybrickhouse was already healthy and remains so. **100% accuracy in every sample checked, ~99.7-99.9% freshness on both.**
+
+### 4. Content freshness/cadence — real breakdown, "periodic content on all pages" is NOT an accurate claim
+
+| Content type | Rows | Real periodic-refresh mechanism | Real coverage |
+|---|---|---|---|
+| Sets (price/stock) | 26,008 | `store_prices` scrape, every 6h | 99.7-99.9% fresh (see #3) — but the *set's own* static metadata (name/pieces/image/year) has no periodic re-verification after initial catalog sync |
+| Reviews | 195 | Weekly retailer re-verification (`reviews-weekly-refresh.yml`) | Only **34/195 (17%)** are retailer-sourced and eligible — the other **161 (83%)** are legacy (pre-2026-07-30) rows with `source_checked_at` permanently `null`, never re-verified since original publish |
+| Guides | 26 | Monthly staleness check (`guide-staleness-monthly.yml`) | **6/26 (23%)** show real `updated_at` activity since publish; the other 20 (77%) are untouched |
+| News articles | 457 | **None — the `news_articles` table has no `updated_at` column at all** | **0%** — structurally incapable of being marked as updated post-publish, by schema design |
+| Blog posts | 25 | N/A | Dormant, not live (`/blog` itself 308-redirects) — out of scope for any "current content" claim |
+
+**Real conclusion:** price/stock data genuinely is near-real-time and fresh (#3 above). Editorial content is a different story — periodic re-verification exists for a narrow slice (17% of reviews, 23% of guides) and doesn't exist at all for the largest single content type (News, 457 articles, zero schema support for tracking updates). "Periodic content on all pages" would overstate this; "periodic pricing data everywhere, periodic editorial re-verification on a fraction of reviews and guides only" is the accurate version.
+
+### 5. GA4 — access still not granted
+
+Checked both Google accounts available in this browser session (`bhargav.abhinav@gmail.com` and `bricksofindia007@gmail.com`, the one with real GSC access) via the Analytics account/property switcher directly — **both show exactly one Analytics account, "WeddingRishta" (unrelated matrimonial-site property), and nothing else.** No property for Bricks of India's real GA4 ID (`G-NXGQHSWSYY`) is reachable from either account. Reporting this plainly rather than waiting silently, per instruction — the sessions/users/traffic-source/AI-referral/outage-trend pull this item asked for could not be attempted at all.
+
+---
+
 ## Full GH-workflow inventory + horizontal-scroll criticals fixed + CQS spot-check — 2026-09-20
 
 ### 1. Full workflow inventory — both repos, real current status
