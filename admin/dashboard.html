@@ -554,9 +554,9 @@
 <!-- =================================================================== -->
 <script id="boi-data" type="application/json">{
   "meta": {
-    "lastUpdated": "2026-09-12",
-    "trackerVersion": "v1.6",
-    "currentSprint": "Cloudflare Workers migration (Next.js 15 + OpenNext, PRs #103/#104) + CI/CD pipeline built (PRs #111/#112/#113). ISR revalidation queue bug found and fixed (PR #107), both time-based and on-demand paths proven with real evidence. Issues #105 (CPU cap -- resolved by Workers Paid plan upgrade) and #106 (cache purge -- verified against real Purge API) closed with evidence. Route-by-route parity check completed; 2 pre-existing bugs found and filed (#109, #110), confirmed unrelated to the migration via git blame. First real automated deploy succeeded 2026-09-12 (PR #83, verified live in the DOM). bricksofindia.com + www found already serving from the Worker -- NOT executed by any of this work, discovered mid-task; whether old Netlify DNS records were actually removed remains unverified pending a manual dashboard check. Netlify hardening + eventual downgrade to Free explicitly NOT started. Full detail in BOI_MASTER_TRACKER.md top section."
+    "lastUpdated": "2026-09-20",
+    "trackerVersion": "v1.7",
+    "currentSprint": "2026-09-19/20 full 22-item resolution pass (terminal-only, no strategic-layer round-trips). Six PRs merged (#144-#149): Social Automation IG BOM-token fix, toycra phantom in_stock reconciliation (verified 74.9%->99.2% fresh), Gemini caption migration (gemini-3.1-flash-lite + real Voice Codex grounding, 5-week-stale branch merged clean), npm audit fix rebased (9->3 vulns, supersedes closed PR #41), quiet-panic-assets cleanup tooling, CI title-content checks + post-deploy smoke test + workflow-freshness watchdog (issues #119/#120/#121) + tracker-redeploy-loop paths-ignore. Issues #125/#126/#128/#140 closed with live evidence; new issue #150 filed from an independent live health-check run. Netlify confirmed fully inert (zero deploys since 2026-08-30, real production traffic 100% Cloudflare/OpenNext) -- zero-leakage hardening confirmed moot, not further worked. PR #142 (Instagram App Review prep) parked, not needed for anything currently live. RLFM application: still no submission record found anywhere. Full detail in BOI_MASTER_TRACKER.md top section."
   },
   "kpis": {
     "healthScore": 85,

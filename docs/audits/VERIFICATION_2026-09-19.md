@@ -135,3 +135,34 @@ Only items where evidence points to a clear, specific next action:
 3. **Investigate why `social-automation.yml`'s 06:30 UTC daily cron hasn't fired today** — 4.5+ hours overdue as of this report, `state: active`, no other daily cron shows the same gap. This is the one still-untested natural path for confirming the `instagram_basic` fix end-to-end through the primary (not retry) posting pipeline.
 4. **Reconcile #124/#125/#126/#128's GitHub issue state against the consolidated audit's "closed 09-18" claim** — live `gh issue list` shows them OPEN; not deep-dived in this pass, but the discrepancy itself is real and worth a direct look.
 5. **Decide the tracker-commit redeploy-loop question** (§3.4 of the consolidated audit) — raised twice already, this pass's own Step 0 hit the identical pattern a third time (commit → new deploy → approve/cancel cycle). Not re-litigated here since Phase 1 is read-only, but it's the most concretely-scoped decision sitting unmade.
+
+---
+
+## 2026-09-20 continuation — full 22-item resolution pass (fix, not just verify)
+
+Unlike Phase 1 above (read-only reconciliation), this pass had an explicit fix-it mandate: investigate AND fix per `.github/DEPLOY_POLICY.md` tiers. Full narrative and per-item evidence lives in `BOI_MASTER_TRACKER.md`'s top entry ("Full resolution pass, 22-item list — 2026-09-19/20") — this section is the terse verdict table for quick scanning.
+
+| # | Item | Verdict | Evidence |
+|---|---|---|---|
+| 1 | Social Automation IG failure | **FIXED** (PR #144) | Same token as VID-P4, different root cause (BOM, not scope). Live Graph API `/me` dry-run confirmed before merge. |
+| 2 | `debug/ig-full-error-body` branch | **CONFIRMED already dead** | Branch gone from remote; its one real failure genuinely had `jobs: []`. |
+| 3 | Issues #124-128 | **CONFIRMED fixed, closed** | #125/#126 verified via direct Supabase query + the real regex; #128 verified via live `curl` (308 redirect). DB-level duplicate row still exists (redirect, not merge) — noted, not a re-open. |
+| 4 | Issue #140 (toycra reconciliation) | **FIXED** (PR #145), closed | Real before/after: 636/849 (74.9%) -> 627/632 (99.2%), independently reconfirmed by item 22's live hygiene run. |
+| 5 | Gemini model migration | **FIXED** (PR #146) | 5-week-stale branch, zero merge conflicts. Real live Gemini call, all 3 gates clean. |
+| 6 | Theme taxonomy | **REPORTED, not decided** | 6 raw themes (56 sets) genuinely never triaged; 291 are deliberate exclusions. 0 live 404s (confirmed in code path). |
+| 7 | AEO/GEO Search Console data | **BLOCKED** | No GSC integration in repo; Claude in Chrome reported not connected. |
+| 8 | MRP coverage | **REPORTED**: 2,743 (was 2,770) | Direct Supabase count, exact `mrp_review_reason='unverified_estimate'` filter. |
+| 9 | VID-P4 stories #49/#55/#62/#66 | **CONFIRMED genuinely pending_approval** | Real `story_number` query; #62/#66 carry real G11 escalation notes. |
+| 10 | PR #142 / RLFM | **Parked** (commented, not closed); RLFM submission **not found anywhere** | Same gap the 09-19 audit already flagged, still true. |
+| 11 | PR #41 | **Superseded, closed** — replacement PR #147 merged | 9->3 npm audit vulns, real conflict resolved by rebasing fresh rather than hand-merging the lockfile. |
+| 12 | Stale run / Cloudflare Images | Stale run **cancelled**; Cloudflare Images **still blocked** | No Cloudflare API token this session either. |
+| 13 | Netlify zero-leakage hardening | **CONFIRMED moot** | Build hooks empty, zero Netlify deploy log entries since 2026-08-30 despite 15+ merges, production 100% Cloudflare. |
+| 14 | Netlify downgrade | **Still pending** | API confirms `plan: nf_team_dev`, not yet Free; today is before the 09-23 checkpoint. |
+| 15 | `revalidatePath` parity gap | **CONFIRMED resolved** | Production is Cloudflare/OpenNext with real ISR (PR #107); tested against a real 2026-09-19 publish, live and correctly cached. |
+| 16 | GH permission-classifier friction | **Not blocking anything** this session | Dozens of git/gh ops, zero blocks. |
+| 17 | Storage cleanup (quiet-panic/social) | quiet-panic: **new tool built** (PR #148), 14 eligible + 2 orphans confirmed; social-assets: **276 files** currently eligible, reported not flipped | Both dry-run only per standing instruction. |
+| 18 | Issues #119/#120/#121 | **BUILT, SHIPPED** (PR #149), closed | Found + fixed a real, live pre-existing blind spot in the email-leak crawl itself while building #119 (see tracker entry). |
+| 19 | Tracker-redeploy loop | **FIXED**, shipped in PR #149 | `paths-ignore` added to `deploy-cloudflare.yml`. |
+| 20 | Monthly 360° audit as real cron | **NOT built — reported why** | Runbook itself states this needs human/LLM judgment, not a Tier-1 scriptable check. |
+| 21 | Dormant projects | **Status only** | BOI Shareables has real undocumented movement (a Sep-9 test render); CGI/heat-map: no movement. |
+| 22 | Fresh independent audit trigger | **Run live** | `BOI Health Check` success (found #150, a new bug); `Weekly Technical Hygiene` failure-with-findings (word-count nit, #127 reconfirmed, #128 DB-duplicate caveat); `Daily Content Quality Check` triggered, long-running visual-render step, result to be folded into the next tracker update if it hadn't completed by end of session. |
