@@ -70,7 +70,7 @@ export default async function OpinionPostPage(props: Props) {
           <span>/</span>
           <Link href="/opinion" className="hover:text-accent-blue">Opinion</Link>
           <span>/</span>
-          <span className="text-dark font-bold truncate">{post.title}</span>
+          <span className="text-dark font-bold truncate min-w-0 flex-1">{post.title}</span>
         </nav>
       </div>
 

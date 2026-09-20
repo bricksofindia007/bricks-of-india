@@ -83,7 +83,7 @@ export default async function SpotlightPage(props: Props) {
           <span>/</span>
           <Link href="/community" className="hover:text-primary">Community</Link>
           <span>/</span>
-          <span className="text-dark font-bold truncate">{spotlight.builder_name}</span>
+          <span className="text-dark font-bold truncate min-w-0 flex-1">{spotlight.builder_name}</span>
         </nav>
       </div>
 

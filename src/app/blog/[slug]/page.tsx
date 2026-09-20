@@ -65,7 +65,7 @@ export default async function BlogPostPage(props: Props) {
           <span>/</span>
           <Link href="/blog" className="hover:text-accent-blue">Blog</Link>
           <span>/</span>
-          <span className="text-dark font-bold truncate">{post.title}</span>
+          <span className="text-dark font-bold truncate min-w-0 flex-1">{post.title}</span>
         </nav>
       </div>
 

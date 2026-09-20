@@ -91,7 +91,7 @@ export default async function NewsArticlePage(props: Props) {
           <span>/</span>
           <Link href="/news" className="hover:text-accent-blue">News</Link>
           <span>/</span>
-          <span className="text-dark font-bold truncate">{article.title}</span>
+          <span className="text-dark font-bold truncate min-w-0 flex-1">{article.title}</span>
         </nav>
       </div>
 
