@@ -9,6 +9,9 @@ on:
 jobs:
   verify-no-email-in-client-bundle:
     runs-on: ubuntu-latest
+    # 10 most recent runs: 1m58s-2m30s (gh run list --workflow=ci.yml --limit
+    # 10, 2026-08-18). ~2.5x observed max.
+    timeout-minutes: 8
     env:
       CONTACT_EMAIL:                  ${{ secrets.CONTACT_EMAIL }}
       RESEND_API_KEY:                 ${{ secrets.RESEND_API_KEY }}
@@ -91,6 +94,9 @@ jobs:
 
   snapshot-tests:
     runs-on: ubuntu-latest
+    # Same run-history basis as verify-no-email-in-client-bundle above (both
+    # run per push/PR in this file's 10 most recent recorded runs).
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
 

@@ -1,0 +1,102 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "bricks-of-india",
+  "main": ".open-next/worker.js",
+  // Set to today's date rather than pinned to the documented-template
+  // minimum -- Cloudflare's guidance is to use the latest date to maximize
+  // compatibility. This also clears two dates relevant to this exact
+  // adapter: a module-export resolution fix (needs >=2025-05-05) and
+  // process.env population under Workers (needs >=2025-04-01).
+  "compatibility_date": "2026-09-09",
+  // nodejs_compat omitted, not just left off the list: for compatibility_date
+  // >= 2026-08-04 it's on by default, and Cloudflare's own guidance is to
+  // omit it from new configs (existing ones aren't required to remove it --
+  // it's treated as redundant either way, not a hard failure, confirmed
+  // directly against Cloudflare's changelog post for this exact change).
+  "compatibility_flags": ["global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  "services": [
+    {
+      // Required for Pages Router's res.revalidate(); OpenNext's docs don't
+      // explicitly confirm whether App Router's revalidatePath()/revalidateTag()
+      // also need it. admin/pending/actions.ts calls revalidatePath() on every
+      // publish/approve action, so this is included as the safe default rather
+      // than omitted and found out the hard way -- costs nothing to have.
+      "binding": "WORKER_SELF_REFERENCE",
+      "service": "bricks-of-india"
+    }
+  ],
+  "r2_buckets": [
+    {
+      // OpenNext's fixed binding-name convention for its R2 incremental
+      // cache override -- not a free choice, must match what
+      // open-next.config.ts's r2-incremental-cache override expects.
+      "binding": "NEXT_INC_CACHE_R2_BUCKET",
+      "bucket_name": "bricksofindia-next-cache"
+    }
+  ],
+  // Two Durable Object classes, both from OpenNext's own binding-name/
+  // class-name convention (opennext.js.org/cloudflare/caching), matched in
+  // open-next.config.ts's queue/tagCache overrides:
+  //   - DOQueueHandler: required for the site's Time-Based (ISR) revalidation
+  //     on the 7 live ISR routes. Its absence is what this binding fixes --
+  //     without it, OpenNext falls back to a no-op DummyQueue that throws
+  //     `FatalError: Dummy queue is not implemented` the moment a stale ISR
+  //     page tries to actually revalidate in the background (confirmed live
+  //     via wrangler tail against the first preview deploy).
+  //   - DOShardedTagCache: required for On-Demand revalidation specifically
+  //     (revalidateTag/revalidatePath/res.revalidate) per the docs' own
+  //     inline comment next to this binding -- covers admin/pending/
+  //     actions.ts's revalidatePath() calls on every publish/approve action
+  //     (the same code path WORKER_SELF_REFERENCE above was already added
+  //     for).
+  // NEXT_CACHE_DO_PURGE/BucketCachePurge (the docs' third, optional DO) is
+  // deliberately NOT added -- it only buffers Cache-API purge requests
+  // through an intermediary Durable Object to dodge purge-API rate limits
+  // at higher traffic. open-next.config.ts uses cachePurge: purgeCache({
+  // type: "direct" }) instead, which calls the Cache API directly with no
+  // extra binding -- the right fit for this site's publish volume (one
+  // admin, occasional manual approvals), not a corner cut.
+  "durable_objects": {
+    "bindings": [
+      { "name": "NEXT_CACHE_DO_QUEUE", "class_name": "DOQueueHandler" },
+      { "name": "NEXT_TAG_CACHE_DO_SHARDED", "class_name": "DOShardedTagCache" }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["DOQueueHandler", "DOShardedTagCache"]
+    }
+  ],
+  // Cloudflare Images binding -- routes next/image's default optimizer
+  // (still used by the ~14 local-static-asset files from the image-data
+  // audit) through Cloudflare's image transformation. The DB-driven
+  // (Rebrickable/Brickset/etc.) and YouTube-thumbnail images are already
+  // explicitly `unoptimized` in code and never call this endpoint at all,
+  // regardless of this binding's presence.
+  //
+  // OpenNext's docs (opennext.js.org/cloudflare/howtos/image) show only
+  // this one field for the binding approach -- no next.config change is
+  // documented for this path (next.config changes are only shown for the
+  // alternative custom-loader approach, not used here). Verified this
+  // empirically in this branch's build+dev validation rather than trusting
+  // that reading alone.
+  //
+  // Origin restriction: the docs say "restrict the image origins that can
+  // be transformed to where your images are hosted, i.e. a R2 bucket" --
+  // R2 is given as the docs' own example, not a requirement; our
+  // optimizable images are same-origin static assets served via the
+  // Worker's own ASSETS binding, not R2. This restriction is a Cloudflare
+  // dashboard "Sources" setting (developers.cloudflare.com/images/transform-images/sources/),
+  // not a wrangler.jsonc/code setting, and it needs the Worker's actual
+  // deployed domain to configure -- which doesn't exist until a real
+  // `wrangler deploy` happens. Flagged as a required post-deploy step, not
+  // implemented here since there is nothing to configure it against yet.
+  "images": {
+    "binding": "IMAGES"
+  }
+}

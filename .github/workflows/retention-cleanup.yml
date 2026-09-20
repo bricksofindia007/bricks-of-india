@@ -1,0 +1,53 @@
+name: Weekly Data Retention Cleanup
+
+# Runs scripts/retention-cleanup.mjs on a weekly schedule, LIVE from
+# creation -- not dry-run-only like Weekly Storage Cleanup. The 30-day
+# cutoff logic (raw_signals.raw_payload NULL, content_quality_issues
+# archive-then-delete) was validated against real production data in the
+# same session this workflow was added: a one-time manual pass nulled
+# 37,948 raw_signals.raw_payload rows and archived 26,289 / deleted 26,125
+# content_quality_issues rows (164 kept in place -- a real content_fix_log
+# foreign key blocks deleting those, discovered live during that pass, not
+# anticipated in advance). See BOI_MASTER_TRACKER.md for the full evidence.
+#
+# Sunday 05:00 UTC -- checked against this repo's other Sunday schedules to
+# avoid collision: sync-catalogue.yml (02:15 UTC), retiring-soon.yml
+# (02:00 UTC), Weekly Storage Cleanup (04:00 UTC).
+on:
+  schedule:
+    - cron: '0 5 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run only (report counts, no writes)?'
+        type: boolean
+        default: false
+
+jobs:
+  retention-cleanup:
+    name: Data retention cleanup
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run retention-cleanup.mjs
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            node scripts/retention-cleanup.mjs --dry-run
+          else
+            node scripts/retention-cleanup.mjs
+          fi

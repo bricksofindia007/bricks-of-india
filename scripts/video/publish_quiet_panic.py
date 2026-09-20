@@ -78,12 +78,35 @@ def get_supabase():
 # vacuously true until real gates populate it with per-gate pass/fail dicts.
 # ---------------------------------------------------------------------------
 
-def assert_all_gates_passed(gate_results: dict) -> None:
-    for key, result in (gate_results or {}).items():
+def assert_all_gates_passed(post: dict) -> None:
+    """
+    Issue #137, 2026-09-19: mirrors the same fix in publish.py -- this used
+    to take only gate_results and had no awareness of gate_override at all,
+    so an approver's explicit override (with a real reason on record) had no
+    effect and the row still hit this raise at publish time. Only skips the
+    raise when gate_override is True AND gate_override_reason is non-empty --
+    a bare boolean isn't enough, so this can't become a silent blanket
+    bypass.
+    """
+    gate_results = post.get('gate_results') or {}
+    failed = []
+    for key, result in gate_results.items():
         if key.startswith('_'):
             continue
         if not isinstance(result, dict) or result.get('pass') is not True:
-            raise GateFailureError(f'Gate {key!r} did not pass: {result!r}')
+            failed.append(f'{key!r} ({result!r})')
+
+    if not failed:
+        return
+
+    gate_override = post.get('gate_override') is True
+    override_reason = (post.get('gate_override_reason') or '').strip()
+    if gate_override and override_reason:
+        print(f"Gate override honored -- bypassing failed gate(s) {'; '.join(failed)}. "
+              f"Reason on record: {override_reason!r}")
+        return
+
+    raise GateFailureError(f'Gate(s) did not pass: {"; ".join(failed)}')
 
 
 # ---------------------------------------------------------------------------
@@ -302,26 +325,36 @@ def already_published_today_ist(sb):
 # quiet_panic_posts instead of video_posts.
 # ---------------------------------------------------------------------------
 
-def publish_quiet_panic_post(sb, post: dict) -> dict:
-    assert_all_gates_passed(post.get('gate_results') or {})
-
+def _resolve_local_video_path(post: dict) -> str:
+    """Same rationale as publish.py's copy of this (isolation precedent --
+    duplicated, not imported). Extracted (issue #137) so
+    retry_missing_platform() below can reuse it."""
     local_video_path = post['video_path']
     storage_url = post.get('storage_url')
 
-    if not Path(local_video_path).exists():
-        if not storage_url:
-            raise RuntimeError(
-                f"video_path {local_video_path!r} does not exist on this machine and no "
-                f"storage_url is set -- cannot recover the video file to publish it."
-            )
-        print(f'[publish_quiet_panic] {local_video_path} not present locally -- downloading from {storage_url}')
-        tmp_path = Path(tempfile.gettempdir()) / f"qp_{post['id']}.mp4"
-        resp = requests.get(storage_url, timeout=120, stream=True)
-        resp.raise_for_status()
-        with open(tmp_path, 'wb') as f:
-            for chunk in resp.iter_content(chunk_size=1 << 20):
-                f.write(chunk)
-        local_video_path = str(tmp_path)
+    if Path(local_video_path).exists():
+        return local_video_path
+
+    if not storage_url:
+        raise RuntimeError(
+            f"video_path {local_video_path!r} does not exist on this machine and no "
+            f"storage_url is set -- cannot recover the video file to publish it."
+        )
+    print(f'[publish_quiet_panic] {local_video_path} not present locally -- downloading from {storage_url}')
+    tmp_path = Path(tempfile.gettempdir()) / f"qp_{post['id']}.mp4"
+    resp = requests.get(storage_url, timeout=120, stream=True)
+    resp.raise_for_status()
+    with open(tmp_path, 'wb') as f:
+        for chunk in resp.iter_content(chunk_size=1 << 20):
+            f.write(chunk)
+    return str(tmp_path)
+
+
+def publish_quiet_panic_post(sb, post: dict) -> dict:
+    assert_all_gates_passed(post)
+
+    local_video_path = _resolve_local_video_path(post)
+    storage_url = post.get('storage_url')
 
     if not storage_url:
         filename = f"{post['id']}.mp4"
@@ -377,6 +410,60 @@ def publish_quiet_panic_post(sb, post: dict) -> dict:
     return results
 
 
+def retry_missing_platform(sb, post: dict) -> dict:
+    """
+    Issue #137, 2026-09-19: mirrors publish.py's retry_missing_platform() --
+    no code path anywhere retried a posted_ig/posted_yt quiet_panic_posts
+    row for the platform that failed the first time. Deliberately attempts
+    ONLY the missing platform -- calling publish_quiet_panic_post() again
+    would re-post to the platform that already succeeded, a real duplicate.
+    Refuses to run on any status other than exactly 'posted_ig'/'posted_yt'.
+    """
+    status = post['status']
+    if status not in ('posted_ig', 'posted_yt'):
+        raise ValueError(
+            f"retry_missing_platform called on quiet_panic_posts {post['id']} with "
+            f"status={status!r} -- only 'posted_ig'/'posted_yt' are valid."
+        )
+
+    missing_platform = 'yt' if status == 'posted_ig' else 'ig'
+    local_video_path = _resolve_local_video_path(post)
+
+    if missing_platform == 'ig':
+        storage_url = post.get('storage_url')
+        if not storage_url:
+            return {'platform': 'ig', 'error': 'no storage_url on record -- cannot retry IG without it'}
+        caption = build_ig_caption(post['script'])
+        try:
+            ig_result = post_instagram_reels(storage_url, caption)
+        except Exception as exc:
+            print(f'[publish_quiet_panic] IG retry failed for {post["id"]}: {exc}', file=sys.stderr)
+            return {'platform': 'ig', 'error': str(exc)}
+        sb.table('quiet_panic_posts').update({
+            'ig_media_id': ig_result['media_id'],
+            'ig_permalink': ig_result['permalink'],
+            'ig_raw_response': ig_result['raw_response'],
+            'status': 'posted_both',
+        }).eq('id', post['id']).execute()
+        print(f'[publish_quiet_panic] IG retry succeeded for {post["id"]}: {ig_result["permalink"]}')
+        return {'platform': 'ig', 'result': ig_result}
+
+    yt_meta = build_yt_metadata(post['set_title'], post.get('set_number'), post['script'])
+    try:
+        yt_result = post_youtube_short(local_video_path, yt_meta['title'], yt_meta['description'])
+    except Exception as exc:
+        print(f'[publish_quiet_panic] YouTube retry failed for {post["id"]}: {exc}', file=sys.stderr)
+        return {'platform': 'yt', 'error': str(exc)}
+    sb.table('quiet_panic_posts').update({
+        'yt_video_id': yt_result['video_id'],
+        'yt_url': yt_result['url'],
+        'yt_raw_response': yt_result['raw_response'],
+        'status': 'posted_both',
+    }).eq('id', post['id']).execute()
+    print(f'[publish_quiet_panic] YouTube retry succeeded for {post["id"]}: {yt_result["url"]}')
+    return {'platform': 'yt', 'result': yt_result}
+
+
 def poll_and_publish() -> int:
     sb = get_supabase()
 
@@ -429,13 +516,63 @@ def poll_and_publish() -> int:
     return exit_code
 
 
+def retry_missing_platforms_all(sb) -> bool:
+    """
+    Issue #137, 2026-09-19: mirrors engine.py's retry_missing_platforms_all()
+    for quiet_panic_posts. Deliberately independent of
+    already_published_today_ist()'s daily cap -- same open question flagged
+    there (should completing a stuck platform consume today's slot?),
+    surfaced for Abhinav rather than decided here.
+
+    Returns False if any retry is still failing -- found live during this
+    fix's own first real run (issue #137, 2026-09-19): every retry failing
+    (the known IG permission gap) still left the job green, since
+    retry_missing_platform() correctly never raises. The caller uses this
+    return value for a real exit code so a persistent failure is actually
+    visible in the Actions tab, not silently green -- the same failure
+    class this whole issue exists to catch. Processes every stuck row
+    regardless of earlier failures.
+    """
+    stuck_res = (
+        sb.table('quiet_panic_posts')
+        .select('*')
+        .in_('status', ['posted_ig', 'posted_yt'])
+        .order('sequence_number')
+        .execute()
+    )
+    stuck_rows = stuck_res.data
+
+    if not stuck_rows:
+        print('[publish_quiet_panic] retry_missing_platforms_all: zero posted_ig/posted_yt rows. No-op.')
+        return True
+
+    print(f'[publish_quiet_panic] retry_missing_platforms_all: {len(stuck_rows)} row(s) with a missing platform.')
+    any_failed = False
+    for post in stuck_rows:
+        pid = post['id']
+        missing = 'yt' if post['status'] == 'posted_ig' else 'ig'
+        print(f"\n--- Retrying {missing} for {pid} ({post['set_title']}) ---")
+        result = retry_missing_platform(sb, post)
+        if 'error' in result:
+            print(f"Retry still failing for {pid} ({result['platform']}): {result['error']}", file=sys.stderr)
+            any_failed = True
+        else:
+            print(f"Retry succeeded for {pid} ({result['platform']}).")
+
+    return not any_failed
+
+
 def main():
     parser = argparse.ArgumentParser(description='Quiet Panic standalone poll-and-publish (no engine.py/publish.py imports).')
     parser.add_argument('--poll-and-publish', action='store_true', help='Poll quiet_panic_posts for approved rows and publish up to the daily cap.')
+    parser.add_argument('--retry-missing-platform', action='store_true', help="Find every status='posted_ig'/'posted_yt' row and retry the missing platform. Runs independently of the daily cap.")
     args = parser.parse_args()
 
     if args.poll_and_publish:
         sys.exit(poll_and_publish())
+    elif args.retry_missing_platform:
+        all_succeeded = retry_missing_platforms_all(get_supabase())
+        sys.exit(0 if all_succeeded else 1)
     else:
         parser.print_help()
 

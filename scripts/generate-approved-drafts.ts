@@ -93,6 +93,7 @@ async function acquireGeminiSlot(): Promise<void> {
 const SUPABASE_URL    = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY     = getSecret('SUPABASE_SERVICE_ROLE_KEY');
 const GEMINI_KEY      = getSecret('GEMINI_API_KEY');
+const GROQ_KEY        = getSecret('GROQ_API_KEY');
 const CEREBRAS_KEY    = getSecret('CEREBRAS_API_KEY');
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
@@ -317,7 +318,7 @@ async function generateBodyWithFailover(draft: any, batchOpeners?: string[]): Pr
     forceOpinionTake:  draft.opinion_forced_take === true,
   };
 
-  return generateWithFailover(input, sb, GEMINI_KEY!, CEREBRAS_KEY ?? undefined, batchOpeners);
+  return generateWithFailover(input, sb, GEMINI_KEY!, GROQ_KEY ?? undefined, CEREBRAS_KEY ?? undefined, batchOpeners);
 }
 
 // ── Main (entry-point guard — skipped when imported as a module) ──────────────
@@ -376,7 +377,11 @@ if (IS_MAIN) (async () => {
   runId = runRow?.id ?? null;
 
   let geminiAttempted = 0, geminiOk = 0, geminiLintFailed = 0;
-  let cerebrasAttempted = 0, cerebrasOk = 0, cerebrasLintFailed = 0;
+  // Renamed from cerebras* 2026-08-19: failoverUsed now covers Groq (new
+  // default fallback) as well as Cerebras (opt-in, see feature-flags.ts) --
+  // outcome.provider distinguishes which one per-draft; these counters
+  // track "any fallback", not Cerebras specifically anymore.
+  let fallbackAttempted = 0, fallbackOk = 0, fallbackLintFailed = 0;
   let deferred = 0, failed = 0, bothFailed = 0;
 
   // Gate 8 same-batch race fix (2026-07-02): bodies published earlier in THIS
@@ -411,8 +416,8 @@ if (IS_MAIN) (async () => {
         const { path, slug } = await autoPublish(draft, outcome);
         batchOpeners.push(outcome.body);
         geminiAttempted++;
-        if (outcome.failoverUsed) { cerebrasAttempted++; cerebrasOk++; } else { geminiOk++; }
-        const failoverNote = outcome.failoverUsed ? ' [CEREBRAS FAILOVER]' : '';
+        if (outcome.failoverUsed) { fallbackAttempted++; fallbackOk++; } else { geminiOk++; }
+        const failoverNote = outcome.failoverUsed ? ` [${outcome.provider.toUpperCase()} FAILOVER]` : '';
         console.log(`AUTO-PUBLISHED -> ${path}/${slug} (${outcome.wordCount}w, format=${outcome.format}, provider=${outcome.provider}${failoverNote})`);
       } else {
         // Reaching this branch means !(if-condition) above, which by De
@@ -447,8 +452,8 @@ if (IS_MAIN) (async () => {
         }
 
         geminiAttempted++;
-        if (outcome.failoverUsed) { cerebrasAttempted++; cerebrasLintFailed++; } else { geminiLintFailed++; }
-        const failoverNote = outcome.failoverUsed ? ' [CEREBRAS FAILOVER]' : '';
+        if (outcome.failoverUsed) { fallbackAttempted++; fallbackLintFailed++; } else { geminiLintFailed++; }
+        const failoverNote = outcome.failoverUsed ? ` [${outcome.provider.toUpperCase()} FAILOVER]` : '';
         console.log(`REJECTED+DELETED (${outcome.wordCount}w, format=${outcome.format}, provider=${outcome.provider}${failoverNote}) — ${failureReasons || 'gate failure'}`);
       }
     } catch (err: unknown) {
@@ -463,9 +468,9 @@ if (IS_MAIN) (async () => {
       // the genuinely-both-attempted-both-failed case gets deleted).
       if (err instanceof BothProvidersFailedError) {
         geminiAttempted++;
-        cerebrasAttempted++;
+        fallbackAttempted++;
         bothFailed++;
-        const reasonForLog = `gemini="${err.geminiMessage.slice(0, 150)}" cerebras="${err.cerebrasMessage.slice(0, 150)}"`;
+        const reasonForLog = `gemini="${err.geminiMessage.slice(0, 150)}" ${err.fallbackProvider}="${err.fallbackMessage.slice(0, 150)}"`;
 
         // Two-step (status update, then delete) rather than a single delete:
         // if the delete itself fails for any reason, the row is left as
@@ -495,9 +500,16 @@ if (IS_MAIN) (async () => {
       const statusMatch = msg.match(/\[(\d{3})/);
       const status = statusMatch ? statusMatch[1] : 'unknown';
 
-      // Gemini retryable + Cerebras ineligible → deferred (excerpt too short)
-      if (msg.includes('Cerebras not eligible')) {
-        geminiAttempted++;  // Gemini was tried (retryable fail); Cerebras ineligible
+      // Gemini retryable + fallback ineligible → deferred (excerpt too short).
+      // Matched text updated 2026-08-19 -- generate-with-failover.ts's
+      // message changed from "Cerebras not eligible" to "fallback not
+      // eligible" when Groq became the default fallback (caught here
+      // specifically because this IS a string match, the exact fragility
+      // BothProvidersFailedError elsewhere in this file was designed to
+      // avoid -- if that message text changes again, this must be updated
+      // too).
+      if (msg.includes('fallback not eligible')) {
+        geminiAttempted++;  // Gemini was tried (retryable fail); fallback ineligible
         deferred++;
         console.log(`DEFERRED (status=${status}): ${msg}`);
         continue;
@@ -530,15 +542,20 @@ if (IS_MAIN) (async () => {
     // in provider_stats and the console summary for visibility.
     const providerStats = {
       gemini:      { attempted: geminiAttempted,   ok: geminiOk,   lint_failed: geminiLintFailed },
-      cerebras:    { attempted: cerebrasAttempted, ok: cerebrasOk, lint_failed: cerebrasLintFailed },
+      // Renamed from 'cerebras' 2026-08-19 -- now covers any fallback
+      // provider (Groq by default, Cerebras only if feature-flags.ts's
+      // cerebrasFallbackEnabled is true). Per-draft provider is still
+      // recorded exactly on pending_drafts.provider ('gemini'|'groq'|
+      // 'cerebras'); this is just the run-level rollup.
+      fallback:    { attempted: fallbackAttempted, ok: fallbackOk, lint_failed: fallbackLintFailed },
       both_failed: bothFailed,
     };
     const { error: updateErr } = await sb
       .from('generator_runs')
       .update({
         ended_at:                new Date().toISOString(),
-        drafts_succeeded:        geminiOk + cerebrasOk,
-        drafts_lint_failed:      geminiLintFailed + cerebrasLintFailed,
+        drafts_succeeded:        geminiOk + fallbackOk,
+        drafts_lint_failed:      geminiLintFailed + fallbackLintFailed,
         drafts_deferred:         deferred,
         drafts_failed:           failed + bothFailed,
         provider_stats:          providerStats,
@@ -550,10 +567,10 @@ if (IS_MAIN) (async () => {
     }
   }
 
-  const total = geminiOk + cerebrasOk;
-  const lintFailed = geminiLintFailed + cerebrasLintFailed;
+  const total = geminiOk + fallbackOk;
+  const lintFailed = geminiLintFailed + fallbackLintFailed;
   const dur   = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${cerebrasOk} cerebras), ${lintFailed} rejected+deleted (quality gates), ${bothFailed} rejected+deleted (both providers failed), ${failed} failed (retrying next run), ${deferred} deferred of ${queue.length} — ${dur}s total`);
+  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected+deleted (quality gates), ${bothFailed} rejected+deleted (both providers failed), ${failed} failed (retrying next run), ${deferred} deferred of ${queue.length} — ${dur}s total`);
 })().catch(err => {
   console.error('FATAL:', err);
   process.exit(1);

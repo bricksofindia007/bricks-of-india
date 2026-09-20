@@ -74,11 +74,46 @@ async function paginate(query) {
   return rows;
 }
 
+// BOI Fix Brief (2026-08-24), Phase 0.2 incident addendum, item 3: this was
+// a blind INSERT (same class of bug as content-linter.mjs/visual-
+// renderer.mjs before their fix), and the partial unique index those
+// scripts' fix added (content_quality_issues_open_unique, on
+// (article_slug, check_name) WHERE resolved=false) applies table-wide --
+// this script's next real duplicate flag would have hard-failed the same
+// way visual-renderer.mjs's did. Minimal fix, not the full reconcileIssues
+// treatment: this script flags issues one at a time as it discovers them
+// mid-run (not a collect-then-batch-reconcile shape like the other two
+// writers), so it gets guide-staleness-guard.js's already-safe pattern --
+// check for an existing unresolved row first, skip if found -- rather
+// than a restructure. This still doesn't auto-resolve issues no longer
+// present (unlike content-linter.mjs/visual-renderer.mjs post-fix) --
+// flagged as a known, separate, lower-urgency gap, not fixed here.
+// article_slug can legitimately be null (new-candidate discovery, not yet
+// a published review) -- the existing-row lookup only applies when a real
+// slug exists; a null-slug flag has no prior row to conflict with anyway
+// (nothing else ever gets inserted with article_slug IS NULL for this
+// check_name at the exact same moment), so it's written unconditionally.
 async function flagIssue(articleSlug, checkName, severity, detail) {
   console.log(`  [FLAG:${severity}] ${checkName} — ${articleSlug ?? '(new candidate)'}: ${detail}`);
   if (DRY_RUN) return;
+
+  if (articleSlug) {
+    const { data: existing } = await sb
+      .from('content_quality_issues')
+      .select('id')
+      .eq('article_slug', articleSlug)
+      .eq('check_name', checkName)
+      .eq('resolved', false)
+      .maybeSingle();
+    if (existing) {
+      console.log(`  [already flagged] ${checkName} — ${articleSlug}: unresolved issue already on file, not re-flagging`);
+      return;
+    }
+  }
+
   const { error } = await sb.from('content_quality_issues').insert({
     section: 'reviews', article_slug: articleSlug, check_name: checkName, severity, detail,
+    checked_at: new Date().toISOString(), first_seen_at: new Date().toISOString(), resolved: false,
   });
   if (error) console.error('  [supabase-write] table=content_quality_issues op=insert error:', error.message);
 }

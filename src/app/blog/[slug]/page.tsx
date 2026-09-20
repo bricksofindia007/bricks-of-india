@@ -15,11 +15,16 @@ import { buildArticleSchema, buildFAQSchema } from '@/lib/schemas';
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
 export const revalidate = 3600;
+// Next 15: fetch() is uncached by default, independent of revalidate above --
+// without this, the Supabase reads below become per-request and the route
+// drops from ISR to full SSR. Scoped per-route, not the root layout.
+export const fetchCache = 'default-cache';
 
 
-interface Props { params: { slug: string } }
+interface Props { params: Promise<{ slug: string }> }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params;
   const { data: post } = await supabase.from('blog_posts').select('*').eq('slug', params.slug).neq('category', 'Opinion').single();
   if (!post) return { title: 'Post Not Found' };
   return {
@@ -36,7 +41,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function BlogPostPage({ params }: Props) {
+export default async function BlogPostPage(props: Props) {
+  const params = await props.params;
   const { data: post } = await supabase.from('blog_posts').select('*').eq('slug', params.slug).neq('category', 'Opinion').single();
   if (!post) notFound();
   const cleanContent = post.content
@@ -88,7 +94,7 @@ export default async function BlogPostPage({ params }: Props) {
         </div>
 
         {/* Share */}
-        <div className="flex gap-3 mb-8 pb-8 border-b-2 border-border">
+        <div className="flex flex-wrap gap-3 mb-8 pb-8 border-b-2 border-border">
           <a href={whatsappShareUrl(waText, shareUrl)} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-2 bg-[#25D366] text-white font-bold px-4 py-2 rounded-lg text-sm">📱 WhatsApp</a>
           <a href={twitterShareUrl(post.title, shareUrl)} target="_blank" rel="noopener noreferrer"

@@ -17,9 +17,11 @@ through TTS -> gates -> assembly -> audio QC -> quiet_panic_posts insert.
 import argparse
 import json
 import os
+import random
 import re
 import subprocess
 import sys
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -35,6 +37,7 @@ if not hasattr(Image, "ANTIALIAS"):
     Image.ANTIALIAS = Image.LANCZOS
 
 from moviepy.editor import AudioFileClip, ImageClip, VideoClip, concatenate_videoclips  # noqa: E402
+from postgrest.exceptions import APIError as PostgrestAPIError  # noqa: E402
 from supabase import create_client  # noqa: E402
 from elevenlabs.client import ElevenLabs  # noqa: E402
 
@@ -48,9 +51,16 @@ from quiet_panic_script_gen import (  # noqa: E402
     generate_quiet_panic_script,
     PreTTSValidationError,
     check_verdict_reason,
+    check_caption_length_budget,
     TOTAL_WORD_CAP,
     PER_SEGMENT_WORD_CAP,
 )
+
+# config/feature_flags.py lives at repo root (this file is at
+# <root>/scripts/video/), not on sys.path by default when this script runs
+# with working-directory: scripts/video (see video-generate-quiet-panic.yml).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from config.feature_flags import FEATURE_FLAGS  # noqa: E402
 
 # Retry budget for script-gen's pre-TTS validation (added 2026-08-01 after
 # a real 3-for-3 miss streak on Rapunzel's Castle in production CI, all
@@ -210,6 +220,44 @@ def get_supabase():
         print('ERROR: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set.', file=sys.stderr)
         sys.exit(1)
     return create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+
+
+# Bounded retry for PGRST303 ("JWT issued at future") on the quiet_panic_posts
+# insert only -- confirmed 2026-08-26 (run 32929263494, commit 7764d0f) as a
+# transient PostgREST/Supabase-side clock-skew condition, not a stale-token
+# issue: get_supabase() here is already called fresh, immediately before this
+# insert, not held across the ~13min render -- so there is no long-lived
+# client/token to go stale. That run's video rendered and uploaded to Storage
+# successfully; only this insert failed, orphaning the post. Zero PGRST303
+# occurrences in this workflow's history before or since.
+#
+# Deliberately narrow: this retries exactly one call, catches exactly this
+# error code, and is not a generalized retry-on-any-APIError wrapper. Do not
+# extend this pattern to other Supabase calls in this pipeline without a
+# similar confirmed-transient failure to justify it -- see BOI_MASTER_TRACKER.md's
+# "Retry-amplification fix" entry (2026-08-19, commit 32ed993): a prior
+# zero-delay retry loop in this same file hammered a transient Gemini 503
+# back-to-back on every attempt, killing the run before the issue could
+# clear -- the reason this retry has an explicit backoff instead of a tight
+# loop, and is scoped to one call instead of a blanket wrapper.
+QUIET_PANIC_INSERT_MAX_ATTEMPTS = 3
+QUIET_PANIC_INSERT_RETRY_BACKOFF_SECONDS = 5.0
+
+
+def insert_quiet_panic_row(sb, row: dict):
+    for attempt in range(1, QUIET_PANIC_INSERT_MAX_ATTEMPTS + 1):
+        try:
+            return sb.table('quiet_panic_posts').insert(row).execute()
+        except PostgrestAPIError as e:
+            if e.code != 'PGRST303' or attempt == QUIET_PANIC_INSERT_MAX_ATTEMPTS:
+                raise
+            print(
+                f'  WARNING: quiet_panic_posts insert hit PGRST303 (JWT issued '
+                f'at future) on attempt {attempt}/{QUIET_PANIC_INSERT_MAX_ATTEMPTS} '
+                f'-- retrying in {QUIET_PANIC_INSERT_RETRY_BACKOFF_SECONDS:.0f}s...',
+                file=sys.stderr,
+            )
+            time.sleep(QUIET_PANIC_INSERT_RETRY_BACKOFF_SECONDS)
 
 
 def video_file_is_valid(path: Path) -> bool:
@@ -904,9 +952,140 @@ def gate_vocab_complexity(script_text: str) -> dict:
     return {'pass': ok, 'detail': 'clean' if ok else f'found: {hits}'}
 
 
+# Added 2026-08-19 (Kakamora audit): all 7 gates above check structure/
+# format only -- none check whether the script is actually coherent English
+# or whether price comparisons are plausible. This let a real published
+# script end in the nonsensical, unreferenced phrase "No stranding." and
+# claim "Or two movie tickets" against Rs 4499 (implies Rs 2,249/ticket --
+# real Indian movie tickets run roughly Rs 100-1000) pass every existing
+# gate. Two new gates below close both gaps. VID-P4 (engine.py/gates.py)
+# already has a price-plausibility gate (gate_price_math, subscription-
+# style comparisons) but shares the same coherence blind spot -- see
+# gates.py's new gate_coherence_llm_judge(), added the same day.
+
+_QP_PRICE_CLAIM_RE = re.compile(
+    r"\b(?:that'?s|that\s+is|or)\b\s+"
+    r"(a|an|one|two|three|four|five|six|seven|eight|nine|ten|\d+)\s+"
+    r"(?:full\s+|whole\s+|nearly\s+|almost\s+|roughly\s+|about\s+)?"
+    r"(?:(week|month|year)'?s?\s*(?:of\s+)?)?"
+    r"([a-zA-Z][a-zA-Z' -]*?)"
+    r"(?=[.!?]|$)",
+    re.IGNORECASE,
+)
+_QP_QTY_WORDS = {
+    'a': 1, 'an': 1, 'one': 1, 'two': 2, 'three': 3, 'four': 4, 'five': 5,
+    'six': 6, 'seven': 7, 'eight': 8, 'nine': 9, 'ten': 10,
+}
+# (substring key, low_inr, high_inr) -- evidence-based from 15 real
+# published quiet_panic_posts scripts (2026-08-19 audit), not guessed.
+# Ranges are generous (casual/hyperbolic comparisons, not price quotes) --
+# real observed spread already includes "one Swiggy order" at both
+# Rs 1549 and Rs 2999 across different scripts, and "one phone bill" at
+# Rs 4499. The point is catching WILDLY wrong claims (the real Kakamora
+# "two movie tickets" = Rs 4499 case), not nitpicking normal variance.
+_QP_COMPARISON_REFERENCE = [
+    ('swiggy deliveries', 4000, 12000),   # "a month of Swiggy deliveries"
+    ('swiggy order', 300, 3500),
+    ('movie ticket', 100, 1000),
+    ('phone emi', 1500, 18000),
+    ('phone bill', 300, 5000),
+    ('return flight', 2500, 35000),
+]
+_QP_PRICE_CLAIM_RATIO_LOW, _QP_PRICE_CLAIM_RATIO_HIGH = 0.4, 2.0  # wider than VID-P4's 0.5-1.5 -- QP's style is more hyperbolic
+
+
+def gate_price_plausibility(full_text: str, price_inr: float) -> dict:
+    """Reference-table plausibility check for price comparisons ("That's
+    one Swiggy order", "Or two movie tickets", etc.). Same mechanism/
+    philosophy as VID-P4's gates.py gate_price_math() (no reference price
+    for an unrecognized comparison item -> can't verify, don't fail it),
+    adapted to VID-QP's actual comparison vocabulary -- single-instance
+    items rather than VID-P4's subscription-style claims."""
+    for m in _QP_PRICE_CLAIM_RE.finditer(full_text):
+        qty_word, duration, item_phrase = m.groups()
+        qty = int(qty_word) if qty_word.isdigit() else _QP_QTY_WORDS.get(qty_word.lower())
+        if qty is None:
+            continue
+        low_item = item_phrase.lower().strip()
+        ref_mid = None
+        matched_key = None
+        for key, ref_low, ref_high in _QP_COMPARISON_REFERENCE:
+            if key in low_item:
+                ref_mid = (ref_low + ref_high) / 2
+                matched_key = key
+                break
+        if ref_mid is None:
+            continue  # no reference for this comparison -- can't verify, don't fail it
+        claimed_value = qty * ref_mid
+        if not (_QP_PRICE_CLAIM_RATIO_LOW * price_inr <= claimed_value <= _QP_PRICE_CLAIM_RATIO_HIGH * price_inr):
+            return {
+                'pass': False,
+                'detail': f"claim {m.group(0)!r} (matched reference {matched_key!r}) implies ~Rs {claimed_value:,.0f}, "
+                          f"but set price is Rs {price_inr:,.0f} (outside "
+                          f"{_QP_PRICE_CLAIM_RATIO_LOW}x-{_QP_PRICE_CLAIM_RATIO_HIGH}x tolerance)",
+            }
+    return {'pass': True, 'detail': 'no implausible comparisons found (or none recognized against the reference table)'}
+
+
+def gate_coherence_llm_judge(full_text: str) -> dict:
+    """LLM-as-judge: does this read as complete, coherent English -- not a
+    garbled or nonsensical fragment (e.g. the real published Kakamora
+    script's ending "No stranding." with no clear referent to anything
+    earlier in the script)? Model-agnostic by design: a post-hoc check on
+    the FINAL text, independent of which provider (Gemini/Groq/Cerebras)
+    generated it. Uses Groq (cheapest currently-active provider).
+
+    Fails OPEN (pass=True with a WARNING detail) if the judge call itself
+    errors -- a transient judge-API hiccup blocking ALL publishing would be
+    a worse regression than occasionally missing a coherence problem,
+    especially now that generation itself already has real retry/backoff
+    (see _retry_backoff_sleep()).
+
+    2026-08-22: model swapped llama-3.3-70b-versatile -> qwen/qwen3.6-27b,
+    same fix and same rationale as gates.py's gate_coherence_llm_judge()
+    (VID-P4) -- the old model is decommissioned on Groq (confirmed live,
+    404 model_not_found), so this gate has been silently fail-open on
+    every call, never actually judging anything. Not flag-gated: a bug fix
+    restoring intended behavior, not new capability; gate results here are
+    logged for human review only, never auto-blocking. reasoning_effort=
+    'none' required for qwen (confirmed empirically during this rollout)."""
+    groq_key = os.environ.get('GROQ_API_KEY', '').strip()
+    if not groq_key:
+        return {'pass': True, 'detail': 'SKIPPED: GROQ_API_KEY not set (fail-open, judge unavailable)'}
+    judge_prompt = (
+        "You are a strict but fair editor reviewing a short video script that will be "
+        "read aloud verbatim. Reply with exactly one line: 'COHERENT' if the script "
+        "reads as complete, sensible English with no garbled, truncated, or nonsensical "
+        "fragments (for example, an ending like 'No stranding.' with no clear referent "
+        "to anything earlier in the script would NOT be coherent) -- or "
+        "'INCOHERENT: <short reason>' if it does not.\n\nSCRIPT:\n" + full_text
+    )
+    try:
+        resp = requests.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            headers={'Authorization': f'Bearer {groq_key}', 'Content-Type': 'application/json'},
+            json={
+                'model': 'qwen/qwen3.6-27b',
+                'messages': [{'role': 'user', 'content': judge_prompt}],
+                'max_tokens': 200,
+                'temperature': 0.0,
+                'reasoning_effort': 'none',
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        verdict = resp.json()['choices'][0]['message']['content'].strip()
+        if verdict.upper().startswith('COHERENT'):
+            return {'pass': True, 'detail': verdict}
+        return {'pass': False, 'detail': verdict}
+    except Exception as e:
+        return {'pass': True, 'detail': f'SKIPPED: judge call failed ({e}) -- fail-open, not blocking on judge availability'}
+
+
 def run_all_gates(segments: list, total_duration: float, price_inr: int) -> dict:
     full_text = ' '.join(s['text'] for s in segments)
-    return {
+
+    result = {
         'duration': gate_duration(total_duration),
         'price_token': gate_price_token(full_text, price_inr),
         'verdict': gate_verdict(full_text),
@@ -914,7 +1093,67 @@ def run_all_gates(segments: list, total_duration: float, price_inr: int) -> dict
         'sfx_tags': gate_sfx_tags(segments),
         'banned_constructions': gate_banned_constructions(full_text),
         'vocab_complexity': gate_vocab_complexity(full_text),
+        'price_plausibility': gate_price_plausibility(full_text, price_inr),
+        'coherence': gate_coherence_llm_judge(full_text),
     }
+
+    # SHADOW MODE (2026-08-16), gated (2026-08-18) behind
+    # config/feature_flags.py's "qp_shadow_mode_estimate" (default False --
+    # see that file for why comment-only gating isn't enough). When on:
+    # check_caption_length_budget() does NOT gate generation (see
+    # CaptionLengthExceededError's docstring in quiet_panic_script_gen.py)
+    # -- called here, non-blocking, purely to log its pass/fail verdict +
+    # estimated duration + per-segment breakdown into gate_results
+    # alongside the real gate_duration result above, so the two are
+    # directly comparable per run. A failure in this check must never
+    # affect anything downstream -- wrapped defensively so a bug in the
+    # estimate itself (e.g. a missing SFX file) can't take down a real
+    # generation run over a non-blocking diagnostic.
+    if FEATURE_FLAGS.get('qp_shadow_mode_estimate', False):
+        try:
+            pre_tts = check_caption_length_budget(segments)
+            pre_tts_pass = pre_tts['pass']
+            pre_tts_duration = pre_tts['estimated_total']
+            pre_tts_detail = pre_tts['detail']
+            pre_tts_segments = pre_tts['segments']
+        except Exception as e:
+            print(f'  WARN: pre-TTS caption-length shadow check failed (non-fatal, gate_results unaffected): {e}', file=sys.stderr)
+            pre_tts_pass = None
+            pre_tts_duration = None
+            pre_tts_detail = f'shadow check error: {e}'
+            pre_tts_segments = None
+
+        # This MUST be a {'pass':..., 'detail':...}-shaped dict like every
+        # other entry here -- both process_candidate()'s own gate_results
+        # loop below (which does result["pass"]/result["detail"]
+        # unconditionally, no isinstance check) and
+        # publish_quiet_panic.py's assert_all_gates_passed() require it.
+        # The original 2026-08-16 version wrote 4 flat, non-dict keys
+        # (pre_tts_estimate_pass/_duration/_detail/_segments) straight
+        # into this dict, which crashed the very next scheduled run with
+        # `TypeError: 'bool' object is not subscriptable` at the print
+        # loop below.
+        #
+        # 'pass' is hardcoded True regardless of the actual shadow verdict
+        # (see 'shadow_pass') -- this entry must never affect all_passed /
+        # block generation (all_passed = all(r['pass'] for r in
+        # gate_results.values()) has no per-key skip logic, so a real
+        # False here would silently make this "non-blocking, purely
+        # logged" shadow check start gating generation, contradicting its
+        # own docstring). The leading "_" also follows this codebase's
+        # existing metadata-not-a-gate convention (see publish.py's
+        # assert_all_gates_passed docstring, generalized 2026-07-07) --
+        # downstream consumers that check key.startswith('_') skip this
+        # entirely rather than relying on the forced True.
+        result['_pre_tts_estimate'] = {
+            'pass': True,
+            'detail': f'[non-blocking shadow check, shadow_pass={pre_tts_pass}] {pre_tts_detail}',
+            'shadow_pass': pre_tts_pass,
+            'estimated_total': pre_tts_duration,
+            'segments': pre_tts_segments,
+        }
+
+    return result
 
 
 def _build_word_cap_feedback(e: PreTTSValidationError) -> str:
@@ -931,7 +1170,20 @@ def _build_word_cap_feedback(e: PreTTSValidationError) -> str:
     exact number of words that must come out, computed here in code (not
     trusted to the model), for a WordBudgetExceededError. Falls back to
     the plain string for any other PreTTSValidationError subclass (e.g.
-    VerdictReasonMissingError), which has no word-count data to cite."""
+    VerdictReasonMissingError), which has no word-count data to cite.
+
+    UPDATED 2026-08-12 (see PRICE-SEGMENT DYNAMIC CAP in quiet_panic_
+    script_gen.py): reads effective_total_cap and price_segment_idx from
+    the budget dict instead of the flat TOTAL_WORD_CAP/PER_SEGMENT_
+    WORD_CAP constants -- a real, provable bug in the PREVIOUS version of
+    this function, not just a missed optimization. AMR25 (#42240,
+    Rs.24,999) needs an 8-word price segment; the old feedback here would
+    have flagged that segment "OVER the per-segment cap" and told the
+    model to shorten it every single retry, even after the model
+    correctly reproduced the mandatory (hard-gated, verbatim) price
+    phrase -- actively fighting the model to break a DIFFERENT hard gate
+    (PRICE TOKEN) in order to satisfy this one. That is exactly the
+    unwinnable instruction that produced AMR25's real plateau."""
     budget = getattr(e, 'budget', None)
     if not budget:
         return (
@@ -940,105 +1192,85 @@ def _build_word_cap_feedback(e: PreTTSValidationError) -> str:
         )
 
     total_words = budget['total_words']
-    overage = total_words - TOTAL_WORD_CAP
+    effective_total_cap = budget.get('effective_total_cap', TOTAL_WORD_CAP)
+    price_segment_idx = budget.get('price_segment_idx')
+    price_phrase_words = budget.get('price_phrase_words', PER_SEGMENT_WORD_CAP)
+    price_segment_cap = max(PER_SEGMENT_WORD_CAP, price_phrase_words)
+    overage = total_words - effective_total_cap
     seg_lines = []
     for i, wc in budget['segment_words']:
         text = e.segments[i].get('text', '') if e.segments and i < len(e.segments) else ''
-        flag = ' -- OVER the per-segment cap' if wc > PER_SEGMENT_WORD_CAP else ''
+        cap = price_segment_cap if i == price_segment_idx else PER_SEGMENT_WORD_CAP
+        flag = f' -- OVER its {cap}-word cap' if wc > cap else (
+            ' -- this is the mandatory price segment, do not shorten it' if i == price_segment_idx else ''
+        )
         seg_lines.append(f'segment {i} ({wc}w{flag}): "{text}"')
+
+    price_note = (
+        f' Segment {price_segment_idx} carries your mandatory price phrase '
+        f'({price_phrase_words} words) -- it is EXEMPT from the normal '
+        f'{PER_SEGMENT_WORD_CAP}-word cap up to {price_segment_cap} words '
+        'precisely because that phrase must be reproduced verbatim; do not '
+        'shorten or reword it to save words.' if price_segment_idx is not None
+        and price_segment_cap > PER_SEGMENT_WORD_CAP else ''
+    )
 
     return (
         f'AUTOMATIC RETRY after pre-TTS validation failure: your voice:true '
-        f'segments totaled {total_words} words against a {TOTAL_WORD_CAP}-word '
-        f'cap -- that is {overage} word(s) too many, and each voice:true '
-        f'segment must also stay at or under {PER_SEGMENT_WORD_CAP} words. '
+        f'segments totaled {total_words} words against a {effective_total_cap}-word '
+        f'cap -- that is {overage} word(s) too many. Every voice:true segment '
+        f'must stay at or under {PER_SEGMENT_WORD_CAP} words, EXCEPT the one '
+        f'carrying your mandatory price phrase.{price_note} '
         f'Your voice:true segments were exactly:\n' + '\n'.join(seg_lines) +
-        f'\nYou MUST cut at least {overage} word(s) total from these '
-        'segments -- shorten the longest one(s) first, and definitely any '
-        'segment flagged OVER above. Do not pad other segments to '
-        'compensate, and do not change any voice:false segment.'
+        f'\nYou MUST cut at least {overage} word(s) total from the segments '
+        'flagged OVER above -- shorten those, not the price segment. Do not '
+        'pad other segments to compensate, and do not change any '
+        'voice:false segment.'
     )
+
+
+def _retry_backoff_sleep(attempt: int, provider_failure: bool) -> None:
+    """Exponential backoff with jitter between script-gen retry attempts.
+
+    Added 2026-08-19: the retry loop previously had zero delay between
+    attempts of any kind. provider_failure=True (both Gemini and Cerebras
+    failed, not just a content-gate miss) gets a longer base delay -- a real
+    provider outage deserves more time to clear than a quality-gate retry,
+    which just needs a fresh model draw. Doubling each attempt, jitter
+    avoids concurrent runs retrying in lockstep.
+    """
+    base = (8 if provider_failure else 3) * (2 ** (attempt - 1))
+    base = min(base, 90 if provider_failure else 30)
+    delay = max(1.0, base + base * random.uniform(-0.3, 0.3))
+    print(f'  Backing off {delay:.1f}s before retry...', file=sys.stderr)
+    time.sleep(delay)
 
 
 # ---------------------------------------------------------------------------
 # Full per-candidate pipeline
 # ---------------------------------------------------------------------------
 
-def process_candidate(candidate: dict, reworked_from: str = None, revision_context: dict = None) -> dict:
-    """reworked_from: id of the quiet_panic_posts row this render is a
-    targeted rework of (None for a fresh candidate). revision_context:
-    {'original_script', 'rejection_reason'} passed through to script-gen
-    when candidate has no pre-authored 'segments' -- see
-    quiet_panic_script_gen.py. Ignored if candidate['segments'] is already
-    provided (the --test-batch hand-authored path)."""
-    set_number = candidate['set_number']
-    set_title = candidate['set_title']
-    price_inr = candidate['price_inr']
-    fallback_image_url = candidate.get('image_url', '')
+def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_image_url: str, segments: list) -> dict:
+    """The actual render pipeline (TTS -> gates -> images -> audio mix ->
+    video assembly -> Storage upload), factored out of process_candidate()
+    on 2026-08-24 so a second caller (rerender_quiet_panic_post(), an
+    in-place re-render of an EXISTING row) can reuse it without also
+    re-running script-gen or performing a DB insert -- process_candidate()
+    always INSERTs a new row (see its own docstring/comments), which is
+    correct for a fresh candidate or a reworked_from-linked new row, but
+    wrong for "fix this row's script text and re-render in place",
+    exactly the gap VID-P4's engine.py:rerender_video_post() already
+    covers for that pipeline (mirrored here). Caller supplies a fully
+    hand-authored (or script-gen'd) segments array -- this function never
+    calls script-gen itself and never touches Supabase for anything other
+    than the Storage upload.
 
+    Returns a dict with keys: segments (mutated in place with
+    measured_duration added), gate_results, all_passed,
+    total_video_duration, output_path, storage_url, full_script_text.
+    """
     work_dir = TEMP_DIR / f'qp_{set_number}'
     work_dir.mkdir(exist_ok=True)
-
-    print(f'\n=== Processing {set_title} (#{set_number}) ===')
-
-    segments = candidate.get('segments')
-    if not segments:
-        script_gen_meta = {
-            'set_number': set_number,
-            'set_title': set_title,
-            'price_inr': price_inr,
-            'pieces': candidate.get('pieces'),
-            'theme': candidate.get('theme'),
-        }
-        initial_mode = 'revision' if revision_context else 'fresh'
-        attempts_log = []
-        segments = None
-        for attempt in range(1, MAX_SCRIPT_GEN_ATTEMPTS + 1):
-            # After attempt 1, revision_context may have been set below from
-            # the previous attempt's own failure (auto-retry-with-feedback,
-            # not the caller's original mode) -- log which is actually
-            # happening this attempt, not just the mode process_candidate()
-            # started in.
-            mode = 'revision' if revision_context else 'fresh'
-            mode_label = mode if attempt == 1 else f'{mode}, auto-retry' if mode != initial_mode else mode
-            print(f'  No pre-authored segments -- calling script-gen ({mode_label} mode), attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}...')
-            try:
-                segments = generate_quiet_panic_script(script_gen_meta, revision_context=revision_context)
-                print(f'  script-gen returned {len(segments)} segment(s) on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}')
-                break
-            except PreTTSValidationError as e:
-                # Each attempt's rejection reason logged individually (word
-                # count, which segments) -- a real record for diagnosing a
-                # deeper prompt-calibration issue if this keeps happening,
-                # not just "it failed". Zero ElevenLabs cost per attempt.
-                print(f'  REJECTED pre-TTS on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS} (zero ElevenLabs cost incurred): {e}', file=sys.stderr)
-                attempts_log.append(str(e))
-                # Feed this attempt's actual failure back into the next one
-                # (added 2026-08-03 after Ariel's Royal Wedding Boat (43299)
-                # missed 5/5 in one run, 17-22 words each): without this,
-                # every retry called script-gen with the exact same
-                # fresh-mode prompt and zero information about what went
-                # wrong, so all 5 attempts were independent draws from the
-                # same distribution rather than corrective ones. Reuses the
-                # existing revision_context mechanism (same one operator
-                # rejections use) -- the "previous script" is this failed
-                # attempt's own output, and the "rejection reason" is the
-                # exact pre-TTS validation detail (segment-by-segment word
-                # counts), not a vague retry.
-                if e.segments is not None:
-                    revision_context = {
-                        'original_script': ' '.join(s.get('text', '') for s in e.segments),
-                        'rejection_reason': _build_word_cap_feedback(e),
-                    }
-
-        if segments is None:
-            # Not a crash -- a genuine, expected terminal outcome for this
-            # run (added 2026-08-01 after a real 3-for-3 miss streak on
-            # Rapunzel's Castle in production). The caller (main()) turns
-            # this into a graceful, non-failing exit so the workflow can
-            # still notify the operator instead of silently producing
-            # nothing with no visible signal beyond an empty inbox.
-            raise ScriptGenExhaustedError(set_title, set_number, attempts_log)
 
     client = ElevenLabs(api_key=ELEVENLABS_API_KEY_ASMR)
 
@@ -1221,9 +1453,189 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
         else:
             print(f'  WARNING: {output_path} failed the post-render validity check (corrupt?) -- skipping Storage upload.', file=sys.stderr)
 
+    full_script_text = ' '.join(s['text'] for s in segments)
+    return {
+        'segments': segments,
+        'gate_results': gate_results,
+        'all_passed': all_passed,
+        'total_video_duration': total_video_duration,
+        'output_path': output_path,
+        'storage_url': storage_url,
+        'full_script_text': full_script_text,
+    }
+
+
+def rerender_quiet_panic_post(post_id: str, segments: list) -> dict:
+    """In-place re-render of an EXISTING quiet_panic_posts row: fresh TTS,
+    fresh SFX mix, fresh video assembly, fresh gate run against a new,
+    already-approved segments array. Unlike process_candidate() (always
+    INSERTs a new row), this UPDATEs the existing row in place --
+    id/sequence_number/reworked_from are never touched, only the
+    render-derived content fields (script/video_path/storage_url/
+    gate_results/status). No script-gen call ever happens here -- the
+    caller must supply a fully hand-authored segments array, since a
+    segment's voice/sfx_tag assignment can't be mechanically re-derived
+    from the row's stored flat `script` text alone (unlike VID-P4's
+    engine.py:rerender_video_post(), which only has to re-sanitize a
+    single flat string). Mirrors that function's contract: aborts without
+    writing anything if the new segments don't pass gates clean, rather
+    than silently forcing a publish_blocked status through.
+    """
+    sb = get_supabase()
+    row_res = sb.table('quiet_panic_posts').select('*').eq('id', post_id).single().execute()
+    row = row_res.data
+    if not row:
+        print(f'ERROR: no quiet_panic_posts row found for id {post_id}', file=sys.stderr)
+        sys.exit(1)
+
+    print(f'\n=== Re-rendering Sequence #{row.get("sequence_number")}: {row["set_title"]} (id {post_id}) ===')
+
+    render_result = _render_segments_core(row['set_number'], row['set_title'], row['price_inr'], row.get('image_url', ''), segments)
+
+    if not render_result['all_passed']:
+        print('ERROR: new segments do not pass gates clean -- aborting, not updating the row.', file=sys.stderr)
+        for name, result in render_result['gate_results'].items():
+            print(f'  [{"PASS" if result["pass"] else "FAIL"}] {name}: {result["detail"]}', file=sys.stderr)
+        sys.exit(1)
+
+    update_row = {
+        'script': render_result['full_script_text'],
+        'video_path': str(render_result['output_path']),
+        'storage_url': render_result['storage_url'],
+        'gate_results': render_result['gate_results'],
+        'status': 'pending_approval',
+    }
+    sb.table('quiet_panic_posts').update(update_row).eq('id', post_id).execute()
+    print(f'  quiet_panic_posts {post_id} updated in place. status=pending_approval, storage_url={render_result["storage_url"]}')
+
+    return {
+        'post_id': post_id,
+        'sequence_number': row.get('sequence_number'),
+        'set_title': row['set_title'],
+        'set_number': row['set_number'],
+        'gate_results': render_result['gate_results'],
+        'total_duration': render_result['total_video_duration'],
+        'storage_url': render_result['storage_url'],
+    }
+
+
+def process_candidate(candidate: dict, reworked_from: str = None, revision_context: dict = None) -> dict:
+    """reworked_from: id of the quiet_panic_posts row this render is a
+    targeted rework of (None for a fresh candidate). revision_context:
+    {'original_script', 'rejection_reason'} passed through to script-gen
+    when candidate has no pre-authored 'segments' -- see
+    quiet_panic_script_gen.py. Ignored if candidate['segments'] is already
+    provided (the --test-batch hand-authored path)."""
+    set_number = candidate['set_number']
+    set_title = candidate['set_title']
+    price_inr = candidate['price_inr']
+    fallback_image_url = candidate.get('image_url', '')
+
+    print(f'\n=== Processing {set_title} (#{set_number}) ===')
+
+    segments = candidate.get('segments')
+    # None for the hand-authored (--test-batch) path below -- no LLM call
+    # happens, so there's no provider/token usage to record. Added
+    # 2026-08-19 alongside quiet_panic_posts' new tracking columns.
+    script_provider = None
+    script_input_tokens = None
+    script_output_tokens = None
+    if not segments:
+        script_gen_meta = {
+            'set_number': set_number,
+            'set_title': set_title,
+            'price_inr': price_inr,
+            'pieces': candidate.get('pieces'),
+            'theme': candidate.get('theme'),
+        }
+        initial_mode = 'revision' if revision_context else 'fresh'
+        attempts_log = []
+        segments = None
+        for attempt in range(1, MAX_SCRIPT_GEN_ATTEMPTS + 1):
+            # After attempt 1, revision_context may have been set below from
+            # the previous attempt's own failure (auto-retry-with-feedback,
+            # not the caller's original mode) -- log which is actually
+            # happening this attempt, not just the mode process_candidate()
+            # started in.
+            mode = 'revision' if revision_context else 'fresh'
+            mode_label = mode if attempt == 1 else f'{mode}, auto-retry' if mode != initial_mode else mode
+            print(f'  No pre-authored segments -- calling script-gen ({mode_label} mode), attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}...')
+            try:
+                script_gen_result = generate_quiet_panic_script(script_gen_meta, revision_context=revision_context)
+                segments = script_gen_result.segments
+                script_provider = script_gen_result.provider
+                script_input_tokens = script_gen_result.input_tokens
+                script_output_tokens = script_gen_result.output_tokens
+                print(f'  script-gen returned {len(segments)} segment(s) on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS} (provider: {script_provider})')
+                break
+            except PreTTSValidationError as e:
+                # Each attempt's rejection reason logged individually (word
+                # count, which segments) -- a real record for diagnosing a
+                # deeper prompt-calibration issue if this keeps happening,
+                # not just "it failed". Zero ElevenLabs cost per attempt.
+                print(f'  REJECTED pre-TTS on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS} (zero ElevenLabs cost incurred): {e}', file=sys.stderr)
+                attempts_log.append(str(e))
+                # Feed this attempt's actual failure back into the next one
+                # (added 2026-08-03 after Ariel's Royal Wedding Boat (43299)
+                # missed 5/5 in one run, 17-22 words each): without this,
+                # every retry called script-gen with the exact same
+                # fresh-mode prompt and zero information about what went
+                # wrong, so all 5 attempts were independent draws from the
+                # same distribution rather than corrective ones. Reuses the
+                # existing revision_context mechanism (same one operator
+                # rejections use) -- the "previous script" is this failed
+                # attempt's own output, and the "rejection reason" is the
+                # exact pre-TTS validation detail (segment-by-segment word
+                # counts), not a vague retry.
+                if e.segments is not None:
+                    revision_context = {
+                        'original_script': ' '.join(s.get('text', '') for s in e.segments),
+                        'rejection_reason': _build_word_cap_feedback(e),
+                    }
+                if attempt < MAX_SCRIPT_GEN_ATTEMPTS:
+                    _retry_backoff_sleep(attempt, provider_failure=False)
+            except Exception as e:
+                # Added 2026-08-19: previously uncaught here -- generate_
+                # quiet_panic_script()'s own Gemini try/except only covers
+                # the Gemini call; _call_cerebras() runs unguarded after it,
+                # so when BOTH providers fail (confirmed live 2026-08-18,
+                # run 32159269849: Gemini 503 "high demand" then Cerebras
+                # 402 "payment required"), this propagated straight out of
+                # the retry loop entirely -- the whole candidate crashed on
+                # attempt 3/6 instead of getting the other 3 attempts, so a
+                # genuinely transient Gemini issue got ZERO chance to clear
+                # via retry. Longer backoff than a content-gate miss (this
+                # is a real provider outage, not a quality issue) and still
+                # bounded by MAX_SCRIPT_GEN_ATTEMPTS -- if every attempt
+                # exhausts, ScriptGenExhaustedError still fires below exactly
+                # as before, just after genuinely trying, not crashing on
+                # the first double-failure.
+                print(f'  Both providers failed on attempt {attempt}/{MAX_SCRIPT_GEN_ATTEMPTS}: {e}', file=sys.stderr)
+                attempts_log.append(f'both providers failed: {e}')
+                if attempt < MAX_SCRIPT_GEN_ATTEMPTS:
+                    _retry_backoff_sleep(attempt, provider_failure=True)
+
+        if segments is None:
+            # Not a crash -- a genuine, expected terminal outcome for this
+            # run (added 2026-08-01 after a real 3-for-3 miss streak on
+            # Rapunzel's Castle in production). The caller (main()) turns
+            # this into a graceful, non-failing exit so the workflow can
+            # still notify the operator instead of silently producing
+            # nothing with no visible signal beyond an empty inbox.
+            raise ScriptGenExhaustedError(set_title, set_number, attempts_log)
+
+    render_result = _render_segments_core(set_number, set_title, price_inr, fallback_image_url, segments)
+    segments = render_result['segments']
+    gate_results = render_result['gate_results']
+    all_passed = render_result['all_passed']
+    total_video_duration = render_result['total_video_duration']
+    output_path = render_result['output_path']
+    storage_url = render_result['storage_url']
+    full_script_text = render_result['full_script_text']
+
     # 8. DB insert.
     status = 'pending_approval' if all_passed else 'publish_blocked'
-    full_script_text = ' '.join(s['text'] for s in segments)
+    sb = get_supabase()
     row = {
         'set_title': set_title,
         'set_number': set_number,
@@ -1234,8 +1646,11 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
         'gate_results': gate_results,
         'status': status,
         'reworked_from': reworked_from,
+        'provider': script_provider,
+        'input_tokens': script_input_tokens,
+        'output_tokens': script_output_tokens,
     }
-    inserted = sb.table('quiet_panic_posts').insert(row).execute()
+    inserted = insert_quiet_panic_row(sb, row)
     post_id = inserted.data[0]['id']
     rework_note = f' (reworked_from={reworked_from})' if reworked_from else ''
     print(f'  Inserted quiet_panic_posts row {post_id} (status={status}){rework_note}')
@@ -1297,10 +1712,23 @@ def main():
     parser = argparse.ArgumentParser(description='Quiet Panic script-to-video generation (standalone, no engine.py/publish.py/gates.py imports).')
     parser.add_argument('--test-batch', type=str, help='Path to a JSON file of candidate dicts (segments + set metadata) to process.')
     parser.add_argument('--build-sfx-manifest', action='store_true', help='Measure peak dB for every assets/sfx/library/*.mp3 file and write peak_levels.json, then exit.')
+    parser.add_argument('--rerender-id', type=str, help='quiet_panic_posts.id to re-render in place (fresh TTS, fresh SFX mix, fresh render, fresh gates -- same row id/sequence_number, only content refreshed). Requires --rerender-segments.')
+    parser.add_argument('--rerender-segments', type=str, help='Path to a JSON file containing just the new segments array (no candidate wrapper) for --rerender-id. VID-QP has no way to mechanically re-derive voice/sfx_tag assignments from stored flat script text, unlike VID-P4\'s --rerender, so the full segments array must be supplied.')
     args = parser.parse_args()
 
     if args.build_sfx_manifest:
         build_sfx_peak_manifest()
+        return
+
+    if args.rerender_id:
+        if not args.rerender_segments:
+            print('ERROR: --rerender-id requires --rerender-segments.', file=sys.stderr)
+            sys.exit(1)
+        with open(args.rerender_segments) as f:
+            new_segments = json.load(f)
+        result = rerender_quiet_panic_post(args.rerender_id, new_segments)
+        print(f"\nRe-render complete for Sequence #{result['sequence_number']} ({args.rerender_id}).")
+        print(f"  storage_url: {result['storage_url']}")
         return
 
     if not args.test_batch:
@@ -1314,7 +1742,17 @@ def main():
     exhausted = None
     for candidate in candidates:
         try:
-            results.append(process_candidate(candidate))
+            # 2026-08-24: --test-batch previously never threaded
+            # reworked_from through at all, even though process_candidate()
+            # has always accepted it -- every hand-authored --test-batch
+            # render (RB20, WALL-E, etc.) has been a FRESH candidate, never
+            # a rework, so this gap was never hit until now: a genuine
+            # human-finalized rework (Kakamora, reworked_from the original
+            # 67245eff row) needed hand-authored segments AND a real
+            # reworked_from link, and --test-batch could only give one or
+            # the other. Optional key on the candidate dict, defaults to
+            # None (unchanged behavior) if absent.
+            results.append(process_candidate(candidate, reworked_from=candidate.get('reworked_from')))
         except ScriptGenExhaustedError as e:
             # Genuine terminal outcome, not a crash -- exit gracefully
             # (status 0) so the calling workflow's later steps still run

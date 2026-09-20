@@ -4,8 +4,9 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
 import { getSet } from '@/lib/rebrickable';
-import { formatPrice, slugify, whatsappShareUrl, socialCardImage, setMetaDescription } from '@/lib/utils';
+import { formatPrice, whatsappShareUrl, socialCardImage, setMetaDescription } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
+import { resolveThemeSlug } from '@/lib/themeMapping';
 import { Badge, BestPriceBadge, OutOfStockBadge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { SetCard } from '@/components/sets/SetCard';
@@ -15,13 +16,17 @@ import { buildProductSchema, buildFAQSchema } from '@/lib/schemas';
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
 export const revalidate = 3600;
+// Next 15: fetch() is uncached by default, independent of revalidate above --
+// without this, the Supabase reads below become per-request and the route
+// drops from ISR to full SSR. Scoped per-route, not the root layout.
+export const fetchCache = 'default-cache';
 
 export async function generateStaticParams() {
   return [];
 }
 
 interface Props {
-  params: { slug: string };
+  params: Promise<{ slug: string }>;
 }
 
 // ── The 2 stores we actively track ───────────────────────────────────────────
@@ -68,7 +73,8 @@ async function getSetData(slug: string) {
   };
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params;
   const set = await getSetData(params.slug);
   if (!set) return { title: 'Set Not Found' };
   return {
@@ -81,7 +87,15 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
     // Rebrickable fallback path (no DB row) has no index_tier at all and
     // is intentionally left unrestricted -- it's a live, uncached lookup
     // for a set not yet in our catalog, not a known-noindex case.
-    ...(set.index_tier === 'tier3' && { robots: { index: false, follow: true } }),
+    //
+    // noindex_override (2026-08-29): a second, independent noindex signal
+    // -- currently the tier2/year<2020/zero-price-history-ever cutoff (see
+    // migration 20260829010000_tier2_stale_noindex_override.sql). Kept
+    // separate from index_tier deliberately (that column is DB-trigger-
+    // maintained and would silently get recomputed away from a manual
+    // 'tier3' override on the next Rebrickable metadata resync -- see the
+    // migration's own comment). Same follow:true treatment as tier3.
+    ...((set.index_tier === 'tier3' || set.noindex_override) && { robots: { index: false, follow: true } }),
     openGraph: {
       title: `${set.name} (${set.set_number}) — Best Price in India`,
       description: `Compare ${set.name} prices across Indian stores. Best deal updated every 6 hours.`,
@@ -96,7 +110,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function SetPage({ params }: Props) {
+export default async function SetPage(props: Props) {
+  const params = await props.params;
   const set = await getSetData(params.slug);
   if (!set) notFound();
 
@@ -222,12 +237,25 @@ export default async function SetPage({ params }: Props) {
           <span>/</span>
           <Link href="/compare" className="hover:text-accent-blue">Sets</Link>
           <span>/</span>
-          {set.theme && (
-            <>
-              <Link href={`/themes/${slugify(set.theme)}`} className="hover:text-accent-blue">{set.theme}</Link>
-              <span>/</span>
-            </>
-          )}
+          {set.theme && (() => {
+            // Was `/themes/${slugify(set.theme)}` unconditionally -- 404'd
+            // for any raw theme (Rebrickable's full taxonomy) that isn't
+            // one of the curated /themes/ pages. resolveThemeSlug() only
+            // returns a slug for a theme actually reviewed/mapped to a
+            // real page; everything else renders as plain unlinked text
+            // instead of a dead link. See docs/audits/theme-mapping-proposal.csv.
+            const themeSlug = resolveThemeSlug(set.theme);
+            return (
+              <>
+                {themeSlug ? (
+                  <Link href={`/themes/${themeSlug}`} className="hover:text-accent-blue">{set.theme}</Link>
+                ) : (
+                  <span>{set.theme}</span>
+                )}
+                <span>/</span>
+              </>
+            );
+          })()}
           <span className="text-dark font-bold truncate">{set.name}</span>
         </nav>
       </div>

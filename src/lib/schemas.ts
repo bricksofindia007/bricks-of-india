@@ -194,7 +194,14 @@ type ReviewedSet = {
   set_number?: string | null;
 } | null;
 
-export function buildReviewSchema(review: ReviewData, title: string, set: ReviewedSet) {
+export function buildReviewSchema(
+  review: ReviewData,
+  title: string,
+  set: ReviewedSet,
+  activePrices: StorePrice[] = [],
+  storeNames: Record<string, string> = {},
+  slug?: string,
+) {
   // A null rating (e.g. an IMPORT ONLY verdict — an availability call, not a
   // quality score) must not emit reviewRating at all. A `null`/`0` ratingValue
   // is invalid structured data Google will flag in Search Console, and it's
@@ -223,6 +230,9 @@ export function buildReviewSchema(review: ReviewData, title: string, set: Review
       name: set?.name || title,
       sku: set?.set_number,
       brand: { '@type': 'Brand', name: 'LEGO' },
+      ...(activePrices.length > 0 && {
+        offers: buildAggregateOffer(activePrices, storeNames, `https://bricksofindia.com/reviews/${slug}`),
+      }),
     },
   };
 }
@@ -233,6 +243,42 @@ export function buildReviewSchema(review: ReviewData, title: string, set: Review
 export function verdictToRating(verdict: string | null): number | null {
   const map: Record<string, number> = { 'BUY NOW': 5, 'IMPORT ONLY': 4, WAIT: 3, AVOID: 1 };
   return verdict ? (map[verdict.toUpperCase()] ?? null) : null;
+}
+
+// Shared by buildProductSchema (/sets/ pages) and buildReviewSchema
+// (/reviews/ pages' itemReviewed.Product) -- both compute the identical
+// activePrices/storeNames shape from store_prices already, on-page, for
+// their own price display; this is just the one JSON-LD rendering of that
+// same data, factored out so the two call sites can't drift.
+function buildAggregateOffer(
+  activePrices: StorePrice[],
+  storeNames: Record<string, string>,
+  fallbackUrl: string,
+) {
+  return {
+    '@type': 'AggregateOffer',
+    priceCurrency: 'INR',
+    lowPrice: activePrices.reduce(
+      (min, sp) => (sp.price_inr < min ? sp.price_inr : min),
+      activePrices[0].price_inr,
+    ),
+    highPrice: activePrices.reduce(
+      (max, sp) => (sp.price_inr > max ? sp.price_inr : max),
+      activePrices[0].price_inr,
+    ),
+    offerCount: activePrices.length,
+    availability: 'https://schema.org/InStock',
+    offers: activePrices.map((sp) => ({
+      '@type': 'Offer',
+      price: sp.price_inr,
+      priceCurrency: 'INR',
+      url: sp.product_url || fallbackUrl,
+      availability: sp.in_stock
+        ? 'https://schema.org/InStock'
+        : 'https://schema.org/OutOfStock',
+      seller: { '@type': 'Organization', name: storeNames[sp.store_id] ?? sp.store_id },
+    })),
+  };
 }
 
 export function buildProductSchema(
@@ -273,30 +319,7 @@ export function buildProductSchema(
       },
     }),
     ...(hasPrices && {
-      offers: {
-        '@type': 'AggregateOffer',
-        priceCurrency: 'INR',
-        lowPrice: activePrices.reduce(
-          (min, sp) => (sp.price_inr < min ? sp.price_inr : min),
-          activePrices[0].price_inr,
-        ),
-        highPrice: activePrices.reduce(
-          (max, sp) => (sp.price_inr > max ? sp.price_inr : max),
-          activePrices[0].price_inr,
-        ),
-        offerCount: activePrices.length,
-        availability: 'https://schema.org/InStock',
-        offers: activePrices.map((sp) => ({
-          '@type': 'Offer',
-          price: sp.price_inr,
-          priceCurrency: 'INR',
-          url: sp.product_url || `https://bricksofindia.com/sets/${slug}`,
-          availability: sp.in_stock
-            ? 'https://schema.org/InStock'
-            : 'https://schema.org/OutOfStock',
-          seller: { '@type': 'Organization', name: storeNames[sp.store_id] ?? sp.store_id },
-        })),
-      },
+      offers: buildAggregateOffer(activePrices, storeNames, `https://bricksofindia.com/sets/${slug}`),
     }),
   };
 }

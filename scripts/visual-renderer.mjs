@@ -11,6 +11,14 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { reconcileIssues } from './lib/content-quality-reconcile.mjs';
+import { CHECK_NAME_OWNERS } from './lib/content-quality-check-ownership.mjs';
+
+// Single source of truth (scripts/lib/content-quality-check-ownership.mjs),
+// CI-verified against every real flag(...) call in this file
+// (.github/workflows/content-quality-ownership-lint.yml) -- see
+// reconcileIssues' docstring for why this list must be exhaustive and scoped.
+const OWNED_CHECK_NAMES = CHECK_NAME_OWNERS['visual-renderer.mjs'];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
@@ -71,6 +79,25 @@ const BANNED_TEXT = ['Lorem ipsum', '[object Object]', 'undefined', 'null'];
 const RAW_MD_RE   = /\*\*[^*]+\*\*|\*[^*\n]+\*|^#{1,6}\s/m;
 const issues = [];
 
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// BOI Fix Brief (2026-08-24), Phase 1.1: this loop is sequential (not the
+// unbounded Promise.allSettled burst that caused the 2026-08-04
+// HeroImages WAF-403 incident, see that check's comments above), but at
+// ~195 articles x 2 viewports = ~390 fast, back-to-back page.goto()
+// calls with no delay between them, it was still sustained enough to
+// trip Netlify's own edge rate-limiting (this site runs on Netlify, not
+// Cloudflare -- confirmed via live Cache-Status: Netlify Edge headers).
+// Verified live: a random sample of 9 URLs flagged 403 by this exact
+// check all returned clean 200s (or a clean redirect to one) when
+// fetched from an outside environment/UA/IP -- checker artifact, not a
+// real block; nothing to fix on the content side. Same fix shape as
+// HeroImages: a short pause between requests, plus one narrow retry
+// after a longer delay specifically for a transient 403 (not other
+// non-ok statuses, which are still real failures).
+const PAGE_LOAD_PAUSE_MS  = 250;
+const RETRY_403_DELAY_MS  = 3000;
+
 function flag(art, checkName, severity, detail) {
   issues.push({
     checked_at:   RUN_AT,
@@ -105,7 +132,13 @@ for (const art of articles) {
     // page_load_error
     let loadOk = false;
     try {
-      const response = await page.goto(art._url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      let response = await page.goto(art._url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      if (response && response.status() === 403) {
+        // Narrow retry, 403 only (see comment above the constants) --
+        // absorbs transient rate-limiting, doesn't mask a real failure.
+        await sleep(RETRY_403_DELAY_MS);
+        response = await page.goto(art._url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+      }
       if (!response || !response.ok()) {
         flag(art, 'page_load_error', 'critical', `HTTP ${response?.status() ?? 'none'} on ${vp.name}`);
       } else {
@@ -118,6 +151,7 @@ for (const art of articles) {
       await page.close();
       continue;
     }
+    await sleep(PAGE_LOAD_PAUSE_MS);
 
     if (!loadOk) { await page.close(); continue; }
 
@@ -229,13 +263,21 @@ for (const art of articles) {
 await browser.close();
 
 // ── Write to DB ───────────────────────────────────────────────────────────────
-
-const BATCH = 50;
-console.log(`\nWriting ${issues.length} visual issues to DB…`);
-for (let i = 0; i < issues.length; i += BATCH) {
-  const { error } = await sb.from('content_quality_issues').insert(issues.slice(i, i + BATCH));
-  if (error) console.error('Insert error:', error.message);
-}
+//
+// BOI Fix Brief (2026-08-24), Phase 0.2 follow-up: this used to be a
+// blind INSERT with no dedup, same as content-linter.mjs before that
+// fix -- and after content-linter.mjs's fix added a partial unique
+// index on (article_slug, check_name) WHERE resolved=false, this exact
+// blind insert started hard-failing on every recurring visual issue
+// ("duplicate key value violates unique constraint
+// content_quality_issues_open_unique", confirmed live, 4 failed batches
+// on the first run after that index existed -- and since Supabase
+// batch-inserts fail atomically per batch of 50, an unknown number of
+// genuinely-new issues in those same batches were silently lost too,
+// not just the 4 duplicates). Now reconciles the same way content-
+// linter.mjs does, scoped to this script's own check_names only.
+console.log(`\nReconciling ${issues.length} visual issue(s)…`);
+await reconcileIssues(sb, issues, OWNED_CHECK_NAMES, 'visual-renderer.mjs');
 
 // ── Summary ───────────────────────────────────────────────────────────────────
 

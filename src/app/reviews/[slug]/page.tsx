@@ -14,14 +14,29 @@ import { buildReviewSchema } from '@/lib/schemas';
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
 export const revalidate = 3600;
+// Next 15: fetch() is uncached by default, independent of revalidate above --
+// without this, the Supabase reads below become per-request and the route
+// drops from ISR to full SSR. Scoped per-route, not the root layout.
+export const fetchCache = 'default-cache';
 
+// Netlify credit audit (2026-08-29): same missing-generateStaticParams gap
+// as /news/[slug] — see that file's comment for the full explanation.
+// Confirmed via a real production build: this route showed `ƒ` (full SSR
+// per request) despite the revalidate export above. Empty array: 177
+// reviews rows, no per-review traffic-ranking data to justify a bounded
+// static list (same reasoning as /sets/[slug]).
+export async function generateStaticParams() {
+  return [];
+}
 
-interface Props { params: { slug: string } }
+interface Props { params: Promise<{ slug: string }> }
 
 const TRACKED_STORES = [
   { id: 'toycra',       name: 'Toycra'      },
   { id: 'mybrickhouse', name: 'MyBrickHouse' },
 ];
+
+const STORE_NAMES: Record<string, string> = Object.fromEntries(TRACKED_STORES.map((s) => [s.id, s.name]));
 
 // Verdict-driven badge — NOT rating-driven. A null rating (IMPORT ONLY: an
 // availability call, not a quality score) still needs a badge that reflects
@@ -36,29 +51,41 @@ function verdictBadge(verdict: string | null): { emoji: string; label: string; c
   }
 }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params;
   const { data: review } = await supabase.from('reviews').select('*, sets(name)').eq('slug', params.slug).single();
   if (!review) return { title: 'Review Not Found' };
   const ratingBlurb = review.rating != null ? `${review.rating}/5 stars. ` : '';
+  // issue #109: review.sets is null whenever a review has no matched catalog
+  // set, and review.title (the fallback) is often already a full, pre-written
+  // title that starts with "LEGO" itself -- unconditionally prepending "LEGO "
+  // then doubled it ("LEGO LEGO ..."). setName is the single source of truth
+  // for both the title fields below and the description (which previously
+  // read review.sets?.name directly with no fallback at all, producing the
+  // literal string "the LEGO undefined." whenever sets was null -- same root
+  // cause, fixed in the same pass since it's the same missing-fallback bug).
+  const setName = review.sets?.name || review.title;
+  const productName = /^lego\b/i.test(setName) ? setName : `LEGO ${setName}`;
   return {
-    title: `LEGO ${review.sets?.name || review.title} Review — Is It Worth Buying in India?`,
-    description: `Our honest verdict on the LEGO ${review.sets?.name}. ${ratingBlurb}Read the full review including price comparison and buying advice for India.`,
+    title: `${productName} Review — Is It Worth Buying in India?`,
+    description: `Our honest verdict on the ${productName}. ${ratingBlurb}Read the full review including price comparison and buying advice for India.`,
     alternates: { canonical: `https://bricksofindia.com/reviews/${params.slug}` },
     openGraph: {
-      title: `LEGO ${review.sets?.name || review.title} Review — Bricks of India`,
+      title: `${productName} Review — Bricks of India`,
       description: `${ratingBlurb}Honest verdict with live India price comparison.`,
       images: socialCardImage(review.hero_image) ? [{ url: socialCardImage(review.hero_image)! }] : [],
     },
     twitter: {
       card: review.hero_image ? 'summary_large_image' : 'summary',
-      title: `LEGO ${review.sets?.name || review.title} Review — Bricks of India`,
+      title: `${productName} Review — Bricks of India`,
       description: `${ratingBlurb}Honest verdict with live India price comparison.`,
       images: socialCardImage(review.hero_image) ? [socialCardImage(review.hero_image)!] : undefined,
     },
   };
 }
 
-export default async function ReviewPage({ params }: Props) {
+export default async function ReviewPage(props: Props) {
+  const params = await props.params;
   const { data: review } = await supabase
     .from('reviews')
     .select('*, sets(*)')
@@ -95,6 +122,22 @@ export default async function ReviewPage({ params }: Props) {
     ?? activePrices.sort((a, b) => a.price_inr - b.price_inr)[0]
     ?? null;
 
+  // GWP pricing rule (BOI Fix Brief issue #78, decided by Abhinav): the
+  // store_prices check above is ALWAYS the first and only source of truth
+  // for whether to show a price — is_gwp never suppresses a real listed
+  // price (see 40896/40891, both GWP-origin sets a tracked store sells
+  // standalone). is_gwp + gwp_parent_set_number only kick in here, as a
+  // fallback explanation, when store_prices genuinely has nothing.
+  let gwpParentSet: { set_number: string; name: string } | null = null;
+  if (!hasPrices && set?.is_gwp && set?.gwp_parent_set_number) {
+    const { data: parent } = await supabase
+      .from('sets')
+      .select('set_number, name')
+      .eq('set_number', set.gwp_parent_set_number)
+      .single();
+    gwpParentSet = parent ?? null;
+  }
+
   const stars = review.rating != null ? '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating) : null;
   const badge = verdictBadge(review.verdict);
   const shareUrl = `https://bricksofindia.com/reviews/${params.slug}`;
@@ -102,7 +145,7 @@ export default async function ReviewPage({ params }: Props) {
 
   return (
     <div className="bg-white min-h-screen">
-      <JsonLd data={buildReviewSchema(review, review.title, set)} />
+      <JsonLd data={buildReviewSchema(review, review.title, set, activePrices, STORE_NAMES, params.slug)} />
       {/* Hero */}
       <div className="bg-dark py-12 px-4">
         <div className="max-w-site mx-auto">
@@ -215,9 +258,33 @@ export default async function ReviewPage({ params }: Props) {
                   <h3 className="font-heading text-dark text-xl mb-1">{set.name}</h3>
                   <p className="font-price text-gray-400 text-sm mb-3">Set #{set.set_number}</p>
 
-                  {/* Store prices — always shown, "Not listed" fallback per store */}
+                  {/* Store prices — always checked first (issue #78: store_prices
+                      is the sole source of truth for whether a price shows, GWP
+                      status never overrides a real listing). Only when no tracked
+                      store has this set's own set_id AND it's a confirmed GWP do
+                      we replace the per-store grid with an explanation instead of
+                      a bare "Not listed" for every row. */}
                   <div className="border-t border-border pt-3 mb-3">
                     <p className="text-xs text-gray-400 uppercase tracking-wide font-bold mb-2">Prices in India</p>
+                    {!hasPrices && set.is_gwp ? (
+                      <p className="text-sm text-dark">
+                        This is a Gift-with-Purchase
+                        {gwpParentSet ? (
+                          <>
+                            {' '}— LEGO includes it free with a qualifying purchase of{' '}
+                            <Link
+                              href={`/sets/${gwpParentSet.set_number}-${gwpParentSet.name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`}
+                              className="text-primary font-bold hover:underline"
+                            >
+                              {gwpParentSet.name} (#{gwpParentSet.set_number})
+                            </Link>.
+                          </>
+                        ) : (
+                          ', included free above a LEGO.com spend threshold during a promotional period.'
+                        )}{' '}
+                        It isn&apos;t sold on its own, so there&apos;s no store price to compare.
+                      </p>
+                    ) : (
                     <div className="space-y-2">
                       {TRACKED_STORES.map((store) => {
                         const sp = storePriceMap.get(store.id);
@@ -254,6 +321,7 @@ export default async function ReviewPage({ params }: Props) {
                         );
                       })}
                     </div>
+                    )}
                     {bestStorePrice?.in_stock && (
                       <a
                         href={bestStorePrice.product_url}

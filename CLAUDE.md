@@ -8,9 +8,11 @@
 
 SESSION START: Read `BOI_MASTER_TRACKER.md` — header block (metadata, current blockers, carry-overs, lab status, deadlines). Confirm the HEAD commit field matches `git log -1 --format="%H"`. Paste summary to strategic layer. Do not use `docs/SESSION_START_CHECKLIST.md` — that file's handover-doc protocol was abandoned after Day 35 and is queued for archival.
 
-**Dashboard sync:** see `BOI_MASTER_TRACKER.md` § Auto-update protocol — every state change updates `admin/dashboard.html` in the same commit.
+**Dashboard sync:** see `BOI_MASTER_TRACKER.md` § Auto-update protocol — every state change updates `admin/dashboard.html` in the same commit. Enforced on PRs by `.github/workflows/lint-tracker-dashboard-sync.yml` (added 2026-08-23, after a 30-day ground-truth audit found the rule recurring as an unenforced, self-reported violation rather than the exception) — does not cover the docs-only-direct-push fast path below, by design.
 
 **Dashboard validation:** at session start, confirm `admin/dashboard.html` JSON parses cleanly before doing anything else. If it doesn't, fix first.
+
+**Issue-filing is binding, not optional.** Any future action item, pending decision, or "revisit later" note surfaced during a session — a deferred fix, an accepted risk, an operator-owned follow-up, a "not done this session, flagged not hidden" note — must be filed as a real GitHub issue before the session or PR is considered complete. A mention in chat, a commit message, or a tracker paragraph does not satisfy this — none of those are visible to anyone (including a future session) who isn't specifically reading git history end-to-end. Added 2026-08-23 after a 30-day audit found multiple real, still-open items (a confirmed-reachable, unpatched CVE deferred with a documented rationale; an operator-owned credential/OAuth follow-up; a documented internal-tooling reconciliation gap) living only in commit bodies and tracker prose, with zero corresponding issue, invisible to anything but a targeted grep. The tracker entry may still carry the full reasoning/context — the issue is the pointer that makes the item discoverable at all, not a replacement for that detail.
 
 **Brief files:** task briefs live in `briefs/`. Read the relevant brief before executing any scoped task.
 
@@ -33,6 +35,30 @@ SESSION START: Read `BOI_MASTER_TRACKER.md` — header block (metadata, current 
 **Use PowerShell for `gh` commands** — the Bash tool does not inherit Windows PATH additions, so `gh` is not visible there. `gh run list`, `gh pr create`, `gh pr merge`, `gh workflow run`, `gh run watch` all go through the PowerShell tool.
 
 **Never amend** unless the user explicitly asks. Create new commits instead.
+
+---
+
+## Staged/experimental code rules
+
+**Gate activation with `config/feature_flags.py`, not comments or commit messages.** A comment like `# SHADOW MODE (2026-08-16)... hold for 08-22` or a commit message titled `"Staged: ... (hold for 08-22)"` is not enforced by CI and goes live the moment it's merged, regardless of the wording's intent. Incident: commit `7fc986d` (merged 2026-08-16) added a shadow-mode diagnostic to `generate_quiet_panic_video.py`'s `run_all_gates()` gated only by such a comment; it crashed the very next scheduled VID-QP run (2026-08-17) with `TypeError: 'bool' object is not subscriptable` because the "non-blocking, purely logged" code was, in fact, live and unconditionally executed. Fixed 2026-08-18.
+
+Any code merged to main but not yet meant to be active must check an explicit flag from `config/feature_flags.py` (a plain dict, flags default `False`) at the call site:
+```python
+from config.feature_flags import FEATURE_FLAGS
+if FEATURE_FLAGS.get("some_flag", False):
+    ...
+```
+Flipping a flag to `True` is then a deliberate, reviewable, one-line diff — not a side effect of an unrelated merge landing on its intended date.
+
+**Existing precedent for a different (also-acceptable) pattern:** `src/lib/lab-tools.ts`'s `coming_soon: true` / `href: null` fields, checked by `src/components/ui/LabStrip.tsx`, gate LAB-02's tile the same way — a real, checked field, not a comment. Either pattern (a `config/feature_flags.py` entry, or an explicit checked field local to the feature) is fine; an unenforced comment alone is not.
+
+---
+
+## GitHub Actions workflow rules
+
+**Every job requires `timeout-minutes`.** Without one, a hung step falls back to GitHub Actions' 6-hour default job ceiling — `video-generate-daily.yml`'s `generate` job did exactly this on 2026-08-18 (stalled `apt-get update`, cancelled after the full 6h, that day's VID-P4 run silently lost). Size it to ~2-2.5x the job's observed normal runtime (`gh run list --workflow=<file> --limit 10` to measure). If fewer than ~3 completed runs exist to measure from, don't guess — leave it unset and flag it for a human to size once there's real data (see `video-feasibility-test.yml` / `video-script-gen-test-quiet-panic.yml`, both deliberately left unset as of 2026-08-18 for this reason).
+
+**Enforced by `.github/workflows/lint-workflows.yml`** on any PR touching `.github/workflows/**` — fails if a changed workflow's job lacks `timeout-minutes`. Scoped to only the files the PR actually changes (via `git diff` against the PR base), not the whole directory, specifically so the two pre-existing unset files above don't permanently block unrelated PRs.
 
 ---
 
@@ -86,6 +112,18 @@ if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set — check
 - `store_prices` — active scraper table. Schema: `store_id`, `in_stock`, `product_url`, `scraped_at`. Written by `scripts/scrape-now.mjs` every 6h. All listing pages (`/sets`, `/sets/page/[page]`, `/compare`) read from this table.
 
 When adding price display to any new page, always use `store_prices`, never `prices`.
+
+---
+
+## Model canary rules
+
+**Every model integration used by production code (primary or fallback, any of the 3 content pipelines) must have a check in `scripts/canary/model_canary.py`, run daily by `.github/workflows/model-canary.yml`.** Added 2026-08-22 after `gate_coherence_llm_judge` (both video pipelines) was found to have been silently fail-open for an unknown period — it targeted a Groq model (`llama-3.3-70b-versatile`) that had been decommissioned, and the gate's own correct fail-open-on-transient-error design meant the permanent failure never surfaced anywhere. This canary exists to fail loudly instead.
+
+When adding a new model (a new fallback provider, a primary-model swap, a new pipeline entirely): add a corresponding `check_*()` call in `model_canary.py`'s `main()`. A missing/empty API key must be reported as its own distinct "SECRET NOT CONFIGURED" failure, not silently skipped — a model integration whose secret was never provisioned is exactly the same class of invisible gap as a dead model (confirmed real 2026-08-22: `GROQ_API_KEY` was never added as a repo secret at all, meaning every Groq call site — including the coherence-gate fix itself — has been fail-open in production regardless of which model it's configured to use).
+
+A known, already-accepted failure condition (e.g. Cerebras's payment-block, 402, tracked via `cerebras_fallback_enabled`) should be classified as such explicitly in the check function, not left to trip the canary red every day for a condition that's already flagged off and understood.
+
+**Route every secret through `secrets_util.get_secret()`, not a bare `os.environ.get()`** — even in this canary itself. Confirmed real, 2026-08-23: the canary's own first live GitHub Actions run failed both `GEMINI_SOCIAL_API_KEY` and `CEREBRAS_API_KEY` checks with `'ascii' codec can't encode character '﻿'` — a BOM byte in those secrets, an already-documented gotcha (see "Known Netlify Gotchas" below) that every real pipeline script already routes around, but this canary bypassed by reading the key directly. Fixed same day. The irony is the point: a tool built to catch silent failures needs the same care as the code it's watching, or it becomes a second source of exactly the false-negative/false-positive noise it exists to eliminate.
 
 ---
 

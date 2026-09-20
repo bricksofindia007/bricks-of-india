@@ -33,7 +33,8 @@ interface Guide {
   published_at: string;
 }
 
-export default async function GuidesPage({ searchParams }: { searchParams: { category?: string } }) {
+export default async function GuidesPage(props: { searchParams: Promise<{ category?: string }> }) {
+  const searchParams = await props.searchParams;
   const category = searchParams.category || '';
   let query = supabase.from('guides').select('id, slug, title, excerpt, category, featured_image_url, read_time_minutes, published_at').order('published_at', { ascending: false });
   if (category) query = query.eq('category', category);

@@ -1,0 +1,120 @@
+name: Build & Deploy to Cloudflare Workers
+
+# Companion to the existing .github/workflows/deploy.yml, which is kept
+# deliberately untouched as the historical record for the abandoned
+# Netlify native-git-integration path -- that file is explicitly protected
+# by CLAUDE.md's Netlify rules (no removal/bypass without explicit operator
+# approval), so this is a new, separate file for the new Cloudflare Workers
+# deploy target rather than overwriting it.
+#
+# Two jobs, split deliberately:
+#   - build: runs unattended on every push to main, no Cloudflare access at
+#     all -- only Next.js/OpenNext compilation. Catches build breaks
+#     immediately, same value CI always provides.
+#   - deploy: gated on the "production" GitHub Environment's required-
+#     reviewer protection rule (configured via the API -- repos/.../
+#     environments/production, reviewer: bricksofindia007 -- not something
+#     expressible in this YAML file itself). A human must explicitly
+#     approve each run before `wrangler deploy` executes. main now feeds
+#     the live site directly once this is the real deploy path, so this
+#     stays a manual gate on purpose, not fully unattended yet.
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build (Next.js + OpenNext Cloudflare)
+    runs-on: ubuntu-latest
+    # No CI run history yet for this brand-new workflow -- same situation
+    # CLAUDE.md's timeout-minutes rule already has a named precedent for
+    # (video-feasibility-test.yml / video-script-gen-test-quiet-panic.yml
+    # in .github/scripts/lint_workflow_timeouts.py's NO_TIMEOUT_HISTORY_YET
+    # set). This file's job names have been added to that same set rather
+    # than guessing a number. Revisit once ~3 real runs exist
+    # (gh run list --workflow=deploy-cloudflare.yml --limit 10).
+    env:
+      NEXT_PUBLIC_SUPABASE_URL:       ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY:  ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY:      ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      NEXT_PUBLIC_SITE_URL:           https://bricksofindia.com
+      NEXT_PUBLIC_GA_MEASUREMENT_ID:  ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # 22, matching the deploy job below -- wrangler requires >=22
+          # there, and there's no reason for the two jobs in one pipeline
+          # to run different Node versions. This job happened to succeed
+          # on 20 (confirmed against run 34635918668, 2026-09-11), but
+          # matching them removes an unexplained difference rather than
+          # leaving one job on a version the other can't use.
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Next.js build
+        run: npm run build
+
+      - name: OpenNext Cloudflare build
+        # No Cloudflare credentials passed here, on purpose -- this step
+        # only compiles/bundles the worker locally into .open-next/, it
+        # makes no Cloudflare API calls. Deploy-time credentials stay
+        # scoped to the deploy job below, never exposed to this unattended
+        # one.
+        run: npx opennextjs-cloudflare build
+
+      - name: Upload build output
+        uses: actions/upload-artifact@v4
+        with:
+          name: opennext-build
+          path: .open-next/
+          retention-days: 1
+          # .open-next/ is a dot-prefixed (hidden) directory -- v4's default
+          # include-hidden-files: false excludes the entire tree, not just
+          # dotfiles within it, so without this the step "succeeds" (warn,
+          # not error, on zero matches) while silently uploading nothing.
+          # Caught for real: this run's own first execution
+          # (2026-09-11, run 34632500369) reported "Worker saved in
+          # `.open-next/worker.js`" immediately followed by "No files were
+          # found with the provided path: .open-next/." for exactly this
+          # reason -- confirmed via the actual job log, not guessed.
+          include-hidden-files: true
+
+  deploy:
+    name: Deploy (wrangler)
+    needs: build
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # Root cause, confirmed directly from run 34673605998's own log
+          # (2026-09-12, triggered by PR #83's merge): "Wrangler requires
+          # at least Node.js v22.0.0. You are using v20.20.2." wrangler
+          # itself refused to start -- failed before any Cloudflare API
+          # call, nothing was deployed, production unaffected by that
+          # attempt.
+          node-version: '22'
+          cache: 'npm'
+
+      - run: npm ci
+
+      - name: Download build output
+        uses: actions/download-artifact@v4
+        with:
+          name: opennext-build
+          path: .open-next/
+
+      - name: wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN:   ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID:  ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy

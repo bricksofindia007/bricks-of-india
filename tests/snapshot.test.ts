@@ -512,25 +512,31 @@ describe('passesAutoPublishGates', () => {
 // Checked via `instanceof` in generate-approved-drafts.ts's catch block, not
 // string-matching error.message — the same robustness reason this is a
 // dedicated class rather than a tagged plain Error.
+// Constructor widened 2026-08-19 (Gemini -> Groq -> opt-in Cerebras fallback
+// chain, see feature-flags.ts): 2nd/3rd args are now (fallbackProvider,
+// fallbackMessage) instead of a fixed cerebrasMessage, since the fallback
+// that actually gets attempted may be Groq or Cerebras depending on which
+// keys/flags are configured.
 describe('BothProvidersFailedError', () => {
-  it('is an instance of Error and carries both provider messages', () => {
-    const err = new BothProvidersFailedError('Gemini 503', 'Cerebras timeout');
+  it('is an instance of Error and carries gemini + fallback provider messages', () => {
+    const err = new BothProvidersFailedError('Gemini 503', 'groq', 'Groq timeout');
     expect(err).toBeInstanceOf(Error);
     expect(err).toBeInstanceOf(BothProvidersFailedError);
     expect(err.geminiMessage).toBe('Gemini 503');
-    expect(err.cerebrasMessage).toBe('Cerebras timeout');
+    expect(err.fallbackProvider).toBe('groq');
+    expect(err.fallbackMessage).toBe('Groq timeout');
     expect(err.name).toBe('BothProvidersFailedError');
   });
 
   it('builds a combined message including both provider failures', () => {
-    const err = new BothProvidersFailedError('Gemini 503', 'Cerebras timeout');
+    const err = new BothProvidersFailedError('Gemini 503', 'cerebras', 'Cerebras timeout');
     expect(err.message).toContain('Gemini 503');
     expect(err.message).toContain('Cerebras timeout');
   });
 
   it('is distinguishable from a plain Error via instanceof (the actual catch-branch check)', () => {
-    const plainErr = new Error('Gemini failed (retryable) and Cerebras not eligible (fullBody and excerpt both < 200 chars): some gemini error');
-    const bothErr  = new BothProvidersFailedError('gemini msg', 'cerebras msg');
+    const plainErr = new Error('Gemini failed (retryable) and fallback not eligible (fullBody and excerpt both < 200 chars): some gemini error');
+    const bothErr  = new BothProvidersFailedError('gemini msg', 'groq', 'groq msg');
     expect(plainErr instanceof BothProvidersFailedError).toBe(false);
     expect(bothErr instanceof BothProvidersFailedError).toBe(true);
   });

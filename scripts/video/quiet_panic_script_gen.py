@@ -27,11 +27,21 @@ import re
 import sys
 import time
 from pathlib import Path
+from typing import NamedTuple
 
+import requests
 from dotenv import load_dotenv
 
 BASE_DIR = Path(__file__).parent
 load_dotenv(BASE_DIR / '.env')
+
+# config/feature_flags.py lives at repo root, not on sys.path when this
+# script's caller runs with working-directory: scripts/video. Not a break
+# from this file's isolation-from-engine.py/publish.py precedent (see
+# get_secret()'s docstring above) -- feature_flags.py is a generic
+# repo-root utility, not engine.py/publish.py-specific.
+sys.path.insert(0, str((BASE_DIR.parent.parent).resolve()))
+from config.feature_flags import FEATURE_FLAGS  # noqa: E402
 
 
 def get_secret(name: str, default: str = '') -> str:
@@ -42,9 +52,24 @@ def get_secret(name: str, default: str = '') -> str:
 
 
 GEMINI_SOCIAL_API_KEY = get_secret('GEMINI_SOCIAL_API_KEY')
+GROQ_API_KEY = get_secret('GROQ_API_KEY')
 CEREBRAS_API_KEY = get_secret('CEREBRAS_API_KEY')
 
-CODEX_PATH = BASE_DIR.parent.parent / 'docs' / 'codex' / 'BOI_Codex_v2.md'
+# Condensed, voice-only extract (not the full BOI_Codex_v2.md) -- see
+# docs/codex/BOI_Codex_v2_qp_condensed.md's header for the full rationale
+# and exactly what was kept/cut. Added 2026-08-19: the full codex (~9,573
+# est. tokens) was the confirmed dominant driver of Cerebras token cost for
+# this pipeline, most of it article-format mechanics VID-QP's own gates
+# never check (India Paragraph, affiliate codes, article lint gates, etc.).
+CODEX_PATH = BASE_DIR.parent.parent / 'docs' / 'codex' / 'BOI_Codex_v2_qp_condensed.md'
+
+# Groq-fallback-path-only codex, added 2026-08-22 (qwen rollout). The full
+# CODEX_PATH document above exceeds Groq's free-tier 8,000 TPM cap (confirmed
+# live, 413 on every model tried) -- this trimmed copy is used ONLY when
+# _call_groq() is the active provider; Gemini's primary call always uses the
+# full, untrimmed codex. See TRIMMED_CODEX_PATH's own file header for the
+# real trim rationale and provenance.
+TRIMMED_CODEX_PATH = BASE_DIR.parent.parent / 'docs' / 'codex' / 'BOI_Codex_v2_qp_trimmed.md'
 
 # Same rate-limiter shape as engine.py's _gemini_pace() -- duplicated
 # constant/logic, not imported, per this format's standing isolation
@@ -116,10 +141,182 @@ def _gemini_pace() -> None:
 #   binding constraint in the normal case -- the per-segment cap exists
 #   specifically to catch the single-segment-blowout failure mode the
 #   total cap alone missed.
+#
+# PRICE-SEGMENT DYNAMIC CAP (2026-08-12, added after Aston Martin Aramco
+# AMR25 F1 Car (#42240, Rs.24,999) failed all 5 script-gen attempts --
+# words converged 23/18/17/17/17, plateauing 1 word over the total cap,
+# never landing under it): the flat PER_SEGMENT_WORD_CAP=7 above was
+# derived from exactly two calibration prices (Rs.7,499 and Rs.9,999),
+# both under Rs.10,000 -- it silently assumed every real price's spoken
+# form fits in 7 words. It doesn't. price_to_words(24999) + " rupees" is
+# "twenty four thousand nine hundred ninety nine rupees" -- 8 words,
+# because the thousands group itself needs two words ("twenty four")
+# once the price crosses into five figures with a non-round remainder.
+# Confirmed by sweeping every integer price Rs.1,000-99,999 through
+# price_to_words(): EVERY price under Rs.21,121 fits in <=7 words with no
+# exception; from Rs.21,121 up, 58.3% of prices need 8 words. (The two
+# five-digit reference scripts in REFERENCE_SCRIPTS above, Rs.34,900 and
+# Rs.6,900, dodge this only because they're round numbers with no
+# tens/ones remainder -- coincidence, not evidence 5-digit prices are
+# safe.) Since the price phrase is a HARD GATE reproduced verbatim (see
+# PRICE TOKEN rule below) -- the model cannot shorten it without failing
+# a *different*, non-negotiable check -- a flat 7-word cap on whichever
+# segment carries that phrase is not a difficult target, it is a
+# mathematically impossible one for ~46,656 of the 79,000 integer prices
+# >= Rs.20,000. No amount of retrying, feedback, or prompt tuning closes
+# a gap that isn't there to close -- this is exactly why AMR25's segment
+# carrying the price sat at a CONSTANT 8 words across attempts 1, 3, 4,
+# and 5 (matching price_to_words(24999)'s length exactly) while every
+# other segment visibly improved attempt over attempt.
+#   Fix (see check_word_budget()): compute the real price-phrase word
+#   count from price_inr at check time; whichever voice:true segment
+#   actually contains that exact phrase gets a per-segment cap of
+#   max(PER_SEGMENT_WORD_CAP, price_phrase_words) instead of the flat
+#   constant. Every other segment keeps the normal 7-word cap unchanged
+#   -- this does not loosen the check for the failure mode it was built
+#   to catch (a single non-price segment eating the whole budget), only
+#   for the one segment where going over 7 is unavoidable by
+#   construction. TOTAL_WORD_CAP is relaxed by the same, exact overage
+#   (see effective_total_cap in check_word_budget()) -- never more than
+#   the price phrase actually needs, so the TTS-duration calibration
+#   margin (see WORD_CEILING_DERIVATION above) stays intact for the
+#   common case and only gives up exactly as much slack as this one
+#   unavoidable segment requires.
 # ---------------------------------------------------------------------------
 
 TOTAL_WORD_CAP = 16
 PER_SEGMENT_WORD_CAP = 7
+
+# ---------------------------------------------------------------------------
+# CAPTION LENGTH BUDGET (added 2026-08-16 -- closes the "reading-floor
+# duration gap" found 2026-08-01, see BOI_MASTER_TRACKER.md's VID-QP
+# Backlog entry). TOTAL_WORD_CAP/PER_SEGMENT_WORD_CAP above only see
+# voice:true segments; a voice:false segment's real duration is
+# max(sfx_native_duration, reading_floor) where reading_floor scales with
+# CAPTION TEXT LENGTH, not word count on a voice-word budget. Once
+# captions started being written with "full wit and specificity" (the
+# 2026-07-31 persona rule) instead of kept minimal, reading_floor could
+# exceed the SFX-native floor these caps were originally derived against
+# -- confirmed live: a Spider-Man vs. Hulk generation passed both the
+# word-budget and banned-construction gates cleanly, but real measured
+# duration came in 2.02s over the 60.5s ceiling, entirely from long
+# voice-off captions. The post-render gate_duration in
+# generate_quiet_panic_video.py still catches this correctly (nothing
+# broken ships), but it costs a full TTS render to find out -- this check
+# catches it before any ElevenLabs call, same philosophy as
+# check_word_budget() above. Confirmed hitting ~1/3 of recent generate
+# runs (2/6 gate_duration results 2026-07-30 to 2026-08-14) before this
+# fix.
+#
+# Mirrors generate_quiet_panic_video.py's own formula exactly (same
+# READING_SPEED_CPS, same max(sfx_native, reading_floor) shape, same live
+# ffprobe measurement of bumpers/SFX rather than a hardcoded duration --
+# a hardcoded duration is exactly the failure mode a parallel 2026-08-16
+# investigation found and fixed elsewhere, in technical-hygiene.mjs's
+# IG-token-expiry check; not repeating it here). Voice:true segments'
+# contribution is estimated at the SLOWER 0.95s/word punchy rate (see
+# WORD_CEILING_DERIVATION above) -- the conservative choice, since this
+# check runs before TTS and can't yet know the real per-segment rate.
+# ---------------------------------------------------------------------------
+READING_SPEED_CPS = 15.0          # chars/sec, matches generate_quiet_panic_video.py
+VOICE_WORD_RATE_CONSERVATIVE = 0.95  # s/word, punchy-fragment rate (upper bound)
+DURATION_TARGET_MIN = 45.0        # matches generate_quiet_panic_video.py
+DURATION_TARGET_MAX = 55.0        # matches generate_quiet_panic_video.py
+DURATION_TOLERANCE = 0.10         # matches generate_quiet_panic_video.py
+DURATION_CEILING = DURATION_TARGET_MAX * (1 + DURATION_TOLERANCE)  # 60.5s
+
+SFX_LIBRARY_DIR = BASE_DIR.parent.parent / 'assets' / 'sfx' / 'library'
+BUMPERS_DIR = BASE_DIR.parent.parent / 'assets' / 'bumpers'
+INTRO_BUMPER = BUMPERS_DIR / 'intro_final.mp3'
+OUTRO_BUMPER = BUMPERS_DIR / 'outro_final.mp3'
+
+
+def _ffprobe_duration(path: Path) -> float:
+    """Local duplicate of generate_quiet_panic_video.py's ffprobe_duration()
+    -- kept local per this file's own zero-cross-import convention (see
+    module docstring). Live-measured, never hardcoded: bumpers and SFX
+    files do get replaced (e.g. intro_final.mp3's v2 swap, 2026-07-30),
+    and a stale constant here would silently drift from what actually
+    renders, same failure mode this fix exists to close elsewhere."""
+    import subprocess
+    result = subprocess.run(
+        ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+         '-of', 'default=noprint_wrappers=1:nokey=1', str(path)],
+        capture_output=True, text=True, check=True,
+    )
+    return float(result.stdout.strip())
+
+
+def check_caption_length_budget(segments: list) -> dict:
+    """Pre-TTS validation, zero ElevenLabs cost. Estimates total assembled
+    duration (bumpers + voice:true segments at the conservative word rate
+    + voice:false segments at max(sfx_native, reading_floor)) and flags
+    scripts already projected over DURATION_CEILING before any TTS call
+    is made. This is an ESTIMATE, not a replacement for the post-render
+    gate_duration in generate_quiet_panic_video.py -- voice:true segments'
+    real TTS duration can still vary from the conservative estimate used
+    here, so a script can pass this check and still fail the real gate
+    (rarer, since this deliberately over-estimates voice:true time). It
+    cannot happen the other way: this check is strictly more conservative
+    than the real render, so it will never falsely block a script that
+    would have passed.
+
+    SHADOW MODE (2026-08-16): this function no longer gates generation --
+    see CaptionLengthExceededError's docstring and generate_quiet_panic_
+    video.py's run_all_gates(), which now calls this and folds the result
+    into gate_results as pre_tts_estimate_pass/_duration/_detail/_segments,
+    directly alongside the real gate_duration result for per-run
+    comparison. Return shape unchanged so that wiring is additive only."""
+    intro_duration = _ffprobe_duration(INTRO_BUMPER)
+    outro_duration = _ffprobe_duration(OUTRO_BUMPER)
+
+    voice_word_total = sum(
+        len(seg['text'].split()) for seg in segments if seg.get('voice', True)
+    )
+    voice_estimate = voice_word_total * VOICE_WORD_RATE_CONSERVATIVE
+
+    segment_breakdown = []
+    voiceless_detail = []
+    voiceless_total = 0.0
+    for i, seg in enumerate(segments):
+        if seg.get('voice', True):
+            segment_breakdown.append({
+                'index': i, 'voice': True, 'word_count': len(seg['text'].split()),
+            })
+            continue
+        sfx_tag = seg.get('sfx_tag')
+        sfx_path = SFX_LIBRARY_DIR / f'{sfx_tag}.mp3'
+        sfx_native = _ffprobe_duration(sfx_path) if sfx_path.exists() else 0.0
+        reading_floor = len(seg['text']) / READING_SPEED_CPS
+        seg_duration = max(sfx_native, reading_floor)
+        voiceless_total += seg_duration
+        segment_breakdown.append({
+            'index': i, 'voice': False, 'sfx_tag': sfx_tag,
+            'char_count': len(seg['text']), 'sfx_native_s': round(sfx_native, 2),
+            'reading_floor_s': round(reading_floor, 2), 'estimated_duration_s': round(seg_duration, 2),
+            'reading_floor_binding': reading_floor > sfx_native,
+        })
+        if reading_floor > sfx_native:
+            voiceless_detail.append(
+                f'segment {i} caption ({len(seg["text"])} chars) reads at {reading_floor:.1f}s, '
+                f'over its {sfx_tag} SFX native {sfx_native:.1f}s'
+            )
+
+    estimated_total = intro_duration + outro_duration + voice_estimate + voiceless_total
+    over_by = estimated_total - DURATION_CEILING
+
+    if over_by <= 0:
+        return {
+            'pass': True,
+            'detail': f'estimated {estimated_total:.1f}s (ceiling {DURATION_CEILING:.1f}s) -- OK',
+            'estimated_total': estimated_total,
+            'segments': segment_breakdown,
+        }
+    detail = f'estimated {estimated_total:.1f}s exceeds the {DURATION_CEILING:.1f}s ceiling by {over_by:.1f}s'
+    if voiceless_detail:
+        detail += '; ' + '; '.join(voiceless_detail)
+    return {'pass': False, 'detail': detail, 'estimated_total': estimated_total, 'segments': segment_breakdown}
+
 
 PERSONA_RULES = """
 PERSONA: "The Overly Serious Whisperer" -- series banner "The Quiet Panic".
@@ -211,13 +408,26 @@ hit a duration target):
   captions aren't TTS-bound, so they don't need to shrink either).
 - WORD CAPS BELOW APPLY ONLY TO voice:true SEGMENTS (clarified 2026-07-31
   -- this was ambiguous before and nearby caps were bleeding into caption
-  quality). voice:false captions have NO word-count constraint at all --
-  their timing comes from the SFX asset's native length / reading-speed
-  floor, never from word count. Write voice:false captions with the SAME
-  wit, specificity, and full joke-carrying weight as voice:true lines --
-  do not write them shorter or blander just because they sit next to a
+  quality). voice:false captions have no WORD-count constraint -- their
+  timing comes from the SFX asset's native length / reading-speed floor,
+  never from word count. Write voice:false captions with the SAME wit,
+  specificity, and full joke-carrying weight as voice:true lines -- do
+  not write them shorter or blander just because they sit next to a
   capped segment. A caption is not a placeholder; it's read on-screen and
   needs to land on its own.
+  CAPTION LENGTH (added 2026-08-16 -- closed a real gap where long
+  voice:false captions alone pushed real renders over the duration
+  ceiling): a caption read at ~15 characters/second must not run
+  noticeably longer than its sfx_tag's own native length, or its reading
+  time becomes the actual binding duration instead of the SFX cue --
+  quietly inflating total runtime even though every voice:true word cap
+  passed. Keep voice:false captions to roughly 60-70 characters or fewer
+  as a safe default (most cues in the library run 2-4.5s native, which is
+  the room that buys); if pairing with brick_snap_short (0.7s) or
+  brick_snap_body (1.1s), keep that specific caption noticeably shorter
+  still. This is a guideline for you to self-check against, not something
+  you can compute exactly -- the pipeline verifies the real number after
+  you write it and will send back specific feedback if it's over.
 - HARD WORD CEILING, voice:true segments only (recalibrated 2026-07-31
   against real measured TTS/SFX durations -- a first test on Rapunzel's
   Castle (43297) at the old 26-42 word range measured 72.50s total, 12s
@@ -371,6 +581,16 @@ def _load_codex() -> str:
     return CODEX_PATH.read_text(encoding='utf-8')
 
 
+def _load_trimmed_codex() -> str:
+    """Groq-fallback-path-only variant of _load_codex() -- see
+    TRIMMED_CODEX_PATH's docstring. Deliberately a separate function (not a
+    param on _load_codex()) so every call site is explicit about which
+    codex it's building against."""
+    if not TRIMMED_CODEX_PATH.exists():
+        raise FileNotFoundError(f'BOI_Codex_v2_qp_trimmed.md not found at {TRIMMED_CODEX_PATH}')
+    return TRIMMED_CODEX_PATH.read_text(encoding='utf-8')
+
+
 SYSTEM_PROMPT_TEMPLATE = """You are the script-writing engine for Bricks of India's "Quiet Panic" \
 short-video format on Instagram Reels / YouTube Shorts.
 
@@ -421,6 +641,24 @@ def _build_task_prompt(candidate: dict, revision_context: dict = None) -> str:
         f'"{price_phrase}"',
         f'- Piece count: {candidate.get("pieces", "unknown")}',
         f'- Theme: {candidate.get("theme", "unknown")}',
+        '',
+        # Added 2026-08-22 (qwen rollout evidence pass): the duration gate's
+        # real word budget (see TOTAL_WORD_CAP/PER_SEGMENT_WORD_CAP's
+        # derivation comment above -- these are measured against real
+        # ffprobe'd bumper/SFX durations, not guessed) was previously only
+        # enforced AFTER generation, by check_word_budget() + a corrective
+        # retry loop. Live qwen testing (Groq, this rollout) showed 3 of 4
+        # clean generations ran 12-25s over the duration gate's target
+        # before any retry correction -- stating the real numeric budget up
+        # front, not just relying on the retry loop to catch it, cuts
+        # wasted generation attempts regardless of which provider is
+        # writing. Applies to every provider, not qwen-specific.
+        f'WORD BUDGET (hard constraint, not a suggestion): total words across '
+        f'ALL voice:true segments must be {TOTAL_WORD_CAP} or fewer. No single '
+        f'segment may exceed {PER_SEGMENT_WORD_CAP} words. This is measured '
+        f'against real render timing -- going over produces a video outside '
+        f'the {DURATION_TARGET_MIN:.0f}-{DURATION_TARGET_MAX:.0f}s target duration. Count your words '
+        f'before finalizing.',
     ]
 
     if revision_context:
@@ -513,6 +751,25 @@ class WordBudgetExceededError(PreTTSValidationError):
     """Raised by check_word_budget() via generate_quiet_panic_script()."""
 
 
+class CaptionLengthExceededError(PreTTSValidationError):
+    """Added 2026-08-16 alongside check_caption_length_budget() to close the
+    reading-floor duration gap (see the CAPTION LENGTH BUDGET comment block
+    above) as a real pre-TTS gate -- raised from generate_quiet_panic_
+    script()'s call site at the time.
+
+    CURRENTLY UNUSED (shadow mode, same day): backtested against the only
+    4 real gate_duration-PASSING scripts with recoverable per-segment
+    source data (0/4 would have been falsely blocked, but one -- Rapunzel's
+    Castle -- estimated only 0.2s under the ceiling against a real 58.6s
+    render, a thin enough margin that blocking on it felt premature with
+    n=4). Per operator instruction, downgraded to non-blocking: check_
+    caption_length_budget() now runs from generate_quiet_panic_video.py's
+    run_all_gates() instead, purely logged into gate_results for
+    comparison against real gate_duration results over several live
+    Mon/Wed/Fri cycles. Kept defined (not deleted) so reinstating the
+    raise later is a small, reviewable diff instead of reconstructing it."""
+
+
 class VerdictReasonMissingError(PreTTSValidationError):
     """Raised by check_verdict_reason() via generate_quiet_panic_script()
     -- added 2026-08-01 after a fresh generation shipped a bare "Verdict:
@@ -524,35 +781,73 @@ class VerdictReasonMissingError(PreTTSValidationError):
     fix."""
 
 
-def check_word_budget(segments: list) -> dict:
+def check_word_budget(segments: list, price_inr) -> dict:
     """Pre-TTS validation, zero ElevenLabs cost either way. Mirrors the
     {'pass', 'detail'} gate-dict shape used throughout generate_quiet_
     panic_video.py's post-render gates -- same philosophy, just against
     word counts instead of measured audio, and executed earlier. See the
-    TOTAL_WORD_CAP / PER_SEGMENT_WORD_CAP derivation comments above
-    PERSONA_RULES for the math."""
+    TOTAL_WORD_CAP / PER_SEGMENT_WORD_CAP / PRICE-SEGMENT DYNAMIC CAP
+    derivation comments above PERSONA_RULES for the math.
+
+    price_inr is required (not optional) -- the whole point of the
+    2026-08-12 fix is that the real per-segment/total budget depends on
+    this specific script's price, not just the two flat module
+    constants. See PRICE-SEGMENT DYNAMIC CAP above for why a flat
+    PER_SEGMENT_WORD_CAP=7 is mathematically unsatisfiable for a real
+    slice of realistic prices."""
+    price_phrase = (price_to_words(price_inr) + ' rupees').lower()
+    price_phrase_words = len(price_phrase.split())
+
     segment_words = [
         (i, len(seg['text'].split()))
         for i, seg in enumerate(segments)
         if seg.get('voice', True)
     ]
     total_words = sum(wc for _, wc in segment_words)
-    over_cap = [(i, wc) for i, wc in segment_words if wc > PER_SEGMENT_WORD_CAP]
+
+    # Best-effort: whichever voice:true segment actually contains the
+    # exact mandatory price phrase gets the dynamic cap below. If none
+    # matches (the model garbled or paraphrased the price token), that's
+    # the separate, unrelated gate_price_token failure downstream -- no
+    # segment gets an exemption here, same as before this fix.
+    price_segment_idx = next(
+        (i for i, seg in enumerate(segments)
+         if seg.get('voice', True) and price_phrase in seg['text'].lower()),
+        None
+    )
+    # Never LOWER than the flat cap -- this only ever widens the price
+    # segment's allowance to fit its own mandatory content, never
+    # tightens anything.
+    price_segment_cap = max(PER_SEGMENT_WORD_CAP, price_phrase_words)
+    effective_total_cap = TOTAL_WORD_CAP + max(0, price_phrase_words - PER_SEGMENT_WORD_CAP)
+
+    over_cap = []
+    for i, wc in segment_words:
+        cap = price_segment_cap if i == price_segment_idx else PER_SEGMENT_WORD_CAP
+        if wc > cap:
+            over_cap.append((i, wc, cap))
 
     problems = []
-    if total_words > TOTAL_WORD_CAP:
-        problems.append(f'total voice-word count {total_words} exceeds the {TOTAL_WORD_CAP}-word cap')
+    if total_words > effective_total_cap:
+        relax_note = (
+            f' (relaxed from {TOTAL_WORD_CAP} -- this price, Rs.{price_inr:,.0f}, needs a '
+            f'{price_phrase_words}-word spoken phrase)' if effective_total_cap != TOTAL_WORD_CAP else ''
+        )
+        problems.append(f'total voice-word count {total_words} exceeds the {effective_total_cap}-word cap{relax_note}')
     if over_cap:
-        detail = ', '.join(f'segment {i} ({wc}w)' for i, wc in over_cap)
-        problems.append(f'per-segment cap ({PER_SEGMENT_WORD_CAP}w) exceeded: {detail}')
+        detail = ', '.join(f'segment {i} ({wc}w, cap {cap}w)' for i, wc, cap in over_cap)
+        problems.append(f'per-segment cap exceeded: {detail}')
 
     return {
         'pass': not problems,
         'detail': '; '.join(problems) if problems else (
-            f'total {total_words}w (cap {TOTAL_WORD_CAP}), all voice segments <= {PER_SEGMENT_WORD_CAP}w'
+            f'total {total_words}w (cap {effective_total_cap}), all voice segments within their per-segment cap'
         ),
         'total_words': total_words,
         'segment_words': segment_words,
+        'price_segment_idx': price_segment_idx,
+        'price_phrase_words': price_phrase_words,
+        'effective_total_cap': effective_total_cap,
     }
 
 
@@ -601,7 +896,27 @@ def check_verdict_reason(segments: list) -> dict:
 # imported from it.
 # ---------------------------------------------------------------------------
 
-def _call_gemini(system_prompt: str, task_prompt: str) -> str:
+class ScriptGenCallResult(NamedTuple):
+    """One provider call's raw result. Added 2026-08-19 alongside
+    quiet_panic_posts' new provider/input_tokens/output_tokens columns
+    (migration 20260819000000_video_provider_tracking)."""
+    text: str
+    provider: str  # 'gemini' | 'groq' | 'cerebras'
+    input_tokens: int | None
+    output_tokens: int | None
+
+
+class GeneratedScript(NamedTuple):
+    """generate_quiet_panic_script()'s return value -- parsed segments plus
+    which provider/tokens actually produced them (distinct from
+    ScriptGenCallResult, whose .text is the raw pre-parse string)."""
+    segments: list
+    provider: str
+    input_tokens: int | None
+    output_tokens: int | None
+
+
+def _call_gemini(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
     if not GEMINI_SOCIAL_API_KEY:
         raise RuntimeError('GEMINI_SOCIAL_API_KEY not set.')
     _gemini_pace()
@@ -615,10 +930,98 @@ def _call_gemini(system_prompt: str, task_prompt: str) -> str:
     )
     if not resp.text or not resp.text.strip():
         raise RuntimeError('Gemini returned empty text.')
-    return resp.text.strip()
+    usage = getattr(resp, 'usage_metadata', None)
+    in_tok = getattr(usage, 'prompt_token_count', None) if usage else None
+    out_tok = getattr(usage, 'candidates_token_count', None) if usage else None
+    return ScriptGenCallResult(resp.text.strip(), 'gemini', in_tok, out_tok)
 
 
-def _call_cerebras(system_prompt: str, task_prompt: str) -> str:
+def _call_groq(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
+    """Added 2026-08-19 as the new default Gemini fallback -- see
+    config/feature_flags.py's 'cerebras_fallback_enabled' docstring for why
+    Cerebras moved to opt-in (payment-blocked, 402, since 2026-08-18).
+    Groq's free tier fails with 429 on rate-limit, not a permanent-until-
+    paid 402.
+
+    2026-08-22 (qwen rollout): model and reasoning_effort now read from
+    config/feature_flags.py's 'qp_groq_fallback_model' (defaults to the
+    previous, now-decommissioned 'llama-3.3-70b-versatile' if unset, so a
+    missing flag entry fails loudly via Groq's own 404 rather than silently
+    picking a different model). reasoning_effort='none' hardcoded for the
+    qwen family specifically -- confirmed empirically (this rollout) that
+    without it, qwen burns its entire output budget on hidden <think>
+    reasoning and returns no usable script. If a future model swap targets
+    a non-qwen reasoning model, this param needs re-deriving, not blindly
+    reused (see gpt-oss's different reasoning_effort convention, 'low'/
+    'medium'/'high', found during the same rollout's QP voice test).
+
+    429 handling: added 2026-08-22 after a real 429 was hit during this
+    rollout's article-pipeline sanity testing (same Groq org-level 8,000
+    TPM cap applies here). One bounded retry, honoring the server's
+    Retry-After header when present -- this is a single fallback call, not
+    a batch, so it doesn't need QP voice-test's 65s inter-call pacing, but
+    silently giving up on the very first rate-limit hit isn't real handling
+    either.
+
+    max_tokens tightened 2048 -> 1024, 2026-08-23: a real, deterministic
+    413 ("Request too large... Limit 8000, Requested 8493") hit on a
+    revision-mode call (trimmed-codex system prompt + a task prompt
+    carrying the full previous script + rejection reason, both absent
+    from the fresh-mode prompts the trimmed codex was originally sized
+    against). Confirmed live via the raw error body that Groq's own
+    "Requested" figure is prompt_tokens + max_tokens, not prompt_tokens
+    alone (6445 + 2048 = 8493, the exact number in the error) -- so
+    reducing the RESERVED output budget, not the prompt content, closes
+    the gap without touching any instruction text. 1024 still has real
+    headroom: every real completion observed so far (fresh and revision
+    mode) has landed under 450 output tokens for this format's genuinely
+    short (16-word voice budget, 8 segments) target. Retrying this
+    specific error was never going to help -- it's deterministic on
+    prompt size, not transient -- so this fixes the root cause rather
+    than papering over it with more retries."""
+    if not GROQ_API_KEY:
+        raise RuntimeError('GROQ_API_KEY not set.')
+    model = FEATURE_FLAGS.get('qp_groq_fallback_model', 'llama-3.3-70b-versatile')
+    body = {
+        'model': model,
+        'messages': [
+            {'role': 'system', 'content': system_prompt},
+            {'role': 'user', 'content': task_prompt},
+        ],
+        'max_tokens': 1024,
+        'temperature': 0.7,
+    }
+    if model.startswith('qwen/'):
+        body['reasoning_effort'] = 'none'
+    elif model.startswith('openai/gpt-oss'):
+        body['reasoning_effort'] = 'low'
+
+    for attempt in (1, 2):
+        resp = requests.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            headers={'Authorization': f'Bearer {GROQ_API_KEY}', 'Content-Type': 'application/json'},
+            json=body,
+            timeout=60,
+        )
+        if resp.status_code == 429:
+            if attempt == 2:
+                raise RuntimeError('Groq rate-limited (429) after one retry.')
+            retry_after = resp.headers.get('Retry-After')
+            delay = float(retry_after) + 1.0 if retry_after else 20.0
+            print(f'WARN: Groq 429, retrying once after {delay:.1f}s...', file=sys.stderr)
+            time.sleep(delay)
+            continue
+        resp.raise_for_status()
+        data = resp.json()
+        content = data['choices'][0]['message']['content']
+        if not content or not content.strip():
+            raise RuntimeError('Groq returned empty content.')
+        usage = data.get('usage', {})
+        return ScriptGenCallResult(content.strip(), 'groq', usage.get('prompt_tokens'), usage.get('completion_tokens'))
+    raise RuntimeError('Groq call failed: unreachable retry exhaustion.')  # pragma: no cover
+
+
+def _call_cerebras(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
     if not CEREBRAS_API_KEY:
         raise RuntimeError('CEREBRAS_API_KEY not set.')
     from cerebras.cloud.sdk import Cerebras
@@ -629,20 +1032,38 @@ def _call_cerebras(system_prompt: str, task_prompt: str) -> str:
             {'role': 'system', 'content': system_prompt},
             {'role': 'user', 'content': task_prompt},
         ],
+        # Added 2026-08-19, matching src/lib/providers/cerebras.ts's existing
+        # precedent (article pipeline) -- gpt-oss-120b is a reasoning model
+        # and burns tokens on hidden chain-of-thought before the real
+        # content; this call previously had no cap at all.
+        max_tokens=8192,
     )
     content = resp.choices[0].message.content
     if not content or not content.strip():
         raise RuntimeError('Cerebras returned empty content.')
-    return content.strip()
+    usage = getattr(resp, 'usage', None)
+    in_tok = getattr(usage, 'prompt_tokens', None) if usage else None
+    out_tok = getattr(usage, 'completion_tokens', None) if usage else None
+    return ScriptGenCallResult(content.strip(), 'cerebras', in_tok, out_tok)
 
 
-def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) -> list:
+def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) -> GeneratedScript:
     """candidate: {'set_number', 'set_title', 'price_inr', 'pieces', 'theme'}.
     revision_context (optional): {'original_script', 'rejection_reason'} --
     when present, the prompt instructs a targeted revision instead of a
-    fresh take. Returns a list of segment dicts (text/target_duration/
-    voice/sfx_tag), same shape generate_quiet_panic_video.py's
-    process_candidate() already expects for a hand-authored candidate."""
+    fresh take. Returns GeneratedScript(segments, provider, input_tokens,
+    output_tokens) -- .segments is the segment dict list (text/
+    target_duration/voice/sfx_tag) generate_quiet_panic_video.py's
+    process_candidate() expects. (Return shape changed 2026-08-19 from a
+    bare list to this NamedTuple so provider/token usage can be persisted
+    -- see GeneratedScript's docstring.)"""
+    # Gemini's primary call always gets the full, untrimmed codex. The Groq
+    # fallback path gets a separate, smaller system prompt built from the
+    # trimmed codex (see TRIMMED_CODEX_PATH) -- persona_rules/references are
+    # identical in both; only the codex portion differs, since that's what
+    # blew Groq's TPM budget. Built once here, not inside _call_groq(), so
+    # a Cerebras-fallback caller further down still gets the full codex
+    # Cerebras itself was always sized for.
     system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
         codex=_load_codex(),
         persona_rules=PERSONA_RULES,
@@ -650,27 +1071,93 @@ def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) 
     )
     task_prompt = _build_task_prompt(candidate, revision_context)
 
-    raw_text = None
-    try:
-        raw_text = _call_gemini(system_prompt, task_prompt)
-    except Exception as e:
-        print(f'WARN: Gemini script-gen failed ({e}), falling back to Cerebras.', file=sys.stderr)
+    # 2026-08-23: FORCE_PROVIDER, a narrow, explicit one-off override for
+    # manual re-generation only -- NOT wired into the scheduled poller's
+    # normal env (video-rework-poller-quiet-panic.yml never sets this var,
+    # so its cron runs are unaffected by construction, not just
+    # convention). Does NOT change qp_groq_fallback_enabled's meaning or
+    # the standing Gemini-primary policy -- this only applies within a
+    # single invocation where the caller has explicitly set the env var,
+    # e.g. to force a real Groq/qwen generation for one specific row after
+    # Gemini already produced an incoherent result on it twice. Checked
+    # here, before the Gemini attempt, per the explicit ask; only 'groq'
+    # is a recognized value (Cerebras/Gemini forcing wasn't requested and
+    # isn't implemented). Sets call_result directly and skips straight to
+    # the shared post-processing below (segment validation/budget/verdict
+    # checks) -- deliberately NOT a separate early-return branch, so this
+    # override can never accidentally skip a real gate the normal path
+    # enforces.
+    force_provider = os.environ.get('FORCE_PROVIDER', '').strip().lower()
+    if force_provider == 'groq':
+        print('FORCE_PROVIDER=groq set -- skipping Gemini entirely for this call.', file=sys.stderr)
+        trimmed_system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+            codex=_load_trimmed_codex(),
+            persona_rules=PERSONA_RULES,
+            references=_build_reference_block(),
+        )
+        call_result = _call_groq(trimmed_system_prompt, task_prompt)
+    else:
+        call_result = None
+        try:
+            call_result = _call_gemini(system_prompt, task_prompt)
+        except Exception as e:
+            print(f'WARN: Gemini script-gen failed ({e}), falling back to Groq.', file=sys.stderr)
 
-    if raw_text is None:
-        raw_text = _call_cerebras(system_prompt, task_prompt)
+        # 2026-08-22 (qwen rollout): Groq fallback is now gated behind
+        # 'qp_groq_fallback_enabled' (config/feature_flags.py), OFF by
+        # default. Previously Groq fired unconditionally on any Gemini
+        # failure -- fine while it silently 404'd against a dead model
+        # every time (a no-op in practice), but wiring a MODEL THAT
+        # ACTUALLY WORKS behind the exact same unconditional call would
+        # mean qwen output could reach production the moment this merges,
+        # with no review. Abhinav flips this flag after reviewing the
+        # qwen rollout evidence.
+        if call_result is None and FEATURE_FLAGS.get('qp_groq_fallback_enabled', False):
+            trimmed_system_prompt = SYSTEM_PROMPT_TEMPLATE.format(
+                codex=_load_trimmed_codex(),
+                persona_rules=PERSONA_RULES,
+                references=_build_reference_block(),
+            )
+            try:
+                call_result = _call_groq(trimmed_system_prompt, task_prompt)
+            except Exception as e:
+                print(f'WARN: Groq script-gen failed ({e}), falling back.', file=sys.stderr)
 
-    segments = _extract_json_array(raw_text)
+    if call_result is None:
+        if not FEATURE_FLAGS.get('cerebras_fallback_enabled', False):
+            raise RuntimeError(
+                "Gemini failed, Groq fallback is disabled or also failed, and Cerebras "
+                "fallback is disabled (config/feature_flags.py 'cerebras_fallback_enabled' "
+                "is False -- Cerebras is payment-blocked as of 2026-08-18, see CLAUDE.md)."
+            )
+        call_result = _call_cerebras(system_prompt, task_prompt)
+
+    segments = _extract_json_array(call_result.text)
     _validate_segments(segments)
 
-    budget_check = check_word_budget(segments)
+    budget_check = check_word_budget(segments, candidate['price_inr'])
     if not budget_check['pass']:
         raise WordBudgetExceededError(budget_check['detail'], segments=segments, budget=budget_check)
+
+    # SHADOW MODE (2026-08-16, per operator instruction): check_caption_
+    # length_budget() intentionally NOT called here anymore, and does not
+    # gate generation. Moved downstream to generate_quiet_panic_video.py's
+    # run_all_gates(), which calls it non-blocking and folds the result
+    # into gate_results (pre_tts_estimate_pass/_duration/_detail/_segments)
+    # alongside the real post-render gate_duration -- lets the two be
+    # compared per real run, over several Mon/Wed/Fri cycles, before any
+    # decision to reinstate this as a real pre-TTS gate. Generation control
+    # flow (this retry loop, TOTAL_SCRIPT_GEN_ATTEMPTS, etc.) is completely
+    # unaffected by the caption-length estimate now -- only check_word_
+    # budget() and check_verdict_reason() below can still trigger a retry.
+    # See CaptionLengthExceededError's docstring for why the exception
+    # class itself is kept (unused for now) rather than deleted.
 
     verdict_check = check_verdict_reason(segments)
     if not verdict_check['pass']:
         raise VerdictReasonMissingError(verdict_check['detail'], segments=segments)
 
-    return segments
+    return GeneratedScript(segments, call_result.provider, call_result.input_tokens, call_result.output_tokens)
 
 
 # ---------------------------------------------------------------------------
@@ -702,8 +1189,9 @@ def main():
     if args.original_script and args.rejection_reason:
         revision_context = {'original_script': args.original_script, 'rejection_reason': args.rejection_reason}
 
-    segments = generate_quiet_panic_script(candidate, revision_context=revision_context)
-    print(json.dumps(segments, indent=2))
+    result = generate_quiet_panic_script(candidate, revision_context=revision_context)
+    print(f'[provider: {result.provider}, input_tokens: {result.input_tokens}, output_tokens: {result.output_tokens}]', file=sys.stderr)
+    print(json.dumps(result.segments, indent=2))
 
 
 if __name__ == '__main__':

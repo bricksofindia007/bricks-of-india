@@ -13,9 +13,11 @@ catch.
 
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field
 
+import requests
 from num2words import num2words
 
 BANNED_PATTERNS = [
@@ -270,6 +272,27 @@ def _is_quote_wrapped(script: str) -> bool:
     return False
 
 
+# Gate Remediation Architecture (2026-08-29), Tier 1 example: this is the
+# deterministic, durable, in-place fix for the ONE G2 failure mode that's
+# safe to auto-correct without touching meaning -- stripping a whole-script
+# quote wrapper the model added despite the prompt (same detection logic as
+# _is_quote_wrapped, just the write side). Every OTHER G2 failure mode
+# (a banned phrase, a TTS-unsafe character) is content the model chose and
+# risky to silently rewrite -- those stay Tier 2 (regenerate), same as
+# before. See engine.py's remediate_pre_tts_failure() for where this gets
+# called, only ever before a real regeneration attempt is spent, and only
+# ever accepted if re-running the full gate stack against the stripped
+# script actually passes.
+def strip_wrapping_quotes(script: str) -> str:
+    s = script.strip()
+    if len(s) < 2:
+        return s
+    for open_q, close_q in (('"', '"'), ("'", "'"), ("“", "”"), ("‘", "’")):
+        if s.startswith(open_q) and s.endswith(close_q):
+            return s[len(open_q):-len(close_q)].strip()
+    return s
+
+
 def gate_banned_patterns(script: str) -> GateResult:
     lower = script.lower()
     for pat in BANNED_PATTERNS:
@@ -354,6 +377,228 @@ def gate_no_store_names(script: str) -> GateResult:
     if m:
         return GateResult("G9_no_store_names", False, f"store name mentioned: {m.group(0)!r}")
     return GateResult("G9_no_store_names", True)
+
+
+# Added 2026-08-19 (Kakamora audit, VID-QP): G1-G9 above check structure/
+# format only -- none check whether the script is actually coherent
+# English. VID-QP's real published output for Kakamora (#43293) ended in
+# the nonsensical, unreferenced phrase "No stranding." and passed every one
+# of ITS gates; VID-P4 already has a price-plausibility gate (G8 above,
+# gate_price_math) that VID-QP lacked, so this repo confirmed VID-P4 does
+# NOT share that half of the gap, but DOES share this one -- no existing
+# G1-G9 gate here would have caught a "No stranding."-style ending either.
+def gate_coherence_llm_judge(script: str) -> GateResult:
+    """LLM-as-judge: does this read as complete, coherent English -- not a
+    garbled or nonsensical fragment? Model-agnostic by design: a post-hoc
+    check on the FINAL script text, independent of which provider (Gemini/
+    Groq/Cerebras) generated it. Uses Groq (cheapest currently-active
+    provider) for a small, cheap classification call.
+
+    Fails OPEN (pass=True with a WARNING detail) if the judge call itself
+    errors -- a transient judge-API hiccup blocking ALL publishing would be
+    a worse regression than occasionally missing a coherence problem,
+    especially now that generation itself already has real retry/backoff
+    (see engine.py's _retry_backoff_sleep()).
+
+    2026-08-22: model swapped llama-3.3-70b-versatile -> qwen/qwen3.6-27b.
+    The old model was already decommissioned on Groq (confirmed live via a
+    real 404 model_not_found during the qwen rollout evidence pass) -- this
+    gate had been silently fail-open on EVERY call since that deprecation,
+    never actually judging anything. Not flag-gated: this is a bug fix
+    restoring already-intended behavior (the gate was never meant to be a
+    no-op), not new capability, and gate results here are advisory/logged
+    for human review only (VID-P4 has no auto-publish path) -- a real
+    judge verdict newly appearing can only add information, never block
+    anything by itself.
+
+    2026-09-17: same failure mode recurred -- qwen/qwen3.6-27b was itself
+    decommissioned (live 404, confirmed via model_canary.py's real run
+    three days straight), so this hardcoded call had gone back to silently
+    fail-open on every call via the except-and-pass below, exactly the bug
+    this docstring describes above. This model string was NOT covered by
+    model_canary.py's Groq check (that check validates the model name
+    referenced in feature_flags.py/config, not this separate hardcoded
+    literal) -- a real gap in the canary's coverage, not just bad luck.
+    Swapped to openai/gpt-oss-120b, same replacement used everywhere else
+    this rollout (Groq's own recommended replacement, GA not Preview).
+    reasoning_effort='low' for gpt-oss (qwen's 'none' equivalent -- absent
+    some low-reasoning setting, these models burn output budget on hidden
+    <think> reasoning and return no visible verdict, confirmed empirically
+    for qwen during the original rollout)."""
+    groq_key = os.environ.get("GROQ_API_KEY", "").strip()
+    if not groq_key:
+        return GateResult("G10_coherence", True, "SKIPPED: GROQ_API_KEY not set (fail-open, judge unavailable)")
+    judge_prompt = (
+        "You are a strict but fair editor reviewing a short video script that will be "
+        "read aloud verbatim. Reply with exactly one line: 'COHERENT' if the script "
+        "reads as complete, sensible English with no garbled, truncated, or nonsensical "
+        "fragments (for example, an ending like 'No stranding.' with no clear referent "
+        "to anything earlier in the script would NOT be coherent) -- or "
+        "'INCOHERENT: <short reason>' if it does not.\n\nSCRIPT:\n" + script
+    )
+    try:
+        resp = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+            json={
+                "model": "openai/gpt-oss-120b",
+                "messages": [{"role": "user", "content": judge_prompt}],
+                "max_tokens": 200,
+                "temperature": 0.0,
+                "reasoning_effort": "low",
+            },
+            timeout=30,
+        )
+        resp.raise_for_status()
+        verdict = resp.json()["choices"][0]["message"]["content"].strip()
+        if verdict.upper().startswith("COHERENT"):
+            return GateResult("G10_coherence", True, verdict)
+        return GateResult("G10_coherence", False, verdict)
+    except Exception as e:
+        return GateResult("G10_coherence", True, f"SKIPPED: judge call failed ({e}) -- fail-open, not blocking on judge availability")
+
+
+# Added 2026-08-21 -- real incident, story #43 (video_posts id
+# cc843a50-d5ee-467f-ae05-d328e2582c49): engine.py's transcribe_for_captions()
+# deliberately transcribes the ACTUAL rendered TTS audio via openai-whisper
+# ("base" model) rather than trusting video_posts.script, specifically to
+# catch genuine TTS mispronunciation (see engine.py's caption-block comment,
+# and the earlier "rupees" vs "RS" incident that motivated that design). That
+# design is correct and stays -- but it means the burned-in caption can
+# diverge from the script on words Whisper itself mishears, and "base" is
+# whisper's cheapest/least accurate tier. Confirmed live: "For the die-hard
+# Andy Weir fan" was transcribed as "...for the diehard" / "and the rear
+# fan..." -- a segment-boundary split that corrupted the two-word author name
+# into "rear". engine.py's transcribe_for_captions() now biases Whisper with
+# an initial_prompt built from extract_caption_glossary() (this doesn't
+# override a genuinely mispronounced word -- it's a soft nudge, not a hard
+# vocabulary list) -- this gate is the safety net for when that bias still
+# isn't enough. Deliberately does NOT attempt automatic text-correction here:
+# a second layer of guessing on top of an already-uncertain ASR pass risks a
+# new class of silent errors. This only flags for human review, the same as
+# every other gate -- passed=False + reason land in gate_results, which a
+# human already checks before ever moving a row past pending_approval (VID-P4
+# has no auto-publish path).
+#
+# 2026-08-29 fix -- Gate Remediation Architecture audit, story #54 (Shelby
+# Cobra 427 S/C, video_posts id 01154887-ad86-4cf5-bfb1-e0bcf15a7c0d):
+# reached pending_approval with G11 reporting "'427' missing" and "'10357'
+# missing", both false positives caused by this regex, not a real caption
+# defect. Confirmed by downloading the actual rendered video from storage_url
+# and re-running the exact same transcribe_for_captions() call this pipeline
+# uses -- Whisper's real transcript contains BOTH numbers intact, just not in
+# a shape the old `\b[\d,]+\b` boundary could see:
+#   - "427" was transcribed glued to the following letters, "427SC" (no
+#     space before "S/C"). `\b` never fires between a digit and a letter --
+#     both are word characters -- so the old regex could not isolate "427"
+#     out of "427SC" at all; it silently matched nothing there.
+#   - "10357" was transcribed as "1-0357" -- Whisper's own convention for
+#     rendering a spoken multi-digit number with a mid-read pause as a
+#     hyphenated split, the same class of ASR formatting variance the
+#     existing comma-strip logic below already exists to absorb (see
+#     extract_caption_numerals()'s docstring), just not extended to hyphens.
+#     The old regex matched "1" and "0357" as two separate tokens; neither
+#     equals the target "10357" on its own.
+# Both are formatting artifacts of the SAME correct digits, not evidence the
+# audio said something else -- unlike the real story #48 "911"->"whatever"
+# case (a genuine substitution with zero surviving digits), which this fix
+# does not change: `run_all_gates()`/`gate_caption_fidelity` still fails
+# a numeral that's truly gone. New regex drops the `\b` boundary requirement
+# (letters immediately adjacent to digits no longer block a match -- digits
+# are simply not in `[a-zA-Z]`, so they terminate the match on their own,
+# no boundary assertion needed) and allows a single internal hyphen between
+# digit groups, mirrored by stripping both "," and "-" before comparison
+# (previously only "," was stripped).
+_CAPTION_NUMERAL_RE = re.compile(r"\d(?:[\d,\-]*\d)?")
+
+
+def gate_caption_fidelity(glossary: list[str], caption_segments: list[dict], numerals: list[str] | None = None) -> GateResult:
+    """G11: does the burned-in caption text (Whisper's ASR hypothesis, NOT
+    the script) still contain each glossary term (or numeral), or at least
+    a close, recognizable variant of it? Two failure modes for word terms,
+    both flagged:
+      - term missing entirely (best candidate window is a poor match --
+        this is what "Andy Weir" -> "rear"/"and the" does: the real words
+        aren't a garbled spelling of the name, they're different words)
+      - term present only as a low-similarity variant (a genuine near-miss
+        spelling, e.g. a hypothetical "Jugaad" -> "Jugad")
+    Fails OPEN when there's nothing to check at all -- consistent with
+    G10's fail-open-on-unavailable pattern.
+
+    Thresholds picked and verified against real data, not guessed: 0.75
+    correctly treats real exact/near-exact matches (casing/apostrophe
+    noise) as present across 3 real clean stories (Messi, Tintin, Razor
+    Crest -- 7 glossary terms, zero false positives); 0.35 floor correctly
+    separates the real "Andy Weir" corruption (45% similarity to its best
+    candidate window, "india where") from a merely-missing term with no
+    plausible candidate at all.
+
+    2026-08-22 addition: `numerals` (see engine.py's
+    extract_caption_numerals()) closes a real gap the word-only version
+    had -- story #48's "Porsche 911 GT3 R..." was transcribed as "...
+    Porsche 9, whatever GT3R...", "911" replaced by "whatever" entirely,
+    and the word-only glossary check had no way to catch it (bare numbers
+    were never in its regex's scope). Numerals are checked for EXACT
+    presence only (comma-stripped, so "1,313" vs "1313" formatting
+    differences don't matter) -- no fuzzy fallback, unlike word terms: a
+    "70% similar" digit string isn't a meaningful category the way a close
+    spelling variant is. Either the number survived transcription intact,
+    or it was replaced by something else entirely, same as "911" was.
+    """
+    if not glossary and not numerals:
+        return GateResult("G11_caption_fidelity", True, "No glossary terms or numerals extracted -- nothing to check.")
+
+    HIGH_SIM = 0.75
+    LOW_SIM_FLOOR = 0.35
+
+    caption_text = " ".join(s.get("text", "") for s in caption_segments)
+    caption_norm = re.sub(r"[^\w\s]", " ", caption_text.lower())
+    caption_words = caption_norm.split()
+    caption_joined = " " + " ".join(caption_words) + " "
+
+    failures = []
+    checked = 0
+    for term in glossary:
+        term_norm = re.sub(r"[^\w\s]", " ", term.lower())
+        term_norm = re.sub(r"\s+", " ", term_norm).strip()
+        if not term_norm:
+            continue
+        checked += 1
+        if f" {term_norm} " in caption_joined:
+            continue  # exact (case/punctuation-insensitive) match -- cheapest path first
+
+        term_word_count = len(term_norm.split())
+        best_sim, best_window = 0.0, ""
+        for i in range(len(caption_words) - term_word_count + 1):
+            window = " ".join(caption_words[i:i + term_word_count])
+            dist = _levenshtein(term_norm, window)
+            sim = 1 - dist / max(len(term_norm), len(window), 1)
+            if sim > best_sim:
+                best_sim, best_window = sim, window
+
+        if best_sim >= HIGH_SIM:
+            continue  # close spelling/casing variant -- treat as present
+        elif best_sim >= LOW_SIM_FLOOR:
+            failures.append(f"{term!r} present only as a low-similarity variant ({best_sim * 100:.0f}% match: {best_window!r})")
+        else:
+            failures.append(f"{term!r} missing from captions (best candidate {best_sim * 100:.0f}% match: {best_window!r})")
+
+    if numerals:
+        # Strip both "," and "-" -- see _CAPTION_NUMERAL_RE's 2026-08-29
+        # comment (story #54): Whisper uses hyphens as a digit-group
+        # separator the same way it uses commas, and both are formatting,
+        # not a different number.
+        caption_digit_strings = {
+            re.sub(r"[,\-]", "", m.group()) for m in _CAPTION_NUMERAL_RE.finditer(caption_text)
+        }
+        for num in numerals:
+            checked += 1
+            if num not in caption_digit_strings:
+                failures.append(f"{num!r} (numeral) missing from captions -- not found as any digit run in the transcription")
+
+    if failures:
+        return GateResult("G11_caption_fidelity", False, "; ".join(failures))
+    return GateResult("G11_caption_fidelity", True, f"All {checked} glossary term(s)/numeral(s) confirmed in captions.")
 
 
 def _levenshtein(a: str, b: str) -> int:
@@ -482,6 +727,118 @@ def gate_price_math(script: str, price_inr: float) -> GateResult:
     return GateResult("G8_price_math", True)
 
 
+# ── Gate Remediation Architecture (2026-08-29) ───────────────────────────────
+#
+# Trigger: story #54 (Shelby Cobra 427 S/C) reached pending_approval with a
+# failing G11 and zero remediation attempt -- the approver had to manually
+# query gate_results to learn a gate had even failed at all. Decision
+# framework (full version: BOI_MASTER_TRACKER.md / the GitHub issue this
+# entry is filed against):
+#   Tier 1 -- deterministic & durable fix exists: auto-fix in place,
+#     re-verify, proceed silently. No review flag, just a log entry.
+#   Tier 2 -- not fixable in place, but resolvable by regenerating (bad
+#     upstream data, wrong content): auto-requeue, run the new output back
+#     through the full gate stack. No human touch unless it fails again.
+#   Tier 3 -- genuinely needs judgment: escalate with a structured note
+#     (which gate, in plain language; what remediation was attempted and why
+#     it didn't resolve it; the specific decision needed). This is the
+#     FIRST thing a reviewer sees, not something pulled from gate_results.
+#
+# Classified against the actual gate implementations above, not guessed:
+#
+#   G1_word_count            tier2 -- no safe deterministic trim/pad exists
+#                             that doesn't risk breaking the script's flow;
+#                             already regenerated with a real, specific note
+#                             (_word_count_retry_note in engine.py) telling
+#                             the model exactly how far off it was.
+#   G2_banned_patterns        tier1 for the quote-wrap sub-case specifically
+#                             (strip_wrapping_quotes() above -- purely
+#                             structural, changes zero words). Every other
+#                             sub-case (a banned phrase, a TTS-unsafe
+#                             character) is content the model chose --
+#                             rewriting it in place risks silently changing
+#                             meaning, so those stay tier2 (regenerate).
+#   G3_contains_rupee         tier2 -- can't safely invent a price mention.
+#   G4_no_cta_ending          tier2 -- could delete the offending last
+#                             sentence deterministically, but that risks an
+#                             abrupt, un-reviewed ending; regeneration keeps
+#                             a human-quality bar on the replacement.
+#   G5_factuality              tier2 -- the retry note already carries the
+#                             correct catalog value (see _build_retry_note),
+#                             so regeneration has what it needs to self-
+#                             correct; a hallucinated fact is never silently
+#                             rewritten by the gate itself.
+#   G6_no_first_person_build   tier2 -- same reasoning as G4: removing "I
+#                             built"/"my copy" in place can leave a broken
+#                             sentence; regenerate instead.
+#   G7_opener_uniqueness       tier2 -- needs a genuinely different creative
+#                             opening, not a mechanical edit.
+#   G8_price_math              tier2 -- the comparison sentence needs
+#                             rewriting with a number that's actually true;
+#                             not safely computable in place without risking
+#                             a grammatically broken claim (see this gate's
+#                             own docstring for why the multiplier logic
+#                             already handles quantity words unevenly).
+#   G9_no_store_names          tier2 -- stripping a store name in place can
+#                             leave a dangling clause ("available at ___");
+#                             regenerate instead.
+#   G10_coherence               tier2 -- by definition (the judge already
+#                             said the script doesn't read as coherent
+#                             English); nothing to deterministically patch.
+#   G11_caption_fidelity        tier1 for the exact false-positive class
+#                             this file's _CAPTION_NUMERAL_RE fix now
+#                             closes (a numeral genuinely present in the
+#                             transcript, just not in the shape the old
+#                             regex could see) -- re-verifying the SAME
+#                             already-rendered captions against the fixed
+#                             regex needs no re-render at all. tier2 for a
+#                             residual failure after that fix (see
+#                             engine.py's remediate_caption_fidelity() --
+#                             one automatic re-render, since ElevenLabs/
+#                             Whisper output is not fully deterministic
+#                             run-to-run). Escalates to tier3 only if a
+#                             second render still fails.
+#
+# Every tier2 gate converges on the same mechanism (regenerate, re-run the
+# full gate stack) -- there's no per-gate special case beyond what
+# _build_retry_note() already surfaces. What's genuinely new here is: (a)
+# the tier1 fixes above, checked BEFORE a regeneration attempt is spent,
+# and (b) tier3 no longer being silent -- see engine.py's
+# build_escalation_note() and its call sites.
+GATE_REMEDIATION_TIER = {
+    "G1_word_count": "tier2",
+    "G2_banned_patterns": "tier2",  # tier1 only for the quote-wrap sub-case; see strip_wrapping_quotes()
+    "G3_contains_rupee": "tier2",
+    "G4_no_cta_ending": "tier2",
+    "G5_factuality": "tier2",
+    "G6_no_first_person_build": "tier2",
+    "G7_opener_uniqueness": "tier2",
+    "G8_price_math": "tier2",
+    "G9_no_store_names": "tier2",
+    "G10_coherence": "tier2",
+    "G11_caption_fidelity": "tier2",  # tier1 only for the false-positive class the 2026-08-29 regex fix closes
+}
+
+# Plain-language explanation of what each gate actually catches, for
+# escalation_note construction (engine.py's build_escalation_note()) -- a
+# reviewer should never have to decode "G11" or read the regex to know what
+# went wrong. Written from each gate's own docstring/purpose above, not
+# re-derived.
+GATE_PLAIN_LANGUAGE = {
+    "G1_word_count": "Script length is outside the 90-110 word target.",
+    "G2_banned_patterns": "Script uses a banned phrase, a TTS-unsafe character, or is wrapped in quotes.",
+    "G3_contains_rupee": "Script never mentions the price (no ₹ symbol found).",
+    "G4_no_cta_ending": "Script's last line reads as a call-to-action or sign-off, which this format doesn't use.",
+    "G5_factuality": "Script states a set number or piece count that doesn't match the catalog.",
+    "G6_no_first_person_build": "Script claims first-person ownership (\"I built\", \"my copy\") the channel doesn't make.",
+    "G7_opener_uniqueness": "Script's opening is too similar to a recently published video's opening.",
+    "G8_price_math": "A price comparison in the script (e.g. \"X months of Netflix\") doesn't actually add up to the set's real price.",
+    "G9_no_store_names": "Script mentions a retailer name, which must stay out of the spoken content.",
+    "G10_coherence": "An LLM judge flagged the script as not reading like complete, coherent English.",
+    "G11_caption_fidelity": "A name or number from the script is missing (or badly garbled) in the actual burned-in captions, transcribed from the real rendered audio.",
+}
+
+
 def run_all_gates(
     raw_script: str,
     pieces: int | None,
@@ -502,5 +859,6 @@ def run_all_gates(
     report.results.append(gate_no_first_person_build(script))
     report.results.append(gate_opener_uniqueness(script, recent_scripts))
     report.results.append(gate_price_math(script, price_inr))
+    report.results.append(gate_coherence_llm_judge(script))
     report.results.append(gate_no_store_names(script))
     return report

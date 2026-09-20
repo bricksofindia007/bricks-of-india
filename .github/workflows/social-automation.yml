@@ -8,6 +8,10 @@ on:
 jobs:
   post:
     runs-on: ubuntu-latest
+    # 10 most recent runs: 6m52s-8m57s (gh run list
+    # --workflow=social-automation.yml --limit 10, 2026-08-18). ~2x observed
+    # max.
+    timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
 

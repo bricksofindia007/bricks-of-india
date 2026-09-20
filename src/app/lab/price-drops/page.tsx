@@ -40,7 +40,7 @@ interface DropRow {
 }
 
 interface Props {
-  searchParams: { store?: string; theme?: string; pct?: string };
+  searchParams: Promise<{ store?: string; theme?: string; pct?: string }>;
 }
 
 // Real bug, found in a Netlify credit-usage audit (2026-08-14): this fetch
@@ -148,7 +148,8 @@ const getPriceDropsData = unstable_cache(
   { revalidate: 21600 }, // 6h — matches scrape-prices.yml's real cron, see comment above
 );
 
-export default async function PriceDropsPage({ searchParams }: Props) {
+export default async function PriceDropsPage(props: Props) {
+  const searchParams = await props.searchParams;
   const storeFilter  = searchParams.store  || '';
   const themeFilter  = searchParams.theme  || '';
   const pctFilter    = parseInt(searchParams.pct || '0', 10);

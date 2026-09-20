@@ -19,19 +19,28 @@ from __future__ import annotations
 import argparse
 import io
 import json
+import math
 import os
 import random
 import sys
 import time
+import unicodedata
 import uuid
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import NamedTuple
 
 import numpy as np
 import requests
 from dotenv import load_dotenv
 
 from secrets_util import get_secret
+
+# config/feature_flags.py lives at repo root (this file is at
+# <root>/scripts/video/), not on sys.path when this script runs with
+# working-directory: scripts/video (see video-generate-daily.yml).
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from config.feature_flags import FEATURE_FLAGS  # noqa: E402
 
 load_dotenv()
 
@@ -261,6 +270,40 @@ def download_master_assets_if_missing(sb) -> None:
         print(f"Downloaded {filename} ({len(data)} bytes)")
 
 
+def _download_master_assets_or_notify(sb, candidate_title: str | None) -> None:
+    """Issue #98 fix (2026-08-30): download_master_assets_if_missing() has
+    zero error handling around its Storage .download() call, and neither
+    real call site (main()'s --cloud-generate branch, rerender_video_post())
+    wrapped it either -- a genuine failure (network error, bucket permission
+    change, missing object) propagated as an uncaught traceback: a crash,
+    not even a clean sys.exit(1), and completely invisible to the notifier.
+
+    assemble_video()'s own missing-assets guard is deliberately NOT the fix
+    target: by the time either call site reaches assemble_video(), this
+    function has already run and either succeeded (files exist) or raised --
+    that guard is effectively unreachable through the real failure mode and
+    stays untouched. download_master_assets_if_missing() itself has `sb` but
+    no story/candidate context to build a useful notification from, so the
+    wrapping happens here, one level up, where each call site's own context
+    (or lack of it -- main()'s branch calls this before a candidate is even
+    selected) is available.
+    """
+    try:
+        download_master_assets_if_missing(sb)
+    except Exception as e:
+        print(f"ERROR: failed to download master assets: {e}", file=sys.stderr)
+        try:
+            import notifier as notifier_mod
+            notifier_mod.send_skip_notification(
+                reason=f"Could not download master assets (intro/outro clips) from Supabase Storage -- {e}",
+                candidate_title=candidate_title,
+                gate_failures=None,
+            )
+        except Exception as exc:
+            print(f"WARN: failed to send skip notification for master-asset download failure: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 # ── STEP 3: candidate selection ────────────────────────────────────────────────
 
 import re  # noqa: E402
@@ -311,11 +354,22 @@ _GENERIC_TITLE_WORDS = {
 
 
 def _meaningful_words(text: str) -> set[str]:
-    words = re.findall(r"[a-z0-9]+", text.lower())
+    # Accent-fold before the ASCII-only regex -- found 2026-08-22 via a
+    # broader retailer audit: catalog name "French Café" vs retailer title
+    # "French Cafe" shared zero meaningful words without this, since
+    # [a-z0-9]+ can't match "é" at all (the regex just silently drops it,
+    # leaving "caf" instead of "cafe"). NFKD decomposes "é" into "e" +a
+    # combining accent mark; stripping combining marks (unicode category
+    # Mn) leaves plain "e" for comparison, without touching how the
+    # ORIGINAL text is displayed anywhere else -- this function only ever
+    # feeds the overlap set, never a stored/displayed string.
+    folded = unicodedata.normalize("NFKD", text)
+    folded = "".join(c for c in folded if not unicodedata.combining(c))
+    words = re.findall(r"[a-z0-9]+", folded.lower())
     return {w for w in words if w not in _GENERIC_TITLE_WORDS and len(w) > 1}
 
 
-def resolve_catalog_match(sb, title: str, candidates: list[str]) -> tuple[str | None, int | None, str | None]:
+def resolve_catalog_match(sb, title: str, candidates: list[str]) -> tuple[str | None, str | None, int | None, str | None]:
     """Cross-checks each candidate set-number against our catalog, requiring
     real keyword overlap between the candidate's title and the catalog's
     own name for that set -- not just a numeric coincidence.
@@ -330,8 +384,53 @@ def resolve_catalog_match(sb, title: str, candidates: list[str]) -> tuple[str | 
     (also covers Minas Tirith, the Eiffel Tower, etc. this session) -- the
     catalog NAME field is the reliable signal, not theme.
 
-    Returns (None, None, None) if no candidate validates -- the caller
-    must not fall back to an unconfirmed guess for pieces/theme.
+    Returns (None, None, None, None) if no candidate validates -- the
+    caller must not fall back to an unconfirmed guess for set_number,
+    title, pieces, or theme (see 2026-08-22 title/set_number mismatch
+    incident, stories #40/#46: silently trusting an unconfirmed
+    set_number_candidates[0] guess is exactly what let a title for one
+    physical set reach production paired with the set_number/price/URL of
+    a completely different one -- see get_candidates()'s caller).
+
+    2026-08-22: now also returns the catalog's own `name`, so a confirmed
+    match's title comes from ONE source of truth (this function) rather
+    than being carried as an independently-set string from
+    build_candidate() onward.
+
+    2026-08-22, same day, second fix: making a failed match REJECT the
+    candidate outright (get_candidates()'s caller) turned this function's
+    fixed ">= 2 words" threshold into a real regression, not just caught in
+    review -- it went live (PR #45) and was only caught by a live full-pool
+    scan afterward. The threshold was calibrated for its ORIGINAL, softer
+    consequence (skip pieces/theme enrichment, still use the candidate) and
+    was never re-examined against the new, harder consequence (drop the
+    candidate entirely). It fails systematically whenever either side has
+    only 1 meaningful word after stopword filtering -- structurally
+    impossible to reach 2-word overlap even for a correct match. Confirmed
+    live: catalog name "Grond" (set 40893) vs retailer title "LEGO Icons
+    The Lord of the Rings: Grond Decor Model 40893" -- 1-word overlap
+    ("grond"), a real match, rejected. Same pattern for "The Darksaber"
+    (40917), "Flower Wall" (11503) vs "LEGO Botanicals Flower", "Douglas
+    DC-3 PAN AM Airliner" (11378) vs the terse-but-legitimate retailer
+    title "LEGO Icons Douglas" (terse titles are explicitly fine per this
+    ticket's own Section 0 -- "LEGO Icons Ford" for "Ford Model T" is not a
+    mismatch, just terse) -- 54 of 454 real MyBrickHouse candidates
+    rejected in one live scan, most on inspection genuinely correct
+    matches caught by this exact edge case, not real mismatches.
+
+    Fixed: required overlap is now min(2, the SMALLER side's word count) --
+    a 1-meaningful-word catalog name or title only ever needs that 1 word
+    to be present (still a real, specific signal: "grond"/"darksaber" are
+    not generic), while both-sides-2+-words candidates keep the original
+    >=2 threshold that guards against the real "1701" numeric-coincidence
+    case (catalog name "Basic Building Set Trial Size" has 3 meaningful
+    words, well above 1, so that guard is unaffected). A 0-meaningful-word
+    side never confirms -- there's no real signal to require at all in
+    that case, unlike the 1-word case.
+
+    Re-verified against both the original false-positive guard case and
+    the real #40/#46 mismatch cases after this second fix -- see the PR
+    that ships it for the live re-run.
     """
     title_words = _meaningful_words(title)
     for n in candidates:
@@ -340,10 +439,13 @@ def resolve_catalog_match(sb, title: str, candidates: list[str]) -> tuple[str | 
             continue
         row = res.data[0]
         name_words = _meaningful_words(row.get("name") or "")
+        if not title_words or not name_words:
+            continue  # no meaningful words on one side at all -- no real signal to require
         overlap = title_words & name_words
-        if len(overlap) >= 2:
-            return n, row.get("pieces"), row.get("theme")
-    return None, None, None
+        required_overlap = min(2, len(title_words), len(name_words))
+        if len(overlap) >= required_overlap:
+            return n, row.get("name"), row.get("pieces"), row.get("theme")
+    return None, None, None, None
 
 
 # Bug found 2026-07-06/07, in two stages:
@@ -644,24 +746,64 @@ def get_candidates(sb, limit: int = 10, pool_size: int = 30) -> list[dict]:
 
     # Attach catalog enrichment (confidence-checked, see resolve_catalog_match)
     # + a one-line reason.
-    for c in fresh[:limit]:
-        confirmed_number, pieces, theme = resolve_catalog_match(sb, c["title"], c["set_number_candidates"])
-        drop = drops.get(c["set_number"])
-        discrepancy = None
-        if confirmed_number:
-            # Use the CONFIRMED number everywhere downstream (Brickset image
-            # lookup, video_posts storage, already_used tracking) -- not
-            # just for the enrichment facts. Keeping the unvalidated
-            # best-guess here would still send the wrong number to Brickset
-            # even after fixing the pieces/theme data.
-            c["set_number"] = confirmed_number
-            # Title + script piece count: see resolve_title_and_pieces()'s
-            # docstring -- catalog vs. retailer-title conflicts beyond a
-            # trivial tolerance are flagged, not auto-resolved either way.
-            c["title"], pieces, discrepancy = resolve_title_and_pieces(c["title"], pieces)
+    #
+    # 2026-08-22 -- title/set_number mismatch incident (stories #40, #46):
+    # a candidate whose set_number couldn't be confirmed against its own
+    # title used to fall through silently, keeping the unvalidated
+    # set_number_candidates[0] guess paired with the (real, correct) title
+    # -- no consistency check between them at that point. That guess then
+    # flowed into Brickset image lookup, video_posts storage, and
+    # already_used tracking as if it were trustworthy, while the title
+    # stayed accurate for a DIFFERENT physical set. Script generation wrote
+    # an accurate script for the title; image sourcing correctly fetched
+    # real photos for the set_number; nothing downstream cross-checks the
+    # two, so nothing caught it -- one instance (#40) reached
+    # status='approved' before a manual audit found it.
+    #
+    # Fix: a candidate that resolve_catalog_match() cannot confirm is
+    # rejected here, not carried forward with an unconfirmed guess. This is
+    # the single fix for both the root cause (title/set_number desync can
+    # no longer happen -- a confirmed match's title now comes from
+    # resolve_catalog_match()'s own canonical `name`, not an independently
+    # carried string) and the "stop the spend before it happens" goal a
+    # separate pre-generation gate would otherwise exist for: an unconfirmed
+    # candidate never leaves this function, so no LLM/TTS call is ever made
+    # against one.
+    confirmed_candidates = []
+    for c in fresh:
+        if len(confirmed_candidates) >= limit:
+            break
+        confirmed_number, canonical_name, pieces, theme = resolve_catalog_match(sb, c["title"], c["set_number_candidates"])
+        if not confirmed_number:
+            print(f"REJECTED (no confirmed catalog match): {c['title']!r} -- candidates tried: {c['set_number_candidates']}", file=sys.stderr)
+            continue
+
+        # Use the CONFIRMED number everywhere downstream (Brickset image
+        # lookup, video_posts storage, already_used tracking) -- not just
+        # for the enrichment facts. Keeping the unvalidated best-guess here
+        # would still send the wrong number to Brickset even after fixing
+        # the pieces/theme data.
+        c["set_number"] = confirmed_number
+
+        # Piece-count cross-check still runs against the RETAILER's own
+        # title text first (a genuine, separate signal -- e.g. a box
+        # printed "3599 pieces" that disagrees with the catalog's stored
+        # value) -- see resolve_title_and_pieces()'s docstring. Its
+        # returned title is discarded below in favor of the catalog's own
+        # canonical name; only pieces/discrepancy from this call are kept.
+        _retailer_title_with_pieces, pieces, discrepancy = resolve_title_and_pieces(c["title"], pieces)
+
+        # Single source of truth for the title itself: the catalog's own
+        # name for the CONFIRMED set_number, not the retailer's title
+        # string (which is what desynced from set_number in the first
+        # place) and not resolve_title_and_pieces()'s piece-count-patched
+        # variant of it.
+        c["title"] = canonical_name
+
         c["pieces"] = pieces
         c["theme"] = theme
         c["piece_count_discrepancy"] = discrepancy
+        drop = drops.get(c["set_number"])
         if c.get("set_number") in priority_set_numbers:
             # Overrides the normal price-drop/recency reason entirely -- this
             # candidate isn't here because of price or recency, it's here
@@ -678,11 +820,12 @@ def get_candidates(sb, limit: int = 10, pool_size: int = 30) -> list[dict]:
                 f"catalog says {discrepancy['catalog']}, retailer title says {discrepancy['retailer_title']} "
                 f"-- needs manual resolution, no piece count will be stated"
             )
-        elif confirmed_number:
-            reason += f", catalog match: {theme} theme, {pieces} pieces"
         else:
-            reason += " (no confident catalog match -- no piece/theme fact)"
+            reason += f", catalog match: {theme} theme, {pieces} pieces"
         c["reason"] = reason
+        confirmed_candidates.append(c)
+
+    fresh = confirmed_candidates
 
     return fresh[:limit]
 
@@ -712,8 +855,100 @@ def _gemini_pace() -> None:
     _last_gemini_call_at = time.time()
 
 
-def generate_script(title: str, price_inr: float, pieces: int | None, theme: str | None, retry_note: str | None = None) -> str:
-    task_prompt = prompts.build_task_prompt(title, price_inr, pieces, theme)
+class BothProvidersFailedError(Exception):
+    """Raised by generate_script() when both Gemini and Cerebras fail (or
+    Cerebras is unavailable/empty) for a single attempt. Added 2026-08-19 --
+    replaces the previous print+sys.exit(1), which killed the whole process
+    instantly instead of letting run_gates_with_one_retry()'s loop catch it,
+    back off, and retry (see that function's except clause)."""
+
+
+class ScriptGenResult(NamedTuple):
+    """Added 2026-08-19 alongside video_posts' new provider/input_tokens/
+    output_tokens columns (migration 20260819000000_video_provider_tracking)
+    -- generate_script() previously returned only the raw text, so which
+    provider actually served a given generation (and at what token cost)
+    was never persisted anywhere, which is why the 2026-08-05/06 Cerebras
+    token spike couldn't be fully reconciled from video_posts alone."""
+    text: str
+    provider: str  # 'gemini' | 'groq' | 'cerebras'
+    input_tokens: int | None
+    output_tokens: int | None
+
+
+def _try_groq(system_prompt: str, task_prompt: str) -> ScriptGenResult | None:
+    """Returns None (never raises) on any failure -- unavailable key, rate
+    limit, empty response -- so callers fall through to the next provider
+    the same way a Gemini failure already does. Added 2026-08-19 as the new
+    default Gemini fallback; see config/feature_flags.py's
+    'cerebras_fallback_enabled' for why Cerebras moved to opt-in (payment-
+    blocked, 402, since 2026-08-18). Groq's free tier fails with 429 on
+    rate-limit, not a permanent-until-paid 402 -- existing retry/backoff
+    logic already handles 429s from other providers the same way.
+
+    2026-08-22 (qwen rollout, FINAL ARCHITECTURE PASS): this call was
+    previously unconditional (any caller reaching generate_script()'s
+    fallback chain always tried Groq) and targeted the now-decommissioned
+    llama-3.3-70b-versatile (confirmed dead, live 404) -- harmless in
+    practice only because it always failed and fell through to Cerebras/
+    raised. Brought in line with VID-QP's and the article pipeline's same
+    fix: model/reasoning_effort now read from config/feature_flags.py's
+    'p4_groq_fallback_model', and the whole call is gated by the caller
+    (generate_script()) behind 'p4_groq_fallback_enabled' (default False)
+    so a model that actually works can't reach production output
+    unreviewed. One bounded 429 retry honoring Retry-After, matching the
+    same pattern added to quiet_panic_script_gen.py's _call_groq() and
+    groq.ts's GroqProvider earlier this rollout."""
+    groq_key = get_secret("GROQ_API_KEY")
+    if not groq_key:
+        print("WARN: GROQ_API_KEY not set, skipping Groq.", file=sys.stderr)
+        return None
+    model = FEATURE_FLAGS.get("p4_groq_fallback_model", "llama-3.3-70b-versatile")
+    body = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": task_prompt},
+        ],
+        "max_tokens": 2048,
+        "temperature": 0.7,
+    }
+    if model.startswith("qwen/"):
+        body["reasoning_effort"] = "none"
+    elif model.startswith("openai/gpt-oss"):
+        body["reasoning_effort"] = "low"
+    try:
+        for attempt in (1, 2):
+            resp = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
+                json=body,
+                timeout=60,
+            )
+            if resp.status_code == 429:
+                if attempt == 2:
+                    print("WARN: Groq rate-limited (429) after one retry, falling back.", file=sys.stderr)
+                    return None
+                retry_after = resp.headers.get("Retry-After")
+                delay = float(retry_after) + 1.0 if retry_after else 20.0
+                print(f"WARN: Groq 429, retrying once after {delay:.1f}s...", file=sys.stderr)
+                time.sleep(delay)
+                continue
+            resp.raise_for_status()
+            data = resp.json()
+            content = data["choices"][0]["message"]["content"]
+            if not content or not content.strip():
+                print("WARN: Groq returned empty content, falling back.", file=sys.stderr)
+                return None
+            usage = data.get("usage", {})
+            return ScriptGenResult(content.strip(), "groq", usage.get("prompt_tokens"), usage.get("completion_tokens"))
+    except Exception as e:
+        print(f"WARN: Groq failed ({e}), falling back.", file=sys.stderr)
+        return None
+
+
+def generate_script(title: str, price_inr: float, pieces: int | None, theme: str | None, retry_note: str | None = None, set_number: str | None = None) -> ScriptGenResult:
+    task_prompt = prompts.build_task_prompt(title, price_inr, pieces, theme, set_number=set_number)
     if retry_note:
         task_prompt = f"{task_prompt}\n\n{retry_note}"
 
@@ -730,17 +965,37 @@ def generate_script(title: str, price_inr: float, pieces: int | None, theme: str
                 config=types.GenerateContentConfig(system_instruction=prompts.SYSTEM_PROMPT),
             )
             if resp.text and resp.text.strip():
-                return resp.text.strip()
-            print("WARN: Gemini returned empty text, falling back to Cerebras.", file=sys.stderr)
+                usage = getattr(resp, "usage_metadata", None)
+                in_tok = getattr(usage, "prompt_token_count", None) if usage else None
+                out_tok = getattr(usage, "candidates_token_count", None) if usage else None
+                return ScriptGenResult(resp.text.strip(), "gemini", in_tok, out_tok)
+            print("WARN: Gemini returned empty text, falling back.", file=sys.stderr)
         except Exception as e:
-            print(f"WARN: Gemini failed ({e}), falling back to Cerebras.", file=sys.stderr)
+            print(f"WARN: Gemini failed ({e}), falling back.", file=sys.stderr)
     else:
-        print("WARN: GEMINI_SOCIAL_API_KEY not set, going straight to Cerebras.", file=sys.stderr)
+        print("WARN: GEMINI_SOCIAL_API_KEY not set, going straight to fallback.", file=sys.stderr)
+
+    # 2026-08-22 (qwen rollout, FINAL ARCHITECTURE PASS): gated behind
+    # 'p4_groq_fallback_enabled', same reasoning as VID-QP's
+    # 'qp_groq_fallback_enabled' and the article pipeline's
+    # 'articleGroqFallbackEnabled' -- this call used to fire unconditionally,
+    # harmless only because the model it targeted was already dead. Default
+    # False until Abhinav reviews this rollout's P4-specific evidence.
+    if FEATURE_FLAGS.get("p4_groq_fallback_enabled", False):
+        groq_result = _try_groq(prompts.SYSTEM_PROMPT, task_prompt)
+        if groq_result is not None:
+            return groq_result
+
+    if not FEATURE_FLAGS.get("cerebras_fallback_enabled", False):
+        raise BothProvidersFailedError(
+            "Gemini and Groq both unavailable/failed, and Cerebras fallback is disabled "
+            "(config/feature_flags.py 'cerebras_fallback_enabled' is False -- Cerebras is "
+            "payment-blocked as of 2026-08-18, see CLAUDE.md)."
+        )
 
     cerebras_key = get_secret("CEREBRAS_API_KEY")
     if not cerebras_key:
-        print("ERROR: Both Gemini and Cerebras unavailable (no CEREBRAS_API_KEY). Cannot generate script.", file=sys.stderr)
-        sys.exit(1)
+        raise BothProvidersFailedError("Gemini, Groq, and Cerebras all unavailable (no CEREBRAS_API_KEY).")
 
     try:
         from cerebras.cloud.sdk import Cerebras
@@ -756,16 +1011,27 @@ def generate_script(title: str, price_inr: float, pieces: int | None, theme: str
                 {"role": "system", "content": prompts.SYSTEM_PROMPT},
                 {"role": "user", "content": task_prompt},
             ],
+            max_tokens=8192,  # reasoning model burns tokens on chain-of-thought before content
         )
         content = resp.choices[0].message.content
         if content and content.strip():
-            return content.strip()
+            usage = getattr(resp, "usage", None)
+            in_tok = getattr(usage, "prompt_tokens", None) if usage else None
+            out_tok = getattr(usage, "completion_tokens", None) if usage else None
+            return ScriptGenResult(content.strip(), "cerebras", in_tok, out_tok)
     except Exception as e:
-        print(f"ERROR: Cerebras also failed: {e}", file=sys.stderr)
-        sys.exit(1)
+        # Added 2026-08-19: this used to be print+sys.exit(1) -- a hard
+        # process exit, not even a catchable exception, so a double-provider
+        # failure killed the whole run instantly on whichever attempt hit it
+        # (confirmed live 2026-08-18, run 32159269849: Gemini 503 "high
+        # demand" then Cerebras 402 "payment required", attempt 3/6 --
+        # attempts 4-6 never got a chance to run). Raising instead lets
+        # run_gates_with_one_retry()'s loop catch it, back off, and actually
+        # retry up to MAX_GENERATION_ATTEMPTS, giving a transient issue like
+        # that 503 a real chance to clear.
+        raise BothProvidersFailedError(f"Cerebras also failed: {e}") from e
 
-    print("ERROR: Both providers returned empty content.", file=sys.stderr)
-    sys.exit(1)
+    raise BothProvidersFailedError("Both providers returned empty content.")
 
 
 def get_recent_scripts(sb, n: int = 30) -> list[str]:
@@ -801,29 +1067,129 @@ MAX_GENERATION_ATTEMPTS = 6
 # 90-110 (up to 157 words), because the model was faithfully complying with
 # the wrong instruction it was given. Fixed by computing the note from the
 # actual failed attempt's word count and the real 90-110 band, every time.
-GENERIC_RETRY_NOTE = (
-    "Your last attempt failed a quality gate. Re-read the hard rules above "
-    "and try again, especially the 90-110 word count."
-)
+#
+# GENERIC_RETRY_NOTE removed 2026-08-23 -- it was the fallback for any
+# non-word-count gate failure and never described what actually failed
+# (see _build_retry_note()'s docstring for the real regression this
+# caused). Superseded by _build_retry_note(), which covers every failing
+# gate by name and reason, not just word count.
+
+
+def _retry_backoff_sleep(attempt: int, provider_failure: bool = False) -> None:
+    """Exponential backoff with jitter between generation retry attempts.
+
+    Added 2026-08-19: MAX_GENERATION_ATTEMPTS's retry loop previously had
+    zero delay between attempts -- confirmed live 2026-08-18 (run
+    32159269849): a sustained Gemini "high demand" 503 meant every attempt
+    immediately re-triggered the Gemini->Cerebras fallback chain back to
+    back, with no chance for the transient issue to clear. provider_failure
+    =True (both Gemini and Cerebras failed this attempt, not just a
+    content-gate miss) gets a longer base delay -- a real provider outage
+    deserves more time to clear than a quality-gate retry, which just needs
+    a fresh model draw. Doubling each attempt; jitter avoids every
+    concurrent run retrying in lockstep.
+    """
+    base = (8 if provider_failure else 4) * (2 ** (attempt - 1))
+    base = min(base, 90 if provider_failure else 60)
+    delay = max(1.0, base + base * random.uniform(-0.3, 0.3))
+    print(f"  Backing off {delay:.1f}s before retry...", file=sys.stderr)
+    time.sleep(delay)
 
 
 def _word_count_retry_note(n: int) -> str:
     if n > 110:
         return (
-            f"Your last attempt was {n} words -- that FAILS the 90-110 word hard rule "
-            f"(too long by {n - 110}). Cut it down to land inside 90-110: remove "
-            f"qualifying phrases and shorten the story section first, never cut the "
-            f"punchline or the price. Count your words before answering."
+            f"word count {n} -- FAILS the 90-110 word hard rule (too long by {n - 110}). "
+            f"Cut it down to land inside 90-110: remove qualifying phrases and shorten "
+            f"the story section first, never cut the punchline or the price."
         )
     return (
-        f"Your last attempt was {n} words -- that FAILS the 90-110 word hard rule "
-        f"(too short by {90 - n}). Add real content to land inside 90-110 -- more story "
-        f"detail, the LEGO fact, or INDIANIZATION texture -- never pad with filler. Count "
-        f"your words before answering."
+        f"word count {n} -- FAILS the 90-110 word hard rule (too short by {90 - n}). "
+        f"Add real content to land inside 90-110 -- more story detail, the LEGO fact, "
+        f"or INDIANIZATION texture -- never pad with filler."
     )
 
 
-def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport]:
+def _build_retry_note(report: "gates.GateReport") -> str:
+    """Builds retry feedback covering EVERY failing gate from the previous
+    attempt, not just word count.
+
+    Added 2026-08-23 -- real, confirmed bug found via the qwen fallback
+    diagnostic pass: the retry loop only ever branched on G1_word_count.
+    Any other gate failure (price math, banned patterns, a hallucinated
+    fact) fell through to a generic, word-count-flavored note
+    (GENERIC_RETRY_NOTE, now removed) that never told the model what
+    actually went wrong. Live evidence this caused real regressions, not
+    just theoretical: a 3-attempt qwen retry sequence on Ford Model T
+    passed word count on attempt 1 but hallucinated a nonexistent set
+    number ("1919") -- the retry note said nothing about that failure at
+    all, so attempt 2 regenerated blind and introduced a DIFFERENT new
+    problem (missing rupee symbol) instead of converging. Each attempt's
+    feedback must name every real failure from the attempt it's
+    responding to, so the model fixes what's actually wrong instead of
+    guessing.
+    """
+    lines = ["Your last attempt failed the following quality gate(s):"]
+    for r in report.results:
+        if not r.passed:
+            if r.gate == "G1_word_count":
+                n = len(report.sanitized_script.split())
+                lines.append(f"- {_word_count_retry_note(n)}")
+            else:
+                lines.append(f"- {r.gate}: {r.reason}")
+    lines.append("Fix ALL of the above in this attempt -- do not regenerate blind and risk introducing a new problem elsewhere in the script.")
+    return "\n".join(lines)
+
+
+def _try_tier1_pre_tts_remediation(
+    raw_script_text: str, pieces: int | None, sets_lookup, recent: list[str], price_inr: float,
+) -> gates.GateReport | None:
+    """Gate Remediation Architecture (2026-08-29), Tier 1 for pre-TTS gates:
+    a deterministic, durable, in-place fix, tried BEFORE a real regeneration
+    attempt is spent. Currently one case (see gates.GATE_REMEDIATION_TIER's
+    G2 entry): a whole-script quote wrap, safe to strip because it changes
+    zero words. Returns a freshly re-verified GateReport if the fix resolved
+    EVERY currently-failing gate, else None -- the caller falls through to
+    the existing regenerate-and-retry path exactly as before, so a partial
+    fix (quote-wrap plus something else) never silently ships.
+    """
+    fixed_raw = gates.strip_wrapping_quotes(raw_script_text)
+    if fixed_raw == raw_script_text.strip():
+        return None  # not quote-wrapped -- nothing for this fix to do
+    new_report = gates.run_all_gates(fixed_raw, pieces, sets_lookup, recent, price_inr)
+    return new_report if new_report.all_passed else None
+
+
+def build_escalation_note(report: gates.GateReport, remediation_attempted: str) -> dict:
+    """Gate Remediation Architecture (2026-08-29), Tier 3: the structured
+    note attached to a story whenever it reaches a human with a gate
+    failure that survived every remediation attempt. This is meant to be
+    the FIRST thing a reviewer sees -- not raw data pulled from
+    gate_results on request (the exact gap story #54 exposed). One entry
+    per still-failing gate; `decision_needed` is deliberately generic
+    (approve/reject/manually fix) rather than gate-specific -- the actual
+    judgment call always belongs to the reviewer, this note's job is only
+    to make sure they don't have to go digging for what happened first.
+    """
+    failing = [r for r in report.results if not r.passed]
+    return {
+        "gates": [
+            {
+                "gate": r.gate,
+                "what_it_caught": gates.GATE_PLAIN_LANGUAGE.get(r.gate, r.gate),
+                "technical_reason": r.reason,
+            }
+            for r in failing
+        ],
+        "remediation_attempted": remediation_attempted,
+        "decision_needed": "approve with the known issue below, reject, or manually fix and re-render",
+    }
+
+
+def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport, str, int | None, int | None]:
+    """Returns (sanitized_script, gate_report, provider, input_tokens,
+    output_tokens) -- provider/token fields added 2026-08-19, see
+    ScriptGenResult's docstring."""
     recent = get_recent_scripts(sb)
 
     def sets_lookup(set_number: str) -> dict | None:
@@ -832,35 +1198,142 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
 
     retry_note = None
     report = None
+    provider_error: BothProvidersFailedError | None = None
     for attempt in range(1, MAX_GENERATION_ATTEMPTS + 1):
-        raw_script = generate_script(candidate["title"], candidate["price_inr"], candidate.get("pieces"), candidate.get("theme"), retry_note=retry_note)
-        report = gates.run_all_gates(raw_script, candidate.get("pieces"), sets_lookup, recent, candidate["price_inr"])
+        try:
+            raw_script = generate_script(candidate["title"], candidate["price_inr"], candidate.get("pieces"), candidate.get("theme"), retry_note=retry_note, set_number=candidate.get("set_number"))
+        except BothProvidersFailedError as e:
+            # Added 2026-08-19: BothProvidersFailedError used to be an
+            # instant sys.exit(1) inside generate_script() -- confirmed live
+            # 2026-08-18 (run 32159269849), a transient Gemini 503 combined
+            # with Cerebras's 402 killed the whole run on attempt 3/6, never
+            # giving attempts 4-6 a chance. Caught here now: back off
+            # (longer than a content-gate retry -- this is a real provider
+            # outage) and retry, same as any other gate failure, still
+            # bounded by MAX_GENERATION_ATTEMPTS.
+            provider_error = e
+            print(f"Both providers failed on attempt {attempt}/{MAX_GENERATION_ATTEMPTS}: {e}", file=sys.stderr)
+            if attempt < MAX_GENERATION_ATTEMPTS:
+                _retry_backoff_sleep(attempt, provider_failure=True)
+                print(f"Regenerating (attempt {attempt + 1}/{MAX_GENERATION_ATTEMPTS})...", file=sys.stderr)
+                continue
+            # Final attempt, still a provider outage: break instead of the
+            # old sys.exit(1) here (issue #97) -- that used to skip the
+            # escalation_note/notifier block below entirely, since it fired
+            # inline before the loop ever exited normally. Confirmed live
+            # 2026-08-30 (run 33295285576): a fully silent run, no email,
+            # no escalation_note, no video_posts row -- visible only as a
+            # red Actions run, the exact gap this whole architecture exists
+            # to close, just re-opened on a branch PR #92 didn't cover.
+            print(f"ERROR: both providers failed {MAX_GENERATION_ATTEMPTS} times. Aborting, not publishing.", file=sys.stderr)
+            break
+        # Reset on any successful generate_script() call -- essential, or a
+        # provider failure on an earlier attempt (e.g. attempt 1) would still
+        # be blamed below even though a later attempt (e.g. attempt 2) went
+        # on to fail on content gates instead, a genuinely different reason.
+        provider_error = None
+        report = gates.run_all_gates(raw_script.text, candidate.get("pieces"), sets_lookup, recent, candidate["price_inr"])
         if report.all_passed:
             # Sanitized text, not raw -- this is what actually reaches TTS
             # and gets stored as the canonical script (see gates.sanitize_script).
-            return report.sanitized_script, report
+            return report.sanitized_script, report, raw_script.provider, raw_script.input_tokens, raw_script.output_tokens
+
+        tier1_report = _try_tier1_pre_tts_remediation(raw_script.text, candidate.get("pieces"), sets_lookup, recent, candidate["price_inr"])
+        if tier1_report is not None:
+            print(f"Tier-1 auto-fix (quote-wrap strip) resolved the gate failure on attempt {attempt} -- no regeneration spent.", file=sys.stderr)
+            return tier1_report.sanitized_script, tier1_report, raw_script.provider, raw_script.input_tokens, raw_script.output_tokens
+
         print(f"Gate failure on attempt {attempt}:", file=sys.stderr)
         for r in report.results:
             if not r.passed:
                 print(f"  {r.gate}: {r.reason}", file=sys.stderr)
         if attempt < MAX_GENERATION_ATTEMPTS:
-            word_count_failed = next(
-                (r for r in report.results if r.gate == "G1_word_count" and not r.passed), None
-            )
-            if word_count_failed:
-                retry_note = _word_count_retry_note(len(report.sanitized_script.split()))
-            else:
-                retry_note = GENERIC_RETRY_NOTE
+            retry_note = _build_retry_note(report)
+            _retry_backoff_sleep(attempt)
             print(f"Regenerating (attempt {attempt + 1}/{MAX_GENERATION_ATTEMPTS})...", file=sys.stderr)
+
+    if provider_error is not None:
+        # Issue #97 fix (2026-08-30): the loop ended via break on a final-
+        # attempt provider outage, not content-gate exhaustion -- `report`
+        # here is either None or stale from an earlier attempt, so this
+        # can't reuse the gate-exhaustion tail block below (that block
+        # assumes `report` reflects the actual reason generation stopped).
+        # Same send_skip_notification() call, gate_failures=None since
+        # there's no gate list to show -- the reason string carries the
+        # actual cause instead.
+        try:
+            import notifier as notifier_mod
+            candidate_title = candidate.get("title") or "today's candidate"
+            notifier_mod.send_skip_notification(
+                reason=f"Script for {candidate_title!r} could not be generated -- both providers "
+                       f"(Gemini and Groq/Cerebras) were unavailable on attempt {MAX_GENERATION_ATTEMPTS}/{MAX_GENERATION_ATTEMPTS}: {provider_error}",
+                candidate_title=candidate.get("title"),
+                gate_failures=None,
+            )
+        except Exception as exc:
+            print(f"WARN: failed to send skip notification for provider outage: {exc}", file=sys.stderr)
+        sys.exit(1)
 
     print(f"ERROR: script failed gates {MAX_GENERATION_ATTEMPTS} times. Aborting, not publishing.", file=sys.stderr)
     for r in report.results:
         status = "PASS" if r.passed else "FAIL"
         print(f"  [{status}] {r.gate}: {r.reason}", file=sys.stderr)
+
+    # Gate Remediation Architecture (2026-08-29), Tier 3 for the case where
+    # no video_posts row ever gets created at all: previously this was a
+    # bare sys.exit(1) -- visible only as a red GitHub Actions run, with no
+    # escalation_note and no notification, the same "reaches Abhinav as a
+    # bare flag" gap story #54 exposed one layer downstream. send_skip_
+    # notification() already existed for a different failure class (a
+    # publish-time hard-guard trip) and already accepts a gate_failures
+    # list -- reused here rather than inventing a second email path.
+    try:
+        import notifier as notifier_mod
+        note = build_escalation_note(
+            report,
+            remediation_attempted=f"Regenerated {MAX_GENERATION_ATTEMPTS} time(s) with gate-specific feedback each attempt "
+                                   "(see _build_retry_note); tier-1 deterministic auto-fix also attempted where applicable. "
+                                   "No video was rendered -- TTS is never called against a script that hasn't passed every pre-TTS gate.",
+        )
+        gate_failures = [f"{g['gate']}: {g['what_it_caught']} ({g['technical_reason']})" for g in note["gates"]]
+        candidate_title = candidate.get("title") or "today's candidate"
+        notifier_mod.send_skip_notification(
+            reason=f"Script for {candidate_title!r} failed quality gates {MAX_GENERATION_ATTEMPTS} times in a row -- no video produced today.",
+            candidate_title=candidate.get("title"),
+            gate_failures=gate_failures,
+        )
+    except Exception as exc:
+        print(f"WARN: failed to send skip notification for exhausted gate retries: {exc}", file=sys.stderr)
+
     sys.exit(1)
 
 
 # ── STEP 6: TTS ─────────────────────────────────────────────────────────────────
+
+# 2026-08-22: made explicit, not fixed by guesswork. The elevenlabs SDK's
+# ElevenLabs() constructor already defaults `timeout` to 240 -- that value
+# was silently in effect the whole time, just invisible in this file and
+# one SDK upgrade away from changing without anyone noticing. No real
+# ElevenLabs call-duration history exists to size a tighter number with
+# the same evidence this codebase uses for other timeouts (e.g. the GH
+# Actions timeout-minutes audit, sized off `gh run list`) -- so this keeps
+# the SDK's own considered default rather than inventing an unverified
+# shorter one.
+TTS_TIMEOUT_S = 240.0
+TTS_MAX_ATTEMPTS = 3
+
+
+class TTSGenerationError(Exception):
+    """Raised by generate_tts() when every ElevenLabs attempt fails.
+    Added 2026-08-22 -- same failure class as the original VID-P4 6-hour
+    hang incident (unbounded external call, no retry): generate_tts() had
+    no explicit timeout and no retry/backoff at all, just a bare SDK call
+    with nothing catching a timeout, a transient 5xx, or a network drop.
+    Any single ElevenLabs hiccup would propagate as a raw, uncaught SDK
+    exception straight out of generate_tts() and kill the whole run --
+    same shape as the pre-fix script-generation path (see
+    BothProvidersFailedError's docstring, engine.py:824)."""
+
 
 def generate_tts(script: str, output_path: Path) -> None:
     # Currency AND piece-count spoken-word expansion happen here, at the TTS
@@ -882,24 +1355,38 @@ def generate_tts(script: str, output_path: Path) -> None:
         sys.exit(1)
 
     from elevenlabs.client import ElevenLabs
-    client = ElevenLabs(api_key=api_key)
-    audio_chunks = client.text_to_speech.convert(
-        voice_id,
-        text=tts_text,
-        # Verified live 2026-07-05: the brief's "eleven_flash_v2.5" (period)
-        # 400s with "invalid_uid" -- ElevenLabs' real model ID uses an
-        # underscore, confirmed against their own docs.
-        model_id=TTS_MODEL_ID,
-        output_format="mp3_44100_128",
-        # Voice A/B/C test, operator-confirmed 2026-07-06: Test B (this
-        # model + similarity_boost 0.9) over Test C (eleven_multilingual_v2,
-        # 2x the cost per char). Locked as the standing default, not just
-        # that one test's settings -- do not revert without a new test.
-        voice_settings=TTS_VOICE_SETTINGS,
-    )
-    with open(output_path, "wb") as f:
-        for chunk in audio_chunks:
-            f.write(chunk)
+
+    last_error: Exception | None = None
+    for attempt in range(1, TTS_MAX_ATTEMPTS + 1):
+        try:
+            client = ElevenLabs(api_key=api_key, timeout=TTS_TIMEOUT_S)
+            audio_chunks = client.text_to_speech.convert(
+                voice_id,
+                text=tts_text,
+                # Verified live 2026-07-05: the brief's "eleven_flash_v2.5" (period)
+                # 400s with "invalid_uid" -- ElevenLabs' real model ID uses an
+                # underscore, confirmed against their own docs.
+                model_id=TTS_MODEL_ID,
+                output_format="mp3_44100_128",
+                # Voice A/B/C test, operator-confirmed 2026-07-06: Test B (this
+                # model + similarity_boost 0.9) over Test C (eleven_multilingual_v2,
+                # 2x the cost per char). Locked as the standing default, not just
+                # that one test's settings -- do not revert without a new test.
+                voice_settings=TTS_VOICE_SETTINGS,
+            )
+            with open(output_path, "wb") as f:
+                for chunk in audio_chunks:
+                    f.write(chunk)
+            return
+        except Exception as e:
+            last_error = e
+            print(f"WARN: ElevenLabs TTS call failed on attempt {attempt}/{TTS_MAX_ATTEMPTS}: {e}", file=sys.stderr)
+            if attempt < TTS_MAX_ATTEMPTS:
+                # provider_failure=True -- same longer backoff class as a
+                # real script-gen provider outage, not a content-gate miss.
+                _retry_backoff_sleep(attempt, provider_failure=True)
+
+    raise TTSGenerationError(f"ElevenLabs TTS failed {TTS_MAX_ATTEMPTS} attempt(s): {last_error}")
 
 
 def generate_silent_placeholder_audio(output_path: Path, duration_s: float) -> None:
@@ -1222,6 +1709,116 @@ def slugify(title: str) -> str:
 # earlier "rupees" vs "RS" bug was caught by transcription, not by trusting
 # the input. openai-whisper's default segmentation is already sentence/
 # phrase-level, not word-level, matching the approved style directly.
+#
+# 2026-08-21 addition, real incident (story #43, video_posts id
+# cc843a50-d5ee-467f-ae05-d328e2582c49): the "base" model (cheapest/least
+# accurate tier) mis-heard "For the die-hard Andy Weir fan" as "...for the
+# diehard" / "and the rear fan..." -- a segment-boundary split that
+# corrupted the two-word author name into "rear", burned onto the actual
+# video. The transcribe-the-real-audio design stays (still the only thing
+# catching genuine TTS mispronunciation) -- the fix is making Whisper's
+# recognition smarter about known vocabulary, via `initial_prompt`, plus a
+# guardrail gate for when the bias still isn't enough (see
+# gates.gate_caption_fidelity). initial_prompt nudges recognition toward
+# the correct word only when the audio is genuinely ambiguous -- it does
+# not override a clearly, consistently mispronounced word, since that's
+# still the thing this whole design exists to catch.
+
+_MULTIWORD_PROPER_NOUN_RE = re.compile(r"[A-Z][a-zA-Z']*(?:\s+[A-Z][a-zA-Z']*)+")
+
+
+def extract_caption_glossary(sanitized_script: str, set_title: str) -> list[str]:
+    """Pulls likely named entities out of a script + set title, for biasing
+    Whisper's transcription (initial_prompt below) and for
+    gates.gate_caption_fidelity's post-transcription fuzzy-match check.
+
+    Two sources:
+      1. sanitized_script -- multi-word runs of Title-Case tokens (catches
+         "Andy Weir", "Ryland Grace", etc). Deliberately does NOT exclude
+         a run that happens to start a sentence (e.g. "Ryland Grace,
+         saving Earth..." -- "Ryland Grace" is literally this sentence's
+         first two words) -- the regex already requires 2+ consecutive
+         Title-Case words to match at all, which is itself a strong enough
+         signal; a same-sentence *single* capitalized word being ambiguous
+         (ordinary sentence-initial capitalization) doesn't carry over to
+         a genuine multi-word run, and excluding position-0 runs would
+         have silently dropped "Ryland Grace" from this exact real script.
+      2. set_title -- video_posts has no separate franchise/IP column
+         (checked 2026-08-21); set_title is the only title-like field
+         available. Only keeps a title-derived term if it also appears
+         verbatim (case-insensitive) somewhere in sanitized_script --
+         titles are Title-Case for their entire length (e.g. "LEGO Star
+         Wars The Razor Crest" is one unbroken 5-word capitalized run), so
+         without this filter, title-derived terms are frequently compound
+         phrases nobody ever actually says as a unit (that script says
+         "This is The Razor Crest" and, separately, "a Star Wars fan" --
+         never the two together). Verified live: without this filter,
+         "Star Wars The Razor Crest" false-positived at 72% similarity
+         against real, correct captions for a real published story (#28).
+    """
+    terms: list[str] = []
+
+    for sentence in re.split(r"(?<=[.!?])\s+", sanitized_script.strip()):
+        for match in _MULTIWORD_PROPER_NOUN_RE.finditer(sentence.strip()):
+            terms.append(match.group().strip())
+
+    script_norm = re.sub(r"[^\w\s]", " ", sanitized_script.lower())
+    script_norm = re.sub(r"\s+", " ", script_norm)
+    for match in _MULTIWORD_PROPER_NOUN_RE.finditer(set_title):
+        candidate = match.group().strip()
+        candidate_norm = re.sub(r"[^\w\s]", " ", candidate.lower()).strip()
+        if f" {candidate_norm} " in f" {script_norm} ":
+            terms.append(candidate)
+
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for t in terms:
+        key = t.lower()
+        if key not in seen:
+            seen.add(key)
+            deduped.append(t)
+    return deduped
+
+
+_NUMERAL_RE = re.compile(r"\b[\d,]+\b")
+
+
+def extract_caption_numerals(sanitized_script: str) -> list[str]:
+    """Pulls multi-digit numbers out of a script -- a separate, adjacent
+    check to extract_caption_glossary()'s word-based terms, for the same
+    reason: Whisper doesn't just mishear names, it can mishear numbers too.
+    Added 2026-08-22, real incident: story #48's "LEGO Technic Porsche 911
+    GT3 R..." was transcribed as "...Porsche 9, whatever GT3R...", "911"
+    replaced by "whatever" -- G11 didn't catch it because bare numbers
+    were never in scope for extract_caption_glossary() (its regex only
+    matches Title-Case WORD runs).
+
+    Returns normalized (comma-stripped) digit strings, e.g. "1,313" ->
+    "1313" -- caption text is normalized the same way before comparison,
+    so formatting differences (Whisper's comma placement, if any) don't
+    matter. Deliberately excludes single-digit numbers ("8-speed
+    gearbox") -- low specificity, a single-digit ASR slip is a much lower-
+    stakes and much noisier thing to gate on than a multi-digit identifier
+    like a model number, piece count, or price.
+
+    Unlike glossary terms (checked with a fuzzy-match fallback -- a real
+    near-miss spelling is still meaningful signal), numerals are checked
+    for EXACT presence only in gates.gate_caption_fidelity(). A "70%
+    similar" digit string isn't a meaningful category the way a close
+    spelling variant is -- either the number is there or it was replaced
+    by something else entirely (as "911" was, by "whatever").
+    """
+    numerals: list[str] = []
+    seen: set[str] = set()
+    for match in _NUMERAL_RE.finditer(sanitized_script):
+        digits = match.group().replace(",", "")
+        if len(digits) < 2 or not digits.isdigit():
+            continue
+        if digits not in seen:
+            seen.add(digits)
+            numerals.append(digits)
+    return numerals
+
 
 _CAPTION_FONT_CANDIDATES = [
     "C:/Windows/Fonts/arialbd.ttf",
@@ -1242,14 +1839,60 @@ def _caption_font(size: int):
     return ImageFont.load_default()
 
 
-def transcribe_for_captions(audio_path: Path) -> list[dict]:
+_MAX_CAPTION_SEGMENT_SECONDS = 12.0
+
+
+def _cap_caption_segment_duration(segments: list[dict], max_seconds: float = _MAX_CAPTION_SEGMENT_SECONDS) -> list[dict]:
+    """Splits any segment longer than max_seconds into shorter, evenly-timed
+    sub-segments by word count. Whisper's segmentation is normally already
+    phrase-level (this is a no-op almost always) -- added 2026-08-21
+    because `initial_prompt` (see transcribe_for_captions) can unpredictably
+    suppress segmentation on the "base" model in a way that does NOT
+    reliably correlate with prompt length or which specific terms it
+    contains: verified on the same audio, same-length prompts --
+    "Andy Weir, Ryland Grace." produced 10 normal phrase-level segments,
+    while "Ryland Grace, Netflix Premium." collapsed to 3 segments (one a
+    single 30-second block covering nearly half the video). Not something
+    that can be reliably engineered around by curating prompt wording --
+    this is a structural safety net against ANY cause of an oversized
+    segment, not a fix for one specific prompt-wording quirk. No word-level
+    timestamps exist to split on precisely (that would need
+    word_timestamps=True, a bigger change than this bug needs) -- an even
+    word-count split across the segment's original time span is an
+    approximation, not exact per-word timing, but keeps every on-screen
+    caption card within a readable duration."""
+    capped: list[dict] = []
+    for seg in segments:
+        duration = seg["end"] - seg["start"]
+        words = seg["text"].split()
+        if duration <= max_seconds or len(words) <= 1:
+            capped.append(seg)
+            continue
+        n_chunks = max(2, math.ceil(duration / max_seconds))
+        chunk_size = math.ceil(len(words) / n_chunks)
+        for i in range(0, len(words), chunk_size):
+            chunk_words = words[i:i + chunk_size]
+            if not chunk_words:
+                continue
+            frac_start = i / len(words)
+            frac_end = min(1.0, (i + chunk_size) / len(words))
+            capped.append({
+                "start": seg["start"] + frac_start * duration,
+                "end": seg["start"] + frac_end * duration,
+                "text": " ".join(chunk_words),
+            })
+    return capped
+
+
+def transcribe_for_captions(audio_path: Path, initial_prompt: str | None = None) -> list[dict]:
     import whisper
     model = whisper.load_model("base")
-    result = model.transcribe(str(audio_path))
-    return [
+    result = model.transcribe(str(audio_path), initial_prompt=initial_prompt)
+    segments = [
         {"start": s["start"], "end": s["end"], "text": s["text"].strip()}
         for s in result["segments"] if s["text"].strip()
     ]
+    return _cap_caption_segment_duration(segments)
 
 
 def _wrap_caption_text(draw, text: str, font, max_width: int) -> list[str]:
@@ -1307,6 +1950,99 @@ def burn_captions(video_path: Path, segments: list[dict], output_path: Path) -> 
 
     final = CompositeVideoClip([base, caption_clip]).set_audio(base.audio)
     final.write_videofile(str(output_path), fps=FPS, codec="libx264", audio_codec="aac", logger=None)
+
+
+# ── Gate Remediation Architecture (2026-08-29), Tier 2 for G11 ─────────────
+#
+# One automatic re-render on a G11 (caption-fidelity) failure, before it
+# ever reaches a human. Unlike G1-G10 (a script problem, fixed by
+# regenerating the SCRIPT), G11 is a rendering/ASR-layer problem -- the
+# script already passed every pre-TTS gate, including G5 factuality, so the
+# TEXT is not in question. What's resolvable by regeneration here is the
+# render itself: ElevenLabs' TTS output and Whisper's transcription of it
+# are each not fully deterministic run-to-run, so a second independent
+# take is a genuine remediation attempt, not theater -- the same
+# "resolvable by regeneration" logic Tier 2 already uses for a bad script,
+# one layer further down the pipeline.
+MAX_CAPTION_ATTEMPTS = 2  # 1 real render + 1 automatic retry on G11 failure
+
+
+def render_with_caption_gate(
+    script: str,
+    image_paths: list[Path],
+    output_path: Path,
+    set_title: str,
+    placeholder_anchors: bool = False,
+    no_tts: bool = False,
+) -> tuple[float, list[dict], gates.GateResult, bool]:
+    """Generates TTS, assembles the video, transcribes it, burns captions,
+    and checks G11 -- retrying the WHOLE sequence once (fresh TTS call,
+    fresh Whisper pass) if G11 fails, before accepting a final result.
+    Shared by both the daily generation path (main()) and --rerender, so
+    this remediation isn't something only fresh stories get.
+
+    Returns (total_duration, caption_segments, g11_result, retried).
+    `retried` lets the caller build an accurate escalation_note distinguishing
+    "failed once, fixed itself" from "failed twice, needs a human."
+
+    Never retries a --no-tts dry run: there's no real audio divergence to
+    retry against a silent placeholder track, and it would spend real
+    Whisper compute re-transcribing silence for no reason.
+
+    On exit, output_path holds exactly one file: the captioned render.
+    Same single-artifact rule as the rest of this pipeline (see the
+    pre-caption/captioned collapse this replaces) -- no second file left on
+    disk that could be mistakenly referenced as "the" video for this run.
+    """
+    caption_glossary = extract_caption_glossary(script, set_title)
+    caption_numerals = extract_caption_numerals(script)
+    caption_initial_prompt = ", ".join(caption_glossary + caption_numerals) + "." if (caption_glossary or caption_numerals) else None
+    print(f"Caption glossary ({len(caption_glossary)} term(s)): {caption_glossary}")
+    print(f"Caption numerals ({len(caption_numerals)}): {caption_numerals}")
+
+    retried = False
+    for attempt in range(1, MAX_CAPTION_ATTEMPTS + 1):
+        audio_path = TEMP_DOWNLOAD / "voiceover.mp3"
+        if no_tts:
+            est_duration = estimate_voiceover_duration_s(script)
+            audio_path = TEMP_DOWNLOAD / "voiceover_silent.wav"
+            generate_silent_placeholder_audio(audio_path, est_duration)
+            print(f"--no-tts: silent placeholder audio, estimated duration {est_duration:.1f}s")
+        else:
+            generate_tts(script, audio_path)
+
+        total_duration = assemble_video(image_paths, audio_path, output_path, placeholder_anchors=placeholder_anchors)
+        print(f"\nRendered: {output_path}")
+        print(f"Total duration: {total_duration:.1f}s")
+        if total_duration > 90:
+            print("WARNING: video exceeds 90s — IG Reels/YT Shorts may reject or truncate.")
+
+        print("Transcribing rendered audio for captions (Whisper, catches real TTS pronunciation)...")
+        segments = transcribe_for_captions(output_path, initial_prompt=caption_initial_prompt)
+        captioned_path = output_path.with_name(output_path.stem + "_captioned.mp4")
+        burn_captions(output_path, segments, captioned_path)
+
+        g11_result = gates.gate_caption_fidelity(caption_glossary, segments, numerals=caption_numerals)
+        print(f"  [{'PASS' if g11_result.passed else 'FAIL'}] {g11_result.gate}: {g11_result.reason}")
+
+        # Bug found 2026-07-06, confirmed via SHA256 (not just file size):
+        # the pre-caption render and the captioned render used to coexist
+        # as two files, and video_posts.video_path pointed at the WRONG
+        # one. Collapse to exactly one artifact per attempt, every attempt.
+        output_path.unlink()
+        captioned_path.rename(output_path)
+
+        if g11_result.passed or no_tts or attempt == MAX_CAPTION_ATTEMPTS:
+            if retried:
+                print(f"Captioned (after {attempt} attempt(s), sole output for this run): {output_path}")
+            else:
+                print(f"Captioned (sole output for this run): {output_path}")
+            return total_duration, segments, g11_result, retried
+
+        retried = True
+        print(f"G11 failed on attempt {attempt}/{MAX_CAPTION_ATTEMPTS} -- re-rendering once (fresh TTS + Whisper pass) before escalating.", file=sys.stderr)
+
+    raise AssertionError("unreachable -- loop always returns on its final attempt")
 
 
 # ── STEP 6c: story badge ────────────────────────────────────────────────────
@@ -1430,11 +2166,23 @@ def _make_placeholder_anchor(path: Path, color: tuple[int, int, int], label: str
 
 # ── DB write ────────────────────────────────────────────────────────────────────
 
-def insert_video_post(sb, candidate: dict, script: str, gate_report: gates.GateReport, video_path: Path) -> tuple[str, int]:
+def insert_video_post(
+    sb, candidate: dict, script: str, gate_report: gates.GateReport, video_path: Path,
+    provider: str | None = None, input_tokens: int | None = None, output_tokens: int | None = None,
+    escalation_note: dict | None = None,
+) -> tuple[str, int]:
     """Returns (video_id, story_number). story_number is assigned by the
     video_posts_story_number_trigger DB trigger (COALESCE(MAX(story_number),0)+1)
     -- only known for certain once the row exists, hence returned here
-    rather than predicted beforehand."""
+    rather than predicted beforehand.
+
+    provider/input_tokens/output_tokens added 2026-08-19 (migration
+    20260819000000_video_provider_tracking) -- see ScriptGenResult's
+    docstring for why.
+
+    escalation_note added 2026-08-29 (Gate Remediation Architecture,
+    migration 20260829000000_video_posts_escalation_note): None for a
+    clean story -- see engine.build_escalation_note()."""
     row = {
         "set_title": candidate["title"],
         "set_number": candidate.get("set_number"),
@@ -1447,6 +2195,10 @@ def insert_video_post(sb, candidate: dict, script: str, gate_report: gates.GateR
         "video_path": str(video_path),
         "status": "rendered",
         "piece_count_discrepancy": candidate.get("piece_count_discrepancy"),
+        "provider": provider,
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
+        "escalation_note": escalation_note,
     }
     res = sb.table("video_posts").insert(row).execute()
     video_id, story_number = res.data[0]["id"], res.data[0]["story_number"]
@@ -1604,6 +2356,123 @@ def check_and_send_rejection_reminder(sb) -> None:
     print(f"last_reminder_sent_at updated to {now_utc.isoformat()}.")
 
 
+def check_and_send_pending_approval_digest(sb) -> None:
+    """
+    Issue #137, 2026-09-19: --check-pending-approval-digest entry point, run
+    DAILY by video-pending-approval-digest.yml -- no interval-state table
+    needed here unlike check_and_send_rejection_reminder above, since the
+    schedule itself is already the interval (daily cron, daily digest).
+    Silent no-op when both video_posts and quiet_panic_posts have zero
+    pending_approval rows -- this is what #49/#55/#62/#66 needed: nothing
+    ever resurfaced an unreviewed candidate after its one-time
+    ready-for-review email, so this exists to close that gap.
+    """
+    import notifier as notifier_mod
+
+    now_utc = datetime.now(timezone.utc)
+
+    vidp4_res = (
+        sb.table("video_posts")
+        .select("story_number, set_title, created_at")
+        .eq("status", "pending_approval")
+        .order("created_at")
+        .execute()
+    )
+    qp_res = (
+        sb.table("quiet_panic_posts")
+        .select("set_title, created_at")
+        .eq("status", "pending_approval")
+        .order("created_at")
+        .execute()
+    )
+
+    rows = []
+    for r in vidp4_res.data or []:
+        created = datetime.fromisoformat(r["created_at"])
+        rows.append({
+            "pipeline": "VID-P4",
+            "story_number": r.get("story_number"),
+            "set_title": r.get("set_title"),
+            "days_pending": (now_utc - created).days,
+        })
+    for r in qp_res.data or []:
+        created = datetime.fromisoformat(r["created_at"])
+        rows.append({
+            "pipeline": "VID-QP",
+            "story_number": None,
+            "set_title": r.get("set_title"),
+            "days_pending": (now_utc - created).days,
+        })
+
+    if not rows:
+        print("Pending-approval digest: zero pending rows across both pipelines. No-op.")
+        return
+
+    rows.sort(key=lambda r: r["days_pending"], reverse=True)
+    print(f"Sending pending-approval digest: {len(rows)} row(s) ({len(vidp4_res.data or [])} VID-P4, {len(qp_res.data or [])} VID-QP).")
+    notifier_mod.send_pending_approval_digest(rows)
+
+
+def retry_missing_platforms_all(sb) -> bool:
+    """
+    Issue #137, 2026-09-19: --retry-missing-platform entry point. Finds every
+    video_posts row stuck at status='posted_ig' or 'posted_yt' and retries
+    the missing platform via publish.retry_missing_platform() -- confirmed
+    via grep before this existed that no code path anywhere ever revisited
+    these rows. Real example this was built against: story #61 (The Fire
+    Knight Mech), posted_yt since 2026-09-18, Instagram never retried.
+
+    DELIBERATELY runs independently of already_published_today_ist()'s
+    one-publish-per-day cap -- completing a platform on content that's
+    already partially live is a different kind of action than generating
+    and posting new content, and folding this into the capped poll-and-
+    publish loop would silently decide that open question (should
+    finishing count against the same slot as new content?) rather than
+    surfacing it. Whether that's the right permanent answer is explicitly
+    Abhinav's call, not assumed here -- this function's independence from
+    the cap is the current interim behavior, not a closed decision.
+    """
+    import publish as publish_mod
+
+    stuck_res = (
+        sb.table("video_posts")
+        .select("*")
+        .in_("status", ["posted_ig", "posted_yt"])
+        .order("story_number")
+        .execute()
+    )
+    stuck_rows = stuck_res.data
+
+    if not stuck_rows:
+        print("retry_missing_platforms_all: zero posted_ig/posted_yt rows. No-op.")
+        return True
+
+    # Return value used by the CLI dispatch to set a real exit code -- found
+    # live during this fix's own first real run (issue #137, 2026-09-19):
+    # every retry failing (the known IG permission gap) still left the job
+    # green, because retry_missing_platform() correctly never raises (by
+    # design -- see its own docstring) and nothing here turned that into a
+    # job-level signal. That's the exact "green checkmark hides a real
+    # failure" pattern this whole issue set out to fix -- would have been
+    # ironic to reintroduce it in the fix meant to close the gap. Processes
+    # every stuck row regardless of earlier failures either way -- one
+    # platform's outage must not block retrying a different row.
+    print(f"retry_missing_platforms_all: {len(stuck_rows)} row(s) with a missing platform.")
+    any_failed = False
+    for video_post in stuck_rows:
+        vid = video_post["id"]
+        missing = "yt" if video_post["status"] == "posted_ig" else "ig"
+        print(f"\n--- Retrying {missing} for {vid} ({video_post['set_title']}, story #{video_post.get('story_number')}) ---")
+        result = publish_mod.retry_missing_platform(sb, video_post)
+        if "error" in result:
+            print(f"Retry still failing for {vid} ({result['platform']}): {result['error']}", file=sys.stderr)
+            any_failed = True
+        else:
+            print(f"Retry succeeded for {vid} ({result['platform']}).")
+
+    return not any_failed
+
+
 # ── Re-render (full pipeline re-run against an EXISTING row) ────────────────────
 #
 # Process rule going forward: any post-hoc script/data correction always
@@ -1653,13 +2522,38 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
         for r in report.results:
             status = "PASS" if r.passed else "FAIL"
             print(f"  [{status}] {r.gate}: {r.reason}", file=sys.stderr)
+        # Issue #99 fix (2026-08-30): this used to be a bare sys.exit(1).
+        # The "manual, human-attended" assumption behind that didn't hold --
+        # --rerender runs exclusively via video-generate-daily.yml (cron or
+        # workflow_dispatch) on an ephemeral GitHub Actions runner (VID-P4
+        # has had no local execution path since the Stage 2 cloud pivot,
+        # 2026-07-06), so this failure was exactly as silent as #97's, just
+        # on a different call site. A real `report` already exists here,
+        # unlike #97's provider-outage branch, so this reuses the existing
+        # gate-exhaustion notification shape directly.
+        try:
+            import notifier as notifier_mod
+            note = build_escalation_note(
+                report,
+                remediation_attempted="existing script re-validated against current gates after a rerender request; "
+                                       "no regeneration attempted -- this is a manual rerender path, not a fresh generation retry.",
+            )
+            gate_failures = [f"{g['gate']}: {g['what_it_caught']} ({g['technical_reason']})" for g in note["gates"]]
+            notifier_mod.send_skip_notification(
+                reason=f"Re-render requested for {row['set_title']!r} (id {video_id}), but the existing script no "
+                       f"longer passes gates after re-sanitization -- aborting, not re-rendering.",
+                candidate_title=row.get("set_title"),
+                gate_failures=gate_failures,
+            )
+        except Exception as exc:
+            print(f"WARN: failed to send skip notification for rerender gate failure: {exc}", file=sys.stderr)
         sys.exit(1)
     script = report.sanitized_script
     print("--- SCRIPT (post-fix) ---")
     print(script)
     print("--- END SCRIPT ---")
 
-    download_master_assets_if_missing(sb)
+    _download_master_assets_or_notify(sb, candidate_title=row.get("set_title"))
 
     image_candidate = {"title": row["set_title"], "set_number": row.get("set_number")}
     image_paths = resolve_candidate_images(image_candidate)
@@ -1668,28 +2562,34 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
         sys.exit(1)
     print(f"Using {len(image_paths)} studio image(s) for this re-render.")
 
-    audio_path = TEMP_DOWNLOAD / "voiceover.mp3"
-    if no_tts:
-        est_duration = estimate_voiceover_duration_s(script)
-        audio_path = TEMP_DOWNLOAD / "voiceover_silent.wav"
-        generate_silent_placeholder_audio(audio_path, est_duration)
-        print(f"--no-tts: silent placeholder audio, estimated duration {est_duration:.1f}s")
-    else:
-        generate_tts(script, audio_path)
-
     slug = slugify(row["set_title"])
     date_str = datetime.now().strftime("%Y-%m-%d")
     output_path = OUTPUT_DIR / f"{date_str}_{slug}_rerender.mp4"
 
-    total_duration = assemble_video(image_paths, audio_path, output_path, placeholder_anchors=False)
-    print(f"Rendered: {output_path} ({total_duration:.1f}s)")
+    # Gate Remediation Architecture (2026-08-29): shared with main()'s
+    # generation path -- one automatic re-render if G11 fails, before this
+    # ever needs a second manual --rerender invocation. See
+    # render_with_caption_gate()'s docstring.
+    total_duration, segments, caption_fidelity_result, g11_retried = render_with_caption_gate(
+        script, image_paths, output_path, row["set_title"], placeholder_anchors=False, no_tts=no_tts,
+    )
+    report.results.append(caption_fidelity_result)
 
-    print("Transcribing rendered audio for captions (Whisper)...")
-    segments = transcribe_for_captions(output_path)
-    captioned_path = output_path.with_name(output_path.stem + "_captioned.mp4")
-    burn_captions(output_path, segments, captioned_path)
-    output_path.unlink()
-    captioned_path.rename(output_path)
+    escalation_note = None
+    if not caption_fidelity_result.passed:
+        # g11_retried is only False here under --no-tts (dry run -- the
+        # automatic re-render is deliberately skipped, see
+        # render_with_caption_gate's docstring); any real run that still
+        # fails at this point already went through the 1 automatic retry.
+        retry_note = (
+            "1 automatic re-render (fresh TTS + Whisper pass) was also attempted and still failed"
+            if g11_retried else
+            "--no-tts dry run: the automatic re-render is skipped by design (no real audio to retry against)"
+        )
+        escalation_note = build_escalation_note(
+            report,
+            remediation_attempted=f"Manual --rerender requested by operator; {retry_note}.",
+        )
 
     print(f"Applying Story #{row['story_number']} badge...")
     badged_path = output_path.with_name(output_path.stem + "_badged.mp4")
@@ -1706,7 +2606,10 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
 
     # status/story_number/id deliberately absent from this update -- a
     # re-render refreshes content, it never changes a row's identity or
-    # workflow state.
+    # workflow state. escalation_note IS explicitly included, both ways --
+    # a re-render that fixes the problem must clear a stale note the same
+    # way a re-render that doesn't must write a fresh one (never leave the
+    # OLD note sitting there implying nothing was tried).
     sb.table("video_posts").update({
         "script": script,
         "script_chars": len(script),
@@ -1714,8 +2617,11 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
         "video_path": str(output_path),
         "storage_url": storage_url,
         "qc_frame_urls": qc_urls,
+        "escalation_note": escalation_note,
     }).eq("id", video_id).execute()
     print(f"video_posts {video_id} updated in place (status untouched). storage_url: {storage_url}")
+    if escalation_note:
+        print(f"  escalation_note written -- G11 still failing after remediation, see gate_results/escalation_note.", file=sys.stderr)
 
     return {
         "video_id": video_id,
@@ -1757,6 +2663,8 @@ def main() -> None:
     parser.add_argument("--resend-notification", type=str, help="video_posts.id to re-send the Stage F publish notification for, using its already-stored results (does not re-post)")
     parser.add_argument("--rerender", type=str, help="video_posts.id to fully re-render (re-sanitized script, new TTS, new images, new Whisper captions, new badge) and re-upload to its existing storage_url. Never touches status/story_number/id.")
     parser.add_argument("--check-rejection-reminder", action="store_true", help="weekly cron entry point: send the biweekly content_rejections review reminder if 14+ days have passed since the last one AND at least one row is still review_status='pending'. Silent no-op otherwise.")
+    parser.add_argument("--check-pending-approval-digest", action="store_true", help="daily cron entry point: send a digest of every pending_approval row across video_posts and quiet_panic_posts. Silent no-op if both are empty.")
+    parser.add_argument("--retry-missing-platform", action="store_true", help="find every status='posted_ig'/'posted_yt' row and retry the platform that's missing. Deliberately runs independently of already_published_today_ist's daily cap -- see engine.py's own comment on retry_missing_platforms_all() for why, and the open question this leaves for Abhinav.")
     args = parser.parse_args()
 
     sb = get_supabase()
@@ -1764,6 +2672,14 @@ def main() -> None:
     if args.check_rejection_reminder:
         check_and_send_rejection_reminder(sb)
         return
+
+    if args.check_pending_approval_digest:
+        check_and_send_pending_approval_digest(sb)
+        return
+
+    if args.retry_missing_platform:
+        all_succeeded = retry_missing_platforms_all(sb)
+        sys.exit(0 if all_succeeded else 1)
 
     if args.rerender:
         result = rerender_video_post(sb, args.rerender, no_tts=args.no_tts)
@@ -1948,7 +2864,9 @@ def main() -> None:
             args.pick = 1  # cloud generation always takes the top-ranked candidate
 
         if not args.placeholder_anchors:
-            download_master_assets_if_missing(sb)
+            # No candidate has been selected yet at this point (see below) --
+            # nothing more specific than None to pass as candidate_title.
+            _download_master_assets_or_notify(sb, candidate_title=None)
 
         candidate = None
         image_paths: list[Path] = []
@@ -1988,7 +2906,7 @@ def main() -> None:
         print(f"Selected: {candidate['title']} ({candidate['product_url']})")
         print(f"Using {len(image_paths)} studio image(s) for this render.")
 
-        script, report = run_gates_with_one_retry(sb, candidate)
+        script, report, script_provider, script_input_tokens, script_output_tokens = run_gates_with_one_retry(sb, candidate)
         print("\n--- SCRIPT ---")
         print(script)
         print("--- END SCRIPT ---\n")
@@ -1996,49 +2914,40 @@ def main() -> None:
         for r in report.results:
             print(f"  [{'PASS' if r.passed else 'FAIL'}] {r.gate}: {r.reason}")
 
-        audio_path = TEMP_DOWNLOAD / "voiceover.mp3"
-        if args.no_tts:
-            est_duration = estimate_voiceover_duration_s(script)
-            audio_path = TEMP_DOWNLOAD / "voiceover_silent.wav"
-            generate_silent_placeholder_audio(audio_path, est_duration)
-            print(f"--no-tts: silent placeholder audio, estimated duration {est_duration:.1f}s")
-        else:
-            generate_tts(script, audio_path)
-
         slug = slugify(candidate["title"])
         date_str = datetime.now().strftime("%Y-%m-%d")
         output_path = OUTPUT_DIR / f"{date_str}_{slug}.mp4"
 
-        total_duration = assemble_video(image_paths, audio_path, output_path, placeholder_anchors=args.placeholder_anchors)
-        print(f"\nRendered: {output_path}")
-        print(f"Total duration: {total_duration:.1f}s")
-        if total_duration > 90:
-            print("WARNING: video exceeds 90s — IG Reels/YT Shorts may reject or truncate.")
+        # Gate Remediation Architecture (2026-08-29), Tier 2 for G11: one
+        # automatic re-render on failure before this ever reaches a human --
+        # see render_with_caption_gate()'s docstring. G11 runs inside this
+        # call (not part of run_all_gates() above -- it needs the actual
+        # rendered captions, which don't exist yet at pre-TTS gate time).
+        total_duration, segments, caption_fidelity_result, g11_retried = render_with_caption_gate(
+            script, image_paths, output_path, candidate["title"], placeholder_anchors=args.placeholder_anchors, no_tts=args.no_tts,
+        )
+        report.results.append(caption_fidelity_result)
 
-        print("Transcribing rendered audio for captions (Whisper, catches real TTS pronunciation)...")
-        segments = transcribe_for_captions(output_path)
-        captioned_path = output_path.with_name(output_path.stem + "_captioned.mp4")
-        burn_captions(output_path, segments, captioned_path)
+        escalation_note = None
+        if not caption_fidelity_result.passed:
+            retry_note = (
+                "1 automatic re-render (fresh TTS + Whisper pass) was also attempted and still failed"
+                if g11_retried else
+                "--no-tts dry run: the automatic re-render is skipped by design (no real audio to retry against)"
+            )
+            escalation_note = build_escalation_note(
+                report,
+                remediation_attempted=f"{retry_note}.",
+            )
 
-        # Bug found 2026-07-06, confirmed via SHA256 (not just file size):
-        # the pre-caption render (output_path) and the captioned render
-        # (captioned_path) coexisted as two files after every run, and
-        # video_posts.video_path pointed at output_path -- the file actually
-        # uploaded and posted to both IG and YouTube for the first live post
-        # was byte-identical to the pre-caption intermediate, not the
-        # captioned one, despite the caption-burn step running successfully
-        # in that same invocation.
-        #
-        # Fix: collapse to exactly one artifact per run. Delete the
-        # pre-caption intermediate and have captioned_path take over
-        # output_path's name -- there is no second file left on disk that
-        # could ever be mistakenly referenced as "the" video for this run.
-        output_path.unlink()
-        captioned_path.rename(output_path)
-        print(f"Captioned (sole output for this run): {output_path}")
-
-        video_id, story_number = insert_video_post(sb, candidate, script, report, output_path)
+        video_id, story_number = insert_video_post(
+            sb, candidate, script, report, output_path,
+            provider=script_provider, input_tokens=script_input_tokens, output_tokens=script_output_tokens,
+            escalation_note=escalation_note,
+        )
         print(f"video_posts row inserted: {video_id} (Story #{story_number})")
+        if escalation_note:
+            print(f"  escalation_note written -- G11 still failing after remediation, see gate_results/escalation_note.", file=sys.stderr)
 
         print(f"Applying Story #{story_number} badge...")
         badged_path = output_path.with_name(output_path.stem + "_badged.mp4")
@@ -2091,6 +3000,7 @@ def main() -> None:
                 set_title=candidate["title"],
                 storage_url=storage_url,
                 qc_frame_urls=qc_urls,
+                escalation_note=escalation_note,
             )
 
         return

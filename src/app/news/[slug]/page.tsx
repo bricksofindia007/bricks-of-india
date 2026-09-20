@@ -16,11 +16,32 @@ import { buildArticleSchema, buildFAQSchema, buildReviewSchema, verdictToRating 
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
 export const revalidate = 3600;
+// Next 15: fetch() is uncached by default, independent of revalidate above --
+// without this, the Supabase reads below become per-request and the route
+// drops from ISR to full SSR. Scoped per-route, not the root layout.
+export const fetchCache = 'default-cache';
 
+// Netlify credit audit (2026-08-29): this route had `revalidate` but no
+// `generateStaticParams` at all, which per Next.js's own rule means "no
+// static params known -> render fully dynamically on every request" --
+// the revalidate export above was silently inert. Confirmed via a real
+// production build: showed up as `ƒ` (full SSR per request), not `●`
+// (ISR), unlike /sets/[slug] and /guides/[slug] which both already had
+// this. Empty array, not the full slug list -- same reasoning as
+// /sets/[slug] (383 news_articles rows, no per-article traffic-ranking
+// data exists to justify a bounded static list; guides' 24-row full-list
+// approach doesn't fit here). dynamicParams stays true (default), so the
+// first request for any slug still renders on demand and gets cached for
+// `revalidate` seconds after that -- real ISR, not a behavior change for
+// visitors, just for the Function invocation count.
+export async function generateStaticParams() {
+  return [];
+}
 
-interface Props { params: { slug: string } }
+interface Props { params: Promise<{ slug: string }> }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params;
   const { data: article } = await supabase.from('news_articles').select('*').eq('slug', params.slug).single();
   if (!article) return { title: 'Article Not Found' };
   return {
@@ -37,7 +58,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function NewsArticlePage({ params }: Props) {
+export default async function NewsArticlePage(props: Props) {
+  const params = await props.params;
   const { data: article } = await supabase.from('news_articles').select('*').eq('slug', params.slug).single();
   if (!article) notFound();
 
@@ -96,7 +118,7 @@ export default async function NewsArticlePage({ params }: Props) {
         </div>
 
         {/* Share */}
-        <div className="flex gap-3 mb-8 pb-8 border-b-2 border-border">
+        <div className="flex flex-wrap gap-3 mb-8 pb-8 border-b-2 border-border">
           <a href={whatsappShareUrl(waText, shareUrl)} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-2 bg-[#25D366] text-white font-bold px-4 py-2 rounded-lg text-sm">📱 WhatsApp</a>
           <a href={twitterShareUrl(article.title, shareUrl)} target="_blank" rel="noopener noreferrer"

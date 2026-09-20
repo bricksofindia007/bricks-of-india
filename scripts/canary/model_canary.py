@@ -1,0 +1,190 @@
+"""
+Model canary -- daily check that every model referenced in production code
+still responds, rather than discovering a deprecation weeks later via a
+silently-fail-open gate (see the 2026-08-22 incident: gate_coherence_llm_judge
+in both video pipelines targeted a decommissioned Groq model for an unknown
+period, always failing open, never actually judging anything -- confirmed
+via a live 404 during the qwen rollout evidence pass).
+
+Checks, one per (provider, model, secret) actually used in production:
+  - Gemini gemini-2.5-flash            (VID-P4 + VID-QP, GEMINI_SOCIAL_API_KEY)
+  - Gemini gemini-2.5-flash-lite       (article pipeline, GEMINI_API_KEY)
+  - Groq   openai/gpt-oss-120b         (all 3 pipelines' fallback via
+                                         feature_flags.py, GROQ_API_KEY)
+  - Cerebras gpt-oss-120b              (all 3 pipelines' fallback, flagged off
+                                         but code kept live -- CEREBRAS_API_KEY)
+
+A missing/empty secret is reported as its OWN distinct failure ("secret not
+configured"), not silently skipped and not conflated with "model dead".
+
+2026-09-17: qwen/qwen3.6-27b (the model this check previously targeted) was
+itself decommissioned -- this canary caught it correctly (3 days red before
+anyone was watching manually), confirming the design works. Swapped to
+openai/gpt-oss-120b, Groq's own recommended replacement and a GA model
+rather than a Preview-tier Qwen point release (which is what got pinned and
+killed twice now: llama-3.3-70b-versatile, then qwen3.6-27b).
+
+KNOWN GAP found during this same fix: gates.py's gate_coherence_llm_judge()
+hardcodes its own Groq model string independently of feature_flags.py --
+this check validates the feature_flags.py value (what the other 3 call
+sites read), not that separate hardcoded literal. Both happened to be the
+same dead model this time, so the fix landed together, but this check
+would NOT by itself catch that specific call site drifting from the others
+in the future. Flagged, not fixed here -- wiring gates.py to read from
+feature_flags.py too is a real option but a separate, deliberate change.
+
+Exit code is non-zero if ANY check fails -- this workflow is meant to show
+up red in normal GitHub Actions notifications on failure, the opposite
+failure mode of a gate that fails open and never surfaces anything.
+
+Every new model integration added to production code must get a
+corresponding check added here (see CLAUDE.md's "Staged/experimental code
+rules" section, where this requirement is documented for future sessions).
+"""
+import sys
+from pathlib import Path
+
+import requests
+
+# BOM-safe secret loading -- reuses the existing, already-proven helper
+# (scripts/video/secrets_util.py) instead of a bare os.environ.get(). Real
+# bug found 2026-08-23, live in this exact script's first real GitHub
+# Actions run: GEMINI_SOCIAL_API_KEY and CEREBRAS_API_KEY both carry a
+# leading U+FEFF byte in this repo's GitHub Secrets (confirmed via the
+# canary's own real failure: "'ascii' codec can't encode character
+# '﻿'"). This is NOT a new production issue -- secrets_util.py's own
+# docstring documents this exact pair of secrets having this exact problem,
+# confirmed live 2026-07-06, and every real pipeline script already routes
+# through get_secret() to strip it. This canary script bypassed that
+# existing fix by using os.environ.get() directly, so it failed on two
+# perfectly healthy secrets on its very first real run -- fixed here by
+# reusing the same helper, not reinventing it.
+sys.path.insert(0, str(Path(__file__).parent.parent / 'video'))
+from secrets_util import get_secret  # noqa: E402
+
+
+class CanaryResult:
+    def __init__(self, name: str, ok: bool, detail: str):
+        self.name = name
+        self.ok = ok
+        self.detail = detail
+
+
+def check_gemini(label: str, secret_name: str, model: str) -> CanaryResult:
+    api_key = get_secret(secret_name)
+    if not api_key:
+        return CanaryResult(label, False, f'SECRET NOT CONFIGURED: {secret_name} is empty/unset')
+    try:
+        from google import genai
+        client = genai.Client(api_key=api_key)
+        resp = client.models.generate_content(model=model, contents='Reply with exactly one word: OK')
+        if resp.text and resp.text.strip():
+            return CanaryResult(label, True, f'{model} responded: {resp.text.strip()[:50]!r}')
+        return CanaryResult(label, False, f'{model} returned empty text (model may be degraded, not necessarily dead)')
+    except Exception as e:
+        return CanaryResult(label, False, f'{model} call failed: {e}')
+
+
+def check_groq(label: str, model: str) -> CanaryResult:
+    api_key = get_secret('GROQ_API_KEY')
+    if not api_key:
+        return CanaryResult(label, False, 'SECRET NOT CONFIGURED: GROQ_API_KEY is empty/unset')
+    try:
+        body = {
+            'model': model,
+            'messages': [{'role': 'user', 'content': 'Reply with exactly one word: OK'}],
+            # 200, not 20 -- gpt-oss models emit a separate visible
+            # `reasoning` field before `content` even at reasoning_effort
+            # 'low' (confirmed empirically 2026-09-17: a real call against
+            # this exact one-word prompt spent all 20 of a 20-token budget
+            # on 14 reasoning tokens, finish_reason='length', content='').
+            # 20 was sized for qwen's reasoning_effort='none', which has no
+            # visible reasoning step at all -- not a safe assumption for
+            # every future model this check might target.
+            'max_tokens': 200,
+        }
+        if model.startswith('qwen/'):
+            body['reasoning_effort'] = 'none'
+        elif model.startswith('openai/gpt-oss'):
+            body['reasoning_effort'] = 'low'
+        resp = requests.post(
+            'https://api.groq.com/openai/v1/chat/completions',
+            headers={'Authorization': f'Bearer {api_key}', 'Content-Type': 'application/json'},
+            json=body,
+            timeout=30,
+        )
+        if resp.status_code == 404:
+            return CanaryResult(label, False, f'{model}: 404 -- likely decommissioned/model_not_found. Raw: {resp.text[:200]}')
+        resp.raise_for_status()
+        message = resp.json()['choices'][0]['message']
+        content = message.get('content')
+        if not content or not content.strip():
+            # Real gap found 2026-09-17: this function used to report OK
+            # on ANY 200-response regardless of content, unlike
+            # check_gemini/check_cerebras which both already guard against
+            # empty output. A finish_reason='length' truncation with a
+            # populated `reasoning` field but empty `content` would have
+            # passed silently -- exactly the kind of "looks fine, does
+            # nothing" failure this whole canary exists to catch.
+            reasoning_note = f" (reasoning field present: {message['reasoning'][:80]!r})" if message.get('reasoning') else ''
+            return CanaryResult(label, False, f'{model} returned empty content{reasoning_note} -- finish_reason={resp.json()["choices"][0].get("finish_reason")!r}')
+        return CanaryResult(label, True, f'{model} responded: {content.strip()[:50]!r}')
+    except Exception as e:
+        return CanaryResult(label, False, f'{model} call failed: {e}')
+
+
+def check_cerebras(label: str, model: str) -> CanaryResult:
+    api_key = get_secret('CEREBRAS_API_KEY')
+    if not api_key:
+        return CanaryResult(label, False, 'SECRET NOT CONFIGURED: CEREBRAS_API_KEY is empty/unset')
+    try:
+        from cerebras.cloud.sdk import Cerebras
+        client = Cerebras(api_key=api_key)
+        resp = client.chat.completions.create(
+            model=model,
+            messages=[{'role': 'user', 'content': 'Reply with exactly one word: OK'}],
+            max_tokens=20,
+        )
+        content = resp.choices[0].message.content
+        if content and content.strip():
+            return CanaryResult(label, True, f'{model} responded: {content.strip()[:50]!r}')
+        return CanaryResult(label, False, f'{model} returned empty content')
+    except Exception as e:
+        # Cerebras is currently payment-blocked (402) as of 2026-08-18 --
+        # that's an EXPECTED, already-known condition (see
+        # cerebras_fallback_enabled's docstring), reported distinctly from
+        # a genuine model-death 404 so this canary doesn't cry wolf every
+        # day for a condition Abhinav already knows about and is flagged
+        # off for.
+        msg = str(e)
+        if '402' in msg or 'Payment required' in msg:
+            return CanaryResult(label, True, f'{model}: 402 payment-blocked (KNOWN, expected -- Cerebras flagged off pending billing fix, not a model-death signal)')
+        return CanaryResult(label, False, f'{model} call failed: {e}')
+
+
+def main() -> int:
+    checks = [
+        check_gemini('gemini-2.5-flash (video pipelines)', 'GEMINI_SOCIAL_API_KEY', 'gemini-2.5-flash'),
+        check_gemini('gemini-2.5-flash-lite (article pipeline)', 'GEMINI_API_KEY', 'gemini-2.5-flash-lite'),
+        check_groq('openai/gpt-oss-120b (all 3 pipelines\' Groq fallback)', 'openai/gpt-oss-120b'),
+        check_cerebras('gpt-oss-120b (all 3 pipelines\' Cerebras fallback, flagged off)', 'gpt-oss-120b'),
+    ]
+
+    print('=== Model Canary Results ===')
+    any_failed = False
+    for r in checks:
+        status = 'OK' if r.ok else 'FAIL'
+        print(f'[{status}] {r.name}: {r.detail}')
+        if not r.ok:
+            any_failed = True
+
+    print()
+    if any_failed:
+        print('CANARY FAILED -- at least one model/secret check failed. See details above.', file=sys.stderr)
+        return 1
+    print('All canary checks passed.')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())

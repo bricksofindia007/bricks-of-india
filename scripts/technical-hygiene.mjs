@@ -732,6 +732,23 @@ const NON_BUILDABLE_THEMES = new Set([
   'Bag and Luggage Tags', 'Houseware', 'Video Games and Accessories',
   'Key Chain', 'Story Books', 'Gear', 'Stationery and Office Supplies',
   'Storage', 'Non-fiction Books', 'Ideas Books', 'Clocks and Watches',
+  // Added 2026-09-18 (issue #124): these 5 crept into the catalogue since
+  // the list above was written and are the same class of non-buildable
+  // merchandise (no meaningful single piece count), not a new gap.
+  // Confirmed directly against live data before adding: Clothing &
+  // Footwear (615/617, 99.7% missing), Activity Books (214/216, 99.1%),
+  // Posters and Art Prints (97/98, 99.0%), Tabletop Games and Puzzles
+  // (80/100, 80.0%), Audio and Visual Media (67/78, 85.9%) -- together
+  // 1,146 of the reported 1,696 "missing" (67.6%). Excluding them drops
+  // the genuine buildable-catalogue gap from 9.1% (1696/18639) to 3.6%
+  // (623/17530), back under this check's 5% threshold -- same fix shape
+  // as the original HIGH-48 investigation this list came from (27.6% ->
+  // ~6% after the first exclusion pass). 'Seasonal' (64.6% missing, 113
+  // total) deliberately NOT added -- unlike these 5, it's a mixed
+  // category that can contain real buildable ornaments/sets alongside
+  // non-buildable decor, so a blanket exclusion isn't as clearly correct.
+  'Clothing & Footwear', 'Activity Books', 'Posters and Art Prints',
+  'Tabletop Games and Puzzles', 'Audio and Visual Media',
 ]);
 const BUNDLE_NAME_RE = /\b(bundle|pack|advent|gift set|collection|kit)\b/i;
 
@@ -756,9 +773,40 @@ try {
   const missingYear   = buildable.filter(s => s.year == null).length;
   const pctPieces = total ? Math.round((missingPieces / total) * 100) : 0;
   const pctYear   = total ? Math.round((missingYear   / total) * 100) : 0;
-  log('CatalogCoverage', `Buildable sets missing pieces: ${missingPieces}/${total} (${pctPieces}%) | missing year: ${missingYear}/${total} (${pctYear}%) [${allSets.length - total} non-buildable merch/bundle products excluded]`);
-  if (pctPieces > 5) alertFail('CatalogCoverage', `${pctPieces}% of buildable sets missing pieces data — catalogue may be degraded`);
-  if (pctYear   > 5) alertFail('CatalogCoverage', `${pctYear}% of buildable sets missing year data — catalogue may be degraded`);
+
+  // BOI Fix Brief (2026-08-24/25), Phase 4.1: no persisted history existed
+  // for this metric -- "trend log" in this check's own section header
+  // turned out to mean "visible across successive weekly emails," not a
+  // real table. Now logs every run to catalog_coverage_trend and reports
+  // the delta against the immediately-prior logged run, so a real
+  // growing/shrinking/stable trend is visible starting from this run
+  // (the very first logged row has nothing prior to compare against --
+  // reported as such, not silently omitted).
+  let trendNote = ' [first logged run -- no prior baseline to compare against]';
+  try {
+    const { data: prior } = await sb.from('catalog_coverage_trend')
+      .select('logged_at, missing_pieces_pct, missing_year_pct')
+      .order('logged_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (prior) {
+      const daysAgo = Math.round((Date.now() - new Date(prior.logged_at).getTime()) / 86_400_000);
+      const deltaPieces = pctPieces - Number(prior.missing_pieces_pct);
+      const deltaYear   = pctYear   - Number(prior.missing_year_pct);
+      const fmt = (d) => d === 0 ? 'no change' : `${d > 0 ? '+' : ''}${d}pp`;
+      trendNote = ` [vs. ${daysAgo}d ago: pieces ${fmt(deltaPieces)}, year ${fmt(deltaYear)}]`;
+    }
+    await sb.from('catalog_coverage_trend').insert({
+      total_buildable: total, missing_pieces: missingPieces, missing_pieces_pct: pctPieces,
+      missing_year: missingYear, missing_year_pct: pctYear,
+    });
+  } catch (e) {
+    trendNote = ` [trend logging failed, non-fatal: ${e.message.slice(0, 60)}]`;
+  }
+
+  log('CatalogCoverage', `Buildable sets missing pieces: ${missingPieces}/${total} (${pctPieces}%) | missing year: ${missingYear}/${total} (${pctYear}%) [${allSets.length - total} non-buildable merch/bundle products excluded]${trendNote}`);
+  if (pctPieces > 5) alertFail('CatalogCoverage', `${pctPieces}% of buildable sets missing pieces data — catalogue may be degraded${trendNote}`);
+  if (pctYear   > 5) alertFail('CatalogCoverage', `${pctYear}% of buildable sets missing year data — catalogue may be degraded${trendNote}`);
 } catch (e) {
   alertFail('CatalogCoverage', `Sets coverage check failed: ${e.message.slice(0, 80)}`);
 }
@@ -1146,18 +1194,50 @@ try {
   }
 } catch (e) { alertFail('ExtDependencies', `GH_DISPATCH_TOKEN check error: ${e.message.slice(0, 60)}`); }
 
-// 12h: IG_ACCESS_TOKEN — expiry warning (expires ~2026-07-23, action by 2026-07-16)
+// 12h: IG_ACCESS_TOKEN — expiry warning
+//
+// Bug fixed 2026-08-16: this used to compare against a HARDCODED expiry
+// date ('2026-07-23') that was only ever correct for the token live when
+// this line was written. ig-token-refresh.yml rotates the real secret
+// every ~45-60 days (last confirmed successful rotation: 2026-08-15, per
+// its own run history), but nothing here ever updated the constant --
+// so this check kept reporting "EXPIRED 19+ days ago" against a token
+// that had in fact already been rotated, while social-automation.yml's
+// own logs showed successful IG posts the whole time (false alarm,
+// confirmed 2026-08-16 investigation). Fixed to read the IG_ACCESS_TOKEN
+// GitHub Secret's own `updated_at` metadata via the GitHub API -- the
+// same live signal ig-token-refresh.yml's own 45-day proactive timer
+// already trusts -- instead of a stale literal. Needs ADMIN_PAT (not the
+// default GITHUB_TOKEN, which cannot read secrets metadata) -- see
+// ig-token-refresh.yml's own header comment for why.
 try {
-  const IG_EXPIRY = new Date('2026-07-23T00:00:00Z');
-  const daysLeft = Math.floor((IG_EXPIRY - Date.now()) / 86_400_000);
-  if (daysLeft < 0) {
-    alertFail('ExtDependencies', `IG_ACCESS_TOKEN EXPIRED ${Math.abs(daysLeft)} days ago — social automation is down`);
-  } else if (daysLeft <= 14) {
-    alertFail('ExtDependencies', `IG_ACCESS_TOKEN expires in ${daysLeft} days (${IG_EXPIRY.toISOString().slice(0, 10)}) — re-exchange NOW`);
-  } else if (daysLeft <= 30) {
-    log('ExtDependencies', `IG_ACCESS_TOKEN: ${daysLeft} days until expiry — schedule re-exchange ⚠️`);
+  const adminPat = process.env.ADMIN_PAT ?? '';
+  if (!adminPat) {
+    alertFail('ExtDependencies', 'IG_ACCESS_TOKEN expiry check: ADMIN_PAT not set — cannot read secret rotation metadata');
   } else {
-    log('ExtDependencies', `IG_ACCESS_TOKEN: ${daysLeft} days until expiry ✓`);
+    const res = await fetch(`https://api.github.com/repos/${GITHUB_REPO}/actions/secrets/IG_ACCESS_TOKEN`, {
+      headers: { Authorization: `Bearer ${adminPat}`, 'User-Agent': 'BOI-TechHygiene/1.0' },
+      signal: AbortSignal.timeout(8_000),
+    });
+    if (!res.ok) {
+      alertFail('ExtDependencies', `IG_ACCESS_TOKEN expiry check: GitHub API returned HTTP ${res.status} reading secret metadata`);
+    } else {
+      const { updated_at } = await res.json();
+      const ageDays = Math.floor((Date.now() - new Date(updated_at)) / 86_400_000);
+      // Explicit NaN guard (2026-08-16, caught in pre-merge testing): a
+      // missing/malformed updated_at silently produced "NaN days ... ✓" on
+      // the SUCCESS path with the check above absent -- looks fine, isn't.
+      // Fail loud instead of reporting false confidence.
+      if (Number.isNaN(ageDays)) {
+        alertFail('ExtDependencies', `IG_ACCESS_TOKEN expiry check: API response missing/invalid updated_at (got "${updated_at}") — cannot compute rotation age`);
+      } else if (ageDays >= 60) {
+        alertFail('ExtDependencies', `IG_ACCESS_TOKEN last rotated ${ageDays} days ago — past the ~60-day hard expiry, social automation is likely down`);
+      } else if (ageDays >= 45) {
+        log('ExtDependencies', `IG_ACCESS_TOKEN: ${ageDays} days since last rotation — due for ig-token-refresh.yml's next 1st/15th tick ⚠️`);
+      } else {
+        log('ExtDependencies', `IG_ACCESS_TOKEN: ${ageDays} days since last rotation (of a ~45-day cycle) ✓`);
+      }
+    }
   }
 } catch (e) { alertFail('ExtDependencies', `IG token expiry check error: ${e.message.slice(0, 60)}`); }
 
@@ -1217,12 +1297,25 @@ try {
 } catch (e) { alertFail('DataPipeline', `price_snapshots check error: ${e.message.slice(0, 80)}`); }
 
 // 13c: content_fix_log — at least 1 row in last 7 days (auto-fixer ran)
+//
+// BOI Fix Brief (2026-08-24), Phase 0.1: this check queried a
+// non-existent `created_at` column (the table's real timestamp column
+// is `fixed_at` -- see migration 20260529000000). Supabase's response
+// destructuring here only reads `count`, never `error`, so the query
+// error was silently swallowed and every run fell through to the
+// false-negative "no rows... acceptable" branch below -- regardless of
+// how many real fixes had actually been logged. Verified live: the
+// table had 12 real rows in the prior 7 days at the moment this bug's
+// last false report went out, including the exact 2 fixes that same
+// day's CQS report had already cited by name. The auto-fixer's writes
+// were never broken; only this check's read was.
 try {
   const cutoff = new Date(Date.now() - 7 * 86_400_000).toISOString();
-  const { count } = await sb.from('content_fix_log').select('*', { count: 'exact', head: true }).gte('created_at', cutoff);
+  const { count, error } = await sb.from('content_fix_log').select('*', { count: 'exact', head: true }).gte('fixed_at', cutoff);
+  if (error) throw error;
   if (!count || count === 0) log('DataPipeline', 'content_fix_log: no rows in last 7 days — auto-fixer may not have run (acceptable if no issues)');
   else log('DataPipeline', `content_fix_log: ${count} fix(es) in last 7 days ✓`);
-} catch (e) { log('DataPipeline', `content_fix_log check skipped: ${e.message.slice(0, 60)}`); }
+} catch (e) { alertFail('DataPipeline', `content_fix_log check error: ${e.message.slice(0, 80)}`); }
 
 // 13d: newsletter_subscribers — table queryable
 try {
@@ -1576,6 +1669,35 @@ try {
 // 16a. Every set in the reviews table must have at least one store_prices row.
 //      A reviewed set with no prices means the compare sidebar is empty on the
 //      review page — the most important commercial surface on the site.
+//
+// BOI Fix Brief (2026-08-24/25): do NOT try to exclude GWP/promotional sets
+// from this check via a category heuristic (theme, set_number prefix,
+// lego_mrp_inr nullness) -- two different heuristics were tried and both
+// failed real validation (32% and 44% false-exclusion against the live
+// catalog). Confirmed live via a direct MyBrickHouse site check across 6
+// real GWP-shaped sets (2026-08-25): whether a given GWP is independently
+// purchasable is genuinely per-set, not per-category -- 40896 (X-Files:
+// Scully's Lab) sells standalone at MyBrickHouse; 40919 (Gremlins: Gizmo
+// and Stripe), a structurally identical "themed GWP tied to a diorama/
+// figure purchase," does not, and only its parent set (21361) does.
+// src/app/reviews/[slug]/page.tsx already gets this right -- it queries
+// store_prices for the review's own linked set_number directly, across
+// every tracked store, with no category shortcut anywhere. That -- a
+// direct store_prices-by-exact-set_id check, nothing else -- is the
+// correct and only reliable signal.
+//
+// GWP pricing rule finalized 2026-08-26 (issue #78) -- the permanence
+// marker flagged as an open gap above now exists: sets.is_gwp (set
+// directly at review time / by this session's known-case backfill, not
+// inferred). store_prices is still checked FIRST and is still the only
+// thing that decides whether a price shows (is_gwp never suppresses a
+// real listing -- 40896/40891 both prove a GWP-origin set can still be
+// sold standalone). is_gwp only changes what an absence of a price
+// *means*: a non-GWP set with no store_prices row is still a real,
+// actionable gap (new/unscraped, or a set_id linkage bug); a confirmed
+// is_gwp set with no store_prices row is expected, correct state and no
+// longer counted as a failure here -- it's surfaced separately, at info
+// level, so the split stays visible rather than silently dropped.
 try {
   const { data: allReviewedSets } = await sb.from('reviews').select('set_id, title');
   // Exclude reviews with no matched catalog set (added 2026-08-03 -- a
@@ -1589,19 +1711,24 @@ try {
   // null.
   const reviewedSets = allReviewedSets.filter(r => r.set_id != null);
   const { data: setRows } = await sb.from('sets')
-    .select('id, set_number')
+    .select('id, set_number, is_gwp')
     .in('id', reviewedSets.map(r => r.set_id));
-  const setNumberMap = Object.fromEntries(setRows.map(s => [s.id, s.set_number]));
-  const setNumbers = Object.values(setNumberMap);
+  const setMap = Object.fromEntries(setRows.map(s => [s.id, s]));
+  const setNumbers = setRows.map(s => s.set_number);
   const { data: priceRows } = await sb.from('store_prices')
     .select('set_id')
     .in('set_id', setNumbers);
   const pricedSetNumbers = new Set(priceRows.map(p => p.set_id));
-  const missing = reviewedSets.filter(r => !pricedSetNumbers.has(setNumberMap[r.set_id]));
+  const unpriced = reviewedSets.filter(r => !pricedSetNumbers.has(setMap[r.set_id]?.set_number));
+  const missing = unpriced.filter(r => !setMap[r.set_id]?.is_gwp);
+  const expectedGwp = unpriced.filter(r => setMap[r.set_id]?.is_gwp);
   if (missing.length > 0) {
     alertFail('ReviewedSetPrices', `${missing.length} reviewed set(s) have no store_prices: ${missing.map(r => r.title).join(', ')}`);
   } else {
-    log('ReviewedSetPrices', `all ${reviewedSets.length} reviewed sets have store_prices ✓`);
+    log('ReviewedSetPrices', `all ${reviewedSets.length - expectedGwp.length} non-GWP reviewed sets have store_prices ✓`);
+  }
+  if (expectedGwp.length > 0) {
+    log('ReviewedSetPrices', `${expectedGwp.length} confirmed-GWP reviewed set(s) correctly excluded (no independent price expected): ${expectedGwp.map(r => r.title).join(', ')}`);
   }
 } catch (e) { alertFail('ReviewedSetPrices', `check failed: ${e.message.slice(0, 80)}`); }
 

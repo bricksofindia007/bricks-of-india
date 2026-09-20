@@ -11,6 +11,14 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { checkReviewSourceGates } from '../src/lib/review-source-quality.ts';
+import { reconcileIssues } from './lib/content-quality-reconcile.mjs';
+import { CHECK_NAME_OWNERS } from './lib/content-quality-check-ownership.mjs';
+
+// Single source of truth (scripts/lib/content-quality-check-ownership.mjs),
+// CI-verified against every real flag(...)/checkReviewSourceGates call in
+// this file (.github/workflows/content-quality-ownership-lint.yml) -- see
+// reconcileIssues' docstring for why this list must be exhaustive.
+const OWNED_CHECK_NAMES = CHECK_NAME_OWNERS['content-linter.mjs'];
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
@@ -294,12 +302,38 @@ for (const art of all) {
   if (!imgUrl && hasSetNumber) {
     flag(art, 'missing_image', 'critical', 'No image URL set', false);
   } else {
-    // exclude YouTube maxresdefault and canonical fallback from placeholder check
-    const CANONICAL_FALLBACK = '/fallback-hero.png';
-    if (imgUrl !== CANONICAL_FALLBACK && (/placeholder|no-image|fallback|blank/i.test(imgUrl) || (/\bdefault\b/i.test(imgUrl) && !/ytimg\.com|youtube/i.test(imgUrl))))
-      flag(art, 'placeholder_image', 'critical', `Placeholder image URL: ${imgUrl.slice(0, 80)}`, false);
-    if (!imageMap[imgUrl]) imageMap[imgUrl] = [];
-    imageMap[imgUrl].push({ slug: art.slug, section });
+    // BOI Fix Brief (2026-08-24), Phase 2.1: exclude every KNOWN,
+    // intentional shared fallback asset, not just the generic one --
+    // publish-draft.ts's NEWS_FALLBACK_ASSET ('/lego-news-fallback.png',
+    // added 2026-08-09, Nav & Content Overhaul §7) is a deliberate,
+    // approved design choice for fan-MOC/community-repost news articles
+    // (~253/286 rows, confirmed live that session): they have no
+    // set_number, so there is structurally no real product photo to
+    // source, and this asset honestly signals "community content"
+    // instead of silently reusing the generic sourcing-failure fallback.
+    // This check never got updated for it -- confirmed live 2026-08-24:
+    // 197 of these correctly-functioning articles were flagged
+    // 'placeholder_image' critical (100% of the real count), and since
+    // all 197 legitimately share the exact same URL, the imageMap
+    // dedup below counted them all as 'duplicate_image' too (178 of
+    // 208 open rows). Neither is a real sourcing failure -- both are
+    // this check not knowing about a real, working, intentional
+    // design. Same reasoning extends to every other known intentional
+    // fallback: skip both checks entirely for any of them, and skip
+    // adding them to imageMap at all -- many articles legitimately
+    // sharing one deliberate placeholder was never the kind of mistake
+    // the duplicate-image check exists to catch (two DIFFERENT real
+    // products accidentally ending up with the same scraped photo).
+    const KNOWN_INTENTIONAL_FALLBACKS = new Set([
+      '/fallback-hero.png',       // generic sourcing-failure fallback (already excluded pre-2026-08-24)
+      '/lego-news-fallback.png',  // news: fan-MOC/community articles with no set_number to source from
+    ]);
+    if (!KNOWN_INTENTIONAL_FALLBACKS.has(imgUrl)) {
+      if (/placeholder|no-image|fallback|blank/i.test(imgUrl) || (/\bdefault\b/i.test(imgUrl) && !/ytimg\.com|youtube/i.test(imgUrl)))
+        flag(art, 'placeholder_image', 'critical', `Placeholder image URL: ${imgUrl.slice(0, 80)}`, false);
+      if (!imageMap[imgUrl]) imageMap[imgUrl] = [];
+      imageMap[imgUrl].push({ slug: art.slug, section });
+    }
   }
 }
 
@@ -371,13 +405,19 @@ for (const [url, entries] of Object.entries(imageMap)) {
 }
 
 // ── Write issues to DB ────────────────────────────────────────────────────────
-
-console.log(`\nWriting ${issues.length} issues to DB…`);
+//
+// BOI Fix Brief (2026-08-24), Phase 0.2: this used to be a blind INSERT
+// of every currently-detected issue, every single run, with no lookup
+// against already-open rows for the same (article_slug, check_name).
+// See reconcileIssues() in lib/content-quality-reconcile.mjs for the
+// full history, including the same-day follow-up fix (this script's
+// FIRST version of reconciliation scoped its open-lookup/auto-resolve
+// across the whole table, not just its own check_names, and wrongly
+// auto-resolved 184+ real open issues belonging to visual-renderer.mjs
+// on its first live run -- now fixed via OWNED_CHECK_NAMES scoping).
 const BATCH = 50;
-for (let i = 0; i < issues.length; i += BATCH) {
-  const { error } = await sb.from('content_quality_issues').insert(issues.slice(i, i + BATCH));
-  if (error) console.error('Insert error:', error.message);
-}
+console.log(`\nReconciling ${issues.length} detected issue(s)…`);
+await reconcileIssues(sb, issues, OWNED_CHECK_NAMES, 'content-linter.mjs');
 
 console.log(`Writing ${imageRegistryRows.length} image registry rows…`);
 for (let i = 0; i < imageRegistryRows.length; i += BATCH) {

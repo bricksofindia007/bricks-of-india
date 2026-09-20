@@ -12,9 +12,10 @@ import { Byline } from '@/components/content/Byline';
 import { JsonLd } from '@/components/JsonLd';
 import { buildArticleSchema } from '@/lib/schemas';
 
-interface Props { params: { slug: string } }
+interface Props { params: Promise<{ slug: string }> }
 
-export async function generateMetadata({ params }: Props): Promise<Metadata> {
+export async function generateMetadata(props: Props): Promise<Metadata> {
+  const params = await props.params;
   const { data: post } = await supabase
     .from('blog_posts')
     .select('title, excerpt, hero_image, seo_title, seo_description, category')
@@ -34,7 +35,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   };
 }
 
-export default async function OpinionPostPage({ params }: Props) {
+export default async function OpinionPostPage(props: Props) {
+  const params = await props.params;
   const { data: post } = await supabase
     .from('blog_posts')
     .select('*')
@@ -94,7 +96,7 @@ export default async function OpinionPostPage({ params }: Props) {
         </div>
 
         {/* Share */}
-        <div className="flex gap-3 mb-8 pb-8 border-b-2 border-border">
+        <div className="flex flex-wrap gap-3 mb-8 pb-8 border-b-2 border-border">
           <a href={whatsappShareUrl(waText, shareUrl)} target="_blank" rel="noopener noreferrer"
             className="flex items-center gap-2 bg-[#25D366] text-white font-bold px-4 py-2 rounded-lg text-sm">📱 WhatsApp</a>
           <a href={twitterShareUrl(post.title, shareUrl)} target="_blank" rel="noopener noreferrer"

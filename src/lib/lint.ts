@@ -196,9 +196,21 @@ export async function gateOpenerUniqueness(
     // for guides, since §5 turns on weekly Guides generation through this
     // same gate for the first time and it needs the same opener-uniqueness
     // protection news/review/opinion already had.
-    const [newsRes, guidesRes] = await Promise.all([
+    //
+    // BOI Fix Brief (2026-08-24), Phase 2.2: that last comment overstated
+    // reality -- confirmed via full git history, `reviews` was NEVER
+    // queried here, in any version of this file. A review draft's opener
+    // was checked against recent news/guides content (which would never
+    // match, different subject matter) but never against OTHER REVIEWS --
+    // exactly where the "worth ₹X" verdict-template reuse the CQS report
+    // flagged would occur. Root cause of the 100%-identical-opener
+    // warnings clustered on that template: not a threshold problem, Gate 8
+    // structurally never had a chance to catch same-format review-opener
+    // reuse at all. Added.
+    const [newsRes, guidesRes, reviewsRes] = await Promise.all([
       sb.from('news_articles').select('content').order('created_at', { ascending: false }).limit(30),
       sb.from('guides').select('content').order('published_at', { ascending: false }).limit(30),
+      sb.from('reviews').select('content').order('created_at', { ascending: false }).limit(30),
     ]);
 
     // A query error is infrastructure failure, not "no duplicates". Do not
@@ -206,14 +218,15 @@ export async function gateOpenerUniqueness(
     // read), but do NOT silently pass either — surface a warn so the gate
     // state is visible in lint_result telemetry. (Was: bare catch → pass:ok,
     // i.e. fully fail-open and invisible. 2026-07-02 audit item.)
-    if (newsRes.error || guidesRes.error) {
-      const msg = newsRes.error?.message ?? guidesRes.error?.message ?? 'unknown';
+    if (newsRes.error || guidesRes.error || reviewsRes.error) {
+      const msg = newsRes.error?.message ?? guidesRes.error?.message ?? reviewsRes.error?.message ?? 'unknown';
       return { pass: true, severity: 'warn', reason: `gate 8 corpus query failed — duplicate check DEGRADED to batch-only: ${msg}` };
     }
 
     const rows: string[] = [
       ...((newsRes.data ?? []).map((r: { content: string }) => r.content)),
       ...((guidesRes.data ?? []).map((r: { content: string | null }) => r.content ?? '')),
+      ...((reviewsRes.data ?? []).map((r: { content: string | null }) => r.content ?? '')),
     ];
 
     for (const row of rows) {

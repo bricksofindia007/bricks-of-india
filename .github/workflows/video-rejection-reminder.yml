@@ -10,12 +10,18 @@ name: VID-P4 Rejection Review Reminder
 
 on:
   schedule:
-    - cron: '0 3 * * 1'  # every Monday, 03:00 UTC
+    # Staggered 2026-08-16 (was 0 3 * * 1) -- collided with content-quality.yml/
+    # snapshot-prices.yml at the same minute on Mondays.
+    - cron: '40 3 * * 1'  # every Monday, 03:40 UTC = 09:10 IST
   workflow_dispatch:  # manual trigger for testing
 
 jobs:
   check:
     runs-on: ubuntu-latest
+    # 6 most recent runs: 1m54s-2m55s (gh run list
+    # --workflow=video-rejection-reminder.yml --limit 10, 2026-08-18). ~2.5x
+    # observed max.
+    timeout-minutes: 8
     steps:
       - uses: actions/checkout@v4
 

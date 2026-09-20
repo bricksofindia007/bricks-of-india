@@ -17,9 +17,18 @@ from dotenv import load_dotenv
 load_dotenv(Path(__file__).parent / '.env')
 load_dotenv(Path(__file__).parent.parent / '.env.local')
 
-IG_ACCESS_TOKEN      = os.environ.get('IG_ACCESS_TOKEN', '')
-IG_USER_ID           = os.environ.get('IG_USER_ID', '')
-YOUTUBE_CLIENT_SECRETS = os.environ.get('YOUTUBE_CLIENT_SECRETS', '')
+def _get_secret(name: str, default: str = '') -> str:
+    # BOM-safe secret loading -- see scripts/video/secrets_util.py, the
+    # precedent this pipeline never picked up for IG_ACCESS_TOKEN/IG_USER_ID
+    # even though this same file already strips it for RESEND_API_KEY
+    # (notifier.py) and both live on the identical System User token used by
+    # scripts/video/publish.py, which does route through get_secret().
+    return os.environ.get(name, default).lstrip('﻿').strip()
+
+
+IG_ACCESS_TOKEN      = _get_secret('IG_ACCESS_TOKEN')
+IG_USER_ID           = _get_secret('IG_USER_ID')
+YOUTUBE_CLIENT_SECRETS = _get_secret('YOUTUBE_CLIENT_SECRETS')
 
 GRAPH_API_BASE = 'https://graph.facebook.com/v19.0'
 YT_SCOPES      = [

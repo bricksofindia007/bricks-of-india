@@ -1,5 +1,7 @@
 import Image from 'next/image';
+import Link from 'next/link';
 import type { Metadata } from 'next';
+import { unstable_cache } from 'next/cache';
 import { supabase } from '@/lib/supabase';
 import { ArticleCard } from '@/components/content/ArticleCard';
 import { Badge } from '@/components/ui/Badge';
@@ -13,11 +15,36 @@ export const metadata: Metadata = {
 
 const NEWS_CATEGORIES = ['New Sets', 'Deals', 'India Launches', 'Rumours', 'Community'];
 
-export default async function NewsPage({ searchParams }: { searchParams: { category?: string } }) {
+// Netlify credit audit (2026-08-29): this page read `searchParams.category`
+// directly in the Server Component and ran a fresh Supabase query per
+// category click — reading searchParams here is a Next.js Dynamic API,
+// which opts the ENTIRE route out of static/ISR rendering regardless of
+// any revalidate export (confirmed via a real production build: `ƒ` full
+// SSR per request, the only content-listing page in the app without a
+// revalidate export at all). Same root pattern already fixed once on this
+// site for /lab/price-drops (2026-08-15): the category filter only ever
+// sliced an already-fully-fetched result, so the fetch itself is decoupled
+// from searchParams and cached here instead. Revalidate window matches
+// next.config.mjs's own already-declared Cache-Control intent for this
+// exact route (`Content listing pages — 5min fresh`), not copied from an
+// unrelated page.
+const getAllNewsArticles = unstable_cache(
+  async () => {
+    const { data } = await supabase
+      .from('news_articles')
+      .select('*')
+      .order('published_at', { ascending: false });
+    return data ?? [];
+  },
+  ['news-page-all-articles'],
+  { revalidate: 300 },
+);
+
+export default async function NewsPage(props: { searchParams: Promise<{ category?: string }> }) {
+  const searchParams = await props.searchParams;
   const category = searchParams.category || '';
-  let query = supabase.from('news_articles').select('*').order('published_at', { ascending: false });
-  if (category) query = query.eq('category', category);
-  const { data: articles } = await query;
+  const allArticles = await getAllNewsArticles();
+  const articles = category ? allArticles.filter((a: any) => a.category === category) : allArticles;
 
   return (
     <div className="bg-white min-h-screen">
@@ -37,12 +64,12 @@ export default async function NewsPage({ searchParams }: { searchParams: { categ
       <div className="max-w-site mx-auto px-4 py-10">
         {/* Category filter */}
         <div className="flex flex-wrap gap-2 mb-8">
-          <a
+          <Link
             href="/news"
             className={`px-4 py-2 rounded-full text-sm font-bold border-2 transition-colors ${!category ? 'bg-dark text-white border-dark' : 'bg-white text-dark border-border hover:border-dark'}`}
           >
             All
-          </a>
+          </Link>
           {NEWS_CATEGORIES.map((cat) => (
             <a
               key={cat}

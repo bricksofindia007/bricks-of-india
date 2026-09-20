@@ -1,0 +1,62 @@
+name: Lint Tracker/Dashboard Sync
+
+# Enforces CLAUDE.md's "Dashboard sync" rule (see BOI_MASTER_TRACKER.md's
+# own §Auto-update protocol): every state change to BOI_MASTER_TRACKER.md
+# is supposed to update admin/dashboard.html in the same commit. That rule
+# has existed since early in this project but was never actually enforced
+# by anything -- confirmed real, not hypothetical: BOI_MASTER_TRACKER.md's
+# own 2026-08-09 entry explicitly self-reports a violation ("admin/
+# dashboard.html was not updated alongside this entry, despite the
+# tracker's own Auto-update protocol"), and a 2026-08-23 ground-truth audit
+# found the pattern recurring across the prior 30 days. Same category of
+# fix as lint-workflow-timeouts.py -- a documented convention that only
+# CI, not a comment or a memory of the rule, can actually hold the line on.
+#
+# Scoped to pull_request only, deliberately -- CLAUDE.md's own Git rules
+# section carves out "Direct commits to main remain fine for docs-only or
+# tracker-only changes... where nothing can break." This check must not
+# contradict that existing, deliberate fast path; it only gates PRs, same
+# as lint-workflows.yml's own scoping choice.
+#
+# Deliberately simple: presence-of-change, not content-correctness. This
+# does not (and cannot, from a diff alone) verify the dashboard update is
+# actually accurate or complete -- only that it was touched at all when the
+# tracker was. A human still has to mean it; this just stops the silent
+# skip.
+
+on:
+  pull_request:
+    paths:
+      - 'BOI_MASTER_TRACKER.md'
+      - 'admin/dashboard.html'
+
+jobs:
+  check-sync:
+    runs-on: ubuntu-latest
+    # Trivial diff check -- a `git diff --name-only`, nothing else. 5 min
+    # is already generous headroom, not sized off historical data since
+    # this workflow is new (same reasoning lint-workflows.yml used for its
+    # own first-run timeout).
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Confirm tracker and dashboard changed together
+        run: |
+          CHANGED=$(git diff --name-only "origin/${{ github.event.pull_request.base.ref }}"...HEAD)
+          TRACKER_CHANGED=false
+          DASHBOARD_CHANGED=false
+          echo "$CHANGED" | grep -qx 'BOI_MASTER_TRACKER.md' && TRACKER_CHANGED=true
+          echo "$CHANGED" | grep -qx 'admin/dashboard.html' && DASHBOARD_CHANGED=true
+
+          echo "BOI_MASTER_TRACKER.md changed: $TRACKER_CHANGED"
+          echo "admin/dashboard.html changed:  $DASHBOARD_CHANGED"
+
+          if [ "$TRACKER_CHANGED" = "true" ] && [ "$DASHBOARD_CHANGED" != "true" ]; then
+            echo "::error::BOI_MASTER_TRACKER.md was modified in this PR but admin/dashboard.html was not. Per CLAUDE.md's Dashboard sync rule (BOI_MASTER_TRACKER.md's own Auto-update protocol), every tracker state change must update admin/dashboard.html in the same PR. If this tracker change is genuinely internal-only (e.g. a typo fix, not a real state change), say so explicitly in the PR description -- but the default expectation is both files move together."
+            exit 1
+          fi
+
+          echo "OK -- no sync violation (either both files changed together, or only the dashboard changed on its own, which is fine)."

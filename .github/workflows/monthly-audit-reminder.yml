@@ -2,7 +2,10 @@ name: Monthly 360 Audit Reminder
 
 on:
   schedule:
-    - cron: '0 3 1 * *'  # 1st of the month, 03:00 UTC
+    # Staggered 2026-08-16 (was 0 3 1 * *) -- collided with content-quality.yml/
+    # snapshot-prices.yml (and, on a 1st that lands on a weekday those other
+    # jobs also run, catalogue-audit.yml/video-rejection-reminder.yml too).
+    - cron: '50 3 1 * *'  # 1st of the month, 03:50 UTC = 09:20 IST
   workflow_dispatch:
 
 jobs:

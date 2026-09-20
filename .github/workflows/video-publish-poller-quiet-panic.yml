@@ -16,6 +16,10 @@ on:
 jobs:
   poll:
     runs-on: ubuntu-latest
+    # 10 most recent runs: 1m31s-5m0s (gh run list
+    # --workflow=video-publish-poller-quiet-panic.yml --limit 10,
+    # 2026-08-18). ~2.5x observed max.
+    timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
 
