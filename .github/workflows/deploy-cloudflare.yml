@@ -23,6 +23,14 @@ on:
   push:
     branches:
       - main
+    # Tracker-commit redeploy loop: BOI_MASTER_TRACKER.md and docs/** are
+    # updated on essentially every session (session-start reads, sprint
+    # changelog entries, audit reports) and none of it is deployable --
+    # every one of those commits was triggering a full build + a
+    # human-approval-gated deploy run for zero site-relevant change.
+    paths-ignore:
+      - 'BOI_MASTER_TRACKER.md'
+      - 'docs/**'
   workflow_dispatch:
 
 jobs:
