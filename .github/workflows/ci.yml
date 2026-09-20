@@ -64,16 +64,20 @@ jobs:
           fi
           exit $FAIL
 
-      - name: Scan rendered HTML for email leak (all built routes)
+      - name: Scan rendered HTML for email leak + title defects (all built routes)
         run: |
           EMAIL_REGEX='[A-Za-z0-9._%+-]+@bricksofindia\.com'
+          # Site-wide fallback title (src/app/layout.tsx's metadata.title.default)
+          # -- a route rendering exactly this means it has no page-specific
+          # metadata at all (the #110 class of bug).
+          DEFAULT_TITLE='Bricks of India — LEGO Price Comparison & Reviews in India 2026'
           # MEDIUM-53: enumerate every static (non-dynamic-segment) app route from
           # the build's own route manifest instead of a hand-maintained shortlist —
           # a hardcoded 5-route list is exactly the kind of scope gap that let
           # public/brand/guide.html ship an email address undetected.
           node -e "
             const routes = Object.values(require('./.next/app-path-routes-manifest.json'))
-              .filter(r => !r.includes('[') && !r.startsWith('/api/'));
+              .filter(r => !r.includes('[') && !r.startsWith('/api/') && r !== '/_not-found');
             console.log(routes.join('\n'));
           " > /tmp/routes.txt
           echo "Scanning $(wc -l < /tmp/routes.txt) routes:"
@@ -84,9 +88,49 @@ jobs:
           sleep 8
           FAIL=0
           while IFS= read -r route; do
-            if curl -sf "http://localhost:3000$route" | grep -qE "$EMAIL_REGEX"; then
+            # src/middleware.ts (#114/#117) 308-redirects any request whose
+            # x-forwarded-proto isn't "https" -- a bare local curl has no such
+            # header, so without this every route here would 308 to an
+            # unfollowed URL and every check below would silently run against
+            # an empty body. Sending the header production visitors actually
+            # arrive with (Cloudflare sets x-forwarded-proto: https) is more
+            # correct than -L, which would exercise the redirect+refetch path
+            # instead of the direct-render path real HTTPS traffic takes.
+            STATUS=$(curl -s -o /tmp/route_body.html -w "%{http_code}" -H "x-forwarded-proto: https" "http://localhost:3000$route")
+            HTML=$(cat /tmp/route_body.html)
+            if echo "$HTML" | grep -qE "$EMAIL_REGEX"; then
               echo "::error::email literal found in rendered HTML at $route"
               FAIL=1
+            fi
+            # #119: title patterns the email-leak crawl was never pointed at.
+            # Skipped for any non-200 route (redirects like the retired
+            # /blog, /opinion sections -- Next's redirect() body is a bare
+            # path string like "/guides", not HTML, and would false-positive
+            # as "no title" -- or an error status) and for known non-HTML routes.
+            if [ "$STATUS" != "200" ] || [ "$route" = "/sitemap.xml" ]; then
+              :
+            else
+            TITLE=$(echo "$HTML" | grep -oE '<title>[^<]*</title>' | head -1 | sed -E 's/<\/?title>//g')
+            if [ -z "$TITLE" ]; then
+              echo "::error::route returned HTML but no <title> found at $route"
+              FAIL=1
+            else
+              # Doubled brand/word prefix, e.g. "LEGO LEGO ..." (#109 class) --
+              # same word (case-insensitive) repeated as the first two words.
+              FIRST_WORD=$(echo "$TITLE" | awk '{print tolower($1)}')
+              SECOND_WORD=$(echo "$TITLE" | awk '{print tolower($2)}')
+              if [ -n "$FIRST_WORD" ] && [ "$FIRST_WORD" = "$SECOND_WORD" ]; then
+                echo "::error::doubled leading word in title at $route: \"$TITLE\""
+                FAIL=1
+              fi
+              # Generic/fallback title (#110 class) -- route has no page-specific metadata.
+              # "/" is exempt: src/app/page.tsx deliberately sets its own title to
+              # this exact string (it IS the homepage's real title), not a fallback.
+              if [ "$route" != "/" ] && [ "$TITLE" = "$DEFAULT_TITLE" ]; then
+                echo "::error::fallback/default title rendered at $route (no page-specific metadata): \"$TITLE\""
+                FAIL=1
+              fi
+            fi
             fi
           done < /tmp/routes.txt
           kill $SERVER_PID
