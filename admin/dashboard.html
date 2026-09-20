@@ -1179,7 +1179,7 @@
       "blocks": [
         "RLFM-01"
       ],
-      "notes": "Done 2026-05-24. social-automation/pipeline.py — daily cron 06:30 UTC (12:00 IST). Three platforms: IG Feed (8-image carousel), IG Reels (8s), YouTube Shorts (45s with text overlays). India defense layer: is_available_in_india() checks store_prices before posting. Source-aware captions. 3 sets posted: 11377-1, 76342-1, 75641-1. Run 3 blocked 4 India-available sets."
+      "notes": "Done 2026-05-24. social-automation/pipeline.py — daily cron 06:30 UTC (12:00 IST). Three platforms: IG Feed (8-image carousel), IG Reels (8s), YouTube Shorts (45s with text overlays). India defense layer: is_available_in_india() checks store_prices before posting. Source-aware captions. 3 sets posted: 11377-1, 76342-1, 75641-1. Run 3 blocked 4 India-available sets. 2026-09-20: fixed a live IG posting failure ([190] Cannot parse access token) — publisher.py's IG_ACCESS_TOKEN/IG_USER_ID read never picked up the BOM-strip fix already applied elsewhere in this file and in scripts/video/secrets_util.py for the same underlying System User token; verified live via Graph API /me dry-run. Same day: caption_writer.py migrated gemini-2.5-flash-lite -> gemini-3.1-flash-lite (ahead of the 2026-10-16 2.5-family deprecation) and gained real Voice Codex grounding (docs/codex/BOI_Codex_v2.md) plus 3 quality gates (off-voice phrase, length, invented-structure) — verified with a real end-to-end Gemini call, all gates clean."
     },
     {
       "id": "VID-P4",
