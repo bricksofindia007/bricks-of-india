@@ -1,5 +1,51 @@
 # BOI Master Tracker
 
+## Content freshness — pre-design investigation, real mechanism design proposed (not built) — 2026-09-21
+
+Three unknowns investigated before designing the real freshness mechanism. Real, concrete answers — including one that overturns a finding from the earlier scoping pass.
+
+### [1] Why were the 161 frozen reviews never connected to scraper price data?
+
+**Overwhelmingly a backfill gap, not a coverage gap — the earlier scoping-pass finding of "zero scraper coverage" was wrong, caused by a real bug in that pass's own diagnostic script.** That script compared `reviews.set_id` (a UUID) directly against `store_prices.set_id` (which is actually the *set number*, a string) — an incompatible key comparison that could never match, producing a false "structurally unverifiable" conclusion. Corrected via the proper join (`reviews.set_id` → `sets.id` → `sets.set_number` → `store_prices.set_id`):
+
+Of 145 frozen, non-retired reviews (post this session's retirement fix): **126 (87%) have a real, current `store_prices` row for their set** — 121 of those currently show at least one in-stock listing. These were simply never backfilled with `source_retailer` when that column/pipeline shipped 2026-07-30 (`reviews-source-refresh.mjs` only iterates rows where it's already set) — connecting them is exactly the "one bounded task" the prompt hoped for, not a project full of exceptions.
+
+The remaining **19 (13%) break down cleanly, not uniformly**: 4 have a broken `set_id` (references no current `sets` row at all — a separate, small data-integrity defect, not a freshness problem); 3 are GWP items (structurally can't have an independent store price — same `is_gwp`/`gwp_parent_set_number` pattern the review page already handles for display); 12 are genuinely never seen by either scraper — real catalog sets (mostly licensed/crossover exclusives — Olivia Rodrigo minifig packs, Pokémon crossover minifigs, a Privateer Frigate) plausibly never carried by MyBrickHouse or Toycra specifically. These 12 are a real, accepted gap — closing it means adding scraper coverage, a separate, bigger project, not part of this design.
+
+### [2] Can guides use the same per-set mechanism, or do they need something different?
+
+**Different — confirmed structurally, not by assumption.** Of the 24 guides with price/year mentions, only **3 contain any link to a specific `/sets/{number}-...` page at all**, and even those have just 1-3 links sitting among many more bare price mentions (e.g. "Best LEGO® Technic Sets" has 12 price mentions but only 1 set link). The other 21 guides' prices are illustrative round-number examples woven into prose ("a starter set around ₹800", "premium sets can run ₹50,000+", "Best LEGO Sets Under ₹2,000" — 22 price mentions, zero set links) — there is no structural hook (no `guides.set_id`, no set-reference table) a script could use to know which live price to check against. Reviews have exactly one linked set; guides mostly don't reference one at all in a machine-readable way.
+
+**This rules out an automated per-guide price-resplice mechanism.** The existing `guide-staleness-guard.js` shape (flag stale-looking patterns into `content_quality_issues`, never auto-correct — deliberately, since there's no live-price gate to correct *to*) is already the right kind of mechanism for guides; it's just too slow (checks only the oldest 3 by `updated_at` per monthly run — a ~9-month cycle to touch all 26 once).
+
+### [3] Is retirement-check cheap to add wherever price data already lives?
+
+**Confirmed cheap — same source, zero new integration.** `sets.retired` is a plain boolean derived purely from `sets.retirement_date` (weekly cron, `update-retiring-soon.mjs`, Sunday 02:00 UTC) — and `retirement_date` itself is populated by `populate-mrp.js`, the *same* Brickset-linked ingest that supplies `lego_mrp_inr`. It's not a separate system to integrate; it's already sitting on the exact `sets` row every price-adjacent mechanism already joins against.
+
+**Coverage isn't universal, worth flagging honestly**: only 3,180/26,008 sets (12%) catalogue-wide have a `retirement_date` at all (Brickset doesn't cover everything) — but for the population that actually matters here, coverage is much better: 78% of sets with `lego_mrp_inr` populated, and 76% of the 1,166 distinct sets the scraper has ever tracked, also have `retirement_date`. Wherever it's populated, checking it costs nothing beyond a field already in the query.
+
+### Proposed design (not implemented — for the next, separate build prompt)
+
+**Retirement-check: build this first, decoupled from price re-verification, universal and cheap.** A simple `reviews.set_id → sets.retired` (and equivalent for Review-category `news_articles` via `set_number`) join needs no store-price coverage at all — it can run against *all* reviews/Review-news uniformly, not just the retailer-sourced or scraper-covered subset. This is exactly the check that would have caught this session's "6 extra" surprise automatically instead of via a manual re-audit. Weekly cadence (piggyback on `reviews-source-refresh.mjs`'s existing schedule — just add `retired` to its already-loaded `sets` select). Auto-correct is safe here, already proven manually this session: verdict → `RETIRED`, the verdict/disclaimer content block replaced with the same retirement notice, `source_*` cleared if set — mechanical and reversible, log to `content_quality_issues` for an audit trail same as existing checks, no chat-approval gate needed (unlike a price-verdict flip, "retired" isn't a judgment call).
+
+**Price re-verification, reviews only, for the 87%-coverage subset:** one-time backfill script (`reviews.set_id → sets.set_number → store_prices` match) populates `source_retailer`/`source_price_inr`/`source_stock_status`/`source_checked_at` for the ~126 eligible frozen reviews — after that, they're automatically picked up by the existing weekly `reviews-source-refresh.mjs` job with zero new pipeline code. Same flip-vs-auto-update logic already in place, unchanged.
+
+**The 12 genuinely-untracked reviews + the 4 broken-linkage rows + the 3 GWP rows:** no automated mechanism proposed. The 12 need new scraper coverage to ever be price-checkable (separate, bigger, not this project) — they'd still get the cheap retirement-check above, just never live price re-verification. The 4 broken-linkage rows are a small, separate data-integrity cleanup, not a freshness problem. The 3 GWP rows already degrade correctly via existing display logic and get the retirement-check like everything else.
+
+**Guides: raise `guide-staleness-guard.js`'s batch size so all 26 get checked within a reasonable window (not ~9 months per cycle), keep it monthly, keep it flag-only/no-auto-correct** — guides are evergreen by design and the no-fabrication rule (no source of truth to auto-correct *to*) still holds. Retirement-check is only mechanically possible for the 3 guides with real `/sets/` links — not proposing anything for the other 21 beyond the existing generic price/year-claim pattern flag; extracting set references from free prose is explicitly not proposed (too fragile).
+
+**Summary table:**
+
+| Content | Mechanism | Cadence | Auto vs. editorial |
+|---|---|---|---|
+| Reviews/Review-news — retirement | New: universal `sets.retired` join | Weekly | Auto-correct (mechanical, proven safe) |
+| Reviews — price, 87%-coverage subset | Backfill into existing `reviews-source-refresh.mjs` | Weekly (existing) | Auto-update non-flip; flip → manual (existing) |
+| Reviews — 12 untracked sets | None proposed (needs new scraper coverage) | — | Editorial only |
+| Guides — staleness | Raise `guide-staleness-guard.js` batch size | Monthly (existing, wider) | Flag only, human decides (existing, no auto-fix) |
+| Guides — retirement | Only for the 3 with real `/sets/` links | — | Not proposing prose-parsing for the rest |
+
+---
+
 ## Retired-set live-verdict correctness bug — fixed, deployed, verified live — 2026-09-21
 
 Bounded correctness fix, separate from the broader freshness-mechanism design work above/below. Not staleness — an actively wrong purchase recommendation on a discontinued product.
