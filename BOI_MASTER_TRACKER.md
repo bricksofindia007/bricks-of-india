@@ -1,5 +1,21 @@
 # BOI Master Tracker
 
+## Tier 0 closed — PR #159 merged + deployed, both fixes verified live with real evidence — 2026-09-21
+
+**DEPLOY_POLICY.md classification:** Tier 2 (auth-adjacent code — new `isAuthed()` check gating `/admin/pending/newsletter` — plus first live write to `growth.newsletter_drafts` from the main app). Tree-ancestry check: merge-base with main `cf1a7f8`; every commit between last-deployed prod (`7180f3f`) and the branch was docs-only except `6c67e33` (this PR's real code) and an empty diagnostic commit — no unapproved Tier-2 ancestor. Abhinav's explicit sign-off obtained in-session before merging.
+
+**Merge:** squash-merged as `179fb22` (`gh pr merge 159 --squash --delete-branch`). Both required checks (`snapshot-tests`, `verify-no-email-in-client-bundle`) were genuinely green (completed 2026-09-21T05:05:47Z, part of the issue #160 backlog-clear batch, not bypassed).
+
+**Deploy:** `deploy-cloudflare.yml` run `35613321752` — Build succeeded (2m19s), Deploy (wrangler) job paused on a GitHub Environment `production` manual-approval gate (separate mechanical step from the Tier-2 sign-off above, same already-given approval — approved via `gh api .../pending_deployments`), then completed successfully including its own post-deploy smoke test (#120). Live commit: `179fb22`.
+
+**Live verification — real evidence, not "merged therefore live":**
+- **`/#newsletter` anchor**: `curl https://bricksofindia.com/calendar` shows the real "Subscribe to Deals Newsletter →" button still pointing at `href="/#newsletter"`; `curl https://bricksofindia.com/` shows the homepage now renders `<section id="newsletter" class="bg-dark py-16 px-4 scroll-mt-16">` — the anchor now has a real matching target with sticky-navbar offset. Confirmed against production, not local.
+- **`/admin/pending/newsletter`**: logged in against production with the real `boi_admin` cookie (via a real POST to the login server action, using its progressive-enhancement form-encoding — not a mock). Page returns `200`, title `Newsletter | BOI Admin | Bricks of India`. Real rendered data confirmed: "Subscribers — 1 active" (matches the known real single test-signup row), and all 5 real pending drafts render (Issue #6 LEGO Wednesday Sets, #7 Batman Returns Batmobile, #8 UCS Executor Super Star Destroyer, #9 Ideas Wallace & Gromit, #10 Zelda Ocarina of Time), each with Approve/Dismiss actions present. Session cookie and temp response files deleted after verification.
+
+**Issue #160 status:** left open as-is, no new digging this pass. Tier 0 is now fully closed, contingent on #160 not recurring — if the ~12.5h check-suite delivery delay repeats, re-open investigation using the same cross-check-suite `created_at` method that diagnosed it.
+
+---
+
 ## Issue #160 diagnosed — real ~12.5h check-suite delivery delay, self-resolved, no deploy gap, no config to fix — 2026-09-21
 
 **PR #159 was NOT merged this pass, per explicit instruction — this session is the diagnosis only.**
