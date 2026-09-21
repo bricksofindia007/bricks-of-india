@@ -45,7 +45,10 @@ export const CHECK_NAME_OWNERS = {
     'review_source_fetch_incomplete', 'review_resplice_failed',
   ],
   'guide-staleness-guard.js': [
-    'guide_staleness',
+    'guide_staleness', 'guide_set_retired',
+  ],
+  'retirement-check.mjs': [
+    'set_retired_auto_corrected',
   ],
 };
 
