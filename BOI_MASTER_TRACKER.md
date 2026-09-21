@@ -1,5 +1,27 @@
 # BOI Master Tracker
 
+## Newsletter channel unblock — anchor fixed, real admin surface built, PR #159 (open, blocked on issue #160) — 2026-09-21
+
+### 1. Dead `/#newsletter` anchor — fixed
+
+`src/components/ui/NewsletterSignup.tsx`'s `<section>` now has `id="newsletter" scroll-mt-16` (the `scroll-mt` accounts for the site's sticky 60px navbar so the target isn't hidden underneath it on arrival). Verified locally against a real dev server: homepage now renders `<section id="newsletter">`, `/calendar`'s existing `Subscribe to Deals Newsletter →` button (already pointed at `/#newsletter`, unchanged) now has a real matching target. **Not yet verified on production** — pending the PR merge below.
+
+### 2. Real subscriber view + approval surface — built, confirmed not duplicating an existing reachable one
+
+**Confirmed first, not assumed:** a real, working review/approve UI already exists — the separate `boi-growth-engine` dashboard app, reverse-proxied at `/admin/pending/growth` (same `boi_admin` cookie auth, real `approveNewsletterDraft`/`dismissNewsletterDraft` server actions against `growth.newsletter_drafts`). It's currently unreachable for two independent, already-tracked reasons: issue #122 (`GROWTH_ENGINE_URL`/`GROWTH_PROXY_SHARED_SECRET` never migrated to the Cloudflare Worker's secrets) and, newly confirmed this session, the upstream Netlify app itself (`sparkling-smakager-216c0f.netlify.app`) returning a real live `503` right now — its own separate `usage_exceeded` billing block, same class of issue as the main site's pre-Cloudflare-migration Netlify problems, not something fixable from this repo.
+
+Rather than wait on both of those, built a small equivalent surface directly in the main app instead: **`/admin/pending/newsletter`** (same auth, linked from `/admin/pending`'s header). Shows the real `newsletter_subscribers` list/count, and every `growth.newsletter_drafts` row with `status='pending_approval'` — real rendered content (opener, big-one blurb, price radar, verdict digest, featured spotlight) plus Approve/Dismiss buttons. Reads/writes `growth.newsletter_drafts` directly via the same schema-scoped service-role pattern already used by `src/app/api/growth/resend-webhook/route.ts`, and the exact same guarded status transition (`pending_approval` → `approved`/`dismissed`) the growth-engine dashboard's own code uses — not a parallel system, the same table the real send pipeline (`newsletter/send.py`) reads.
+
+**Verified locally against real production data** (dev server + a real `boi_admin` cookie, not a mock): subscriber count renders correctly (1 real row), all 5 pending drafts (#6–#10) render with real content. `npm run build` and `npx tsc --noEmit` both clean.
+
+**PR #159 opened, not merged — blocked on a new, real, repo-wide finding (issue #160):** GitHub Actions is not triggering on `push`/`pull_request` events at all right now — confirmed via two separate pushes to this PR producing zero GitHub Actions check-suites (only third-party app suites), while `workflow_dispatch` (tested live, `BOI Health Check` run `35563123698`) and `schedule` (overnight crons, unaffected) both work normally. Ruled out a platform-wide GitHub incident (githubstatus.com: all systems operational) and a repo-level Actions disable (`enabled: true`). Root cause not yet known — flagged for Abhinav, since this blocks every future PR-based merge in the repo, not just this one. **PR #159 is left open, un-merged**, pending either CI recovery or an explicit decision to admin-bypass the required-checks gate for this specific, narrow, already-locally-verified change — not decided unilaterally here, since that gate exists specifically for changes like this one (real `src/` code, per `CLAUDE.md`'s own branching rule).
+
+### 3. The 5 pending drafts' real content — Issues #6-#10, pulled in full
+
+See chat output for this session for the full inline content of all 5 (subject, opener, big-one blurb, 5 price-radar lines, 5 verdict-digest lines, featured spotlight each) — not duplicated in the tracker to avoid a very long entry. **One real, honest observation surfaced while pulling these, not investigated further (out of scope):** Issues #7, #8, and #9 (created 2026-08-24, 2026-08-31, 2026-09-07 — three consecutive fortnightly drafts spanning 3 weeks) all share the **exact same 5 price-radar items** (Peppa Pig Boat Trip, Beach Smoothie Stand, Dog-Grooming Car, Hair Salon and Accessories Store, Sora's Dragon Spinjitzu Spinner) at identical prices. Worth knowing before approving any of them — the price-drop data behind those three drafts hasn't rotated in three weeks, most likely because none of them were ever sent (so the generator kept drawing from a similar snapshot window) — not confirmed as a pipeline bug, just flagged for Abhinav's own review alongside the content itself.
+
+---
+
 ## Registration/newsletter investigation + backlog registered — 2026-09-20
 
 ### 1. Email capture — real mechanism as it exists today
