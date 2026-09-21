@@ -1,5 +1,31 @@
 # BOI Master Tracker
 
+## Content freshness — Tier 1 scoping pass (diagnostic only, no fix built) — 2026-09-21
+
+**Real numbers, not the raw "frozen since publish" percentages.** Full method and all query scripts were ad hoc/read-only against production Supabase, not committed (deleted after use) except where noted.
+
+### 1-4. Staleness classification (real findings)
+
+**Reviews (195 total):** 34 (17.4%) have `source_retailer` set → re-verified weekly by `reviews-source-refresh.mjs`, which does a real content update (price, stock status, and the India Paragraph block re-spliced — not just a price field). 161 (82.6%) have `source_retailer IS NULL` → never auto re-verified, ever. Of those 161: **16 (10%) reference a set now marked `retired` in the catalogue while still carrying a live BUY NOW/WAIT verdict** (e.g. "LEGO Rontu the Master Dragon (71842): Worth ₹4,999?" — BUY NOW, set retired). Real, more important structural finding: **all 161** fall entirely outside MyBrickHouse/Toycra's scraper coverage — zero of them have ever had a single `store_prices` row. This isn't "unverified yet," it's unverifiable with current infrastructure without adding new scraper/source coverage. Against the catalogue's `lego_mrp_inr` (a weaker proxy — official MRP, not street price, 151/161 have it): 94 within 15%, 32 at 15-30% drift, 12 at ≥30% drift (2 of those 12 are slug-price-regex parsing artifacts, not real — ~10 genuine large-drift examples, e.g. a review claiming ₹12,809 against a current MRP of ₹18,299).
+
+**Guides (26 total):** the task's assumed "6 touched / 20 untouched" split doesn't hold — real data is 12 with `updated_at != published_at` vs 14 exact matches, but inspecting the actual deltas shows all 12 are seconds-to-hours insert/scheduling-pipeline skew, not real post-publish edits. **Realistically zero guides have been substantively revised since publish.** `guide-staleness-guard.js` only checks the oldest 3 by `updated_at` per monthly run and never auto-corrects, just flags — at that rate a full cycle through all 26 takes ~9 months. 24 of 26 guides contain concrete ₹ price mentions or "as of/in 20XX" year-claims — the evergreen framing doesn't hold for most of them.
+
+**News articles (465 total: News 401, Review 32, Opinion 12, New Sets 13, India Launches 4, Deals 3):** raw regex match on time-sensitive phrasing (457/465) is inflated by ubiquitous ₹-price mentions in pure announcement text ("announced at ₹X" is a historical fact, fine forever) — sampled and confirmed most News/New Sets/India Launches rows are genuinely point-in-time records, not stale claims. **The real concentration of risk: 32 "Review"-category news_articles (31 with a verdict set) living entirely outside the dedicated `reviews` table, with zero re-verification mechanism** — `reviews-source-refresh.mjs` only ever touches the `reviews` table. 3 of those 31 already reference now-retired sets with a live BUY NOW verdict. Separately, all 3 "Deals" articles are explicitly time-anchored (e.g. "Best LEGO® Deals in India Right Now — April 2026", published April 2026, now 5+ months old) and have no revisit mechanism at all.
+
+### 5. blog_posts dormant rows — cleaned up this pass
+
+Confirmed both conditions before acting: (a) `/blog` and `/opinion` 308-redirect in `next.config.mjs` before any page ever reaches the table (dead routes, verified live), (b) all 25 rows are real duplicates of live `guides`/`news_articles` rows — title match 25/25, content match exact on 10/25, ≥91%-length-ratio close match (cosmetic whitespace-only diffs from a later content-linter pass never re-applied to the dormant copies) on the remaining 15.
+
+**Real, non-obvious complication found and handled:** ~25 files still reference `blog_posts` (mostly one-off audit/fix scripts). Checked each for a hard-fail-on-empty-table risk — only one was real: `technical-hygiene.mjs` check "13f" (`blog_posts: rows with content+hero_image`) unconditionally `alertFail`s on `count === 0` and runs weekly via `technical-hygiene.yml`. Fixed in the same pass (now logs "dormant, permanently empty by design — check skipped"). Everything else degrades gracefully on an empty table (percentage checks guard divide-by-zero, lint scans over an empty section produce no findings).
+
+**Action taken:** backed up all 25 full rows to `docs/archive/blog_posts_dormant_backup_2026-09-21.json`, then hard-deleted from `blog_posts`. Table now has 0 rows, permanently, by design. `DATA_SOURCES.md` §6 updated to reflect this. Filed **issue #161** for the remaining ~24 harmless-but-dead references (one-off scripts, plus the two dead route trees `src/app/blog/`, `src/app/opinion/` themselves) — not urgent, no schedule risk, worth cleaning up next time someone touches those files.
+
+### Next step (not this pass)
+
+No fix designed yet, per scope. The real staleness surface that would need a mechanism, in priority order: (1) the 16 retired-set reviews + 3 retired-set Review-category news_articles with live BUY NOW/WAIT verdicts — the closest thing to an actual user-facing wrong-answer risk found this pass; (2) the 32 Review-category news_articles sitting completely outside any re-verification pipeline; (3) whether to extend scraper coverage to unblock live-price checking for the 161 structurally-unverifiable frozen reviews, vs accepting that gap and building something cheaper (e.g. MRP-drift flagging only, same non-auto-correct pattern as guide-staleness-guard.js).
+
+---
+
 ## Tier 0 closed — PR #159 merged + deployed, both fixes verified live with real evidence — 2026-09-21
 
 **DEPLOY_POLICY.md classification:** Tier 2 (auth-adjacent code — new `isAuthed()` check gating `/admin/pending/newsletter` — plus first live write to `growth.newsletter_drafts` from the main app). Tree-ancestry check: merge-base with main `cf1a7f8`; every commit between last-deployed prod (`7180f3f`) and the branch was docs-only except `6c67e33` (this PR's real code) and an empty diagnostic commit — no unapproved Tier-2 ancestor. Abhinav's explicit sign-off obtained in-session before merging.

@@ -1331,13 +1331,12 @@ try {
   else log('DataPipeline', `guides: ${count} rows with content ✓`);
 } catch (e) { alertFail('DataPipeline', `guides check error: ${e.message.slice(0, 80)}`); }
 
-// 13f: blog_posts — at least 1 with non-null content AND hero_image
-try {
-  const { count } = await sb.from('blog_posts').select('*', { count: 'exact', head: true })
-    .not('content', 'is', null).not('hero_image', 'is', null);
-  if (!count || count === 0) alertFail('DataPipeline', 'blog_posts: no rows with both content and hero_image — blog cards will show no images');
-  else log('DataPipeline', `blog_posts: ${count} rows with content + hero_image ✓`);
-} catch (e) { alertFail('DataPipeline', `blog_posts check error: ${e.message.slice(0, 80)}`); }
+// 13f: blog_posts is dormant and permanently empty since 2026-09-21 (its 25
+// rows were confirmed duplicated into guides/news_articles and deleted —
+// see docs/archive/blog_posts_dormant_backup_2026-09-21.json). /blog and
+// /opinion 308-redirect before any page ever queries this table, so "0
+// rows" is the expected steady state, not a pipeline failure — skip.
+log('DataPipeline', 'blog_posts: dormant, permanently empty by design — check skipped');
 
 // 13g: legacy prices table — flag existence as cleanup reminder
 try {
