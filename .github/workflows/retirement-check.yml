@@ -9,17 +9,19 @@ name: retirement-check
 # reasoning; this is the exact pattern manually verified on 25 real
 # rows this session (PR #163), turned into a recurring, idempotent job.
 #
-# NEW AUTOMATION — workflow_dispatch only, no schedule yet, per
-# DEPLOY_POLICY.md Tier 2 ("a new automation's first live run(s) — stays
-# Tier 2 until it has an actual live track record"). Same pattern as
-# video-rework-poller-quiet-panic.yml / video-script-gen-test-quiet-
-# panic.yml (2026-07-31): ship dispatch-only, prove it live, then enable
-# the schedule as an explicit, separate operator decision. Proposed slot
-# once approved: Sunday 02:45 UTC — after retiring-soon.yml (02:00 UTC,
-# the job that actually computes sets.retired) and sync-catalogue.yml
-# (02:15 UTC), so this always reads a freshly-updated retired flag.
+# Shipped workflow_dispatch-only at first (2026-09-21), per DEPLOY_POLICY.md
+# Tier 2 ("a new automation's first live run(s) — stays Tier 2 until it has
+# an actual live track record"). Proven live via manual dispatch (run
+# 35631455251, real production data, real GitHub Actions environment,
+# correctly found 0 corrections needed). Schedule enabled 2026-09-21 —
+# explicit operator approval — Sunday 02:45 UTC, after retiring-soon.yml
+# (02:00 UTC, the job that actually computes sets.retired) and
+# sync-catalogue.yml (02:15 UTC), so this always reads a freshly-updated
+# retired flag.
 
 on:
+  schedule:
+    - cron: '45 2 * * 0'
   workflow_dispatch:
     inputs:
       dry_run:
