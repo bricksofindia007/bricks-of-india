@@ -1,5 +1,41 @@
 # BOI Master Tracker
 
+## Issue #160 diagnosed — real ~12.5h check-suite delivery delay, self-resolved, no deploy gap, no config to fix — 2026-09-21
+
+**PR #159 was NOT merged this pass, per explicit instruction — this session is the diagnosis only.**
+
+### 1. Root cause
+
+**Ruled out, with real evidence, in this order:**
+- **Repo Actions settings**: `enabled: true, allowed_actions: all` — unchanged, not the cause.
+- **Webhooks**: `GET /repos/.../hooks` returns `[]` — no repo-level webhook exists to misconfigure (irrelevant to Actions' own internal trigger path anyway).
+- **GitHub App/OAuth integration**: the same account/token (`bricksofindia007`, confirmed via the public events API's `actor.login` on every push in question) was used for both the "broken" and "working" pushes — no identity/scope discontinuity. `workflow_dispatch` calls using this exact token worked normally throughout.
+- **Branch protection**: unchanged — `required_status_checks: [snapshot-tests, verify-no-email-in-client-bundle]`, `enforce_admins: false`, nothing else altered.
+- **Actions billing/quota**: **structurally impossible as a cause** — `GET /repos/.../bricks-of-india` confirms `"private": false` — this is a **public repository**, which gets unlimited, free GitHub Actions minutes regardless of account plan or billing state. A spending-limit/quota throttle cannot apply here.
+- **Workflow YAML `on:` triggers**: unchanged — `email-guard` (`ci.yml`) still `push`/`pull_request` on `branches: [main]`, no path filters; every workflow's `state` is `active` (only 2 pre-existing, unrelated throwaway debug workflows are `disabled_manually`).
+
+**The real cause, confirmed directly via each commit's own check-suite metadata:** this was a **real, transient GitHub-side check-suite creation delay — not specific to GitHub Actions.** Commit `6c67e33` (the newsletter fix, pushed 2026-09-20T16:32:06Z) has a GitHub Actions check-suite with `created_at: 2026-09-21T05:02:38Z` — but critically, its **Netlify, Render, and Cloudflare Workers and Pages check-suites show the identical `created_at: 2026-09-21T04:58:31Z`** — every integration that creates a check-suite for a push was delayed by the same ~12.5 hours, not just Actions. That rules out anything specific to this repo's Actions configuration; it points to a genuine, repo-scoped event-delivery backlog on GitHub's side that cleared on its own, in a single batch, around 2026-09-21T04:58–05:06Z. `workflow_dispatch` and `schedule` don't go through this same per-push check-suite-creation path, which is exactly why they were unaffected the whole time and looked like the "healthy" control group. **Nothing to configure or fix — there was no setting responsible.**
+
+### 2. How far back the gap goes
+
+- **Last normal-latency run before the delay**: `email-guard` on commit `cf1a7f8`, pushed 2026-09-20T15:59:35Z, completed 2026-09-20T15:59:48Z (13s latency — normal).
+- **First affected push**: commit `6c67e33`, pushed 2026-09-20T16:32:06Z — its check-suites weren't created until 2026-09-21T05:02:38Z (GitHub Actions) / 04:58:31Z (third-party apps).
+- **Real gap: ~12 hours 26 minutes to ~13 hours**, depending on which exact push in the window you measure from. Every push made during that window (the newsletter branch's two commits, this session's tracker-doc commits, PR #159's creation) was affected identically — none permanently lost, all eventually processed once the backlog cleared.
+
+### 3. Live production vs. main — no gap
+
+**Confirmed via the GitHub Deployments API directly (authoritative, not inferred):** the current production deployment record is `id 6551870363`, commit `7180f3f`, `state: success` at `2026-09-20T10:49:00Z` — this is genuinely what's live. `git log 7180f3f..HEAD` on `main` shows **every single commit since then is `docs(tracker): ...`** — all covered by `deploy-cloudflare.yml`'s `paths-ignore` (`BOI_MASTER_TRACKER.md`, `docs/**`, `admin/dashboard.html`), correctly not triggering a deploy. **No real code gap exists** — production's deployed code genuinely matches `main`'s current real code state. (The newsletter code from PR #159 lives only on its own unmerged branch, never expected to be live yet.)
+
+### 4. Fix or escalate — confirmed recovered, verified with a real test push
+
+Nothing to fix (no setting was ever wrong). **Verified recovery directly, live, this session**: pushed a fresh empty commit (`cd46ae2`) at `2026-09-21T05:19:54Z` — its `email-guard` check-suite was created within **6 seconds**, both required checks (`snapshot-tests`, `verify-no-email-in-client-bundle`) started at `05:19:58Z` and completed successfully by `05:22:06Z`. Completely normal latency, matching pre-delay behavior. **Actions is confirmed healthy again, by direct test, not by assumption.**
+
+**Incidental, useful confirmation**: PR #159's own commits got swept up in the same backlog-clear — both required checks now show real `SUCCESS` (completed `2026-09-21T05:05:47Z`), so **PR #159 is sitting green via a genuinely working CI gate**, not bypassed. Left un-merged per this session's explicit scope — that's a separate decision for the next turn.
+
+**Recommendation for issue #160**: keep it open for a few more days as a watch item (real, currently-unexplained root mechanism on GitHub's side, self-resolved once so far) rather than closing outright — if it recurs, the same diagnostic method (cross-check *all* check-suite apps' `created_at`, not just Actions) will confirm quickly whether it's the same phenomenon.
+
+---
+
 ## Newsletter channel unblock — anchor fixed, real admin surface built, PR #159 (open, blocked on issue #160) — 2026-09-21
 
 ### 1. Dead `/#newsletter` anchor — fixed
