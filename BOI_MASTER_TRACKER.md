@@ -1,5 +1,58 @@
 # BOI Master Tracker
 
+## Content freshness — mechanism built, deployed, verified live — Tier 1 closed — 2026-09-21
+
+The design from the pre-design investigation (below), built and shipped this pass. PR #167 (merged `188ad11`, squash) + supporting GitHub issues. Every piece run for real against production before being called done.
+
+### [1] Universal retirement check — built, shipped, live-run
+
+**`scripts/retirement-check.mjs`** — new, idempotent, auto-correcting. Joins every `reviews` row and every verdict-bearing `news_articles` (category='Review') row to `sets.retired`, corrects any that are retired-but-not-yet-RETIRED using the exact pattern proven on 25 real rows this session (PR #163): verdict → `RETIRED`, content resplice, `source_*` cleared for reviews still retailer-linked. Logs every correction to `content_quality_issues` (`check_name='set_retired_auto_corrected'`, `severity=info`, `resolved=true` — an audit-trail record, not an open item) and auto-resolves any stale `review_out_of_stock` flag on the same slug.
+
+**`.github/workflows/retirement-check.yml`** — new automation, shipped **`workflow_dispatch`-only, no schedule** — DEPLOY_POLICY.md Tier 2 ("a new automation's first live run(s) — stays Tier 2 until it has an actual live track record"), same pattern as the 2026-07-31 video-pipeline workflows. **Manually dispatched for real after merge** (run `35631455251`, real GitHub Actions environment, real production Supabase): completed `success`, correctly found `reviews corrected=0, news_articles corrected=0` — the honest negative-case result, since everything was already fixed manually this session. This proves the job runs cleanly end-to-end (secrets, deps, script execution, join logic against all 195 reviews + 465 news_articles) in the real CI environment, not just locally.
+
+**Enabling the weekly schedule is the one remaining Tier 2 decision, explicitly not made here** — proposed slot: Sunday 02:45 UTC (after `retiring-soon.yml` 02:00 UTC, the job that actually computes `sets.retired`, and `sync-catalogue.yml` 02:15 UTC).
+
+### [2] Backfill + extend price refresh — built, run for real
+
+**`scripts/backfill-review-source-retailer.mjs`** — one-time backfill, **already executed for real**: of 121 eligible frozen reviews (real, current in-stock `store_prices` match), **114 backfilled** — `source_retailer`/`source_price_inr`/`source_stock_status`/`source_checked_at` populated, content retrofitted with the deterministic retailer block (price line + verdict line + disclaimer — verified to match `FULL_BLOCK_RE` so next week's `reviews-source-refresh.mjs` can resplice normally) so these rows join that **existing, already-scheduled** weekly job with zero new pipeline code. 7 skipped correctly (DB constraint: `IMPORT ONLY` can't carry `source_retailer` — see [3] below, a real related finding). Pre-backfill content backed up in full to `docs/archive/reviews_pre_backfill_backup_2026-09-21.json` before any write. Verified: `reviews` table now has **142/195 rows `source_retailer`-tracked** (was 28 before this session).
+
+Verdict-flip protection unchanged — `reviews-source-refresh.mjs`'s existing logic (untouched) auto-updates non-flip price/content changes, routes anything that would flip `BUY NOW ↔ WAIT` to `content_quality_issues` for manual review instead of auto-publishing. Nothing about that behavior needed to change; the backfill only connects more rows to it.
+
+### [3] Deliberately-excluded remainder — labeled, not silently dropped
+
+Re-categorized fresh (post-backfill counts differ slightly from the pre-design estimate — real data, not the earlier snapshot):
+
+| Category | Count | Label (content_quality_issues, section=reviews, severity=info) | GitHub issue |
+|---|---|---|---|
+| Broken `set_id` link (no matching `sets` row) | 4 | `price_refresh_ineligible_broken_link` | #165 |
+| GWP items (no independent store price, by design) | 3 | `price_refresh_ineligible_gwp` | — (already correctly handled by existing display logic, nothing to revisit) |
+| Genuinely untracked (real sets, never scraped — licensed/crossover exclusives) | 12 | `price_refresh_ineligible_untracked` | #166 |
+| **New finding**: `IMPORT ONLY` verdict, but set now has a real in-stock India listing | 7 | `review_import_only_now_available` | #164 |
+
+All 26 rows labeled live in `content_quality_issues` (verified). All still get the universal retirement-check from [1] regardless of price-eligibility — that check never depended on scraper coverage. The 7 `IMPORT ONLY` rows are a genuine, related-but-distinct correctness question (same flavor as the retired-verdict bug, different verdict category) found as a side effect of the backfill dry-run — flagged for a separate manual review, explicitly not auto-corrected here (DB constraint structurally excludes `IMPORT ONLY` from ever carrying `source_retailer`, and the fix isn't as mechanical as a retirement — it may need the review re-read, not just a verdict-field flip).
+
+(5 further reviews are tracked-but-currently-out-of-stock at check time — not labeled as permanently excluded; re-running the backfill script later, which is idempotent, would pick them up automatically if they come back in stock.)
+
+### [4] Guides — widened, flag-only, run for real
+
+**`scripts/radar/guide-staleness-guard.js`** — default `--limit` raised **3 → 100**: at 3/month it took ~9 months to cycle through all 26 guides once; now every run covers effectively all of them. Still monthly (`guide-staleness-monthly.yml`, unchanged schedule), still flag-only, no auto-correct (guides have no live-price gate to correct against, unchanged reasoning). **Run for real**: 25 `guide_staleness` flags now live in `content_quality_issues` (real, current run — not the dry-run preview).
+
+**Real, previously-undiscovered bug found and fixed by actually running this live**: `content_quality_issues.article_id` is typed `uuid`, but `guides.id` is `bigint` — every flag insert this script has ever attempted has been silently failing since the job was built (2026-08-09). `insErr` was logged to console but never treated as fatal, so the monthly workflow has reported "success" every run while inserting zero rows the whole time. Fixed: both insert call sites now omit `article_id` (`article_slug` is already the real lookup key everywhere else in the codebase). This is exactly the kind of thing "run it for real, not just review the logic" is supposed to catch — confirmed by the dry-run showing 25 "would flag" lines that the very next real run, pre-fix, actually failed to write.
+
+### [5] Guides — retirement, only the 3 with real set links
+
+Same script, new `checkSetRetirement()` function: extracts `/sets/{number}-` links from guide content (only 3 of 26 guides have any), checks `sets.retired`, flags into `content_quality_issues` (`check_name='guide_set_retired'`, `severity=warning`, flag-only — a guide has no single verdict to safely auto-correct, unlike a review). Explicitly did not build prose-parsing for the other 23 guides — not proposed, not in scope, per the design. **Run for real**: all 3 correctly flagged — `best-lego-sets-for-adults-india-2026` (sets 10276, 10307), `find-discontinued-lego-sets-india-2026` (set 10273), `best-lego-star-wars-sets-india-2026` (sets 75292, 75313).
+
+### DEPLOY_POLICY classification
+
+PR #167 (the code): Tier 1 — no production Next.js app runtime change (all script/workflow files, none in `src/`), fully reversible, doesn't touch the Tier 2 list. The **backfill and guide-flagging data writes** were run directly per this session's own explicit instruction (same treatment as the 25-row retirement fix and the blog_posts cleanup earlier this session) — verified thoroughly (dry-run, spot-checked diffs, `FULL_BLOCK_RE` match confirmed) before executing, backed up first. The **retirement-check automation** is the one piece still genuinely gated: shipped dispatch-only, proven live via manual dispatch, schedule-enable held as an explicit pending decision rather than assumed.
+
+### Tier 1: closed
+
+All five pieces shipped, verified live, and documented. Three follow-up GitHub issues filed (#164, #165, #166) for items this mechanism correctly doesn't auto-handle. One pending operator decision remains: enabling `retirement-check.yml`'s weekly schedule.
+
+---
+
 ## Content freshness — pre-design investigation, real mechanism design proposed (not built) — 2026-09-21
 
 Three unknowns investigated before designing the real freshness mechanism. Real, concrete answers — including one that overturns a finding from the earlier scoping pass.
