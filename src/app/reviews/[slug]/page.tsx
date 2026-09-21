@@ -47,6 +47,7 @@ function verdictBadge(verdict: string | null): { emoji: string; label: string; c
     case 'BUY NOW':      return { emoji: '👍', label: 'Recommended', className: 'bg-deal-green text-white' };
     case 'AVOID':        return { emoji: '👎', label: 'Skip It',     className: 'bg-warning-orange text-white' };
     case 'IMPORT ONLY':  return { emoji: '🌍', label: 'Import Only', className: 'bg-accent text-dark' };
+    case 'RETIRED':      return { emoji: '⛔', label: 'Retired',     className: 'bg-gray-500 text-white' };
     default:              return null; // WAIT, or anything unrecognized — neutral, no badge
   }
 }
@@ -357,6 +358,7 @@ export default async function ReviewPage(props: Props) {
                   badge?.label === 'Recommended' ? "Yes, we think it's a solid purchase."
                     : badge?.label === 'Skip It' ? "We'd recommend waiting for a better deal or considering alternatives."
                     : badge?.label === 'Import Only' ? "It's not officially sold in India yet, so factor in import costs and timelines before buying."
+                    : badge?.label === 'Retired' ? "No — this set has been discontinued by LEGO and is no longer available new. Check the secondary/resale market if you're still after one."
                     : "We'd suggest waiting for a better price before buying.",
                 ].filter(Boolean).join(' '),
               },
