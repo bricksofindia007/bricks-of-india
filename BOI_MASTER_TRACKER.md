@@ -1,5 +1,66 @@
 # BOI Master Tracker
 
+## Retired-set live-verdict correctness bug — fixed, deployed, verified live — 2026-09-21
+
+Bounded correctness fix, separate from the broader freshness-mechanism design work above/below. Not staleness — an actively wrong purchase recommendation on a discontinued product.
+
+**Re-checked live before fixing, not trusting the scoping snapshot — the real count was 25, not 19.** The scoping pass's retired-set check only ever ran against the 161 *frozen* (non-retailer-sourced) reviews; it never checked the 34 retailer-sourced reviews for retirement. A fresh full re-check found **22 reviews** (16 frozen + **6 more, newly found, all retailer-sourced**) + the same **3** Review-category `news_articles` = **25 total**.
+
+### Fix applied (DB content, same session, before the code PR)
+
+For all 25 rows: `verdict` → `RETIRED`; the embedded `Verdict: {OLD}...` line and (where present) the following `Standard disclaimer: ...` line replaced with `Verdict: RETIRED. This set has been discontinued by LEGO and is no longer available through MyBrickHouse or Toycra.` / `Standard disclaimer: this set is retired — there's nothing left to buy. Check the secondary/resale market if you still want one.` Rest of each review's prose (the qualitative opinion) left untouched — out of scope, and not itself a live purchase directive.
+
+**6 of the 22 reviews hit a real DB constraint** (`reviews_verdict_no_import_check`: `source_retailer IS NOT NULL` rows must carry `verdict IN ('BUY NOW','WAIT','AVOID')`) — correctly rejected `RETIRED` while still retailer-sourced. Fixed by nulling `source_retailer`/`source_price_inr`/`source_stock_status`/`source_checked_at`/`verdict_disclaimer_variant` on those 6 — the truthful representation, since MyBrickHouse/Toycra no longer carry these sets, so they're no longer meaningfully "live-sourced." This also opts them out of `reviews-source-refresh.mjs`'s weekly Pass 1 going forward (a side effect, not a new mechanism build — the script only iterates rows with `source_retailer IS NOT NULL`).
+
+**Found and fixed in the same pass, not separately scoped:** 5 of those 6 sourced reviews (all but the 6th) plus one already-known case had a genuine **pre-existing duplicate verdict line** — the retailer-pipeline's deterministic price/verdict block sat mid-content, with a second, older, hand-written "Verdict: BUY NOW/WAIT..." sentence still live at the true end of the article (e.g. `lego-eiffel-tower-10307-worth-65999` had both). Left alone, fixing only the first occurrence would have still shown a live buy directive at the bottom of the page — both occurrences were neutralized to the same true RETIRED statement.
+
+**2 pre-existing, unresolved `content_quality_issues` rows resolved as part of this fix** — `review_out_of_stock` flags already sitting on `lego-daily-bugle-76178-worth-39999` and `lego-eiffel-tower-10307-worth-65999` from `reviews-source-refresh.mjs`'s own weekly run, exactly the "manual decision needed" case that job is designed to escalate. This fix is that decision.
+
+### Code fix — PR #163 (merged `741df5a`, deployed, Tier 1 self-approved: correctness display fix, no auth/payment/gated-pipeline code, fully reversible)
+
+`src/app/reviews/[slug]/page.tsx` had no `RETIRED` case anywhere: `verdictBadge()` fell through to a silent no-badge default (same as unrecognized text), and the FAQ answer builder fell through to the **WAIT** default — *"we'd suggest waiting for a better price before buying"* — actively misleading for a discontinued set (implies it'll come back cheaper). Added a `RETIRED` badge (⛔ grey "Retired") and FAQ branch (*"No — this set has been discontinued by LEGO and is no longer available new. Check the secondary/resale market if you're still after one."*). `news_articles`' page component doesn't render `verdict` as UI at all (confirmed by reading the file) — only used for JSON-LD `reviewRating` via `verdictToRating()`, which already returns `null` for an unrecognized verdict, correctly dropping the rating from schema with no code change needed there.
+
+### Verified live in production, all 25, post-deploy
+
+- All 22 review URLs: HTTP 200, "Retired" badge rendering, zero live `BUY NOW`/`WAIT`/`AVOID` verdict text remaining (checked via direct `curl` against `bricksofindia.com`, not a local build).
+- All 3 news-article URLs: same check. First pass on the news URLs showed a false alarm — Next's ISR (`revalidate = 3600`) served one stale cached render (`x-nextjs-cache: STALE`) that self-corrected on the next request per Next's own stale-while-revalidate behavior; a second false-positive grep match was a *different, unrelated, genuinely-still-selling* related-article snippet embedded in the page's RSC payload, not the article itself. Re-checked precisely (main article body only) after revalidation: all 3 show `Verdict: RETIRED`, no live token.
+
+### Full before → after
+
+| Slug | Table | Old verdict | New |
+|---|---|---|---|
+| lego-off-road-police-car-chase-60449-worth-4999 | reviews | WAIT | RETIRED |
+| lego-rontu-the-master-dragon-71842-worth-4999 | reviews | BUY NOW | RETIRED |
+| lego-acclamator-class-assault-ship-75404-worth-5449 | reviews | BUY NOW | RETIRED |
+| lego-hagrid-harrys-motorcycle-ride-76443-worth-5449 | reviews | BUY NOW | RETIRED |
+| lego-revenge-of-the-sith-heroes-villains-40796-worth-5449 | reviews | WAIT | RETIRED |
+| lego-kais-ninja-climber-mech-71812-worth-6399 | reviews | WAIT | RETIRED |
+| lego-creative-build-and-play-box-11044-worth-5449 | reviews | BUY NOW | RETIRED |
+| lego-audi-rs-q-e-tron-42160-worth-17999 | reviews | WAIT | RETIRED |
+| lego-dragon-stone-shrine-71819-worth-11899 | reviews | WAIT | RETIRED |
+| lego-great-deku-tree-77092-worth-20399 | reviews | WAIT | RETIRED |
+| lego-the-temple-bounty-71848-worth-13739 | reviews | WAIT | RETIRED |
+| lego-beekeepers-house-and-flower-garden-42669-worth-10999 | reviews | WAIT | RETIRED |
+| lego-super-mario-world-mario-yoshi-71438-worth-13699 | reviews | WAIT | RETIRED |
+| lego-wolf-mask-shadow-dojo-71813-worth-11899 | reviews | WAIT | RETIRED |
+| lego-nasa-apollo-lunar-roving-vehicle-42182-worth-19199 | reviews | WAIT | RETIRED |
+| lego-fountain-garden-10359-worth-5499 | reviews | WAIT | RETIRED |
+| lego-dungeons-dragons-red-dragons-tale-21348-worth-35999 | reviews | WAIT (toycra) | RETIRED (source_retailer cleared) |
+| lego-eiffel-tower-10307-worth-65999 | reviews | BUY NOW (mybrickhouse) | RETIRED (source_retailer cleared, dup. verdict line fixed) |
+| lego-lion-knights-castle-10305-worth-39399 | reviews | WAIT (toycra) | RETIRED (source_retailer cleared, dup. verdict line fixed) |
+| lego-land-rover-classic-defender-90-10317-worth-23999 | reviews | WAIT (toycra) | RETIRED (source_retailer cleared, dup. verdict line fixed) |
+| lego-yamaha-mt-10-sp-42159-worth-22999 | reviews | WAIT (toycra) | RETIRED (source_retailer cleared, dup. verdict line fixed) |
+| lego-daily-bugle-76178-worth-39999 | reviews | WAIT (toycra) | RETIRED (source_retailer cleared, dup. verdict line fixed, CQS resolved) |
+| lego-captain-america-vs-red-hulk-battle-76292-worth-5949 | news_articles | BUY NOW | RETIRED |
+| lego-tiger-31217-worth-6399 | news_articles | BUY NOW | RETIRED |
+| lego-the-windmill-farm-21262-worth-5949 | news_articles | BUY NOW | RETIRED |
+
+### Explicitly not touched, per scope
+
+No re-verification mechanism built — this was a one-time manual correction of the 25 confirmed cases, not a cron/automation for future retirements. That mechanism design is separate, later work. Also not touched: the qualitative prose/opinion text of any review, the `rating` (star) field (a quality opinion about the set, not a live purchase directive — left as-is), and the "Where can I buy X cheapest" FAQ answer (already correctly driven by live `store_prices` data via `hasPrices`, not the static verdict).
+
+---
+
 ## Content freshness — Tier 1 scoping pass (diagnostic only, no fix built) — 2026-09-21
 
 **Real numbers, not the raw "frozen since publish" percentages.** Full method and all query scripts were ad hoc/read-only against production Supabase, not committed (deleted after use) except where noted.
