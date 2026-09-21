@@ -28,7 +28,7 @@ export function NewsletterSignup() {
   };
 
   return (
-    <section className="bg-dark py-16 px-4">
+    <section id="newsletter" className="bg-dark py-16 px-4 scroll-mt-16">
       <div className="max-w-site mx-auto">
         <div className="flex flex-col md:flex-row items-center gap-8">
           {/* Mascot */}
