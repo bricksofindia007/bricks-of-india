@@ -468,7 +468,8 @@ try {
     // Added 2026-07-26 -- previously absent despite being two of the more
     // consequential workflows in the repo this week.
     { file: 'ig-token-refresh.yml',  label: 'IG token auto-refresh', maxAgeHours: 432 }, // 1st+15th cron; worst real gap is 17 days (31-day month, 15th -> 1st) + 1 day buffer
-    { file: 'publish-drafts.yml',    label: 'Publish drafts',        maxAgeHours: 16 },  // 3x/day cron (~19:00/07:30/12:30 UTC); worst gap ~12.5h + buffer
+    // publish-drafts.yml entry removed 2026-09-22 -- workflow retired (issue
+    // #170), would otherwise 404 against the GitHub API here forever.
   ];
 
   for (const wf of workflows) {
