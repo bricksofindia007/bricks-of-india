@@ -1,5 +1,36 @@
 # BOI Master Tracker
 
+## Two write-job audit follow-ups — 2026-09-22
+
+### [1] Issue #171 — FIXED, deployed, verified with a real production run
+
+`scripts/snapshot-prices.js` now paginates past PostgREST's 1000-row cap (`.range()` loop, same pattern as `scrape-now.mjs`'s `knownSets` load), with a secondary `id` sort as a tiebreaker — `scraped_at` alone can tie within one scrape batch, which would otherwise make `.range()` pagination unstable (skip or duplicate rows across page boundaries). PR #173, merged `72ee44a`.
+
+**Verified with a real run, not just a clean exit, per the instruction:**
+- Pagination logic checked in isolation first: fetched 1882 rows against a real `store_prices` count of 1882, 0 duplicate ids.
+- Ran the actual fixed script for real against production (no dry-run mode exists for this script): `Complete — 1882 rows written, 0 rows failed (755.8s)`.
+- **Independently re-queried `price_snapshots` for 2026-09-22 directly, separate from the script's own claim: exactly 1882 rows** — matches `store_prices`'s real total exactly, not capped.
+
+### [2] Issue #170 — the two open questions, stated plainly, not resolved
+
+Per the instruction: surfacing these clearly for a real decision, not deciding them here.
+
+> **Question 1:** Is `publish-drafts.mjs`'s intended job (auto-republish after a `failed_lint` row is manually reviewed/fixed) still wanted at all, or has manual approve/reject via `/admin/pending` fully superseded it (`DATA_SOURCES.md`: "operator either approves (publishes the row) or rejects (deletes it)")? If the latter, this cron may be vestigial and worth retiring rather than fixing.
+>
+> **Question 2:** If still wanted, does the query need `status='failed_lint'` instead of `'draft'`, or does the operator-approval flow already flip status back to something else before this cron should ever see it? Needs a look at `/admin/pending`'s actual approve/reject actions (`src/app/admin/pending/actions.ts`) to see what status a manually-approved `failed_lint` row transitions to, before assuming the fix is just a one-word status swap.
+
+**Real current backlog size, re-checked fresh:** 3 rows sitting in `status='failed_lint'` right now —
+
+| Draft | Format | Created | Age |
+|---|---|---|---|
+| "LEGO Peanuts: Snoopy's Doghouse (21368): Worth ₹8,499?" | review | 2026-06-20 | 93 days |
+| "LEGO Ford Bronco SUV (4213): Worth ₹6,399?" | review | 2026-06-20 | 93 days |
+| "LEGO Jim Lee Batman Collection (31205-1): Is It Worth ₹14,999?" | news | 2026-09-09 | 12 days |
+
+All 3 have real generated bodies sitting ready (confirmed in the original issue #170 investigation: 2457–4384 chars each) — none published, none re-reviewed by anything automated, for as long as 93 days. Small backlog in absolute terms, but two of the three rows are old enough to span this cron's entire plausible ~3-month broken window.
+
+---
+
 ## Tier 1 fully closed: retirement-check schedule enabled + full write-job audit — 2026-09-22
 
 ### [1] retirement-check.yml schedule enabled — verified real, not just the file diff
