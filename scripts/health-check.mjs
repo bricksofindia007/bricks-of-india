@@ -470,6 +470,10 @@ try {
     { file: 'ig-token-refresh.yml',  label: 'IG token auto-refresh', maxAgeHours: 432 }, // 1st+15th cron; worst real gap is 17 days (31-day month, 15th -> 1st) + 1 day buffer
     // publish-drafts.yml entry removed 2026-09-22 -- workflow retired (issue
     // #170), would otherwise 404 against the GitHub API here forever.
+    // Added 2026-09-22 -- flipped from dry-run-only to real live deletion
+    // the same day; a write job with real effect deserves freshness
+    // watching like the others above, not left out because it's newer.
+    { file: 'cleanup-published-assets.yml', label: 'Storage cleanup', maxAgeHours: 194 }, // Sunday 04:00 UTC weekly; worst real gap 7 days + 2 day buffer
   ];
 
   for (const wf of workflows) {

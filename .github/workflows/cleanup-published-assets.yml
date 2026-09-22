@@ -1,13 +1,15 @@
-name: Weekly Storage Cleanup (dry-run only)
+name: Weekly Storage Cleanup
 
-# Runs cleanup-published-assets.js in --dry-run mode on a weekly schedule so
-# the operator has a standing, visible signal of how much cleanup-eligible
-# storage has accumulated (posted_both/discarded video_posts rows, and
-# fully-posted-set shorts/reels/feed assets, per the 72h age guard the
-# script defaults to). Deliberately NOT wired to live deletion yet -- that's
-# a separate decision once a few dry-run cycles have been observed. This
-# workflow does not modify any other existing workflow, pipeline script, or
-# architecture; it only invokes cleanup-published-assets.js.
+# Runs cleanup-published-assets.js on a weekly schedule to remove
+# posted_both/discarded assets (past the 72h age guard) from both
+# social-assets (video_posts + posted_sets-derived shorts/reels/feed) and
+# quiet-panic-assets (quiet_panic_posts, direct storage_url match).
+#
+# Flipped to always-live-on-schedule 2026-09-22, after a supervised dry-run
+# observation period plus a real, verified one-off live run for both
+# buckets (see BOI_MASTER_TRACKER.md for before/after byte counts and run
+# evidence). Manual dispatch keeps an optional dry-run toggle for a
+# deliberate preview before trusting a future selection-logic change.
 #
 # Sunday 04:00 UTC -- checked against this repo's other schedules to avoid
 # collision: retiring-soon.yml (Sunday 02:00 UTC) and health-check.yml
@@ -18,13 +20,13 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: 'Dry run only (no deletions)? Uncheck only for a deliberate, monitored live pass -- scheduled runs always stay dry-run regardless of this default.'
+        description: 'Dry run only (no deletions)?'
         type: boolean
-        default: true
+        default: false
 
 jobs:
-  cleanup-dry-run:
-    name: Storage cleanup dry-run
+  cleanup:
+    name: Storage cleanup
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -44,12 +46,11 @@ jobs:
         env:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        # Scheduled runs always stay dry-run, no matter what the workflow_dispatch
-        # default above says -- only an explicit manual dispatch with dry_run=false
-        # can trigger a live pass. This keeps the weekly cadence a pure observation
-        # signal until a separate decision is made to run it live on schedule too.
+        # Scheduled runs always go live now -- no override. Manual dispatch
+        # respects its own dry_run input (defaults false, i.e. live, since
+        # this is now the routine, proven path -- set true for a preview).
         run: |
-          if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ inputs.dry_run }}" != "false" ]; then
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
             node cleanup-published-assets.js --dry-run
           else
             node cleanup-published-assets.js
