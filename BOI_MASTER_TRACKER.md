@@ -1,5 +1,65 @@
 # BOI Master Tracker
 
+## Tier 1 fully closed: retirement-check schedule enabled + full write-job audit — 2026-09-22
+
+### [1] retirement-check.yml schedule enabled — verified real, not just the file diff
+
+Approved. `schedule: - cron: '45 2 * * 0'` added (PR #168, merged `942bd21`), Sunday 02:45 UTC — after `retiring-soon.yml` (02:00, computes `sets.retired`) and `sync-catalogue.yml` (02:15). **Verified two ways beyond the git diff**: `gh api repos/.../actions/workflows/retirement-check.yml` shows `"state": "active"`; fetched the file directly from GitHub's content API (not local git) and confirmed `cron: '45 2 * * 0'` is really what's live on `main`. No cron collision at that Sunday slot (checked against every other Sunday-scheduled workflow).
+
+### [2] Write-job audit — every scheduled workflow that writes to the DB
+
+Full inventory: ~34 scheduled workflows, ~24 of them perform a real DB write (insert/update/upsert/delete — the rest are read-only audits, digests, or reminders with zero Supabase interaction, confirmed by grep, not assumed). Every write-job's real recent run history checked for actual row-level evidence, not just `conclusion: success`.
+
+**Confirmed genuinely healthy, with real evidence (row counts, not just green checkmarks):**
+
+| Workflow | Real evidence from an actual recent run |
+|---|---|
+| `mrp-refresh.yml` | "Phase 2 (confirmed Toycra MRP write): 724", "2744/2744 flagged unverified_estimate" |
+| `populate-mrp.yml` | "8 MRP rows updated", "3180 retirement_date rows updated" |
+| `sync-catalogue.yml` | "7554 unique rows upserted... 0 failed", row-count assertion `26008 ≥ 8,000 PASS` |
+| `generate-drafts.yml` | "3 auto-published (3 gemini, 0 fallback), 27 rejected+deleted" |
+| `radar.yml` | "Wrote 35 rows to pending_drafts", real classify summary counts |
+| `content-quality.yml` | "241 new, 266 recurring, 8 auto-resolved", "204 fixes confirmed resolved" |
+| `generate-guide-weekly.yml` | "Queued." — correct, 1 candidate/week by design |
+| `social-automation.yml` | "Marked 75397-1 as posted. Row ID: 96" |
+| `video-generate-daily.yml` | "video_posts row inserted: 925fa679... (Story #70)" |
+| `video-generate-quiet-panic.yml` | "Inserted quiet_panic_posts row f2acae5a... (status=pending_approval)" |
+| `video-publish-poller.yml` / `-quiet-panic` / `-rework-poller-quiet-panic` / `video-retry-missing-platform` / `video-rejection-reminder` | All correctly no-op with a clear, self-explanatory reason each time checked ("Before publish window", "Already published today, cap=1", "No rejected rows awaiting rework", "zero posted_ig/posted_yt rows", "Rejection reminder due, but zero pending rows") — not silent, not suspicious |
+| `video-pending-approval-digest.yml` | Real email sent, confirmed by Resend message ID |
+| `retiring-soon.yml` | 2339 real `retired=true` rows (verified earlier this session) |
+| `scrape-prices.yml` | Real `store_prices`/`price_history` data verified repeatedly this whole session |
+| `reviews-weekly-refresh.yml` | Real backfill/resplice logic proven this session (114 rows) |
+| `guide-staleness-monthly.yml` | **Fixed this session** (see below), now verified: 25 + 3 real flags live |
+| `retirement-check.yml` | Built + verified this session, real dispatch run `success` |
+| `snapshot-prices.yml` | "1000 rows written, 0 rows failed" — **but see the bug below; the write itself succeeds, the completeness doesn't** |
+
+**Correctly out of scope (not a bug):** `cleanup-published-assets.yml` is explicitly, deliberately dry-run-only on schedule — the workflow's own header says so, live deletion is a separate future decision. Never claims to write for real on a cron; not part of this audit's target pattern.
+
+**Confirmed broken, this session — one already fixed, two newly found and filed (not fixed blind, per instruction):**
+
+1. **`guide-staleness-monthly.yml` — FIXED in this session's earlier build** (`content_quality_issues.article_id` is `uuid`, `guides.id` is `bigint` — every flag insert silently failed since 2026-08-09; the job reported `success` every month while writing zero rows). Root cause: `content-linter.mjs`/`visual-renderer.mjs` (the two *original* `content_quality_issues` writers, built 2026-05-29) already guard against exactly this with `(typeof art.id === 'string' && art.id.includes('-')) ? art.id : null` — `guide-staleness-guard.js`, built later (2026-08-09) by a different pass, didn't carry that precedent forward. A real process gap, not a new independent bug shape.
+
+2. **NEW: `publish-drafts.yml` (issue #170)** — queries `pending_drafts` where `status='draft'`, but real current DB state shows all 161 `status='draft'` rows have `draft_body = NULL` (139 of them 7+ days old, oldest 57 days), while the 3 rows that actually hold generated content sit at `status='failed_lint'`. Every one of the last 10 real runs (3×/day, several days checked) logged `Drafts to process: 0 (from 0 fetched)`, `Published : 0`, `conclusion: success`. Root-cause hypothesis: the query predates (`8e30fcc`, 2026-05-28) both the current draft/approved classify split (`e2f18a7`, 2026-06-29) and the `failed_lint` publishing policy (locked 2026-06-20) — plausibly broken for ~3 months. **Not fixed** — two real open questions filed with the issue (is this cron even still wanted given manual approve/reject via `/admin/pending` may have superseded it; if so, what's the correct target status).
+
+3. **NEW: `snapshot-prices.js` (issue #171)** — no `.range()` pagination on its `store_prices` read, hits PostgREST's documented 1000-row cap. Real numbers: `store_prices` has 1882 rows; `price_snapshots` for 2026-09-21 has exactly 1000. **882 rows (47%) silently missing from every daily snapshot**, feeding at least one LAB price-trend feature. The two existing `technical-hygiene.mjs` checks on this table only assert "≥1 row exists," so they pass regardless. Likely a "grew into the bug" case (script from 2026-05-02, before `store_prices` crossed 1000 rows). **Not fixed** — flagged with the exact fix pattern (`.range()` loop, same as `scrape-now.mjs`'s own `knownSets` load) but left for a deliberate follow-up.
+
+**Checked and cleared, not a bug:** `sync-rebrickable.js`'s `deriveIndiaPrices()` reads `sets.usd_msrp` without pagination too — but that column doesn't actually exist in the schema; the query errors, and the function's own pre-existing code explicitly catches this ("Column likely doesn't exist yet — schema migration required first") and skips gracefully with a warning, never claiming false success. Already self-aware, no action needed.
+
+**Side findings, filed, not fixed (real, but unrelated to the write-job audit itself):**
+- **Issue #169**: `lego-the-endurance-10335-worth-22899` exists as two different, live, conflicting-verdict pages — `reviews` (WAIT) and `news_articles` (BUY NOW) — surfaced by `technical-hygiene.yml`'s own `ReviewRouting` check, which has been correctly failing on real data.
+- **Issue #165 correction**: the 4 "broken set_id link" reviews actually have `set_id = NULL` outright, not a UUID pointing at a deleted row as originally described — corrected via issue comment once found precisely during this audit.
+- **`technical-hygiene.mjs`'s `ReviewedSetPrices` check fixed** (PR #172, merged `f6a4df8`) — was about to fail every week forever on the 12 already-labeled, already-accepted untracked reviews from yesterday's build; now excludes labeled rows the same way it already excluded GWP ones.
+
+### Pattern, not coincidence
+
+Five real instances now, across genuinely different root causes: a URL-length/batch-size limit (`retention-cleanup.yml`, issue #152, already fixed), a middleware redirect masking real response bodies (email-leak crawl, issue #119, already fixed), a DB type mismatch (`guide-staleness-guard.js`, this session), a stale query criterion surviving a pipeline redesign (`publish-drafts.yml`, newly found), and an unpaginated large-table read (`snapshot-prices.js`, newly found). The common thread isn't the specific bug shape — it's **write jobs whose "success" status was never actually correlated with row-level evidence**, either because the job doesn't log affected-row counts at all, or because the counts it does log were never checked against the real table size. Worth carrying forward: any *new* write-job's design should log a real count and, ideally, assert it against an expected minimum — exactly the pattern `mrp-refresh.yml`, `sync-catalogue.yml`, and this session's own `retirement-check.mjs`/`backfill-review-source-retailer.mjs` already follow.
+
+### Tier 1: fully closed
+
+All content-freshness mechanism pieces shipped and scheduled. Write-job audit complete — 3 confirmed bugs this session (1 fixed, 2 filed with full evidence), ~21 jobs confirmed genuinely healthy with real evidence, 1 correctly out-of-scope by design. Next: Tier 2 (heat map + watchlist).
+
+---
+
 ## Content freshness — mechanism built, deployed, verified live — Tier 1 closed — 2026-09-21
 
 The design from the pre-design investigation (below), built and shipped this pass. PR #167 (merged `188ad11`, squash) + supporting GitHub issues. Every piece run for real against production before being called done.
