@@ -60,6 +60,15 @@ for path in sys.argv[1:]:
     if os.path.basename(path) in NO_TIMEOUT_HISTORY_YET:
         skipped.append(path)
         continue
+    if not os.path.exists(path):
+        # A deleted file shows up in the PR's changed-files list same as a
+        # modified one -- nothing to lint, not a violation. Confirmed real
+        # 2026-09-22: publish-drafts.yml's retirement (issue #170) tripped
+        # this exact case, since FileNotFoundError is an OSError subclass
+        # and the except clause below used to treat "deleted" the same as
+        # "exists but unparseable."
+        skipped.append(f"{path} (deleted)")
+        continue
     try:
         with open(path, "r", encoding="utf-8") as f:
             doc = yaml.safe_load(f)
