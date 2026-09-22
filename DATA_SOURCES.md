@@ -129,7 +129,7 @@ Stored as `sets.image_url` during catalogue sync. No separate image pipeline.
   - **News/Review:** unchanged — RADAR-01→03 (`fetch-rss.js`/`dedupe-signals.js`/`classify-signals.js`) classify and queue from `raw_signals`; Reviews sourced separately via the MyBrickHouse/Toycra direct pipeline (`reviews-source-refresh.mjs`).
 Operator reviews low-confidence signals in `/admin/pending` and approves for generation; auto-approve-tier sources and both new pipelines above self-approve.
 **Format:** Markdown (stored as plain text — rendered server-side via `react-markdown`)
-**Refresh:** `generate-approved-drafts.ts` runs daily at 08:30 UTC on approved `pending_drafts` rows regardless of format. `publish-drafts.yml` auto-publishes lint-passing drafts 3×/day or operator publishes manually via `/admin/pending`.
+**Refresh:** `generate-approved-drafts.ts` runs daily at 08:30 UTC on approved `pending_drafts` rows regardless of format, and auto-publishes directly on a full lint/quality-gate pass (or operator publishes manually via `/admin/pending`'s Publish button). A gate failure is rejected and deleted outright (policy locked 2026-06-28), not queued for a separate publish cron — `publish-drafts.yml` described that older model and was retired 2026-09-22 (issue #170) after being found to have queried a status value that no longer received real input under this policy, silently publishing nothing for ~3 months.
 
 ---
 
