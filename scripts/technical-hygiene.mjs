@@ -1698,7 +1698,7 @@ try {
 // longer counted as a failure here -- it's surfaced separately, at info
 // level, so the split stays visible rather than silently dropped.
 try {
-  const { data: allReviewedSets } = await sb.from('reviews').select('set_id, title');
+  const { data: allReviewedSets } = await sb.from('reviews').select('set_id, title, slug');
   // Exclude reviews with no matched catalog set (added 2026-08-03 -- a
   // review with set_id=null, e.g. the price-uncertain Ninjago Destiny's
   // Bounty board game review, has no set to check store_prices for. Worse,
@@ -1718,16 +1718,33 @@ try {
     .select('set_id')
     .in('set_id', setNumbers);
   const pricedSetNumbers = new Set(priceRows.map(p => p.set_id));
+  // 2026-09-21: reviews already labeled ineligible (content-freshness
+  // mechanism build -- broken set_id link, or genuinely never scraped by
+  // either tracked store) are known, accepted, permanent gaps, same
+  // class as the GWP exclusion above -- not a new problem to alert on
+  // every week. See content_quality_issues check_name='price_refresh_
+  // ineligible_*', and issues #165/#166 for the underlying, separately-
+  // tracked gaps this doesn't fix.
+  const { data: labeledIneligible } = await sb.from('content_quality_issues')
+    .select('article_slug')
+    .in('check_name', ['price_refresh_ineligible_untracked', 'price_refresh_ineligible_broken_link'])
+    .eq('resolved', false);
+  const ineligibleSlugs = new Set((labeledIneligible ?? []).map(r => r.article_slug));
+
   const unpriced = reviewedSets.filter(r => !pricedSetNumbers.has(setMap[r.set_id]?.set_number));
-  const missing = unpriced.filter(r => !setMap[r.set_id]?.is_gwp);
+  const expectedIneligible = unpriced.filter(r => !setMap[r.set_id]?.is_gwp && ineligibleSlugs.has(r.slug));
+  const missing = unpriced.filter(r => !setMap[r.set_id]?.is_gwp && !ineligibleSlugs.has(r.slug));
   const expectedGwp = unpriced.filter(r => setMap[r.set_id]?.is_gwp);
   if (missing.length > 0) {
     alertFail('ReviewedSetPrices', `${missing.length} reviewed set(s) have no store_prices: ${missing.map(r => r.title).join(', ')}`);
   } else {
-    log('ReviewedSetPrices', `all ${reviewedSets.length - expectedGwp.length} non-GWP reviewed sets have store_prices ✓`);
+    log('ReviewedSetPrices', `all ${reviewedSets.length - expectedGwp.length - expectedIneligible.length} non-GWP, non-labeled-ineligible reviewed sets have store_prices ✓`);
   }
   if (expectedGwp.length > 0) {
     log('ReviewedSetPrices', `${expectedGwp.length} confirmed-GWP reviewed set(s) correctly excluded (no independent price expected): ${expectedGwp.map(r => r.title).join(', ')}`);
+  }
+  if (expectedIneligible.length > 0) {
+    log('ReviewedSetPrices', `${expectedIneligible.length} reviewed set(s) correctly excluded (already labeled price_refresh_ineligible_* -- see issues #165/#166): ${expectedIneligible.map(r => r.title).join(', ')}`);
   }
 } catch (e) { alertFail('ReviewedSetPrices', `check failed: ${e.message.slice(0, 80)}`); }
 
