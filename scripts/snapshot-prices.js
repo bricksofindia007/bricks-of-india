@@ -34,6 +34,27 @@ if (!SERVICE_ROLE_KEY) {
 
 const supabase = createClient(SUPABASE_URL, SERVICE_ROLE_KEY);
 
+// ── Pagination helper ────────────────────────────────────────────────────────
+// PostgREST caps any single request at 1000 rows regardless of the client's
+// own request — see CLAUDE.md's "PostgREST 1000-row cap" gotcha. store_prices
+// crossed 1000 real rows some time after this script was first written
+// (2026-05-02), and the un-paginated query below silently capped every daily
+// snapshot at exactly 1000 rows ever since — confirmed live 2026-09-22:
+// store_prices had 1882 real rows, price_snapshots for 2026-09-21 had
+// exactly 1000 (issue #171). Paginate in a loop, same pattern as
+// scrape-now.mjs's knownSets load, until a page returns fewer than PAGE rows.
+const PAGE = 1000;
+async function paginate(query) {
+  const rows = [];
+  for (let offset = 0; ; offset += PAGE) {
+    const { data, error } = await query(offset);
+    if (error) return { data: null, error };
+    for (const r of data ?? []) rows.push(r);
+    if ((data ?? []).length < PAGE) break;
+  }
+  return { data: rows, error: null };
+}
+
 // ── Main ───────────────────────────────────────────────────────────────────────
 
 async function run() {
@@ -41,13 +62,22 @@ async function run() {
   const snapshotDate = new Date().toISOString().slice(0, 10); // YYYY-MM-DD UTC
   console.log(`[snapshot-prices] Starting daily snapshot for ${snapshotDate}`);
 
-  // 1. Query source prices — non-null price_inr only, latest scraped_at first.
+  // 1. Query source prices — non-null price_inr only, latest scraped_at first,
+  //    paginated past PostgREST's 1000-row cap (see note above).
   //    store_prices columns: set_id (string), store_id (string), price_inr, in_stock, scraped_at.
-  const { data: sourcePrices, error: sourceErr } = await supabase
-    .from('store_prices')
-    .select('set_id, store_id, price_inr, in_stock, scraped_at')
-    .not('price_inr', 'is', null)
-    .order('scraped_at', { ascending: false });
+  // Secondary sort key (id) makes the ordering fully deterministic across
+  // page boundaries -- scraped_at alone can tie (many rows share the exact
+  // same timestamp within one scrape batch), and an unstable sort would
+  // risk skipping or duplicating rows between .range() pages.
+  const { data: sourcePrices, error: sourceErr } = await paginate((offset) =>
+    supabase
+      .from('store_prices')
+      .select('id, set_id, store_id, price_inr, in_stock, scraped_at')
+      .not('price_inr', 'is', null)
+      .order('scraped_at', { ascending: false })
+      .order('id', { ascending: true })
+      .range(offset, offset + PAGE - 1),
+  );
 
   if (sourceErr) {
     console.error(`[snapshot-prices] ERROR: source query failed — ${sourceErr.message}`);
