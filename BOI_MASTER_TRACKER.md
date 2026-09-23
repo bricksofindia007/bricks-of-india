@@ -1,6 +1,63 @@
 # BOI Master Tracker
 
+## Issue #170 resolved for real: publish-drafts.yml retired — 2026-09-22
+
+Read the actual code before deciding anything, per instruction — `src/app/admin/pending/actions.ts`'s approve/reject actions and `generate-approved-drafts.ts`'s lint-failure handling — rather than guessing further from the outside.
+
+**What `approveDraft()` actually does:** sets `status='approved'`, `approved_at`, `approved_by` — a generic status flip, on any draft regardless of current status. It does **not** publish directly. Since `generate-approved-drafts.ts` reads `status='approved'` as its own input queue, approving a `failed_lint` row routes it into a **fresh generation attempt** (new body from scratch), not a republish of the existing, already-failing body.
+
+**What `rejectDraft()` actually does:** sets `status='rejected'`. **Not a delete** — this directly contradicts what `DATA_SOURCES.md` and `CLAUDE.md` both said ("rejects (deletes it)"), a real, separate doc/behavior mismatch found and fixed in the same pass. Nothing currently reads `status='rejected'`, so it's an inert dead end today, not literal deletion.
+
+**The actual, definitive answer, found in `generate-approved-drafts.ts` itself** — an explicit, dated policy comment: *"Policy locked 2026-06-28 (Abhinav): a draft that completes generation but genuinely fails quality gates... is rejected and deleted outright rather than parked in `pending_drafts` indefinitely. Rationale: a row sitting in `failed_lint`/`draft` forever provides no value and was the dominant contributor to the unbounded backlog growth."* This is on the **same day** `publish-drafts.mjs`'s core logic was last unified — the failed-lint-parking model this cron existed to serve was superseded the same day its own header comment was last written, by a decision recorded in a different file. Cross-checked against tracker history (HIGH-53, 2026-06-28): the "empty `status='draft'` queue" symptom was already known and understood as correct then, not a new discovery — what wasn't connected until this session is that the auto-reject-delete policy independently means `failed_lint` barely gets produced anymore either.
+
+**Resolution: retired, not fixed.** `/admin/pending`'s existing approve/reject/publish actions already fully cover the real, current role this cron would have needed to serve. PR #174, merged `566359b`:
+- `.github/workflows/publish-drafts.yml` deleted.
+- `scripts/publish-drafts.mjs` kept, header rewritten to explain why it's dead (same convention as `generate-drafts.js`).
+- `CLAUDE.md` + `DATA_SOURCES.md` corrected to describe the real, current policy instead of the superseded one.
+- `scripts/health-check.mjs`'s watched-workflow list drops the now-dead entry.
+- **Found and fixed a second real bug while merging this**: `.github/scripts/lint_workflow_timeouts.py` treated a deleted workflow file the same as one that exists but won't parse (`FileNotFoundError` is an `OSError` subclass) — this PR's own file deletion tripped it live. Fixed to skip deleted files cleanly.
+
+**Not resolved, explicitly left as a separate decision:** 3 real drafts remain parked at `status='failed_lint'` from before this policy fully applied (2 from 2026-06-20, 1 from 2026-09-09) — all three still hold real generated bodies (2457–4384 chars). Whether to manually review them or retroactively reject+delete per the same 2026-06-28 policy is undecided.
+
+---
+
+## Storage cleanup — dual-bucket, flipped to permanent live, real run evidence — 2026-09-22
+
+### 1. One-off live cleanup — real numbers, reconciled before executing
+
+Read the real code (`cleanup-published-assets.js`) and real current production data before touching anything — the user's given file lists turned out to be a **snapshot, not the real current eligible set**, for a well-understood reason found during reconciliation:
+
+**social-assets:** real dry-run against the same selection logic (`video_posts` where `status IN ('posted_both','discarded')` AND `posted_at` < 72h ago, plus fully-posted `posted_sets` root-file cross-check) found **292 DB-referenced candidate paths**, not the 28 named. Reconciling that list against the actual bucket contents: only **88 of those 292 still exist** — the other 204 are "ghosts," `video_posts`/`qc_frame_urls` rows still pointing at files the 2026-09-12 live cleanup (1,087 files) already deleted, since nothing updates those DB rows after a storage delete. `storage.remove()` correctly no-ops on a ghost path rather than erroring, so this isn't a bug — just meant the raw "targeted" count needed reconciling against real bucket state before it meant anything.
+
+**quiet-panic-assets:** real dry-run found **15 of the 18 named files** eligible, 0 ghosts (never cleaned before). The 3 missing — `75645_...` (Battle at Drum Castle), `75646_...` (Garp's Marine Battleship), `21582_...` (Chicken Jockey) — checked individually: all `status='posted_both'`, but real `posted_at` (09-19, 09-20, 09-21) is inside the 72h window as of today (2026-09-22) — the filename's embedded timestamp is the render date, not the post date. Correctly excluded by the same age guard the user's own instruction specified; not force-included.
+
+**Real live run executed** (local, against production, using the actual updated script):
+| Bucket | Before | After | Real change | Files removed | Failures |
+|---|---|---|---|---|---|
+| social-assets | 419.2 MB (215 objects) | 284.8 MB (127 objects) | **−134.4 MB** | 88 | 0 |
+| quiet-panic-assets | 120.4 MB (25 objects) | 47.6 MB (10 objects) | **−72.8 MB** | 15 | 0 |
+
+Both before/after figures independently re-queried directly against `storage.objects` via the Supabase client, not taken from the script's own self-reported "targeted" count (which included the 204 ghosts for social-assets and would have overstated real impact if trusted at face value).
+
+### 2. Workflow flipped to permanent live, both buckets, real run evidence
+
+`cleanup-published-assets.js` restructured to loop over both buckets — `social-assets` logic unchanged; `quiet-panic-assets` added as a simpler direct `quiet_panic_posts.storage_url` match (no `qc_frame_urls` or root-naming-convention equivalent exists there). `.github/workflows/cleanup-published-assets.yml`: scheduled runs now always go live (no dry-run override); manual dispatch keeps an optional preview toggle. PR #175, merged `e4163cf`, deployed.
+
+**Real run evidence through the actual GitHub Actions path**, not just local execution: dispatched the live workflow post-merge (run `35686858870`, `conclusion: success`). Real log: `social-assets — 220 files targeted` / `quiet-panic-assets — 15 files targeted`, both batches reported "Deleted." **Independently re-verified this was correctly idempotent, not a second real deletion**: re-queried both buckets' real byte totals after this run — **unchanged** (284.8 MB/127 objects and 47.6 MB/10 objects, exactly matching the post-cleanup numbers above). The 220 (down from 292 — the 72-file drop is exactly the 6 root-level sets × 12 files each that were really deleted in step 1 and can never reappear in a future target list once gone) and the 15 were all ghosts by the time this run executed, correctly no-op'd. This is the real "next run" evidence requested — the actual Sunday 04:00 UTC cron will be the first schedule-triggered instance, but the live code path itself is now proven end-to-end for both buckets.
+
+Also added: `scripts/health-check.mjs` now watches `cleanup-published-assets.yml`'s freshness (194h threshold — weekly + buffer), since it's a real write-job now, matching this session's own write-job-audit lesson about watching jobs with real effect.
+
+### 3. Not touched, explicitly out of scope for this pass
+
+- **2 genuinely orphaned quiet-panic-assets objects** (`40825_2026-08-18_194557.mp4`, `42694_2026-08-21_164515.mp4`, ~9.2MB, zero referencing DB row at all — found during the 2026-09-17 investigation) — the mechanism only ever targets DB-referenced rows, by design; these still need a separate, explicit decision.
+- **`video-master-assets`** — confirmed in the 09-17 investigation as never eligible for any cleanup concept (Abhinav's own permanent source recordings, re-downloaded into every render). Untouched, correctly.
+- **3 `pending_approval` quiet-panic-assets objects** — correctly excluded, still awaiting a human decision, unrelated to this pass.
+
+---
+
 ## Two write-job audit follow-ups — 2026-09-22
+
+**Item [2] below (issue #170's two open questions) is superseded** by "Issue #170 resolved for real: publish-drafts.yml retired" above (same date) — the questions are now answered, not just stated.
 
 ### [1] Issue #171 — FIXED, deployed, verified with a real production run
 
