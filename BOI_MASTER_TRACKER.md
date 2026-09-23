@@ -21,7 +21,7 @@ Read the actual code before deciding anything, per instruction — `src/app/admi
 
 ---
 
-## Storage cleanup — dual-bucket, flipped to permanent live, real run evidence — 2026-09-22
+## Storage cleanup — dual-bucket, live-delete code merged, schedule verification PENDING — 2026-09-22
 
 ### 1. One-off live cleanup — real numbers, reconciled before executing
 
@@ -39,11 +39,15 @@ Read the real code (`cleanup-published-assets.js`) and real current production d
 
 Both before/after figures independently re-queried directly against `storage.objects` via the Supabase client, not taken from the script's own self-reported "targeted" count (which included the 204 ghosts for social-assets and would have overstated real impact if trusted at face value).
 
-### 2. Workflow flipped to permanent live, both buckets, real run evidence
+### 2. Workflow code merged — schedule verification still PENDING, not done
 
 `cleanup-published-assets.js` restructured to loop over both buckets — `social-assets` logic unchanged; `quiet-panic-assets` added as a simpler direct `quiet_panic_posts.storage_url` match (no `qc_frame_urls` or root-naming-convention equivalent exists there). `.github/workflows/cleanup-published-assets.yml`: scheduled runs now always go live (no dry-run override); manual dispatch keeps an optional preview toggle. PR #175, merged `e4163cf`, deployed.
 
-**Real run evidence through the actual GitHub Actions path**, not just local execution: dispatched the live workflow post-merge (run `35686858870`, `conclusion: success`). Real log: `social-assets — 220 files targeted` / `quiet-panic-assets — 15 files targeted`, both batches reported "Deleted." **Independently re-verified this was correctly idempotent, not a second real deletion**: re-queried both buckets' real byte totals after this run — **unchanged** (284.8 MB/127 objects and 47.6 MB/10 objects, exactly matching the post-cleanup numbers above). The 220 (down from 292 — the 72-file drop is exactly the 6 root-level sets × 12 files each that were really deleted in step 1 and can never reappear in a future target list once gone) and the 15 were all ghosts by the time this run executed, correctly no-op'd. This is the real "next run" evidence requested — the actual Sunday 04:00 UTC cron will be the first schedule-triggered instance, but the live code path itself is now proven end-to-end for both buckets.
+**Live-delete code path verified via manual `workflow_dispatch` (`dry_run=false`) on both buckets, 2026-09-22 — confirmed idempotent.** Run `35686858870`, `conclusion: success`. Real log: `social-assets — 220 files targeted` / `quiet-panic-assets — 15 files targeted`, both batches reported "Deleted." Independently re-queried both buckets' real byte totals after this run — unchanged (284.8 MB/127 objects and 47.6 MB/10 objects, exactly matching the post-cleanup numbers in section 1) — confirming this run correctly no-op'd on already-gone ghosts rather than performing a second real deletion.
+
+**This is a manual dispatch, not a schedule-triggered run — the two are not the same claim.** The workflow's cron is Sunday 04:00 UTC. The flip merged Tuesday 2026-09-22. No Sunday has occurred since — the last `event: schedule` run (`35501582510`, 2026-09-20) predates the merge and ran the old forced-dry-run code, so it deleted nothing. **First genuine schedule-triggered run under the new live-delete code: Sunday 2026-09-27 04:00 UTC. That has not happened yet.**
+
+**Status: PENDING that run.** Not to be marked done/closed until 2026-09-27's real scheduled run has actually happened and been verified with real before/after numbers, the same standard as section 1.
 
 Also added: `scripts/health-check.mjs` now watches `cleanup-published-assets.yml`'s freshness (194h threshold — weekly + buffer), since it's a real write-job now, matching this session's own write-job-audit lesson about watching jobs with real effect.
 
