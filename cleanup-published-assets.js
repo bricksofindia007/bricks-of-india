@@ -3,6 +3,9 @@
 //        node cleanup-published-assets.js
 import { createClient } from '@supabase/supabase-js';
 import { appendFileSync } from 'node:fs';
+import {
+  candidatePaths, protectedPaths, rootFilePaths, finalizeSelection,
+} from './scripts/lib/cleanup-selection.mjs';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -74,67 +77,36 @@ function writeStepSummary(bucket, mode, guardNote, paths) {
   appendFileSync(summaryPath, lines);
 }
 
-function urlToPath(url, bucket) {
-  const marker = `/object/public/${bucket}/`;
-  const idx = url.indexOf(marker);
-  if (idx === -1) return null;
-  return url.slice(idx + marker.length);
-}
-
-// Derives the set-num prefix (e.g. "76342-1") from a root-level filename for
-// each of the three known social-assets naming shapes, or null if none
-// match. Feed images come in two forms -- a bare "{set_num}_feed.jpg" and
-// numbered variants "{set_num}_feed_7.jpg" -- handled by one regex rather
-// than chained .replace() calls, which would need extra care to strip a
-// variable numeric suffix correctly. quiet-panic-assets has no equivalent
-// multi-file-per-set convention (one .mp4 per post, matched directly via
-// storage_url), so this is social-assets-only.
-function extractSetNum(filename) {
-  if (filename.endsWith('_shorts.mp4')) return filename.slice(0, -'_shorts.mp4'.length);
-  if (filename.endsWith('_reels.mp4')) return filename.slice(0, -'_reels.mp4'.length);
-  const feedMatch = filename.match(/^(.+)_feed(?:_\d+)?\.jpg$/);
-  if (feedMatch) return feedMatch[1];
-  return null;
-}
+// ── Selection (issue #177): all rows are fetched regardless of status, and
+// the pure functions in scripts/lib/cleanup-selection.mjs decide. A path is
+// deleted only if an allow-listed terminal row (posted_both/discarded, past
+// the age guard) references it AND no row in any other status references the
+// same path. Anything the deny layer holds back is printed as BLOCKED.
 
 // ── social-assets: video_posts + posted_sets, direct URLs + root-file cross-check ──
 async function collectSocialAssetsPaths() {
   const BUCKET = 'social-assets';
+  const cutoff = AGE_GUARD ? AGE_CUTOFF_ISO : null;
 
-  const posts = await fetchAll(() => {
-    let q = supabase.from('video_posts').select('id, storage_url, qc_frame_urls').in('status', ['posted_both', 'discarded']);
-    if (AGE_GUARD) q = q.lt('posted_at', AGE_CUTOFF_ISO);
-    return q;
-  });
+  const posts = await fetchAll(() =>
+    supabase.from('video_posts').select('id, status, posted_at, storage_url, qc_frame_urls').order('id'));
 
-  const videoPaths = [];
-  for (const p of posts) {
-    if (p.storage_url) {
-      const path = urlToPath(p.storage_url, BUCKET);
-      if (path) videoPaths.push(path);
-    }
-    const frames = Array.isArray(p.qc_frame_urls) ? p.qc_frame_urls : [];
-    for (const frameUrl of frames) {
-      const path = urlToPath(frameUrl, BUCKET);
-      if (path) videoPaths.push(path);
-    }
-  }
+  const candidates = candidatePaths(posts, BUCKET, cutoff);
 
   const sets = await fetchAll(() => {
     let q = supabase.from('posted_sets').select('set_num')
-      .eq('ig_feed_posted', true).eq('ig_reels_posted', true).eq('yt_shorts_posted', true);
+      .eq('ig_feed_posted', true).eq('ig_reels_posted', true).eq('yt_shorts_posted', true)
+      .order('set_num');
     if (AGE_GUARD) q = q.lt('posted_at', AGE_CUTOFF_ISO);
     return q;
   });
-  const setNums = new Set(sets.map(s => s.set_num));
 
   const rootFiles = await listAllRoot(BUCKET);
-  const rootPaths = rootFiles
-    .map(f => ({ name: f.name, setNum: extractSetNum(f.name) }))
-    .filter(f => f.setNum !== null && setNums.has(f.setNum))
-    .map(f => f.name);
+  for (const p of rootFilePaths(rootFiles.map((f) => f.name), sets.map((s) => s.set_num))) {
+    candidates.add(p);
+  }
 
-  return { bucket: BUCKET, paths: [...new Set([...videoPaths, ...rootPaths])] };
+  return { bucket: BUCKET, ...finalizeSelection(candidates, protectedPaths(posts, BUCKET)) };
 }
 
 // ── quiet-panic-assets: quiet_panic_posts only, direct storage_url match ──
@@ -143,31 +115,28 @@ async function collectSocialAssetsPaths() {
 // entire footprint of that post in this bucket.
 async function collectQuietPanicAssetsPaths() {
   const BUCKET = 'quiet-panic-assets';
+  const cutoff = AGE_GUARD ? AGE_CUTOFF_ISO : null;
 
-  const posts = await fetchAll(() => {
-    let q = supabase.from('quiet_panic_posts').select('id, storage_url').in('status', ['posted_both', 'discarded']);
-    if (AGE_GUARD) q = q.lt('posted_at', AGE_CUTOFF_ISO);
-    return q;
-  });
+  const posts = await fetchAll(() =>
+    supabase.from('quiet_panic_posts').select('id, status, posted_at, storage_url').order('id'));
 
-  const paths = [];
-  for (const p of posts) {
-    if (p.storage_url) {
-      const path = urlToPath(p.storage_url, BUCKET);
-      if (path) paths.push(path);
-    }
-  }
-
-  return { bucket: BUCKET, paths: [...new Set(paths)] };
+  return {
+    bucket: BUCKET,
+    ...finalizeSelection(candidatePaths(posts, BUCKET, cutoff), protectedPaths(posts, BUCKET)),
+  };
 }
 
 async function processBucket(collectFn) {
-  const { bucket, paths } = await collectFn();
+  const { bucket, toDelete: paths, blocked } = await collectFn();
   const guardNote = AGE_GUARD ? `age guard ON, posted_at < ${AGE_CUTOFF_ISO} (${AGE_GUARD_HOURS}h)` : 'age guard OFF (--no-age-guard)';
   const mode = DRY_RUN ? '[DRY RUN]' : 'LIVE RUN';
   console.log(`\n=== ${bucket} ===`);
   console.log(`${mode} (${guardNote}) — ${paths.length} files targeted:`);
   paths.forEach(p => console.log('  ' + p));
+  if (blocked.length > 0) {
+    console.log(`BLOCKED by deny layer (referenced by a non-terminal row) -- ${blocked.length} files, NOT deleted:`);
+    blocked.forEach(p => console.log('  ' + p));
+  }
   writeStepSummary(bucket, mode, guardNote, paths);
   if (DRY_RUN) return { bucket, targeted: paths.length, deleted: 0, failed: 0 };
 
