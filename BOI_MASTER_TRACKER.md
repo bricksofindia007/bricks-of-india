@@ -1,5 +1,87 @@
 # BOI Master Tracker
 
+## Terminal tasks 2026-09-24: cleanup safety, posting cadence, rework email, Health Check 2, social ban-phrase, Data API grants
+
+Six items from the 2026-09-24 brief, each filed as its own issue before work began. Order: 3 → 1 → 2 → 4 → 5 → 6. No issue closed yet; each closes only with an evidence comment.
+
+| Brief item | Issue | PR / branch | Tier | Status |
+|---|---|---|---|---|
+| 3 Cleanup safety | #177 | PR #183 | **Tier 2** (irreversible deletion path; protects gated rows' assets) | Held for Abhinav |
+| 1 Posting cadence | #178 | branch `fix/178-posting-cadence` (no PR yet) | **Tier 2** (video publishing logic, new automation, migration) | Diff + migration to chat before merge |
+| 2 Rework review email | #179 | PR #184 | **Tier 2** (approval-flow notification) | Held for Abhinav |
+| 4 Health Check 2 | #180 | PR #185 | Tier 1 (criterion 1: verified by a real run) | CI green; merge blocked by the terminal's auto-mode permission classifier ("Merge Without Review") — needs Abhinav/manual merge |
+| 5 Social ban-phrase | #181 | PR #186 | Tier 1 (as classified in the brief; guard not loosened) | CI green; same merge block |
+| 6 Data API grants | #182 | PR #189 | Tier 1 | CI running |
+
+**Tree-ancestry check (all six):** every branch was cut from `ec028b6`. `e4163cf..ec028b6` are docs/tracker-only and `e4163cf` is deployed. None of the Tier 2 work is merged, so no Tier 1 merge carries an unapproved Tier 2 ancestor.
+
+### 3 — Cleanup safety (#177, PR #183)
+- **Before the change:** selection was already a status allow-list (`video_posts`/`quiet_panic_posts` `.in('status',['posted_both','discarded'])` plus the 72h `posted_at` guard). The social-assets root-file sweep keys on `posted_sets` rows fully posted on all 3 platforms, matching only `_shorts.mp4`/`_reels.mp4`/`_feed*.jpg`. VID-P4 assets live at `video/<uuid>.mp4`, which that sweep cannot match. **Gap:** nothing protected a path that a terminal row *shares* with a non-terminal row.
+- **After:** `scripts/lib/cleanup-selection.mjs` (pure, tested). All rows are fetched regardless of status. A path is deleted only if a terminal row past the guard references it **and** no row in any other status (approved, pending_approval, publish_blocked, rejected, NULL, or any future status) references it. Held-back paths are logged as `BLOCKED`.
+- **Dry-run on production, 2026-09-24T03:26Z:** 252 social-assets + 17 quiet-panic-assets files targeted, 0 blocked, so output is unchanged from `main`. SQL listed 51 paths referenced by non-terminal rows (QP #34–#37 `.mp4`s; VID-P4 #62 and #64–#72 videos plus qc frames; #40; rejected QP #9/#15/#18). **0 overlap** with the delete list.
+- **QP #4/#5:** `storage_url` NULL, `video_path` a local Windows path. `storage.objects` has no `77243*` object at all, so nothing is selected for them.
+- **Tests:** `tests/cleanup-selection.test.ts`, 18/18 pass (runs in CI via `npm test`). First scheduled live run is still **2026-09-27 04:00 UTC**; `main`'s current code already only selects terminal statuses.
+
+### 1 — Posting cadence (#178, branch `fix/178-posting-cadence`, Tier 2, NOT merged)
+- **Found live: QP was posting every day, not Mon/Wed/Fri.** `publish_quiet_panic.py` had no slot-day check; it posted on the first hourly tick after IST midnight whenever an approved row existed. Posts landed Sat 09-19, Sun 09-20, Mon 09-21, Tue 09-22, Wed 09-23.
+- **Pause:** QP #34–#37 were approved after the 05:15 IST tick on Thu 09-24, so the next tick would have posted #34 on a Thursday. With Abhinav's approval, **`video-publish-poller-quiet-panic.yml` was disabled at 2026-09-24T03:42:54Z** (`state: disabled_manually`). #34–#37 were verified still `approved` and untouched at 03:43:06Z.
+  - The disabled workflow's only step is `publish_quiet_panic.py --poll-and-publish`.
+  - The QP retry runs in the separate, still-enabled `video-retry-missing-platform.yml`. It has 0 `posted_ig`/`posted_yt` rows to act on in either table, so it is currently a no-op.
+  - "Re-enable QP poller" and "tell Abhinav by Friday morning if not merged before Friday's slot" are checklist items on #178. **Friday's slot opens 00:00 IST Fri = 18:30 UTC Thu 09-24.**
+- **QP slot time proposal (no change made):** 15 of 19 historical QP posts went out between 00:06 and 02:16 IST (median 01:04 IST). The 4 daytime outliers were days when the approval itself landed during the day. Proposal: keep a slot start of 00:00 IST on Mon/Wed/Fri, which the branch already uses.
+- **Branch contents:**
+  - `scripts/video/cadence.py`: shared, neutral module. Per-platform daily cap via new `ig_posted_at`/`yt_posted_at` columns, plus legacy `posted_at`. VID-P4 slot from 19:30 IST daily; VID-QP Mon/Wed/Fri.
+  - Retries now count toward the cap. They run only inside an open slot and defer if that platform already posted today.
+  - Every publish/retry outcome goes to a new `publish_attempts` table.
+  - One failing row alerts once per day, and the queue moves on. `StoryBadgeMissingError` and download/API exceptions previously crashed every tick. QP guard blocks previously sent no email.
+  - `missed_slot_watchdog.py` plus `video-missed-slot-watchdog.yml` (00:15 UTC = 05:45 IST). Judges the previous IST day and emails naming each blocked row and its recorded reason; one alert per slot day.
+  - Migration `20260924000000_posting_cadence.sql`: `approved_at` set by trigger `trg_set_approved_at` (approvals are out-of-band SQL, so a trigger is the only path that catches all of them), historical rows NULL. Also `ig_posted_at`, `yt_posted_at`, `publish_attempts` (RLS on, service_role only, explicit GRANTs).
+  - **The migration must be applied before the code ships.**
+- **Verification so far:**
+  - `test_cadence.py` 16/16 (slot days, IST boundaries, per-platform cap, watchdog alert/dedupe/no-false-alarm cases).
+  - Migration validated in a rolled-back transaction against production: trigger stamps on transition to approved and on insert, does not re-stamp; grants anon/authenticated none; RLS on. Confirmed nothing persisted.
+  - Also passes #182's grant checker.
+- **Expected tonight:** VID-P4 #62 (`gate_override=true`, reason present) is first in `story_number` order, and `assert_all_gates_passed` honours override+reason. This runs on `main`'s existing poller at ≥19:30 IST, independent of the #178 branch.
+- **1e, poller logs on no-post days:**
+  - 09-09, 09-10, 09-16, 09-17: `No approved rows found` at slot time, so nothing was attempted. The queue was genuinely empty.
+  - 09-13, 09-14: every tick crashed at `already_published_today_ist` with **Supabase HTTP 402, "Service for this project is restricted due to the following violations: excee[ding…]"**. The project was quota-restricted, which also explains 7 consecutive scrape failures and zero `price_history` rows on those days.
+  - Only 5–7 of the 96 scheduled `*/15` poller ticks actually fire per day (GitHub schedule throttling).
+
+### 2 — Rework review email (#179, PR #184)
+- **Root cause:** the ready-for-review email is a workflow step in `video-generate-quiet-panic.yml` (single candidate, via `$GITHUB_OUTPUT`). `video-rework-poller-quiet-panic.yml` has no notification step and no `RESEND_API_KEY`. Run 35740472718 (09-22) created QP #36 (`192e9192`) with steps checkout / setup-python / install / ffmpeg / rework only.
+- **Fix:** `rework_quiet_panic.py` emails every reworked row that reaches `pending_approval` (poll and `--row-id` paths). A failed send fails the job. Added `--send-review-email <row_id>`.
+- **Verified with a real rework row:** QP #36, real send 2026-09-24T03:46:45Z, Resend id `01a0d186-081d-757f-a233-43dea38fe8ac`. The automatic path runs on the first live rework after merge; none is queued now (all rejected rows are `reworked=true`).
+
+### 4 — Health Check 2 (#180, PR #185)
+- **Old query:** `blog_posts … .single()`.
+- **Real source:** `/blog` 308s to `/guides` (`next.config.mjs:91-95`), which renders `guides`. `v_published_articles_public` = `news_articles UNION blog_posts`, so it isn't the source.
+- **History:** Check 2 last ran clean 09-21 08:03Z ("63.9 days ago"). `blog_posts` was hard-deleted to 0 rows on 09-21 (#161); that audit fixed technical-hygiene 13f but missed this `.single()`. It crashed daily from 09-22.
+- **Fix:** reads `guides` with `.maybeSingle()`; no rows is an explicit staleness alert; 14-day threshold; keys renamed `guides-*`.
+- **Real run:** branch dispatch **35953249510, success**, `[2] /guides (/blog) freshness: last guide 20.6 days ago`. The remaining alerts are real findings: guides-stale, IG/YT heartbeat stale, social cron failed.
+- **New finding, filed as #187:** the weekly guide job logs "Queued" (09-10, 09-17), yet no `guide`-format `pending_drafts` row exists after 09-03. Probable silent reject-and-delete.
+
+### 5 — Social ban-phrase (#181, PR #186)
+- **Blocked post:** run 35857409636 (09-23), **42172-1 McLaren P1**, "Stunning".
+- **Fix:** `pipeline.py` regenerates with the Codex PAGE 17 ban list injected, up to `CAPTION_BAN_RETRIES = 2`, and still raises if off-voice.
+- **Ban list:** now **parsed from `docs/codex/BOI_Codex_v2.md` PAGE 17** instead of a hand copy. The parsed list is identical to the old tuple (14 phrases, same order), and a test asserts this.
+- **Tests:** 8/8 unit tests. Live Gemini on McLaren P1 with no posting: 3/3 forced regenerations clean; 4/4 natural drafts clean.
+- **Re-run:** not dispatched manually. The pipeline has no same-day guard, so a manual run plus today's 06:30 UTC scheduled run would post twice. Today's scheduled run is the re-run (once #186 is merged); set selection depends on external API order.
+
+### 6 — Data API grants (#182, PR #189)
+- **Audit:** 16 public `CREATE TABLE` in `supabase/migrations/`, 0 explicit GRANTs. Live RLS intent: SELECT for anon/authenticated on `guides`, `cmf_figures`, `community_spotlights`; service-role only on the other 13.
+- **Backfill:** `20260924010000_explicit_table_grants.sql` grants exactly that. It's a no-op on production, with no revokes.
+- **CI:** `lint-migration-grants.yml` fails a changed migration that creates a public table without a same-file GRANT, any table in the directory with no GRANT, and blanket anon grants. Verified pass/fail locally; the `grants` check passed on PR #189.
+- **`db reset` / preview:** covered for anything replayed from `supabase/migrations/`. However, there is no `config.toml` and no preview branches, and the repo's 44 migrations don't match production's 55-entry history.
+- **Filed as #188:** latent `community_spotlights` anon `USING (true)` policy (table empty today); excess default anon privileges; repo/prod migration drift.
+
+### Open decisions for Abhinav
+1. Approve Tier 2: PR #183, PR #184, and #178 (diff + migration in chat).
+2. Merge Tier 1 PRs #185, #186 and #189 (the classifier blocked the terminal's merge).
+3. QP slot time: proposed to keep 00:00 IST on Mon/Wed/Fri.
+4. Friday's QP slot: lost to the pause unless #178 is live by 18:30 UTC today.
+
+---
+
 ## Issue #170 resolved for real: publish-drafts.yml retired — 2026-09-22
 
 Read the actual code before deciding anything, per instruction — `src/app/admin/pending/actions.ts`'s approve/reject actions and `generate-approved-drafts.ts`'s lint-failure handling — rather than guessing further from the outside.
