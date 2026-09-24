@@ -36,6 +36,60 @@ TRACKER_PATH = Path(__file__).parent.parent.parent / 'BOI_MASTER_TRACKER.md'
 ESCALATION_SECTION_HEADER = '## VID-QP Rework — Escalated Sets (operator attention needed)'
 
 
+def send_review_email(result: dict, original: dict | None) -> bool:
+    """
+    Issue #179 (2026-09-24): the one-time "video ready for review" email for a
+    REWORKED row. Before this, only video-generate-quiet-panic.yml sent that
+    email (a workflow step reading $GITHUB_OUTPUT for its single candidate);
+    video-rework-poller-quiet-panic.yml had no notification step at all, so
+    reworked rows (QP #34/#35/#36, created 2026-09-22) reached
+    pending_approval silently and only surfaced in the daily digest.
+
+    Sent from Python here rather than as a workflow step because one rework
+    run can produce several rows -- a single-candidate $GITHUB_OUTPUT step
+    can't represent that. Same content as the fresh-candidate email, plus the
+    rejection reason being addressed. Returns False (never raises) if the
+    send failed, so the caller can fail the job visibly instead of silently.
+    """
+    import notifier  # Resend sender shared with VID-P4 (_send is its single send path)
+
+    title = (result.get('set_title') or '').replace('\ufeff', '')
+    reason = ((original or {}).get('rejection_reason') or '').replace('\ufeff', '')
+    subject = f"Quiet Panic video ready for review (rework): {title} (#{result.get('set_number')})"
+    html = f"""
+<h2>Quiet Panic — reworked video ready for review</h2>
+<p>A reworked Quiet Panic video passed all gates and is ready for your review.</p>
+<p><strong>Set:</strong> {title} (#{result.get('set_number')})<br>
+<strong>Price:</strong> Rs.{result.get('price_inr')}<br>
+<strong>Row id:</strong> {result.get('post_id')}<br>
+<strong>Reworked from:</strong> {result.get('reworked_from')}</p>
+<p><strong>Rejection reason this rework addresses:</strong><br>{reason or '(none recorded)'}</p>
+<p><a href="{result.get('storage_url') or ''}">Watch it here</a><br>{result.get('storage_url') or ''}</p>
+<p>Watch this, then tell Claude "approved" or "rejected: &lt;reason&gt;" in chat.</p>
+<hr>
+<p style="color:#888;font-size:12px;">Bricks of India — VID-QP rework poller (issue #179)</p>
+"""
+    try:
+        notifier._send(subject, html)
+        return True
+    except Exception as exc:
+        print(f'ERROR: ready-for-review email failed for {result.get("post_id")}: {exc}', file=sys.stderr)
+        return False
+
+
+def _notify_if_pending(result: dict, original: dict) -> bool:
+    """Email only for rows that actually entered pending_approval (a rework
+    that fails gates lands publish_blocked -- no review email, same rule as
+    the fresh-candidate path)."""
+    if result.get('status') != 'pending_approval':
+        print(f"  No review email: new row status={result.get('status')} (only pending_approval is emailed).")
+        return True
+    ok = send_review_email(result, original)
+    if ok:
+        print(f"  Ready-for-review email sent for {result['post_id']}.")
+    return ok
+
+
 def fetch_rejected_queue(sb) -> list:
     """status='rejected' AND reworked=false, filtered further in Python for
     a non-null rejection_reason (a 'rejected' row is only actionable with
@@ -160,6 +214,8 @@ def poll_and_rework() -> int:
             continue
 
         sb.table('quiet_panic_posts').update({'reworked': True}).eq('id', rid).execute()
+        if not _notify_if_pending(result, row):
+            exit_code = 1
 
     return exit_code
 
@@ -207,15 +263,40 @@ def rework_one_by_id(sb, row_id: str) -> int:
         return 1
 
     sb.table('quiet_panic_posts').update({'reworked': True}).eq('id', row_id).execute()
-    return 0
+    return 0 if _notify_if_pending(result, row) else 1
+
+
+def send_review_email_for_existing(sb, row_id: str) -> int:
+    """--send-review-email: (re)send the rework ready-for-review email for an
+    EXISTING reworked row, from its stored data. Used to verify #179's email
+    path against a real rework row without generating a new video, and to
+    backfill a missed email if one ever fails."""
+    res = sb.table('quiet_panic_posts').select('*').eq('id', row_id).limit(1).execute()
+    if not res.data:
+        print(f'ERROR: no quiet_panic_posts row with id {row_id}', file=sys.stderr)
+        return 1
+    row = res.data[0]
+    if not row.get('reworked_from'):
+        print(f'ERROR: row {row_id} is not a rework (reworked_from is null).', file=sys.stderr)
+        return 1
+    orig = sb.table('quiet_panic_posts').select('rejection_reason').eq('id', row['reworked_from']).limit(1).execute().data
+    result = {
+        'post_id': row['id'], 'set_title': row['set_title'], 'set_number': row['set_number'],
+        'price_inr': row['price_inr'], 'storage_url': row.get('storage_url'),
+        'reworked_from': row['reworked_from'], 'status': 'pending_approval',
+    }
+    return 0 if send_review_email(result, orig[0] if orig else None) else 1
 
 
 def main():
     parser = argparse.ArgumentParser(description='Quiet Panic rejection-rework poller.')
     parser.add_argument('--poll-and-rework', action='store_true', help='Poll quiet_panic_posts for rejected rows with a reason and rework them.')
+    parser.add_argument('--send-review-email', default=None, metavar='ROW_ID', help='(Re)send the rework ready-for-review email for an existing reworked row (issue #179 verification/backfill). Generates nothing.')
     parser.add_argument('--row-id', default=None, help='Targeted rework for one specific quiet_panic_posts row id, bypassing the escalation-gated queue fetch. Manual use only -- not called by the scheduled poller.')
     args = parser.parse_args()
 
+    if args.send_review_email:
+        sys.exit(send_review_email_for_existing(gqpv.get_supabase(), args.send_review_email))
     if args.row_id:
         sb = gqpv.get_supabase()
         sys.exit(rework_one_by_id(sb, args.row_id))

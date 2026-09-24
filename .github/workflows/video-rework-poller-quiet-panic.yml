@@ -75,6 +75,9 @@ jobs:
           GEMINI_SOCIAL_API_KEY: ${{ secrets.GEMINI_SOCIAL_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           CEREBRAS_API_KEY: ${{ secrets.CEREBRAS_API_KEY }}
+          # Issue #179: rework_quiet_panic.py now sends the one-time ready-for-review
+          # email itself for every reworked row that reaches pending_approval.
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           # Only set on a manual workflow_dispatch that explicitly filled
           # this input -- github.event.inputs is empty/absent on schedule
           # triggers, so FORCE_PROVIDER is unset (falsy) on every cron run.
