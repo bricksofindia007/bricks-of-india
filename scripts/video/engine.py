@@ -2233,65 +2233,14 @@ def mark_posted(sb, video_id: str, platform: str) -> None:
 IST_OFFSET = timedelta(hours=5, minutes=30)
 
 
-def _ist_day_bounds_utc(now_utc: datetime) -> tuple[str, str]:
-    """Returns (start, end) ISO timestamps in UTC that bound "today" in IST
-    -- posted_at is stored in UTC, so the day boundary has to be computed by
-    shifting to IST, truncating to midnight, then shifting back."""
-    now_ist = now_utc + IST_OFFSET
-    start_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
-    start_utc = start_ist - IST_OFFSET
-    end_utc = start_utc + timedelta(days=1)
-    return start_utc.isoformat(), end_utc.isoformat()
-
-
-def already_published_today_ist_at(sb, now_utc: datetime) -> str | None:
-    """Returns the id of a video_posts row already posted today (IST
-    calendar day, relative to the given now_utc), or None. See the
-    --poll-and-publish daily-cap comment for why this exists -- one publish
-    per calendar day is the core cadence premise (including for the LEGO
-    Fan CoLab application), but nothing checked it before 2026-07-07.
-    now_utc is an explicit parameter (not read internally) so this is
-    directly testable/simulatable without patching the clock."""
-    start, end = _ist_day_bounds_utc(now_utc)
-    res = (
-        sb.table("video_posts")
-        .select("id, posted_at")
-        .in_("status", ["posted_ig", "posted_yt", "posted_both"])
-        .gte("posted_at", start)
-        .lt("posted_at", end)
-        .limit(1)
-        .execute()
-    )
-    return res.data[0]["id"] if res.data else None
-
-
-def already_published_today_ist(sb) -> str | None:
-    """Production entry point -- uses the real current time. See
-    already_published_today_ist_at's docstring for the actual logic."""
-    return already_published_today_ist_at(sb, datetime.now(timezone.utc))
-
-
-# Fixed daily publish window, added 2026-07-07 (operator, explicit): the
-# day-cap alone ("nothing posted yet today") let a publish fire on whatever
-# tick happened to be first after midnight IST -- fine for the cap itself,
-# but the operator wants a predictable evening slot (7:30 PM IST) instead of
-# an arbitrary time of day. Deliberately NOT a single once-a-day cron
-# trigger -- the poller keeps its existing 15-minute tick frequency
-# (video-publish-poller.yml is unchanged, still `*/15 * * * *`, which spans
-# every UTC hour including 14:00 UTC = 19:30 IST) and the publish condition
-# becomes "nothing posted today AND current IST time >= 19:30". If the
-# 19:30 tick itself is missed (API hiccup, runner delay, GitHub Actions
-# scheduling jitter -- schedule triggers are not exact, confirmed live: the
-# 2026-07-06 08:44 UTC run before this fix landed over 2.5 hours behind a
-# nominal 15-minute cadence), 19:45/20:00/etc. still catch it the same
-# evening rather than skipping the whole day, which a single fixed-time
-# trigger could not recover from without waiting until tomorrow.
-PUBLISH_WINDOW_START_IST = (19, 30)  # (hour, minute), IST, 24h
-
-
-def _is_past_publish_window_ist(now_utc: datetime) -> bool:
-    now_ist = now_utc + IST_OFFSET
-    return (now_ist.hour, now_ist.minute) >= PUBLISH_WINDOW_START_IST
+# Daily cap + 19:30 IST publish window: moved to cadence.py (issue #178,
+# 2026-09-24) -- now per platform, shared with VID-QP's Mon/Wed/Fri slots and
+# the missed-slot watchdog. History: the day cap was root-caused 2026-07-07
+# (two posts on 2026-07-06; nothing had ever checked it), and the fixed
+# evening window was added the same day so a publish lands at a predictable
+# 19:30 IST rather than the first tick after midnight. The poller keeps its
+# */15 tick so a missed 19:30 tick is recovered at 19:45/20:00 the same
+# evening.
 
 
 # Biweekly rejection-review reminder, added 2026-07-07 (operator, explicit).
@@ -2415,24 +2364,27 @@ def check_and_send_pending_approval_digest(sb) -> None:
 
 def retry_missing_platforms_all(sb) -> bool:
     """
-    Issue #137, 2026-09-19: --retry-missing-platform entry point. Finds every
+    --retry-missing-platform entry point (issue #137, 2026-09-19). Finds every
     video_posts row stuck at status='posted_ig' or 'posted_yt' and retries
-    the missing platform via publish.retry_missing_platform() -- confirmed
-    via grep before this existed that no code path anywhere ever revisited
-    these rows. Real example this was built against: story #61 (The Fire
-    Knight Mech), posted_yt since 2026-09-18, Instagram never retried.
+    the missing platform via publish.retry_missing_platform().
 
-    DELIBERATELY runs independently of already_published_today_ist()'s
-    one-publish-per-day cap -- completing a platform on content that's
-    already partially live is a different kind of action than generating
-    and posting new content, and folding this into the capped poll-and-
-    publish loop would silently decide that open question (should
-    finishing count against the same slot as new content?) rather than
-    surfacing it. Whether that's the right permanent answer is explicitly
-    Abhinav's call, not assumed here -- this function's independence from
-    the cap is the current interim behavior, not a closed decision.
+    Issue #178 (2026-09-24, Abhinav's decision on the question #137 left
+    open): a retry COUNTS toward that platform's daily cap. It only runs
+    inside an open VID-P4 slot (from 19:30 IST), and if the missing platform
+    already went live today (a new post, or an earlier retry) it is deferred
+    to the next slot -- never a second post on one platform in one day.
+    Every deferral/outcome is recorded in publish_attempts.
+
+    Return value drives the job exit code: False if any attempted retry is
+    still failing (deferrals are not failures). Processes every stuck row
+    regardless of earlier failures -- one platform's outage must not block
+    retrying a different row.
     """
     import publish as publish_mod
+    import cadence
+
+    now_utc = datetime.now(timezone.utc)
+    today = cadence.ist_date(now_utc)
 
     stuck_res = (
         sb.table("video_posts")
@@ -2447,28 +2399,31 @@ def retry_missing_platforms_all(sb) -> bool:
         print("retry_missing_platforms_all: zero posted_ig/posted_yt rows. No-op.")
         return True
 
-    # Return value used by the CLI dispatch to set a real exit code -- found
-    # live during this fix's own first real run (issue #137, 2026-09-19):
-    # every retry failing (the known IG permission gap) still left the job
-    # green, because retry_missing_platform() correctly never raises (by
-    # design -- see its own docstring) and nothing here turned that into a
-    # job-level signal. That's the exact "green checkmark hides a real
-    # failure" pattern this whole issue set out to fix -- would have been
-    # ironic to reintroduce it in the fix meant to close the gap. Processes
-    # every stuck row regardless of earlier failures either way -- one
-    # platform's outage must not block retrying a different row.
+    slot_open, slot_reason = cadence.slot_status(cadence.VIDP4, now_utc)
+    if not slot_open:
+        print(f"retry_missing_platforms_all: {len(stuck_rows)} row(s) waiting, deferred -- {slot_reason}.")
+        return True
+
     print(f"retry_missing_platforms_all: {len(stuck_rows)} row(s) with a missing platform.")
     any_failed = False
     for video_post in stuck_rows:
         vid = video_post["id"]
         missing = "yt" if video_post["status"] == "posted_ig" else "ig"
+        already = cadence.platform_posted_on(sb, cadence.VIDP4, missing, today)
+        if already:
+            msg = f"{missing} already posted today (video_posts {already}) -- deferred to next slot"
+            print(f"\n--- Story #{video_post.get('story_number')} {vid}: {msg} ---")
+            cadence.record_attempt(sb, cadence.VIDP4, video_post, "retry", "deferred", platform=missing, detail=msg)
+            continue
         print(f"\n--- Retrying {missing} for {vid} ({video_post['set_title']}, story #{video_post.get('story_number')}) ---")
         result = publish_mod.retry_missing_platform(sb, video_post)
         if "error" in result:
             print(f"Retry still failing for {vid} ({result['platform']}): {result['error']}", file=sys.stderr)
+            cadence.record_attempt(sb, cadence.VIDP4, video_post, "retry", "failed", platform=missing, detail=result["error"])
             any_failed = True
         else:
             print(f"Retry succeeded for {vid} ({result['platform']}).")
+            cadence.record_attempt(sb, cadence.VIDP4, video_post, "retry", "posted", platform=missing)
 
     return not any_failed
 
@@ -2664,7 +2619,7 @@ def main() -> None:
     parser.add_argument("--rerender", type=str, help="video_posts.id to fully re-render (re-sanitized script, new TTS, new images, new Whisper captions, new badge) and re-upload to its existing storage_url. Never touches status/story_number/id.")
     parser.add_argument("--check-rejection-reminder", action="store_true", help="weekly cron entry point: send the biweekly content_rejections review reminder if 14+ days have passed since the last one AND at least one row is still review_status='pending'. Silent no-op otherwise.")
     parser.add_argument("--check-pending-approval-digest", action="store_true", help="daily cron entry point: send a digest of every pending_approval row across video_posts and quiet_panic_posts. Silent no-op if both are empty.")
-    parser.add_argument("--retry-missing-platform", action="store_true", help="find every status='posted_ig'/'posted_yt' row and retry the platform that's missing. Deliberately runs independently of already_published_today_ist's daily cap -- see engine.py's own comment on retry_missing_platforms_all() for why, and the open question this leaves for Abhinav.")
+    parser.add_argument("--retry-missing-platform", action="store_true", help="find every status='posted_ig'/'posted_yt' row and retry the platform that's missing. Counts toward that platform's daily cap (issue #178): only inside an open VID-P4 slot, deferred if the platform already posted today.")
     args = parser.parse_args()
 
     sb = get_supabase()
@@ -2724,20 +2679,27 @@ def main() -> None:
         # even on a run that does publish, stop after the first row that
         # actually goes live on at least one platform -- a backlog of
         # multiple approved rows must drain one per day, not all at once.
-        already_posted_id = already_published_today_ist(sb)
+        import cadence
+
+        # Issue #178 (2026-09-24): cadence rules moved to cadence.py. The day
+        # cap is now per platform (ig_posted_at / yt_posted_at, plus legacy
+        # posted_at) so a missing-platform retry that went out earlier today
+        # also holds this slot. Slot = VID-P4 daily from 19:30 IST.
+        now_utc = datetime.now(timezone.utc)
+        today = cadence.ist_date(now_utc)
+        already_posted_id = cadence.anything_posted_on(sb, cadence.VIDP4, today)
         if already_posted_id:
             print(f"Already published today (IST): video_posts {already_posted_id}. "
                   f"Holding all approved rows for tomorrow's poll -- at most one publish per calendar day.")
             return
 
-        # Fixed evening window, not a single once-a-day trigger -- see
-        # _is_past_publish_window_ist's comment. The poller still ticks every
-        # 15 minutes; before 19:30 IST this is a deliberate silent no-op so a
-        # missed 19:30 tick is recovered by 19:45/20:00/etc. the same evening.
-        now_utc = datetime.now(timezone.utc)
-        if not _is_past_publish_window_ist(now_utc):
-            now_ist = now_utc + IST_OFFSET
-            print(f"Before publish window (19:30 IST) -- current IST time {now_ist.strftime('%H:%M')}. Nothing to do this tick.")
+        # Fixed evening window, not a single once-a-day trigger -- the poller
+        # still ticks every 15 minutes; before 19:30 IST this is a deliberate
+        # silent no-op so a missed 19:30 tick is recovered by 19:45/20:00/etc.
+        # the same evening.
+        slot_open, slot_reason = cadence.slot_status(cadence.VIDP4, now_utc)
+        if not slot_open:
+            print(f"{slot_reason}. Nothing to do this tick.")
             return
 
         # Explicit, tested sort key: story_number, not created_at. They
@@ -2759,25 +2721,42 @@ def main() -> None:
 
         for i, video_post in enumerate(approved_rows):
             vid = video_post["id"]
-            print(f"\n--- Publishing {vid} ({video_post['set_title']}) ---")
+            print(f"\n--- Publishing {vid} (story #{video_post.get('story_number')}, {video_post['set_title']}) ---")
 
             try:
                 results = publish_mod.publish_video_post(sb, video_post)
-            except (publish_mod.GateFailureError, publish_mod.CaptionsMissingError) as exc:
+            except (publish_mod.GateFailureError, publish_mod.CaptionsMissingError, publish_mod.StoryBadgeMissingError) as exc:
                 # An already-approved row failing a hard guard at publish time
                 # is unexpected (approval implies the gates already passed at
                 # generation time) -- move it OUT of status='approved' so the
                 # poller doesn't retry the same deterministic failure every
-                # 15-30 minutes and re-alert each time, but keep it clearly
-                # distinct from an operator's own 'discarded' action.
+                # tick, but keep it clearly distinct from an operator's own
+                # 'discarded' action. StoryBadgeMissingError added #178: it
+                # was raised by publish_video_post but never caught here, so
+                # it would have crashed every tick with the same row at the
+                # head of the queue -- blocking the queue indefinitely.
                 print(f"ERROR: hard guard blocked {vid}: {exc}", file=sys.stderr)
                 sb.table("video_posts").update({"status": "publish_blocked"}).eq("id", vid).execute()
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "blocked", detail=f"{type(exc).__name__}: {exc}")
                 notifier_mod.send_skip_notification(
-                    reason=f"Approved video failed a hard guard at publish time: {exc}",
+                    reason=f"Approved video (story #{video_post.get('story_number')}) failed a hard guard at publish time "
+                           f"and was moved to publish_blocked: {exc}. The next queued row is tried this same run.",
                     candidate_title=video_post.get("set_title"),
                 )
                 exit_code = 1
                 continue  # doesn't count as today's publish -- try the next queued row this same run
+            except Exception as exc:  # noqa: BLE001 -- any other failure: alert, move on, never block the queue
+                # Non-guard failure (storage download, network, API outage).
+                # Possibly transient, so the row stays 'approved' and is
+                # retried next tick -- but this run moves on to the next row,
+                # and the operator hears about it (once per row per IST day).
+                print(f"ERROR: publish attempt for {vid} raised {type(exc).__name__}: {exc}", file=sys.stderr)
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "failed", detail=f"{type(exc).__name__}: {exc}")
+                if not cadence.alerted_today(sb, cadence.VIDP4, "error_alert", vid, today):
+                    notifier_mod.send_publish_error_alert("VID-P4", video_post.get("story_number"), video_post.get("set_title"), f"{type(exc).__name__}: {exc}")
+                    cadence.record_attempt(sb, cadence.VIDP4, video_post, "error_alert", "alerted", detail=str(exc))
+                exit_code = 1
+                continue
 
             refreshed = sb.table("video_posts").select("*").eq("id", vid).single().execute().data
             notifier_mod.send_publish_notification(refreshed, results.get("ig"), results.get("yt"))
@@ -2787,14 +2766,18 @@ def main() -> None:
             # "posted" line.
             if "ig" in results and "yt" in results:
                 print(f"{vid}: posted_both -- IG {results['ig']['permalink']} | YT {results['yt']['url']}")
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "posted")
             elif "ig" in results:
                 print(f"{vid}: posted_ig only -- IG {results['ig']['permalink']} live; YouTube FAILED: {results['errors']}", file=sys.stderr)
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "partial", platform="yt", detail="; ".join(results["errors"]))
                 exit_code = 1
             elif "yt" in results:
                 print(f"{vid}: posted_yt only -- YT {results['yt']['url']} live; Instagram FAILED: {results['errors']}", file=sys.stderr)
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "partial", platform="ig", detail="; ".join(results["errors"]))
                 exit_code = 1
             else:
                 print(f"{vid}: BOTH platforms failed: {results['errors']}", file=sys.stderr)
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "failed", detail="; ".join(results["errors"]))
                 exit_code = 1
 
             if "ig" in results or "yt" in results:

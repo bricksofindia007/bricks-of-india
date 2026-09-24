@@ -7,12 +7,13 @@ name: VID Retry Missing Platform
 # (The Fire Knight Mech), posted_yt since 2026-09-18, Instagram never
 # retried.
 #
-# Deliberately a SEPARATE scheduled step, not folded into the existing
-# */15min poller -- running independently of already_published_today_ist's
-# daily cap is the current interim behavior, not a decided answer to
-# whether completing a stuck platform should consume today's publish slot.
-# See engine.py::retry_missing_platforms_all()'s own comment; that question
-# is Abhinav's to decide, not assumed here.
+# Issue #178, 2026-09-24 (Abhinav decided the question #137 left open): a
+# retry COUNTS toward that platform's daily cap. Each retry only runs inside
+# its pipeline's open slot (VID-P4 from 19:30 IST daily; VID-QP Mon/Wed/Fri)
+# and is deferred to the next slot if that platform already posted today --
+# see cadence.py and both retry_missing_platforms_all() implementations.
+# Still a separate scheduled step from the pollers; outside a slot it is a
+# logged no-op.
 #
 # Hourly at :45 -- checked against this repo's other hourly crons before
 # picking the minute: VID-QP Rework Poller runs on the hour (0 * * * *),

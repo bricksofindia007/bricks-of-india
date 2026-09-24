@@ -1,0 +1,62 @@
+name: VID Missed-Slot Watchdog
+
+# Issue #178, 2026-09-24. Rule (Abhinav): exactly 1 post per slot per
+# pipeline -- VID-P4 daily from 19:30 IST, VID-QP Mon/Wed/Fri -- and no
+# silent skips. Runs the morning AFTER each slot and judges the previous
+# IST day for both pipelines: if an approved row was waiting before the slot
+# opened and nothing went live, emails an alert naming the blocked row(s)
+# and the reason recorded in public.publish_attempts. One alert per
+# pipeline per slot day. See scripts/video/missed_slot_watchdog.py and
+# cadence.check_missed_slot().
+#
+# 00:15 UTC = 05:45 IST -- after IST midnight, so the day being judged can
+# no longer receive a post (no false alarms from a late poller tick), and
+# watchdog_slot_day() stays on the correct day even with hours of GitHub
+# schedule lag. Minute 15 checked against the other 00:xx crons in this repo
+# (video-generate-daily.yml 00:30 UTC; the */15 and hourly pollers are
+# read-only against each other).
+#
+# NEW AUTOMATION: DEPLOY_POLICY Tier 2 until it has a live track record.
+
+on:
+  schedule:
+    - cron: '15 0 * * *'  # 00:15 UTC = 05:45 IST
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (print would-be alerts, send nothing)?'
+        type: boolean
+        default: true
+
+jobs:
+  watchdog:
+    runs-on: ubuntu-latest
+    # No prior runs to measure. Same workload class as
+    # video-pending-approval-digest.yml (a few selects + at most two emails),
+    # but lighter -- only supabase/resend/dotenv are installed, not the full
+    # media stack -- so its 8-minute ceiling is kept as a generous bound.
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install Python dependencies
+        # Only what missed_slot_watchdog.py -> cadence/notifier/secrets_util
+        # import; pins match scripts/video/requirements.txt.
+        run: pip install supabase python-dotenv resend==0.7.0
+
+      - name: Check yesterday's slots (IST) for both pipelines
+        working-directory: scripts/video
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.dry_run }}" = "true" ]; then
+            python missed_slot_watchdog.py --dry-run
+          else
+            python missed_slot_watchdog.py
+          fi

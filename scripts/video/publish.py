@@ -33,6 +33,7 @@ import os
 import sys
 import tempfile
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -610,6 +611,7 @@ def publish_video_post(sb, video_post: dict) -> dict:
             'ig_media_id': ig_result['media_id'],
             'ig_permalink': ig_result['permalink'],
             'ig_raw_response': ig_result['raw_response'],
+            'ig_posted_at': datetime.now(timezone.utc).isoformat(),
         }).eq('id', video_post['id']).execute()
         results['ig'] = ig_result
     except Exception as exc:
@@ -622,6 +624,7 @@ def publish_video_post(sb, video_post: dict) -> dict:
             'yt_video_id': yt_result['video_id'],
             'yt_url': yt_result['url'],
             'yt_raw_response': yt_result['raw_response'],
+            'yt_posted_at': datetime.now(timezone.utc).isoformat(),
         }).eq('id', video_post['id']).execute()
         results['yt'] = yt_result
     except Exception as exc:
@@ -630,7 +633,6 @@ def publish_video_post(sb, video_post: dict) -> dict:
 
     # Status reflects exactly what actually succeeded -- never claim "posted_both"
     # if only one platform confirmed live.
-    from datetime import datetime, timezone
     if 'ig' in results and 'yt' in results:
         status = 'posted_both'
     elif 'ig' in results:
@@ -695,6 +697,7 @@ def retry_missing_platform(sb, video_post: dict) -> dict:
             'ig_media_id': ig_result['media_id'],
             'ig_permalink': ig_result['permalink'],
             'ig_raw_response': ig_result['raw_response'],
+            'ig_posted_at': datetime.now(timezone.utc).isoformat(),
             'status': 'posted_both',
         }).eq('id', video_post['id']).execute()
         print(f'[publish] IG retry succeeded for {video_post["id"]}: {ig_result["permalink"]}')
@@ -710,6 +713,7 @@ def retry_missing_platform(sb, video_post: dict) -> dict:
         'yt_video_id': yt_result['video_id'],
         'yt_url': yt_result['url'],
         'yt_raw_response': yt_result['raw_response'],
+        'yt_posted_at': datetime.now(timezone.utc).isoformat(),
         'status': 'posted_both',
     }).eq('id', video_post['id']).execute()
     print(f'[publish] YouTube retry succeeded for {video_post["id"]}: {yt_result["url"]}')

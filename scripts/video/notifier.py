@@ -287,3 +287,54 @@ def send_skip_notification(reason: str, candidate_title: str | None = None, gate
         _send(subject, html)
     except Exception as exc:
         print(f'[notifier] Failed to send skip notification: {exc}')
+
+
+def send_publish_error_alert(pipeline_label: str, row_number, set_title: str | None, reason: str) -> None:
+    """
+    Issue #178: one queued row failed at publish/retry time and the poller
+    moved on to the next row -- the failure is surfaced, never swallowed.
+    Callers dedupe to one email per row per IST day (cadence.alerted_today).
+    """
+    subject = f'⚠️ {pipeline_label} publish error — #{row_number} skipped this tick, queue moved on'
+    safe_title = (set_title or '').replace('﻿', '')
+    html = f"""
+<h2>{pipeline_label} — publish error on a queued row</h2>
+<p><strong>Row:</strong> #{row_number} {safe_title}</p>
+<p><strong>Reason:</strong> {reason}</p>
+<p>The poller moved on to the next approved row rather than blocking the queue. This row stays in its current status and is retried on the next tick.</p>
+<hr>
+<p style="color:#888;font-size:12px;">Bricks of India — bricksofindia.com — {pipeline_label}</p>
+"""
+    try:
+        _send(subject, html)
+    except Exception as exc:
+        print(f'[notifier] Failed to send publish error alert: {exc}')
+
+
+def send_missed_slot_alert(pipeline_label: str, slot_day: str, blocked_rows: list[dict]) -> None:
+    """
+    Issue #178 missed-slot watchdog: an approved row was waiting before the
+    slot opened and nothing went live that slot day. Names every blocked row
+    and the reason recorded in publish_attempts. No silent skips.
+    """
+    subject = f'🚨 {pipeline_label} missed slot {slot_day} — approved video(s) waiting, nothing posted'
+    rows_html = ''.join(
+        f"<tr><td>#{r.get('row_number')}</td><td>{(r.get('set_title') or '').replace(chr(0xFEFF), '')}</td>"
+        f"<td>{r.get('status')}</td><td>{r.get('reason')}</td></tr>"
+        for r in blocked_rows
+    )
+    html = f"""
+<h2>{pipeline_label} — missed slot on {slot_day}</h2>
+<p>At least one approved row was waiting before the slot opened, and nothing went live on either platform that day.</p>
+<table border="1" cellpadding="6" style="border-collapse:collapse">
+<tr><th>#</th><th>Set</th><th>Status now</th><th>Reason (last recorded attempt)</th></tr>
+{rows_html}
+</table>
+<hr>
+<p style="color:#888;font-size:12px;">Bricks of India — bricksofindia.com — missed-slot watchdog (video-missed-slot-watchdog.yml)</p>
+"""
+    try:
+        _send(subject, html)
+    except Exception as exc:
+        print(f'[notifier] Failed to send missed-slot alert: {exc}')
+        raise
