@@ -7,7 +7,7 @@ Six items from the 2026-09-24 brief, each filed as its own issue before work beg
 | Brief item | Issue | PR / branch | Tier | Status |
 |---|---|---|---|---|
 | 3 Cleanup safety | #177 | PR #183 | **Tier 2** (irreversible deletion path; protects gated rows' assets) | Held for Abhinav |
-| 1 Posting cadence | #178 | branch `fix/178-posting-cadence` (no PR yet) | **Tier 2** (video publishing logic, new automation, migration) | Diff + migration to chat before merge |
+| 1 Posting cadence | #178 | draft PR #190 (`fix/178-posting-cadence`) | **Tier 2** (video publishing logic, new automation, migration) | Diff + migration to chat before merge |
 | 2 Rework review email | #179 | PR #184 | **Tier 2** (approval-flow notification) | Held for Abhinav |
 | 4 Health Check 2 | #180 | PR #185 | Tier 1 (criterion 1: verified by a real run) | CI green; merge blocked by the terminal's auto-mode permission classifier ("Merge Without Review") — needs Abhinav/manual merge |
 | 5 Social ban-phrase | #181 | PR #186 | Tier 1 (as classified in the brief; guard not loosened) | CI green; same merge block |
@@ -22,7 +22,7 @@ Six items from the 2026-09-24 brief, each filed as its own issue before work beg
 - **QP #4/#5:** `storage_url` NULL, `video_path` a local Windows path. `storage.objects` has no `77243*` object at all, so nothing is selected for them.
 - **Tests:** `tests/cleanup-selection.test.ts`, 18/18 pass (runs in CI via `npm test`). First scheduled live run is still **2026-09-27 04:00 UTC**; `main`'s current code already only selects terminal statuses.
 
-### 1 — Posting cadence (#178, branch `fix/178-posting-cadence`, Tier 2, NOT merged)
+### 1 — Posting cadence (#178, draft PR #190, Tier 2, NOT merged)
 - **Found live: QP was posting every day, not Mon/Wed/Fri.** `publish_quiet_panic.py` had no slot-day check; it posted on the first hourly tick after IST midnight whenever an approved row existed. Posts landed Sat 09-19, Sun 09-20, Mon 09-21, Tue 09-22, Wed 09-23.
 - **Pause:** QP #34–#37 were approved after the 05:15 IST tick on Thu 09-24, so the next tick would have posted #34 on a Thursday. With Abhinav's approval, **`video-publish-poller-quiet-panic.yml` was disabled at 2026-09-24T03:42:54Z** (`state: disabled_manually`). #34–#37 were verified still `approved` and untouched at 03:43:06Z.
   - The disabled workflow's only step is `publish_quiet_panic.py --poll-and-publish`.
