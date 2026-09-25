@@ -18,6 +18,12 @@ on:
 jobs:
   poll:
     runs-on: ubuntu-latest
+    # Issue #178 (b): one concurrency group per pipeline, shared with the
+    # missing-platform retry job (video-retry-missing-platform.yml), so two
+    # publishers for the same pipeline never overlap. Queued, never cancelled.
+    concurrency:
+      group: video-publish-vidp4
+      cancel-in-progress: false
     # 10 most recent runs: 1m49s-3m29s (gh run list
     # --workflow=video-publish-poller.yml --limit 10, 2026-08-18). ~2.5x
     # observed max.

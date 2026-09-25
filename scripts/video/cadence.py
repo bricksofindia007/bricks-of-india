@@ -97,14 +97,13 @@ def _weekday_names(p: Pipeline) -> str:
 
 
 def watchdog_slot_day(now_utc: datetime) -> date:
-    """The slot day the watchdog should judge. The watchdog is scheduled the
-    morning after (00:15 UTC = 05:45 IST, see video-missed-slot-watchdog.yml),
-    so the day it checks is always *yesterday* in IST -- computed as the IST
-    date 12h earlier, which stays on the right day even with several hours
-    of GitHub Actions schedule lag (up to ~6h15m late still lands correctly;
-    observed lag on this repo's crons is up to ~4.5h),
-    and never judges a day that could still receive a post."""
-    return ist_date(now_utc - timedelta(hours=12))
+    """The slot day the watchdog should judge: the most recent IST day that
+    has fully ENDED (#178 c -- a slot is missed only once its IST day is
+    over). Always yesterday in IST, whenever the run fires: the scheduled
+    00:15 UTC (05:45 IST) run, a run delayed by GitHub schedule lag (observed
+    up to ~4.5h), or a manual dispatch at 23:30 IST -- none of them can judge
+    a day that could still receive a post."""
+    return ist_date(now_utc) - timedelta(days=1)
 
 
 def row_was_waiting_before(row: dict, cutoff_utc: datetime) -> bool:
@@ -152,9 +151,13 @@ def platform_posted_on(sb, p: Pipeline, platform: str, day: date) -> str | None:
         .execute()
     )
     for r in res.data or []:
-        # Legacy row (no per-platform timestamps at all): posted_at covers
-        # whichever platform(s) its status says went live.
-        if r.get('ig_posted_at') is None and r.get('yt_posted_at') is None:
+        # Fallback, judged per platform: if this platform's own timestamp is
+        # NULL (row went live before the column existed) and its status says
+        # this platform is live, posted_at stands in for it. Per platform, not
+        # "both NULL": a legacy posted_ig row whose YT half is completed by a
+        # retry under the new code gets yt_posted_at set but keeps a NULL
+        # ig_posted_at -- its IG post must still count (merge day, #178 a).
+        if r.get(f'{platform}_posted_at') is None:
             if r['status'] == 'posted_both' or r['status'] == f'posted_{platform}':
                 return r['id']
     return None
@@ -219,6 +222,8 @@ def check_missed_slot(sb, p: Pipeline, now_utc: datetime, send_alert) -> dict:
     """
     day = watchdog_slot_day(now_utc)
     summary = {'pipeline': p.key, 'day': day.isoformat(), 'action': None, 'blocked': []}
+    if now_utc < ist_day_bounds_utc(day)[1]:  # defensive: never judge an unfinished day
+        raise AssertionError(f'watchdog asked to judge {day} before its IST day ended')
 
     if not is_slot_day(p, day):
         summary['action'] = 'not_a_slot_day'

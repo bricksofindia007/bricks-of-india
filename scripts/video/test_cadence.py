@@ -123,6 +123,16 @@ class SlotLogic(unittest.TestCase):
         for run in ('2026-09-25T00:15:00', '2026-09-25T04:30:00', '2026-09-25T06:29:00'):
             self.assertEqual(cadence.watchdog_slot_day(utc(run)), date(2026, 9, 24), run)
 
+    def test_watchdog_never_judges_an_unfinished_day(self):
+        # #178 (c): a slot is missed only at the end of its IST day. A manual
+        # run at 23:30 IST Thu (18:00 UTC) must judge Wed, not the still-open Thu.
+        self.assertEqual(cadence.watchdog_slot_day(utc('2026-09-24T18:00:00')), date(2026, 9, 23))
+        # ...and the first run after IST midnight judges the day that just ended.
+        self.assertEqual(cadence.watchdog_slot_day(utc('2026-09-24T18:31:00')), date(2026, 9, 24))
+        for run in ('2026-09-24T14:30:00', '2026-09-24T18:29:00', '2026-09-25T00:15:00'):
+            day = cadence.watchdog_slot_day(utc(run))
+            self.assertLessEqual(cadence.ist_day_bounds_utc(day)[1], utc(run), run)
+
     def test_approved_at_null_counts_as_waiting(self):
         slot = utc('2026-09-24T14:00:00')
         self.assertTrue(cadence.row_was_waiting_before({'approved_at': None}, slot))
@@ -151,6 +161,29 @@ class PlatformCap(unittest.TestCase):
         ])
         self.assertEqual(cadence.platform_posted_on(sb, VIDP4, 'yt', self.TODAY), 'b')
         self.assertIsNone(cadence.platform_posted_on(sb, VIDP4, 'ig', self.TODAY))
+
+    def test_merge_day_legacy_post_blocks_both_platforms(self):
+        # #178 (a): a row that went live earlier today under the OLD code has
+        # NULL ig_posted_at/yt_posted_at (columns didn't exist). The cap must
+        # fall back to posted_at so the new code can't post a second row today.
+        sb = FakeSB(self.NOW, video_posts=[
+            {'id': 'm', 'status': 'posted_both', 'posted_at': '2026-09-24T14:05:00+00:00',
+             'ig_posted_at': None, 'yt_posted_at': None},
+        ])
+        self.assertEqual(cadence.platform_posted_on(sb, VIDP4, 'ig', self.TODAY), 'm')
+        self.assertEqual(cadence.platform_posted_on(sb, VIDP4, 'yt', self.TODAY), 'm')
+        self.assertEqual(cadence.anything_posted_on(sb, VIDP4, self.TODAY), 'm')
+
+    def test_merge_day_fallback_is_per_platform(self):
+        # #178 (a): legacy posted_ig row (IG live this morning, old code) whose
+        # YT half was completed by a new-code retry -- yt_posted_at is set, but
+        # ig_posted_at is still NULL. The IG post must still count today.
+        sb = FakeSB(self.NOW, quiet_panic_posts=[
+            {'id': 'n', 'status': 'posted_both', 'posted_at': '2026-09-24T03:00:00+00:00',
+             'ig_posted_at': None, 'yt_posted_at': '2026-09-24T14:20:00+00:00'},
+        ])
+        self.assertEqual(cadence.platform_posted_on(sb, VIDQP, 'ig', self.TODAY), 'n')
+        self.assertEqual(cadence.platform_posted_on(sb, VIDQP, 'yt', self.TODAY), 'n')
 
     def test_yesterday_does_not_count(self):
         sb = FakeSB(self.NOW, video_posts=[

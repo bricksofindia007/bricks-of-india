@@ -25,13 +25,18 @@ on:
   workflow_dispatch:  # manual trigger for testing
 
 jobs:
-  retry:
+  retry-vidp4:
     runs-on: ubuntu-latest
+    # Issue #178 (b): shares one concurrency group with this pipeline's
+    # publish poller, so a retry and a publish for the same pipeline can
+    # never run at the same time (each re-reads the daily cap only after
+    # the other has finished). Queued, never cancelled mid-post.
+    concurrency:
+      group: video-publish-vidp4
+      cancel-in-progress: false
     # No prior runs to measure yet -- a handful of single API calls at
     # most (one per stuck row), same class of small workload as the
-    # publish pollers this mirrors. Matches their timeout as a starting
-    # point rather than leaving it unset, since the shape is already known
-    # even without run history.
+    # publish pollers this mirrors.
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -55,6 +60,32 @@ jobs:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
         run: python engine.py --retry-missing-platform
+
+  retry-vidqp:
+    runs-on: ubuntu-latest
+    # Issue #178 (b): shares one concurrency group with this pipeline's
+    # publish poller, so a retry and a publish for the same pipeline can
+    # never run at the same time (each re-reads the daily cap only after
+    # the other has finished). Queued, never cancelled mid-post.
+    concurrency:
+      group: video-publish-vidqp
+      cancel-in-progress: false
+    # No prior runs to measure yet -- a handful of single API calls at
+    # most (one per stuck row), same class of small workload as the
+    # publish pollers this mirrors.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y ffmpeg tesseract-ocr
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/video/requirements.txt
 
       - name: Retry missing platform — VID-QP (quiet_panic_posts)
         working-directory: scripts/video
