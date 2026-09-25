@@ -1,5 +1,10 @@
 name: Weekly Data Retention Cleanup
 
+# 2026-09-25 (DB-size issue): now also calls public.run_retention() --
+# price_history compaction, raw_signals body+payload clearing,
+# content_image_registry dedup, 90-day archive retention -- and emails on
+# failure. This job is what holds the Free-plan DB flat under 500 MB.
+#
 # Runs scripts/retention-cleanup.mjs on a weekly schedule, LIVE from
 # creation -- not dry-run-only like Weekly Storage Cleanup. The 30-day
 # cutoff logic (raw_signals.raw_payload NULL, content_quality_issues
@@ -42,6 +47,8 @@ jobs:
         run: npm ci
 
       - name: Run retention-cleanup.mjs
+        id: retention
+        continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -51,3 +58,28 @@ jobs:
           else
             node scripts/retention-cleanup.mjs
           fi
+
+      # DB-size issue (2026-09-25): this job is what keeps the Free-plan
+      # database under its 500 MB read-only limit, so a failure must be
+      # loud. Same reusable pattern as mrp-refresh.yml -- see
+      # scripts/workflow-failure-notify.mjs.
+      - name: Send failure alert
+        if: steps.retention.outcome == 'failure'
+        continue-on-error: true
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL:    ${{ secrets.BRIEF_EMAIL }}
+          WORKFLOW_NAME:  retention-cleanup
+          STEP_OUTCOMES:  '{"Run retention-cleanup.mjs": "${{ steps.retention.outcome }}"}'
+        run: node scripts/workflow-failure-notify.mjs
+
+      # continue-on-error above would otherwise leave the job green on a
+      # real failure; this step is the sole authority on pass/fail.
+      - name: Fail job if retention step failed
+        if: always()
+        run: |
+          if [ "${{ steps.retention.outcome }}" = "failure" ]; then
+            echo "::error::retention-cleanup.mjs failed -- see step log above; alert email already sent"
+            exit 1
+          fi
+          echo "retention-cleanup.mjs completed successfully."
