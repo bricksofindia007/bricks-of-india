@@ -29,6 +29,11 @@ CREATE OR REPLACE FUNCTION public.run_retention(
 RETURNS jsonb
 LANGUAGE plpgsql
 SET search_path = public
+-- Called through the REST API, where service_role inherits authenticator's
+-- 8s statement_timeout; a function-level setting is Supabase's documented
+-- per-function exemption (max 60s for API calls). Measured 2026-09-25: the
+-- pre-trim 890k-row price_history window pass exceeded 8s.
+SET statement_timeout = '55s'
 AS $$
 DECLARE
   cutoff  timestamptz := now() - make_interval(days => p_days);
