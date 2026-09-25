@@ -45,36 +45,53 @@ def send_review_email(result: dict, original: dict | None) -> bool:
     reworked rows (QP #34/#35/#36, created 2026-09-22) reached
     pending_approval silently and only surfaced in the daily digest.
 
-    Sent from Python here rather than as a workflow step because one rework
+    Sends through the EXACT path the fresh-candidate email uses and that is
+    confirmed to reach Abhinav: scripts/workflow-failure-notify.mjs in
+    NOTIFY_TYPE=custom mode (from abhinav@bricksofindia.com, to the
+    BRIEF_EMAIL secret, plain text). The first version of this fix used
+    notifier._send (from notifications@, to the abhinav@bricksofindia.com
+    mailbox); Resend reported that send "delivered" (to the receiving mail
+    server) but it never reached Abhinav's inbox -- 2026-09-25 diagnosis.
+
+    Called from Python rather than as a workflow step because one rework
     run can produce several rows -- a single-candidate $GITHUB_OUTPUT step
-    can't represent that. Same content as the fresh-candidate email, plus the
-    rejection reason being addressed. Returns False (never raises) if the
-    send failed, so the caller can fail the job visibly instead of silently.
+    can't represent that. Returns False (never raises) if the send failed,
+    so the caller can fail the job visibly instead of silently.
     """
-    import notifier  # Resend sender shared with VID-P4 (_send is its single send path)
+    import os
+    import subprocess
 
     title = (result.get('set_title') or '').replace('\ufeff', '')
     reason = ((original or {}).get('rejection_reason') or '').replace('\ufeff', '')
     subject = f"Quiet Panic video ready for review (rework): {title} (#{result.get('set_number')})"
-    html = f"""
-<h2>Quiet Panic — reworked video ready for review</h2>
-<p>A reworked Quiet Panic video passed all gates and is ready for your review.</p>
-<p><strong>Set:</strong> {title} (#{result.get('set_number')})<br>
-<strong>Price:</strong> Rs.{result.get('price_inr')}<br>
-<strong>Row id:</strong> {result.get('post_id')}<br>
-<strong>Reworked from:</strong> {result.get('reworked_from')}</p>
-<p><strong>Rejection reason this rework addresses:</strong><br>{reason or '(none recorded)'}</p>
-<p><a href="{result.get('storage_url') or ''}">Watch it here</a><br>{result.get('storage_url') or ''}</p>
-<p>Watch this, then tell Claude "approved" or "rejected: &lt;reason&gt;" in chat.</p>
-<hr>
-<p style="color:#888;font-size:12px;">Bricks of India — VID-QP rework poller (issue #179)</p>
-"""
+    body = '\n'.join([
+        'A reworked Quiet Panic video passed all gates and is ready for your review.',
+        '',
+        f"Set: {title} (#{result.get('set_number')})",
+        f"Price: Rs.{result.get('price_inr')}",
+        f"Row id: {result.get('post_id')}",
+        f"Reworked from: {result.get('reworked_from')}",
+        '',
+        'Rejection reason this rework addresses:',
+        reason or '(none recorded)',
+        '',
+        'Watch it here:',
+        result.get('storage_url') or '',
+        '',
+        'Watch this, then tell Claude "approved" or "rejected: <reason>" in chat.',
+    ])
+    notify_script = Path(__file__).parent.parent / 'workflow-failure-notify.mjs'
+    env = {**os.environ, 'NOTIFY_TYPE': 'custom', 'SUBJECT': subject, 'BODY': body}
     try:
-        notifier._send(subject, html)
-        return True
-    except Exception as exc:
+        proc = subprocess.run(['node', str(notify_script)], env=env, capture_output=True, text=True, timeout=60)
+    except Exception as exc:  # noqa: BLE001 -- node missing, timeout, etc.
         print(f'ERROR: ready-for-review email failed for {result.get("post_id")}: {exc}', file=sys.stderr)
         return False
+    print(proc.stdout.strip())
+    if proc.returncode != 0:
+        print(f'ERROR: ready-for-review email failed for {result.get("post_id")}: {proc.stderr.strip()}', file=sys.stderr)
+        return False
+    return True
 
 
 def _notify_if_pending(result: dict, original: dict) -> bool:

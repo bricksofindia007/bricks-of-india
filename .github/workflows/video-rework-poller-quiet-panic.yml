@@ -28,6 +28,10 @@ on:
         description: 'OPTIONAL: target one specific quiet_panic_posts row id directly (bypasses the escalation-gated queue fetch -- see rework_quiet_panic.py::rework_one_by_id()). Leave blank for the normal poll-and-rework behavior. Scheduled cron runs never set this -- unaffected either way.'
         required: false
         type: string
+      send_review_email_row_id:
+        description: 'OPTIONAL (issue #179): (re)send the ready-for-review email for this EXISTING reworked quiet_panic_posts row id and do nothing else -- no rework, no generation. Leave blank for normal behavior. Scheduled cron runs never set this.'
+        required: false
+        type: string
       force_provider:
         description: "OPTIONAL: force a specific provider for this dispatch only (only 'groq' is recognized). Leave blank for the standing Gemini-primary policy. Scheduled cron runs never set this -- unaffected either way."
         required: false
@@ -64,6 +68,19 @@ jobs:
         timeout-minutes: 8
         run: sudo apt-get update && sudo apt-get install -y ffmpeg
 
+      # Issue #179: the ready-for-review email goes through
+      # scripts/workflow-failure-notify.mjs (custom mode) -- the same sender,
+      # from-address and BRIEF_EMAIL recipient as video-generate-quiet-panic.yml's
+      # fresh-candidate email, which is confirmed to reach Abhinav.
+      - name: Setup Node (for the ready-for-review email)
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Node dependencies (for the ready-for-review email)
+        run: npm ci
+
       - name: Poll for rejected Quiet Panic rows and rework them
         working-directory: scripts/video
         env:
@@ -78,12 +95,15 @@ jobs:
           # Issue #179: rework_quiet_panic.py now sends the one-time ready-for-review
           # email itself for every reworked row that reaches pending_approval.
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL: ${{ secrets.BRIEF_EMAIL }}
           # Only set on a manual workflow_dispatch that explicitly filled
           # this input -- github.event.inputs is empty/absent on schedule
           # triggers, so FORCE_PROVIDER is unset (falsy) on every cron run.
           FORCE_PROVIDER: ${{ github.event.inputs.force_provider }}
         run: |
-          if [ -n "${{ github.event.inputs.row_id }}" ]; then
+          if [ -n "${{ github.event.inputs.send_review_email_row_id }}" ]; then
+            python rework_quiet_panic.py --send-review-email "${{ github.event.inputs.send_review_email_row_id }}"
+          elif [ -n "${{ github.event.inputs.row_id }}" ]; then
             python rework_quiet_panic.py --row-id "${{ github.event.inputs.row_id }}"
           else
             python rework_quiet_panic.py --poll-and-rework
