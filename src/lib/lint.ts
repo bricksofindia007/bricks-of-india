@@ -3,6 +3,7 @@
 // actions.ts catches !overallPass and throws to preserve the existing publish flow.
 // Gate 5 (factuality) and Gate 6 (sourceFidelity) require a Supabase client.
 
+import { unverifiedSetCitations } from './set-identity';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 export const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: [number, number] }> = {
@@ -44,6 +45,7 @@ export type LintResult = {
     sourceFidelity:   LintGateResult | null;
     openerUniqueness: LintGateResult | null;
     duplicateContent: LintGateResult | null;
+    citationIdentity: LintGateResult | null;
   };
 };
 
@@ -614,6 +616,7 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
   let sourceFidelityGate: LintGateResult | null   = null;
   let openerUniquenessGate: LintGateResult | null = null;
   let duplicateContentGate: LintGateResult | null = null;
+  let citationIdentityGate: LintGateResult | null = null;
 
   if (!options.skipFactuality) {
     // Gate 6: Source fidelity — pure text comparison, no DB needed
@@ -646,6 +649,20 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
         duplicateContentGate = await gateDuplicateContent(draft.title, body, sb);
         if (!duplicateContentGate.pass) overallPass = false;
       }
+
+      // Gate 11: citation identity (2026-09-26, Donkey Kong "(2000)" / 10332
+      // incident). A catalogue set number written as a set citation --
+      // "(NNNN)", "LEGO NNNN", "#NNNN" or a /sets/ link -- must sit in an
+      // article that names that set. Years and part numbers written in
+      // parentheses fail here too when they collide with a catalogue number.
+      // generate-with-failover.ts allows ONE regeneration with explicit
+      // feedback before this fails the draft.
+      const bad = await unverifiedSetCitations(sb, `${draft.title ?? ''}
+${body}`);
+      citationIdentityGate = bad.length
+        ? { pass: false, severity: 'fail', reason: `set citations not matching the article: ${bad.map((b) => `${b.setNumber} (catalogue: "${b.name}", ${b.form})`).join('; ')}` }
+        : { pass: true, severity: 'ok' };
+      if (!citationIdentityGate.pass) overallPass = false;
     }
   }
 
@@ -660,6 +677,7 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
       sourceFidelity:   sourceFidelityGate,
       openerUniqueness: openerUniquenessGate,
       duplicateContent: duplicateContentGate,
+      citationIdentity: citationIdentityGate,
     },
   };
 }

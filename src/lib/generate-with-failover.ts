@@ -1,3 +1,4 @@
+import { unverifiedSetCitations, citationFeedback } from './set-identity';
 import { buildSystemPrompt, buildUserPrompt, parseDraftResponse } from './prompts/draft-prompt';
 import { GeminiProvider, GroqProvider, CerebrasProvider } from './providers';
 import type { Provider } from './providers';
@@ -102,11 +103,12 @@ export async function generateWithFailover(
   const systemPrompt = buildSystemPrompt();
   const userPrompt   = buildUserPrompt(input);
 
-  async function runLint(body: string, verdict: string | null, wordCount: number): Promise<LintResult> {
+  async function runLint(body: string, verdict: string | null, wordCount: number, title?: string): Promise<LintResult> {
     return lintDraft(
       {
         format: input.format,
         body,
+        title,
         word_count: wordCount,
         verdict,
         source: {
@@ -119,6 +121,34 @@ export async function generateWithFailover(
     );
   }
 
+  // Gate 11 retry (2026-09-26): a draft whose set citations don't match the
+  // article (Donkey Kong "(2000)"/10332 class) gets ONE regeneration from the
+  // same provider with explicit feedback; the second draft is linted again and
+  // stands or falls on its own -- no further retries (same pattern as #194).
+  async function lintWithCitationRetry(
+    call: (userPromptOverride: string) => Promise<string>,
+    first: ReturnType<typeof parseDraftResponse>,
+  ): Promise<{ parsed: ReturnType<typeof parseDraftResponse>; lint: LintResult | null; retried: boolean }> {
+    const lint = await runLint(first.body, first.verdict, first.wordCount, first.title).catch(() => null);
+    if (!lint?.gates.citationIdentity || lint.gates.citationIdentity.pass) return { parsed: first, lint, retried: false };
+    const bad = await unverifiedSetCitations(sb, `${first.title}
+${first.body}`);
+    const feedback = citationFeedback(bad);
+    vlog(`Gate 11 failed (${lint.gates.citationIdentity.reason}) -- regenerating once with feedback`);
+    try {
+      const text = await call(`${userPrompt}
+
+REVISION REQUIRED: ${feedback}`);
+      const second = parseDraftResponse(text, input.format);
+      const lint2 = await runLint(second.body, second.verdict, second.wordCount, second.title).catch(() => null);
+      vlog(`Gate 11 after regeneration: ${lint2?.gates.citationIdentity?.pass ? 'PASS' : `FAIL (${lint2?.gates.citationIdentity?.reason ?? 'lint error'})`}`);
+      return { parsed: second, lint: lint2, retried: true };
+    } catch (err) {
+      vlog(`Gate 11 regeneration call failed: ${err instanceof Error ? err.message.slice(0, 120) : String(err)} -- keeping the failing first draft`);
+      return { parsed: first, lint, retried: true };
+    }
+  }
+
   // ── Gemini first ─────────────────────────────────────────────────────────────
   const gemini = new GeminiProvider(geminiKey);
   let geminiErr: unknown = null;
@@ -127,8 +157,10 @@ export async function generateWithFailover(
   try {
     const { text } = await gemini.call({ systemPrompt, userPrompt });
     vlog('Gemini succeeded — running lint + Gate 7');
-    const parsed    = parseDraftResponse(text, input.format);
-    const lint      = await runLint(parsed.body, parsed.verdict, parsed.wordCount).catch(() => null);
+    const { parsed, lint } = await lintWithCitationRetry(
+      async (up) => (await gemini.call({ systemPrompt, userPrompt: up })).text,
+      parseDraftResponse(text, input.format),
+    );
     const hardRules = runHardRules(parsed.body, input.format as DraftFormat, input.sourceUrl);
     const hardFail  = hardRules.some(r => !r.pass);
     lintSummary(lint);
@@ -228,7 +260,13 @@ export async function generateWithFailover(
   }
   vlog(`Parsed: title="${parsed.title.slice(0, 60)}" wordCount=${parsed.wordCount} verdict=${parsed.verdict}`);
 
-  const lint      = await runLint(parsed.body, parsed.verdict, parsed.wordCount).catch(() => null);
+  const usedCall = candidates.find((c) => c.name === usedProvider)!.provider;
+  const retried = await lintWithCitationRetry(
+    async (up) => (await usedCall.call({ systemPrompt, userPrompt: up })).text,
+    parsed,
+  );
+  parsed = retried.parsed;
+  const lint      = retried.lint;
   const hardRules = runHardRules(parsed.body, input.format as DraftFormat, input.sourceUrl);
   const hardFail  = hardRules.some(r => !r.pass);
   lintSummary(lint);
