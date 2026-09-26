@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { estimateCycleUsage, level, EGRESS_QUOTA_GB, LOG_INGEST_QUOTA_GB, WARN_PCT, CRIT_PCT } from './lib/capacity-estimate.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
@@ -589,6 +590,44 @@ try {
 } catch (e) {
   failures.push('capacity-error');
   console.error('[11] Capacity check failed:', e.message);
+}
+
+// ── Check 11b: Egress + log ingest, cycle-to-date estimate ────────────────────
+// 2026-09-26: the Free plan's grace period is used up, so going over ANY
+// quota stops the project serving. Egress (5 GB) and log ingest (1 GB) both
+// scale with API request count; there is no usage API without a Management
+// token (deliberately not provisioned), so this estimates them from a nightly
+// snapshot of the API-role pg_stat_statements counter
+// (public.capacity_snapshot, migration 20260926050000) -- calibration and
+// thresholds in scripts/lib/capacity-estimate.mjs. Estimates, not the
+// dashboard: confirm on the Supabase usage page when this fires.
+try {
+  const { data: snaps, error } = await sb.rpc('capacity_snapshot', { p_days: 40 });
+  if (error) throw error;
+  const est = estimateCycleUsage(snaps ?? []);
+  if (!est.ok) {
+    console.log(`[11b] Egress/log estimate: ${est.reason} (cycle from ${est.start.toISOString().slice(0, 10)}) -- first full estimate after the next run.`);
+  } else {
+    const gb = (x) => x.toFixed(2);
+    const line =
+      `cycle ${est.start.toISOString().slice(0, 10)} -> ${est.end.toISOString().slice(0, 10)}, day ${est.elapsedDays.toFixed(1)}` +
+      `${est.extrapolated ? ` (extrapolated from ${est.observedDays.toFixed(1)} observed days)` : ''}: ` +
+      `~${est.requests.toLocaleString('en-US')} API requests; egress ~${gb(est.egressGB)} of ${EGRESS_QUOTA_GB} GB (${est.egressPct.toFixed(0)}%, projected ${gb(est.projectedEgressGB)} GB); ` +
+      `log ingest ~${gb(est.logGB)} of ${LOG_INGEST_QUOTA_GB} GB (${est.logPct.toFixed(0)}%, projected ${gb(est.projectedLogGB)} GB)`;
+    console.log(`[11b] ${line}`);
+    for (const [name, pct, quota] of [['Egress', est.egressPct, `${EGRESS_QUOTA_GB} GB`], ['Log ingest', est.logPct, `${LOG_INGEST_QUOTA_GB} GB`]]) {
+      const lv = level(pct);
+      if (!lv) continue;
+      failures.push(`${name.toLowerCase().replace(' ', '-')}-${lv}`);
+      await sendAlert(
+        `${lv === 'critical' ? '🚨' : '⚠️'} BOI Health Alert — Supabase ${name} at ~${pct.toFixed(0)}% of quota (${lv === 'critical' ? `>= ${CRIT_PCT}%` : `>= ${WARN_PCT}%`})`,
+        `Estimated ${name.toLowerCase()} this billing cycle is ~${pct.toFixed(0)}% of the ${quota} Free-plan quota.\n\n${line}\n\nThe grace period is already used: going over stops the project serving. Confirm on the Supabase usage page, then cut API request volume (set-page renders, batch writers, CI builds -- see the 2026-09-26 capacity entry in BOI_MASTER_TRACKER.md).`
+      );
+    }
+  }
+} catch (e) {
+  failures.push('capacity-estimate-error');
+  console.error('[11b] Egress/log estimate failed:', e.message);
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────
