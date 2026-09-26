@@ -227,7 +227,19 @@ function report(items: any[]): string {
   return lines.join('\n');
 }
 
-async function apply(file: string, slugs: string[]) {
+const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const FULL_BLOCK_RE = /Priced at ₹[\d,]+ on [^,]+, confirmed in stock as of [^.]+\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
+
+/**
+ * Operator rule (2026-09-26): every applied verdict change ends with a dated
+ * note, e.g. "Updated 26 Sep 2026: this set is now available in India.
+ * Verdict revised from IMPORT ONLY to WAIT."
+ */
+function updateNote(from: string, to: string, when = new Date()): string {
+  return `Updated ${when.getUTCDate()} ${SHORT_MONTHS[when.getUTCMonth()]} ${when.getUTCFullYear()}: this set is now available in India. Verdict revised from ${from} to ${to}.`;
+}
+
+async function apply(file: string, slugs: string[], overrides: Record<string, Verdict> = {}) {
   const items = JSON.parse(fs.readFileSync(file, 'utf-8')).filter((i: any) => i.status === 'proposed' && slugs.includes(i.slug));
   for (const it of items) {
     const live = await liveListing(it.setNumber);
@@ -239,19 +251,37 @@ async function apply(file: string, slugs: string[]) {
     if (current?.content !== it.before.content || current?.verdict !== it.before.verdict) {
       console.error(`SKIP ${it.slug}: review changed since the proposal -- re-propose`); continue;
     }
+    // Operator verdict override (e.g. BUY NOW -> WAIT when nothing concrete
+    // supports BUY NOW at MRP): rebuild the deterministic block to match.
+    let verdict: Verdict = it.after.verdict;
+    let content: string = it.after.content;
+    let variant: string = it.after.verdict_disclaimer_variant;
+    if (overrides[it.setNumber] && overrides[it.setNumber] !== verdict) {
+      verdict = overrides[it.setNumber];
+      const rebuilt = deterministicBlock(verdict, live);
+      if (!FULL_BLOCK_RE.test(content)) { console.error(`SKIP ${it.slug}: deterministic block not found for the override`); continue; }
+      content = content.replace(FULL_BLOCK_RE, rebuilt.block);
+      variant = rebuilt.variant;
+    }
+    content = `${content.trimEnd()}\n\n${updateNote(it.before.verdict, verdict)}`;
     const { error } = await sb.from('reviews').update({
-      title: it.after.title, verdict: it.after.verdict, content: it.after.content,
-      verdict_disclaimer_variant: it.after.verdict_disclaimer_variant,
+      title: it.after.title, verdict, content,
+      verdict_disclaimer_variant: variant,
       source_retailer: it.after.source_retailer, source_price_inr: it.after.source_price_inr,
       source_stock_status: it.after.source_stock_status, source_checked_at: it.after.source_checked_at,
     }).eq('id', it.reviewId);
-    console.log(error ? `FAIL ${it.slug}: ${error.message}` : `APPLIED ${it.slug}: ${it.before.verdict} -> ${it.after.verdict}`);
+    console.log(error ? `FAIL ${it.slug}: ${error.message}` : `APPLIED ${it.slug}: ${it.before.verdict} -> ${verdict}`);
   }
 }
 
 (async () => {
   const arg = (k: string) => { const i = process.argv.indexOf(k); return i > -1 ? process.argv[i + 1] : undefined; };
-  if (arg('--apply')) return apply(arg('--apply')!, (arg('--slugs') ?? '').split(',').filter(Boolean));
+  if (arg('--apply')) {
+    // --verdict 11512=WAIT,... overrides a proposal's verdict at apply time.
+    const overrides = Object.fromEntries((arg('--verdict') ?? '').split(',').filter(Boolean).map((kv) => kv.split('='))) as Record<string, Verdict>;
+    for (const v of Object.values(overrides)) if (!VERDICTS.includes(v)) throw new Error(`invalid override verdict: ${v}`);
+    return apply(arg('--apply')!, (arg('--slugs') ?? '').split(',').filter(Boolean), overrides);
+  }
   const sets = (arg('--sets') ?? '').split(',').filter(Boolean);
   if (!sets.length) throw new Error('usage: --sets 11374,11382,... | --apply <file.json> --slugs a,b');
   const fresh = await propose(sets);
