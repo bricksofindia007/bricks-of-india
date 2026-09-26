@@ -65,7 +65,7 @@ if (notifyType === 'custom') {
     process.exit(1);
   }
   const resend = new Resend(key);
-  const { error } = await resend.emails.send({
+  const { data, error } = await resend.emails.send({
     from: 'Bricks of India <abhinav@bricksofindia.com>',
     to: alertEmail,
     subject,
@@ -75,7 +75,9 @@ if (notifyType === 'custom') {
     console.error('[workflow-failure-notify] Resend error:', error.message);
     process.exit(1);
   }
-  console.log('[workflow-failure-notify] Custom notification sent:', subject);
+  // Resend message id logged so a send can be traced in Resend's delivery
+  // log (issue #179: an HTTP 200 alone is not proof of delivery).
+  console.log('[workflow-failure-notify] Custom notification sent:', subject, `(resend id: ${data?.id})`);
   process.exit(0);
 }
 
