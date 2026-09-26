@@ -5,6 +5,15 @@
 const nextConfig = {
   async redirects() {
     return [
+      // #213 (Wave 1 PR-H, 2026-09-26): the heat map is hidden pending a
+      // rebuild -- its figures were hardcoded, not live Trends data.
+      // Temporary (307), not permanent: the URL comes back after the rebuild.
+      // Page source kept, unrouted, at src/unrouted/lab-heat-map/.
+      {
+        source: '/lab/heat-map',
+        destination: '/lab',
+        permanent: false,
+      },
       {
         source: '/search',
         destination: '/compare',
