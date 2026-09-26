@@ -301,6 +301,40 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
     console.log(`Flip-freeze guarantee held for all ${flipFlaggedReviewIds.length} flagged row(s) — verdict/disclaimer/India Paragraph unchanged.\n`);
   }
 
+  // ══ PASS 1b — legacy IMPORT ONLY reviews now sold in India ═════════════════
+  // Wave 1 item 9 (2026-09-26). Pass 1 only sees retailer-sourced reviews
+  // (source_retailer NOT NULL), so a legacy RADAR review that said IMPORT
+  // ONLY stayed IMPORT ONLY after the set reached MyBrickHouse/Toycra (7 such
+  // reviews found on 2026-09-26). Same treatment as a Pass 1 flip: flag
+  // verdict_flip_candidate, never change the review. The fix path is
+  // scripts/review-verdict-refresh.ts (proposals held for approval). Skipped
+  // when a store fetch failed, and for sets already covered by a
+  // retailer-sourced review (that duplicate needs a redirect, not a rewrite).
+  console.log('── PASS 1b: legacy IMPORT ONLY reviews now in stock ──');
+  const legacyImportOnly = await paginate(offset =>
+    sb.from('reviews')
+      .select('id, slug, set_id')
+      .is('source_retailer', null)
+      .eq('verdict', 'IMPORT ONLY')
+      .range(offset, offset + PAGE - 1),
+  );
+  const coveredSetIds = new Set(publishedReviews.map(r => r.set_id));
+  let p1bFlagged = 0;
+  for (const review of legacyImportOnly) {
+    const setNumber = setNumberById.get(review.set_id);
+    if (!setNumber || failedStoreIds.size > 0) continue;
+    const resolved = resolveEligibleListing(listings.get(setNumber));
+    if (!resolved || resolved.sourceStockStatus !== 'in_stock') continue;
+    const where = STORE_DISPLAY_NAME[resolved.sourceRetailer] ?? resolved.sourceRetailer;
+    p1bFlagged++;
+    await flagIssue(review.slug, 'verdict_flip_candidate', 'critical',
+      coveredSetIds.has(review.set_id)
+        ? `${setNumber}: legacy IMPORT ONLY review, but the set is in stock (₹${resolved.sourcePriceInr} at ${where}) AND already has a retailer-sourced review — duplicate: redirect this slug to that review rather than rewriting it.`
+        : `${setNumber}: legacy IMPORT ONLY review, but the set is now in stock — ₹${resolved.sourcePriceInr} at ${where}. Propose a verdict refresh (npx tsx scripts/review-verdict-refresh.ts --sets ${setNumber}); held for approval, nothing auto-changes.`);
+  }
+  console.log(`Pass 1b: ${legacyImportOnly.length} legacy IMPORT ONLY review(s) checked, ${p1bFlagged} flagged as now in stock${failedStoreIds.size > 0 ? ' (skipped: a store fetch failed this run)' : ''}
+`);
+
   // ══ PASS 2 — discovery of new qualifying sets ═══════════════════════════════
   console.log('── PASS 2: discovery ──');
 
