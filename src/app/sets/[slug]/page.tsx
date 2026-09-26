@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { cache } from 'react';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
@@ -36,18 +37,27 @@ const TRACKED_STORES = [
   { id: 'mybrickhouse', name: 'MyBrickHouse',  url: 'https://mybrickhouse.com' },
 ];
 
-async function getSetData(slug: string) {
+// Fix A (2026-09-26): everything this page renders comes from ONE read-only
+// RPC, public.set_page_data (migration 20260926030000), instead of 8
+// separate requests. React cache() makes generateMetadata and the page share
+// that single call. Every Supabase request writes a ~2.5 KB gateway log line
+// and crawlers render thousands of distinct set pages a day, so this page
+// was the main driver of the project's log ingest and a large share of egress.
+type SetPageData = {
+  set: any | null;
+  store_prices: any[];
+  related: any[];
+  related_prices: { set_id: string; price_inr: number; store_id: string; product_url: string | null; in_stock: boolean; scraped_at: string }[];
+  coverage: { news: any[]; guides: any[]; reviews: any[] };
+};
+
+const getSetPageData = cache(async (slug: string): Promise<SetPageData | null> => {
   const setNumber = slug.split('-')[0];
   const client = createServerClient();
-
-  // Primary path: Supabase
-  const { data: set } = await client
-    .from('sets')
-    .select('*, reviews(*)')
-    .eq('set_number', setNumber)
-    .single();
-
-  if (set) return set;
+  const { data, error } = await client.rpc('set_page_data', { p_set_number: setNumber, p_slug: slug });
+  if (error) throw error;
+  const d = data as SetPageData;
+  if (d.set) return d;
 
   // Fallback: Rebrickable (runtime only — never called at build time since
   // this route has no generateStaticParams)
@@ -55,28 +65,31 @@ async function getSetData(slug: string) {
   if (!rbSet) return null;
 
   return {
-    id: rbSet.set_num,
-    set_number: setNumber,
-    rebrickable_id: rbSet.set_num,
-    name: rbSet.name,
-    year: rbSet.year,
-    theme: '',
-    subtheme: null,
-    pieces: rbSet.num_parts,
-    minifigs: null,
-    image_url: rbSet.set_img_url,
-    description: null,
-    age_range: null,
-    lego_mrp_inr: null,
-    created_at: '',
-    updated_at: '',
-    reviews: [],
+    ...d,
+    set: {
+      id: rbSet.set_num,
+      set_number: setNumber,
+      rebrickable_id: rbSet.set_num,
+      name: rbSet.name,
+      year: rbSet.year,
+      theme: '',
+      subtheme: null,
+      pieces: rbSet.num_parts,
+      minifigs: null,
+      image_url: rbSet.set_img_url,
+      description: null,
+      age_range: null,
+      lego_mrp_inr: null,
+      created_at: '',
+      updated_at: '',
+      reviews: [],
+    },
   };
-}
+});
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
   const params = await props.params;
-  const set = await getSetData(params.slug);
+  const set = (await getSetPageData(params.slug))?.set;
   if (!set) return { title: 'Set Not Found' };
   return {
     ...buildMetadata({
@@ -107,15 +120,12 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 
 export default async function SetPage(props: Props) {
   const params = await props.params;
-  const set = await getSetData(params.slug);
-  if (!set) notFound();
+  const pageData = await getSetPageData(params.slug);
+  if (!pageData?.set) notFound();
+  const set = pageData.set;
 
-  // ── Query store_prices for this set ──────────────────────────────────────
-  const serverClient = createServerClient();
-  const { data: storePrices } = await serverClient
-    .from('store_prices')
-    .select('*')
-    .eq('set_id', set.set_number);
+  // ── store_prices for this set (from set_page_data) ───────────────────────
+  const storePrices = pageData.store_prices;
 
   const storePriceMap = new Map((storePrices ?? []).map((sp: any) => [sp.store_id, sp]));
 
@@ -151,30 +161,13 @@ export default async function SetPage(props: Props) {
   const hasPrices = activePrices.length > 0;
   const hasToycra = !!storePriceMap.get('toycra')?.price_inr;
 
-  // Related sets
-  let relatedSets: any[] = [];
+  // Related sets (same theme, newest first) and their prices, from set_page_data.
+  const relatedSets: any[] = pageData.related;
   const relatedPriceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
-  if (set.theme) {
-    const { data: relData } = await serverClient
-      .from('sets')
-      .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr, mrp_verified')
-      .eq('theme', set.theme)
-      .neq('set_number', set.set_number)
-      .limit(4);
-    relatedSets = relData ?? [];
-
-    const relNumbers = relatedSets.map((s: any) => s.set_number);
-    if (relNumbers.length > 0) {
-      const { data: relPrices } = await serverClient
-        .from('store_prices')
-        .select('set_id, price_inr, store_id, product_url')
-        .in('set_id', relNumbers);
-      for (const rp of (relPrices ?? []) as { set_id: string; price_inr: number; store_id: string; product_url: string | null }[]) {
-        const existing = relatedPriceMap[rp.set_id];
-        if (!existing || rp.price_inr < existing.price_inr) {
-          relatedPriceMap[rp.set_id] = { price_inr: rp.price_inr, store_name: rp.store_id, buy_url: rp.product_url ?? null };
-        }
-      }
+  for (const rp of pageData.related_prices) {
+    const existing = relatedPriceMap[rp.set_id];
+    if (!existing || rp.price_inr < existing.price_inr) {
+      relatedPriceMap[rp.set_id] = { price_inr: rp.price_inr, store_name: rp.store_id, buy_url: rp.product_url ?? null };
     }
   }
 
@@ -190,12 +183,10 @@ export default async function SetPage(props: Props) {
   // (category='Opinion'), so querying blog_posts too would either double-
   // count the same coverage or point at a slug that now just 301s. guides
   // added since it's a real coverage source now (weekly generation, §5).
-  const coveragePattern = `%](/sets/${params.slug})%`;
-  const [newsCoverageRes, guidesCoverageRes, reviewCoverageRes] = await Promise.all([
-    serverClient.from('news_articles').select('slug, title, published_at, category').ilike('content', coveragePattern),
-    serverClient.from('guides').select('slug, title, published_at').ilike('content', coveragePattern),
-    serverClient.from('reviews').select('slug, title, published_at').ilike('content', coveragePattern),
-  ]);
+  // Same %](/sets/<slug>)% match, now done inside set_page_data.
+  const newsCoverageRes = { data: pageData.coverage.news };
+  const guidesCoverageRes = { data: pageData.coverage.guides };
+  const reviewCoverageRes = { data: pageData.coverage.reviews };
   const relatedCoverage = [
     ...(newsCoverageRes.data ?? []).map((a: any) => ({
       ...a,
