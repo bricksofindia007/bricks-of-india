@@ -125,33 +125,44 @@ async function run() {
     );
   }
 
-  // 4. Upsert row by row. Single failures are logged and skipped; run continues.
-  //    Aggregate failure rate is checked at the end.
+  // 4. Upsert in batches of <= 500 rows (Fix B, 2026-09-26). Was one request
+  //    per row -- ~1,900 API requests a day, each writing a ~2.5 KB Supabase
+  //    gateway log line (log ingest is over the Free quota). A batch that
+  //    fails is retried row by row so single bad rows are still logged and
+  //    skipped exactly as before; the aggregate failure-rate gate is unchanged.
+  const BATCH = 500;
+  const capturedAt = new Date().toISOString();
+  const toRecord = (row) => ({
+    set_num:       row.set_id,
+    store:         row.store_id,
+    price_inr:     Math.round(row.price_inr),
+    in_stock:      row.in_stock,
+    snapshot_date: snapshotDate,
+    captured_at:   capturedAt,
+  });
   let succeeded = 0;
   let rowFailed = 0;
 
-  for (const row of deduped) {
-    const { error: upsertErr } = await supabase
+  for (let i = 0; i < deduped.length; i += BATCH) {
+    const chunk = deduped.slice(i, i + BATCH);
+    const { error: batchErr } = await supabase
       .from('price_snapshots')
-      .upsert(
-        {
-          set_num:       row.set_id,
-          store:         row.store_id,
-          price_inr:     Math.round(row.price_inr),
-          in_stock:      row.in_stock,
-          snapshot_date: snapshotDate,
-          captured_at:   new Date().toISOString(),
-        },
-        { onConflict: 'set_num,store,snapshot_date' },
-      );
+      .upsert(chunk.map(toRecord), { onConflict: 'set_num,store,snapshot_date' });
+    if (!batchErr) { succeeded += chunk.length; continue; }
 
-    if (upsertErr) {
-      console.error(
-        `[snapshot-prices] Row failed (${row.set_id}, ${row.store_id}): ${upsertErr.message}`,
-      );
-      rowFailed++;
-    } else {
-      succeeded++;
+    console.warn(`[snapshot-prices] Batch ${i / BATCH + 1} failed (${batchErr.message}) -- retrying its ${chunk.length} rows one by one`);
+    for (const row of chunk) {
+      const { error: upsertErr } = await supabase
+        .from('price_snapshots')
+        .upsert(toRecord(row), { onConflict: 'set_num,store,snapshot_date' });
+      if (upsertErr) {
+        console.error(
+          `[snapshot-prices] Row failed (${row.set_id}, ${row.store_id}): ${upsertErr.message}`,
+        );
+        rowFailed++;
+      } else {
+        succeeded++;
+      }
     }
   }
 
