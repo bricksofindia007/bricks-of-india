@@ -64,6 +64,15 @@ def _find_candidate_tiered() -> tuple[dict | None, str | None]:
 
 
 def main() -> None:
+    # ── Step 0: 1 post per IST day ────────────────────────────────────────────
+    # Checked before any scraping/rendering, so a second run the same day
+    # (manual dispatch + schedule) costs nothing and posts nothing.
+    already = db.posted_today_ist()
+    if already:
+        print(f'[pipeline] Already posted today (IST): {already["set_num"]} '
+              f'({already.get("set_name")}) at {already["posted_at"]}. 1 post/day rule -- exiting cleanly.')
+        sys.exit(0)
+
     # ── Step 1: Find a new set (tiered) ───────────────────────────────────────
     print('[pipeline] Step 1: Looking for a new set...')
     set_data, winning_tier = _find_candidate_tiered()
