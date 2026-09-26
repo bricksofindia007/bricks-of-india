@@ -14,6 +14,7 @@ import { resolveThemeSlug } from '@/lib/themeMapping';
 import { Badge, BestPriceBadge, OutOfStockBadge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { SetCard } from '@/components/sets/SetCard';
+import { SetImage } from '@/components/sets/SetImage';
 import { JsonLd } from '@/components/JsonLd';
 import { buildProductSchema, buildFAQSchema } from '@/lib/schemas';
 // Durable-cache guard (2026-07-02): a revalidate must always be set, or
@@ -193,11 +194,6 @@ export default async function SetPage(props: Props) {
   const shareUrl = `https://bricksofindia.com/sets/${params.slug}`;
   const waText   = `Check out ${set.name} price comparison on Bricks of India — use code ABHINAV12 for 12% off at Toycra!`;
 
-  const setImageSrc =
-    set.image_url ??
-    (set.rebrickable_id
-      ? `https://cdn.rebrickable.com/media/sets/${set.rebrickable_id}.jpg`
-      : '/mascots/blue-fig-confused.png');
 
   const STORE_NAMES: Record<string, string> = {
     toycra:       'Toycra',
@@ -244,14 +240,17 @@ export default async function SetPage(props: Props) {
           <div className="lg:col-span-2">
             <div className="sticky top-20">
               <div className="bg-light-grey rounded-2xl p-6 border-2 border-border">
-                <Image
-                  src={setImageSrc}
-                  alt={set.name}
-                  width={500}
-                  height={500}
-                  className="w-full object-contain"
-                  unoptimized
-                />
+                {/* PR-E: the hero is this page's LCP element -- Rebrickable's
+                    1000x800 resized copy, loaded eagerly at high priority
+                    (was the full-size original, lazy-loaded). */}
+                <div className="relative w-full aspect-square">
+                  <SetImage
+                    set={set}
+                    variant="hero"
+                    className="object-contain"
+                    sizes="(max-width: 1024px) 100vw, 40vw"
+                  />
+                </div>
               </div>
               {/* Share */}
               <div className="mt-4 flex gap-3">
