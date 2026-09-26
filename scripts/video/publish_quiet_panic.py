@@ -294,30 +294,16 @@ def post_youtube_short(video_path: str, title: str, description: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Own daily cap -- independent counter against quiet_panic_posts only. No
-# shared state/function with engine.py's already_published_today_ist.
+# Cadence (issue #178, 2026-09-24): the daily cap, the Mon/Wed/Fri slot rule
+# and publish_attempts recording live in cadence.py -- a neutral module both
+# pipelines import. This file still imports nothing from engine.py/publish.py
+# (isolation precedent unchanged). Before #178 this file had no slot-day
+# check at all: QP published on the first hourly tick after IST midnight
+# every day an approved row existed (confirmed live: posts on Sat 09-19,
+# Sun 09-20, Mon 09-21, Tue 09-22, Wed 09-23).
 # ---------------------------------------------------------------------------
 
-def _ist_day_bounds_utc(now_utc: datetime):
-    now_ist = now_utc + IST_OFFSET
-    start_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
-    start_utc = start_ist - IST_OFFSET
-    end_utc = start_utc + timedelta(days=1)
-    return start_utc.isoformat(), end_utc.isoformat()
-
-
-def already_published_today_ist(sb):
-    start, end = _ist_day_bounds_utc(datetime.now(timezone.utc))
-    res = (
-        sb.table('quiet_panic_posts')
-        .select('id, posted_at')
-        .in_('status', ['posted_ig', 'posted_yt', 'posted_both'])
-        .gte('posted_at', start)
-        .lt('posted_at', end)
-        .limit(1)
-        .execute()
-    )
-    return res.data[0]['id'] if res.data else None
+import cadence  # noqa: E402
 
 
 # ---------------------------------------------------------------------------
@@ -373,6 +359,7 @@ def publish_quiet_panic_post(sb, post: dict) -> dict:
             'ig_media_id': ig_result['media_id'],
             'ig_permalink': ig_result['permalink'],
             'ig_raw_response': ig_result['raw_response'],
+            'ig_posted_at': datetime.now(timezone.utc).isoformat(),
         }).eq('id', post['id']).execute()
         results['ig'] = ig_result
     except Exception as exc:
@@ -385,6 +372,7 @@ def publish_quiet_panic_post(sb, post: dict) -> dict:
             'yt_video_id': yt_result['video_id'],
             'yt_url': yt_result['url'],
             'yt_raw_response': yt_result['raw_response'],
+            'yt_posted_at': datetime.now(timezone.utc).isoformat(),
         }).eq('id', post['id']).execute()
         results['yt'] = yt_result
     except Exception as exc:
@@ -443,6 +431,7 @@ def retry_missing_platform(sb, post: dict) -> dict:
             'ig_media_id': ig_result['media_id'],
             'ig_permalink': ig_result['permalink'],
             'ig_raw_response': ig_result['raw_response'],
+            'ig_posted_at': datetime.now(timezone.utc).isoformat(),
             'status': 'posted_both',
         }).eq('id', post['id']).execute()
         print(f'[publish_quiet_panic] IG retry succeeded for {post["id"]}: {ig_result["permalink"]}')
@@ -458,19 +447,39 @@ def retry_missing_platform(sb, post: dict) -> dict:
         'yt_video_id': yt_result['video_id'],
         'yt_url': yt_result['url'],
         'yt_raw_response': yt_result['raw_response'],
+        'yt_posted_at': datetime.now(timezone.utc).isoformat(),
         'status': 'posted_both',
     }).eq('id', post['id']).execute()
     print(f'[publish_quiet_panic] YouTube retry succeeded for {post["id"]}: {yt_result["url"]}')
     return {'platform': 'yt', 'result': yt_result}
 
 
+def _alert_error(sb, post: dict, today, reason: str) -> None:
+    """One email per row per IST day for a non-guard publish/retry failure."""
+    if cadence.alerted_today(sb, cadence.VIDQP, 'error_alert', post['id'], today):
+        return
+    try:
+        import notifier as notifier_mod
+        notifier_mod.send_publish_error_alert('VID-QP', post.get('sequence_number'), post.get('set_title'), reason)
+        cadence.record_attempt(sb, cadence.VIDQP, post, 'error_alert', 'alerted', detail=reason)
+    except Exception as exc:  # noqa: BLE001
+        print(f'[publish_quiet_panic] WARN: failed to send error alert: {exc}', file=sys.stderr)
+
+
 def poll_and_publish() -> int:
     sb = get_supabase()
+    now_utc = datetime.now(timezone.utc)
+    today = cadence.ist_date(now_utc)
 
-    already_posted_id = already_published_today_ist(sb)
+    slot_open, slot_reason = cadence.slot_status(cadence.VIDQP, now_utc)
+    if not slot_open:
+        print(f'[publish_quiet_panic] {slot_reason}. Nothing to do this tick.')
+        return 0
+
+    already_posted_id = cadence.anything_posted_on(sb, cadence.VIDQP, today)
     if already_posted_id:
         print(f'[publish_quiet_panic] Already published today (IST): quiet_panic_posts {already_posted_id}. '
-              f'Holding all approved rows for tomorrow (daily cap={DAILY_CAP}).')
+              f'Holding all approved rows for the next slot (daily cap={DAILY_CAP}).')
         return 0
 
     approved_res = sb.table('quiet_panic_posts').select('*').eq('status', 'approved').order('sequence_number').execute()
@@ -485,32 +494,45 @@ def poll_and_publish() -> int:
 
     for i, post in enumerate(approved_rows):
         pid = post['id']
-        print(f"\n--- Publishing quiet_panic_posts {pid} ({post['set_title']}) ---")
+        print(f"\n--- Publishing quiet_panic_posts {pid} (QP #{post.get('sequence_number')}, {post['set_title']}) ---")
 
         try:
             results = publish_quiet_panic_post(sb, post)
         except GateFailureError as exc:
             print(f'ERROR: hard guard blocked {pid}: {exc}', file=sys.stderr)
             sb.table('quiet_panic_posts').update({'status': 'publish_blocked'}).eq('id', pid).execute()
+            cadence.record_attempt(sb, cadence.VIDQP, post, 'publish', 'blocked', detail=f'GateFailureError: {exc}')
+            # Issue #178: this path used to flip the row silently -- no email.
+            _alert_error(sb, post, today, f'Hard guard blocked publish; row moved to publish_blocked: {exc}')
+            exit_code = 1
+            continue
+        except Exception as exc:  # noqa: BLE001 -- alert, move on, never block the queue
+            print(f'ERROR: publish attempt for {pid} raised {type(exc).__name__}: {exc}', file=sys.stderr)
+            cadence.record_attempt(sb, cadence.VIDQP, post, 'publish', 'failed', detail=f'{type(exc).__name__}: {exc}')
+            _alert_error(sb, post, today, f'{type(exc).__name__}: {exc}')
             exit_code = 1
             continue
 
         if 'ig' in results and 'yt' in results:
             print(f"{pid}: posted_both -- IG {results['ig']['permalink']} | YT {results['yt']['url']}")
+            cadence.record_attempt(sb, cadence.VIDQP, post, 'publish', 'posted')
         elif 'ig' in results:
             print(f"{pid}: posted_ig only -- IG {results['ig']['permalink']} live; YouTube FAILED: {results['errors']}", file=sys.stderr)
+            cadence.record_attempt(sb, cadence.VIDQP, post, 'publish', 'partial', platform='yt', detail='; '.join(results['errors']))
             exit_code = 1
         elif 'yt' in results:
             print(f"{pid}: posted_yt only -- YT {results['yt']['url']} live; Instagram FAILED: {results['errors']}", file=sys.stderr)
+            cadence.record_attempt(sb, cadence.VIDQP, post, 'publish', 'partial', platform='ig', detail='; '.join(results['errors']))
             exit_code = 1
         else:
             print(f"{pid}: BOTH platforms failed: {results['errors']}", file=sys.stderr)
+            cadence.record_attempt(sb, cadence.VIDQP, post, 'publish', 'failed', detail='; '.join(results['errors']))
             exit_code = 1
 
         if 'ig' in results or 'yt' in results:
             remaining = len(approved_rows) - i - 1
             if remaining:
-                print(f'[publish_quiet_panic] Daily cap reached -- {remaining} remaining approved row(s) held.')
+                print(f'[publish_quiet_panic] Daily cap reached -- {remaining} remaining approved row(s) held for the next slot.')
             break
 
     return exit_code
@@ -518,21 +540,18 @@ def poll_and_publish() -> int:
 
 def retry_missing_platforms_all(sb) -> bool:
     """
-    Issue #137, 2026-09-19: mirrors engine.py's retry_missing_platforms_all()
-    for quiet_panic_posts. Deliberately independent of
-    already_published_today_ist()'s daily cap -- same open question flagged
-    there (should completing a stuck platform consume today's slot?),
-    surfaced for Abhinav rather than decided here.
+    Mirrors engine.py's retry_missing_platforms_all() for quiet_panic_posts
+    (issue #137). Issue #178: a retry counts toward that platform's daily
+    cap -- it only runs inside an open VID-QP slot (Mon/Wed/Fri) and is
+    deferred to the next slot if the missing platform already posted today.
 
-    Returns False if any retry is still failing -- found live during this
-    fix's own first real run (issue #137, 2026-09-19): every retry failing
-    (the known IG permission gap) still left the job green, since
-    retry_missing_platform() correctly never raises. The caller uses this
-    return value for a real exit code so a persistent failure is actually
-    visible in the Actions tab, not silently green -- the same failure
-    class this whole issue exists to catch. Processes every stuck row
-    regardless of earlier failures.
+    Returns False if any attempted retry is still failing (deferrals are not
+    failures) so a persistent failure is visible in the Actions tab.
+    Processes every stuck row regardless of earlier failures.
     """
+    now_utc = datetime.now(timezone.utc)
+    today = cadence.ist_date(now_utc)
+
     stuck_res = (
         sb.table('quiet_panic_posts')
         .select('*')
@@ -546,18 +565,31 @@ def retry_missing_platforms_all(sb) -> bool:
         print('[publish_quiet_panic] retry_missing_platforms_all: zero posted_ig/posted_yt rows. No-op.')
         return True
 
+    slot_open, slot_reason = cadence.slot_status(cadence.VIDQP, now_utc)
+    if not slot_open:
+        print(f'[publish_quiet_panic] retry_missing_platforms_all: {len(stuck_rows)} row(s) waiting, deferred -- {slot_reason}.')
+        return True
+
     print(f'[publish_quiet_panic] retry_missing_platforms_all: {len(stuck_rows)} row(s) with a missing platform.')
     any_failed = False
     for post in stuck_rows:
         pid = post['id']
         missing = 'yt' if post['status'] == 'posted_ig' else 'ig'
+        already = cadence.platform_posted_on(sb, cadence.VIDQP, missing, today)
+        if already:
+            msg = f'{missing} already posted today (quiet_panic_posts {already}) -- deferred to next slot'
+            print(f"\n--- QP #{post.get('sequence_number')} {pid}: {msg} ---")
+            cadence.record_attempt(sb, cadence.VIDQP, post, 'retry', 'deferred', platform=missing, detail=msg)
+            continue
         print(f"\n--- Retrying {missing} for {pid} ({post['set_title']}) ---")
         result = retry_missing_platform(sb, post)
         if 'error' in result:
             print(f"Retry still failing for {pid} ({result['platform']}): {result['error']}", file=sys.stderr)
+            cadence.record_attempt(sb, cadence.VIDQP, post, 'retry', 'failed', platform=missing, detail=result['error'])
             any_failed = True
         else:
             print(f"Retry succeeded for {pid} ({result['platform']}).")
+            cadence.record_attempt(sb, cadence.VIDQP, post, 'retry', 'posted', platform=missing)
 
     return not any_failed
 
@@ -565,7 +597,7 @@ def retry_missing_platforms_all(sb) -> bool:
 def main():
     parser = argparse.ArgumentParser(description='Quiet Panic standalone poll-and-publish (no engine.py/publish.py imports).')
     parser.add_argument('--poll-and-publish', action='store_true', help='Poll quiet_panic_posts for approved rows and publish up to the daily cap.')
-    parser.add_argument('--retry-missing-platform', action='store_true', help="Find every status='posted_ig'/'posted_yt' row and retry the missing platform. Runs independently of the daily cap.")
+    parser.add_argument('--retry-missing-platform', action='store_true', help="Find every status='posted_ig'/'posted_yt' row and retry the missing platform. Counts toward that platform's daily cap (issue #178): only in an open Mon/Wed/Fri slot, deferred if the platform already posted today.")
     args = parser.parse_args()
 
     if args.poll_and_publish:

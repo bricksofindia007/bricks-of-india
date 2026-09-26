@@ -1,0 +1,35 @@
+name: Video Cadence Tests
+
+# Issue #178. Runs scripts/video/test_cadence.py (stdlib unittest, in-memory
+# fake Supabase -- no network, no secrets) on any PR touching the posting
+# cadence rules or the publishers that use them, so the per-platform cap,
+# QP Mon/Wed/Fri slot, merge-day posted_at fallback and end-of-day watchdog
+# rules can't regress unseen. cadence.py imports only the stdlib.
+on:
+  pull_request:
+    paths:
+      - 'scripts/video/cadence.py'
+      - 'scripts/video/test_cadence.py'
+      - 'scripts/video/publish_quiet_panic.py'
+      - 'scripts/video/publish.py'
+      - 'scripts/video/engine.py'
+      - 'scripts/video/missed_slot_watchdog.py'
+      - '.github/workflows/video-cadence-tests.yml'
+  workflow_dispatch:
+
+jobs:
+  cadence-tests:
+    runs-on: ubuntu-latest
+    # 19 pure-Python tests, ~0.01s locally; the ceiling only covers
+    # checkout + setup-python.
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Run cadence unit tests
+        working-directory: scripts/video
+        run: python -m unittest test_cadence -v

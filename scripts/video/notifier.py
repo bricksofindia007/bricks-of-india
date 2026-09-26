@@ -287,3 +287,84 @@ def send_skip_notification(reason: str, candidate_title: str | None = None, gate
         _send(subject, html)
     except Exception as exc:
         print(f'[notifier] Failed to send skip notification: {exc}')
+
+
+def send_publish_error_alert(pipeline_label: str, row_number, set_title: str | None, reason: str) -> None:
+    """
+    Issue #178: one queued row failed at publish/retry time and the poller
+    moved on to the next row -- the failure is surfaced, never swallowed.
+    Callers dedupe to one email per row per IST day (cadence.alerted_today).
+    """
+    subject = f'⚠️ {pipeline_label} publish error — #{row_number} skipped this tick, queue moved on'
+    safe_title = (set_title or '').replace('﻿', '')
+    html = f"""
+<h2>{pipeline_label} — publish error on a queued row</h2>
+<p><strong>Row:</strong> #{row_number} {safe_title}</p>
+<p><strong>Reason:</strong> {reason}</p>
+<p>The poller moved on to the next approved row rather than blocking the queue. This row stays in its current status and is retried on the next tick.</p>
+<hr>
+<p style="color:#888;font-size:12px;">Bricks of India — bricksofindia.com — {pipeline_label}</p>
+"""
+    try:
+        _send(subject, html)
+    except Exception as exc:
+        print(f'[notifier] Failed to send publish error alert: {exc}')
+
+
+def send_missed_slot_alert(pipeline_label: str, slot_day: str, blocked_rows: list[dict]) -> None:
+    """
+    Issue #178 missed-slot watchdog: an approved row was waiting before the
+    slot opened and nothing went live that slot day. Names every blocked row
+    and the reason recorded in publish_attempts. No silent skips.
+    """
+    subject = f'🚨 {pipeline_label} missed slot {slot_day} — approved video(s) waiting, nothing posted'
+    rows_html = ''.join(
+        f"<tr><td>#{r.get('row_number')}</td><td>{(r.get('set_title') or '').replace(chr(0xFEFF), '')}</td>"
+        f"<td>{r.get('status')}</td><td>{r.get('reason')}</td></tr>"
+        for r in blocked_rows
+    )
+    html = f"""
+<h2>{pipeline_label} — missed slot on {slot_day}</h2>
+<p>At least one approved row was waiting before the slot opened, and nothing went live on either platform that day.</p>
+<table border="1" cellpadding="6" style="border-collapse:collapse">
+<tr><th>#</th><th>Set</th><th>Status now</th><th>Reason (last recorded attempt)</th></tr>
+{rows_html}
+</table>
+<hr>
+<p style="color:#888;font-size:12px;">Bricks of India — bricksofindia.com — missed-slot watchdog (video-missed-slot-watchdog.yml)</p>
+"""
+    try:
+        _send(subject, html)
+    except Exception as exc:
+        print(f'[notifier] Failed to send missed-slot alert: {exc}')
+        raise
+
+
+def send_stuck_rendered_alert(pipeline_label: str, stuck_rows: list[dict]) -> None:
+    """
+    Stuck-'rendered' watchdog (2026-09-25, VID-P4 Story #73): a generation
+    run inserted the row, then died before upload / pending_approval / the
+    review email. The row never reaches the review digest on its own.
+    """
+    subject = f'🚨 {pipeline_label} — {len(stuck_rows)} video(s) stuck in rendered (never reached review)'
+    rows_html = ''.join(
+        f"<tr><td>#{r.get('row_number')}</td><td>{(r.get('set_title') or '').replace(chr(0xFEFF), '')}</td>"
+        f"<td>{r.get('created_at')}</td><td>{r.get('hours')}h</td><td>{r.get('row_id')}</td></tr>"
+        for r in stuck_rows
+    )
+    html = f"""
+<h2>{pipeline_label} — video(s) stuck in status='rendered'</h2>
+<p>These rows were inserted by a generation run that never finished: no video in storage, no review email, not in the pending-approval digest.</p>
+<table border="1" cellpadding="6" style="border-collapse:collapse">
+<tr><th>#</th><th>Set</th><th>Created</th><th>Age</th><th>Row id</th></tr>
+{rows_html}
+</table>
+<p>Recover with a re-render: dispatch video-generate-daily.yml with <code>rerender_id</code> = the row id, then move the row to pending_approval and send its review email.</p>
+<hr>
+<p style="color:#888;font-size:12px;">Bricks of India — bricksofindia.com — missed-slot watchdog (video-missed-slot-watchdog.yml)</p>
+"""
+    try:
+        _send(subject, html)
+    except Exception as exc:
+        print(f'[notifier] Failed to send stuck-rendered alert: {exc}')
+        raise

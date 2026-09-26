@@ -7,12 +7,13 @@ name: VID Retry Missing Platform
 # (The Fire Knight Mech), posted_yt since 2026-09-18, Instagram never
 # retried.
 #
-# Deliberately a SEPARATE scheduled step, not folded into the existing
-# */15min poller -- running independently of already_published_today_ist's
-# daily cap is the current interim behavior, not a decided answer to
-# whether completing a stuck platform should consume today's publish slot.
-# See engine.py::retry_missing_platforms_all()'s own comment; that question
-# is Abhinav's to decide, not assumed here.
+# Issue #178, 2026-09-24 (Abhinav decided the question #137 left open): a
+# retry COUNTS toward that platform's daily cap. Each retry only runs inside
+# its pipeline's open slot (VID-P4 from 19:30 IST daily; VID-QP Mon/Wed/Fri)
+# and is deferred to the next slot if that platform already posted today --
+# see cadence.py and both retry_missing_platforms_all() implementations.
+# Still a separate scheduled step from the pollers; outside a slot it is a
+# logged no-op.
 #
 # Hourly at :45 -- checked against this repo's other hourly crons before
 # picking the minute: VID-QP Rework Poller runs on the hour (0 * * * *),
@@ -24,13 +25,18 @@ on:
   workflow_dispatch:  # manual trigger for testing
 
 jobs:
-  retry:
+  retry-vidp4:
     runs-on: ubuntu-latest
+    # Issue #178 (b): shares one concurrency group with this pipeline's
+    # publish poller, so a retry and a publish for the same pipeline can
+    # never run at the same time (each re-reads the daily cap only after
+    # the other has finished). Queued, never cancelled mid-post.
+    concurrency:
+      group: video-publish-vidp4
+      cancel-in-progress: false
     # No prior runs to measure yet -- a handful of single API calls at
     # most (one per stuck row), same class of small workload as the
-    # publish pollers this mirrors. Matches their timeout as a starting
-    # point rather than leaving it unset, since the shape is already known
-    # even without run history.
+    # publish pollers this mirrors.
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -54,6 +60,32 @@ jobs:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
         run: python engine.py --retry-missing-platform
+
+  retry-vidqp:
+    runs-on: ubuntu-latest
+    # Issue #178 (b): shares one concurrency group with this pipeline's
+    # publish poller, so a retry and a publish for the same pipeline can
+    # never run at the same time (each re-reads the daily cap only after
+    # the other has finished). Queued, never cancelled mid-post.
+    concurrency:
+      group: video-publish-vidqp
+      cancel-in-progress: false
+    # No prior runs to measure yet -- a handful of single API calls at
+    # most (one per stuck row), same class of small workload as the
+    # publish pollers this mirrors.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+
+      - name: Install system dependencies
+        run: sudo apt-get update -y && sudo apt-get install -y ffmpeg tesseract-ocr
+
+      - name: Install Python dependencies
+        run: pip install -r scripts/video/requirements.txt
 
       - name: Retry missing platform — VID-QP (quiet_panic_posts)
         working-directory: scripts/video
