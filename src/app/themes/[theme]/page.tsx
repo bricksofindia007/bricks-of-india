@@ -11,6 +11,7 @@ import { getThemeCardUrl, getThemeCardOgUrl } from '@/lib/themeCard';
 import { JsonLd } from '@/components/JsonLd';
 import { buildItemListSchema } from '@/lib/schemas';
 import { PRICE_CADENCE } from '@/lib/price-freshness';
+import { getPriceSummaries } from '@/lib/price-summary';
 
 interface Props {
   params: Promise<{ theme: string }>;
@@ -101,9 +102,11 @@ export default async function ThemePage(props: Props) {
     }
   }
 
+  const summaries = await getPriceSummaries(supabase, setsArr.map((s) => s.set_number));
   const sets = setsArr.map((s) => ({
     ...s,
     prices: storePricesBySet.get(s.set_number) ?? [],
+    summary: summaries.get(s.set_number) ?? null,
   }));
 
   const setCount = sets.length;

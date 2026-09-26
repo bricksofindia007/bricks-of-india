@@ -9,6 +9,7 @@ import { SetCard } from '@/components/sets/SetCard';
 import { MASCOTS, THEMES } from '@/lib/brand'; // THEMES used as fallback only
 import { JsonLd } from '@/components/JsonLd';
 import { buildItemListSchema } from '@/lib/schemas';
+import { getPriceSummaries } from '@/lib/price-summary';
 
 export const metadata: Metadata = buildMetadata({
   title: 'All LEGO Sets in India',
@@ -216,6 +217,8 @@ export default async function SetsPage(props: Props) {
     sortKey !== 'newest' ? sortKey : '',
   ].filter(Boolean).length;
 
+  const summaries = await getPriceSummaries(supabase, sets.map((x: any) => x.set_number));
+
   return (
     <div className="bg-white min-h-screen">
       <JsonLd data={buildItemListSchema('LEGO Sets — Bricks of India', total, listItems, from + 1)} />
@@ -348,6 +351,7 @@ export default async function SetsPage(props: Props) {
                 set={set}
                 bestPrice={priceMap[set.set_number] ?? null}
                 priceCount={priceMap[set.set_number] ? 1 : 0}
+                summary={summaries.get(set.set_number)}
               />
             ))}
           </div>

@@ -1,20 +1,30 @@
 import Link from 'next/link';
 import { formatPrice, slugify } from '@/lib/utils';
-import { Badge, BestPriceBadge } from '@/components/ui/Badge';
+import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/Badge';
 import { SetImage } from '@/components/sets/SetImage';
 import type { LegoSet } from '@/lib/supabase';
-import { badgeEligible } from '@/lib/price-freshness';
+import { priceLabel, storeName, type SetPriceSummary } from '@/lib/price-summary';
 
 interface SetCardProps {
   set: LegoSet;
-  // in_stock + scraped_at decide the badge (PR-A): only an in-stock price
-  // scraped within PRICE_STALE_HOURS is badged. Without them, no badge.
+  // Shown when there is no fresh summary price (e.g. an in-stock row older
+  // than 12h): displayed, never badged.
   bestPrice?: { price_inr: number | null; in_stock?: boolean | null; scraped_at?: string | null } | null;
   priceCount?: number;
+  // PR-B: public.set_price_summary row. Carries the fresh in-stock best price,
+  // the MRP anchor (R2), deal tier (R3) and the R5/R6 label. Badges come ONLY
+  // from here, so every card on the site applies the same rules.
+  summary?: SetPriceSummary | null;
 }
 
-export function SetCard({ set, bestPrice, priceCount }: SetCardProps) {
+export function SetCard({ set, bestPrice, priceCount, summary }: SetCardProps) {
   const slug = `${set.set_number}-${slugify(set.name)}`;
+  const freshPrice = summary?.best_price_inr ?? null;
+  const shownPrice = freshPrice ?? bestPrice?.price_inr ?? null;
+  const label = priceLabel(summary);
+  // R2: the anchor wins over any other MRP.
+  const mrp = summary?.anchor_mrp_inr ?? set.lego_mrp_inr;
+  const mrpVerified = summary?.anchor_mrp_inr != null || set.mrp_verified;
 
   return (
     <Link
@@ -50,16 +60,20 @@ export function SetCard({ set, bestPrice, priceCount }: SetCardProps) {
         {/* Price */}
         <div className="flex items-center justify-between gap-2">
           <div>
-            {bestPrice?.price_inr ? (
-              <div className="flex items-center gap-1.5">
-                {badgeEligible({ price_inr: bestPrice.price_inr, in_stock: bestPrice.in_stock ?? null, scraped_at: bestPrice.scraped_at ?? null }) && <BestPriceBadge />}
-                <span className="font-price font-bold text-deal-green text-sm">
-                  {formatPrice(bestPrice.price_inr)}
-                </span>
+            {shownPrice ? (
+              <div className="flex flex-col gap-1">
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {label?.kind === 'best' && <BestPriceBadge />}
+                  {label?.kind === 'only' && <OnlyAtBadge store={storeName(label.stores[0])} />}
+                  <span className={`font-price font-bold text-sm ${freshPrice ? 'text-deal-green' : 'text-dark'}`}>
+                    {formatPrice(shownPrice)}
+                  </span>
+                </div>
+                {summary?.deal_tier && <DealBadge tier={summary.deal_tier} pct={summary.discount_pct} />}
               </div>
-            ) : set.lego_mrp_inr ? (
+            ) : mrp ? (
               <span className="font-price text-sm text-dark font-bold">
-                {set.mrp_verified ? 'MRP' : 'Est. MRP'}: {formatPrice(set.lego_mrp_inr)}
+                {mrpVerified ? 'MRP' : 'Est. MRP'}: {formatPrice(mrp)}
               </span>
             ) : (
               <span className="text-xs text-gray-400 italic">Price TBD</span>

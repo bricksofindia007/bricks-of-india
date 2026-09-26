@@ -3,13 +3,19 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
-import { PRICE_CADENCE } from '@/lib/price-freshness';
+import { PRICE_CADENCE, READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
+import { getDeals } from '@/lib/price-summary';
+import { PriceAge } from '@/components/ui/PriceAge';
 
 export const metadata: Metadata = buildMetadata({
   title: 'India Deals Today — The Lab',
   description: 'Every LEGO set currently discounted across Indian stores — Toycra and MyBrickHouse. Sorted by discount %. Updated ' + PRICE_CADENCE + '.',
   path: '/lab/deals',
 });
+
+// Hourly ISR (PR-B). Without a revalidate this page was built once, fully
+// static, and changed only on deploy.
+export const revalidate = 3600; // = READ_REVALIDATE_SECONDS (segment config must be a literal)
 
 const STORE_LABELS: Record<string, string> = {
   toycra:       'Toycra',
@@ -22,6 +28,7 @@ interface DealRow {
   price_inr:   number;
   product_url: string;
   scraped_at:  string;
+  stores:      string[];   // every store at the best price (R5)
   discountPct: number;
   set: {
     set_number:    string;
@@ -33,41 +40,39 @@ interface DealRow {
 }
 
 export default async function DealsPage() {
-  const supabase = createServerClient();
+  const supabase = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
 
-  // Step 1 — all in-stock prices with a known price_inr
-  const { data: prices } = await supabase
-    .from('store_prices')
-    .select('set_id, store_id, price_inr, product_url, scraped_at')
-    .eq('in_stock', true)
-    .not('price_inr', 'is', null)
-    .limit(300);
-
-  // Step 2 — set metadata for the matched set numbers
-  let setsData: { set_number: string; name: string; lego_mrp_inr: number; image_url: string | null; theme: string | null }[] = [];
-  const setNumbers = Array.from(new Set((prices ?? []).map((p) => p.set_id as string)));
-  if (setNumbers.length > 0) {
-    const { data } = await supabase
-      .from('sets')
-      .select('set_number, name, lego_mrp_inr, image_url, theme')
-      .in('set_number', setNumbers)
-      .not('lego_mrp_inr', 'is', null)
-      .eq('mrp_verified', true);
-    setsData = (data ?? []) as typeof setsData;
+  // PR-B: same locked rules as /deals (public.set_price_summary): a deal is a
+  // fresh in-stock listed price >= 10% below the R2 MRP anchor. Replaces a
+  // 300-row, catalogue-MRP-only calculation that counted any discount > 0.
+  const summaries = await getDeals(supabase);
+  const ids = summaries.map((d) => d.set_id);
+  const setMap = new Map<string, DealRow['set']>();
+  const urlMap = new Map<string, string>();
+  for (let i = 0; i < ids.length; i += 150) {
+    const chunk = ids.slice(i, i + 150);
+    const [{ data: setRows }, { data: spRows }] = await Promise.all([
+      supabase.from('sets').select('set_number, name, lego_mrp_inr, image_url, theme').in('set_number', chunk),
+      supabase.from('store_prices').select('set_id, store_id, product_url').eq('in_stock', true).in('set_id', chunk),
+    ]);
+    for (const r of setRows ?? []) setMap.set(r.set_number, r as DealRow['set']);
+    for (const r of spRows ?? []) urlMap.set(`${r.set_id}:${r.store_id}`, r.product_url);
   }
-
-  // Step 3 — join in memory, compute discount, keep only genuine discounts
-  const setMap = new Map(setsData.map((s) => [s.set_number, s]));
-  const deals: DealRow[] = (prices ?? [])
-    .map((p) => {
-      const set = setMap.get(p.set_id as string);
-      if (!set || !p.price_inr) return null;
-      const discountPct = Math.round((set.lego_mrp_inr - (p.price_inr as number)) / set.lego_mrp_inr * 100);
-      if (discountPct <= 0) return null;
-      return { ...(p as { set_id: string; store_id: string; price_inr: number; product_url: string; scraped_at: string }), set, discountPct };
-    })
-    .filter((d): d is DealRow => d !== null)
-    .sort((a, b) => b.discountPct - a.discountPct);
+  const deals: DealRow[] = summaries.flatMap((d) => {
+    const set = setMap.get(d.set_id);
+    const store = d.best_store_ids?.[0];
+    if (!set || !store || d.best_price_inr == null || d.anchor_mrp_inr == null) return [];
+    return [{
+      set_id: d.set_id,
+      store_id: store,
+      stores: d.best_store_ids ?? [store],
+      price_inr: d.best_price_inr,
+      product_url: urlMap.get(`${d.set_id}:${store}`) ?? '',
+      scraped_at: d.best_scraped_at ?? '',
+      discountPct: Math.floor(d.discount_pct ?? 0),
+      set: { ...set, lego_mrp_inr: d.anchor_mrp_inr },
+    }];
+  });
 
   return (
     <div style={{ background: '#fff', minHeight: '100vh', fontFamily: 'var(--font-inter), sans-serif', color: 'var(--boi-text)' }}>
@@ -91,7 +96,7 @@ export default async function DealsPage() {
       {/* Deal count chip */}
       {deals.length > 0 && (
         <div style={{ padding: '10px 28px 0', fontSize: '0.78rem', fontWeight: 700, color: 'var(--boi-saffron)' }}>
-          {deals.length} set{deals.length !== 1 ? 's' : ''} on discount right now
+          {deals.length} set{deals.length !== 1 ? 's' : ''} at least 10% below MRP right now
         </div>
       )}
 
@@ -101,7 +106,7 @@ export default async function DealsPage() {
           <div style={{ textAlign: 'center', padding: '80px 24px' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🏷️</div>
             <h2 style={{ fontFamily: 'var(--font-fredoka)', fontSize: '1.4rem', color: 'var(--boi-text)', margin: '0 0 10px' }}>
-              Nothing on discount right now.
+              Nothing 10% or more below MRP right now.
             </h2>
             <p style={{ fontSize: '0.88rem', color: 'var(--boi-text-secondary)', maxWidth: 360, margin: '0 auto 20px' }}>
               The stores are doing their best. Their best is not good enough. Scrapers run {PRICE_CADENCE} — check back later.
@@ -126,13 +131,10 @@ export default async function DealsPage() {
 }
 
 function DealCard({ deal }: { deal: DealRow }) {
-  const storeName = STORE_LABELS[deal.store_id] ?? deal.store_id;
+  const storeName = deal.stores.map((id) => STORE_LABELS[id] ?? id).join(' & ');
   const setSlug   = `${deal.set.set_number}-${slugify(deal.set.name)}`;
 
-  const hoursAgo = (Date.now() - new Date(deal.scraped_at).getTime()) / 3_600_000;
-  const freshness = hoursAgo < 1 ? 'Just updated'
-    : hoursAgo < 24 ? `${Math.floor(hoursAgo)}h ago`
-    : `${Math.floor(hoursAgo / 24)}d ago`;
+
 
   return (
     <div style={{
@@ -199,7 +201,7 @@ function DealCard({ deal }: { deal: DealRow }) {
         </div>
 
         {/* Freshness */}
-        <div style={{ fontSize: '0.65rem', color: '#CBD5E0' }}>{freshness}</div>
+        <div style={{ fontSize: '0.65rem', color: '#CBD5E0' }}><PriceAge scrapedAt={deal.scraped_at || null} /></div>
 
         {/* CTA */}
         <a

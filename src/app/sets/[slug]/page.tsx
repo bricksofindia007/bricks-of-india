@@ -5,13 +5,14 @@ import { cache } from 'react';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
-import { SET_PAGE_REVALIDATE_SECONDS, PRICE_CADENCE, bestInStock, badgeEligible, isPriceFresh } from '@/lib/price-freshness';
+import { SET_PAGE_REVALIDATE_SECONDS, PRICE_CADENCE, bestInStock, isPriceFresh } from '@/lib/price-freshness';
 import { PriceAge } from '@/components/ui/PriceAge';
 import { getSet } from '@/lib/rebrickable';
 import { formatPrice, whatsappShareUrl, socialCardImage, setMetaDescription } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
 import { resolveThemeSlug } from '@/lib/themeMapping';
-import { Badge, BestPriceBadge, OutOfStockBadge } from '@/components/ui/Badge';
+import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/Badge';
+import { priceLabel, storeName, ANCHOR_SOURCE_LABEL, type SetPriceSummary } from '@/lib/price-summary';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { SetCard } from '@/components/sets/SetCard';
 import { SetImage } from '@/components/sets/SetImage';
@@ -35,9 +36,10 @@ interface Props {
 }
 
 // ── The 2 stores we actively track ───────────────────────────────────────────
+// Alphabetical (R5: no store gets precedence; ties are shown with equal weight).
 const TRACKED_STORES = [
-  { id: 'toycra',       name: 'Toycra',       url: 'https://www.toycra.com'   },
   { id: 'mybrickhouse', name: 'MyBrickHouse',  url: 'https://mybrickhouse.com' },
+  { id: 'toycra',       name: 'Toycra',       url: 'https://www.toycra.com'   },
 ];
 
 // Fix A (2026-09-26): everything this page renders comes from ONE read-only
@@ -52,6 +54,9 @@ type SetPageData = {
   related: any[];
   related_prices: { set_id: string; price_inr: number; store_id: string; product_url: string | null; in_stock: boolean; scraped_at: string }[];
   coverage: { news: any[]; guides: any[]; reviews: any[] };
+  // PR-B: public.set_price_summary rows (R2-R6), folded into the same call.
+  summary: SetPriceSummary | null;
+  related_summaries: SetPriceSummary[];
 };
 
 const getSetPageData = cache(async (slug: string): Promise<SetPageData | null> => {
@@ -149,8 +154,18 @@ export default async function SetPage(props: Props) {
     .map((s) => storePriceMap.get(s.id))
     .filter((sp): sp is any => sp?.price_inr != null);
   const bestStorePrice = bestInStock(activePrices);
-  const bestIsBadged = badgeEligible(bestStorePrice);
   const hasPrices = bestStorePrice != null;
+
+  // PR-B: locked rules R2-R6 from public.set_price_summary -- the MRP anchor
+  // and its source, the deal tier, and which store(s) hold the fresh
+  // in-stock best price. Badges come only from here.
+  const summary = pageData.summary ?? null;
+  const label = priceLabel(summary);
+  const bestStoreIds = new Set(summary?.best_store_ids ?? []);
+  // R5: stores at the lowest price first (alphabetical), then the rest.
+  const orderedStores = [...TRACKED_STORES].sort((a, b) =>
+    Number(bestStoreIds.has(b.id)) - Number(bestStoreIds.has(a.id)) || a.name.localeCompare(b.name));
+  const anchorMrp = summary?.anchor_mrp_inr ?? null;
   const hasToycra = !!storePriceMap.get('toycra')?.price_inr;
 
   // Related sets (same theme, newest first) and their prices, from set_page_data.
@@ -163,6 +178,8 @@ export default async function SetPage(props: Props) {
       relatedPriceMap[rp.set_id] = { price_inr: rp.price_inr, store_name: rp.store_id, buy_url: rp.product_url ?? null, in_stock: true, scraped_at: rp.scraped_at };
     }
   }
+
+  const relSummaries = new Map((pageData.related_summaries ?? []).map((r) => [r.set_id, r]));
 
   // Related Coverage (GEO-05b Phase 3) — the reverse of Phase 2's forward
   // linking: any published article whose body links to THIS set's own
@@ -281,16 +298,20 @@ export default async function SetPage(props: Props) {
             <h1 className="font-heading text-dark text-4xl md:text-5xl leading-tight mb-2">{set.name}</h1>
             <p className="text-gray-400 font-price text-sm mb-4">Set #{set.set_number}</p>
 
-            {/* Official MRP */}
-            {set.lego_mrp_inr && (
-              <div className="bg-light-grey rounded-xl p-4 mb-6 flex items-center justify-between">
+            {/* MRP (R2): the anchor and its source win over any other MRP. The
+                US-price estimate shows only when there is no anchor at all. */}
+            {(anchorMrp || set.lego_mrp_inr) && (
+              <div className="bg-light-grey rounded-xl p-4 mb-6 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs text-gray-400 uppercase tracking-wide font-bold">
-                    {set.mrp_verified ? 'MRP' : 'Est. MRP (from US price)'}
+                    {anchorMrp ? 'MRP' : set.mrp_verified ? 'MRP' : 'Est. MRP (from US price)'}
                   </p>
-                  <p className="font-price text-2xl font-bold text-dark">{formatPrice(set.lego_mrp_inr)}</p>
+                  <p className="font-price text-2xl font-bold text-dark">{formatPrice(anchorMrp ?? set.lego_mrp_inr!)}</p>
+                  {anchorMrp && summary?.anchor_source && (
+                    <p className="text-xs text-gray-500">{ANCHOR_SOURCE_LABEL[summary.anchor_source]}</p>
+                  )}
                 </div>
-                <span className="text-3xl">🏷️</span>
+                {summary?.deal_tier ? <DealBadge tier={summary.deal_tier} pct={summary.discount_pct} /> : <span className="text-3xl">🏷️</span>}
               </div>
             )}
 
@@ -302,12 +323,14 @@ export default async function SetPage(props: Props) {
 
               <div className="divide-y divide-border">
                 {/* Tracked stores — always shown, even if no data */}
-                {TRACKED_STORES.map((store, i) => {
+                {orderedStores.map((store) => {
                   const sp = storePriceMap.get(store.id);
-                  // Tie handling (2026-07-02): exactly ONE badge. On equal prices the
-                  // sorted-lowest row (bestStorePrice) wins; price-equality matching gave
-                  // every tied store a 🏆 simultaneously, which read as a bug on live.
-                  const isBest = bestIsBadged && sp?.price_inr != null && sp?.store_id === bestStorePrice?.store_id;
+                  // R5/R6 (PR-B): every store at the fresh in-stock lowest price is
+                  // highlighted equally; the trophy appears only when 2+ stores are
+                  // in stock and exactly one is cheapest; one store in stock reads
+                  // "Only at <store>". Replaces the 2026-07-02 single-winner rule,
+                  // which silently favoured whichever store was listed first.
+                  const atBest = bestStoreIds.has(store.id);
                   const isToycra = store.id === 'toycra';
 
                   if (!sp) {
@@ -321,19 +344,22 @@ export default async function SetPage(props: Props) {
                   }
 
                   return (
-                    <div key={store.id} className={`px-5 py-4 ${isToycra ? 'bg-yellow-50' : ''}`}>
+                    <div key={store.id} className="px-5 py-4">
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div className="flex items-center gap-3">
-                          {isBest && <BestPriceBadge />}
+                          {atBest && label?.kind === 'best' && <BestPriceBadge />}
+                          {atBest && label?.kind === 'only' && <OnlyAtBadge store={store.name} />}
                           <span className="font-bold text-dark">{store.name}</span>
-                          {sp.price_inr && !sp.in_stock && <OutOfStockBadge />}
+                          {!sp.in_stock && (
+                            <span className="text-sm text-gray-500 font-bold">Out of stock at {store.name}</span>
+                          )}
                           {sp.price_inr && !isPriceFresh(sp.scraped_at) && (
                             <PriceAge scrapedAt={sp.scraped_at} prefix="Price from" className="text-xs text-gray-500" />
                           )}
                         </div>
                         <div className="flex items-center gap-3">
                           {sp.price_inr ? (
-                            <span className={`font-price font-bold text-lg ${isBest ? 'text-deal-green' : 'text-dark'}`}>
+                            <span className={`font-price font-bold text-lg ${atBest ? 'text-deal-green' : sp.in_stock ? 'text-dark' : 'text-gray-400'}`}>
                               {formatPrice(sp.price_inr)}
                             </span>
                           ) : (
@@ -348,11 +374,6 @@ export default async function SetPage(props: Props) {
                             >
                               {sp.price_inr ? 'Buy Now →' : 'Check Price →'}
                             </a>
-                          )}
-                          {!sp.in_stock && (
-                            <span className="bg-gray-100 text-gray-500 text-sm font-bold px-4 py-2 rounded-lg whitespace-nowrap">
-                              Sold out
-                            </span>
                           )}
                         </div>
                       </div>
@@ -449,8 +470,11 @@ export default async function SetPage(props: Props) {
                 {(() => { const faqs = [
                   {
                     q: `Where is ${set.name} cheapest in India?`,
-                    a: hasPrices
-                      ? `Based on our latest comparison, ${bestStorePrice ? TRACKED_STORES.find(s => s.id === bestStorePrice.store_id)?.name ?? 'a tracked store' : 'a tracked store'} has the best price at ${bestStorePrice ? formatPrice(bestStorePrice.price_inr) : '—'}. Prices are checked ${PRICE_CADENCE}.`
+                    // R5: every store at the lowest price is named, alphabetically.
+                    a: summary?.best_price_inr != null && summary.best_store_ids?.length
+                      ? `Based on our latest comparison, ${summary.best_store_ids.map(storeName).join(' and ')} ${summary.best_store_ids.length > 1 ? 'share' : 'has'} the lowest in-stock price at ${formatPrice(summary.best_price_inr)}. Prices are checked ${PRICE_CADENCE}.`
+                      : hasPrices
+                      ? `The lowest in-stock price we last saw was ${formatPrice(bestStorePrice!.price_inr)} at ${storeName(bestStorePrice!.store_id)}, but that price is more than 12 hours old — check the store for today's price.`
                       : `We're currently setting up price tracking for ${set.name}. Check Toycra, MyBrickHouse, and Amazon India for live prices.`,
                   },
                   {
@@ -459,7 +483,9 @@ export default async function SetPage(props: Props) {
                   },
                   {
                     q: `What is the official MRP of ${set.name} in India?`,
-                    a: set.lego_mrp_inr
+                    a: anchorMrp && summary?.anchor_source
+                      ? `The MRP for ${set.name} is ${formatPrice(anchorMrp)} (${ANCHOR_SOURCE_LABEL[summary.anchor_source]}).`
+                      : set.lego_mrp_inr
                       ? set.mrp_verified
                         ? `The confirmed LEGO India MRP for ${set.name} is ${formatPrice(set.lego_mrp_inr)}.`
                         : `Based on the US retail price, ${set.name} works out to roughly ${formatPrice(set.lego_mrp_inr)} in India before local pricing adjustments. Check lego.com/en-in for the official MRP.`
@@ -498,7 +524,7 @@ export default async function SetPage(props: Props) {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {relatedSets.map((relSet: any) => {
                 const bestP = relatedPriceMap[relSet.set_number] ?? null;
-                return <SetCard key={relSet.id} set={relSet} bestPrice={bestP} priceCount={bestP ? 1 : 0} />;
+                return <SetCard key={relSet.id} set={relSet} bestPrice={bestP} priceCount={bestP ? 1 : 0} summary={relSummaries.get(relSet.set_number)} />;
               })}
             </div>
           </div>
