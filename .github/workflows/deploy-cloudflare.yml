@@ -7,17 +7,26 @@ name: Build & Deploy to Cloudflare Workers
 # approval), so this is a new, separate file for the new Cloudflare Workers
 # deploy target rather than overwriting it.
 #
-# Two jobs, split deliberately:
-#   - build: runs unattended on every push to main, no Cloudflare access at
-#     all -- only Next.js/OpenNext compilation. Catches build breaks
-#     immediately, same value CI always provides.
-#   - deploy: gated on the "production" GitHub Environment's required-
-#     reviewer protection rule (configured via the API -- repos/.../
-#     environments/production, reviewer: bricksofindia007 -- not something
-#     expressible in this YAML file itself). A human must explicitly
-#     approve each run before `wrangler deploy` executes. main now feeds
-#     the live site directly once this is the real deploy path, so this
-#     stays a manual gate on purpose, not fully unattended yet.
+# Two jobs:
+#   - build: Next.js/OpenNext compilation, no Cloudflare access at all.
+#   - deploy: `wrangler deploy` + post-deploy smoke test.
+#
+# Approval gate (2026-09-26, capacity cut 1): the "production" GitHub
+# Environment's required-reviewer rule (configured via the API -- repos/.../
+# environments/production, reviewer: bricksofindia007 -- not expressible in
+# this file) now sits on the BUILD job, and deploy follows it automatically.
+# Before, build ran unattended on every push to main, and `next build`
+# prerenders every static route against production Supabase (~160 API
+# requests per build) -- so every merge whose deploy was later superseded
+# still cost a full build's worth of Supabase requests (log ingest is over
+# the Free quota). Build breaks are still caught before merge by ci.yml's
+# email-guard build (against a local stub, Fix D). One approval still covers
+# build + deploy.
+#
+# concurrency + cancel-in-progress: a newer push to main cancels any older
+# run of this workflow -- including one waiting for approval -- so only the
+# newest commit is ever up for approval. The newest commit always contains
+# everything the older runs would have deployed.
 
 on:
   push:
@@ -41,10 +50,16 @@ on:
       - 'admin/dashboard.html'
   workflow_dispatch:
 
+concurrency:
+  group: deploy-cloudflare-production
+  cancel-in-progress: true
+
 jobs:
   build:
     name: Build (Next.js + OpenNext Cloudflare)
     runs-on: ubuntu-latest
+    # Approval gate (see header): nothing builds until the run is approved.
+    environment: production
     # No CI run history yet for this brand-new workflow -- same situation
     # CLAUDE.md's timeout-minutes rule already has a named precedent for
     # (video-feasibility-test.yml / video-script-gen-test-quiet-panic.yml
@@ -106,7 +121,6 @@ jobs:
     name: Deploy (wrangler)
     needs: build
     runs-on: ubuntu-latest
-    environment: production
     steps:
       - uses: actions/checkout@v4
 
