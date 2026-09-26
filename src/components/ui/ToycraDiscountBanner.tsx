@@ -1,7 +1,19 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 import { BRAND } from '@/lib/brand';
+
+// #212 / PR-D (2026-09-26): every placement of the ABHINAV12 code carries the
+// affiliate disclosure, which is what /legal/affiliate-disclosure promises.
+function Disclosure({ className }: { className?: string }) {
+  return (
+    <span className={className}>
+      We may earn a commission — it never changes your price or our verdicts.{' '}
+      <Link href="/legal/affiliate-disclosure" className="underline hover:no-underline">Disclosure</Link>
+    </span>
+  );
+}
 
 interface ToycraDiscountBannerProps {
   variant?: 'full' | 'compact' | 'inline';
@@ -29,13 +41,14 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
         </button>
         <span className="text-dark">for {BRAND.toycraDiscount} off at Toycra (min. {BRAND.toycraMinOrder})</span>
         {copied && <span className="text-deal-green text-xs font-bold">✓ Copied!</span>}
+        <Disclosure className="basis-full text-xs text-gray-500" />
       </div>
     );
   }
 
   if (variant === 'compact') {
     return (
-      <div className="bg-accent text-dark py-2 px-4 flex items-center justify-between gap-4 rounded-lg">
+      <div className="bg-accent text-dark py-2 px-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg">
         <p className="text-sm font-bold">
           🎉 Exclusive deal: <span className="font-price">{BRAND.toycraCode}</span> — {BRAND.toycraDiscount} off at Toycra. Min {BRAND.toycraMinOrder}.
         </p>
@@ -45,6 +58,7 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
         >
           {copied ? '✓ Copied!' : 'Copy Code'}
         </button>
+        <Disclosure className="basis-full text-xs text-dark/70" />
       </div>
     );
   }
@@ -61,6 +75,7 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
             <p className="text-dark text-sm">
               Use code <strong className="font-price text-base bg-dark text-accent px-2 py-0.5 rounded mx-1">{BRAND.toycraCode}</strong> for {BRAND.toycraDiscount} off. Min. purchase {BRAND.toycraMinOrder}. No limits. Your wallet can handle it.
             </p>
+            <Disclosure className="block text-dark/70 text-xs mt-1" />
           </div>
         </div>
         <button

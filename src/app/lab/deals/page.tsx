@@ -207,7 +207,7 @@ function DealCard({ deal }: { deal: DealRow }) {
         <a
           href={deal.product_url}
           target="_blank"
-          rel="noopener noreferrer"
+          rel="noopener noreferrer sponsored"
           style={{
             marginTop: 'auto',
             display: 'block', textAlign: 'center',
