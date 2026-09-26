@@ -149,6 +149,26 @@ def get_all_posted_set_nums() -> set:
     return {r['set_num'] for r in result.data}
 
 
+def posted_today_ist() -> dict | None:
+    """
+    1-post-per-day rule (2026-09-26): the posted_sets row already written
+    during the current IST calendar day, or None. posted_sets had real
+    double-post days (07-26, 08-08, 08-15, 08-29, 09-20) -- a manual
+    dispatch on top of the scheduled run posts a second set the same day.
+    """
+    from datetime import datetime, timedelta, timezone
+    ist = timedelta(hours=5, minutes=30)
+    now_ist = datetime.now(timezone.utc) + ist
+    start_utc = now_ist.replace(hour=0, minute=0, second=0, microsecond=0) - ist
+    end_utc = start_utc + timedelta(days=1)
+    result = (
+        _client().table('posted_sets').select('set_num, set_name, posted_at')
+        .gte('posted_at', start_utc.isoformat()).lt('posted_at', end_utc.isoformat())
+        .limit(1).execute()
+    )
+    return result.data[0] if result.data else None
+
+
 def mark_as_posted(set_num: str, set_name: str, platforms_dict: dict) -> None:
     """
     platforms_dict keys: ig_feed, ig_reels (bool). yt_shorts recorded if present.
