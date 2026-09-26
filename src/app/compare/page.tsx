@@ -9,6 +9,7 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { MASCOTS, THEMES, PRICE_RANGES } from '@/lib/brand';
 import { PRICE_CADENCE } from '@/lib/price-freshness';
+import { getPriceSummaries } from '@/lib/price-summary';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Compare LEGO Prices in India',
@@ -199,6 +200,8 @@ export default async function ComparePage(props: Props) {
     }
   }
 
+  const summaries = await getPriceSummaries(supabase, setNumbers);
+
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
   return (
@@ -337,7 +340,7 @@ export default async function ComparePage(props: Props) {
               {sets.map((set: any) => {
                 const bestPrice = priceMap[set.set_number] ?? null;
                 return (
-                  <SetCard key={set.id} set={set} bestPrice={bestPrice} priceCount={bestPrice ? 1 : 0} />
+                  <SetCard key={set.id} set={set} bestPrice={bestPrice} priceCount={bestPrice ? 1 : 0} summary={summaries.get(set.set_number)} />
                 );
               })}
             </div>
