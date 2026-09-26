@@ -1,6 +1,7 @@
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import { supabase } from '@/lib/supabase';
@@ -44,18 +45,15 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   const params = await props.params;
   const { data: article } = await supabase.from('news_articles').select('*').eq('slug', params.slug).single();
   if (!article) return { title: 'Article Not Found' };
-  return {
+  return buildMetadata({
     title: article.seo_title || article.title,
     description: article.seo_description || article.excerpt,
-    alternates: { canonical: `https://bricksofindia.com/news/${params.slug}` },
-    openGraph: { title: article.title, description: article.excerpt, images: socialCardImage(article.hero_image) ? [{ url: socialCardImage(article.hero_image)! }] : [] },
-    twitter: {
-      card: article.hero_image ? 'summary_large_image' : 'summary',
-      title: article.title,
-      description: article.seo_description || article.excerpt,
-      images: socialCardImage(article.hero_image) ? [socialCardImage(article.hero_image)!] : undefined,
-    },
-  };
+    path: `/news/${params.slug}`,
+    image: socialCardImage(article.hero_image),
+    ogTitle: article.title,
+    ogDescription: article.excerpt,
+    ogType: 'article',
+  });
 }
 
 export default async function NewsArticlePage(props: Props) {

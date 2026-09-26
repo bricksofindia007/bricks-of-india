@@ -53,7 +53,9 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_IN",
-    url: "https://bricksofindia.com",
+    // No `url` here (#208): a layout-level og:url was inherited by every
+    // static route, pointing all of them at the homepage. Each route now
+    // sets og:url = its own canonical via buildMetadata() (src/lib/metadata.ts).
     siteName: "Bricks of India",
     title: "Bricks of India — LEGO Price Comparison & Reviews in India 2026",
     description:

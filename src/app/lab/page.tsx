@@ -1,13 +1,13 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
 import { LAB_TOOLS, type LabTool } from '@/lib/lab-tools';
 
-export const metadata: Metadata = {
-  title: 'The Lab | Bricks of India',
-  description:
-    'A growing collection of small tools that help you justify, postpone, or accelerate your next LEGO purchase.',
-  alternates: { canonical: 'https://bricksofindia.com/lab' },
-};
+export const metadata: Metadata = buildMetadata({
+  title: 'The Lab',
+  description: 'A growing collection of small tools that help you justify, postpone, or accelerate your next LEGO purchase.',
+  path: '/lab',
+});
 
 function LabTileCard({ tool }: { tool: LabTool }) {
   const isLive = tool.status === 'live';

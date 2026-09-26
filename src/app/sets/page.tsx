@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
 import Image from 'next/image';
 import { unstable_cache } from 'next/cache';
@@ -8,13 +9,12 @@ import { MASCOTS, THEMES } from '@/lib/brand'; // THEMES used as fallback only
 import { JsonLd } from '@/components/JsonLd';
 import { buildItemListSchema } from '@/lib/schemas';
 
-export const metadata: Metadata = {
-  title: 'All LEGO Sets in India | Bricks of India',
-  description:
-    'Browse every LEGO set available in India. Filter by theme, price, and availability. ' +
+export const metadata: Metadata = buildMetadata({
+  title: 'All LEGO Sets in India',
+  description: 'Browse every LEGO set available in India. Filter by theme, price, and availability. ' +
     'Compare prices across Toycra and MyBrickHouse. Updated every 6 hours.',
-  alternates: { canonical: 'https://bricksofindia.com/sets' },
-};
+  path: '/sets',
+});
 
 const PAGE_SIZE = 48;
 

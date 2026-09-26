@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'Affiliate Disclosure | Bricks of India',
-};
+export const metadata: Metadata = buildMetadata({
+  title: 'Affiliate Disclosure',
+  description: 'How affiliate links and the ABHINAV12 discount code work on Bricks of India, and what they mean for the prices you see.',
+  path: '/legal/affiliate-disclosure',
+});
 
 export default function AffiliateDisclosurePage() {
   return (

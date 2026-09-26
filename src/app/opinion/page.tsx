@@ -1,16 +1,17 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { supabase } from '@/lib/supabase';
 import { formatDate } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
 import { TaglineWink } from '@/components/ui/Taglines';
 
-export const metadata: Metadata = {
-  title: 'LEGO Opinion & Hot Takes India 2026 | Bricks of India',
+export const metadata: Metadata = buildMetadata({
+  title: 'LEGO Opinion & Hot Takes India 2026',
   description: 'Honest opinions on LEGO sets, pricing, and collecting in India. No PR fluff — just straight talk about what\'s worth your money and what isn\'t.',
-  alternates: { canonical: 'https://bricksofindia.com/opinion' },
-};
+  path: '/opinion',
+});
 
 interface OpinionPost {
   id: number;

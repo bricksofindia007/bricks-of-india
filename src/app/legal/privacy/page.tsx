@@ -1,6 +1,11 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = { title: 'Privacy Policy | Bricks of India' };
+export const metadata: Metadata = buildMetadata({
+  title: 'Privacy Policy',
+  description: 'What Bricks of India collects (anonymous analytics, newsletter email), where it is stored, and how to access or delete your data.',
+  path: '/legal/privacy',
+});
 
 export default function PrivacyPage() {
   return (

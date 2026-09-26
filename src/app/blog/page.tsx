@@ -1,15 +1,16 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { supabase } from '@/lib/supabase';
 import { ArticleCard } from '@/components/content/ArticleCard';
 import { MASCOTS } from '@/lib/brand';
 
-export const metadata: Metadata = {
-  title: 'LEGO Guides & Blog India 2026 | Bricks of India',
+export const metadata: Metadata = buildMetadata({
+  title: 'LEGO Guides & Blog India 2026',
   description: 'Buying guides, opinion pieces, and honest advice for LEGO fans in India. Where to buy, what to get, and what to avoid. In plain English.',
-  alternates: { canonical: 'https://bricksofindia.com/blog' },
-};
+  path: '/blog',
+});
 
 const BLOG_CATEGORIES = ['Buying Guides', 'How-To', 'Gift Guides', 'Value Picks'];
 

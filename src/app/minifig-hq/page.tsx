@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { MinifigHq } from './MinifigHq';
 
@@ -15,11 +16,11 @@ import { MinifigHq } from './MinifigHq';
 // of the template — a real, pre-existing, site-wide title bug, flagged
 // separately rather than fixed here (18 files affected, out of scope for
 // this build).
-export const metadata: Metadata = {
+export const metadata: Metadata = buildMetadata({
   title: 'Minifig HQ — LEGO CMF Collectible Minifigures Guide',
   description: 'Browse every LEGO Collectible Minifigures (CMF) series from 2010–2026 — every figure, every series, with enlargeable images.',
-  alternates: { canonical: 'https://bricksofindia.com/minifig-hq' },
-};
+  path: '/minifig-hq',
+});
 
 export type FigureData = {
   set_number: string;

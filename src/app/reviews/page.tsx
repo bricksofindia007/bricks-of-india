@@ -1,14 +1,15 @@
 import Image from 'next/image';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { supabase } from '@/lib/supabase';
 import { ReviewCard } from '@/components/content/ArticleCard';
 import { MASCOTS } from '@/lib/brand';
 
-export const metadata: Metadata = {
-  title: 'LEGO Reviews India — Honest Verdicts | Bricks of India',
+export const metadata: Metadata = buildMetadata({
+  title: 'LEGO Reviews India — Honest Verdicts',
   description: 'Honest, opinionated LEGO set reviews for Indian buyers. We tell you exactly what to buy and what to skip. No corporate speak. No fence-sitting.',
-  alternates: { canonical: 'https://bricksofindia.com/reviews' },
-};
+  path: '/reviews',
+});
 
 export default async function ReviewsPage() {
   const { data: reviews } = await supabase

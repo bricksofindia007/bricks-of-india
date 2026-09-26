@@ -1,6 +1,7 @@
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import ReactMarkdown from 'react-markdown';
@@ -27,18 +28,15 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   const params = await props.params;
   const { data: post } = await supabase.from('blog_posts').select('*').eq('slug', params.slug).neq('category', 'Opinion').single();
   if (!post) return { title: 'Post Not Found' };
-  return {
-    title: post.seo_title || `${post.title} | Bricks of India`,
+  return buildMetadata({
+    title: post.seo_title || post.title,
     description: post.seo_description || post.excerpt,
-    alternates: { canonical: `https://bricksofindia.com/blog/${params.slug}` },
-    openGraph: { title: post.title, description: post.excerpt, images: socialCardImage(post.hero_image) ? [{ url: socialCardImage(post.hero_image)! }] : [] },
-    twitter: {
-      card: post.hero_image ? 'summary_large_image' : 'summary',
-      title: post.title,
-      description: post.seo_description || post.excerpt,
-      images: socialCardImage(post.hero_image) ? [socialCardImage(post.hero_image)!] : undefined,
-    },
-  };
+    path: `/blog/${params.slug}`,
+    image: socialCardImage(post.hero_image),
+    ogTitle: post.title,
+    ogDescription: post.excerpt,
+    ogType: 'article',
+  });
 }
 
 export default async function BlogPostPage(props: Props) {

@@ -1,15 +1,15 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
 import { THEMES, MASCOTS } from '@/lib/brand';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import Image from 'next/image';
 
-export const metadata: Metadata = {
-  title: 'Browse LEGO Themes in India 2026 | Bricks of India',
-  description:
-    'Browse all LEGO themes available in India. Technic, City, Star Wars, Harry Potter, Speed Champions and more — with live price comparison across Indian stores.',
-  alternates: { canonical: 'https://bricksofindia.com/themes' },
-};
+export const metadata: Metadata = buildMetadata({
+  title: 'Browse LEGO Themes in India 2026',
+  description: 'Browse all LEGO themes available in India. Technic, City, Star Wars, Harry Potter, Speed Champions and more — with live price comparison across Indian stores.',
+  path: '/themes',
+});
 
 export default function ThemesPage() {
   return (

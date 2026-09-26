@@ -1,13 +1,14 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { MASCOTS } from '@/lib/brand';
 
-export const metadata: Metadata = {
-  title: 'LEGO India Release Calendar 2026 — New Sets & Launch Dates | Bricks of India',
+export const metadata: Metadata = buildMetadata({
+  title: 'LEGO India Release Calendar 2026 — New Sets & Launch Dates',
   description: 'When are new LEGO sets coming to India? Release dates, expected prices, and pre-order info for 2026 launches.',
-  alternates: { canonical: 'https://bricksofindia.com/calendar' },
-};
+  path: '/calendar',
+});
 
 const UPCOMING_SETS = [
   { month: 'April 2026', sets: ['LEGO Technic Bugatti Chiron', 'LEGO Icons Eiffel Tower', 'LEGO Star Wars AT-AT'] },

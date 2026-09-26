@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
 import { cookies, type UnsafeUnwrappedCookies } from 'next/headers';
 import { createServerClient } from '@/lib/supabase';
@@ -7,10 +8,12 @@ import { GenerateBatchButton } from './GenerateBatchButton';
 import { PublishAllButton } from './PublishAllButton';
 import { DraftBodyExpander } from './DraftBodyExpander';
 
-export const metadata: Metadata = {
-  title: 'Pending Drafts | BOI Admin',
+export const metadata: Metadata = buildMetadata({
+  title: 'Pending Drafts — BOI Admin',
+  description: 'Bricks of India admin: review and approve pending article drafts.',
+  path: '/admin/pending',
   robots: { index: false, follow: false },
-};
+});
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 

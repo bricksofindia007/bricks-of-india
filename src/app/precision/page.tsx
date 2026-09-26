@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import Image from 'next/image';
 import Link from 'next/link';
 import { MASCOTS } from '@/lib/brand';
@@ -12,13 +13,12 @@ import { YouTubeBadgeIcon, InstagramBadgeIcon, GlobeStudsIcon } from './icons';
 // (src/app/layout.tsx renders <Navbar /> / <Footer /> once around
 // {children}) -- adding them again in this file would render them twice.
 
-export const metadata: Metadata = {
-  title: 'Bricks of India',
-  robots: {
-    index: false,
-    follow: false,
-  },
-};
+export const metadata: Metadata = buildMetadata({
+  title: 'Thanks for Scanning',
+  description: 'Thanks for scanning the Bricks of India QR code. Follow us on YouTube and Instagram for LEGO prices, reviews and deals in India.',
+  path: '/precision',
+  robots: { index: false, follow: false },
+});
 
 // Site-wide primary-button treatment (see Button.tsx variant="primary"):
 // white text on the default blue, dark text on the yellow hover state --
