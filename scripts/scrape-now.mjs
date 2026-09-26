@@ -20,7 +20,7 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { STORES, withRetry, fetchAllProducts, extractSetNumber, parseProduct } from './lib/retailer-fetch.mjs';
+import { STORES, withRetry, fetchAllProducts, extractSetNumber, parseProduct, isMoreCanonical } from './lib/retailer-fetch.mjs';
 import { getSecret } from '../src/lib/get-secret';
 
 // ── Load .env.local when running locally ────────────────────────────────────
@@ -163,7 +163,7 @@ async function main() {
     }
 
     // Parse and filter LEGO products
-    const parsed = allProducts.map((p) => parseProduct(p, store.id, store.domain, knownSetsByName)).filter(Boolean);
+    const parsed = allProducts.map((p) => parseProduct(p, store.id, store.domain, knownSetsByName, knownSets)).filter(Boolean);
     console.log(`  Parsed ${parsed.length} LEGO products`);
 
     // Match against known inventory
@@ -193,21 +193,14 @@ async function main() {
     // "command cannot affect row a second time" if a single INSERT batch
     // contains duplicate conflict keys — aborting the entire batch.
     //
-    // Fix: keep one row per set_id, preferring the lowest available price.
+    // Canonical listing (Wave 1 PR-0, 2026-09-26; replaces "prefer in-stock,
+    // then lowest price"): SKU match, then set number in title/URL, then name
+    // map; ties to the oldest listing. Never by price or stock -- picking the
+    // cheaper of two listings is price-based filtering (pricing rule R1).
     const deduped = new Map();
     for (const p of allMatched) {
       const existing = deduped.get(p.setNumber);
-      if (!existing) {
-        deduped.set(p.setNumber, p);
-      } else {
-        // Prefer in-stock over out-of-stock; then prefer lower price
-        const existingBetter =
-          (existing.inStock && !p.inStock) ||
-          (existing.inStock === p.inStock &&
-            existing.priceInr !== null &&
-            (p.priceInr === null || existing.priceInr <= p.priceInr));
-        if (!existingBetter) deduped.set(p.setNumber, p);
-      }
+      if (!existing || isMoreCanonical(p, existing)) deduped.set(p.setNumber, p);
     }
     const matched = [...deduped.values()];
     const dupesRemoved = allMatched.length - matched.length;
@@ -220,6 +213,10 @@ async function main() {
       set_id:      p.setNumber,
       store_id:    p.storeId,
       price_inr:   p.priceInr,
+      // Listing's displayed MRP / strike-through (Shopify compare_at_price).
+      // store_prices only -- deliberately NOT appended to price_history, so
+      // capturing it adds no growth there (Wave 1 PR-0).
+      compare_at_price_inr: p.compareAtInr,
       in_stock:    p.inStock,
       product_url: p.productUrl,
       scraped_at:  now,

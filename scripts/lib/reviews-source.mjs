@@ -8,7 +8,7 @@
  * the scan is not duplicated between passes.
  */
 
-import { STORES, fetchAllProducts, parseProduct } from './retailer-fetch.mjs';
+import { STORES, fetchAllProducts, parseProduct, isMoreCanonical } from './retailer-fetch.mjs';
 import { STORE_DISPLAY_NAME } from '../../src/lib/review-disclaimer.ts';
 
 // Re-exported for convenience — callers of this module (discovery/
@@ -53,7 +53,13 @@ export async function fetchLiveListings(knownSetsByName = new Map()) {
       const parsed = parseProduct(product, store.id, store.domain, knownSetsByName);
       if (!parsed) continue;
       const entry = listings.get(parsed.setNumber) ?? {};
-      entry[store.id] = { priceInr: parsed.priceInr, inStock: parsed.inStock, productUrl: parsed.productUrl };
+      // Same canonical-listing rule as scrape-now.mjs (Wave 1 PR-0): when a
+      // store lists one set twice, keep the SKU/title-matched, oldest listing
+      // -- previously whichever came last in the feed silently won.
+      const prev = entry[store.id]?._parsed;
+      if (!prev || isMoreCanonical(parsed, prev)) {
+        entry[store.id] = { priceInr: parsed.priceInr, compareAtInr: parsed.compareAtInr, inStock: parsed.inStock, productUrl: parsed.productUrl, _parsed: parsed };
+      }
       listings.set(parsed.setNumber, entry);
     }
   }
