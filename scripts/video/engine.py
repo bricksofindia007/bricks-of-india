@@ -2599,8 +2599,13 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
     import publish as publish_mod
 
     print("Uploading to storage (same filename -- overwrites existing storage_url in place)...")
-    storage_url = publish_mod.upload_video_to_storage(sb, str(output_path), f"{video_id}.mp4")
-    qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(output_path), video_id)
+    # Overwrite in place under the row's EXISTING file name: rows created
+    # after #201 use story0075_<id>.mp4, older rows <id>.mp4 (or none, e.g.
+    # Story #73). Uploading to a different name would orphan the original.
+    existing = (row.get("storage_url") or "").rsplit("/", 1)[-1].split("?", 1)[0]
+    file_stem = existing[:-4] if existing.endswith(".mp4") else video_id
+    storage_url = publish_mod.upload_video_to_storage(sb, str(output_path), f"{file_stem}.mp4")
+    qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(output_path), file_stem)
 
     # status/story_number/id deliberately absent from this update -- a
     # re-render refreshes content, it never changes a row's identity or
@@ -3024,9 +3029,16 @@ def main() -> None:
         _badge(story_number)
         _mark("badge")
 
+        # Files are named with the reserved number (Abhinav, 2026-09-26), so a
+        # run killed AFTER upload but before the insert leaves an orphan that
+        # is identifiable by name (story0075_<id>.mp4) even though no row
+        # references it. Such orphans are never touched by the deny-by-default
+        # storage cleanup (it only deletes paths a terminal row references) --
+        # tracked in #201's follow-up scope.
+        file_stem = f"story{story_number:04d}_{video_id}"
         print("Stage 2: uploading captioned video + QC frames to storage...")
-        storage_url = publish_mod.upload_video_to_storage(sb, str(output_path), f"{video_id}.mp4")
-        qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(output_path), video_id)
+        storage_url = publish_mod.upload_video_to_storage(sb, str(output_path), f"{file_stem}.mp4")
+        qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(output_path), file_stem)
         _mark("upload_video_and_qc_frames")
 
         # Generation-to-ready timing: real measurement, stored under the
