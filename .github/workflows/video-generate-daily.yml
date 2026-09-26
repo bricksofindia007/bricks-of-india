@@ -27,10 +27,18 @@ jobs:
     # Backstop for the 2026-08-18 incident: this job hung silently for the
     # full GitHub Actions 6h default ceiling (run 32090212913, cancelled by
     # "exceeded the maximum execution time of 6h0m0s") mid apt-get update,
-    # burning the entire scheduled slot with no story generated. Normal
-    # runtime is 14-16 min (5 most recent successful runs); 30 min gives
-    # headroom (~2x) while failing fast instead of silently eating 6 hours.
-    timeout-minutes: 30
+    # burning the entire scheduled slot with no story generated.
+    #
+    # Resized 2026-09-25: the old 30 min was sized from a 14-16 min
+    # runtime that has since grown. The longest fully successful runs over
+    # 09-12..09-25 took ~26.5 min wall-clock (09-12, 09-16). 4 of the last
+    # 13 scheduled runs were cancelled at exactly 30 min (09-17, 09-20,
+    # 09-22, 09-24): on 09-22 Story #71 reached pending_approval only 3s
+    # before the cancel; on 09-24 the cancel killed the job 36s after
+    # inserting Story #73 as status='rendered' -- before upload,
+    # pending_approval and the review email -- stranding it. 60 min is
+    # ~2.1-2.3x the observed max, per CLAUDE.md's sizing rule.
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
 
