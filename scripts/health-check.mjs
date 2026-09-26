@@ -99,30 +99,49 @@ try {
   );
 }
 
-// ── Check 2: /blog freshness (> 14 days = alert) ────────────────────────────
+// ── Check 2: /guides freshness -- the page /blog now serves (> 14 days = alert) ──
+// Issue #180 (2026-09-24): this used to read blog_posts with .single(). /blog
+// has 308-redirected to /guides since the 2026-08-09 Nav & Content Overhaul
+// (next.config.mjs), and blog_posts was hard-deleted to 0 rows on 2026-09-21
+// (issue #161) -- .single() on zero rows throws "Cannot coerce the result to a
+// single JSON object", so Check 2 crashed daily from 2026-09-22. It now reads
+// the table /guides actually renders from, uses .maybeSingle(), and treats
+// "no rows at all" as an explicit staleness alert rather than a crash.
+// 14 days = two missed runs of the weekly guide pipeline
+// (generate-guide-weekly.yml, Thursdays).
 try {
   const { data, error } = await sb
-    .from('blog_posts')
-    .select('published_at')
+    .from('guides')
+    .select('slug, published_at')
+    .not('published_at', 'is', null)
     .order('published_at', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
   if (error) throw error;
-  const ageDays = (Date.now() - new Date(data.published_at).getTime()) / 86_400_000;
-  console.log(`[2] /blog freshness: last post ${ageDays.toFixed(1)} days ago`);
-  if (ageDays > 14) {
-    failures.push('blog-stale');
+  if (!data) {
+    console.log('[2] /guides (/blog) freshness: NO published guides at all');
+    failures.push('guides-stale');
     await sendAlert(
-      '⚠️ BOI Health Alert — /blog stale',
-      `Last blog post published ${ageDays.toFixed(1)} days ago.\n\nThreshold: 14 days.\n\nCheck /admin/pending for opinion drafts.`
+      '⚠️ BOI Health Alert — /guides has no published guides',
+      `The guides table returned zero published rows. /blog redirects to /guides, so both pages are empty.\n\nCheck generate-guide-weekly.yml and the guides table directly.`
     );
+  } else {
+    const ageDays = (Date.now() - new Date(data.published_at).getTime()) / 86_400_000;
+    console.log(`[2] /guides (/blog) freshness: last guide ${ageDays.toFixed(1)} days ago (${data.slug})`);
+    if (ageDays > 14) {
+      failures.push('guides-stale');
+      await sendAlert(
+        '⚠️ BOI Health Alert — /guides stale',
+        `Last guide published ${ageDays.toFixed(1)} days ago (${data.slug}).\n\nThreshold: 14 days (two missed weekly guide runs). /blog redirects here.\n\nCheck generate-guide-weekly.yml runs and /admin/pending for guide-format drafts.`
+      );
+    }
   }
 } catch (e) {
-  console.error('[2] blog freshness check failed:', e.message);
-  failures.push('blog-check-error');
+  console.error('[2] guides freshness check failed:', e.message);
+  failures.push('guides-check-error');
   await sendAlert(
-    '🔥 [BOI INFRA FAILURE] — /blog freshness check crashed',
-    `Check 2 itself failed to run (this is not a normal staleness alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real /blog freshness state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 2 directly.`
+    '🔥 [BOI INFRA FAILURE] — /guides freshness check crashed',
+    `Check 2 itself failed to run (this is not a normal staleness alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real /guides freshness state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 2 directly.`
   );
 }
 
