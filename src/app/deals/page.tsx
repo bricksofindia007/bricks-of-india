@@ -3,6 +3,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
+import { READ_REVALIDATE_SECONDS, PRICE_CADENCE, isPriceFresh } from '@/lib/price-freshness';
 import { SetCard } from '@/components/sets/SetCard';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { MASCOTS } from '@/lib/brand';
@@ -15,11 +16,10 @@ export const metadata: Metadata = buildMetadata({
   path: '/deals',
 });
 
-export const revalidate = 21600; // 6 hours
-// Next 15: fetch() is uncached by default, independent of revalidate above --
-// without this, the Supabase reads below become per-request and the route
-// drops from ISR to full SSR. Scoped per-route, not the root layout.
-export const fetchCache = 'default-cache';
+export const revalidate = 3600; // = READ_REVALIDATE_SECONDS (segment config must be a literal)
+// Supabase reads here expire hourly via per-read `next.revalidate`
+// (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
+// NOT fetchCache='default-cache', which cached them until the next deploy.
 
 // A set is a "deal" when any tracked store's price is ≥10% below the 30-day
 // average for that set. Fallback when history is thin: price < MSRP × 1.35.
@@ -27,7 +27,7 @@ const DEAL_DISCOUNT_THRESHOLD = 0.10; // 10% below average
 const MSRP_BENCHMARK_MULTIPLIER = 1.35;
 
 export default async function DealsPage() {
-  const supabase = createServerClient();
+  const supabase = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
 
   // Get all current store prices
   const { data: storePrices } = await supabase
@@ -61,7 +61,11 @@ export default async function DealsPage() {
   const dealSetIds = new Set<string>();
   const currentBySet: Record<string, number> = {}; // best current price per set
 
+  // PR-A: a deal needs a price someone can pay now -- in stock, and scraped
+  // within PRICE_STALE_HOURS. Stale or sold-out rows never make a deal.
+  // (PR-B rebuilds the deal rules themselves.)
   for (const sp of storePrices ?? []) {
+    if (!sp.in_stock || !isPriceFresh(sp.scraped_at)) continue;
     const curr = sp.price_inr as number;
     if (currentBySet[sp.set_id] === undefined || curr < currentBySet[sp.set_id]) {
       currentBySet[sp.set_id] = curr;
@@ -126,7 +130,7 @@ export default async function DealsPage() {
           <div className="flex-1">
             <h1 className="font-heading text-white text-6xl mb-2">BEST LEGO DEALS IN INDIA</h1>
             <p className="text-white/70 font-body text-lg mb-2">
-              Updated every 6 hours. These are the best prices right now across all Indian stores.
+              Updated {PRICE_CADENCE}. These are the best prices right now across all Indian stores.
               Your wallet is about to have a very complicated day.
             </p>
             <p className="mt-1">
@@ -189,7 +193,7 @@ export default async function DealsPage() {
             <h2 className="font-heading text-dark text-3xl mb-2">NO DEALS RIGHT NOW</h2>
             <p className="text-gray-400 font-body mb-4">
               No sets are currently priced significantly below their usual range.
-              Prices are checked every 6 hours — check back soon.
+              Prices are checked {PRICE_CADENCE} — check back soon.
             </p>
             <Link
               href="/compare"
@@ -206,7 +210,7 @@ export default async function DealsPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {dealSets.map((set: any) => {
                 const bestSp = (storePrices ?? [])
-                  .filter(sp => sp.set_id === set.set_number && sp.in_stock && sp.price_inr)
+                  .filter(sp => sp.set_id === set.set_number && sp.in_stock && sp.price_inr && isPriceFresh(sp.scraped_at))
                   .sort((a, b) => (a.price_inr as number) - (b.price_inr as number))[0];
                 const bestPrice = {
                   id: 'deal',
@@ -215,6 +219,7 @@ export default async function DealsPage() {
                   store_url: bestSp?.product_url ?? '',
                   price_inr: set._dealPrice,
                   availability: 'in_stock' as const,
+                  in_stock: true,
                   buy_url: bestSp?.product_url ?? '',
                   scraped_at: bestSp?.scraped_at ?? '',
                   is_active: true,
@@ -231,7 +236,7 @@ export default async function DealsPage() {
         )}
 
         <p className="text-xs text-gray-400 text-center mt-8 border-t border-border pt-4">
-          Prices updated every 6 hours. Always verify the final price on the retailer&apos;s website.
+          Prices updated {PRICE_CADENCE}. Always verify the final price on the retailer&apos;s website.
           LEGO® is a trademark of The LEGO Group which does not sponsor or endorse this site.
         </p>
       </div>
@@ -244,7 +249,7 @@ export default async function DealsPage() {
  * Reads from the old prices table so the page isn't blank on first deploy.
  */
 async function DealsFromLegacyPrices() {
-  const supabase = createServerClient();
+  const supabase = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
 
   const { data: setsWithPrices } = await supabase
     .from('sets')

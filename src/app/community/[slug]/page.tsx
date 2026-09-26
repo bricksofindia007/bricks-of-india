@@ -2,7 +2,8 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { supabaseRead as supabase } from '@/lib/supabase';
+import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { formatDate } from '@/lib/utils';
 import { JsonLd } from '@/components/JsonLd';
 
@@ -10,10 +11,9 @@ import { JsonLd } from '@/components/JsonLd';
 // Netlify's Next runtime persists rendered pages ACROSS deploys when no
 // revalidate is set. Hourly ISR caps staleness at 60 min, permanently.
 export const revalidate = 3600;
-// Next 15: fetch() is uncached by default, independent of revalidate above --
-// without this, the Supabase reads below become per-request and the route
-// drops from ISR to full SSR. Scoped per-route, not the root layout.
-export const fetchCache = 'default-cache';
+// Supabase reads here expire hourly via per-read `next.revalidate`
+// (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
+// NOT fetchCache='default-cache', which cached them until the next deploy.
 
 // Netlify credit audit (2026-08-29): this route had neither revalidate
 // nor generateStaticParams — confirmed via a real production build as

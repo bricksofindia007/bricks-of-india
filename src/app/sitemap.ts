@@ -1,5 +1,6 @@
 import { MetadataRoute } from 'next';
 import { createServerClient } from '@/lib/supabase';
+import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { slugify } from '@/lib/utils';
 import { THEMES } from '@/lib/brand';
 
@@ -23,14 +24,13 @@ import { THEMES } from '@/lib/brand';
 // ingestion added, without revalidating far more often than the
 // underlying data ever actually changes.
 export const revalidate = 86400;
-// Next 15: fetch() is uncached by default, independent of revalidate above --
-// without this, the Supabase reads below become per-request and the route
-// drops from ISR to full SSR. Scoped per-route, not the root layout.
-export const fetchCache = 'default-cache';
+// Supabase reads here expire hourly via per-read `next.revalidate`
+// (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
+// NOT fetchCache='default-cache', which cached them until the next deploy.
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = 'https://bricksofindia.com';
-  const supabase = createServerClient();
+  const supabase = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
 
   const staticPages = [
     { url: base, priority: 1.0 },

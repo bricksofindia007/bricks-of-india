@@ -5,6 +5,8 @@ import { cache } from 'react';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
+import { SET_PAGE_REVALIDATE_SECONDS, PRICE_CADENCE, bestInStock, badgeEligible, isPriceFresh } from '@/lib/price-freshness';
+import { PriceAge } from '@/components/ui/PriceAge';
 import { getSet } from '@/lib/rebrickable';
 import { formatPrice, whatsappShareUrl, socialCardImage, setMetaDescription } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
@@ -14,14 +16,14 @@ import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { SetCard } from '@/components/sets/SetCard';
 import { JsonLd } from '@/components/JsonLd';
 import { buildProductSchema, buildFAQSchema } from '@/lib/schemas';
-// Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
-// pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
-// served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
-export const revalidate = 3600;
-// Next 15: fetch() is uncached by default, independent of revalidate above --
-// without this, the Supabase reads below become per-request and the route
-// drops from ISR to full SSR. Scoped per-route, not the root layout.
-export const fetchCache = 'default-cache';
+// Durable-cache guard (2026-07-02): a revalidate must always be set, or
+// rendered pages persist across deploys. Set pages use 6h (operator decision
+// 2026-09-26): 26k crawlable URLs, and Supabase egress is the binding Free
+// quota. = SET_PAGE_REVALIDATE_SECONDS (segment config must be a literal).
+export const revalidate = 21600;
+// The Supabase read (set_page_data) expires on the same 6h clock via a
+// per-read `next.revalidate`, NOT fetchCache='default-cache', which cached
+// it until the next deploy.
 
 export async function generateStaticParams() {
   return [];
@@ -53,7 +55,9 @@ type SetPageData = {
 
 const getSetPageData = cache(async (slug: string): Promise<SetPageData | null> => {
   const setNumber = slug.split('-')[0];
-  const client = createServerClient();
+  // Set pages read on a 6h clock (SET_PAGE_REVALIDATE_SECONDS; operator
+  // decision 2026-09-26: 26k crawlable URLs, egress is the binding quota).
+  const client = createServerClient({ revalidate: SET_PAGE_REVALIDATE_SECONDS });
   const { data, error } = await client.rpc('set_page_data', { p_set_number: setNumber, p_slug: slug });
   if (error) throw error;
   const d = data as SetPageData;
@@ -98,7 +102,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
       path: `/sets/${params.slug}`,
       image: socialCardImage(set.image_url),
       ogTitle: `${set.name} (${set.set_number}) — Best Price in India`,
-      ogDescription: `Compare ${set.name} prices across Indian stores. Best deal updated every 6 hours.`,
+      ogDescription: `Compare ${set.name} prices across Indian stores. Best deal updated ${PRICE_CADENCE}.`,
     }),
     // GSC-01 Part A: Tier 3 (merch/parts/exclusives, not real LEGO sets)
     // stays crawlable -- follow: true -- so link equity and any existing
@@ -136,38 +140,26 @@ export default async function SetPage(props: Props) {
         storePrices[0].scraped_at)
     : null;
 
-  const hoursAgo = lastUpdated
-    ? (Date.now() - new Date(lastUpdated).getTime()) / 3_600_000
-    : null;
-
-  const stalenessColor =
-    !hoursAgo         ? 'text-gray-400' :
-    hoursAgo > 72     ? 'text-red-500'  :
-    hoursAgo > 24     ? 'text-amber-500':
-                        'text-gray-400';
-
-  const stalenessText =
-    !hoursAgo     ? 'Prices not yet scraped — check stores directly' :
-    hoursAgo < 1  ? 'Updated just now' :
-    hoursAgo < 24 ? `Updated ${Math.floor(hoursAgo)}h ago` :
-    hoursAgo > 72 ? `Updated ${Math.floor(hoursAgo)}h ago — data may be stale` :
-                    `Updated ${Math.floor(hoursAgo)}h ago`;
-
-  // Best price across tracked stores (for schema + FAQ)
+  // Best price across tracked stores (for schema + FAQ). PR-A: in-stock rows
+  // only -- a sold-out listing's price is not a price anyone can pay. The
+  // badge additionally needs a fresh row (<= PRICE_STALE_HOURS); an older
+  // row still shows, with its real age, but earns no badge.
   const activePrices = TRACKED_STORES
     .map((s) => storePriceMap.get(s.id))
     .filter((sp): sp is any => sp?.price_inr != null);
-  const bestStorePrice = activePrices.sort((a, b) => a.price_inr - b.price_inr)[0] ?? null;
-  const hasPrices = activePrices.length > 0;
+  const bestStorePrice = bestInStock(activePrices);
+  const bestIsBadged = badgeEligible(bestStorePrice);
+  const hasPrices = bestStorePrice != null;
   const hasToycra = !!storePriceMap.get('toycra')?.price_inr;
 
   // Related sets (same theme, newest first) and their prices, from set_page_data.
   const relatedSets: any[] = pageData.related;
-  const relatedPriceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
+  const relatedPriceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null; in_stock: boolean; scraped_at: string }> = {};
   for (const rp of pageData.related_prices) {
+    if (!rp.in_stock) continue; // PR-A: best price = in-stock rows only
     const existing = relatedPriceMap[rp.set_id];
     if (!existing || rp.price_inr < existing.price_inr) {
-      relatedPriceMap[rp.set_id] = { price_inr: rp.price_inr, store_name: rp.store_id, buy_url: rp.product_url ?? null };
+      relatedPriceMap[rp.set_id] = { price_inr: rp.price_inr, store_name: rp.store_id, buy_url: rp.product_url ?? null, in_stock: true, scraped_at: rp.scraped_at };
     }
   }
 
@@ -316,7 +308,7 @@ export default async function SetPage(props: Props) {
                   // Tie handling (2026-07-02): exactly ONE badge. On equal prices the
                   // sorted-lowest row (bestStorePrice) wins; price-equality matching gave
                   // every tied store a 🏆 simultaneously, which read as a bug on live.
-                  const isBest = hasPrices && sp?.price_inr != null && sp?.store_id === bestStorePrice?.store_id;
+                  const isBest = bestIsBadged && sp?.price_inr != null && sp?.store_id === bestStorePrice?.store_id;
                   const isToycra = store.id === 'toycra';
 
                   if (!sp) {
@@ -336,6 +328,9 @@ export default async function SetPage(props: Props) {
                           {isBest && <BestPriceBadge />}
                           <span className="font-bold text-dark">{store.name}</span>
                           {sp.price_inr && !sp.in_stock && <OutOfStockBadge />}
+                          {sp.price_inr && !isPriceFresh(sp.scraped_at) && (
+                            <PriceAge scrapedAt={sp.scraped_at} prefix="Price from" className="text-xs text-gray-500" />
+                          )}
                         </div>
                         <div className="flex items-center gap-3">
                           {sp.price_inr ? (
@@ -398,11 +393,11 @@ export default async function SetPage(props: Props) {
             </div>
 
             {/* Staleness indicator */}
-            <p className={`text-xs mb-4 ${stalenessColor}`}>{stalenessText}</p>
+            <p className="text-xs mb-4 text-gray-400"><PriceAge scrapedAt={lastUpdated} /></p>
 
             {/* Price disclaimer */}
             <p className="text-xs text-gray-400 mb-6">
-              Prices updated every 6 hours. Always verify the final price on the retailer&apos;s website before purchase.
+              Prices updated {PRICE_CADENCE}. Always verify the final price on the retailer&apos;s website before purchase.
               LEGO® is a trademark of The LEGO Group which does not sponsor or endorse this site.
             </p>
 
@@ -456,7 +451,7 @@ export default async function SetPage(props: Props) {
                   {
                     q: `Where is ${set.name} cheapest in India?`,
                     a: hasPrices
-                      ? `Based on our latest comparison, ${bestStorePrice ? TRACKED_STORES.find(s => s.id === bestStorePrice.store_id)?.name ?? 'a tracked store' : 'a tracked store'} has the best price at ${bestStorePrice ? formatPrice(bestStorePrice.price_inr) : '—'}. Prices update every 6 hours.`
+                      ? `Based on our latest comparison, ${bestStorePrice ? TRACKED_STORES.find(s => s.id === bestStorePrice.store_id)?.name ?? 'a tracked store' : 'a tracked store'} has the best price at ${bestStorePrice ? formatPrice(bestStorePrice.price_inr) : '—'}. Prices are checked ${PRICE_CADENCE}.`
                       : `We're currently setting up price tracking for ${set.name}. Check Toycra, MyBrickHouse, and Amazon India for live prices.`,
                   },
                   {

@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
+import { PRICE_CADENCE } from '@/lib/price-freshness';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Disclaimer',
@@ -16,7 +17,7 @@ export default function DisclaimerPage() {
         <div className="prose prose-gray max-w-none font-body space-y-6 text-gray-600 leading-relaxed">
           <section>
             <h2 className="font-heading text-dark text-2xl mb-3">PRICE ACCURACY</h2>
-            <p>Prices shown on Bricks of India are scraped automatically from third-party retailer websites and may not be 100% accurate at the time of viewing. Always verify the final price on the retailer&apos;s website before completing a purchase. We update prices every 6 hours but cannot guarantee real-time accuracy.</p>
+            <p>Prices shown on Bricks of India are scraped automatically from third-party retailer websites and may not be 100% accurate at the time of viewing. Always verify the final price on the retailer&apos;s website before completing a purchase. We update prices {PRICE_CADENCE} but cannot guarantee real-time accuracy.</p>
           </section>
           <section>
             <h2 className="font-heading text-dark text-2xl mb-3">PRODUCT AVAILABILITY</h2>

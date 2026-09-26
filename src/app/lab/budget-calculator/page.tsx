@@ -4,10 +4,11 @@ import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { BudgetForm } from './BudgetForm';
+import { PRICE_CADENCE } from '@/lib/price-freshness';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Budget Calculator — The Lab',
-  description: 'Find the best LEGO sets for your budget — live Indian store prices across Toycra and MyBrickHouse. Updated every 6 hours.',
+  description: 'Find the best LEGO sets for your budget — live Indian store prices across Toycra and MyBrickHouse. Updated ' + PRICE_CADENCE + '.',
   path: '/lab/budget-calculator',
 });
 
@@ -121,7 +122,7 @@ export default async function BudgetCalculatorPage(
           Find the best LEGO sets for your budget — live Indian store prices.
         </p>
         <p style={{ color: '#CBD5E0', fontSize: '0.72rem', margin: 0 }}>
-          Updated every 6 hours · Toycra, MyBrickHouse · Sorted by piece count
+          Updated {PRICE_CADENCE} · Toycra, MyBrickHouse · Sorted by piece count
         </p>
       </div>
 

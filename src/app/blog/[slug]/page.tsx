@@ -3,7 +3,8 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { supabaseRead as supabase } from '@/lib/supabase';
+import { READ_REVALIDATE_SECONDS, PRICE_CADENCE } from '@/lib/price-freshness';
 import ReactMarkdown from 'react-markdown';
 import { formatDate, readingTime, whatsappShareUrl, twitterShareUrl, socialCardImage } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
@@ -16,10 +17,9 @@ import { buildArticleSchema, buildFAQSchema } from '@/lib/schemas';
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
 export const revalidate = 3600;
-// Next 15: fetch() is uncached by default, independent of revalidate above --
-// without this, the Supabase reads below become per-request and the route
-// drops from ISR to full SSR. Scoped per-route, not the root layout.
-export const fetchCache = 'default-cache';
+// Supabase reads here expire hourly via per-read `next.revalidate`
+// (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
+// NOT fetchCache='default-cache', which cached them until the next deploy.
 
 
 interface Props { params: Promise<{ slug: string }> }
@@ -109,7 +109,7 @@ export default async function BlogPostPage(props: Props) {
               { q: 'Where is the cheapest place to buy LEGO in India?', a: 'Toycra consistently offers competitive prices. Use exclusive code ABHINAV12 for an extra 12% off (min. ₹500). Also check MyBrickHouse, Amazon India, and Flipkart.' },
               { q: 'Are LEGO sets worth buying in India in 2026?', a: 'Absolutely — if you buy from the right stores at the right price. Use our price comparison tool to ensure you\'re not overpaying. The sets are genuine and the builds are genuinely enjoyable.' },
               { q: 'Is there a LEGO discount code for India?', a: 'Yes! Use code ABHINAV12 at Toycra for 12% off any LEGO set. Minimum purchase ₹500. No usage limits. This is an exclusive Bricks of India deal.' },
-              { q: 'Can I trust the prices on Bricks of India?', a: 'Our prices are scraped every 6 hours from actual retailer websites. We always recommend verifying on the store website before purchase, as prices can change. We\'re accurate, not psychic.' },
+              { q: 'Can I trust the prices on Bricks of India?', a: 'Our prices are scraped ' + PRICE_CADENCE + ' from actual retailer websites. We always recommend verifying on the store website before purchase, as prices can change. We\'re accurate, not psychic.' },
               { q: 'How do I know if a LEGO set is genuine in India?', a: 'Buy from authorised retailers: Toycra, MyBrickHouse, Amazon India, and Flipkart. If a price looks too good to be true, it probably is.' },
             ]; return (<><JsonLd data={buildFAQSchema(faqs)} />{faqs.map((faq, i) => (
               <details key={i} className="border-2 border-border rounded-xl overflow-hidden">
