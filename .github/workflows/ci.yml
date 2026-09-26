@@ -148,6 +148,9 @@ jobs:
             CANONICAL=$(echo "$HTML" | grep -oE '<link rel="canonical" href="[^"]*"' | head -1 | sed -E 's/.*href="([^"]*)"/\1/')
             OG_URL=$(echo "$HTML" | grep -oE '<meta property="og:url" content="[^"]*"' | head -1 | sed -E 's/.*content="([^"]*)"/\1/')
             DESC=$(echo "$HTML" | grep -oE '<meta name="description" content="[^"]*"' | head -1 | sed -E 's/.*content="([^"]*)"/\1/')
+            case "$route" in /deals|/legal/privacy|/precision)
+              echo "AFTER $route | title=$(echo "$HTML" | grep -oE '<title>[^<]*</title>' | head -1 | sed -E 's/<\/?title>//g') | canonical=${CANONICAL:-MISSING} | og:url=$OG_URL | desc=$(echo "$DESC" | cut -c1-70)…" ;;
+            esac
             if [ -z "$CANONICAL" ]; then
               echo "::error::missing canonical at $route"
               FAIL=1
