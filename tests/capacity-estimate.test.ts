@@ -20,7 +20,7 @@ describe('estimateCycleUsage', () => {
   });
   it('full coverage: sums growth and converts to bytes', () => {
     const calls = 1_000_000 * CALLS_PER_REQUEST;
-    const e = estimateCycleUsage([
+    const e: any = estimateCycleUsage([
       { taken_at: '2026-09-11T00:00:00Z', api_calls: 0 },
       { taken_at: '2026-09-21T00:00:00Z', api_calls: calls },
     ], now);
@@ -31,7 +31,7 @@ describe('estimateCycleUsage', () => {
     expect(e.projectedEgressGB).toBeCloseTo(e.egressGB * 3, 6); // 30-day cycle, day 10
   });
   it('counter reset counts the new value from zero', () => {
-    const e = estimateCycleUsage([
+    const e: any = estimateCycleUsage([
       { taken_at: '2026-09-11T00:00:00Z', api_calls: 900 },
       { taken_at: '2026-09-16T00:00:00Z', api_calls: 1_000 },
       { taken_at: '2026-09-21T00:00:00Z', api_calls: 50 }, // reset in between
@@ -39,7 +39,7 @@ describe('estimateCycleUsage', () => {
     expect(e.requests).toBe(Math.round(150 / CALLS_PER_REQUEST));
   });
   it('partial coverage extrapolates the observed rate', () => {
-    const e = estimateCycleUsage([
+    const e: any = estimateCycleUsage([
       { taken_at: '2026-09-20T00:00:00Z', api_calls: 0 },
       { taken_at: '2026-09-21T00:00:00Z', api_calls: 22_500 },
     ], now);
