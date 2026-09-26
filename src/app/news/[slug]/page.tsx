@@ -4,7 +4,8 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
-import { supabase } from '@/lib/supabase';
+import { supabaseRead as supabase } from '@/lib/supabase';
+import { READ_REVALIDATE_SECONDS, PRICE_CADENCE } from '@/lib/price-freshness';
 import { formatDate, whatsappShareUrl, twitterShareUrl, socialCardImage } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
@@ -17,10 +18,9 @@ import { buildArticleSchema, buildFAQSchema, buildReviewSchema, verdictToRating 
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
 export const revalidate = 3600;
-// Next 15: fetch() is uncached by default, independent of revalidate above --
-// without this, the Supabase reads below become per-request and the route
-// drops from ISR to full SSR. Scoped per-route, not the root layout.
-export const fetchCache = 'default-cache';
+// Supabase reads here expire hourly via per-read `next.revalidate`
+// (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
+// NOT fetchCache='default-cache', which cached them until the next deploy.
 
 // Netlify credit audit (2026-08-29): this route had `revalidate` but no
 // `generateStaticParams` at all, which per Next.js's own rule means "no
@@ -132,7 +132,7 @@ export default async function NewsArticlePage(props: Props) {
           <div className="space-y-3">
             {(() => { const faqs = [
               { q: 'Where can I buy the latest LEGO sets in India?', a: 'Toycra and MyBrickHouse are the most reliable online sources. Use code ABHINAV12 at Toycra for 12% off.' },
-              { q: 'What is the best LEGO deal in India right now?', a: 'Check our deals page for the current best prices updated every 6 hours. Use code ABHINAV12 at Toycra for an exclusive 12% discount.' },
+              { q: 'What is the best LEGO deal in India right now?', a: 'Check our deals page for the current best prices updated ' + PRICE_CADENCE + '. Use code ABHINAV12 at Toycra for an exclusive 12% discount.' },
               { q: 'Are LEGO sets available in India?', a: 'Yes — most major LEGO sets are available in India through stores like Toycra, MyBrickHouse, Amazon India, and Flipkart.' },
               { q: 'Why are LEGO sets expensive in India?', a: 'Import duties, GST, and currency conversion all contribute to LEGO prices in India being higher than in the US or UK. We cover this in detail in our guide on why Indian LEGO prices are what they are.' },
               { q: 'Is there a discount code for LEGO in India?', a: 'Yes! Use code ABHINAV12 at Toycra for 12% off any LEGO set. Minimum purchase ₹500. No usage limits. This is an exclusive Bricks of India deal.' },

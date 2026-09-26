@@ -8,10 +8,11 @@ import { SetCard } from '@/components/sets/SetCard';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { MASCOTS, THEMES, PRICE_RANGES } from '@/lib/brand';
+import { PRICE_CADENCE } from '@/lib/price-freshness';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Compare LEGO Prices in India',
-  description: 'Compare LEGO set prices across Toycra and MyBrickHouse. Updated every 6 hours. Find the best deal in India.',
+  description: 'Compare LEGO set prices across Toycra and MyBrickHouse. Updated ' + PRICE_CADENCE + '. Find the best deal in India.',
   path: '/compare',
 });
 
@@ -102,7 +103,7 @@ export default async function ComparePage(props: Props) {
   }
 
   // priceMap hoisted so price-filter path can seed it before the secondary query
-  const priceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
+  const priceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null; in_stock: boolean; scraped_at: string }> = {};
 
   // ── Supabase path ────────────────────────────────────────────────────────────
   if (!usedRebrickable) {
@@ -112,14 +113,15 @@ export default async function ComparePage(props: Props) {
       if (range) {
         let spQuery = supabase
           .from('store_prices')
-          .select('set_id, store_id, price_inr, in_stock, product_url')
+          .select('set_id, store_id, price_inr, in_stock, product_url, scraped_at')
+          .eq('in_stock', true) // PR-A: best price = in-stock rows only
           .gte('price_inr', range.min);
         if (range.max !== Infinity) spQuery = spQuery.lte('price_inr', range.max);
 
         const { data: matchingPrices } = await spQuery;
 
         // Build tempMap from in-range results
-        const tempMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
+        const tempMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null; in_stock: boolean; scraped_at: string }> = {};
         for (const row of matchingPrices ?? []) {
           const existing = tempMap[row.set_id];
           if (!existing || row.price_inr < existing.price_inr) {
@@ -127,6 +129,8 @@ export default async function ComparePage(props: Props) {
               price_inr: row.price_inr,
               store_name: row.store_id,
               buy_url: row.product_url ?? null,
+              in_stock: row.in_stock,
+              scraped_at: row.scraped_at,
             };
           }
         }
@@ -176,18 +180,21 @@ export default async function ComparePage(props: Props) {
   const { data: storePrices } = setNumbers.length
     ? await supabase
         .from('store_prices')
-        .select('set_id, store_id, price_inr, in_stock, product_url')
+        .select('set_id, store_id, price_inr, in_stock, product_url, scraped_at')
         .in('set_id', setNumbers)
     : { data: [] };
 
-  // Merge secondary query into priceMap (cheapest price wins across all stores)
+  // Merge secondary query into priceMap (cheapest IN-STOCK price wins across all stores)
   for (const row of storePrices ?? []) {
+    if (!row.in_stock) continue;
     const existing = priceMap[row.set_id];
     if (!existing || row.price_inr < existing.price_inr) {
       priceMap[row.set_id] = {
         price_inr: row.price_inr,
         store_name: row.store_id,
         buy_url: row.product_url ?? null,
+        in_stock: row.in_stock,
+        scraped_at: row.scraped_at,
       };
     }
   }
@@ -206,7 +213,7 @@ export default async function ComparePage(props: Props) {
               </h1>
               <p className="text-gray-300 font-body">
                 {total > 0
-                  ? `${total.toLocaleString()} sets. Updated every 6 hours. Cheapest first.`
+                  ? `${total.toLocaleString()} sets. Updated ${PRICE_CADENCE}. Cheapest first.`
                   : 'Search LEGO sets across Toycra and MyBrickHouse.'}
               </p>
             </div>
@@ -364,7 +371,7 @@ export default async function ComparePage(props: Props) {
 
       <div className="max-w-site mx-auto px-4 pb-8">
         <p className="text-xs text-gray-400 text-center border-t border-border pt-4">
-          Prices updated every 6 hours. Always verify the final price on the retailer&apos;s website before purchase.
+          Prices updated {PRICE_CADENCE}. Always verify the final price on the retailer&apos;s website before purchase.
           LEGO® is a trademark of The LEGO Group which does not sponsor or endorse this site.
         </p>
       </div>

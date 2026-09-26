@@ -35,6 +35,8 @@ jobs:
         run: npm ci
 
       - name: Run Shopify scraper
+        id: scrape
+        continue-on-error: true
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -59,3 +61,37 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx scripts/report-store-prices.ts
+
+      # PR-A (2026-09-26): staleness alert. Fails when a store's newest price
+      # (or 20%+ of its in-stock rows) is older than PRICE_STALE_HOURS -- the
+      # age at which the site stops badging prices. Skipped on dry runs.
+      - name: Check price freshness
+        id: freshness
+        if: always() && github.event.inputs.dry_run != 'true'
+        continue-on-error: true
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/check-price-freshness.ts
+
+      # Same alert path as retention-cleanup.yml (#192).
+      - name: Send failure alert
+        if: steps.scrape.outcome == 'failure' || steps.freshness.outcome == 'failure'
+        continue-on-error: true
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL:    ${{ secrets.BRIEF_EMAIL }}
+          WORKFLOW_NAME:  scrape-prices
+          STEP_OUTCOMES:  '{"Run Shopify scraper": "${{ steps.scrape.outcome }}", "Check price freshness": "${{ steps.freshness.outcome }}"}'
+        run: node scripts/workflow-failure-notify.mjs
+
+      # continue-on-error above would otherwise leave the job green on a real
+      # failure; this step is the sole authority on pass/fail.
+      - name: Fail job if scrape or freshness failed
+        if: always()
+        run: |
+          if [ "${{ steps.scrape.outcome }}" = "failure" ] || [ "${{ steps.freshness.outcome }}" = "failure" ]; then
+            echo "::error::scrape or freshness check failed -- see step logs above; alert email already sent"
+            exit 1
+          fi
+          echo "Scrape and freshness check passed."

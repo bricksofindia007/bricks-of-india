@@ -4,7 +4,8 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
-import { createServerClient, supabase } from '@/lib/supabase';
+import { createServerClient, supabaseRead as supabase } from '@/lib/supabase';
+import { READ_REVALIDATE_SECONDS, bestInStock, badgeEligible } from '@/lib/price-freshness';
 import { formatDate, formatPrice, whatsappShareUrl, twitterShareUrl, socialCardImage } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
@@ -15,10 +16,9 @@ import { buildReviewSchema } from '@/lib/schemas';
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
 export const revalidate = 3600;
-// Next 15: fetch() is uncached by default, independent of revalidate above --
-// without this, the Supabase reads below become per-request and the route
-// drops from ISR to full SSR. Scoped per-route, not the root layout.
-export const fetchCache = 'default-cache';
+// Supabase reads here expire hourly via per-read `next.revalidate`
+// (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
+// NOT fetchCache='default-cache', which cached them until the next deploy.
 
 // Netlify credit audit (2026-08-29): same missing-generateStaticParams gap
 // as /news/[slug] — see that file's comment for the full explanation.
@@ -96,12 +96,12 @@ export default async function ReviewPage(props: Props) {
     .trim();
 
   // Store prices — full map for all tracked stores (mirrors sets/[slug]/page.tsx pattern)
-  const storePriceMap = new Map<string, { store_id: string; price_inr: number | null; in_stock: boolean; product_url: string }>();
+  const storePriceMap = new Map<string, { store_id: string; price_inr: number | null; in_stock: boolean; product_url: string; scraped_at: string }>();
   if (set?.set_number) {
-    const serverClient = createServerClient();
+    const serverClient = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
     const { data: storePrices } = await serverClient
       .from('store_prices')
-      .select('store_id, price_inr, in_stock, product_url')
+      .select('store_id, price_inr, in_stock, product_url, scraped_at')
       .eq('set_id', set.set_number);
     for (const sp of storePrices ?? []) {
       storePriceMap.set(sp.store_id, sp);
@@ -109,13 +109,13 @@ export default async function ReviewPage(props: Props) {
   }
   const activePrices = TRACKED_STORES
     .map(s => storePriceMap.get(s.id))
-    .filter((sp): sp is { store_id: string; price_inr: number; in_stock: boolean; product_url: string } =>
+    .filter((sp): sp is { store_id: string; price_inr: number; in_stock: boolean; product_url: string; scraped_at: string } =>
       sp != null && sp.price_inr != null);
   const hasPrices = activePrices.length > 0;
-  const bestStorePrice =
-    activePrices.filter(sp => sp.in_stock).sort((a, b) => a.price_inr - b.price_inr)[0]
-    ?? activePrices.sort((a, b) => a.price_inr - b.price_inr)[0]
-    ?? null;
+  // PR-A: best price = cheapest in-stock row only (no sold-out fallback);
+  // highlighted only while fresh (<= PRICE_STALE_HOURS).
+  const bestStorePrice = bestInStock(activePrices);
+  const bestIsBadged = badgeEligible(bestStorePrice);
 
   // GWP pricing rule (BOI Fix Brief issue #78, decided by Abhinav): the
   // store_prices check above is ALWAYS the first and only source of truth
@@ -291,7 +291,7 @@ export default async function ReviewPage(props: Props) {
                             </div>
                           );
                         }
-                        const isBest = hasPrices && sp.price_inr === bestStorePrice?.price_inr;
+                        const isBest = bestIsBadged && sp.store_id === bestStorePrice?.store_id;
                         return (
                           <div key={store.id} className="flex items-center justify-between">
                             <span className="text-sm text-dark">{store.name}</span>
@@ -358,7 +358,7 @@ export default async function ReviewPage(props: Props) {
               },
               {
                 q: `Where can I buy ${set?.name || 'this set'} cheapest in India?`,
-                a: hasPrices
+                a: bestStorePrice
                   ? `Based on our latest tracking, ${TRACKED_STORES.find(s => s.id === bestStorePrice?.store_id)?.name ?? 'a tracked store'} has the best price. Use code ABHINAV12 at Toycra for 12% off.`
                   : `Check Toycra and MyBrickHouse for current prices. Use code ABHINAV12 at Toycra for an exclusive 12% off.`,
               },

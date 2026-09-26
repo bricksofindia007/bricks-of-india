@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { PRICE_CADENCE } from './price-freshness';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -17,7 +18,7 @@ export function formatPrice(price: number): string {
 // the <meta name="description"> tag (generateMetadata) and the Product
 // JSON-LD (buildProductSchema) so they can't drift apart.
 export function setMetaDescription(setName: string): string {
-  return `Find the best price for ${setName} in India. Compare prices across Toycra and MyBrickHouse. Updated every 6 hours.`;
+  return `Find the best price for ${setName} in India. Compare prices across Toycra and MyBrickHouse. Updated ${PRICE_CADENCE}.`;
 }
 
 export function slugify(text: string): string {

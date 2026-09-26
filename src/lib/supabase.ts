@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { READ_REVALIDATE_SECONDS } from './price-freshness';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -15,13 +16,34 @@ export const supabase = supabaseUrl
   ? createClient(supabaseUrl, supabaseAnonKey)
   : (null as any);
 
-export function createServerClient() {
+// Per-read Data Cache lifetime for ISR routes (PR-A, 2026-09-26). Replaces
+// `export const fetchCache = 'default-cache'`, which cached every Supabase
+// read with revalidate=INFINITE_CACHE -- i.e. until the next deploy -- so an
+// hourly ISR regeneration re-rendered the page from week-old prices. With an
+// explicit revalidate the read is still cached (route stays ISR, #105) but
+// expires on the same hourly clock as the page.
+function revalidatingFetch(seconds: number): typeof fetch {
+  return (input, init) => fetch(input, { ...init, next: { revalidate: seconds } } as RequestInit);
+}
+
+/** Anon client for ISR routes: every read expires after READ_REVALIDATE_SECONDS. */
+export const supabaseRead = supabaseUrl
+  ? createClient(supabaseUrl, supabaseAnonKey, { global: { fetch: revalidatingFetch(READ_REVALIDATE_SECONDS) } })
+  : (null as any);
+
+/**
+ * Service-role client. Pass `{ revalidate }` on ISR routes so reads expire
+ * (see revalidatingFetch); omit it for writes, actions and dynamic routes.
+ */
+export function createServerClient(opts?: { revalidate?: number }) {
   if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set — check Netlify environment variables');
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey) {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY required for server client — refusing to fall back to anon key');
   }
-  return createClient(supabaseUrl, serviceKey);
+  return opts?.revalidate != null
+    ? createClient(supabaseUrl, serviceKey, { global: { fetch: revalidatingFetch(opts.revalidate) } })
+    : createClient(supabaseUrl, serviceKey);
 }
 
 // Types matching our schema

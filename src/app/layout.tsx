@@ -8,6 +8,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { BreadcrumbSchema } from "@/components/BreadcrumbSchema";
 import { organizationSchema, websiteSchema } from "@/lib/schemas";
 import { BRAND } from "@/lib/brand";
+import { PRICE_CADENCE } from '@/lib/price-freshness';
 
 // Self-hosted (#219): next/font/google fetched fonts.googleapis.com at build
 // time, and a flaky fetch failed whole builds -- 3 on 2026-09-26 alone,
@@ -54,7 +55,7 @@ export const metadata: Metadata = {
     template: "%s | Bricks of India",
   },
   description:
-    `Compare LEGO prices across India's top stores. Updated every 6 hours. Plus honest reviews and guides. ${BRAND.tagline}.`,
+    `Compare LEGO prices across India's top stores. Updated ${PRICE_CADENCE}. Plus honest reviews and guides. ${BRAND.tagline}.`,
   keywords: [
     "LEGO India",
     "LEGO price comparison India",
@@ -74,7 +75,7 @@ export const metadata: Metadata = {
     siteName: "Bricks of India",
     title: "Bricks of India — LEGO Price Comparison & Reviews in India 2026",
     description:
-      `Compare LEGO prices across India's top stores. Updated every 6 hours. ${BRAND.tagline}.`,
+      `Compare LEGO prices across India's top stores. Updated ${PRICE_CADENCE}. ${BRAND.tagline}.`,
     images: [
       {
         url: "/assets/og-image.jpg",

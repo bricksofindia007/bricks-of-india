@@ -3,10 +3,13 @@ import { formatPrice, slugify } from '@/lib/utils';
 import { Badge, BestPriceBadge } from '@/components/ui/Badge';
 import { SetImage } from '@/components/sets/SetImage';
 import type { LegoSet } from '@/lib/supabase';
+import { badgeEligible } from '@/lib/price-freshness';
 
 interface SetCardProps {
   set: LegoSet;
-  bestPrice?: { price_inr: number | null } | null;
+  // in_stock + scraped_at decide the badge (PR-A): only an in-stock price
+  // scraped within PRICE_STALE_HOURS is badged. Without them, no badge.
+  bestPrice?: { price_inr: number | null; in_stock?: boolean | null; scraped_at?: string | null } | null;
   priceCount?: number;
 }
 
@@ -49,7 +52,7 @@ export function SetCard({ set, bestPrice, priceCount }: SetCardProps) {
           <div>
             {bestPrice?.price_inr ? (
               <div className="flex items-center gap-1.5">
-                <BestPriceBadge />
+                {badgeEligible({ price_inr: bestPrice.price_inr, in_stock: bestPrice.in_stock ?? null, scraped_at: bestPrice.scraped_at ?? null }) && <BestPriceBadge />}
                 <span className="font-price font-bold text-deal-green text-sm">
                   {formatPrice(bestPrice.price_inr)}
                 </span>

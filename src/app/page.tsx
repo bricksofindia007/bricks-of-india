@@ -14,41 +14,39 @@ import { TricolourStripe } from '@/components/ui/TricolourStripe';
 import { TaglineChip } from '@/components/ui/Taglines';
 import { LabStrip } from '@/components/ui/LabStrip';
 import { BRAND, MASCOTS, THEMES } from '@/lib/brand';
-import { supabase, createServerClient } from '@/lib/supabase';
+import { supabaseRead as supabase, createServerClient } from '@/lib/supabase';
+import { READ_REVALIDATE_SECONDS, PRICE_CADENCE } from '@/lib/price-freshness';
 
 export const revalidate = 3600; // re-fetch from Supabase at most every hour
-// Next 15: fetch() is uncached by default, independent of the revalidate
-// export above -- without this, every Supabase read on this page becomes
-// a per-request dynamic fetch and the route silently drops from ISR to
-// full SSR. Scoped here (not the root layout) since other routes are
-// dynamic on purpose. See docs/ or the Next 15 upgrade audit for detail.
-export const fetchCache = 'default-cache';
+// Supabase reads here expire hourly via per-read `next.revalidate`
+// (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
+// NOT fetchCache='default-cache', which cached them until the next deploy.
 
 export const metadata: Metadata = buildMetadata({
   title: 'Bricks of India — LEGO Price Comparison & Reviews in India 2026',
-  description: `Compare LEGO prices across India's top stores. Updated every 6 hours. Plus honest reviews and guides. ${BRAND.tagline}.`,
+  description: `Compare LEGO prices across India's top stores. Updated ${PRICE_CADENCE}. Plus honest reviews and guides. ${BRAND.tagline}.`,
   path: '/',
   absoluteTitle: true,
 });
 
 async function getHomepageData() {
-  const svc = createServerClient();
+  const svc = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
 
   // Deal sets: start from store_prices (service client bypasses RLS).
   // Flip from old sets-first approach which produced MRP sets with no matching
   // store_prices rows. Now we start from what's actually stocked.
   const { data: inStockSp } = await svc
     .from('store_prices')
-    .select('set_id, store_id, price_inr, product_url')
+    .select('set_id, store_id, price_inr, product_url, scraped_at')
     .eq('in_stock', true)
     .not('price_inr', 'is', null)
     .limit(500);
 
-  const dealPriceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
+  const dealPriceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null; in_stock: boolean; scraped_at: string }> = {};
   for (const row of (inStockSp ?? []) as any[]) {
     const ex = dealPriceMap[row.set_id];
     if (!ex || row.price_inr < ex.price_inr) {
-      dealPriceMap[row.set_id] = { price_inr: row.price_inr, store_name: row.store_id, buy_url: row.product_url ?? null };
+      dealPriceMap[row.set_id] = { price_inr: row.price_inr, store_name: row.store_id, buy_url: row.product_url ?? null, in_stock: true, scraped_at: row.scraped_at };
     }
   }
   const dealSetNums = Object.keys(dealPriceMap);
@@ -189,7 +187,7 @@ export default async function HomePage() {
               opacity: 0.85,
             }}
           >
-            Every set. Every store. Updated daily.
+            Every set. Every store. Prices checked {PRICE_CADENCE}.
           </p>
 
           {/* CTAs */}
@@ -308,7 +306,7 @@ export default async function HomePage() {
               <h2 className="font-heading text-dark text-5xl mb-3">FIND THE CHEAPEST PRICE IN INDIA</h2>
               <p className="text-text-secondary mb-6 font-body">
                 Type a set name or number. We&apos;ll find it across Toycra and MyBrickHouse.
-                Updated every 6 hours. We never sleep. Unlike your wallet.
+                Updated {PRICE_CADENCE}. We never sleep. Unlike your wallet.
               </p>
               <div className="max-w-xl">
                 <SearchBar size="lg" placeholder="Search by name or set number... go on then." />

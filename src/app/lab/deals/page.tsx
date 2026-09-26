@@ -3,10 +3,11 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
+import { PRICE_CADENCE } from '@/lib/price-freshness';
 
 export const metadata: Metadata = buildMetadata({
   title: 'India Deals Today — The Lab',
-  description: 'Every LEGO set currently discounted across Indian stores — Toycra and MyBrickHouse. Sorted by discount %. Updated every 6 hours.',
+  description: 'Every LEGO set currently discounted across Indian stores — Toycra and MyBrickHouse. Sorted by discount %. Updated ' + PRICE_CADENCE + '.',
   path: '/lab/deals',
 });
 
@@ -83,7 +84,7 @@ export default async function DealsPage() {
           Your wallet is already open. We found the discounts. The stores did not make this easy.
         </p>
         <p style={{ color: '#CBD5E0', fontSize: '0.72rem', margin: 0 }}>
-          Scraped every 6 hours · Toycra, MyBrickHouse · Sorted by discount %
+          Scraped {PRICE_CADENCE} · Toycra, MyBrickHouse · Sorted by discount %
         </p>
       </div>
 
@@ -103,7 +104,7 @@ export default async function DealsPage() {
               Nothing on discount right now.
             </h2>
             <p style={{ fontSize: '0.88rem', color: 'var(--boi-text-secondary)', maxWidth: 360, margin: '0 auto 20px' }}>
-              The stores are doing their best. Their best is not good enough. Scrapers run every 6 hours — check back later.
+              The stores are doing their best. Their best is not good enough. Scrapers run {PRICE_CADENCE} — check back later.
             </p>
             <Link
               href="/sets"

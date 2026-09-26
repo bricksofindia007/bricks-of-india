@@ -10,6 +10,7 @@ import { rawThemesFor } from '@/lib/themeMapping';
 import { getThemeCardUrl, getThemeCardOgUrl } from '@/lib/themeCard';
 import { JsonLd } from '@/components/JsonLd';
 import { buildItemListSchema } from '@/lib/schemas';
+import { PRICE_CADENCE } from '@/lib/price-freshness';
 
 interface Props {
   params: Promise<{ theme: string }>;
@@ -29,7 +30,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     path: `/themes/${params.theme}`,
     image: getThemeCardOgUrl(theme.slug),
     ogTitle: `LEGO ${theme.name} Sets India 2026 — Bricks of India`,
-    ogDescription: `Compare all LEGO ${theme.name} prices across Indian stores. Updated every 6 hours.`,
+    ogDescription: `Compare all LEGO ${theme.name} prices across Indian stores. Updated ${PRICE_CADENCE}.`,
   });
 }
 
@@ -80,7 +81,7 @@ export default async function ThemePage(props: Props) {
     const setNums = setsArr.map((s) => s.set_number);
     const { data: storePrices, error: spErr } = await supabase
       .from('store_prices')
-      .select('id, set_id, store_id, price_inr, in_stock, product_url')
+      .select('id, set_id, store_id, price_inr, in_stock, product_url, scraped_at')
       .in('set_id', setNums);
 
     if (!spErr && storePrices) {
@@ -89,7 +90,10 @@ export default async function ThemePage(props: Props) {
         storePricesBySet.get(sp.set_id)!.push({
           id: sp.id,
           price_inr: sp.price_inr,
-          is_active: sp.price_inr !== null,
+          // PR-A: only an in-stock row can be the set's best price.
+          is_active: sp.price_inr !== null && sp.in_stock,
+          in_stock: sp.in_stock,
+          scraped_at: sp.scraped_at,
           store_name: sp.store_id,
           buy_url: sp.product_url,
         });

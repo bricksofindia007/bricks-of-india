@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { MASCOTS } from '@/lib/brand';
 import { PrecisionCta } from './PrecisionCta';
 import { YouTubeBadgeIcon, InstagramBadgeIcon, GlobeStudsIcon } from './icons';
+import { PRICE_CADENCE } from '@/lib/price-freshness';
 
 // Hidden QR-landing page -- discoverable only via direct QR scan. Deliberately
 // NOT added to sitemap.ts's static route list, never linked from anywhere in
@@ -109,7 +110,7 @@ export default function PrecisionPage() {
               Compare Prices &amp; deals exclusively on www.BricksofIndia.com
             </span>
             <span className="mt-1 block text-xs opacity-90">
-              Every set. Every store. Updated daily.
+              Every set. Every store. Prices checked {PRICE_CADENCE}.
             </span>
           </span>
         </PrecisionCta>
