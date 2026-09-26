@@ -89,7 +89,11 @@ def _india_price(usd_price: float | None) -> int | None:
     return round(usd_price * 1.35 * 84)
 
 
-def generate_caption(set_data: dict) -> str:
+def generate_caption(set_data: dict, banned_feedback: list[str] | None = None) -> str:
+    """banned_feedback (issue #181): phrases a previous draft of THIS caption
+    used that the Voice Codex bans. When given, the prompt is re-issued with
+    the full PAGE 17 ban list injected and an instruction to rewrite without
+    any of them -- see pipeline.py's regenerate loop."""
     from google import genai
     from google.genai import types
 
@@ -128,6 +132,17 @@ Estimated India Price: ₹{india_str} (calculated at USD x 1.35 x 84)
 End the caption with exactly this text, no modifications:
 
 {sign_off}"""
+
+    if banned_feedback:
+        user_prompt += (
+            '\n\nIMPORTANT -- REWRITE REQUIRED. Your previous draft of this caption used '
+            f'phrase(s) the Voice Codex bans outright: {", ".join(repr(p) for p in banned_feedback)}. '
+            'The complete banned list (docs/codex/BOI_Codex_v2.md, PAGE 17 -- banned openers, '
+            'PR-speak phrasings and self-references) is: '
+            + '; '.join(repr(p) for p in OFFVOICE_PHRASES)
+            + '. Write a fresh caption that uses NONE of these words or phrases in any form, '
+            'while keeping everything else above (facts, sign-off) exactly as instructed.'
+        )
 
     # Retry up to 3 times on 503 capacity spikes (30s back-off each attempt)
     last_exc = None
@@ -180,35 +195,69 @@ End the caption with exactly this text, no modifications:
 # guaranteed, not merely checked. Confirmed in code, not assumed from a
 # past sample happening to include one.
 
-# Literal phrases pulled directly from docs/codex/BOI_Codex_v2.md, PAGE 17:
-# BANNED CONSTRUCTIONS AND ANTI-PATTERNS -- the "Banned Openers", "Banned
-# Phrasings (PR-speak)", and "Banned Self-References" subsections. Only
-# entries that are actual fixed text are included below; deliberately
-# EXCLUDED (not fabricated equivalents):
-#   - "[Set name] is a [theme] set with X pieces released in Y" -- a
-#     templated pattern with placeholders, not a literal phrase to substring-match
-#   - the entire "Banned Structural Patterns" subsection (bullet-point
-#     feature lists, pieces-per-rupee comparisons, competitor mentions,
-#     star ratings/scores/percentages) -- behavioral/structural rules, not
-#     literal text a caption would contain verbatim
-#   - "Earnest apologies for being wrong" -- also a behavioral rule, not a phrase
-# Nothing below was invented beyond what the codex itself specifies.
-OFFVOICE_PHRASES = (
-    'LEGO has announced',
-    'In a surprise move',
-    'Have you ever wondered',
-    "Today we're looking at",
-    'Stunning',
-    'breathtaking',
-    'must-have',
-    'does not disappoint',
-    'welcome addition to any collection',
-    'Definitely worth considering',
-    'Great value for money',
-    'As you may know',
-    "I'm not an expert",
-    'Just my opinion',
-)
+# Banned phrases are READ FROM docs/codex/BOI_Codex_v2.md, PAGE 17 (BANNED
+# CONSTRUCTIONS AND ANTI-PATTERNS) at import time -- issue #181, 2026-09-24:
+# this used to be a hand-copied tuple, which silently drifts the moment the
+# codex is edited. Parsed subsections: "Banned Openers", "Banned Phrasings
+# (PR-speak)", "Banned Self-References" -- every curly-quoted literal on those
+# lines. Deliberately NOT parsed (behavioural/structural rules, not literal
+# text a caption would contain):
+#   - "Banned Structural Patterns" (bullet lists, pieces-per-rupee, competitor
+#     mentions, star ratings/scores)
+#   - lines with no quoted literal ("Earnest apologies for being wrong")
+#   - quoted templates with a mid-phrase placeholder ("[Set name] is a
+#     [theme] set with X pieces released in Y")
+#   - the replacement suggestion after "→" on the "Great value for money" line
+# Normalisation, so each literal matches the way it is actually used in prose:
+# trailing "…" removed; a leading "[Set] " placeholder removed ("[Set] does
+# not disappoint" -> "does not disappoint"); text after the first comma
+# dropped ("In a surprise move, LEGO…" -> "In a surprise move"); a trailing
+# " but" dropped ("I'm not an expert but…" -> "I'm not an expert"); a
+# leading article dropped ("A welcome addition to any collection" ->
+# "welcome addition to any collection"). tests: test_codex_bans.py asserts
+# the parsed list equals the pre-#181 hand-copied list exactly.
+
+_CODEX_BAN_SECTIONS = ('Banned Openers', 'Banned Phrasings', 'Banned Self-References')
+
+
+def _page17_text(codex_text: str) -> str:
+    start = codex_text.find('# PAGE 17:')
+    if start == -1:
+        raise RuntimeError('Voice Codex has no "# PAGE 17:" heading -- cannot load the ban list.')
+    end = codex_text.find('\n# PAGE ', start + 1)
+    return codex_text[start:end if end != -1 else len(codex_text)]
+
+
+def parse_banned_phrases(codex_text: str) -> tuple[str, ...]:
+    page = _page17_text(codex_text)
+    phrases: list[str] = []
+    section = None
+    for line in page.splitlines():
+        stripped = line.strip()
+        if stripped.startswith('### '):
+            heading = stripped[4:]
+            section = heading if heading.startswith(_CODEX_BAN_SECTIONS) else None
+            continue
+        if not section or not stripped:
+            continue
+        literal_part = stripped.split('→', 1)[0]
+        for raw in re.findall(r'“([^”]+)”', literal_part):
+            phrase = raw.replace('…', '').strip()
+            phrase = re.sub(r'^\[[^\]]+\]\s+', '', phrase)
+            if '[' in phrase:
+                continue  # templated pattern, not a literal
+            phrase = phrase.split(',', 1)[0].strip()
+            phrase = re.sub(r'\s+but$', '', phrase)
+            phrase = re.sub(r'^(A|An|The)\s+', '', phrase)
+            phrase = phrase.replace('’', "'")
+            if phrase and phrase not in phrases:
+                phrases.append(phrase)
+    if not phrases:
+        raise RuntimeError('Parsed zero banned phrases from Voice Codex PAGE 17 -- refusing to run with no ban list.')
+    return tuple(phrases)
+
+
+OFFVOICE_PHRASES = parse_banned_phrases(_load_codex())
 
 
 def _normalize_quotes(text: str) -> str:

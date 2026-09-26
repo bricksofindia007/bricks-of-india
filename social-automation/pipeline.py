@@ -22,6 +22,10 @@ import db
 import notifier
 
 
+# Issue #181: max regenerations when a caption hits a Voice Codex PAGE 17 ban.
+CAPTION_BAN_RETRIES = 2
+
+
 def _cleanup(paths: list) -> None:
     """Delete local tmp files. Errors are logged but not fatal."""
     for p in paths:
@@ -107,11 +111,24 @@ def main() -> None:
     caption_text = caption_writer.generate_caption(set_data)
     print(f'[pipeline] Caption preview (first 120 chars): {caption_text[:120]}...')
 
+    # Banned phrase = a fixable mechanical issue, not a failure (Abhinav,
+    # issue #181, 2026-09-24 -- 42172-1 McLaren P1 was refused on "Stunning"
+    # on 2026-09-23). Regenerate with the full Codex PAGE 17 ban list injected,
+    # up to CAPTION_BAN_RETRIES more times; only raise below if still off-voice.
+    offvoice = caption_writer.find_offvoice_phrases(caption_text)
+    for retry in range(1, CAPTION_BAN_RETRIES + 1):
+        if not offvoice:
+            break
+        print(f'[pipeline] Caption uses banned phrase(s) {offvoice} -- regenerating with ban list '
+              f'(retry {retry}/{CAPTION_BAN_RETRIES})...')
+        caption_text = caption_writer.generate_caption(set_data, banned_feedback=offvoice)
+        print(f'[pipeline] Caption preview (first 120 chars): {caption_text[:120]}...')
+        offvoice = caption_writer.find_offvoice_phrases(caption_text)
+
     # Quality gates (Phase 4c, 2026-08-16) -- raise, don't post an off-voice or
     # malformed caption. An uncaught exception here is already handled by this
     # file's own __main__ block (logs, emails failure, exits 1) -- no separate
     # handling needed, same pattern newsletter/generate.py's gates rely on.
-    offvoice = caption_writer.find_offvoice_phrases(caption_text)
     if offvoice:
         raise RuntimeError(
             'Refusing to post — caption contains phrase(s) the Voice Codex '
