@@ -1,6 +1,5 @@
 import { MetadataRoute } from 'next';
 import { createServerClient } from '@/lib/supabase';
-import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { slugify } from '@/lib/utils';
 import { THEMES } from '@/lib/brand';
 
@@ -24,13 +23,14 @@ import { THEMES } from '@/lib/brand';
 // ingestion added, without revalidating far more often than the
 // underlying data ever actually changes.
 export const revalidate = 86400;
-// Supabase reads here expire hourly via per-read `next.revalidate`
-// (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
+// Supabase reads here expire DAILY via per-read `next.revalidate` (86400,
+// matching the segment revalidate above; operator decision 2026-09-26 --
+// only the price/content routes go hourly),
 // NOT fetchCache='default-cache', which cached them until the next deploy.
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = 'https://bricksofindia.com';
-  const supabase = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
+  const supabase = createServerClient({ revalidate: 86400 });
 
   const staticPages = [
     { url: base, priority: 1.0 },
