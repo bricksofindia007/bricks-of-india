@@ -7,7 +7,10 @@ day (cadence.watchdog_slot_day): if it was a slot day, an approved row was
 waiting before the slot opened (or a publish was attempted), and nothing
 went live on either platform, it emails an alert naming every blocked row
 and the reason recorded in publish_attempts. One alert per pipeline per slot
-day (deduped in publish_attempts). No silent skips: the summary for each
+day (deduped in publish_attempts). Also alerts on any row stuck in
+status='rendered' for more than 6 hours (a generation run that died between
+insert and pending_approval -- VID-P4 Story #73, 2026-09-24), one email per
+row per IST day. No silent skips: the summary for each
 pipeline is always printed, and a failed alert send fails the job.
 
 Usage:
@@ -60,12 +63,24 @@ def main() -> int:
         import notifier
         notifier.send_missed_slot_alert(p.label, day.isoformat(), blocked)
 
+    def send_stuck(p, stuck):
+        if args.dry_run:
+            print(f'[dry-run] WOULD ALERT {p.label} stuck in rendered: {json.dumps(stuck, default=str, indent=2)}')
+            raise _DryRunStop()
+        import notifier
+        notifier.send_stuck_rendered_alert(p.label, stuck)
+
     for p in (cadence.VIDP4, cadence.VIDQP):
         try:
             summary = cadence.check_missed_slot(sb, p, now_utc, send)
         except _DryRunStop:
             summary = {'pipeline': p.key, 'action': 'would_alert (dry-run, nothing recorded)'}
         print(json.dumps(summary, default=str))
+        try:
+            stuck = cadence.check_stuck_rendered(sb, p, now_utc, send_stuck)
+        except _DryRunStop:
+            stuck = {'pipeline': p.key, 'check': 'stuck_rendered', 'action': 'would_alert (dry-run, nothing recorded)'}
+        print(json.dumps(stuck, default=str))
     return 0
 
 

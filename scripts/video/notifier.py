@@ -338,3 +338,33 @@ def send_missed_slot_alert(pipeline_label: str, slot_day: str, blocked_rows: lis
     except Exception as exc:
         print(f'[notifier] Failed to send missed-slot alert: {exc}')
         raise
+
+
+def send_stuck_rendered_alert(pipeline_label: str, stuck_rows: list[dict]) -> None:
+    """
+    Stuck-'rendered' watchdog (2026-09-25, VID-P4 Story #73): a generation
+    run inserted the row, then died before upload / pending_approval / the
+    review email. The row never reaches the review digest on its own.
+    """
+    subject = f'🚨 {pipeline_label} — {len(stuck_rows)} video(s) stuck in rendered (never reached review)'
+    rows_html = ''.join(
+        f"<tr><td>#{r.get('row_number')}</td><td>{(r.get('set_title') or '').replace(chr(0xFEFF), '')}</td>"
+        f"<td>{r.get('created_at')}</td><td>{r.get('hours')}h</td><td>{r.get('row_id')}</td></tr>"
+        for r in stuck_rows
+    )
+    html = f"""
+<h2>{pipeline_label} — video(s) stuck in status='rendered'</h2>
+<p>These rows were inserted by a generation run that never finished: no video in storage, no review email, not in the pending-approval digest.</p>
+<table border="1" cellpadding="6" style="border-collapse:collapse">
+<tr><th>#</th><th>Set</th><th>Created</th><th>Age</th><th>Row id</th></tr>
+{rows_html}
+</table>
+<p>Recover with a re-render: dispatch video-generate-daily.yml with <code>rerender_id</code> = the row id, then move the row to pending_approval and send its review email.</p>
+<hr>
+<p style="color:#888;font-size:12px;">Bricks of India — bricksofindia.com — missed-slot watchdog (video-missed-slot-watchdog.yml)</p>
+"""
+    try:
+        _send(subject, html)
+    except Exception as exc:
+        print(f'[notifier] Failed to send stuck-rendered alert: {exc}')
+        raise

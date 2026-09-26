@@ -304,3 +304,53 @@ def alerted_today_for_day(sb, p: Pipeline, day: date) -> bool:
         .limit(1).execute()
     )
     return bool(res.data)
+
+
+# ── Stuck-'rendered' watchdog ───────────────────────────────────────────────
+
+STUCK_RENDERED_HOURS = 6
+
+
+def check_stuck_rendered(sb, p: Pipeline, now_utc: datetime, send_alert,
+                         max_age_hours: int = STUCK_RENDERED_HOURS) -> dict:
+    """
+    A generation run inserts its row as status='rendered', then uploads,
+    moves it to 'pending_approval' and sends the review email. If the run
+    dies in between (VID-P4 Story #73, 2026-09-24: the job hit its
+    timeout-minutes 36s after the insert), the row sits in 'rendered' with
+    no video in storage and no email -- invisible to the review digest,
+    which only reads 'pending_approval'.
+
+    Alerts on every row still 'rendered' more than max_age_hours after
+    created_at. One email per row per IST day (publish_attempts
+    error_alert, detail 'stuck_rendered'), so the watchdog can run every few
+    hours without repeating itself. Returns a summary dict, never silent.
+    """
+    cutoff = now_utc - timedelta(hours=max_age_hours)
+    rows = (
+        sb.table(p.table).select(f'id, {p.order_column}, set_title, status, created_at')
+        .eq('status', 'rendered').lt('created_at', cutoff.isoformat())
+        .order(p.order_column).execute().data or []
+    )
+    summary = {'pipeline': p.key, 'check': 'stuck_rendered', 'stuck': [r.get(p.order_column) for r in rows], 'alerted': []}
+    if not rows:
+        summary['action'] = 'none_stuck'
+        return summary
+
+    today = ist_date(now_utc)
+    fresh = [r for r in rows if not alerted_today(sb, p, 'error_alert', r['id'], today)]
+    if not fresh:
+        summary['action'] = 'already_alerted'
+        return summary
+
+    stuck = [{
+        'row_id': r['id'], 'row_number': r.get(p.order_column), 'set_title': r.get('set_title'),
+        'created_at': r.get('created_at'),
+        'hours': round((now_utc - _parse_ts(r['created_at'])).total_seconds() / 3600, 1),
+    } for r in fresh]
+    send_alert(p, stuck)
+    for r in fresh:
+        record_attempt(sb, p, r, 'error_alert', 'alerted', detail=f'stuck_rendered: status=rendered > {max_age_hours}h')
+    summary['alerted'] = [s['row_number'] for s in stuck]
+    summary['action'] = 'alerted'
+    return summary

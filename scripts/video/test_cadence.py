@@ -265,6 +265,45 @@ class MissedSlot(unittest.TestCase):
         self.assertEqual(sent, [])
 
 
+class StuckRendered(unittest.TestCase):
+    # Story #73 shape: inserted 2026-09-24 05:44 UTC as 'rendered', run killed.
+    RUN = utc('2026-09-24T12:00:00')
+
+    def _run(self, sb, now=None):
+        sent = []
+        summary = cadence.check_stuck_rendered(sb, VIDP4, now or self.RUN, lambda p, rows: sent.append(rows))
+        return summary, sent
+
+    def _sb(self, now=None):
+        return FakeSB(now or self.RUN, video_posts=[
+            {'id': 'r73', 'story_number': 73, 'set_title': 'Arcade Pinball Machine', 'status': 'rendered',
+             'created_at': '2026-09-24T05:44:18+00:00'},
+            {'id': 'r74', 'story_number': 74, 'status': 'rendered', 'created_at': '2026-09-24T09:00:00+00:00'},  # 3h -- too young
+            {'id': 'r72', 'story_number': 72, 'status': 'approved', 'created_at': '2026-09-23T05:19:00+00:00'},
+        ], publish_attempts=[])
+
+    def test_alerts_row_rendered_over_6h_only(self):
+        summary, sent = self._run(self._sb())
+        self.assertEqual(summary['action'], 'alerted')
+        self.assertEqual([r['row_number'] for r in sent[0]], [73])
+        self.assertGreater(sent[0][0]['hours'], 6)
+
+    def test_one_alert_per_row_per_ist_day(self):
+        sb = self._sb()
+        self._run(sb)
+        summary, sent = self._run(sb, utc('2026-09-24T15:00:00'))  # same IST day, 3h later
+        self.assertEqual(summary['action'], 'already_alerted')
+        self.assertEqual(sent, [])
+
+    def test_nothing_stuck_is_quiet(self):
+        sb = FakeSB(self.RUN, video_posts=[
+            {'id': 'ok', 'story_number': 75, 'status': 'pending_approval', 'created_at': '2026-09-23T05:00:00+00:00'},
+        ], publish_attempts=[])
+        summary, sent = self._run(sb)
+        self.assertEqual(summary['action'], 'none_stuck')
+        self.assertEqual(sent, [])
+
+
 class RecordAttempt(unittest.TestCase):
     def test_never_raises(self):
         class Boom:
