@@ -6,6 +6,7 @@
 import { unverifiedSetCitations } from './set-identity';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
+import { bannedOpener } from './opener-pattern';
 export const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: [number, number] }> = {
   news    : { pass: [270,  440], fail: [225,  500] },  // target 300–400
   review  : { pass: [450,  770], fail: [375,  875] },  // target 500–700
@@ -46,6 +47,7 @@ export type LintResult = {
     openerUniqueness: LintGateResult | null;
     duplicateContent: LintGateResult | null;
     citationIdentity: LintGateResult | null;
+    openerPattern: LintGateResult;
   };
 };
 
@@ -616,6 +618,13 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
   let sourceFidelityGate: LintGateResult | null   = null;
   let openerUniquenessGate: LintGateResult | null = null;
   let duplicateContentGate: LintGateResult | null = null;
+  // Gate 12: banned opener pattern (#194) -- pure check on the opening sentence.
+  const banned = bannedOpener(body);
+  const openerPatternGate: LintGateResult = banned
+    ? { pass: false, severity: 'fail', reason: `banned opener: "${banned.slice(0, 80)}"` }
+    : { pass: true, severity: 'ok' };
+  if (banned) overallPass = false;
+
   let citationIdentityGate: LintGateResult | null = null;
 
   if (!options.skipFactuality) {
@@ -678,6 +687,7 @@ ${body}`);
       openerUniqueness: openerUniquenessGate,
       duplicateContent: duplicateContentGate,
       citationIdentity: citationIdentityGate,
+      openerPattern: openerPatternGate,
     },
   };
 }

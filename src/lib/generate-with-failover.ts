@@ -8,6 +8,7 @@ import { runHardRules, type HardRuleResult, type DraftFormat } from './hard-rule
 import { FEATURE_FLAGS } from './feature-flags';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { OPENER_FEEDBACK } from './opener-pattern';
 export type DraftGenerationInput = {
   format: string;
   sourceTitle: string | null;
@@ -125,26 +126,33 @@ export async function generateWithFailover(
   // article (Donkey Kong "(2000)"/10332 class) gets ONE regeneration from the
   // same provider with explicit feedback; the second draft is linted again and
   // stands or falls on its own -- no further retries (same pattern as #194).
-  async function lintWithCitationRetry(
+  // One regeneration with explicit feedback for the gates that can be fixed by
+  // telling the model what went wrong -- Gate 11 (citation identity) and
+  // Gate 12 (banned opener, #194) -- then the second draft stands or falls on
+  // its own. Both failing produce one combined REVISION REQUIRED, not two calls.
+  async function lintWithFeedbackRetry(
     call: (userPromptOverride: string) => Promise<string>,
     first: ReturnType<typeof parseDraftResponse>,
   ): Promise<{ parsed: ReturnType<typeof parseDraftResponse>; lint: LintResult | null; retried: boolean }> {
     const lint = await runLint(first.body, first.verdict, first.wordCount, first.title).catch(() => null);
-    if (!lint?.gates.citationIdentity || lint.gates.citationIdentity.pass) return { parsed: first, lint, retried: false };
-    const bad = await unverifiedSetCitations(sb, `${first.title}
-${first.body}`);
-    const feedback = citationFeedback(bad);
-    vlog(`Gate 11 failed (${lint.gates.citationIdentity.reason}) -- regenerating once with feedback`);
+    const citationFailed = !!lint?.gates.citationIdentity && !lint.gates.citationIdentity.pass;
+    const openerFailed = !!lint?.gates.openerPattern && !lint.gates.openerPattern.pass;
+    if (!citationFailed && !openerFailed) return { parsed: first, lint, retried: false };
+    const feedback: string[] = [];
+    if (citationFailed) feedback.push(citationFeedback(await unverifiedSetCitations(sb, `${first.title}
+${first.body}`)));
+    if (openerFailed) feedback.push(OPENER_FEEDBACK);
+    vlog(`Feedback gates failed (${[citationFailed && 'Gate 11', openerFailed && 'Gate 12'].filter(Boolean).join(', ')}) -- regenerating once with feedback`);
     try {
       const text = await call(`${userPrompt}
 
-REVISION REQUIRED: ${feedback}`);
+REVISION REQUIRED: ${feedback.join(' ')}`);
       const second = parseDraftResponse(text, input.format);
       const lint2 = await runLint(second.body, second.verdict, second.wordCount, second.title).catch(() => null);
-      vlog(`Gate 11 after regeneration: ${lint2?.gates.citationIdentity?.pass ? 'PASS' : `FAIL (${lint2?.gates.citationIdentity?.reason ?? 'lint error'})`}`);
+      vlog(`After regeneration: Gate 11 ${lint2?.gates.citationIdentity?.pass === false ? 'FAIL' : 'ok'}, Gate 12 ${lint2?.gates.openerPattern?.pass === false ? 'FAIL' : 'ok'}`);
       return { parsed: second, lint: lint2, retried: true };
     } catch (err) {
-      vlog(`Gate 11 regeneration call failed: ${err instanceof Error ? err.message.slice(0, 120) : String(err)} -- keeping the failing first draft`);
+      vlog(`Regeneration call failed: ${err instanceof Error ? err.message.slice(0, 120) : String(err)} -- keeping the failing first draft`);
       return { parsed: first, lint, retried: true };
     }
   }
@@ -157,7 +165,7 @@ REVISION REQUIRED: ${feedback}`);
   try {
     const { text } = await gemini.call({ systemPrompt, userPrompt });
     vlog('Gemini succeeded — running lint + Gate 7');
-    const { parsed, lint } = await lintWithCitationRetry(
+    const { parsed, lint } = await lintWithFeedbackRetry(
       async (up) => (await gemini.call({ systemPrompt, userPrompt: up })).text,
       parseDraftResponse(text, input.format),
     );
@@ -261,7 +269,7 @@ REVISION REQUIRED: ${feedback}`);
   vlog(`Parsed: title="${parsed.title.slice(0, 60)}" wordCount=${parsed.wordCount} verdict=${parsed.verdict}`);
 
   const usedCall = candidates.find((c) => c.name === usedProvider)!.provider;
-  const retried = await lintWithCitationRetry(
+  const retried = await lintWithFeedbackRetry(
     async (up) => (await usedCall.call({ systemPrompt, userPrompt: up })).text,
     parsed,
   );
