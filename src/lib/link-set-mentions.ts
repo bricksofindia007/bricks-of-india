@@ -12,7 +12,7 @@
 // is written.
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { extractSetNumberCandidates } from './lint';
-import { slugify } from './utils';
+import { canonicalSetSlug, nameMatchesText } from './set-identity';
 
 export type LinkedMention = { setNumber: string; setSlug: string };
 
@@ -36,7 +36,15 @@ export async function linkFirstSetMentions(
       skipped.push(num);
       continue;
     }
-    const setSlug = `${num}-${slugify(name)}`;
+    // 2026-09-26 (Donkey Kong incident): only link a number whose catalogue
+    // name actually appears in this article. A model-written "(10332)" in an
+    // article about the Donkey Kong Arcade was linked to Medieval Town
+    // Square because this check didn't exist.
+    if (!nameMatchesText(name, body)) {
+      skipped.push(`${num} (catalogue name "${name}" not in article)`);
+      continue;
+    }
+    const setSlug = canonicalSetSlug(num, name);
 
     // Same 4 mention patterns extractSetNumberCandidates() recognizes --
     // find the EARLIEST occurrence across all of them in the current
@@ -72,5 +80,17 @@ export async function linkFirstSetMentions(
     linked.push({ setNumber: num, setSlug });
   }
 
+  // Any /sets/NNNN-<slug> link already in the body (model-written, or from an
+  // earlier catalogue name) is rewritten to the catalogue's canonical slug,
+  // e.g. a stale /sets/42233-road-roller becomes /sets/42233-cement-truck.
+  const linkNums = [...content.matchAll(/\/sets\/(\d{4,7})-[a-z0-9-]+/g)].map((m) => m[1]).filter((n) => !nameByNumber.has(n));
+  if (linkNums.length) {
+    const { data: more } = await supabase.from('sets').select('set_number, name').in('set_number', [...new Set(linkNums)]);
+    for (const row of (more ?? []) as { set_number: string; name: string }[]) nameByNumber.set(row.set_number, row.name);
+  }
+  content = content.replace(/\/sets\/(\d{4,7})-[a-z0-9-]+/g, (whole, n: string) => {
+    const name = nameByNumber.get(n);
+    return name ? `/sets/${canonicalSetSlug(n, name)}` : whole;
+  });
   return { content, linked, skipped };
 }

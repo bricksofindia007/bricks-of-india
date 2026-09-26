@@ -125,6 +125,13 @@ function skuSetNumber(product, knownSets) {
  * listing's displayed MRP / strike-through (Shopify compare_at_price) for the
  * chosen variant, null when the store sets none.
  */
+/**
+ * @param {any} product
+ * @param {string} storeId
+ * @param {string} domain
+ * @param {Map<string, string>} [knownSetsByName]
+ * @param {Set<string> | null} [knownSets]
+ */
 export function parseProduct(product, storeId, domain, knownSetsByName = new Map(), knownSets = null) {
   const titleLower  = (product.title  ?? '').toLowerCase();
   const handleLower = (product.handle ?? '').toLowerCase();

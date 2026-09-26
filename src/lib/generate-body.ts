@@ -4,6 +4,7 @@
  * Mirrored by: scripts/generate-approved-drafts.ts (Node.js / GHA context)
  */
 
+import { resolveSourceSet } from './set-identity';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   buildSystemPrompt,
@@ -27,6 +28,7 @@ export type DraftInput = {
   source_excerpt: string | null;
   source_published_at: string | null;
   draft_format: string | null;
+  id?: string;
 };
 
 export type GenerationResult = {
@@ -99,10 +101,21 @@ async function fetchLiveUsdInr(): Promise<number | null> {
   } catch { return null; }
 }
 
+// 2026-09-26: the model must see WHICH set the prices belong to, so it can't
+// attach them to a different product (Donkey Kong "(2000)" incident).
+function setIdentityHeader(setNumber: string | null, setName?: string | null): string {
+  return setNumber && setName
+    ? `SET IDENTIFIED: ${setNumber} "${setName}" (catalogue). Attach the prices below ONLY to this set; cite no other set numbers unless the source names them.
+`
+    : '';
+}
+
 export async function buildIndiaPriceContext(
   supabase: SupabaseClient,
   setNumber: string | null,
+  setName?: string | null,
 ): Promise<string> {
+  const head = setIdentityHeader(setNumber, setName);
   if (!setNumber) return 'INDIA PRICE DATA: set number could not be identified. Acknowledge price uncertainty; do not state a specific figure.';
 
   const { data: sp } = await supabase
@@ -122,7 +135,7 @@ export async function buildIndiaPriceContext(
       const stock = p.in_stock ? '' : ' (may be out of stock)';
       return `  ${label}: ₹${fmtInr(Number(p.price_inr))}${stock}`;
     });
-    return `INDIA PRICE DATA — use these exact figures, do not calculate:\n${lines.join('\n')}`;
+    return head + `INDIA PRICE DATA — use these exact figures, do not calculate:\n${lines.join('\n')}`;
   }
 
   const { data: setRow } = await supabase
@@ -141,15 +154,15 @@ export async function buildIndiaPriceContext(
   // article is honest about not knowing the India price, rather than
   // computing a verdict against a number already known to be suspect.
   if (setRow?.lego_mrp_inr && setRow.mrp_verified) {
-    return `INDIA PRICE DATA: Confirmed India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (retailer-labeled, verified live). Use this exact figure.`;
+    return head + `INDIA PRICE DATA: Confirmed India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (retailer-labeled, verified live). Use this exact figure.`;
   }
 
   const rate = await fetchLiveUsdInr();
   if (rate) {
-    return `INDIA PRICE DATA: no store prices or official India MRP in our database. You MUST still include a ₹ figure in the India Paragraph — use this formula: USD retail price × 1.35 × ${rate} = estimated INR (the 1.35 factor covers import duty and retailer markup). Example: $99.99 USD → ₹${Math.round(99.99 * 1.35 * rate).toLocaleString('en-IN')} estimated. Round to nearest ₹100. Label it clearly as "estimated import price — not confirmed India retail." If the source does not mention any USD price, use IMPORT ONLY verdict and state the set is not currently available at any official India retailer.`;
+    return head + `INDIA PRICE DATA: no store prices or official India MRP in our database. You MUST still include a ₹ figure in the India Paragraph — use this formula: USD retail price × 1.35 × ${rate} = estimated INR (the 1.35 factor covers import duty and retailer markup). Example: $99.99 USD → ₹${Math.round(99.99 * 1.35 * rate).toLocaleString('en-IN')} estimated. Round to nearest ₹100. Label it clearly as "estimated import price — not confirmed India retail." If the source does not mention any USD price, use IMPORT ONLY verdict and state the set is not currently available at any official India retailer.`;
   }
 
-  return 'INDIA PRICE DATA: no price data available. Use IMPORT ONLY verdict. State the set is not currently available at any official India retailer, and omit a specific price figure.';
+  return head + 'INDIA PRICE DATA: no price data available. Use IMPORT ONLY verdict. State the set is not currently available at any official India retailer, and omit a specific price figure.';
 }
 
 // ── Core generation ───────────────────────────────────────────────────────────
@@ -161,13 +174,17 @@ export async function generateBody(
   if (draft.draft_format === null) throw new Error('Draft has no format — re-run RADAR-03');
 
   const format    = draft.draft_format || 'news';
-  const setNumber = extractSetNumber(draft.source_url, draft.source_title ?? null);
+  // Set identity (2026-09-26): see src/lib/set-identity.ts.
+  const resolvedSet = await resolveSourceSet(supabase, draft.source_url, draft.source_title ?? null, draft.source_excerpt ?? null);
+  const setNumber = resolvedSet?.setNumber ?? null;
 
   const [fullBody, indiaPriceContext] = await Promise.all([
     fetchFullBody(draft.source_url),
-    buildIndiaPriceContext(supabase, setNumber)
+    buildIndiaPriceContext(supabase, setNumber, resolvedSet?.name)
       .catch(() => 'INDIA PRICE DATA: price lookup failed. Acknowledge price uncertainty; do not state a specific figure.'),
   ]);
+
+  console.log(`[context] draft=${draft.id ?? '-'} set=${setNumber ?? 'none'} via=${resolvedSet?.via ?? '-'} name=${JSON.stringify(resolvedSet?.name ?? null)} price_context=${JSON.stringify(indiaPriceContext)}`);
 
   const systemPrompt = buildSystemPrompt();
   const userPrompt   = buildUserPrompt({
