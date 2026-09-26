@@ -87,6 +87,11 @@ jobs:
           SERVER_PID=$!
           sleep 8
           FAIL=0
+          # #208 (Wave 1 PR-C): the site-wide default meta description is
+          # whatever "/" renders (the homepage legitimately uses it). Any
+          # other route rendering the same string has no real description.
+          DEFAULT_DESC=$(curl -s -H "x-forwarded-proto: https" "http://localhost:3000/" | grep -oE '<meta name="description" content="[^"]*"' | head -1 | sed -E 's/.*content="([^"]*)"/\1/')
+          echo "Default description (from /): $DEFAULT_DESC"
           while IFS= read -r route; do
             # src/middleware.ts (#114/#117) 308-redirects any request whose
             # x-forwarded-proto isn't "https" -- a bare local curl has no such
@@ -130,6 +135,32 @@ jobs:
                 echo "::error::fallback/default title rendered at $route (no page-specific metadata): \"$TITLE\""
                 FAIL=1
               fi
+              # #208: doubled brand suffix -- a page title that already ends in
+              # "| Bricks of India" run through layout.tsx's "%s | Bricks of
+              # India" template. Page titles must go through buildMetadata().
+              if echo "$TITLE" | grep -q "| Bricks of India | Bricks of India"; then
+                echo "::error::doubled brand suffix in title at $route: \"$TITLE\""
+                FAIL=1
+              fi
+            fi
+            # #208: canonical present, og:url identical to it, and a real
+            # (non-default) description on every non-home route.
+            CANONICAL=$(echo "$HTML" | grep -oE '<link rel="canonical" href="[^"]*"' | head -1 | sed -E 's/.*href="([^"]*)"/\1/')
+            OG_URL=$(echo "$HTML" | grep -oE '<meta property="og:url" content="[^"]*"' | head -1 | sed -E 's/.*content="([^"]*)"/\1/')
+            DESC=$(echo "$HTML" | grep -oE '<meta name="description" content="[^"]*"' | head -1 | sed -E 's/.*content="([^"]*)"/\1/')
+            case "$route" in /deals|/legal/privacy|/precision)
+              echo "AFTER $route | title=$(echo "$HTML" | grep -oE '<title>[^<]*</title>' | head -1 | sed -E 's/<\/?title>//g') | canonical=${CANONICAL:-MISSING} | og:url=$OG_URL | desc=$(echo "$DESC" | cut -c1-70)…" ;;
+            esac
+            if [ -z "$CANONICAL" ]; then
+              echo "::error::missing canonical at $route"
+              FAIL=1
+            elif [ "$OG_URL" != "$CANONICAL" ]; then
+              echo "::error::og:url ($OG_URL) != canonical ($CANONICAL) at $route"
+              FAIL=1
+            fi
+            if [ "$route" != "/" ] && [ -n "$DEFAULT_DESC" ] && [ "$DESC" = "$DEFAULT_DESC" ]; then
+              echo "::error::default site description rendered at $route (no page-specific description)"
+              FAIL=1
             fi
             fi
           done < /tmp/routes.txt

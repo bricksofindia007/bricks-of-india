@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
@@ -22,16 +23,14 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   const params = await props.params;
   const theme = THEMES.find((t) => t.slug === params.theme);
   if (!theme) return { title: 'Theme Not Found' };
-  return {
-    title: `LEGO ${theme.name} Sets India 2026 — Compare Prices | Bricks of India`,
+  return buildMetadata({
+    title: `LEGO ${theme.name} Sets India 2026 — Compare Prices`,
     description: `All LEGO ${theme.name} sets available in India. Compare prices across Indian stores and find the best deals.`,
-    alternates: { canonical: `https://bricksofindia.com/themes/${params.theme}` },
-    openGraph: {
-      title: `LEGO ${theme.name} Sets India 2026 — Bricks of India`,
-      description: `Compare all LEGO ${theme.name} prices across Indian stores. Updated every 6 hours.`,
-      images: [{ url: getThemeCardOgUrl(theme.slug) }],
-    },
-  };
+    path: `/themes/${params.theme}`,
+    image: getThemeCardOgUrl(theme.slug),
+    ogTitle: `LEGO ${theme.name} Sets India 2026 — Bricks of India`,
+    ogDescription: `Compare all LEGO ${theme.name} prices across Indian stores. Updated every 6 hours.`,
+  });
 }
 
 export default async function ThemePage(props: Props) {

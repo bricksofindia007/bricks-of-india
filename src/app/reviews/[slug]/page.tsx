@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import { createServerClient, supabase } from '@/lib/supabase';
@@ -67,22 +68,15 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   // cause, fixed in the same pass since it's the same missing-fallback bug).
   const setName = review.sets?.name || review.title;
   const productName = /^lego\b/i.test(setName) ? setName : `LEGO ${setName}`;
-  return {
+  return buildMetadata({
     title: `${productName} Review — Is It Worth Buying in India?`,
     description: `Our honest verdict on the ${productName}. ${ratingBlurb}Read the full review including price comparison and buying advice for India.`,
-    alternates: { canonical: `https://bricksofindia.com/reviews/${params.slug}` },
-    openGraph: {
-      title: `${productName} Review — Bricks of India`,
-      description: `${ratingBlurb}Honest verdict with live India price comparison.`,
-      images: socialCardImage(review.hero_image) ? [{ url: socialCardImage(review.hero_image)! }] : [],
-    },
-    twitter: {
-      card: review.hero_image ? 'summary_large_image' : 'summary',
-      title: `${productName} Review — Bricks of India`,
-      description: `${ratingBlurb}Honest verdict with live India price comparison.`,
-      images: socialCardImage(review.hero_image) ? [socialCardImage(review.hero_image)!] : undefined,
-    },
-  };
+    path: `/reviews/${params.slug}`,
+    image: socialCardImage(review.hero_image),
+    ogTitle: `${productName} Review — Bricks of India`,
+    ogDescription: `${ratingBlurb}Honest verdict with live India price comparison.`,
+    ogType: 'article',
+  });
 }
 
 export default async function ReviewPage(props: Props) {

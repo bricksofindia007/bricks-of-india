@@ -1,14 +1,15 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { BudgetForm } from './BudgetForm';
 
-export const metadata: Metadata = {
-  title: 'Budget Calculator | Bricks of India Lab',
+export const metadata: Metadata = buildMetadata({
+  title: 'Budget Calculator — The Lab',
   description: 'Find the best LEGO sets for your budget — live Indian store prices across Toycra and MyBrickHouse. Updated every 6 hours.',
-  alternates: { canonical: 'https://bricksofindia.com/lab/budget-calculator' },
-};
+  path: '/lab/budget-calculator',
+});
 
 const STORE_LABELS: Record<string, string> = {
   toycra:       'Toycra',

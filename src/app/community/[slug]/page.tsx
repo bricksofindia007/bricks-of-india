@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { formatDate } from '@/lib/utils';
@@ -36,13 +37,13 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     .eq('published', true)
     .single();
   if (!spotlight) return { title: 'Builder Not Found' };
-  return {
-    title: `${spotlight.builder_name} — Indian LEGO Builder Spotlight | Bricks of India`,
+  return buildMetadata({
+    title: `${spotlight.builder_name} — Indian LEGO Builder Spotlight`,
     description:
       spotlight.bio?.slice(0, 155) ||
       `Meet ${spotlight.builder_name}, an Indian LEGO builder featured on Bricks of India.`,
-    alternates: { canonical: `https://bricksofindia.com/community/${params.slug}` },
-  };
+    path: `/community/${params.slug}`,
+  });
 }
 
 export default async function SpotlightPage(props: Props) {

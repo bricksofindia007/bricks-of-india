@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { SetCard } from '@/components/sets/SetCard';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
@@ -8,11 +9,11 @@ import { MASCOTS } from '@/lib/brand';
 import { TaglineWink } from '@/components/ui/Taglines';
 import { formatPrice } from '@/lib/utils';
 
-export const metadata: Metadata = {
-  title: 'Best LEGO Deals in India Right Now | Bricks of India',
+export const metadata: Metadata = buildMetadata({
+  title: 'Best LEGO Deals in India Right Now',
   description: 'Current best LEGO prices across all Indian stores. Price drops, exclusive codes, and the sets worth buying right now.',
-  alternates: { canonical: 'https://bricksofindia.com/deals' },
-};
+  path: '/deals',
+});
 
 export const revalidate = 21600; // 6 hours
 // Next 15: fetch() is uncached by default, independent of revalidate above --

@@ -1,14 +1,17 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
 import { cookies, type UnsafeUnwrappedCookies } from 'next/headers';
 import { createServerClient } from '@/lib/supabase';
 import { login, logout } from '../actions';
 import { approveNewsletterDraft, dismissNewsletterDraft } from './actions';
 
-export const metadata: Metadata = {
-  title: 'Newsletter | BOI Admin',
+export const metadata: Metadata = buildMetadata({
+  title: 'Newsletter — BOI Admin',
+  description: 'Bricks of India admin: newsletter draft review and approval.',
+  path: '/admin/pending/newsletter',
   robots: { index: false, follow: false },
-};
+});
 
 // Same check as /admin/pending — duplicated inline rather than shared,
 // matching the existing convention in this admin area (see

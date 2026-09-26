@@ -1,9 +1,11 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'Disclaimer | Bricks of India',
+export const metadata: Metadata = buildMetadata({
+  title: 'Disclaimer',
   description: 'Important disclaimers about price accuracy, LEGO® trademark, and content on Bricks of India.',
-};
+  path: '/legal/disclaimer',
+});
 
 export default function DisclaimerPage() {
   return (

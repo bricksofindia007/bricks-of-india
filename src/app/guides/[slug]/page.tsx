@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import ReactMarkdown from 'react-markdown';
 import { supabase } from '@/lib/supabase';
@@ -20,16 +21,14 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   const params = await props.params;
   const { data: guide } = await supabase.from('guides').select('title, excerpt, featured_image_url').eq('slug', params.slug).single();
   if (!guide) return { title: 'Guide Not Found' };
-  return {
-    title: `${guide.title} | Bricks of India`,
-    description: guide.excerpt || undefined,
-    alternates: { canonical: `https://bricksofindia.com/guides/${params.slug}` },
-    openGraph: {
-      title: guide.title,
-      description: guide.excerpt || undefined,
-      images: guide.featured_image_url ? [{ url: guide.featured_image_url }] : [],
-    },
-  };
+  return buildMetadata({
+    title: guide.title,
+    description: guide.excerpt || `${guide.title}: a LEGO buying guide for India from Bricks of India.`,
+    path: `/guides/${params.slug}`,
+    image: guide.featured_image_url,
+    ogTitle: guide.title,
+    ogType: 'article',
+  });
 }
 
 export default async function GuideArticlePage(props: Props) {

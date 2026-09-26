@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import Image from 'next/image';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
@@ -8,11 +9,11 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { MASCOTS, THEMES, PRICE_RANGES } from '@/lib/brand';
 
-export const metadata: Metadata = {
-  title: 'Compare LEGO Prices in India | Bricks of India',
+export const metadata: Metadata = buildMetadata({
+  title: 'Compare LEGO Prices in India',
   description: 'Compare LEGO set prices across Toycra and MyBrickHouse. Updated every 6 hours. Find the best deal in India.',
-  alternates: { canonical: 'https://bricksofindia.com/compare' },
-};
+  path: '/compare',
+});
 
 const PAGE_SIZE = 24;
 

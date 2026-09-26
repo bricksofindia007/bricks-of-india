@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
 import { getSet } from '@/lib/rebrickable';
@@ -78,9 +79,14 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   const set = await getSetData(params.slug);
   if (!set) return { title: 'Set Not Found' };
   return {
-    title: `${set.name} (${set.set_number}) Price in India 2026`,
-    description: setMetaDescription(set.name),
-    alternates: { canonical: `https://bricksofindia.com/sets/${params.slug}` },
+    ...buildMetadata({
+      title: `${set.name} (${set.set_number}) Price in India 2026`,
+      description: setMetaDescription(set.name),
+      path: `/sets/${params.slug}`,
+      image: socialCardImage(set.image_url),
+      ogTitle: `${set.name} (${set.set_number}) — Best Price in India`,
+      ogDescription: `Compare ${set.name} prices across Indian stores. Best deal updated every 6 hours.`,
+    }),
     // GSC-01 Part A: Tier 3 (merch/parts/exclusives, not real LEGO sets)
     // stays crawlable -- follow: true -- so link equity and any existing
     // backlinks still flow through, but is excluded from the index. The
@@ -96,17 +102,6 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     // 'tier3' override on the next Rebrickable metadata resync -- see the
     // migration's own comment). Same follow:true treatment as tier3.
     ...((set.index_tier === 'tier3' || set.noindex_override) && { robots: { index: false, follow: true } }),
-    openGraph: {
-      title: `${set.name} (${set.set_number}) — Best Price in India`,
-      description: `Compare ${set.name} prices across Indian stores. Best deal updated every 6 hours.`,
-      images: socialCardImage(set.image_url) ? [{ url: socialCardImage(set.image_url)! }] : [],
-    },
-    twitter: {
-      card: set.image_url ? 'summary_large_image' : 'summary',
-      title: `${set.name} (${set.set_number}) — Best Price in India`,
-      description: `Compare ${set.name} prices across Indian stores. Best deal updated every 6 hours.`,
-      images: socialCardImage(set.image_url) ? [socialCardImage(set.image_url)!] : undefined,
-    },
   };
 }
 

@@ -1,6 +1,11 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = { title: 'Terms of Use | Bricks of India' };
+export const metadata: Metadata = buildMetadata({
+  title: 'Terms of Use',
+  description: 'The terms for using Bricks of India: content copyright, reviews as opinion, price-accuracy limits, third-party links and the LEGO® trademark.',
+  path: '/legal/terms',
+});
 
 export default function TermsPage() {
   return (

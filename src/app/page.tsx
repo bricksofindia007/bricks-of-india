@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { NewsletterSignup } from '@/components/ui/NewsletterSignup';
@@ -23,12 +24,12 @@ export const revalidate = 3600; // re-fetch from Supabase at most every hour
 // dynamic on purpose. See docs/ or the Next 15 upgrade audit for detail.
 export const fetchCache = 'default-cache';
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildMetadata({
   title: 'Bricks of India — LEGO Price Comparison & Reviews in India 2026',
-  description:
-    `Compare LEGO prices across India's top stores. Updated every 6 hours. Plus honest reviews and guides. ${BRAND.tagline}.`,
-  alternates: { canonical: 'https://bricksofindia.com' },
-};
+  description: `Compare LEGO prices across India's top stores. Updated every 6 hours. Plus honest reviews and guides. ${BRAND.tagline}.`,
+  path: '/',
+  absoluteTitle: true,
+});
 
 async function getHomepageData() {
   const svc = createServerClient();

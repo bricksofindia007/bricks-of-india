@@ -1,15 +1,16 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { supabase } from '@/lib/supabase';
 import { formatDate } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
 
-export const metadata: Metadata = {
-  title: 'LEGO Buying Guides India 2026 — Tips, Deals & Advice | Bricks of India',
+export const metadata: Metadata = buildMetadata({
+  title: 'LEGO Buying Guides India 2026 — Tips, Deals & Advice',
   description: 'Expert LEGO buying guides for Indian collectors. Learn how to buy LEGO in India, find the best deals, avoid import traps, and build your collection smartly.',
-  alternates: { canonical: 'https://bricksofindia.com/guides' },
-};
+  path: '/guides',
+});
 
 // Nav & Content Overhaul (2026-08-09): these chips previously listed
 // 'Getting Started' / 'India Specific' / 'Advanced' -- categories that

@@ -1,13 +1,14 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 
-export const metadata: Metadata = {
-  title: 'Retirement Radar | Bricks of India Lab',
+export const metadata: Metadata = buildMetadata({
+  title: 'Retirement Radar — The Lab',
   description: 'LEGO sets retiring soon in India — 90-day window. Buy before they\'re gone. Updated weekly.',
-  alternates: { canonical: 'https://bricksofindia.com/lab/retiring-soon' },
-};
+  path: '/lab/retiring-soon',
+});
 
 const STORE_LABELS: Record<string, string> = {
   toycra:       'Toycra',

@@ -1,13 +1,14 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { CmfTracker } from './CmfTracker';
 
-export const metadata: Metadata = {
-  title: 'CMF Tracker | Bricks of India Lab',
+export const metadata: Metadata = buildMetadata({
+  title: 'CMF Tracker — The Lab',
   description: 'Browse every LEGO Collectible Minifigures series from 2010–2026 and track which figures you own.',
-  alternates: { canonical: 'https://bricksofindia.com/lab/cmf-tracker' },
-};
+  path: '/lab/cmf-tracker',
+});
 
 export type FigureData = {
   set_number: string;

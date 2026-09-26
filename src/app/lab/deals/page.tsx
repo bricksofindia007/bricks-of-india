@@ -1,14 +1,14 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 
-export const metadata: Metadata = {
-  title: 'India Deals Today | Bricks of India Lab',
-  description:
-    'Every LEGO set currently discounted across Indian stores — Toycra and MyBrickHouse. Sorted by discount %. Updated every 6 hours.',
-  alternates: { canonical: 'https://bricksofindia.com/lab/deals' },
-};
+export const metadata: Metadata = buildMetadata({
+  title: 'India Deals Today — The Lab',
+  description: 'Every LEGO set currently discounted across Indian stores — Toycra and MyBrickHouse. Sorted by discount %. Updated every 6 hours.',
+  path: '/lab/deals',
+});
 
 const STORE_LABELS: Record<string, string> = {
   toycra:       'Toycra',
