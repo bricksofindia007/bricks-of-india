@@ -99,3 +99,6 @@ COMMENT ON VIEW public.set_price_summary IS
 -- Pages read store_prices with the service-role client; the view follows.
 REVOKE ALL ON public.set_price_summary FROM PUBLIC, anon, authenticated;
 GRANT SELECT ON public.set_price_summary TO service_role;
+-- Default privileges (#188) grant service_role everything on new relations;
+-- this view is read-only by intent, so SELECT is all it keeps.
+REVOKE INSERT, UPDATE, DELETE, TRUNCATE, REFERENCES, TRIGGER ON public.set_price_summary FROM service_role;
