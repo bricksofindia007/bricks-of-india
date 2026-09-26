@@ -71,7 +71,7 @@ export default async function DealsPage() {
   return (
     <div style={{ background: '#fff', minHeight: '100vh', fontFamily: 'var(--font-inter), sans-serif', color: 'var(--boi-text)' }}>
 
-      {/* Header — matches heat-map / lab tool pattern */}
+      {/* Header — matches the lab tool pattern */}
       <div style={{ padding: '20px 28px 0', borderLeft: '4px solid #F7A800', margin: '8px 24px 0' }}>
         <Link href="/lab" style={{ color: 'var(--boi-blue)', fontSize: '0.78rem', fontWeight: 600, textDecoration: 'none' }}>
           ← The Lab
