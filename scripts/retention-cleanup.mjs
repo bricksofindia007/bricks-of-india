@@ -2,16 +2,13 @@
 // Usage: node scripts/retention-cleanup.mjs --dry-run
 //        node scripts/retention-cleanup.mjs
 //
-// Two independent retention actions, both on a 30-day cutoff, validated
-// live against production data 2026-09-17 before this workflow was created
-// (see BOI_MASTER_TRACKER.md's retention-pass entry for the real before/
-// after row counts from that validation run):
+// Two retention actions, both on a 30-day cutoff:
 //
-// 1. raw_signals.raw_payload -- write-only after ingestion (grepped the
-//    whole codebase: only scripts/radar/fetch-rss.js writes it, nothing
-//    reads it back). NULLed for rows older than 30 days, row itself kept
-//    (dedup/audit fields on the row stay intact -- only the large jsonb
-//    payload column is cleared).
+// 1. public.run_retention() (SQL, 2026-09-25 DB-size issue): price_history
+//    compaction, raw_signals body/raw_payload clearing (rows and hashes
+//    kept), content_image_registry latest-row-per-key, and a 90-day
+//    retention on content_quality_issues_archive. See that migration for
+//    the rules and the reader checks behind them.
 //
 // 2. content_quality_issues -- archived (not hard-deleted) to
 //    content_quality_issues_archive for resolved=true rows older than 30
@@ -50,24 +47,16 @@ function chunk(arr, size) {
   return out;
 }
 
-async function cleanRawSignals() {
-  const { count: eligible, error: countErr } = await supabase
-    .from('raw_signals')
-    .select('id', { count: 'exact', head: true })
-    .lt('created_at', CUTOFF_ISO)
-    .not('raw_payload', 'is', null);
-  if (countErr) throw new Error(`raw_signals count failed: ${countErr.message}`);
-
-  console.log(`[raw_signals] ${eligible} row(s) with raw_payload older than ${CUTOFF_DAYS}d (cutoff ${CUTOFF_ISO})`);
-  if (DRY_RUN || eligible === 0) return;
-
-  const { error } = await supabase
-    .from('raw_signals')
-    .update({ raw_payload: null })
-    .lt('created_at', CUTOFF_ISO)
-    .not('raw_payload', 'is', null);
-  if (error) throw new Error(`raw_signals update failed: ${error.message}`);
-  console.log(`[raw_signals] Nulled raw_payload on ${eligible} row(s).`);
+// DB-size issue (2026-09-25): price_history compaction, raw_signals
+// body + raw_payload clearing, content_image_registry dedup and the
+// 90-day archive retention all run in one SQL function
+// (supabase/migrations/20260925000000_run_retention.sql) -- the
+// price_history rule needs window functions PostgREST filters can't
+// express. It supersedes the raw_payload-only update that lived here.
+async function runRetention() {
+  const { data, error } = await supabase.rpc('run_retention', { p_dry_run: DRY_RUN });
+  if (error) throw new Error(`run_retention failed: ${error.message || JSON.stringify(error)}`);
+  console.log(`[run_retention] ${JSON.stringify(data)}`);
 }
 
 async function fetchAllEligibleIssues() {
@@ -147,7 +136,7 @@ async function archiveContentQualityIssues() {
 
 async function main() {
   console.log(DRY_RUN ? '=== DRY RUN ===' : '=== LIVE RUN ===');
-  await cleanRawSignals();
+  await runRetention();
   await archiveContentQualityIssues();
 }
 

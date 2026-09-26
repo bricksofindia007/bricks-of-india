@@ -553,6 +553,44 @@ try {
   console.error('[10] Store coverage check failed:', e.message);
 }
 
+// ── Check 11: Free-plan capacity -- DB size + Storage buckets ─────────────────
+// DB-size issue, 2026-09-25. The project is on the Supabase Free plan:
+// database > 500 MB goes read-only (every pipeline write fails), and Storage
+// over the 1 GB quota restricts the whole project (HTTP 402 on every call --
+// what took the site's pipelines down 09-13/09-14). Weekly
+// retention-cleanup.yml holds the DB flat; this check catches drift early.
+// Values from public.db_usage_report() (service_role only).
+const DB_WARN_MB = 400, DB_CRIT_MB = 450, STORAGE_WARN_MB = 800;
+try {
+  const { data, error } = await sb.rpc('db_usage_report');
+  if (error) throw error;
+  const dbMb = Number(data.db_size_mb), stMb = Number(data.storage_mb);
+  console.log(`[11] Capacity: database ${dbMb} MB of 500 MB (warn ${DB_WARN_MB}, critical ${DB_CRIT_MB}); storage ${stMb} MB of 1024 MB (warn ${STORAGE_WARN_MB}) ${JSON.stringify(data.storage_by_bucket)}`);
+  if (dbMb >= DB_CRIT_MB) {
+    failures.push('db-size-critical');
+    await sendAlert(
+      '🚨 BOI Health Alert — Database size CRITICAL',
+      `Database is ${dbMb} MB. Free-plan limit is 500 MB -- above it the database goes READ-ONLY and every pipeline write fails.\n\nAct now: run retention-cleanup.yml, check which table grew (pg_total_relation_size), and see the 2026-09-25 DB-size entry in BOI_MASTER_TRACKER.md for the trim + VACUUM FULL runbook.`
+    );
+  } else if (dbMb >= DB_WARN_MB) {
+    failures.push('db-size-warning');
+    await sendAlert(
+      '⚠️ BOI Health Alert — Database size warning',
+      `Database is ${dbMb} MB (warning threshold ${DB_WARN_MB} MB, Free-plan read-only limit 500 MB). Retention is not keeping up -- check which table grew and whether retention-cleanup.yml's last run succeeded.`
+    );
+  }
+  if (stMb >= STORAGE_WARN_MB) {
+    failures.push('storage-size-warning');
+    await sendAlert(
+      '⚠️ BOI Health Alert — Storage buckets near Free-plan quota',
+      `Storage buckets total ${stMb} MB of the 1 GB Free-plan quota (by bucket: ${JSON.stringify(data.storage_by_bucket)}).\n\nGoing over restricted the whole project with HTTP 402 on 09-13/09-14, and the grace period is already used -- a repeat restricts immediately. Check that cleanup-published-assets.yml is running live.`
+    );
+  }
+} catch (e) {
+  failures.push('capacity-error');
+  console.error('[11] Capacity check failed:', e.message);
+}
+
 // ── Summary ──────────────────────────────────────────────────────────────────
 console.log('\n═══════════════════════════════');
 if (failures.length === 0) {
