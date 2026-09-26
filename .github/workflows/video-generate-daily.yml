@@ -30,13 +30,14 @@ jobs:
     # burning the entire scheduled slot with no story generated.
     #
     # Resized 2026-09-25: the old 30 min was sized from a 14-16 min
-    # runtime that has since grown. Successful runs over 09-12..09-25 took
-    # up to ~27 min wall-clock (the script's own _timing.duration_seconds
-    # reached 1697s), and 4 of the last 13 scheduled runs were cancelled at
-    # exactly 30 min (09-17, 09-20, 09-22, 09-24). The 09-24 cancel killed
-    # the job 36s after inserting Story #73 as status='rendered' -- before
-    # upload, pending_approval and the review email -- stranding it. 60 min
-    # is ~2.2x the observed max, per CLAUDE.md's sizing rule.
+    # runtime that has since grown. The longest fully successful runs over
+    # 09-12..09-25 took ~26.5 min wall-clock (09-12, 09-16). 4 of the last
+    # 13 scheduled runs were cancelled at exactly 30 min (09-17, 09-20,
+    # 09-22, 09-24): on 09-22 Story #71 reached pending_approval only 3s
+    # before the cancel; on 09-24 the cancel killed the job 36s after
+    # inserting Story #73 as status='rendered' -- before upload,
+    # pending_approval and the review email -- stranding it. 60 min is
+    # ~2.1-2.3x the observed max, per CLAUDE.md's sizing rule.
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
