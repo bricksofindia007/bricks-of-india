@@ -257,6 +257,21 @@ const nextConfig = {
         destination: '/reviews/lego-the-endurance-10335-worth-22899',
         permanent: true,
       },
+      // Wave 1 item 9, 2026-09-26: two sets each had an old RADAR review that
+      // said IMPORT ONLY and a newer retailer-sourced review (WAIT, in stock).
+      // The newer review is authoritative; the old rows were exported to
+      // boi-db-backups/2026-09-26-item9/ and deleted after this redirect
+      // deployed (same procedure as #169).
+      {
+        source: '/reviews/lego-jaguar-e-type-11381-worth-19200',
+        destination: '/reviews/lego-jaguar-e-type-11381-worth-21400',
+        permanent: true,
+      },
+      {
+        source: '/reviews/lego-boba-fett-75455-worth-21800',
+        destination: '/reviews/lego-boba-fett-75455-worth-17999',
+        permanent: true,
+      },
     ];
   },
   images: {
