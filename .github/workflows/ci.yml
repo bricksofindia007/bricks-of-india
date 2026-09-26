@@ -15,9 +15,16 @@ jobs:
     env:
       CONTACT_EMAIL:                  ${{ secrets.CONTACT_EMAIL }}
       RESEND_API_KEY:                 ${{ secrets.RESEND_API_KEY }}
-      NEXT_PUBLIC_SUPABASE_URL:       ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY:  ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY:      ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      # Fix D (2026-09-26): the build and route scan run against a local
+      # PostgREST stub (scripts/ci/supabase-stub.mjs), NOT production. Every
+      # PR push used to prerender + render every static route against the
+      # live database -- hundreds of API requests per run, each a ~2.5 KB
+      # Supabase gateway log line (log ingest is over the Free quota). Only
+      # the two content-integrity checks below read production, by design,
+      # with the real keys passed at step level.
+      NEXT_PUBLIC_SUPABASE_URL:       http://127.0.0.1:54321
+      NEXT_PUBLIC_SUPABASE_ANON_KEY:  ci-stub
+      SUPABASE_SERVICE_ROLE_KEY:      ci-stub
       NEXT_PUBLIC_SITE_URL:           https://bricksofindia.com
       NEXT_PUBLIC_GA_MEASUREMENT_ID:  ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
 
@@ -32,10 +39,24 @@ jobs:
       - run: npm ci
 
       - name: Review/aggregateRating schema integrity check (GSC-01)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL:      ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY:     ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx scripts/check-review-schema-integrity.ts
 
       - name: Set-mention link integrity check (GEO-05b)
+        env:
+          NEXT_PUBLIC_SUPABASE_URL:      ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY:     ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx scripts/check-set-mention-links.ts
+
+      - name: Start Supabase stub (build + route scan never touch production)
+        run: |
+          nohup node scripts/ci/supabase-stub.mjs > /tmp/supabase-stub.log 2>&1 &
+          for i in $(seq 1 20); do curl -sf -o /dev/null http://127.0.0.1:54321/rest/v1/health && break; sleep 0.5; done
+          curl -sf -o /dev/null http://127.0.0.1:54321/rest/v1/health && echo "stub up"
 
       - run: npm run build
 
