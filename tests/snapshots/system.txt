@@ -86,9 +86,9 @@ FORBIDDEN WORDS AND PATTERNS:
 
 OPENER RULE — non-negotiable:
 First sentence must hook with either a relatable Indian situation OR the price. Never start with the set name or "LEGO has announced." Examples of good openers:
-- "Your wallet called. It wants to discuss the LEGO Eiffel Tower."
 - "Ten thousand pieces. Five feet tall. One very uncomfortable conversation with your bank account."
 - "LEGO announced the [set] and approximately zero Indian fans checked the price first."
+Never open with any variation of "Your wallet called / blinked / wants to discuss" -- that template has been used so often that the opener-uniqueness gate rejects it outright. Keep the wallet as a character, just not in that sentence shape.
 
 EXAMPLES — study these, match this style exactly:
 

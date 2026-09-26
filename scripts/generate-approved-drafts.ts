@@ -439,7 +439,15 @@ if (IS_MAIN) (async () => {
         // Rationale: a row sitting in failed_lint/draft forever provides no
         // value and was the dominant contributor to the unbounded backlog
         // growth — see HIGH-52.
+        // #187 (2026-09-25): hard-failing lint gates are listed FIRST, by
+        // name and reason. Before this, only Gate 7 ids and lint *warnings*
+        // were logged -- a guide rejected by a failing gate showed only a
+        // Gate 3 WARN, hiding the real cause for three consecutive weeks.
+        const failedGates = Object.entries(outcome.lintResult?.gates ?? {})
+          .filter(([, g]) => g && !g.pass && g.severity === 'fail')
+          .map(([name, g]) => `${name}: ${g!.reason ?? 'fail'}`);
         const failureReasons = [
+          ...failedGates,
           ...outcome.hardRules.filter(r => !r.pass).map(r => `gate7:${r.id}`),
           ...(outcome.lintResult?.warnings ?? []),
           !outcome.lintResult ? 'lint_runner_threw' : null,
