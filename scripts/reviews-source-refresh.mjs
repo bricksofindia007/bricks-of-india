@@ -176,6 +176,10 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
 
   let p1Updated = 0, p1Flagged = 0, p1OutOfStock = 0, p1FetchIncomplete = 0;
 
+  // Fix B (2026-09-26): reviews whose only change is source_checked_at are
+  // stamped in one .in() update below instead of one request each (every
+  // request writes a ~2.5 KB Supabase gateway log line). Same `now` value.
+  const checkedIds = [];
   for (const review of publishedReviews) {
     const setNumber = setNumberById.get(review.set_id);
     if (!setNumber) {
@@ -197,7 +201,7 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
       await flagIssue(review.slug, 'review_source_fetch_incomplete', 'warning',
         `Re-verification incomplete — store fetch failed this run for ${setNumber}; not auto-updated, not treated as out-of-stock`);
       if (!DRY_RUN) {
-        await sb.from('reviews').update({ source_checked_at: now }).eq('id', review.id);
+        checkedIds.push(review.id);
       }
       continue;
     }
@@ -212,7 +216,7 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
       await flagIssue(review.slug, 'review_out_of_stock', 'critical',
         `${setNumber} is ${resolved ? 'confirmed out of stock at both stores' : 'no longer listed at either store'} — was ${review.source_retailer} at ₹${review.source_price_inr}. Manual decision needed (add out-of-stock note, or pull down).`);
       if (!DRY_RUN) {
-        await sb.from('reviews').update({ source_checked_at: now }).eq('id', review.id);
+        checkedIds.push(review.id);
       }
       continue;
     }
@@ -227,7 +231,7 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
       await flagIssue(review.slug, 'verdict_flip_candidate', 'critical',
         `${setNumber}: ₹${review.source_price_inr} -> ₹${newPrice} (${(pctChange * 100).toFixed(1)}% change) at ${resolved.sourceRetailer}, current verdict ${review.verdict} — plausibly flips the verdict. Frozen pending chat approval; only source_checked_at updated.`);
       if (!DRY_RUN) {
-        await sb.from('reviews').update({ source_checked_at: now }).eq('id', review.id);
+        checkedIds.push(review.id);
       }
       continue;
     }
@@ -255,16 +259,25 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
           }).eq('id', review.id);
         } catch (err) {
           await flagIssue(review.slug, 'review_resplice_failed', 'critical', `Re-splice failed: ${err.message} — source_checked_at updated only, content untouched`);
-          await sb.from('reviews').update({ source_checked_at: now }).eq('id', review.id);
+          checkedIds.push(review.id);
         }
       }
     } else {
       // No change at all — still record that we checked.
-      if (!DRY_RUN) await sb.from('reviews').update({ source_checked_at: now }).eq('id', review.id);
+      if (!DRY_RUN) checkedIds.push(review.id);
     }
   }
 
   console.log(`Pass 1 summary: ${p1Updated} auto-updated, ${p1Flagged} flagged (possible verdict flip), ${p1OutOfStock} flagged (out of stock), ${p1FetchIncomplete} skipped (fetch incomplete)\n`);
+
+  if (!DRY_RUN && checkedIds.length) {
+    for (let i = 0; i < checkedIds.length; i += 200) {
+      const ids = checkedIds.slice(i, i + 200);
+      const { error } = await sb.from('reviews').update({ source_checked_at: now }).in('id', ids);
+      if (error) console.error(`  source_checked_at batch update failed for ${ids.length} review(s): ${error.message}`);
+    }
+    console.log(`  source_checked_at stamped on ${checkedIds.length} review(s) in ${Math.ceil(checkedIds.length / 200)} request(s)`);
+  }
 
   // ── Self-verifying flip-freeze assertion ────────────────────────────────────
   // For every row flagged verdict_flip_candidate THIS run, re-read the LIVE
