@@ -1974,8 +1974,12 @@ def render_with_caption_gate(
     set_title: str,
     placeholder_anchors: bool = False,
     no_tts: bool = False,
+    phase_mark=None,
 ) -> tuple[float, list[dict], gates.GateResult, bool]:
-    """Generates TTS, assembles the video, transcribes it, burns captions,
+    """phase_mark (issue #200): optional callable(name) recording a wall-clock
+    mark after each sub-step (tts / assemble / whisper / burn), per attempt.
+
+    Generates TTS, assembles the video, transcribes it, burns captions,
     and checks G11 -- retrying the WHOLE sequence once (fresh TTS call,
     fresh Whisper pass) if G11 fails, before accepting a final result.
     Shared by both the daily generation path (main()) and --rerender, so
@@ -2010,17 +2014,25 @@ def render_with_caption_gate(
             print(f"--no-tts: silent placeholder audio, estimated duration {est_duration:.1f}s")
         else:
             generate_tts(script, audio_path)
+        if phase_mark:
+            phase_mark(f"tts_attempt{attempt}")
 
         total_duration = assemble_video(image_paths, audio_path, output_path, placeholder_anchors=placeholder_anchors)
         print(f"\nRendered: {output_path}")
         print(f"Total duration: {total_duration:.1f}s")
+        if phase_mark:
+            phase_mark(f"assemble_attempt{attempt}")
         if total_duration > 90:
             print("WARNING: video exceeds 90s — IG Reels/YT Shorts may reject or truncate.")
 
         print("Transcribing rendered audio for captions (Whisper, catches real TTS pronunciation)...")
         segments = transcribe_for_captions(output_path, initial_prompt=caption_initial_prompt)
+        if phase_mark:
+            phase_mark(f"whisper_attempt{attempt}")
         captioned_path = output_path.with_name(output_path.stem + "_captioned.mp4")
         burn_captions(output_path, segments, captioned_path)
+        if phase_mark:
+            phase_mark(f"burn_captions_attempt{attempt}")
 
         g11_result = gates.gate_caption_fidelity(caption_glossary, segments, numerals=caption_numerals)
         print(f"  [{'PASS' if g11_result.passed else 'FAIL'}] {g11_result.gate}: {g11_result.reason}")
@@ -2170,11 +2182,18 @@ def insert_video_post(
     sb, candidate: dict, script: str, gate_report: gates.GateReport, video_path: Path,
     provider: str | None = None, input_tokens: int | None = None, output_tokens: int | None = None,
     escalation_note: dict | None = None,
+    video_id: str | None = None, story_number: int | None = None, status: str = "rendered",
+    storage_url: str | None = None, qc_frame_urls: list | None = None,
+    gate_results: dict | None = None,
 ) -> tuple[str, int]:
-    """Returns (video_id, story_number). story_number is assigned by the
-    video_posts_story_number_trigger DB trigger (COALESCE(MAX(story_number),0)+1)
-    -- only known for certain once the row exists, hence returned here
-    rather than predicted beforehand.
+    """Returns (video_id, story_number).
+
+    Issue #201 (2026-09-26): the cloud path reserves story_number up front
+    (reserve_story_number()) and passes it here together with its own
+    pre-generated video_id, status='pending_approval', storage_url and
+    qc_frame_urls -- the row is written only after the upload succeeded.
+    When story_number is None (local/manual paths) the
+    video_posts_story_number_trigger assigns one from the same sequence.
 
     provider/input_tokens/output_tokens added 2026-08-19 (migration
     20260819000000_video_provider_tracking) -- see ScriptGenResult's
@@ -2191,15 +2210,23 @@ def insert_video_post(
         "price_inr": candidate["price_inr"],
         "script": script,
         "script_chars": len(script),
-        "gate_results": gate_report.as_dict(),
+        "gate_results": gate_results if gate_results is not None else gate_report.as_dict(),
         "video_path": str(video_path),
-        "status": "rendered",
+        "status": status,
         "piece_count_discrepancy": candidate.get("piece_count_discrepancy"),
         "provider": provider,
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "escalation_note": escalation_note,
     }
+    if video_id is not None:
+        row["id"] = video_id
+    if story_number is not None:
+        row["story_number"] = story_number
+    if storage_url is not None:
+        row["storage_url"] = storage_url
+    if qc_frame_urls is not None:
+        row["qc_frame_urls"] = qc_frame_urls
     res = sb.table("video_posts").insert(row).execute()
     video_id, story_number = res.data[0]["id"], res.data[0]["story_number"]
 
@@ -2216,6 +2243,22 @@ def insert_video_post(
         }).eq("set_number", set_number).eq("review_status", "cleared_for_regeneration").eq("regeneration_priority", True).execute()
 
     return video_id, story_number
+
+
+def reserve_story_number(sb) -> int:
+    """Issue #201: take the next story number from
+    public.video_posts_story_number_seq WITHOUT creating a row, so the Story
+    badge can be burned in before anything is written. A run killed after
+    this leaves only a gap in the numbering -- never a half-finished row."""
+    res = sb.rpc("reserve_story_number", {}).execute()
+    n = res.data
+    if isinstance(n, list):
+        n = n[0] if n else None
+    if isinstance(n, dict):
+        n = next(iter(n.values()))
+    if not isinstance(n, int):
+        raise RuntimeError(f"reserve_story_number returned {res.data!r}, expected an integer")
+    return n
 
 
 def mark_posted(sb, video_id: str, platform: str) -> None:
@@ -2556,8 +2599,13 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
     import publish as publish_mod
 
     print("Uploading to storage (same filename -- overwrites existing storage_url in place)...")
-    storage_url = publish_mod.upload_video_to_storage(sb, str(output_path), f"{video_id}.mp4")
-    qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(output_path), video_id)
+    # Overwrite in place under the row's EXISTING file name: rows created
+    # after #201 use story0075_<id>.mp4, older rows <id>.mp4 (or none, e.g.
+    # Story #73). Uploading to a different name would orphan the original.
+    existing = (row.get("storage_url") or "").rsplit("/", 1)[-1].split("?", 1)[0]
+    file_stem = existing[:-4] if existing.endswith(".mp4") else video_id
+    storage_url = publish_mod.upload_video_to_storage(sb, str(output_path), f"{file_stem}.mp4")
+    qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(output_path), file_stem)
 
     # status/story_number/id deliberately absent from this update -- a
     # re-render refreshes content, it never changes a row's identity or
@@ -2886,10 +2934,26 @@ def main() -> None:
                 print("ERROR: no candidate from --pick onward has enough studio images, even with Toycra fallback.", file=sys.stderr)
                 sys.exit(1)
 
+        # Issue #200 (2026-09-26): per-phase wall-clock timings, stored in
+        # gate_results._timing.phases_seconds, so slow runs can be compared
+        # against fast ones phase by phase before anything is optimised.
+        phase_marks = [("candidate_selection", datetime.now(timezone.utc))]
+
+        def _mark(phase: str) -> None:
+            phase_marks.append((phase, datetime.now(timezone.utc)))
+
+        def _phase_seconds() -> dict:
+            out, prev = {}, generation_started_at
+            for name, ts in phase_marks:
+                out[name] = round((ts - prev).total_seconds(), 1)
+                prev = ts
+            return out
+
         print(f"Selected: {candidate['title']} ({candidate['product_url']})")
         print(f"Using {len(image_paths)} studio image(s) for this render.")
 
         script, report, script_provider, script_input_tokens, script_output_tokens = run_gates_with_one_retry(sb, candidate)
+        _mark("script_generation_and_gates")
         print("\n--- SCRIPT ---")
         print(script)
         print("--- END SCRIPT ---\n")
@@ -2908,6 +2972,7 @@ def main() -> None:
         # rendered captions, which don't exist yet at pre-TTS gate time).
         total_duration, segments, caption_fidelity_result, g11_retried = render_with_caption_gate(
             script, image_paths, output_path, candidate["title"], placeholder_anchors=args.placeholder_anchors, no_tts=args.no_tts,
+            phase_mark=_mark,
         )
         report.results.append(caption_fidelity_result)
 
@@ -2923,68 +2988,93 @@ def main() -> None:
                 remediation_attempted=f"{retry_note}.",
             )
 
-        video_id, story_number = insert_video_post(
-            sb, candidate, script, report, output_path,
+        insert_kwargs = dict(
             provider=script_provider, input_tokens=script_input_tokens, output_tokens=script_output_tokens,
             escalation_note=escalation_note,
         )
-        print(f"video_posts row inserted: {video_id} (Story #{story_number})")
+
+        def _badge(n: int) -> None:
+            print(f"Applying Story #{n} badge...")
+            badged_path = output_path.with_name(output_path.stem + "_badged.mp4")
+            apply_story_badge(output_path, n, badged_path)
+            # Same single-artifact rule as the caption-burn collapse above --
+            # exactly one file per run, no second path anything could
+            # mistakenly reference.
+            output_path.unlink()
+            badged_path.rename(output_path)
+            print(f"Badged (sole output): {output_path}")
+
+        if not args.cloud_generate:
+            # Local/manual path: unchanged -- insert as 'rendered' (trigger
+            # assigns the number from the shared sequence), then badge.
+            video_id, story_number = insert_video_post(sb, candidate, script, report, output_path, **insert_kwargs)
+            print(f"video_posts row inserted: {video_id} (Story #{story_number})")
+            if escalation_note:
+                print(f"  escalation_note written -- G11 still failing after remediation, see gate_results/escalation_note.", file=sys.stderr)
+            _badge(story_number)
+            return
+
+        # Cloud path (issue #201, 2026-09-26): reserve the number, badge,
+        # upload, and only THEN write the row -- already complete, in
+        # 'pending_approval'. A run killed at any point before the insert
+        # leaves no row at all, only a gap in the story numbering. Before
+        # this, the row was inserted as 'rendered' first and a kill before
+        # upload stranded it with no video (Story #73, 2026-09-24).
+        import publish as publish_mod
+        import notifier as notifier_mod
+
+        story_number = reserve_story_number(sb)
+        video_id = str(uuid.uuid4())
+        print(f"Reserved Story #{story_number} (row id {video_id} -- not written until upload succeeds)")
+        _badge(story_number)
+        _mark("badge")
+
+        # Files are named with the reserved number (Abhinav, 2026-09-26), so a
+        # run killed AFTER upload but before the insert leaves an orphan that
+        # is identifiable by name (story0075_<id>.mp4) even though no row
+        # references it. Such orphans are never touched by the deny-by-default
+        # storage cleanup (it only deletes paths a terminal row references) --
+        # tracked in #201's follow-up scope.
+        file_stem = f"story{story_number:04d}_{video_id}"
+        print("Stage 2: uploading captioned video + QC frames to storage...")
+        storage_url = publish_mod.upload_video_to_storage(sb, str(output_path), f"{file_stem}.mp4")
+        qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(output_path), file_stem)
+        _mark("upload_video_and_qc_frames")
+
+        # Generation-to-ready timing: real measurement, stored under the
+        # same "_"-prefixed metadata convention gate_results already uses
+        # (see assert_all_gates_passed()'s "_" = metadata, not a gate rule).
+        pending_approval_at = datetime.now(timezone.utc)
+        gate_results_with_timing = report.as_dict()
+        gate_results_with_timing["_timing"] = {
+            "generation_started_at": generation_started_at.isoformat(),
+            "pending_approval_at": pending_approval_at.isoformat(),
+            "duration_seconds": (pending_approval_at - generation_started_at).total_seconds(),
+            "phases_seconds": _phase_seconds(),
+            "g11_retried": g11_retried,
+            "note": "generation_started_at is this script's own start, not the cron-fire instant -- see main()'s opening comment. phases_seconds: wall-clock per phase, in order (issue #200).",
+        }
+
+        video_id, story_number = insert_video_post(
+            sb, candidate, script, report, output_path, **insert_kwargs,
+            video_id=video_id, story_number=story_number, status="pending_approval",
+            storage_url=storage_url, qc_frame_urls=qc_urls, gate_results=gate_results_with_timing,
+        )
         if escalation_note:
             print(f"  escalation_note written -- G11 still failing after remediation, see gate_results/escalation_note.", file=sys.stderr)
+        duration_s = gate_results_with_timing["_timing"]["duration_seconds"]
+        print(f"video_posts {video_id} inserted as Story #{story_number}, status='pending_approval'. storage_url: {storage_url}")
+        print(f"[TIMING] generation_started_at={generation_started_at.isoformat()} "
+              f"pending_approval_at={pending_approval_at.isoformat()} duration={duration_s:.1f}s "
+              f"phases={json.dumps(gate_results_with_timing['_timing']['phases_seconds'])}")
 
-        print(f"Applying Story #{story_number} badge...")
-        badged_path = output_path.with_name(output_path.stem + "_badged.mp4")
-        apply_story_badge(output_path, story_number, badged_path)
-        # Same single-artifact rule as the caption-burn collapse above --
-        # exactly one file per run, no second path anything could
-        # mistakenly reference.
-        output_path.unlink()
-        badged_path.rename(output_path)
-        print(f"Badged (sole output): {output_path}")
-
-        if args.cloud_generate:
-            import publish as publish_mod
-            import notifier as notifier_mod
-
-            print("Stage 2: uploading captioned video + QC frames to storage...")
-            storage_url = publish_mod.upload_video_to_storage(sb, str(output_path), f"{video_id}.mp4")
-            qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(output_path), video_id)
-
-            # Generation-to-ready timing: real measurement, stored under the
-            # same "_"-prefixed metadata convention gate_results already uses
-            # (see assert_all_gates_passed()'s "_" = metadata, not a gate rule)
-            # so it rides along with the row rather than needing a schema
-            # migration. `report` is still the same GateReport this run
-            # produced earlier -- re-serializing it here just adds the timing
-            # key on top of the gate results already written at insert time.
-            pending_approval_at = datetime.now(timezone.utc)
-            gate_results_with_timing = report.as_dict()
-            gate_results_with_timing["_timing"] = {
-                "generation_started_at": generation_started_at.isoformat(),
-                "pending_approval_at": pending_approval_at.isoformat(),
-                "duration_seconds": (pending_approval_at - generation_started_at).total_seconds(),
-                "note": "generation_started_at is this script's own start, not the cron-fire instant -- see main()'s opening comment.",
-            }
-
-            sb.table("video_posts").update({
-                "storage_url": storage_url,
-                "qc_frame_urls": qc_urls,
-                "status": "pending_approval",
-                "gate_results": gate_results_with_timing,
-            }).eq("id", video_id).execute()
-            duration_s = gate_results_with_timing["_timing"]["duration_seconds"]
-            print(f"video_posts {video_id} set to status='pending_approval'. storage_url: {storage_url}")
-            print(f"[TIMING] generation_started_at={generation_started_at.isoformat()} "
-                  f"pending_approval_at={pending_approval_at.isoformat()} duration={duration_s:.1f}s "
-                  f"(measured from this script's own start -- see note above for what this does/doesn't include)")
-
-            notifier_mod.send_ready_for_review_notification(
-                story_number=story_number,
-                set_title=candidate["title"],
-                storage_url=storage_url,
-                qc_frame_urls=qc_urls,
-                escalation_note=escalation_note,
-            )
+        notifier_mod.send_ready_for_review_notification(
+            story_number=story_number,
+            set_title=candidate["title"],
+            storage_url=storage_url,
+            qc_frame_urls=qc_urls,
+            escalation_note=escalation_note,
+        )
 
         return
 
