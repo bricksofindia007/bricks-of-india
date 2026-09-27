@@ -61,6 +61,7 @@ from quiet_panic_script_gen import (  # noqa: E402
 # with working-directory: scripts/video (see video-generate-quiet-panic.yml).
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from config.feature_flags import FEATURE_FLAGS  # noqa: E402
+from coherence_judge import judge_coherence, only_held_failures  # noqa: E402
 
 # Retry budget for script-gen's pre-TTS validation (added 2026-08-01 after
 # a real 3-for-3 miss streak on Rapunzel's Castle in production CI, all
@@ -1028,58 +1029,20 @@ def gate_price_plausibility(full_text: str, price_inr: float) -> dict:
 
 
 def gate_coherence_llm_judge(full_text: str) -> dict:
-    """LLM-as-judge: does this read as complete, coherent English -- not a
-    garbled or nonsensical fragment (e.g. the real published Kakamora
-    script's ending "No stranding." with no clear referent to anything
-    earlier in the script)? Model-agnostic by design: a post-hoc check on
-    the FINAL text, independent of which provider (Gemini/Groq/Cerebras)
-    generated it. Uses Groq (cheapest currently-active provider).
+    """LLM coherence judge on the FINAL script text. Implementation lives in
+    coherence_judge.py (#365, 2026-09-27).
 
-    Fails OPEN (pass=True with a WARNING detail) if the judge call itself
-    errors -- a transient judge-API hiccup blocking ALL publishing would be
-    a worse regression than occasionally missing a coherence problem,
-    especially now that generation itself already has real retry/backoff
-    (see _retry_backoff_sleep()).
+    History: 2026-08-22 swapped llama-3.3-70b-versatile -> qwen/qwen3.6-27b
+    after the first went dead on Groq. Groq then shut qwen/qwen3.6-27b down
+    on 2026-09-14, and this gate (which failed OPEN on any judge error)
+    passed every QP script unjudged from then on. The 2026-09-17 fix reached
+    gates.py (VID-P4) but not this copy.
 
-    2026-08-22: model swapped llama-3.3-70b-versatile -> qwen/qwen3.6-27b,
-    same fix and same rationale as gates.py's gate_coherence_llm_judge()
-    (VID-P4) -- the old model is decommissioned on Groq (confirmed live,
-    404 model_not_found), so this gate has been silently fail-open on
-    every call, never actually judging anything. Not flag-gated: a bug fix
-    restoring intended behavior, not new capability; gate results here are
-    logged for human review only, never auto-blocking. reasoning_effort=
-    'none' required for qwen (confirmed empirically during this rollout)."""
-    groq_key = os.environ.get('GROQ_API_KEY', '').strip()
-    if not groq_key:
-        return {'pass': True, 'detail': 'SKIPPED: GROQ_API_KEY not set (fail-open, judge unavailable)'}
-    judge_prompt = (
-        "You are a strict but fair editor reviewing a short video script that will be "
-        "read aloud verbatim. Reply with exactly one line: 'COHERENT' if the script "
-        "reads as complete, sensible English with no garbled, truncated, or nonsensical "
-        "fragments (for example, an ending like 'No stranding.' with no clear referent "
-        "to anything earlier in the script would NOT be coherent) -- or "
-        "'INCOHERENT: <short reason>' if it does not.\n\nSCRIPT:\n" + full_text
-    )
-    try:
-        resp = requests.post(
-            'https://api.groq.com/openai/v1/chat/completions',
-            headers={'Authorization': f'Bearer {groq_key}', 'Content-Type': 'application/json'},
-            json={
-                'model': 'qwen/qwen3.6-27b',
-                'messages': [{'role': 'user', 'content': judge_prompt}],
-                'max_tokens': 200,
-                'temperature': 0.0,
-                'reasoning_effort': 'none',
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        verdict = resp.json()['choices'][0]['message']['content'].strip()
-        if verdict.upper().startswith('COHERENT'):
-            return {'pass': True, 'detail': verdict}
-        return {'pass': False, 'detail': verdict}
-    except Exception as e:
-        return {'pass': True, 'detail': f'SKIPPED: judge call failed ({e}) -- fail-open, not blocking on judge availability'}
+    Now: model openai/gpt-oss-120b, and it FAILS CLOSED. No real verdict
+    means pass=False with held=True, so the row lands publish_blocked. It is
+    still uploaded and a "held for manual review" email goes out; see
+    _render_segments_core() and the workflow's held_for_review step."""
+    return judge_coherence(full_text)
 
 
 def run_all_gates(segments: list, total_duration: float, price_inr: int) -> dict:
@@ -1317,6 +1280,12 @@ def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_i
     for name, result in gate_results.items():
         print(f'  GATE {name}: {"PASS" if result["pass"] else "FAIL"} -- {result["detail"]}')
     all_passed = all(r['pass'] for r in gate_results.values())
+    # #365: failed ONLY because the coherence judge couldn't give a verdict
+    # (fail-closed). Not a rejection: the render is still uploaded so a
+    # human can judge it, but the row stays publish_blocked.
+    held_for_review = (not all_passed) and only_held_failures(gate_results)
+    if held_for_review:
+        print('  HELD for manual review: every failing gate is judge-unavailable, not a real failure.')
 
     # 3. Images.
     images = resolve_candidate_images(set_number, fallback_image_url, work_dir)
@@ -1445,7 +1414,7 @@ def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_i
     # (assert_all_gates_passed) would refuse to publish it anyway.
     sb = get_supabase()
     storage_url = None
-    if all_passed:
+    if all_passed or held_for_review:
         if video_file_is_valid(output_path):
             storage_filename = f'{set_number}_{timestamp_str}.mp4'
             storage_url = upload_video_to_storage(sb, str(output_path), storage_filename)
@@ -1458,6 +1427,7 @@ def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_i
         'segments': segments,
         'gate_results': gate_results,
         'all_passed': all_passed,
+        'held_for_review': held_for_review,
         'total_video_duration': total_video_duration,
         'output_path': output_path,
         'storage_url': storage_url,
@@ -1628,6 +1598,7 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
     segments = render_result['segments']
     gate_results = render_result['gate_results']
     all_passed = render_result['all_passed']
+    held_for_review = render_result['held_for_review']
     total_video_duration = render_result['total_video_duration']
     output_path = render_result['output_path']
     storage_url = render_result['storage_url']
@@ -1661,6 +1632,7 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
         'set_number': set_number,
         'price_inr': price_inr,
         'status': status,
+        'held_for_review': held_for_review,
         'gate_results': gate_results,
         'total_duration': total_video_duration,
         'video_path': str(output_path),
@@ -1681,7 +1653,9 @@ def _write_github_output(result: dict) -> None:
         return
     with open(output_path, 'a', encoding='utf-8') as f:
         f.write(f"post_id={result['post_id']}\n")
-        f.write(f"status={result['status']}\n")
+        # 'held_for_review' (#365) is an output-only status: the DB row is
+        # publish_blocked, but the workflow emails a manual-review notice.
+        f.write(f"status={'held_for_review' if result.get('held_for_review') else result['status']}\n")
         f.write(f"set_title={result['set_title']}\n")
         f.write(f"set_number={result['set_number']}\n")
         f.write(f"price_inr={result['price_inr']}\n")

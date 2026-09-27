@@ -63,9 +63,17 @@ def send_review_email(result: dict, original: dict | None) -> bool:
 
     title = (result.get('set_title') or '').replace('\ufeff', '')
     reason = ((original or {}).get('rejection_reason') or '').replace('\ufeff', '')
-    subject = f"Quiet Panic video ready for review (rework): {title} (#{result.get('set_number')})"
+    held = bool(result.get('held_for_review'))
+    if held:  # #365: coherence judge gave no verdict (fail-closed); row is publish_blocked
+        subject = f"Quiet Panic HELD for manual review (rework, coherence judge unavailable): {title} (#{result.get('set_number')})"
+        first = ('A reworked Quiet Panic video passed every gate it could be checked on, but the coherence '
+                 'judge gave no verdict, so it is HELD (status publish_blocked). Judge the script yourself; '
+                 'to publish, approve it with gate_override=true and a gate_override_reason.')
+    else:
+        subject = f"Quiet Panic video ready for review (rework): {title} (#{result.get('set_number')})"
+        first = 'A reworked Quiet Panic video passed all gates and is ready for your review.'
     body = '\n'.join([
-        'A reworked Quiet Panic video passed all gates and is ready for your review.',
+        first,
         '',
         f"Set: {title} (#{result.get('set_number')})",
         f"Price: Rs.{result.get('price_inr')}",
@@ -98,8 +106,8 @@ def _notify_if_pending(result: dict, original: dict) -> bool:
     """Email only for rows that actually entered pending_approval (a rework
     that fails gates lands publish_blocked -- no review email, same rule as
     the fresh-candidate path)."""
-    if result.get('status') != 'pending_approval':
-        print(f"  No review email: new row status={result.get('status')} (only pending_approval is emailed).")
+    if result.get('status') != 'pending_approval' and not result.get('held_for_review'):
+        print(f"  No review email: new row status={result.get('status')} (only pending_approval or held-for-review is emailed).")
         return True
     ok = send_review_email(result, original)
     if ok:
