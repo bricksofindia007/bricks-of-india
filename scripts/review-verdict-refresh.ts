@@ -88,7 +88,7 @@ Make the MINIMUM edits needed so the review is true today:
 - Write the replacements in the review's own voice, as if it had been written today with this price. Never write meta-sentences about the update ("It is now confirmed…", "Listed price:", "checked on…", "as listed by…") and never show arithmetic or formulas.
 - Replace "Check MyBrickHouse/Toycra for availability" with a plain statement of where it is sold.
 - Keep exactly ONE relatable Indian comparison sentence, recomputed for ₹${fmtInr(live.price)} (a number and an Indian reference: Netflix, Spotify, Amul, EMI, biryani…) — remove any other comparison sentence that was based on the old estimate.
-- Keep the Toycra note exactly: "Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra." Never apply the 12% to any price and never state a discounted price.
+- Keep the Toycra note exactly: "Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra (we earn a commission)." Never apply the 12% to any price and never state a discounted price.
 - The only ₹ figures allowed anywhere are ₹${fmtInr(live.price)}, ₹500${live.anchorMrp ? `, ₹${fmtInr(live.anchorMrp)}` : ''}${perPiece(live) ? `, the per-piece price ₹${perPiece(live)} (₹${fmtInr(live.price)} / ${live.pieces} pieces — use exactly this wherever the review states this set's own per-piece price)` : ''}, and small per-piece figures the review uses for OTHER sets or general context (keep those unchanged).
 - Every other sentence stays EXACTLY as written — same words, same order, same paragraphs, same sign-off. Do not add headings, markdown or new sections.
 - Remove the final "Verdict: IMPORT ONLY…" line entirely (a verdict block is added separately). Do not write any "Verdict:" line.
@@ -138,12 +138,12 @@ async function check(original: string, revised: string, verdict: string, live: L
   if (!figures.includes(live.price)) problems.push(`confirmed price ₹${fmtInr(live.price)} missing`);
   if (live.retailer !== 'both') {
     const other = live.retailer === 'mybrickhouse' ? 'Toycra' : 'MyBrickHouse';
-    const withoutNote = revised.replace('Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra.', '');
+    const withoutNote = revised.replace('Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra (we earn a commission).', '');
     if (new RegExp(other, 'i').test(withoutNote)) problems.push(`mentions ${other}, but only ${STORE_DISPLAY_NAME[live.retailer]} has it in stock`);
   }
   const conclusion = paras(revised).filter((p) => !SIGNOFF.test(p)).slice(-3).join(' ');
   if (verdict === 'BUY NOW' && /wait(?:ing)? for a (?:discount|price drop|sale|deal)|might be wiser to wait|wait this one out/i.test(conclusion)) problems.push('verdict BUY NOW contradicts the conclusion, which advises waiting');
-  if (!revised.includes('Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra.')) problems.push('Toycra ABHINAV12 note missing or altered');
+  if (!revised.includes('Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra (we earn a commission).')) problems.push('Toycra ABHINAV12 note missing or altered');
   if (!SIGNOFF.test(revised.slice(-400))) problems.push('sign-off missing from the end');
   // Minimal-edit check: paragraphs with nothing price/availability-related must survive verbatim.
   const untouchable = paras(original).filter((p) => !/₹|estimat|import|india|stores?|toycra|mybrickhouse|verdict|grey|gray|netflix|spotify|emi|amul|price|cost|expensive|cheap|afford|wallet|splurge|per[‑-]?\s?piece/i.test(p));

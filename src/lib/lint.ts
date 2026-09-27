@@ -7,6 +7,7 @@ import { unverifiedSetCitations } from './set-identity';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 import { bannedOpener } from './opener-pattern';
+import { undisclosedAffiliateMentions } from './affiliate-disclosure';
 export const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: [number, number] }> = {
   news    : { pass: [270,  440], fail: [225,  500] },  // target 300–400
   review  : { pass: [450,  770], fail: [375,  875] },  // target 500–700
@@ -48,6 +49,7 @@ export type LintResult = {
     duplicateContent: LintGateResult | null;
     citationIdentity: LintGateResult | null;
     openerPattern: LintGateResult;
+    affiliateDisclosure: LintGateResult;
   };
 };
 
@@ -625,6 +627,13 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
     : { pass: true, severity: 'ok' };
   if (banned) overallPass = false;
 
+  // Gate 13: ABHINAV12 must carry a commission disclosure in the same sentence (#212).
+  const undisclosed = undisclosedAffiliateMentions(body);
+  const affiliateDisclosureGate: LintGateResult = undisclosed.length
+    ? { pass: false, severity: 'fail', reason: `ABHINAV12 without a commission disclosure in the same sentence: "${undisclosed[0].slice(0, 80)}"` }
+    : { pass: true, severity: 'ok' };
+  if (undisclosed.length) overallPass = false;
+
   let citationIdentityGate: LintGateResult | null = null;
 
   if (!options.skipFactuality) {
@@ -688,6 +697,7 @@ ${body}`);
       duplicateContent: duplicateContentGate,
       citationIdentity: citationIdentityGate,
       openerPattern: openerPatternGate,
+      affiliateDisclosure: affiliateDisclosureGate,
     },
   };
 }

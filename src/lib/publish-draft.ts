@@ -3,6 +3,7 @@ import { linkFirstSetMentions } from './link-set-mentions';
 import { submitToIndexNow } from './indexnow';
 import { resolveDisclaimerVariant, disclaimerTextFor, STORE_DISPLAY_NAME, type SourceRetailer } from './review-disclaimer';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { AFFILIATE_NOTE } from './affiliate-disclosure';
 
 // ── Unified publish-a-draft logic (2026-06-28) ────────────────────────────────
 //
@@ -161,13 +162,13 @@ export function prePublishAutoFix(body: string, draft: { source_title?: string |
   }
 
   if (/Toycra/i.test(c) && !/ABHINAV12/i.test(c)) {
-    c = c.replace(/(Toycra\b[^.\n]*\.)/, '$1 Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra.');
+    c = c.replace(/(Toycra\b[^.\n]*\.)/, `$1 ${AFFILIATE_NOTE}`);
   }
 
   const hasPrice = /₹[\d,]+/.test(c);
   const hasStore = /MyBrickHouse|Toycra/i.test(c);
   if (hasPrice && !hasStore) {
-    c = c.replace(/(₹[\d,]+[^.\n]*\.)/, '$1 Available at MyBrickHouse and Toycra (use code ABHINAV12 for 12% off above ₹500).');
+    c = c.replace(/(₹[\d,]+[^.\n]*\.)/, '$1 Available at MyBrickHouse and Toycra (use code ABHINAV12 for 12% off above ₹500; we earn a commission).');
   }
 
   const hasVerdict = /\b(BUY NOW|WAIT|IMPORT ONLY|AVOID)\b/.test(c);

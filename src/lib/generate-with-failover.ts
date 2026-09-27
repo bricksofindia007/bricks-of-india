@@ -9,6 +9,7 @@ import { FEATURE_FLAGS } from './feature-flags';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { OPENER_FEEDBACK } from './opener-pattern';
+import { AFFILIATE_FEEDBACK } from './affiliate-disclosure';
 export type DraftGenerationInput = {
   format: string;
   sourceTitle: string | null;
@@ -137,12 +138,14 @@ export async function generateWithFailover(
     const lint = await runLint(first.body, first.verdict, first.wordCount, first.title).catch(() => null);
     const citationFailed = !!lint?.gates.citationIdentity && !lint.gates.citationIdentity.pass;
     const openerFailed = !!lint?.gates.openerPattern && !lint.gates.openerPattern.pass;
-    if (!citationFailed && !openerFailed) return { parsed: first, lint, retried: false };
+    const affiliateFailed = !!lint?.gates.affiliateDisclosure && !lint.gates.affiliateDisclosure.pass;
+    if (!citationFailed && !openerFailed && !affiliateFailed) return { parsed: first, lint, retried: false };
     const feedback: string[] = [];
     if (citationFailed) feedback.push(citationFeedback(await unverifiedSetCitations(sb, `${first.title}
 ${first.body}`)));
     if (openerFailed) feedback.push(OPENER_FEEDBACK);
-    vlog(`Feedback gates failed (${[citationFailed && 'Gate 11', openerFailed && 'Gate 12'].filter(Boolean).join(', ')}) -- regenerating once with feedback`);
+    if (affiliateFailed) feedback.push(AFFILIATE_FEEDBACK);
+    vlog(`Feedback gates failed (${[citationFailed && 'Gate 11', openerFailed && 'Gate 12', affiliateFailed && 'Gate 13'].filter(Boolean).join(', ')}) -- regenerating once with feedback`);
     try {
       const text = await call(`${userPrompt}
 
