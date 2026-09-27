@@ -296,7 +296,10 @@ export default async function ReviewPage(props: Props) {
                           <div key={store.id} className="flex items-center justify-between">
                             <span className="text-sm text-dark">{store.name}</span>
                             <div className="flex items-center gap-2">
-                              <span className={`font-price text-sm font-bold ${isBest ? 'text-deal-green' : 'text-dark'}`}>
+                              <span
+                                className={`font-price text-sm font-bold ${isBest ? 'text-deal-green' : 'text-dark'}`}
+                                data-best-price={isBest ? sp.price_inr : undefined}
+                              >
                                 {formatPrice(sp.price_inr)}
                               </span>
                               {sp.in_stock ? (

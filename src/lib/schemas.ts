@@ -1,4 +1,5 @@
 import { BRAND } from './brand';
+import { isPriceFresh } from './price-freshness';
 
 export const organizationSchema = {
   '@context': 'https://schema.org',
@@ -127,6 +128,7 @@ type StorePrice = {
   product_url?: string | null;
   store_id: string;
   in_stock: boolean;
+  scraped_at?: string | null;
 };
 
 type SetData = {
@@ -250,34 +252,43 @@ export function verdictToRating(verdict: string | null): number | null {
 // activePrices/storeNames shape from store_prices already, on-page, for
 // their own price display; this is just the one JSON-LD rendering of that
 // same data, factored out so the two call sites can't drift.
-function buildAggregateOffer(
+//
+// #220: only rows that are in stock AND fresh (scraped <= PRICE_STALE_HOURS,
+// 12h) are offers anyone can act on, so lowPrice/highPrice/offerCount come
+// from those alone -- the same rows the page's best in-stock price uses. A
+// sold-out store's cheaper price used to become lowPrice (/sets/71043 said
+// 37799 while the only buyable price was 50399). When no row qualifies there
+// is no AggregateOffer at all: each store is listed as a plain Offer marked
+// OutOfStock, so the markup never advertises a price that can't be paid (G14).
+export function buildAggregateOffer(
   activePrices: StorePrice[],
   storeNames: Record<string, string>,
   fallbackUrl: string,
+  now: number = Date.now(),
 ) {
+  const offer = (sp: StorePrice, availability: string) => ({
+    '@type': 'Offer',
+    price: sp.price_inr,
+    priceCurrency: 'INR',
+    url: sp.product_url || fallbackUrl,
+    availability,
+    seller: { '@type': 'Organization', name: storeNames[sp.store_id] ?? sp.store_id },
+  });
+  const buyable = activePrices.filter(
+    (sp) => sp.in_stock && sp.price_inr != null && isPriceFresh(sp.scraped_at, now),
+  );
+  if (buyable.length === 0) {
+    return activePrices.map((sp) => offer(sp, 'https://schema.org/OutOfStock'));
+  }
+  const prices = buyable.map((sp) => sp.price_inr);
   return {
     '@type': 'AggregateOffer',
     priceCurrency: 'INR',
-    lowPrice: activePrices.reduce(
-      (min, sp) => (sp.price_inr < min ? sp.price_inr : min),
-      activePrices[0].price_inr,
-    ),
-    highPrice: activePrices.reduce(
-      (max, sp) => (sp.price_inr > max ? sp.price_inr : max),
-      activePrices[0].price_inr,
-    ),
-    offerCount: activePrices.length,
+    lowPrice: Math.min(...prices),
+    highPrice: Math.max(...prices),
+    offerCount: buyable.length,
     availability: 'https://schema.org/InStock',
-    offers: activePrices.map((sp) => ({
-      '@type': 'Offer',
-      price: sp.price_inr,
-      priceCurrency: 'INR',
-      url: sp.product_url || fallbackUrl,
-      availability: sp.in_stock
-        ? 'https://schema.org/InStock'
-        : 'https://schema.org/OutOfStock',
-      seller: { '@type': 'Organization', name: storeNames[sp.store_id] ?? sp.store_id },
-    })),
+    offers: buyable.map((sp) => offer(sp, 'https://schema.org/InStock')),
   };
 }
 
