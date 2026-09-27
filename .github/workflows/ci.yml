@@ -52,6 +52,30 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY:     ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx scripts/check-set-mention-links.ts
 
+      - name: G15 extensions-schema exposure probe (FP3.0 #361)
+        # CLAUDE.md G15: the hosted project's exposed-schema list is a
+        # dashboard setting (no supabase/config.toml in this repo), so a repo
+        # grep can't see it. One live anon request instead (a 1-row table
+        # read; the /rest/v1/ root is 401 for anon): asking for the
+        # `extensions` profile must fail with 406 PGRST106 (schema not
+        # exposed). A 200 means `extensions` became reachable over the Data
+        # API, and with it the http extension's functions (PUBLIC EXECUTE).
+        env:
+          NEXT_PUBLIC_SUPABASE_URL:      ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+        run: |
+          KEY=$(printf '%s' "$NEXT_PUBLIC_SUPABASE_ANON_KEY" | sed 's/^\xEF\xBB\xBF//' | tr -d '\r\n')
+          STATUS=$(curl -s -o /tmp/g15.json -w '%{http_code}' --max-time 20 \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" -H "Accept-Profile: extensions" \
+            "$NEXT_PUBLIC_SUPABASE_URL/rest/v1/sets?select=set_number&limit=1")
+          echo "extensions profile -> HTTP $STATUS: $(head -c 200 /tmp/g15.json)"
+          if [ "$STATUS" = "406" ] && grep -q '"PGRST106"' /tmp/g15.json && ! grep -q 'exposed: [^"]*extensions' /tmp/g15.json; then
+            echo "PASS: extensions schema is not exposed by the Data API (G15)"
+          else
+            echo "::error::G15: the extensions schema looks exposed via PostgREST (HTTP $STATUS). The http extension's functions would be callable by anon. Revert the Data API exposed-schemas change or get a security review + chat sign-off."
+            exit 1
+          fi
+
       - name: Start Supabase stub (build + route scan never touch production)
         run: |
           nohup node scripts/ci/supabase-stub.mjs > /tmp/supabase-stub.log 2>&1 &
