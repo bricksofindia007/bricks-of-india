@@ -5,6 +5,23 @@ import { resolveDisclaimerVariant, disclaimerTextFor, STORE_DISPLAY_NAME, type S
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AFFILIATE_NOTE } from './affiliate-disclosure';
 
+/**
+ * #387 (2026-09-27): the article-table insert failed. `code` is the Postgres
+ * SQLSTATE from PostgREST. Class 23 (integrity constraint violation: not-null,
+ * check, unique, foreign key) is PERMANENT for this draft -- retrying the same
+ * row can never succeed -- so callers give the draft a terminal state instead
+ * of leaving it 'approved' to fail again every run.
+ */
+export class PublishInsertError extends Error {
+  constructor(public table: string, public dbMessage: string, public code?: string) {
+    super(`Insert failed (${table}): ${dbMessage}${code ? ` [sqlstate ${code}]` : ''}`);
+    this.name = 'PublishInsertError';
+  }
+  get permanent(): boolean {
+    return typeof this.code === 'string' && this.code.startsWith('23');
+  }
+}
+
 // ── Unified publish-a-draft logic (2026-06-28) ────────────────────────────────
 //
 // Extracted and merged from two independently-drifted implementations:
@@ -976,7 +993,7 @@ export async function publishOneDraft(
 
   const { error: insertErr } = await supabase.from(table).insert(row);
   if (insertErr) {
-    throw new Error(`Insert failed (${table}): ${insertErr.message}`);
+    throw new PublishInsertError(table, insertErr.message, insertErr.code);
   }
 
   // Recrawl acceleration (replaces the dead Google sitemap ping): submit

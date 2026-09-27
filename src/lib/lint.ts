@@ -601,7 +601,14 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
   // Gate 3: Verdict (non-news only)
   let verdictGate: LintGateResult | null = null;
   if (format !== 'news') {
-    if (isCommunity) {
+    if (isCommunity && format === 'review') {
+      // #387 (2026-09-27): a REVIEW with no verdict can never be stored --
+      // reviews.verdict is NOT NULL -- so the community carve-out below
+      // doesn't apply to it. Fail here so it takes the normal reject+delete
+      // path instead of passing lint and failing the insert on every run.
+      verdictGate = { pass: false, severity: 'fail', reason: 'review-format draft has no verdict (reviews.verdict is NOT NULL)' };
+      overallPass = false;
+    } else if (isCommunity) {
       verdictGate = { pass: true, severity: 'warn', reason: 'community/informational content — no verdict expected' };
       warnings.push('[Gate 3 WARN] No verdict — publishing as community/informational content');
     } else {
