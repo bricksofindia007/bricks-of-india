@@ -11,56 +11,28 @@
 // failure so a share card is never image-less.
 //
 // Strict host allowlist — this is a proxy, and an open proxy is an SSRF hole.
+//
+// FP1.3 (2026-09-27): fetch logic lives in src/lib/img-proxy.ts. Rebrickable
+// originals are swapped for their 1000x800 resize before fetching, and the
+// source cap (3 MB) is enforced while streaming, so an oversized upstream is
+// never held in memory whole.
 
 import { NextRequest, NextResponse } from 'next/server';
-
-const ALLOWED_HOSTS = new Set([
-  'images.brickset.com',
-  'cdn.rebrickable.com',
-  'rebrickable.com',
-  'i.ytimg.com',
-  'img.youtube.com',
-  'www.lego.com',
-]);
+import { proxyImage } from '@/lib/img-proxy';
 
 const FALLBACK_PATH = '/fallback-hero.png';
-const UPSTREAM_TIMEOUT_MS = 8000;
-const MAX_BYTES = 8 * 1024 * 1024; // 8 MB cap
 
 export async function GET(req: NextRequest) {
-  const src = req.nextUrl.searchParams.get('src');
   const fallback = () => NextResponse.redirect(new URL(FALLBACK_PATH, req.nextUrl.origin), 302);
-
-  if (!src) return fallback();
-
-  let url: URL;
-  try { url = new URL(src); } catch { return fallback(); }
-  if (url.protocol !== 'https:' || !ALLOWED_HOSTS.has(url.hostname)) return fallback();
-
   try {
-    const upstream = await fetch(url.toString(), {
-      signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS),
-      headers: { 'User-Agent': 'BricksOfIndia-ImageProxy/1.0 (+https://bricksofindia.com)' },
-      // Next.js data cache: revalidate daily; Cloudflare adds edge caching on top.
-      next: { revalidate: 86400 },
-    });
-    if (!upstream.ok) return fallback();
-
-    const contentType = upstream.headers.get('content-type') ?? '';
-    if (!contentType.startsWith('image/')) return fallback();
-
-    const len = Number(upstream.headers.get('content-length') ?? 0);
-    if (len > MAX_BYTES) return fallback();
-
-    const body = await upstream.arrayBuffer();
-    if (body.byteLength > MAX_BYTES) return fallback();
-
-    return new NextResponse(body, {
+    const r = await proxyImage(req.nextUrl.searchParams.get('src'));
+    if (!r.ok) return fallback();
+    return new NextResponse(r.body, {
       status: 200,
       headers: {
-        'Content-Type': contentType,
+        'Content-Type': r.contentType,
         'Cache-Control': 'public, s-maxage=86400, stale-while-revalidate=604800, max-age=3600',
-        'X-Proxied-From': url.hostname,
+        'X-Proxied-From': r.host,
       },
     });
   } catch {
