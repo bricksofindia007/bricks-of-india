@@ -1,0 +1,37 @@
+name: VID-QP re-judge queued scripts (#365)
+
+# P2 Step 8 (27 Sep 2026): re-run the live, fail-closed coherence judge
+# (openai/gpt-oss-120b) over queued QP rows that passed under the old
+# fail-open judge without a real verdict. A failing or unjudgeable script is
+# moved to publish_blocked. workflow_dispatch only; writes only
+# quiet_panic_posts.gate_results and, on failure, status.
+on:
+  workflow_dispatch:
+    inputs:
+      row_ids:
+        description: 'Space-separated quiet_panic_posts ids'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  rejudge:
+    runs-on: ubuntu-latest
+    # A few Groq calls (30s timeout each) plus a pip install of requests;
+    # no run history yet, so this is a ceiling, not a sized estimate.
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install requests==2.31.0
+      - name: Re-judge
+        working-directory: scripts/video
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          ROW_IDS: ${{ inputs.row_ids }}
+        run: python rejudge_quiet_panic.py $ROW_IDS
