@@ -65,6 +65,7 @@ from supabase import create_client  # noqa: E402
 
 import gates  # noqa: E402
 import prompts  # noqa: E402
+from price_baseline import pick_baselines  # noqa: E402  (#383)
 
 BASE_DIR = Path(__file__).parent
 MASTER_ASSETS = BASE_DIR / "master_assets"
@@ -626,7 +627,8 @@ def already_used(sb, product_url: str, set_number: str | None) -> bool:
 
 # Price-drop detection: same query pattern and threshold as the real web
 # pipeline's src/app/lab/price-drops/page.tsx (drop_inr >= 200 OR
-# drop_pct >= 5, baseline = oldest price_history row in the last 30 days),
+# drop_pct >= 5, baseline = the price 30 days ago: latest price_history row
+# at or before the window start, #383),
 # reused rather than re-derived. store_prices/price_history.set_id is the
 # plain set-number string, not a UUID FK -- verified live against the
 # actual table before assuming the join key.
@@ -641,15 +643,22 @@ def get_price_drops(sb, set_numbers: list[str], store_id: str = "mybrickhouse") 
         if r.get("price_inr") is not None:
             current[r["set_id"]] = {"price": float(r["price_inr"]), "scraped_at": r["scraped_at"]}
 
-    baseline: dict[str, float] = {}
+    # #383: baseline = the price AT the window start (latest row at or before
+    # `since`), since price_history is change-only from FP5.7 -- the oldest row
+    # inside the window is the first change (e.g. the already-dropped price).
+    # See price_baseline.py; in-window rows are only the fallback for listings
+    # first observed inside the window.
+    pre_res = (
+        sb.table("price_history").select("set_id, price_inr, recorded_at")
+        .eq("store_id", store_id).in_("set_id", set_numbers).lte("recorded_at", since)
+        .order("recorded_at", desc=True).execute()
+    )
     hist_res = (
         sb.table("price_history").select("set_id, price_inr, recorded_at")
-        .eq("store_id", store_id).in_("set_id", set_numbers).gte("recorded_at", since)
+        .eq("store_id", store_id).in_("set_id", set_numbers).gt("recorded_at", since)
         .order("recorded_at", desc=False).execute()
     )
-    for r in hist_res.data or []:
-        if r["set_id"] not in baseline and r.get("price_inr") is not None:
-            baseline[r["set_id"]] = float(r["price_inr"])
+    baseline: dict[str, float] = pick_baselines(pre_res.data or [], hist_res.data or [])
 
     drops: dict[str, dict] = {}
     for set_num, cur in current.items():
