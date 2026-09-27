@@ -1338,12 +1338,9 @@ try {
 // rows" is the expected steady state, not a pipeline failure — skip.
 log('DataPipeline', 'blog_posts: dormant, permanently empty by design — check skipped');
 
-// 13g: legacy prices table — flag existence as cleanup reminder
-try {
-  const { error } = await sb.from('prices').select('id').limit(1);
-  if (!error) log('DataPipeline', 'prices (legacy): table still exists — ADMIN-CLEANUP-01 pending. Safe to drop once confirmed unused.');
-  // No alert — informational only
-} catch (e) { /* table may not exist — fine */ }
+// 13g (retired 2026-09-27): the legacy `prices` table was backed up and dropped by
+// FP5.1 part 1 (migration 20260927152208; backup boi-db-backups6-09-27-fp5.1\).
+// ADMIN-CLEANUP-01 is done, so there's nothing left to remind about.
 
 // ── Check 14: Content integrity ────────────────────────────────────────────────
 
