@@ -22,7 +22,7 @@ SESSION START: Read `BOI_MASTER_TRACKER.md` — header block (metadata, current 
 
 **Handover docs:** Pattern retired after Day 35. Write a changelog entry in `BOI_MASTER_TRACKER.md` §Sprint changelog instead. No new Day_N_Ground_Truth files — `docs/handover/` is frozen.
 
-**Cycle 2 plan:** `docs/plans/BOI_Cycle2_Master_Plan.md` (v2.3, approved 27 Sep 2026) is the scope, gate and open-item register for Cycle 2. Every plan ID has a GitHub issue (label `cycle-2` plus `stage-0` / `foundation` / `build` / `trust`, title prefixed with the plan ID). No closing keywords (`Closes #`, `Fixes #`) in commits or PRs; issues close only through an evidence comment. Email addresses and DNS: `docs/email/ADDRESSES.md`.
+**Cycle 2 plan:** `docs/plans/BOI_Cycle2_Master_Plan.md` (v2.4, approved 27 Sep 2026) is the scope, gate and open-item register for Cycle 2. Every plan ID has a GitHub issue (label `cycle-2` plus `stage-0` / `foundation` / `build` / `trust`, title prefixed with the plan ID). No closing keywords (`Closes #`, `Fixes #`) in commits or PRs; issues close only through an evidence comment. Email addresses and DNS: `docs/email/ADDRESSES.md`.
 
 ---
 
@@ -45,7 +45,7 @@ These are rules, not guidance. Where an older rule further down this file confli
 - **G13 — Every scheduled job writes a heartbeat.** A job without one isn't allowed in production.
 - **G14 — Fail honest, not wrong.** Any new code path must state its failure behaviour, and that behaviour must degrade to older-but-labelled data or to no output, never to incorrect output.
 
-Transitional note (27 Sep 2026): G3, G12 and G13 describe systems that don't exist yet (snapshot reader FP1.1, email gateway FP4.6, heartbeats FP6.1). Until each lands, existing code paths are grandfathered, but no *new* code path may add a direct price read, a direct provider email call, or an un-heartbeated scheduled job without saying so in the PR and linking the pillar issue.
+Transitional: G3, G12 and G13 describe systems not yet built. Existing paths are grandfathered only until their migration item lands (G3 → FP1.1, G12 → FP4.9, G13 → FP6.1). No NEW path may add a direct price read, a direct provider email call or an un-heartbeated scheduled job unless chat approves it in writing and an issue tracks it.
 
 ---
 

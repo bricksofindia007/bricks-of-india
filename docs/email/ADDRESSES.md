@@ -2,7 +2,7 @@
 
 Source: `docs/plans/BOI_Cycle2_Master_Plan.md` §6.3 (FP4, decisions E1–E7). The plan is the design; this file is the operating record of what exists. Update it in the same commit as any address, provider or DNS change.
 
-**Status as of 27 Sep 2026** (setup done by Abhinav on the evening of 27 Sep; DNS re-checked by public DoH lookup on 27 Sep ~13:00 UTC during Stage 0 P0.15).
+**Status as of 27 Sep 2026** (setup done by Abhinav on the evening of 27 Sep; DNS re-checked by public DoH lookup on 27 Sep ~07:30 UTC during Stage 0 P0.15. Correction 27 Sep: this file first said "~07:30 UTC", which was IST misread as UTC).
 
 ## Principles (plan §6.3)
 
@@ -29,8 +29,11 @@ Source: `docs/plans/BOI_Cycle2_Master_Plan.md` §6.3 (FP4, decisions E1–E7). T
 | bot@bricksofindia.com | Contact in the scraper user agent and `/bot` page (FP5.10) | → ops@ destination | — | ✅ ImprovMX alias |
 | postmaster@bricksofindia.com | Standard address providers expect | → ops@ destination | — | ✅ ImprovMX alias |
 | abuse@bricksofindia.com | Standard address providers expect | → ops@ destination | — | ✅ ImprovMX alias |
+| alerts@bricksofindia.com | **Legacy root sender** (workflow-freshness-watchdog); moves to system@ops. in FP4.9 (I22, #371) | temporary alias → ops@ destination, so replies and bounces reach a human | Resend (root), until FP4.9 | ⏳ PENDING: temporary ImprovMX alias, Abhinav creates |
+| notifications@bricksofindia.com | **Legacy root sender** (VID-P4/VID-QP and social notifiers); moves in FP4.9 (I22, #371) | temporary alias → ops@ destination | Resend (root), until FP4.9 | ⏳ PENDING: temporary ImprovMX alias, Abhinav creates |
+| newsletter@bricksofindia.com | **Legacy root sender** (growth-engine newsletter, paused D22); moves to news@news. in FP4.9 (I22, #371) | temporary alias → ops@ destination | Resend Broadcasts (root), until FP4.9 | ⏳ PENDING: temporary ImprovMX alias, Abhinav creates |
 
-ImprovMX (free): 1 domain, 25 aliases, 500 forwards/day, no sending. In use: 10 (abhinav@ + the 9 aliases above).
+ImprovMX (free): 1 domain, 25 aliases, 500 forwards/day, no sending. In use: 10 (abhinav@ + the 9 aliases above); 13 once the three temporary legacy-sender aliases (alerts@, notifications@, newsletter@ → ops@) exist. They're removed when FP4.9 retires those senders.
 
 ## Setup status (27 Sep)
 
@@ -40,12 +43,12 @@ ImprovMX (free): 1 domain, 25 aliases, 500 forwards/day, no sending. In use: 10 
 | Resend `notify.bricksofindia.com` (alerts@): DKIM present | ✅ VERIFIED |
 | Resend `news.bricksofindia.com` (news@): DKIM present | ✅ VERIFIED |
 | Brevo `ops.bricksofindia.com` (system@): verification code, DKIM, and its own DMARC `p=none` | ✅ VERIFIED |
-| Root `_dmarc.bricksofindia.com` (covers root, notify. and news.) | ❌ MISSING (NXDOMAIN on 27 Sep ~13:00 UTC) |
+| Root `_dmarc.bricksofindia.com` (covers root, notify. and news.) | ❌ MISSING (NXDOMAIN on 27 Sep ~07:30 UTC) |
 | Brevo authentication of the root domain (sign-in failover, human replies as hello@/privacy@) | ⏳ PENDING (no `brevo-code` TXT and no `brevo1/2._domainkey` on root) |
 | Gmail labels/filters per alias; "Send mail as" hello@, privacy@, corrections@ via Brevo SMTP | ⏳ Abhinav, after Brevo root auth |
 | Resend pay-as-you-go confirmed OFF | ⏳ Abhinav (screenshot). The repo's Resend key is send-only, so the terminal can't read account settings |
 
-## DNS records (public lookup, 27 Sep ~13:00 UTC)
+## DNS records (public lookup, 27 Sep ~07:30 UTC)
 
 | Name | Type | Value (abridged) | Purpose |
 |---|---|---|---|

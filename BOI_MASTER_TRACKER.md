@@ -1,5 +1,25 @@
 # BOI Master Tracker
 
+## Prescription P1: Stage 0 outcomes + Stage 1 start — 2026-09-27
+
+Plan now **v2.4** (`docs/plans/BOI_Cycle2_Master_Plan.md`, byte-identical to the approved file, sha256 `51ca6ca9…`). Steps run in order. Evidence is on each issue; nothing closed without an evidence comment.
+
+| Step | Result | Refs |
+|---|---|---|
+| 1 FP3.0 security hotfix | ✅ **Applied 12:27 UTC.** The approved REVOKE was a no-op: the http* grants belong to `supabase_admin`, and `postgres` can't revoke them. Tested and rolled back. Abhinav chose Option 1: `DROP EXTENSION http; CREATE EXTENSION http WITH SCHEMA extensions;`, applied repo-file-first in one psql transaction with assertions. `schema_migrations` 67 → 68 (the other 67 are md5-identical). REST `rpc/http_get` now returns 404 PGRST202, and `extensions` returns 406 PGRST106 (not exposed). `has_function_privilege` for anon is still true via supabase_admin's PUBLIC grant, but unreachable. Backup: `boi-db-backups6-09-27-fp3.0\` | #361, #360, PR #362 `e98771c` |
+| 2 Docs (this commit) | ✅ Plan v2.4 committed; IST/UTC misread corrected here, in the dashboard and in ADDRESSES.md; CLAUDE.md transitional rule replaced verbatim; legacy root senders + temporary aliases (PENDING, Abhinav) in ADDRESSES.md; v2.4 IDs registered below; FP5.7 design at `docs/plans/FP5.7_price_history_stock_design.md` | #366–#374 |
+| 3 #204 + #220 | ✅ Merged. Homepage deal count = `getDeals()` length, the same list `/deals` renders (hidden if the read fails). JSON-LD offers use only in-stock rows ≤12h old, with OutOfStock Offers when none qualify. Unit test, plus a CI crawl check on 3 stub fixture pages (3/3 PASS in CI). ⏳ Live verification in the Step 4 train | PR #363 `b863096` |
+| 8 FP5.10 runner probe | ✅ All three sites return 200 to a GitHub runner, with the same bytes as a local fetch and prices present. Jaiman LEGO handle `lego-collection` (510). Hamleys `/collection/lego` server-renders price tiles | PR #364 `4057fc4`, run 36320545131, #289 |
+| 9 T.15 inventory | ✅ "Gemini 2.5 deprecates 16 Oct" **withdrawn**: no source (Google, updated 24 Sep: no shutdown date for 2.5 Flash/Flash-Lite/Pro). **Found:** VID-QP coherence judge still calls Groq `qwen/qwen3.6-27b` (shut down 14 Sep), so it has failed open since | #367, #372, #365 |
+| 10 FP5.7 design | ✅ Draft only (not applied); recommends a DB trigger on `store_prices`. ~6,100 → ~40–100 history rows/day | #286, #368 |
+| 4–7 | ⏳ See the P1 report (deploy train, 14:00 UTC re-check, Story #76, FP2.3 baseline draft) | — |
+
+**Pending cleanup (tracked):**
+- ⏳ **Delete `%APPDATA%\postgresql\pgpass.conf` after the FP2.3 production repair (P2, ~1 Oct).** It holds the production `postgres` password, which Abhinav reset on 27 Sep and wrote to this file himself; the terminal never printed it. No secret or workflow used the old password (checked 27 Sep: all growth URLs use growth roles).
+- The production postgres connection from this machine is the Supavisor pooler, session mode (5432). The direct host `db.<ref>.supabase.co` is IPv6-only and doesn't resolve here.
+
+---
+
 ## Cycle 1 close-out + Cycle 2 register — 2026-09-27 (Stage 0 P0.2, docs-only)
 
 **What this entry is.** The single docs-only close-out commit required by Cycle 2 Master Plan v2.3 §6.1 P0.2 (#249). It reconciles this tracker and `admin/dashboard.html` against the **Cycle 1 Status Report v2** (27 Sep) and the **plan** (`docs/plans/BOI_Cycle2_Master_Plan.md`, committed verbatim in this commit). The same commit adds guardrails G1–G14 to `CLAUDE.md` and creates `docs/email/ADDRESSES.md`. Not deployed on its own: it rides the next approved release train. Stage 0 investigation results (P0.4–P0.15) are in the Stage 0 report to Abhinav; the issues below carry them.
@@ -28,15 +48,17 @@
 | Content corrections: Donkey Kong article; 11382, 21369, 11512, 11374, 40896 → WAIT with dated notes; 11512 pieces 13 → 372 and "metal bracket" removed; 11374 pieces → 2,274 | DB edits, backups `2026-09-26-item9`, `2026-09-27-pr-d` | ✅ Live |
 | R2 lifecycle rule `incremental-cache-30d` | Abhinav, Cloudflare dashboard | ✅ Set 27 Sep. ⏳ re-check ~29 Sep 02:30 UTC (FP1.4, #242) |
 
-### Stage 0 P0.1 evidence (27 Sep, ~13:30 UTC)
+### Stage 0 P0.1 evidence (27 Sep, ~08:00 UTC = 13:30 IST)
+
+> **Correction (27 Sep, P1 Step 2):** the first version of this section read IST clock times as UTC (PowerShell `Get-Date -Format u` prints local time with a "Z"). "~13:30 UTC" was ~08:00 UTC. "GitHub had started no scheduled run since 07:34 UTC" and "never started" were **false**: at ~07:45–08:15 UTC today's health check, generate-drafts, social run and #183 cleanup simply weren't due yet. The rows below are corrected; the Step 5 re-check (after 14:00 UTC) records what actually ran.
 
 | Item | Result | Issue action |
 |---|---|---|
-| Check 11b first reading | ⏳ Not yet: no health-check run since 26 Sep 07:52 UTC (Check 11b merged 26 Sep 15:12 UTC). GitHub had started no scheduled run in the repo since 07:34 UTC | — |
-| 04:00Z storage cleanup (#183, Sundays) | ⏳ The 27 Sep 04:00 schedule never started (last runs are manual, 26 Sep). If GitHub drops it, the next slot is 4 Oct | — |
+| Check 11b first reading | ⏳ Not yet due at ~08:00 UTC: last health check 26 Sep 07:52 UTC (Check 11b merged 26 Sep 15:12 UTC); today's 02:30 UTC cron usually lands ~07:50–08:30 UTC | — |
+| 04:00Z storage cleanup (#183, Sundays) | ⏳ Not yet run at ~08:15 UTC (Sunday cron `0 4 * * 0`, typical lag 4–5h; last runs are manual, 26 Sep). If GitHub drops it, the next slot is 4 Oct | — |
 | Story #76 | ❌ Not generated: VID-P4 run 36297728025 (05:37 UTC) failed on a MyBrickHouse `products.json` 503. Sequence intact (last_value 75, max story 75, no number consumed) | Comment on #201 (stays open) |
 | Social run → #181 | ✅ 26 Sep 11:39 UTC run (first after #186 merged) posted one set (21353 Botanical Garden: IG carousel + Reel + YouTube Short `Kag-aXMdW20`) | #181 closed with evidence |
-| Gates 12/13 first run | ⏳ Today's generate-drafts run hadn't started by 13:15 UTC | — |
+| Gates 12/13 first run | ⏳ Not yet due at ~07:45 UTC (generate-drafts cron 08:30 UTC; yesterday it landed 13:16 UTC) | — |
 | Full-day Supabase requests by caller | ❌ Over target: 36,450 in the 24h to 07:44 UTC 27 Sep (Worker 20,379, including a 3.7k post-deploy hour; node/Actions and operator scripts 15,850; python 169; other ~50). Quiet-hours Worker rate ≈ 570/h (≈13.7k/day), 69% `rpc/set_page_data` | FP1.1 (#263), FP1.2 (#264) |
 | PR-A acceptance | ✅ Passed (see above) | #205 closed |
 | Two PR-D pages | ✅ Live (all added sentences present, 0 removed sentences remain) | — |
@@ -152,7 +174,7 @@ Status key: ✅ closed (recorded, no action) · 🔵 in plan · ⏸ parked (with
 
 **17.6 Items created by the plan: every ID with its issue**
 
-All labelled `cycle-2` plus one stage label; titles prefixed with the plan ID; created 27 Sep (#248–#359). Decisions D1–D25 and E1–E7 deliberately have no issues. T.8 and T.11 are groups of existing issues; T.12 moved into D-9.
+All labelled `cycle-2` plus one stage label; titles prefixed with the plan ID; created 27 Sep (#248–#359, plus v2.4's new IDs #360, #361, #366–#374). Decisions D1–D28 and E1–E7 deliberately have no issues. T.8 and T.11 are groups of existing issues; T.12 moved into D-9.
 
 | Plan ID | Title | Stage label | Issue |
 |---|---|---|---|
@@ -279,6 +301,19 @@ All labelled `cycle-2` plus one stage label; titles prefixed with the plan ID; c
 | I15 | Supabase quotas are per organisation (staging must be a separate org) | foundation | #357 |
 | I16 | abhinav@ (personal address) is the only system sender | foundation | #358 |
 | I17 | Send Email Hook availability on Free unconfirmed | stage-0 | #359 |
+| FP3.0 | http extension public EXECUTE hotfix (v2.4, urgent) | foundation | #361 |
+| FP1.6 | On-demand revalidation from the snapshot publisher (v2.4) | foundation | #366 |
+| T.15 | Gemini/LLM model inventory; decide `chore/gemini-model-migration` by 10 Oct (v2.4) | trust | #367 |
+| I18 | `http` extension functions executable by anon (SSRF) | foundation | #360 |
+| I19 | `price_history` has no stock column; writer isn't change-only | foundation | #368 |
+| I20 | #204 "500+ Active deals" and #220 JSON-LD out-of-stock lowPrice still live | trust | #369 |
+| I21 | `growth_webhook` lacks SELECT on `growth.newsletter_drafts`; events failing since 1 Sep | foundation | #370 |
+| I22 | 4 from-addresses on the root; alerts@/notifications@/newsletter@ have no inbound alias | foundation | #371 |
+| I23 | "Gemini 2.5 deprecates 16 Oct" not supported by Google's deprecations page | trust | #372 |
+| I24 | R2 Class A ~49k/day from runtime ISR regeneration, not deploys | foundation | #373 |
+| I25 | Supabase requests 36,450/24h; quiet-hour renders ≈13.7k/day | foundation | #374 |
+
+**v2.4 decisions (no issues, by rule):** **D26** chart history before stock data: show it, labelled "listed price (stock not recorded)" (before 7 Oct). **D27** FirstCry paise: display exactly as listed; best-price, ties and deal math use the exact value (before R.F ~13 Oct). **D28** Jaiman "box damage": exclude in v1, recorded in `unmatched_listings` with reason `condition:box_damage` (before R.J shadow ~7 Oct).
 
 **17.7 Parked register:** X.1 ADMIN_PAT scope (~1 Nov) · X.2 monthly manual audit (date in this tracker) · X.3 CGI pipeline (Cycle 3 planning) · X.4 npm audit / PR #41 (G-CLOSE re-check) · X.5 #108 rate-limit rule (D-9 result) · X.6 deploy-protection settings (only if someone else joins the repo) · D25 Amazon/Flipkart · D16 heat map · D14 Shareables · D15 AEO/GEO · engagement backlog (Cycle 3 planning).
 

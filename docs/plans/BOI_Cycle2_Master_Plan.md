@@ -1,7 +1,7 @@
-# BOI — Cycle 2 Master Plan (v2.3: foundation first, festive schedule)
+# BOI — Cycle 2 Master Plan (v2.4: foundation first, festive schedule)
 ## Build the support system first, then three retailers, price history, and wishlist/accounts/alerts
 
-**Version:** 2.3 · 27 Sep 2026 (v2.3 adds Supabase's answer: no grace period on any future limit breach, so hard quota guards are added, plus the sale/billing-cycle overlap risk R38). Based on 2.2, which replaced v1.0, v2.0 and v2.1. v2.2 fixes the schedule: the **festive-ready core** (foundation plus price history plus hearts plus live-site fixes) goes live **by 7 Oct**, before the sale starts on 8 Oct. Retailers go live 9–16 Oct, accounts ~12–13 Oct, alerts ~20 Oct. Proof windows are now measured in scrape cycles instead of calendar days, and the single certificate is split in two (RC-1, RC-2). Backups go to Abhinav's personal Google Drive. Email setup done on 27 Sep is recorded.
+**Version:** 2.4 · 27 Sep 2026 (v2.4 folds in the Stage 0 report: FP3.0 security hotfix, FP2.3 baseline squash, FP5.7 stock column, FP1.6, D26–D28, I18–I25, measured capacity). Earlier: v2.3 (v2.3 adds Supabase's answer: no grace period on any future limit breach, so hard quota guards are added, plus the sale/billing-cycle overlap risk R38). Based on 2.2, which replaced v1.0, v2.0 and v2.1. v2.2 fixes the schedule: the **festive-ready core** (foundation plus price history plus hearts plus live-site fixes) goes live **by 7 Oct**, before the sale starts on 8 Oct. Retailers go live 9–16 Oct, accounts ~12–13 Oct, alerts ~20 Oct. Proof windows are now measured in scrape cycles instead of calendar days, and the single certificate is split in two (RC-1, RC-2). Backups go to Abhinav's personal Google Drive. Email setup done on 27 Sep is recorded.
 **Status:** **Approved by Abhinav 27 Sep** ("the plan is okay"). All G0 decisions answered: D1, D2, D3, D7, D9, D10, E1, E2, E3.
 **Supersedes:** §13 and §14 of `BOI_Cycle1_Status_Report_2026-09-27_v2.md`, and plan v1.0.
 **What changed from v1.0:** the builds no longer start in week 2. **A Foundation stage builds and drills the whole support system first.** Only signed **Readiness Certificates** (§7: RC-1 for the festive core, RC-2 for accounts and alerts) open the builds that depend on them. The log-quota contingency becomes a **core foundation build** (the price snapshot layer). A full **email and communication system** is added (§6). A **staging environment**, **monitoring**, and a **failure-scenario matrix** (§5) are added, where every failure must degrade to *honest*, never to *wrong*.
@@ -235,6 +235,7 @@ Each risk flagged in v1.0, plus the new ones found while designing the foundatio
 | FP1.3 | `/api/img` resize and size cap | og:images up to 8 MB are currently loaded into memory |
 | FP1.4 | R2 lifecycle tuning | After the 29 Sep check. Shorter retention if old build caches are useless, keeping a rollback window. |
 | FP1.5 | Cold-render review | After FP1.1: measure what still hits Supabase on cold renders (reviews, articles) and decide whether the snapshot should extend to them |
+| FP1.6 | **On-demand revalidation from the snapshot publisher** (after RC-1, gated by re-verifying B7 on Workers in staging): the publisher revalidates only the set pages whose snapshot changed, and the time-based fallback lengthens. Why: Stage 0 shows R2 Class A (~49k/day, above the 1M/month free tier) is driven by **runtime ISR regeneration**, not deploys. This cuts Class A, Workers CPU and cold renders together. |
 
 **FP2 — Safe change**
 
@@ -242,7 +243,7 @@ Each risk flagged in v1.0, plus the new ones found while designing the foundatio
 |---|---|---|
 | FP2.1 | **Staging Supabase project in a separate organisation** | Quotas are counted per organisation, so a separate org keeps staging from using up production's quota. Schema comes only from repo migrations. Seeded with the catalogue and prices, **no user data**. A weekly CI run keeps it from pausing. |
 | FP2.2 | **Staging Worker** | A separate Worker bound to the staging DB, its own KV namespace and its own R2 bucket (3-day lifecycle). Behind **Cloudflare Access** (free tier), `noindex`. |
-| FP2.3 | Fix #197 plus a CI migration-parity check. G7: no MCP migrations. | Rehearsed on staging |
+| FP2.3 | **Fix #197 by baseline squash** (Stage 0: 55 repo files vs 67 production rows; 31 production-only, 19 repo-only, 36 renamed; production keeps all SQL): (1) export all 67 production `statements` to `supabase/migrations/_history/` (a record, not run); (2) move the 55 repo files to `supabase/migrations/_archive/`; (3) generate a **baseline** from production: `supabase db dump --schema-only` **plus** a roles script (growth LOGIN roles) **plus** required non-schema objects (storage buckets, `pg_cron` jobs, extensions) and check that nothing is missing; (4) **rehearse on staging** (D-8): build a fresh DB from the baseline, then diff its schema dump against production's = **0 differences**; (5) only then, on production, back up `schema_migrations`, `repair --status reverted` the 67 old versions and `--status applied` the baseline (metadata only, Tier 2); (6) CI parity check through a `ci_readonly` role (SELECT on `schema_migrations` only), run nightly and on migration PRs. G7 is enforceable only after this. | Rehearsed on staging |
 | FP2.4 | **Flag system** | Build-time flags (UI features) in one file. Runtime flags in KV (`snapshot_read`, `retailer:{id}:display`, `alerts_enabled`, `email_stream:{name}`), each with a runbook. Retailer display changes trigger a targeted revalidation. |
 | FP2.5 | Release trains in `DEPLOY_POLICY.md` | ≤1 deploy a day, ≤1 Tier 2 change per train, WIP limits |
 | FP2.6 | **Backups plus restore drill (3 tiers, D9 decided)** | **Tier A (automatic):** a GitHub Actions job every night exports the critical tables (`store_prices`, `price_history`, retailer registry, user tables once they exist), and every Sunday a full dump. Both are compressed and **encrypted before leaving the runner** (`age`; only the public key is in the repo, the private key is held by Abhinav), then uploaded to a `BOI-Backups` folder on **Abhinav's personal Google Drive (bhargav.abhinav@gmail.com, 1 TB)**. Access uses an OAuth refresh token with the **`drive.file` scope only**, so the job can see **only the files it created**, never the rest of the personal Drive. The OAuth consent screen is in **Production** (not Testing), so the token doesn't expire after 7 days (the YouTube lesson). A failed upload is a sentinel alert. Retention: 30 nightly plus 12 weekly (~1–1.5 GB). **Tier B (offline):** on the 1st of each month the ops digest reminds Abhinav to copy the latest weekly dump plus the local BOI folders to the encrypted external HDD, then unplug it (`BOI_Local_Backup_Runbook.md`). **Tier C (pre-change):** the existing `boi-db-backups\` snapshots before every migration or data fix. **Monthly restore drill into staging.** |
@@ -251,6 +252,7 @@ Each risk flagged in v1.0, plus the new ones found while designing the foundatio
 
 | ID | Build |
 |---|---|
+| **FP3.0** | **URGENT hotfix (Stage 0 finding, HIGH):** the `http` extension functions in `public` (`http`, `http_get`, `http_post`, `http_put`, `http_patch`, `http_delete`, `http_head`, all overloads) are executable by `anon`/`authenticated`, so anyone with the public key can make the database send web requests (SSRF). Fix: a repo migration that `REVOKE`s EXECUTE from `PUBLIC, anon, authenticated` (callers that run as postgres/service_role keep working). Because of #197 drift it's applied with psql in one transaction, then recorded with `supabase migration repair --status applied <version>`: a documented one-off exception to G7's tooling, not to its principle (repo file first). Moving `http` to an `extensions` schema is deferred to FP3.2 (it changes callers' paths). |
 | FP3.1 | Act on the P0.9 audit |
 | FP3.2 | RLS on every table in every exposed schema. Explicit per-table grants for `authenticated`. Growth schema not reachable. |
 | FP3.3 | Grants checker covers anon, authenticated and service_role, with a **negative-test suite** on staging (a test user attempts every table) |
@@ -265,13 +267,13 @@ Each risk flagged in v1.0, plus the new ones found while designing the foundatio
 
 | ID | Build |
 |---|---|
-| FP5.1 | Retailer registry (extend the existing stores table if present) plus the runtime display flag. Every consumer (snapshot, deals, best price, JSON-LD, store-list copy, charts, alerts) filters on it. |
+| FP5.1 | **Retailer registry, created from scratch** (Stage 0: no stores table exists; `store_prices.store_id` is text) plus the runtime display flag. Every consumer (snapshot, deals, best price, JSON-LD, store-list copy, charts, alerts) filters on it. **Also audit the legacy `prices` table** (it still holds FirstCry/Hamleys rows): find every reader, then archive and drop it if unused (backup first) so old data can't leak. |
 | FP5.2 | Shared scraper-contract module |
 | FP5.3 | Circuit breaker (≥80% parsed, ≤25% changed, or write nothing; 2 trips → display off) |
 | FP5.4 | Identity-ladder module with test fixtures: a title without a number, a FirstCry-style multi-set variant page, Club vs public price, a false number in the title ("F2004", "NCC-1701") |
 | FP5.5 | `unmatched_listings` queue plus a weekly review list in the ops digest |
 | FP5.6 | Match-audit report per run |
-| FP5.7 | Change-only history writer plus a purge-on-remap tool (backup first) |
+| FP5.7 | **History writer rebuilt (Stage 0: today it appends a row for every listing every cycle, and `price_history` has no stock column):** migration adds `in_stock boolean` (null = not recorded, for everything before the migration); the writer then records **only changes of price or stock**, plus the first observation. Purge-on-remap tool (backup first). **Must land by ~1 Oct** so stock data exists before the charts go live. |
 | FP5.8 | **Retrofit MyBrickHouse and Toycra onto the contract.** The new-contract scraper first runs in **dry-run comparison** next to the old one (it computes but doesn't write) for **≥12 consecutive cycles** with 0 differences in matches, prices, stock, deal/hot-deal and tie counts. Only then does it take over writing (Tier 2). |
 | FP5.9 | **Worker Cron Trigger** plus `GH_DISPATCH_TOKEN`, one dispatch per retailer. Lag measured over ≥3 days (≥12 dispatches). |
 | FP5.10 | Scraper identity: user agent `BricksOfIndiaBot/1.0 (+https://bricksofindia.com/bot; bot@bricksofindia.com)`, a `/bot` page explaining what we collect and how to reach us, and the robots/agents.md snapshot mechanism |
@@ -301,7 +303,7 @@ Each risk flagged in v1.0, plus the new ones found while designing the foundatio
 
 **FP8 — Measurement**
 
-FP8.1 GA4 bot filter · FP8.2 event plan instrumented (`outbound_retailer_click` now; heart and signup events wired but inactive until Stage 2) · FP8.3 weekly baseline report · FP8.4 success metrics defined: signups per 1k sessions, hearts per session, alert click rate, unsubscribe rate, returning-visitor rate.
+FP8.1 GA4 filters (known-bot exclusion is automatic and can't be toggled; the actions are an **internal-traffic** filter set to Active, a **developer** filter, the Enhanced Measurement "browser history" page views ON, and the tag sending only on `bricksofindia.com`) · FP8.2 event plan instrumented (`outbound_retailer_click` now; heart and signup events wired but inactive until Stage 2) · FP8.3 weekly baseline report · FP8.4 success metrics defined: signups per 1k sessions, hearts per session, alert click rate, unsubscribe rate, returning-visitor rate.
 
 **FP9 — Documentation and operations**
 
@@ -309,7 +311,7 @@ ADRs (snapshot layer, static pages with client-only auth, retailer registry and 
 
 **FP10 — Data foundations**
 
-FP10.1 "Unknown" theme backfill (152 sets) · FP10.2 change-only history writer, from P0.8 (shares work with FP5.7) · FP10.3 "Updated X ago" computed in the browser from `scraped_at`, so cached HTML never shows a stale age · FP10.4 "More [theme] sets" no longer shows unpriced promo items; homepage CTAs get distinct destinations.
+FP10.1 "Unknown" theme backfill (152 sets) · FP10.2 change-only history writer, from P0.8 (shares work with FP5.7) · FP10.3 ✅ **already done** (`PriceAge.tsx` is client-side since PR-A #227; Stage 0 confirmed) · FP10.4 "More [theme] sets" no longer shows unpriced promo items; homepage CTAs get distinct destinations.
 
 ### 6.3 Email and communication system (FP4)
 
@@ -346,6 +348,7 @@ FP10.1 "Unknown" theme backfill (152 sets) · FP10.2 change-only history writer,
 | **alerts@notify.**bricksofindia.com | Sender: price-alert digests | None (Reply-To hello@) | Resend (notify.) → Brevo (notify.) per E4 |
 | **news@news.**bricksofindia.com | Sender: newsletter | None (Reply-To hello@) | Resend Broadcasts (news.) |
 | **system@ops.**bricksofindia.com | Sender: every internal and system email | None | Brevo (ops.) → failover Resend (root), critical only |
+| alerts@, notifications@, newsletter@ **(root, legacy)** | In use today by the freshness watchdog, video/social notifiers and growth `send.py` (P0.13) | **Add temporary ImprovMX aliases → ops@ now** so replies don't bounce; removed after FP4.9 migrates these senders | Resend (root) until FP4.9 |
 | **ops@**bricksofindia.com | Receives all system email (digest, alerts, breaker trips, pipelines) | **BOI ops inbox**, recommended bricksofindia007@gmail.com (E2) | — |
 | **bot@**bricksofindia.com | Contact in the scraper user agent and /bot page | → ops@ destination | — |
 | **postmaster@**, **abuse@** | Standard addresses that email providers expect | → ops@ destination | — |
@@ -422,14 +425,14 @@ Each build waits only for the foundation it depends on. **RC-1** opens the festi
 
 Opens: snapshot cutover → price history → guest hearts → retailer shadow runs.
 
-- [ ] Stage 0 closed; P0.9 audit fixes that affect current tables applied (FP3.1–3.3)
+- [ ] Stage 0 closed; **FP3.0 hotfix verified**; P0.9 audit fixes that affect current tables applied (FP3.1–3.3)
 - [ ] FP2.1–2.5: staging, staging Worker, drift fixed with the CI parity check, flags, trains
 - [ ] FP1.1: snapshot parity **100% over ≥12 consecutive cycles (≥3 days, including a deploy)**; requests/day and egress measured lower on staging and in parity
 - [ ] FP1.3 `/api/img` fixed; FP1.4 R2 lifecycle set from the 29 Sep reading
 - [ ] FP5.1–5.7 contract, breaker, registry and kill switch; FP5.8 retrofit **0 differences over ≥12 cycles**; FP5.9 Cron Trigger **≥3 days of lag measured, max gap < 12h**; FP5.10 bot identity
 - [ ] FP6.1–6.4 sentinel, probe, ops digest, automatic stop-the-line
 - [ ] FP2.6 Tier A backups running to Drive
-- [ ] FP10.1–10.4 data fixes
+- [ ] FP10.1, FP10.2, FP10.4 data fixes (FP10.3 already done); FP5.7 stock column live
 - [ ] Drills **D-1, D-2, D-3, D-4, D-5, D-6, D-8, D-9** passed
 - [ ] FP9 docs for the above (ADRs: snapshot, registry, scraper contract, staging, backups, sentinel; runbooks: kill switch, stop-the-line, snapshot fallback, restore)
 - [ ] **Signed by Abhinav**
@@ -458,8 +461,8 @@ Assumes the terminal runs long jobs around the clock, chat reviews quickly, and 
 
 | Dates | Foundation / build | Live-site and trust (§16) | Proof clocks and fixed dates |
 |---|---|---|---|
-| **Sat 27 – Mon 29 Sep** | **Stage 0** (read-only) and the close-out docs commit. Email: root DMARC plus Brevo root authentication (Abhinav). Drive OAuth app (Abhinav) | Gate 14 PR; top-traffic review list; evidence closures | 28 Sep QP #35 · 29 Sep R2 check |
-| **Mon 29 Sep – Wed 1 Oct** | FP2.3 drift fix → FP2.1/2.2 staging → FP2.4 flags. FP3.1–3.3 security. FP5.1–5.7 contract, registry, breaker. FP5.9 Cron Trigger. FP1.1 snapshot publisher built on staging. FP1.3 `/api/img`. FP10.2/10.3 | #246 batch 1; T.3 40912; T.5 claim; FP10.4; FP10.1 themes | **Cron lag clock starts** |
+| **Sat 27 – Mon 29 Sep** | ✅ Stage 0 done (report 27 Sep). **FP3.0 security hotfix (now).** Docs correction commit. #204/#220 fixes on the next train. FP2.3 baseline prepared (repo-only). Email: root DMARC plus Brevo root authentication (Abhinav). Drive OAuth app (Abhinav) | Gate 14 PR; top-traffic review list; evidence closures | 28 Sep QP #35 · 29 Sep R2 check |
+| **Mon 29 Sep – Wed 1 Oct** | FP2.3 drift fix → FP2.1/2.2 staging → FP2.4 flags. FP3.1–3.3 security. FP5.1–5.7 contract, registry, breaker. FP5.9 Cron Trigger. FP1.1 snapshot publisher built on staging. FP1.3 `/api/img`. **FP5.7 `in_stock` column plus change-only writer** | #246 batch 1; T.3 40912; T.5 claim; FP10.4; FP10.1 themes | **Cron lag clock starts** |
 | **Thu 2 Oct** | Snapshot publisher on production in **parity mode**. Retrofit **dry-run comparison** starts. FP6.1–6.4 sentinel/digest/stop-the-line. FP2.6 backups | #246 batch 2; T.2 openers start | **Parity clock and retrofit clock start** (≥12 cycles each) |
 | **Fri 3 – Sat 4 Oct** | Staging drills D-1, D-3, D-5, D-6, D-8. Price history chart and guest hearts built on staging (flags off). FP4 gateway build. FP7 legal pages drafted | #246 batch 3; T.7 LCP | — |
 | **Sun 5 Oct** | If parity is 12/12: **snapshot cutover** (Tier 2). Drill D-2 (restore). Drill D-9 (load) | #246 batch 4 | Cron lag ≥3 days ✓ |
@@ -510,9 +513,9 @@ Assumes the terminal runs long jobs around the clock, chat reviews quickly, and 
 
 | Retailer | What we know | Specific risks | Extra checks |
 |---|---|---|---|
-| **Jaiman Toys** | Shopify feed. It was an original retailer, dropped after bad data. Unique and retired sets get listed at any price. | Repeating the old failure. Retired-set premiums far above MRP. | P0.11 postmortem first. Premiums above MRP are shown as listed and simply get no deal badge (locked rules). |
-| **Hamleys** | Fynd platform. 521 LEGO listings. Some titles lack set numbers. | robots/agents.md scope. Prices may need JavaScript to render. Titles without numbers. | Must work *only* from allowed paths. If prices aren't reachable within those paths, **Hamleys is not built**, and the tracker records why. |
-| **FirstCry** | 451 items, max about ₹12k. Variant grouping across different sets. Club Price vs public price. | Variant confusion (the highest mismatch risk). Anti-bot blocking. Selecting Club Price by mistake. | A test asserting the public price is chosen. Variant-level identity test fixtures. If blocked from Actions: stop and report. **No evasion.** |
+| **Jaiman Toys** | Shopify feed; the LEGO collection handle is still to be found (the generic feed is 250 products per page with 33 LEGO). Dropped on 31 May after corrupt data (P0.11: 45 of 653 overlapping sets were more than 2× off, e.g. 10914 ₹21,990 vs ₹5,449). Today's feed: 30% "box damage" (`-DM` SKUs), 18% SKU ≠ handle. | First-number matching (the cause last time), box-damage stock, SKU/handle conflicts, CMF box vs single pack. | **Box-damage listings are excluded in v1 (D28).** SKU ≠ handle → `unmatched_listings`. FP5.4 fixtures must include box damage, SKU≠handle and CMF box vs pack **before** shadow. |
+| **Hamleys** | Fynd platform. Prices are **in the server HTML** (JSON-LD `price` plus embedded state) on allowed `/product/{slug}` pages. The set number is in the slug and name (slugs also carry a piece count and a trailing uid). Dry run 31/31. Product pages are ~1 MB each. | robots scope (`/products/?*` and `/collections?*` are disallowed, while agents.md suggests `/products/?brand=`, **which we must not use**). Page weight (~500 MB per full run). | Sitemaps plus `/product/` pages only. **First check whether an allowed `/collection/{slug}` LEGO page server-renders price tiles** (far fewer requests). Strip the uid and "NNN pieces" before matching. Politeness pacing plus a G2 budget entry. |
+| **FirstCry** | ~448 LEGO products (the listing's own count). Prices in the server HTML with **paise** (e.g. 2975.07). A separate "Club Price" block. Dry run 20/20. `ClaudeBot` explicitly allowed; `*` allowed except a few paths; many scraper UAs blocked. | Club vs public confusion; variants (a product-page sample is still needed); possible bot defences on runner IPs. | Take the non-Club selling price (`rupee_sp`, not `club-block`), with a test. **Paise shown as listed, comparisons on the exact value (D27).** Take a product-page sample for the variant fixtures in FP5.4. Runner probe first (FP5.10). |
 
 **Per-retailer go-live gate (G-RET)**, all with evidence:
 
@@ -528,6 +531,7 @@ Assumes the terminal runs long jobs around the clock, chat reviews quickly, and 
 ### 9.2 Price history
 
 - **Data source:** `price_history` change points for **displayed** retailers only, plus each listing's current row, which extends the last known price to the present. Purged or remapped history is never shown.
+- **Stock history starts when FP5.7 lands (~1 Oct).** Earlier rows have no stock data. D26: earlier history is drawn as *listed price (stock not recorded)* in a lighter style; the **"lowest" figure is labelled "lowest listed price"** for periods without stock data, and "lowest in-stock price" only from recorded data. The chart never implies a price was buyable when we don't know.
 - **Delivery:** inside the set's **KV snapshot** (FP1.1). The last 180 days, at most 60 points per store, compact arrays (`[epoch_day, price, in_stock]`). **No Supabase request and no Supabase egress per page view.** The terminal measures snapshot size on 10 sets before go-live and updates §10.
 - **Rendering:** server-rendered **inline SVG step chart**, no chart library, fixed height (no layout shift), under ~10 KB per page. One line per store (up to 5), told apart by both colour and line pattern for accessibility, labelled directly. Anchor MRP as a dashed reference line. **Gaps over 24h or out-of-stock periods are drawn as breaks, never bridged.**
 - **Honest labels:** "Tracking since {first observation date}". "Lowest tracked price: ₹X at {store}, {date}", counting in-stock observations only. A text summary under the chart (for accessibility and AEO). No projections, no "buy now" advice.
@@ -654,7 +658,7 @@ Figures are from the Cycle 1 report unless marked *est.* or **verify** (P0.7 mea
 
 | Resource | Limit | Now (27 Sep) | After the snapshot layer (est.) | Cycle 2 additions (est.) | Stop-the-line ceiling |
 |---|---|---|---|---|---|
-| Supabase requests/day | Target < 14k | ~13–15k | **~2–4k** (renders read KV; about 490/h overnight today is mostly render traffic) | Scrapers ~20, alert engine ~10, signed-in users ~5–8 each | 14k |
+| Supabase requests/day | Target < 14k (for logs; logs not enforced until 2027) | **36,450/24h measured 27 Sep** (Worker 20,379; Actions/builds/scripts 15,850); quiet renders ≈13.7k/day | **~2–4k renders** plus Actions after FP1.2 cuts | Scrapers ~20, alert engine ~10, signed-in users ~5–8 each | 14k |
 | Supabase log ingestion | **1 GB** (confirmed 27 Sep); metered, **not enforced until early 2027** | **1.73 GB (over)**, no penalty now | **~0.2–0.3 GB/cycle** (≈3k × 30 × 2.5 KB) | Small | Under 1 GB **before** enforcement starts |
 | Supabase egress | 5 GB (**no grace period now**) | 2.05; projected 2.9–3.3 **before the sale spike** (sale 8–11 Oct falls in this cycle) | Lower (history and prices served from KV) | Small | Alert 3.5 GB; **hard guard 4.0 GB** |
 | Supabase DB size | 500 MB (**no grace period now**) | 180.5 MB | — | +10–25 MB | Alert 350 MB; **hard guard 400 MB** |
@@ -665,12 +669,12 @@ Figures are from the Cycle 1 report unless marked *est.* or **verify** (P0.7 mea
 | Workers CPU | 30M ms included | 36.8M (**over**, $0.12) | Down after FP1.3 | Small | Must fall after FP1.3 |
 | R2 storage | 10 GB free | ~15 GB | Lifecycle → < 10 GB | Staging cache (3-day lifecycle); backups are **not** stored on R2 | 9 GB |
 | Google Drive (Abhinav personal) | 1 TB (Google One) | Ample | — | Backups ~1–1.5 GB | — |
-| R2 Class A | 1M/month free | 834k by 26 Sep | Trains | — | 900k |
+| R2 Class A | 1M/month free | 834k by 26 Sep (**~49k/day, from runtime ISR regeneration**, ~0.6k per deploy) | FP1.6 on-demand revalidation | — | 900k |
 | Resend (transactional) | 100/day, 3,000/month, 3 domains, 1 webhook | **verify** | — | Gateway cap 90/day | 90/day |
 | Resend (marketing) | 1,000 contacts | 1 | — | Consented sign-ups | 800 |
 | Brevo | 300/day (free, "Sent with Brevo" footer on free-plan emails) | 0 | — | OPS ≤50, failover, E4 overflow | 270/day |
 | ImprovMX | 25 aliases, 500 forwards/day | 1 alias | — | +9 aliases | 20 aliases |
-| GitHub Actions | 2,000 min/month if private | **verify** | — | +3 scrapers, alert engine, probe, staging CI | 80% |
+| GitHub Actions | bricks-of-india **public** (unmetered); boi-growth-engine private, 2,000 min | ~12 min used in Sep (growth engine) | — | +3 scrapers, alert engine, probe, staging CI | 80% (growth engine) |
 | Cloudflare Access, Turnstile, DMARC Management | Free tiers | — | — | — | — |
 
 ### 10.2 Stop-the-line triggers (FP6.4 automates the first action for each one)
@@ -764,12 +768,15 @@ Figures are from the Cycle 1 report unless marked *est.* or **verify** (P0.7 mea
 | D17 | "Retiring soon" alerts | Defer until a verified data source exists | — |
 | D18 | Guest wishlist cap | 200 | 5 Oct |
 | D19 | Browser to Supabase for the wishlist | Direct with RLS, SDK loaded lazily | 4 Oct |
-| D20 | Brickset EAN matching | After P0.12 | Before Hamleys |
+| D20 | Brickset EAN matching | ✅ **Not needed for v1** (Stage 0: Hamleys and FirstCry carry set numbers). Kept as a fallback; ask Brickset about limits only if it's ever used | Closed |
 | D21 | Growth dashboard | Retire the Netlify host; the FP4 receiver replaces its webhook | 3 Oct |
 | D22 | Newsletter restart threshold | 25 consented, non-test subscribers | 25 Oct |
 | D23 | RLFM reconsideration | After G-CLOSE | After Cycle 2 |
 | D24 | Supabase log quota | ✅ Resolved: 1 GB, not enforced until early 2027. D2 (snapshot layer) keeps us under it before enforcement | — |
 | D25 | Amazon and Flipkart (where most festive LEGO deals happen) aren't compared by BOI | Evaluate legitimate routes only (their affiliate programmes and official APIs, within their terms). No scraping against their terms. | Cycle 3 planning |
+| **D26** | Chart history before stock data exists (before ~1 Oct) | **Show it, labelled honestly:** "listed price (stock not recorded)" in a lighter style; "lowest listed" vs "lowest in-stock" labels as in §9.2 | Before 7 Oct |
+| **D27** | FirstCry prices with paise (e.g. ₹2,975.07) | **Display exactly as listed (with paise when non-zero); best-price, ties and deal math use the exact value.** Rounding would change a listed price. Schema: exact-value column added in the FP5.1 migration | Before R.F (~13 Oct) |
+| **D28** | Jaiman "box damage" listings | **Exclude in v1** (recorded in `unmatched_listings` with reason `condition:box_damage`). They're real prices but not new stock, so they would mislead best-price and deal badges. A labelled "open box" condition can come in Cycle 3 | Before R.J shadow (~7 Oct) |
 | **E1** | Address plan | ✅ **Approved and set up 27 Sep** (aliases, notify., news., ops.). Remaining: root DMARC and Brevo root authentication (§6.3) | Done |
 | **E2** | Where ops@ lands | ✅ **Decided 27 Sep: bricksofindia007@gmail.com** | Done |
 | **E3** | Second email provider | ✅ **Decided 27 Sep: Brevo free** | Done |
@@ -801,6 +808,14 @@ Figures are from the Cycle 1 report unless marked *est.* or **verify** (P0.7 mea
 | **I15** | Supabase quotas are per organisation, so staging in the same org would share production's quota | FP2.1 (separate org) |
 | **I16** | abhinav@ (a personal address) is the only system sender | FP4 sender migration |
 | **I17** | Send Email Hook availability on Free unconfirmed | P0.14 |
+| **I18** | `http` extension functions executable by anon (SSRF) | FP3.0 (urgent) |
+| **I19** | `price_history` has no stock column; the writer isn't change-only | FP5.7 (by ~1 Oct), D26 |
+| **I20** | #204 "500+ Active deals" and #220 JSON-LD out-of-stock lowPrice still live | Tier 1 fix, next train |
+| **I21** | Growth receiver is up but `growth_webhook` lacks SELECT on `growth.newsletter_drafts`, so events have failed since 1 Sep (the Cycle 1 "404" was wrong) | FP4.7 replaces it. **Keep `growth` in the exposed schemas** (FP4.7 writes there as service_role over REST); anon/authenticated have no USAGE |
+| **I22** | 4 from-addresses in use (abhinav@, alerts@, notifications@, newsletter@ on the root); the last three have no inbound alias | Temporary ImprovMX aliases now (Abhinav); FP4.9 moves all four |
+| **I23** | Terminal's "Gemini 2.5 deprecates 16 Oct" isn't supported by Google's deprecations page (27 Sep: no shutdown date announced for 2.5 Flash, Flash-Lite or Pro; 2.0 Flash shut down 1 Jun 2026) | T.15 inventory: cite the source or withdraw the claim |
+| **I24** | R2 Class A ~49k/day comes from runtime ISR regeneration writes, not deploys | FP1.6 |
+| **I25** | Supabase requests 36,450/24h (Worker 20,379, Actions/builds/scripts 15,850); quiet-hour renders alone ≈13.7k/day | FP1.1 (renders), FP1.2 (per-caller cuts for Actions and scripts) |
 
 ---
 
@@ -816,7 +831,9 @@ The foundation doesn't hold back fixes to the live site. These run from today, i
 | 4 | **Unsourced claim** "30–50% more than US prices" | T.5 | 29 Sep–1 Oct |
 | 5 | **"More [theme] sets" shows "Price TBD" promo items**; both homepage CTAs go to /sets | FP10.4 (pulled forward) | 29 Sep–1 Oct |
 | 6 | **"Unknown" themes** (152 sets; badge hidden, data still wrong) | FP10.1 | 29 Sep–1 Oct |
-| 7 | **"Updated X ago"** possibly stale inside cached pages (if P0.8 confirms) | FP10.3 (pulled forward) | 29 Sep–2 Oct |
+| 7 | ~~"Updated X ago" possibly stale~~ ✅ Not an issue: computed in the browser since PR-A (Stage 0) | FP10.3 done | — |
+| 7a | **#204 homepage still says "500+ Active deals"** (real: 139) and **#220 JSON-LD lowPrice includes out-of-stock rows** (Google sees a false low price). Both reopened by Stage 0 | #204, #220 (Tier 1) | Next train |
+| 7b | **Security: public `http` functions** (P0.9 HIGH) | FP3.0 | Now |
 | 8 | **56 "Your wallet" openers** | T.2 (#237) | 2 Oct onward |
 | 9 | **Workers CPU / `/api/img`** loading 8 MB images | FP1.3 | 29 Sep–1 Oct |
 | 10 | **LCP on / and /deals** | T.7 (#235) | 3–4 Oct |
@@ -844,6 +861,7 @@ The full trust-track detail follows.
 | T.12 | Moved into the foundation as drill D-9 | — |
 | T.13 | Instagram App Review prerequisites (B9, #142): the privacy-policy and data-deletion pages from FP7 fulfil them. Then decide whether to submit. | After FP7 |
 | T.14 | Video script self-correction ceiling (old item #13): investigate how often scripts hit the ceiling, then fix it or close it by decision | by 15 Oct |
+| T.15 | **Gemini model inventory:** list every model ID used in both repos and workflows, with Google's current deprecation status per model (cite the page). Decide `chore/gemini-model-migration` (PR or close) by 10 Oct. No change mid-sale unless a model is actually shutting down | By 10 Oct |
 
 ---
 
@@ -1017,6 +1035,7 @@ P0.1–P0.16 · FP1.1–FP10.4 (the ten pillars) · drills D-1 to D-9 · Readine
 | Version | Date | Change | Approved by |
 |---|---|---|---|
 | 1.0 DRAFT | 27 Sep 2026 | First version | — (superseded) |
+| 2.4 | 27 Sep 2026 | Stage 0 folded in: FP3.0 `http` hotfix (urgent); FP2.3 rewritten as a baseline squash (55 vs 67 drift); FP5.1 registry from scratch plus legacy `prices` audit; FP5.7 `in_stock` column and change-only writer by ~1 Oct; FP1.6 on-demand revalidation; FP8.1 reworded; FP10.3 done; retailer notes updated (Hamleys server HTML, FirstCry paise, Jaiman box damage); D20 closed; D26–D28; I18–I25; T.15 Gemini inventory; measured capacity (requests, Class A, Actions). #204/#220 reopened as live-site item 7a. | Pending Abhinav's OK |
 | 2.3 | 27 Sep 2026 | Supabase answer recorded (P0.3, I2, D24 resolved). R1 rewritten: any limit breach restricts with no grace period, and the last restriction was Storage Size. **FP6.4 hard quota guards** (storage 800 MB, DB 400 MB, egress 4.0 GB). New R38: sale overlaps the last 4 days of the billing cycle. Capacity ceilings updated. | Abhinav, 27 Sep |
 | 2.2 | 27 Sep 2026 | **Approved.** Festive schedule: core live by 7 Oct (before the 8 Oct sale), retailers 9–16 Oct, accounts ~12–13 Oct, alerts ~20 Oct. Proof windows re-based from calendar days to evidence counts (≥12 scrape cycles, ≥3 days, 7 digests). Certificate split into RC-1 and RC-2 by dependency. D9 decided (personal Drive, `drive.file`; HDD runbook). D10 and E1 approved. Email setup status recorded (root DMARC and Brevo root authentication still to do). D25 Amazon/Flipkart. Two daily approval slots; no Tier 2 changes on sale day. | Abhinav, 27 Sep |
 | 2.1 DRAFT | 27 Sep 2026 | (superseded) G0 answers recorded (D1 Jaiman → Hamleys → FirstCry; D2 snapshot layer; D3 Cron Trigger now; D7 18+; E2 ops@ → bricksofindia007; E3 Brevo). D9 backups redesigned as 3 tiers (Google Drive + external HDD + pre-change snapshots; nothing on R2). Alias count corrected to 9. §9.4 wishlist experience and engagement spec plus W.B11–W.B14. §16 live-site non-negotiables table (some items pulled forward to W2). Open for G0: D9, D10, E1. | Partially (G0 answers) |
