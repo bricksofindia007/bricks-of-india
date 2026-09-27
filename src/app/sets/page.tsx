@@ -10,6 +10,7 @@ import { MASCOTS, THEMES } from '@/lib/brand'; // THEMES used as fallback only
 import { JsonLd } from '@/components/JsonLd';
 import { buildItemListSchema } from '@/lib/schemas';
 import { getPriceSummaries } from '@/lib/price-summary';
+import { SETS_PRICE_BANDS } from '@/lib/price-bands';
 
 export const metadata: Metadata = buildMetadata({
   title: 'All LEGO Sets in India',
@@ -29,12 +30,7 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'pieces',     label: 'Most Pieces' },
 ];
 
-const PRICE_BANDS: Record<string, { min: number; max: number; label: string }> = {
-  under2k: { min: 0,     max: 1999,    label: 'Under ₹2,000' },
-  '2k5k':  { min: 2000,  max: 4999,    label: '₹2,000–5,000' },
-  '5k10k': { min: 5000,  max: 9999,    label: '₹5,000–10,000' },
-  '10k':   { min: 10000, max: 9_999_999, label: '₹10,000+' },
-};
+const PRICE_BANDS = SETS_PRICE_BANDS; // #381: defined in src/lib/price-bands.ts (label/bound test)
 
 type SearchParams = {
   page?:    string;

@@ -47,7 +47,7 @@ async function getHomepageData() {
   const dealSummaries = new Map(topDeals.map((d) => [d.set_id, d]));
   const dealSetNums = topDeals.map((d) => d.set_id);
 
-  const [setsRes, reviewsRes, newsRes, guidesRes, featuredVideosRes, setsCountRes, newsCountRes, reviewsCountRes] = await Promise.allSettled([
+  const [setsRes, reviewsRes, newsRes, guidesRes, featuredVideosRes, setsCountRes, newsCountRes, reviewsCountRes, cmfCountRes] = await Promise.allSettled([
     dealSetNums.length > 0
       ? supabase
           .from('sets')
@@ -86,11 +86,17 @@ async function getHomepageData() {
     supabase.from('sets').select('*', { count: 'exact', head: true }),
     supabase.from('news_articles').select('*', { count: 'exact', head: true }),
     supabase.from('reviews').select('*', { count: 'exact', head: true }),
+    // #379: same table /minifig-hq renders (every cmf_figures row).
+    supabase.from('cmf_figures').select('*', { count: 'exact', head: true }),
   ]);
 
   const setsCount = setsCountRes.status === 'fulfilled' ? (setsCountRes.value.count ?? 0) : 0;
   const newsCount = newsCountRes.status === 'fulfilled' ? (newsCountRes.value.count ?? 0) : 0;
   const reviewsCount = reviewsCountRes.status === 'fulfilled' ? (reviewsCountRes.value.count ?? 0) : 0;
+  // #379: live CMF figure count; null (tile hidden) if the read fails --
+  // never a hardcoded fallback number.
+  const cmfCount = cmfCountRes.status === 'fulfilled' && !cmfCountRes.value.error && cmfCountRes.value.count != null
+    ? cmfCountRes.value.count : null;
   const sets = (setsRes.status === 'fulfilled' ? ((setsRes.value as any).data || []) : [])
     .sort((a: any, b: any) => dealSetNums.indexOf(a.set_number) - dealSetNums.indexOf(b.set_number));
 
@@ -121,11 +127,12 @@ async function getHomepageData() {
     newsCount,
     reviewsCount,
     dealCount,
+    cmfCount,
   };
 }
 
 export default async function HomePage() {
-  const { sets, dealSummaries, reviews, news, guides, featuredVideos, setsCount, newsCount, reviewsCount, dealCount } = await getHomepageData();
+  const { sets, dealSummaries, reviews, news, guides, featuredVideos, setsCount, newsCount, reviewsCount, dealCount, cmfCount } = await getHomepageData();
 
   return (
     <div className="bg-white">
@@ -277,19 +284,21 @@ export default async function HomePage() {
             </Link>
             )}
 
-            {/* CMF tracker — clickable */}
+            {/* CMF tracker — clickable; live count, hidden when unavailable (#379) */}
+            {cmfCount != null && (
             <Link
               href="/minifig-hq"
               className="rounded-xl px-4 py-4 text-center transition-opacity hover:opacity-80"
               style={{ border: '2px solid #1a2332', background: 'rgba(26,35,50,0.10)' }}
             >
               <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--boi-navy)', fontFamily: 'var(--font-fredoka)', lineHeight: 1.2 }}>
-                400+
+                {cmfCount}
               </div>
               <div style={{ fontSize: '11px', fontWeight: 600, color: '#666', fontFamily: 'var(--font-inter)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>
                 CMF minifigures
               </div>
             </Link>
+            )}
           </div>
         </div>
       </section>
