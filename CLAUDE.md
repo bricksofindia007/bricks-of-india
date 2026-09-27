@@ -44,6 +44,7 @@ These are rules, not guidance. Where an older rule further down this file confli
 - **G12 — Every email goes through the gateway,** with a stream, an idempotency key and a suppression check. No direct provider calls anywhere else.
 - **G13 — Every scheduled job writes a heartbeat.** A job without one isn't allowed in production.
 - **G14 — Fail honest, not wrong.** Any new code path must state its failure behaviour, and that behaviour must degrade to older-but-labelled data or to no output, never to incorrect output.
+- **G15 — The `extensions` schema is never added to PostgREST's exposed-schema list without a security review and a chat sign-off; this is what keeps the http extension (and anything else moved there) unreachable via the Data API.** (Added 27 Sep 2026, FP3.0 #361: the http functions there still carry PUBLIC EXECUTE granted by `supabase_admin`, which `postgres` can't revoke.) Enforced by the `G15 extensions-schema exposure probe` step in `.github/workflows/ci.yml` (one live request per CI run: the `extensions` profile must return 406 PGRST106).
 
 Transitional: G3, G12 and G13 describe systems not yet built. Existing paths are grandfathered only until their migration item lands (G3 → FP1.1, G12 → FP4.9, G13 → FP6.1). No NEW path may add a direct price read, a direct provider email call or an un-heartbeated scheduled job unless chat approves it in writing and an issue tracks it.
 
