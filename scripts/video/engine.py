@@ -41,6 +41,7 @@ from secrets_util import get_secret
 # working-directory: scripts/video (see video-generate-daily.yml).
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from config.feature_flags import FEATURE_FLAGS  # noqa: E402
+from config.quota_guard import QuotaBlockedError  # noqa: E402  (FP6.4)
 
 load_dotenv()
 
@@ -2782,6 +2783,12 @@ def main() -> None:
 
             try:
                 results = publish_mod.publish_video_post(sb, video_post)
+            except QuotaBlockedError as exc:
+                # FP6.4: storage guard closed. Already alerted + cleanup dispatched;
+                # the row stays 'approved' so it retries once storage is under the line.
+                print(f"QUOTA: {vid} not published this run: {exc}", file=sys.stderr)
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "blocked", detail=str(exc))
+                continue
             except (publish_mod.GateFailureError, publish_mod.CaptionsMissingError, publish_mod.StoryBadgeMissingError) as exc:
                 # An already-approved row failing a hard guard at publish time
                 # is unexpected (approval implies the gates already passed at
@@ -2900,6 +2907,11 @@ def main() -> None:
         return
 
     if args.pick or args.url or args.cloud_generate:
+        if args.cloud_generate:
+            # FP6.4: storage guard closed -> skip before any candidate, render,
+            # TTS spend or story-number reservation.
+            from quota import preflight_or_exit
+            preflight_or_exit(sb, 'VID-P4')
         if args.cloud_generate and not args.pick:
             args.pick = 1  # cloud generation always takes the top-ranked candidate
 

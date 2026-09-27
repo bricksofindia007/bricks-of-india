@@ -119,6 +119,8 @@ def assert_all_gates_passed(post: dict) -> None:
 # ---------------------------------------------------------------------------
 
 def upload_video_to_storage(sb, local_path: str, filename: str) -> str:
+    from quota import guard_upload  # FP6.4: refuse BEFORE touching Storage
+    guard_upload(sb, 'VID-QP', f'video {filename}')
     with open(local_path, 'rb') as f:
         sb.storage.from_(VIDEO_STORAGE_BUCKET).upload(
             filename, f, {'content-type': 'video/mp4', 'upsert': 'true'}
@@ -304,6 +306,7 @@ def post_youtube_short(video_path: str, title: str, description: str) -> dict:
 # ---------------------------------------------------------------------------
 
 import cadence  # noqa: E402
+from quota import QuotaBlockedError  # noqa: E402  (FP6.4)
 
 
 # ---------------------------------------------------------------------------
@@ -498,6 +501,12 @@ def poll_and_publish() -> int:
 
         try:
             results = publish_quiet_panic_post(sb, post)
+        except QuotaBlockedError as exc:
+            # FP6.4: storage guard closed. The guard already alerted and dispatched
+            # the #183 cleanup; the row stays 'approved' so it retries next slot.
+            print(f'QUOTA: {pid} not published this run: {exc}', file=sys.stderr)
+            cadence.record_attempt(sb, cadence.VIDQP, post, 'publish', 'blocked', detail=str(exc))
+            continue
         except GateFailureError as exc:
             print(f'ERROR: hard guard blocked {pid}: {exc}', file=sys.stderr)
             sb.table('quiet_panic_posts').update({'status': 'publish_blocked'}).eq('id', pid).execute()

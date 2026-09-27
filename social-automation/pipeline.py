@@ -73,6 +73,10 @@ def main() -> None:
               f'({already.get("set_name")}) at {already["posted_at"]}. 1 post/day rule -- exiting cleanly.')
         sys.exit(0)
 
+    # FP6.4: storage guard closed -> skip the run before scraping/rendering.
+    import quota
+    quota.preflight_or_exit(db._client())
+
     # ── Step 1: Find a new set (tiered) ───────────────────────────────────────
     print('[pipeline] Step 1: Looking for a new set...')
     set_data, winning_tier = _find_candidate_tiered()

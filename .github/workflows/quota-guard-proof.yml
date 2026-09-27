@@ -1,0 +1,88 @@
+name: Quota guard live proof (FP6.4, D-6 extension)
+
+# P4 Step 2h: prove the guards on PRODUCTION with a SIMULATED reading
+# (BOI_QUOTA_SIMULATE), never by filling storage. workflow_dispatch only.
+#   1. gate-simulated: the job gate at storage_mb=800 must close (proceed=false),
+#      alert via Check 11's sender and dispatch cleanup-published-assets.yml.
+#   2. inline-upload-simulated: the in-code Python guard (scripts/video/quota.py)
+#      must raise QuotaBlockedError BEFORE any Storage call and alert via the
+#      video pipeline's own notifier. No file is uploaded.
+#   3. gate-real: the same gate with no override -- the real evaluation.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  gate-simulated:
+    uses: ./.github/workflows/quota-gate.yml
+    permissions:
+      contents: read
+      actions: write
+    with:
+      job: quota-guard-proof (simulated)
+      needs: 'read,write,upload'
+      simulate: 'storage_mb=800'
+    secrets: inherit
+
+  assert-gate-closed:
+    needs: [gate-simulated]
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Simulated gate must have closed
+        run: |
+          echo "gate-simulated proceed=${{ needs.gate-simulated.outputs.proceed }}"
+          test "${{ needs.gate-simulated.outputs.proceed }}" = "false"
+
+  inline-upload-simulated:
+    runs-on: ubuntu-latest
+    # pip install of 4 small packages + one RPC pair + one email.
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install supabase==2.31.0 resend==0.7.0 python-dotenv requests
+      - name: Upload guard refuses before Storage (simulated 800 MB)
+        working-directory: scripts/video
+        env:
+          SUPABASE_URL:              ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY:            ${{ secrets.RESEND_API_KEY }}
+          BOI_QUOTA_SIMULATE:        'storage_mb=800'
+        run: |
+          python - <<'PY'
+          import os
+          from supabase import create_client
+          from quota import guard_upload, QuotaBlockedError
+
+          class NoStorage:
+              """Wraps the client: any storage access fails the proof."""
+              def __init__(self, sb): self._sb = sb
+              def rpc(self, *a, **k): return self._sb.rpc(*a, **k)
+              @property
+              def storage(self): raise AssertionError('Storage was touched -- guard did not refuse first')
+
+          sb = NoStorage(create_client(os.environ['SUPABASE_URL'], os.environ['SUPABASE_SERVICE_ROLE_KEY'].strip().lstrip('﻿')))
+          try:
+              guard_upload(sb, 'VID-P4 (proof)', 'proof dummy video')
+          except QuotaBlockedError as e:
+              print(f'PASS: upload refused before Storage: {e}')
+          else:
+              raise SystemExit('FAIL: upload guard allowed a simulated 800 MB reading')
+          PY
+
+  gate-real:
+    needs: [gate-simulated, inline-upload-simulated]
+    uses: ./.github/workflows/quota-gate.yml
+    permissions:
+      contents: read
+      actions: write
+    with:
+      job: quota-guard-proof (real reading)
+      needs: 'read,write,upload'
+    secrets: inherit

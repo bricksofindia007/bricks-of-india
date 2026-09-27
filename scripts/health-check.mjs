@@ -7,7 +7,9 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { estimateCycleUsage, level, EGRESS_QUOTA_GB, LOG_INGEST_QUOTA_GB, WARN_PCT, CRIT_PCT } from './lib/capacity-estimate.mjs';
+import { estimateCycleUsage, EGRESS_QUOTA_GB, LOG_INGEST_QUOTA_GB } from './lib/capacity-estimate.mjs';
+import { sendAlert } from './lib/alert.mjs';
+import { LIMITS } from './lib/quota-guard.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
@@ -46,32 +48,8 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY);
 
 const failures = [];
 
-async function sendAlert(subject, body) {
-  if (!IS_GITHUB_ACTIONS && !FORCE_REAL_ALERTS) {
-    console.warn(`[TEST MODE — not in GitHub Actions, alert NOT sent] ${subject}`);
-    return;
-  }
-  if (!RESEND_API_KEY || !BRIEF_EMAIL) {
-    console.warn(`ALERT (no email config): ${subject}`);
-    return;
-  }
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: 'Bricks of India <abhinav@bricksofindia.com>',
-      to: [BRIEF_EMAIL],
-      subject,
-      html: `<pre style="font-family:monospace;font-size:14px;">${body}</pre>`,
-    }),
-  });
-  if (!res.ok) {
-    console.error(`Resend failed (${res.status}): ${await res.text()}`);
-  } else {
-    const sent = await res.json();
-    console.log(`[alert] Email sent. ID: ${sent.id}`);
-  }
-}
+// sendAlert moved verbatim to scripts/lib/alert.mjs (FP6.4) so the quota
+// guards reuse this exact sender.
 
 // ── Check 1: /news freshness (> 7 days = alert) ─────────────────────────────
 try {
@@ -561,12 +539,15 @@ try {
 // what took the site's pipelines down 09-13/09-14). Weekly
 // retention-cleanup.yml holds the DB flat; this check catches drift early.
 // Values from public.db_usage_report() (service_role only).
-const DB_WARN_MB = 400, DB_CRIT_MB = 450, STORAGE_WARN_MB = 800;
+// FP6.4 (P4 Step 2): alert lines = the guard lines in scripts/lib/quota-guard.mjs.
+// WARNING at the alert line; CRITICAL at the line where guards refuse/pause.
+const DB_WARN_MB = LIMITS.db.alertMb, DB_CRIT_MB = LIMITS.db.blockMb;
+const STORAGE_WARN_MB = LIMITS.storage.alertMb, STORAGE_CRIT_MB = LIMITS.storage.blockMb;
 try {
   const { data, error } = await sb.rpc('db_usage_report');
   if (error) throw error;
   const dbMb = Number(data.db_size_mb), stMb = Number(data.storage_mb);
-  console.log(`[11] Capacity: database ${dbMb} MB of 500 MB (warn ${DB_WARN_MB}, critical ${DB_CRIT_MB}); storage ${stMb} MB of 1024 MB (warn ${STORAGE_WARN_MB}) ${JSON.stringify(data.storage_by_bucket)}`);
+  console.log(`[11] Capacity: database ${dbMb} MB of 500 MB (warn ${DB_WARN_MB}, critical ${DB_CRIT_MB}: non-essential writers pause); storage ${stMb} MB of 1024 MB (warn ${STORAGE_WARN_MB}, critical ${STORAGE_CRIT_MB}: uploads refused) ${JSON.stringify(data.storage_by_bucket)}`);
   if (dbMb >= DB_CRIT_MB) {
     failures.push('db-size-critical');
     await sendAlert(
@@ -580,7 +561,13 @@ try {
       `Database is ${dbMb} MB (warning threshold ${DB_WARN_MB} MB, Free-plan read-only limit 500 MB). Retention is not keeping up -- check which table grew and whether retention-cleanup.yml's last run succeeded.`
     );
   }
-  if (stMb >= STORAGE_WARN_MB) {
+  if (stMb >= STORAGE_CRIT_MB) {
+    failures.push('storage-size-critical');
+    await sendAlert(
+      '🚨 BOI Health Alert — Storage CRITICAL: media uploads are being refused',
+      `Storage buckets total ${stMb} MB, at or over the ${STORAGE_CRIT_MB} MB FP6.4 guard (1 GB Free-plan quota). Every media upload path (VID-P4, VID-QP, social) now refuses before uploading and dispatches cleanup-published-assets.yml.\n\nBy bucket: ${JSON.stringify(data.storage_by_bucket)}. The grace period is used up -- going over the quota restricts the project immediately.`
+    );
+  } else if (stMb >= STORAGE_WARN_MB) {
     failures.push('storage-size-warning');
     await sendAlert(
       '⚠️ BOI Health Alert — Storage buckets near Free-plan quota',
@@ -615,15 +602,24 @@ try {
       `~${est.requests.toLocaleString('en-US')} API requests; egress ~${gb(est.egressGB)} of ${EGRESS_QUOTA_GB} GB (${est.egressPct.toFixed(0)}%, projected ${gb(est.projectedEgressGB)} GB); ` +
       `log ingest ~${gb(est.logGB)} of ${LOG_INGEST_QUOTA_GB} GB (${est.logPct.toFixed(0)}%, projected ${gb(est.projectedLogGB)} GB)`;
     console.log(`[11b] ${line}`);
-    for (const [name, pct, quota] of [['Egress', est.egressPct, `${EGRESS_QUOTA_GB} GB`], ['Log ingest', est.logPct, `${LOG_INGEST_QUOTA_GB} GB`]]) {
-      const lv = level(pct);
-      if (!lv) continue;
-      failures.push(`${name.toLowerCase().replace(' ', '-')}-${lv}`);
+    // FP6.4 (P4 Step 2g): egress is judged on the cycle-end PROJECTION against
+    // the guard lines (WARNING >= 3.5 GB, CRITICAL >= 4.0 GB, where
+    // non-essential readers pause). On 27 Sep the projection (~3.85 GB) is
+    // already past 3.5 GB, so this raises a WARNING from the first run -- a real
+    // reading, not a bug.
+    const pe = est.projectedEgressGB;
+    const egressLevel = pe >= LIMITS.egress.blockGb ? 'critical' : pe >= LIMITS.egress.alertGb ? 'warning' : null;
+    if (egressLevel) {
+      failures.push(`egress-${egressLevel}`);
       await sendAlert(
-        `${lv === 'critical' ? '🚨' : '⚠️'} BOI Health Alert — Supabase ${name} at ~${pct.toFixed(0)}% of quota (${lv === 'critical' ? `>= ${CRIT_PCT}%` : `>= ${WARN_PCT}%`})`,
-        `Estimated ${name.toLowerCase()} this billing cycle is ~${pct.toFixed(0)}% of the ${quota} Free-plan quota.\n\n${line}\n\nThe grace period is already used: going over stops the project serving. Confirm on the Supabase usage page, then cut API request volume (set-page renders, batch writers, CI builds -- see the 2026-09-26 capacity entry in BOI_MASTER_TRACKER.md).`
+        `${egressLevel === 'critical' ? '🚨' : '⚠️'} BOI Health Alert — Supabase egress projected ${gb(pe)} GB (${egressLevel === 'critical' ? `>= ${LIMITS.egress.blockGb} GB guard: non-essential readers paused` : `>= ${LIMITS.egress.alertGb} GB alert line`})`,
+        `Projected egress at cycle end is ~${gb(pe)} GB of the ${EGRESS_QUOTA_GB} GB Free-plan quota.\n\n${line}\n\nThe grace period is already used: going over stops the project serving. Confirm on the Supabase usage page, then cut API request volume (set-page renders, batch writers, CI builds -- see the 2026-09-26 capacity entry in BOI_MASTER_TRACKER.md).`
       );
     }
+    // Log ingestion over 1 GB is known and not enforced until early 2027
+    // (Supabase support, P0.3), so it's an INFO line, never an email -- the
+    // nightly CRITICAL mail was drowning real alerts.
+    console.log(`[11b] INFO log ingest ~${gb(est.logGB)} of ${LOG_INGEST_QUOTA_GB} GB (${est.logPct.toFixed(0)}%) -- known, not enforced until early 2027; no alert.`);
   }
 } catch (e) {
   failures.push('capacity-estimate-error');

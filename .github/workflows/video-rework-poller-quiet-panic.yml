@@ -38,7 +38,22 @@ on:
         type: string
 
 jobs:
+  # FP6.4 quota gate (P4 Step 2): non-essential workflow -- pauses when a
+  # Free-plan guard is closed (storage >= 800 MB / DB >= 400 MB / egress
+  # projected >= 4.0 GB) or usage is unreadable. See quota-gate.yml.
+  quota-gate:
+    uses: ./.github/workflows/quota-gate.yml
+    permissions:
+      contents: read
+      actions: write
+    with:
+      job: video-rework-poller-quiet-panic
+      needs: 'read,write,upload'
+    secrets: inherit
+
   rework:
+    needs: [quota-gate]
+    if: needs.quota-gate.outputs.proceed == 'true'
     runs-on: ubuntu-latest
     # 10 most recent runs: 1m47s-8m38s (gh run list
     # --workflow=video-rework-poller-quiet-panic.yml --limit 10,
