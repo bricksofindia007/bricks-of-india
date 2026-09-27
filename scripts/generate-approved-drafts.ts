@@ -23,7 +23,7 @@ import { createClient } from '@supabase/supabase-js';
 import { generateWithFailover, BothProvidersFailedError, type DraftGenerationInput, type GenerationOutcome } from '../src/lib/generate-with-failover';
 import { getSecret } from '../src/lib/get-secret';
 import { passesAutoPublishGates } from '../src/lib/auto-publish-gate';
-import { publishOneDraft } from '../src/lib/publish-draft';
+import { publishOneDraft, PublishInsertError } from '../src/lib/publish-draft';
 import { buildRetailerSourcePriceContext } from '../src/lib/prompts/draft-prompt';
 import { STORE_DISPLAY_NAME } from './lib/reviews-source.mjs';
 
@@ -401,7 +401,7 @@ if (IS_MAIN) (async () => {
   // outcome.provider distinguishes which one per-draft; these counters
   // track "any fallback", not Cerebras specifically anymore.
   let fallbackAttempted = 0, fallbackOk = 0, fallbackLintFailed = 0;
-  let deferred = 0, failed = 0, bothFailed = 0;
+  let deferred = 0, failed = 0, bothFailed = 0, publishRejected = 0;
 
   // Gate 8 same-batch race fix (2026-07-02): bodies published earlier in THIS
   // run, so a later draft in the same batch can't reuse an opener the DB
@@ -542,6 +542,28 @@ if (IS_MAIN) (async () => {
         continue;
       }
 
+      // #387 (2026-09-27): an insert rejected by a data-integrity constraint
+      // (Postgres class 23, e.g. reviews.verdict NOT NULL) can never succeed
+      // on retry. Give the draft a real terminal state instead of leaving it
+      // 'approved' to burn a slot and fail again every run: status='rejected'
+      // (the generator only picks up 'approved'), cause in discard_reason.
+      // Kept, not deleted -- unlike a quality-gate reject this is our bug,
+      // so the row stays for diagnosis.
+      if (err instanceof PublishInsertError && err.permanent) {
+        geminiAttempted++;
+        publishRejected++;
+        const { error: rejErr } = await sb.from('pending_drafts').update({
+          status: 'rejected',
+          discard_reason: `publish_insert_failed: ${err.message}`.slice(0, 500),
+        }).eq('id', draft.id);
+        if (rejErr) {
+          console.error('[supabase-write] table=pending_drafts op=update(publishInsertFailed) error:', rejErr);
+          failed++;  // could not mark it terminal -- it will retry, visibly
+        }
+        console.log(`REJECTED (terminal, kept for diagnosis) -- ${err.message}`);
+        continue;
+      }
+
       geminiAttempted++;
       failed++;
       console.log(`FAIL (status=${status}): ${msg}`);
@@ -597,7 +619,7 @@ if (IS_MAIN) (async () => {
   const total = geminiOk + fallbackOk;
   const lintFailed = geminiLintFailed + fallbackLintFailed;
   const dur   = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected+deleted (quality gates), ${bothFailed} rejected+deleted (both providers failed), ${failed} failed (retrying next run), ${deferred} deferred of ${queue.length} — ${dur}s total`);
+  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected+deleted (quality gates), ${bothFailed} rejected+deleted (both providers failed), ${failed} failed (retrying next run), ${publishRejected} rejected at insert (terminal), ${deferred} deferred of ${queue.length} — ${dur}s total`);
 })().catch(err => {
   console.error('FATAL:', err);
   process.exit(1);
