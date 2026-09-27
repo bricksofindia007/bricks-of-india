@@ -1,8 +1,8 @@
--- FP2.3 BASELINE (draft, P1 Step 7, 27 Sep 2026). DO NOT APPLY TO PRODUCTION.
+-- FP2.3 BASELINE (draft, P1 Step 7; regenerated P2 Step 9 to include FP5.7, 27 Sep 2026). DO NOT APPLY TO PRODUCTION.
 --
--- Production schema as of 20260927122603 (68 schema_migrations rows, the last
--- being FP3.0). It replaces the 56 archived files (supabase/migrations/_archive/)
--- and the 68-row history exported verbatim to supabase/migrations/_history/.
+-- Production schema as of 20260927135145 (69 schema_migrations rows, the last
+-- being FP5.7). It replaces the 57 archived files (supabase/migrations/_archive/)
+-- and the 69-row history exported verbatim to supabase/migrations/_history/.
 --
 -- Built from: pg_dump 17.6 --schema-only --schema=public --schema=growth against
 -- production (server 17.6), then:
@@ -430,6 +430,37 @@ $$;
 
 
 ALTER FUNCTION public.get_distinct_themes() OWNER TO postgres;
+
+--
+-- Name: price_history_on_change(); Type: FUNCTION; Schema: public; Owner: postgres
+--
+
+CREATE FUNCTION public.price_history_on_change() RETURNS trigger
+    LANGUAGE plpgsql
+    SET search_path TO 'public', 'pg_temp'
+    AS $$
+BEGIN
+  IF NEW.price_inr IS NULL THEN
+    RETURN NEW;
+  END IF;
+  IF TG_OP = 'INSERT'
+     OR NEW.price_inr IS DISTINCT FROM OLD.price_inr
+     OR NEW.in_stock  IS DISTINCT FROM OLD.in_stock THEN
+    INSERT INTO public.price_history (set_id, store_id, price_inr, in_stock, recorded_at)
+    VALUES (
+      NEW.set_id, NEW.store_id, NEW.price_inr, NEW.in_stock,
+      CASE
+        WHEN TG_OP = 'UPDATE' AND NEW.scraped_at IS NOT DISTINCT FROM OLD.scraped_at THEN now()
+        ELSE COALESCE(NEW.scraped_at, now())
+      END
+    );
+  END IF;
+  RETURN NEW;
+END
+$$;
+
+
+ALTER FUNCTION public.price_history_on_change() OWNER TO postgres;
 
 --
 -- Name: reconcile_page_load_errors(); Type: FUNCTION; Schema: public; Owner: postgres
@@ -1784,11 +1815,19 @@ CREATE TABLE public.price_history (
     set_id text NOT NULL,
     store_id text NOT NULL,
     price_inr numeric,
-    recorded_at timestamp with time zone DEFAULT now() NOT NULL
+    recorded_at timestamp with time zone DEFAULT now() NOT NULL,
+    in_stock boolean
 );
 
 
 ALTER TABLE public.price_history OWNER TO postgres;
+
+--
+-- Name: COLUMN price_history.in_stock; Type: COMMENT; Schema: public; Owner: postgres
+--
+
+COMMENT ON COLUMN public.price_history.in_stock IS 'Stock state at this observation. NULL = not recorded (all rows before FP5.7, 2026-09-27).';
+
 
 --
 -- Name: price_snapshots; Type: TABLE; Schema: public; Owner: postgres
@@ -3426,6 +3465,13 @@ CREATE TRIGGER store_prices_sync_index_tier_trigger AFTER INSERT OR UPDATE OF pr
 
 
 --
+-- Name: store_prices trg_price_history_on_change; Type: TRIGGER; Schema: public; Owner: postgres
+--
+
+CREATE TRIGGER trg_price_history_on_change AFTER INSERT OR UPDATE OF price_inr, in_stock ON public.store_prices FOR EACH ROW EXECUTE FUNCTION public.price_history_on_change();
+
+
+--
 -- Name: quiet_panic_posts trg_qp_posts_title_consistency; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
@@ -4130,6 +4176,14 @@ GRANT ALL ON FUNCTION public.db_usage_report() TO service_role;
 GRANT ALL ON FUNCTION public.get_distinct_themes() TO anon;
 GRANT ALL ON FUNCTION public.get_distinct_themes() TO authenticated;
 GRANT ALL ON FUNCTION public.get_distinct_themes() TO service_role;
+
+
+--
+-- Name: FUNCTION price_history_on_change(); Type: ACL; Schema: public; Owner: postgres
+--
+
+REVOKE ALL ON FUNCTION public.price_history_on_change() FROM PUBLIC;
+GRANT ALL ON FUNCTION public.price_history_on_change() TO service_role;
 
 
 --
