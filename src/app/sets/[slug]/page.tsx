@@ -359,7 +359,10 @@ export default async function SetPage(props: Props) {
                         </div>
                         <div className="flex items-center gap-3">
                           {sp.price_inr ? (
-                            <span className={`font-price font-bold text-lg ${atBest ? 'text-deal-green' : sp.in_stock ? 'text-dark' : 'text-gray-400'}`}>
+                            <span
+                              className={`font-price font-bold text-lg ${atBest ? 'text-deal-green' : sp.in_stock ? 'text-dark' : 'text-gray-400'}`}
+                              data-best-price={atBest ? sp.price_inr : undefined}
+                            >
                               {formatPrice(sp.price_inr)}
                             </span>
                           ) : (

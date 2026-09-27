@@ -37,7 +37,13 @@ async function getHomepageData() {
   // public.set_price_summary (locked rules R2/R3), not merely in-stock sets.
   // The homepage must not fail because of this section: on a read error the
   // section is simply hidden (sets.length === 0).
-  const topDeals = (await getDeals(svc).catch((e) => { console.error('[home] deals read failed:', e?.message ?? e); return []; })).slice(0, 8);
+  // #204: the "Active deals" stat is the length of this same list -- the
+  // exact source and filters /deals renders (set_price_summary.deal_tier:
+  // in stock, <= 12h fresh, >= 10% below the anchor). On a read error the
+  // count is null and the stat is hidden; never a hardcoded fallback number.
+  const allDeals = await getDeals(svc).catch((e) => { console.error('[home] deals read failed:', e?.message ?? e); return null; });
+  const dealCount = allDeals ? allDeals.length : null;
+  const topDeals = (allDeals ?? []).slice(0, 8);
   const dealSummaries = new Map(topDeals.map((d) => [d.set_id, d]));
   const dealSetNums = topDeals.map((d) => d.set_id);
 
@@ -114,11 +120,12 @@ async function getHomepageData() {
     setsCount,
     newsCount,
     reviewsCount,
+    dealCount,
   };
 }
 
 export default async function HomePage() {
-  const { sets, dealSummaries, reviews, news, guides, featuredVideos, setsCount, newsCount, reviewsCount } = await getHomepageData();
+  const { sets, dealSummaries, reviews, news, guides, featuredVideos, setsCount, newsCount, reviewsCount, dealCount } = await getHomepageData();
 
   return (
     <div className="bg-white">
@@ -254,19 +261,21 @@ export default async function HomePage() {
               </div>
             </Link>
 
-            {/* Deals — clickable */}
+            {/* Deals — clickable; live count, hidden when unavailable (#204) */}
+            {dealCount != null && (
             <Link
               href="/deals"
               className="rounded-xl px-4 py-4 text-center transition-opacity hover:opacity-80"
               style={{ border: '2px solid #E30613', background: 'rgba(227,6,19,0.10)' }}
             >
               <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--boi-navy)', fontFamily: 'var(--font-fredoka)', lineHeight: 1.2 }}>
-                500+
+                {dealCount}
               </div>
               <div style={{ fontSize: '11px', fontWeight: 600, color: '#666', fontFamily: 'var(--font-inter)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>
                 Active deals
               </div>
             </Link>
+            )}
 
             {/* CMF tracker — clickable */}
             <Link

@@ -185,6 +185,9 @@ jobs:
             fi
             fi
           done < /tmp/routes.txt
+          # #220: JSON-LD lowPrice = displayed best in-stock price on 3
+          # fixture set pages served by the stub (scripts/ci/jsonld-price-fixtures.mjs).
+          node scripts/ci/check-jsonld-price.mjs http://localhost:3000 || FAIL=1
           kill $SERVER_PID
           exit $FAIL
 
