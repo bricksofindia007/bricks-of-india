@@ -1,5 +1,45 @@
 # BOI Master Tracker
 
+## Prescriptions P2–P4: IDs closed or changed — 2026-09-27
+
+Full day record with evidence: `docs/logs/cycle2/2026-09-27.md`. Plan now **v2.5** (v2.4 approved by Abhinav in P4). Migrations applied today: 69 FP5.7, 70 FP3.1, 71 FP5.1 part 1, 72 FP5.1 part 2, 73 FP5.5 (production `schema_migrations` = 73). Deploy: run 36330670886 (`b9bf2c4`).
+
+| Plan ID | Issue | Status |
+|---|---|---|
+| FP3.0 | #361 | closed 27 Sep: http moved to extensions (PR #362, ADR 0001) |
+| I18 | #360 | closed 27 Sep via FP3.0 |
+| I20 | #369 | closed 27 Sep: #204/#220/#379 verified live |
+| I23 | #372 | closed 27 Sep: "2.5 deprecates 16 Oct" withdrawn (T.15) |
+| FP5.1 | #280 | closed 27 Sep: registry + anchor_policy; view swap 0 drift, live (PRs #393, #394) |
+| FP5.7 | #286 | applied 27 Sep: trigger change-only history (PR #384, ADR 0002); open for 2nd-cycle rows/day |
+| I19 | #368 | resolved by FP5.7 (applied); open with FP5.7 |
+| FP3.1 | #273 | splinter findings fixed 27 Sep (PR #391); remaining: pg_trgm, 21 no-policy tables (P5) |
+| FP6.4 | #293 | shipped + live proof 27 Sep (PR #395); open until proof emails confirmed |
+| FP1.3 | #265 | shipped 27 Sep (PR #392); open until 24h CPU median comparison (Abhinav) |
+| FP5.2 | #281 | built 27 Sep (PR #396); non-writing comparison per cycle |
+| FP5.3 | #282 | built 27 Sep (PR #396) |
+| FP5.4 | #283 | built 27 Sep (PR #396) |
+| FP5.5 | #284 | built 27 Sep (PR #396; migration 73 applied before staging-first rule) |
+| FP5.6 | #285 | built 27 Sep (PR #396) |
+| FP2.1 | #267 | staging project created (Abhinav, own org); seeded catalogue+prices; keep-alive PR #397 |
+| FP2.3 | #269 | D-8 rehearsal 0 diff (draft #375 baseline v3); production repair awaits Tier 2 sign-off |
+| T.15 | #367 | inventory done 27 Sep; decide chore/gemini-model-migration by 10 Oct |
+| FP1.1 | #263 | design + ADR 0003 draft for sign-off (docs/plans/FP1.1_snapshot_design.md) |
+| FP5.9 | #288 | design for sign-off (docs/plans/FP5.9_cron_trigger_design.md); token goes on boi-scheduler |
+| — | #365 | VID-QP coherence judge dead model: fixed (PR #377): live model + fail closed; #35-#37 COHERENT, #38 held; open until first real QP run |
+| — | #378 | VID-P4 coherence judge fails open: open (Tier 1, needs approval) |
+| — | #379 | Homepage CMF count hardcoded: closed 27 Sep (PR #382), verified live 427 |
+| — | #380 | "20+ years" claim: closed 27 Sep: confirmed by Abhinav |
+| — | #381 | Price-band labels: closed 27 Sep: test added (PR #382) |
+| — | #383 | Price-drop baseline for change-only history: closed 27 Sep (PR #386) |
+| — | #387 | Unpublishable review draft retries forever: fixed (PR #389); open until draft 467a4c2c leaves the queue |
+| — | #388 | Article gates miss numeric/self-contradiction/verdict checks: open; 40897 + 21065 corrected |
+| — | #390 | Gate 14 design input (pieces=0, no article judge): open; linked on #246 |
+
+**Pending cleanup:** delete `%APPDATA%\postgresql\pgpass.conf` after the FP2.3 production repair (then add the ci_readonly parity check). Staging access for the terminal: `~/.boi-secrets/staging.env.txt` (Abhinav's file; never printed).
+
+---
+
 ## Prescription P1: Stage 0 outcomes + Stage 1 start — 2026-09-27
 
 Plan now **v2.4** (`docs/plans/BOI_Cycle2_Master_Plan.md`, byte-identical to the approved file, sha256 `51ca6ca9…`). Steps run in order. Evidence is on each issue; nothing closed without an evidence comment.
