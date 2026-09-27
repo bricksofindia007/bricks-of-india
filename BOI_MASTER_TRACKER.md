@@ -1,5 +1,289 @@
 # BOI Master Tracker
 
+## Cycle 1 close-out + Cycle 2 register — 2026-09-27 (Stage 0 P0.2, docs-only)
+
+**What this entry is.** The single docs-only close-out commit required by Cycle 2 Master Plan v2.3 §6.1 P0.2 (#249). It reconciles this tracker and `admin/dashboard.html` against the **Cycle 1 Status Report v2** (27 Sep) and the **plan** (`docs/plans/BOI_Cycle2_Master_Plan.md`, committed verbatim in this commit). The same commit adds guardrails G1–G14 to `CLAUDE.md` and creates `docs/email/ADDRESSES.md`. Not deployed on its own: it rides the next approved release train. Stage 0 investigation results (P0.4–P0.15) are in the Stage 0 report to Abhinav; the issues below carry them.
+
+**Tracker gap closed by this entry:** the last entry before this one is 2026-09-24. All Cycle 1 work from 25–27 Sep (Wave 1 PRs #221–#247) was recorded only in the Cycle 1 report and PR bodies until now.
+
+### Cycle 1 (24–27 Sep): shipped and live
+
+| Area | PRs / work | Status |
+|---|---|---|
+| Stale set-page prices (`fetchCache='default-cache'`), per-read revalidate, in-stock best price, one cadence constant, staleness alert | #227 (PR-A) | ✅ Live. Acceptance **passed 27 Sep**: 3 set pages show the 04:06 UTC scrape; the last deploy (run 36289112868, `64d1670c`) finished 02:55 UTC, before that scrape |
+| Displayed MRP captured (`compare_at_price_inr`), SKU-first matching | #225 (PR-0) | ✅ Live |
+| `set_price_summary` view (locked rules R2–R6): deals, ties, "Best Price"/"Only at", breadcrumb, "Unknown" badge hidden | #228 (PR-B) | ✅ Live. 27 Sep: 139 deals (132 hot / 7 deal), 310 tie sets |
+| Titles/og:url/canonicals via `buildMetadata` on 40 routes + CI crawl checks | #221 (PR-C) | ✅ Live |
+| Heat map hidden (307 → /lab) | #222 (PR-H) | ✅ Live |
+| Images: Rebrickable thumbs for cards, priority hero | #234 (PR-E) | ✅ Live |
+| Self-hosted fonts | #224 | ✅ Live |
+| Cache-Control aligned to ISR (set 21600, sitemap 86400, detail 3600) | #241 | ✅ Live |
+| Affiliate honesty: disclosure on ABHINAV12 banners, footer link, disclosure page corrected, neutral news FAQ, `rel="sponsored"`, 14 DB rewrites | #243 (PR-D) + DB edits | ✅ Live. The 2 pending pages (technic-2026 news, where-to-buy guide) **verified live 27 Sep** |
+| Request reduction: set page 8 → 1 RPC (Fix A), batched writers (Fix B), CI on a local PostgREST stub (Fix D), build only after deploy approval | #229, #230, #231, #240 | ✅ Live |
+| Capacity guard Check 11 + 11b (egress, log ingest) | #192, #232 | ✅ Merged. ⏳ Check 11b first reading pending (no health-check run since 26 Sep 07:52 UTC) |
+| Generation gates: set identity at source + Gate 10/11 (#226), Gate 12 opener (#238, widened #244), Gate 13 ABHINAV12 disclosure (#245), IMPORT ONLY detector (#236), review fact audit (#247) | as listed | ✅ Merged. ⏳ first live run of Gates 12/13 = next generate-drafts run |
+| Pipelines: cadence #190, generate timeout #196, kill-safe story numbering #202, rework email #184, social ban-phrase #186, one post/day #199, storage cleanup #183, Health Check 2 #185, explicit GRANTs #189/#195, DB size/retention #192 | as listed | ✅ Merged |
+| DB size 477.2 → 180.5 MB; storage 513.9 → 391.8 MB | data work, backups in `C:\Users\bharg\boi-db-backups\2026-09-26T…` | ✅ Done (DB 182 MB on 27 Sep) |
+| Data corrections: 11 MBH wrong-set matches (+1,071 history rows); 2,311 Jaiman history rows; #169 dormant row; 11381/75455 duplicate reviews (308s) | backups `2026-09-26-mbh-mismatch`, `2026-09-26-item8`, item9 | ✅ Done |
+| Content corrections: Donkey Kong article; 11382, 21369, 11512, 11374, 40896 → WAIT with dated notes; 11512 pieces 13 → 372 and "metal bracket" removed; 11374 pieces → 2,274 | DB edits, backups `2026-09-26-item9`, `2026-09-27-pr-d` | ✅ Live |
+| R2 lifecycle rule `incremental-cache-30d` | Abhinav, Cloudflare dashboard | ✅ Set 27 Sep. ⏳ re-check ~29 Sep 02:30 UTC (FP1.4, #242) |
+
+### Stage 0 P0.1 evidence (27 Sep, ~13:30 UTC)
+
+| Item | Result | Issue action |
+|---|---|---|
+| Check 11b first reading | ⏳ Not yet: no health-check run since 26 Sep 07:52 UTC (Check 11b merged 26 Sep 15:12 UTC). GitHub had started no scheduled run in the repo since 07:34 UTC | — |
+| 04:00Z storage cleanup (#183, Sundays) | ⏳ The 27 Sep 04:00 schedule never started (last runs are manual, 26 Sep). If GitHub drops it, the next slot is 4 Oct | — |
+| Story #76 | ❌ Not generated: VID-P4 run 36297728025 (05:37 UTC) failed on a MyBrickHouse `products.json` 503. Sequence intact (last_value 75, max story 75, no number consumed) | Comment on #201 (stays open) |
+| Social run → #181 | ✅ 26 Sep 11:39 UTC run (first after #186 merged) posted one set (21353 Botanical Garden: IG carousel + Reel + YouTube Short `Kag-aXMdW20`) | #181 closed with evidence |
+| Gates 12/13 first run | ⏳ Today's generate-drafts run hadn't started by 13:15 UTC | — |
+| Full-day Supabase requests by caller | ❌ Over target: 36,450 in the 24h to 07:44 UTC 27 Sep (Worker 20,379, including a 3.7k post-deploy hour; node/Actions and operator scripts 15,850; python 169; other ~50). Quiet-hours Worker rate ≈ 570/h (≈13.7k/day), 69% `rpc/set_page_data` | FP1.1 (#263), FP1.2 (#264) |
+| PR-A acceptance | ✅ Passed (see above) | #205 closed |
+| Two PR-D pages | ✅ Live (all added sentences present, 0 removed sentences remain) | — |
+| Evidence closures (T.11) | ✅ Closed: #164, #205, #206, #207, #211, #212. Open with evidence: #204 (homepage "500+ Active deals" still hardcoded; the real count is 139), #215 (no out-of-band "no run in 13h" check), #220 (JSON-LD `lowPrice` includes out-of-stock rows) | as listed |
+
+### Decisions and standing notes recorded here
+
+- **RLFM: on hold by decision** (original open item #9). The RLFM application is paused. Reconsideration is decision **D23**, after G-CLOSE (end of Cycle 2), and all 57 #246 reviews must be corrected before any restart (T.1).
+- **Zero-cost exceptions (I3, #345), accepted and recorded:** Cloudflare Workers Paid (~$5/month) stays because the site averages ~105 ms CPU/request. Workers CPU overage $0.12 (36.8M of 30M ms, 9 Sep–9 Oct). R2 ~15 GB vs 10 GB free (lifecycle rule set 27 Sep). R2 Class A 834k by 26 Sep, on pace past the 1M free tier. Owners: FP1.3 (#265), FP1.4 (#242), FP2.5 (#271). Check against the 9 Oct Cloudflare renewal.
+- **Growth events lost since 1 Sep are permanent.** `growth.newsletter_events` last row 2026-09-01 12:01 UTC (298 events total: 284 in Aug, 14 in Sep). Nothing between then and the FP4.7 receiver (#308) can be recovered. Stage 0 finding for T.10/I9 (#122, #351): the receiver on Netlify still answers (GET → 405), but the `growth_webhook` role has **no SELECT grant on `growth.newsletter_drafts`**, which its first query needs. Replacement is FP4.7; no fix is applied in Stage 0.
+- **Supabase (P0.3, #250):** log ingestion 1 GB/cycle, not enforced until early 2027. The prior restriction was Storage Size. **The next breach of any limit can restrict with no grace period.** Cycle 11 Sep–11 Oct. Expected CRITICAL log-ingestion emails until 11 Oct are known, not a new incident.
+- **Deploys:** approve only the newest run, 1–2 a day, about 790 Supabase requests per build.
+- **Migration drift (#197):** Stage 0 found repo 55 files vs production 67 `schema_migrations` rows (36 names shared, 31 production-only, 19 repo-only). The "5 vs 6" in the Cycle 1 report is not the real size of the drift.
+
+### Cycle 2 open-item register (plan §17), with plan ID and issue
+
+Status key: ✅ closed (recorded, no action) · 🔵 in plan · ⏸ parked (with trigger) · 🟣 Abhinav's action.
+
+**17.1 Cycle 1 original 27 items (22 Sep reference)**
+
+| # | Item | Status | Plan ID | Issue |
+|---|---|---|---|---|
+| 1 | #169 duplicate slug | ✅ Resolved | — | #169 (closed) |
+| 2 | #164 IMPORT ONLY reviews (except 40912) | ✅ Closed 27 Sep with evidence; 40912 continues | T.11, T.3 | #164 (closed), #223 |
+| 3 | Newsletter #7–#9 identical prices | ✅ Not a bug; improvement folded into T.9 | T.9 | #340 |
+| 4 | GA4 bot filter | 🔵 | P0.6 → FP8.1 | #252, #312 |
+| 5 | #176 Pick-a-Brick hero image | 🔵 | T.4 | #176 |
+| 6 | Tier 2 sequencing | ✅ Superseded by the plan | — | — |
+| 7 | AEO/GEO ranking | ⏸ Cycle 3 | D15 | — |
+| 8 | 6 newsletter drafts | 🟣 (6 `pending_approval` rows confirmed 27 Sep) | T.9 | #340 |
+| 9 | RLFM tracker note | ✅ Written in this entry (on hold by decision) | P0.2, D23 | #249 |
+| 10–11 | Instagram App Review / PR #142 | 🔵 Unblocked by FP7.4 | T.13 | #341, PR #142 |
+| 12 | CQS duplicate openers | 🔵 | T.2 | #237 |
+| 13 | Video script self-correction ceiling | 🔵 Investigate and decide | T.14 | #342 |
+| 14 | #122 growth dashboard and webhook (events lost since 1 Sep, permanent) | 🔵 | FP4.7, T.10, D21 | #308, #122 |
+| 15 | QP orphan detection | 🔵 | T.8 | #203 |
+| 16 | 152 "Unknown" theme sets | 🔵 | FP10.1 | #209 |
+| 17 | GH_DISPATCH_TOKEN | 🔵 🟣 | FP5.9 | #288 |
+| 18 | ADMIN_PAT scope | ⏸ ~1 Nov | X.1 | — |
+| 19 | Monthly manual audit | ⏸ By design | X.2 | — |
+| 20 | 3 failed_lint drafts | 🟣 | T.9 | #340 |
+| 21 | Review authenticity → #246 | 🔵 | T.1 | #246 |
+| 22 | Core Web Vitals | 🔵 | T.7 | #235 |
+| 23 | Worker under a load spike | 🔵 | D-9 | #328 |
+| 24 | CGI pipeline | ⏸ Dormant | X.3 | — |
+| 25 | Shareables Phases 2–4 | ⏸ | D14 | — |
+| 26 | npm audit (3 high) / PR #41 rebase | ⏸ Accepted risk; re-check at G-CLOSE | X.4 | — (related: #52 Next.js DoS advisory) |
+| 27 | MRP verification backlog | ✅ Superseded by the anchor rule | — | — |
+
+**17.2 Pending verifications and dated checks (Cycle 1 §9)**
+
+| Item | Plan ID | Issue | Status 27 Sep |
+|---|---|---|---|
+| Check 11b · #183 04:00Z cleanup · Story #76 + email · Gates 12/13 first run · full-day requests by caller | P0.1 | #248 | See the P0.1 table above |
+| Social run → #181 · PR-A acceptance · two PR-D pages | P0.1 | #248 | ✅ Done |
+| Close-out commit | P0.2 | #249 | ✅ This commit |
+| Expected CRITICAL log-ingestion emails until 11 Oct | — | — | Recorded (known, not an incident) |
+| R2 storage re-check ~29 Sep 02:30 UTC | FP1.4 | #242 | ⏳ |
+| QP #35 Mon 28 Sep (final proof for the QP poller) | T.8 | #203/#200/#201 | ⏳ |
+| Cloudflare renewal 9 Oct: bill matches expectations (I3) | FP1.4 | #242, #345 | ⏳ |
+| Supabase cycle reset 11 Oct | FP1.2 | #264 | ⏳ |
+| ADMIN_PAT test ~1 Nov | X.1 | — | ⏸ |
+
+**17.3 Tracked issues (Cycle 1 §11.1)**
+
+| Item | Plan ID | Issue |
+|---|---|---|
+| #246 review facts + Gate 14 | T.1 | #246 |
+| Workers Cron Trigger + GH_DISPATCH_TOKEN | FP5.9 | #288 |
+| 56 "Your wallet" openers | T.2 | #237 |
+| LCP | T.7 | #235 |
+| 40912 verdict | T.3 | #223 |
+| Orphan-detection port | T.8 | #203 |
+| Generation runtime | T.8 | #200 |
+| Migration drift | P0.4 → FP2.3 | #197, #269 |
+| Pick-a-Brick hero | T.4 | #176 |
+| "Unknown" theme backfill | FP10.1 | #209 |
+| Untracked patch files, `generate_sfx.py` | P0.5 | #251, #217, #218 |
+| Growth | T.10 | #122 |
+| Instagram App Review | T.13 | #341, PR #142 |
+| GA4 bot filter | P0.6 | #252 |
+| Nine issues awaiting evidence | T.11 | 6 closed 27 Sep; #204, #215, #220 open with evidence |
+| Story numbering (closes after #76) · VID #73 · runtime | T.8 | #201, #200 |
+| Social | P0.1 | #181 (closed 27 Sep) |
+
+**17.4 Found but never ticketed (Cycle 1 §11.2), now filed**
+
+| Item | Plan ID | Issue |
+|---|---|---|
+| "More [theme] sets" shows "Price TBD" promo items | FP10.4 | #318 |
+| Where-to-buy "30–50% more than US prices" (unsourced) | T.5 | #338 |
+| Both homepage CTAs go to /sets | FP10.4 | #318 |
+| Static article bodies go stale | T.6, D13 | #339 |
+| Workers CPU ~105 ms/request (`/api/img` 8 MB og:images, cold renders) | FP1.3, FP1.5 | #265, #266 |
+| B1 Netlify plan state | P0.10 | #256 |
+| B5/B7 Netlify hardening and revalidatePath parity | P0.10 | #256 |
+| B9 Instagram prerequisites | T.13 via FP7.4 | #341, #298 |
+| Mid-sentence "your wallet" | ✅ Left by decision; not a defect | — |
+
+**17.5 Earlier standing items**
+
+| Item | Plan ID | Issue |
+|---|---|---|
+| Cloudflare Images "Sources" restriction | P0.10 | #256 |
+| #108 supplementary rate-limit rule | ⏸ X.5 (revisit only if D-9 shows a need) | #108 |
+| Deploy protection: self-approval allowed, admin bypass | ⏸ X.6 (accepted for a solo operator; recorded in `DEPLOY_POLICY.md` under FP2.5) | #271 |
+| Resend webhook toggle back on + growth schema USAGE/table grants | FP4.7, FP3.2 | #308, #274 |
+| Branch `chore/gemini-model-migration` (27 Sep: exists on origin only, not local; 5 ahead / 77 behind main) | P0.5 | #251 |
+| Newsletter paused until genuine sign-ups exist | T.9, D22 | #340 |
+| RLFM application paused | D23 | — (on hold by decision, above) |
+
+**17.5b Cycle 1 completed work.** Confirmed closed/merged on GitHub 27 Sep: #178, #179, #184, #185, #186, #189, #190, #192, #195, #196, #198, #199, #202, #221, #222, #224, #225, #226, #227, #228, #229, #230, #231, #232, #234, #236, #238, #239, #240, #241, #243, #244, #245, #247. **Still open:** #161 (low-priority stale `blog_posts` references; context for #185), moved to T.11 per plan §17.5b. #201 closes after Story #76 (T.8). VID-P4 stories #65–#75: cadence proof recorded in the Cycle 1 report §8. 40902 stays IMPORT ONLY (out of stock; the #236 weekly job flags it). 71824 is not a mismatch.
+
+**17.6 Items created by the plan: every ID with its issue**
+
+All labelled `cycle-2` plus one stage label; titles prefixed with the plan ID; created 27 Sep (#248–#359). Decisions D1–D25 and E1–E7 deliberately have no issues. T.8 and T.11 are groups of existing issues; T.12 moved into D-9.
+
+| Plan ID | Title | Stage label | Issue |
+|---|---|---|---|
+| P0.1 | Close all Cycle 1 pending verifications | stage-0 | #248 |
+| P0.2 | Docs-only close-out commit | stage-0 | #249 |
+| P0.3 | Supabase support answer: log quota, restriction history, no grace period | stage-0 | #250 |
+| P0.4 | #197 drift inventory | stage-0 | #197 |
+| P0.5 | Untracked patches, generate_sfx.py, unpushed branches | stage-0 | #251 |
+| P0.6 | GA4 bot-filter state and event plan | stage-0 | #252 |
+| P0.7 | Capacity baseline for every verify cell in plan §10 | stage-0 | #253 |
+| P0.8 | Price history: change-only writer? stock changes kept? where "Updated X ago" is computed | stage-0 | #254 |
+| P0.9 | Security audit for all 3 roles, every table | stage-0 | #255 |
+| P0.10 | Netlify plan state (B1), B5/B7, Cloudflare Images Sources | stage-0 | #256 |
+| P0.11 | Jaiman postmortem | stage-0 | #257 |
+| P0.12 | Retailer feasibility spikes (Jaiman, Hamleys, FirstCry) plus Brickset terms | stage-0 | #258 |
+| P0.13 | Email inventory | stage-0 | #259 |
+| P0.14 | Supabase platform facts (orgs/projects, Send Email Hook on Free, auth settings) | stage-0 | #260 |
+| P0.15 | Cloudflare platform facts (KV, Access, DMARC Management, Email Routing) | stage-0 | #261 |
+| P0.16 | Answer the G0 decisions | stage-0 | #262 |
+| FP1.1 | Price snapshot layer | foundation | #263 |
+| FP1.2 | Request budget and per-caller daily report | foundation | #264 |
+| FP1.3 | /api/img resize and size cap | foundation | #265 |
+| FP1.4 | R2 lifecycle tuning | foundation | #242 |
+| FP1.5 | Cold-render review | foundation | #266 |
+| FP2.1 | Staging Supabase project in a separate organisation | foundation | #267 |
+| FP2.2 | Staging Worker | foundation | #268 |
+| FP2.3 | Fix #197 plus a CI migration-parity check | foundation | #269 |
+| FP2.4 | Flag system | foundation | #270 |
+| FP2.5 | Release trains in DEPLOY_POLICY.md | foundation | #271 |
+| FP2.6 | Backups plus restore drill (3 tiers: Drive, HDD, pre-change snapshots) | foundation | #272 |
+| FP3.1 | Act on the P0.9 audit | foundation | #273 |
+| FP3.2 | RLS on every table in every exposed schema | foundation | #274 |
+| FP3.3 | Grants checker covers anon, authenticated and service_role, with a negative-t… | foundation | #275 |
+| FP3.4 | Static-route CI check | foundation | #276 |
+| FP3.5 | Turnstile widget plus Supabase auth rate limits, configured and tested on sta… | foundation | #277 |
+| FP3.6 | Secrets manifest updated for every new secret | foundation | #278 |
+| FP3.7 | /.well-known/security.txt pointing to security@ | foundation | #279 |
+| FP5.1 | Retailer registry | foundation | #280 |
+| FP5.2 | Shared scraper-contract module | foundation | #281 |
+| FP5.3 | Circuit breaker | foundation | #282 |
+| FP5.4 | Identity-ladder module with test fixtures | foundation | #283 |
+| FP5.5 | unmatched_listings queue plus a weekly review list in the ops digest | foundation | #284 |
+| FP5.6 | Match-audit report per run | foundation | #285 |
+| FP5.7 | Change-only history writer plus a purge-on-remap tool | foundation | #286 |
+| FP5.8 | Retrofit MyBrickHouse and Toycra onto the contract | foundation | #287 |
+| FP5.9 | Worker Cron Trigger plus GH_DISPATCH_TOKEN, one dispatch per retailer | foundation | #288 |
+| FP5.10 | Scraper identity: BricksOfIndiaBot UA, /bot page, robots/agents.md snapshots | foundation | #289 |
+| FP6.1 | Sentinel Worker | foundation | #290 |
+| FP6.2 | External probe | foundation | #291 |
+| FP6.3 | Daily ops digest at 08:00 IST to ops@ | foundation | #292 |
+| FP6.4 | Automatic stop-the-line and hard quota guards | foundation | #293 |
+| FP6.5 | Monitoring for Actions minutes and Workers CPU | foundation | #294 |
+| FP7.1 | Privacy policy rewrite | foundation | #295 |
+| FP7.2 | Terms of use | foundation | #296 |
+| FP7.3 | Consent model | foundation | #297 |
+| FP7.4 | Account-deletion flow design plus a public data-deletion page | foundation | #298 |
+| FP7.5 | 18+ rule | foundation | #299 |
+| FP7.6 | Corrections page with the policy, a log of dated corrections, and corrections@ | foundation | #300 |
+| FP7.7 | Abhinav's review | foundation | #301 |
+| FP4.1 | check the Resend account | foundation | #302 |
+| FP4.2 | DNS: root DMARC, Resend notify./news., Brevo root/notify./ops. | foundation | #303 |
+| FP4.3 | ImprovMX aliases and Gmail labels/filters | foundation | #304 |
+| FP4.4 | Brevo account and sender identities | foundation | #305 |
+| FP4.5 | "Send mail as" through Brevo SMTP for human replies | foundation | #306 |
+| FP4.6 | Email gateway (streams, ledger, suppression, idempotency, failover, templates, unsubscribe) | foundation | #307 |
+| FP4.7 | Webhook receiver (Resend and Brevo events → suppression and engagement) | foundation | #308 |
+| FP4.8 | Sign-in email path (Send Email Hook or SMTP with swap runbook) | foundation | #309 |
+| FP4.9 | move every existing sender onto the gateway | foundation | #310 |
+| FP4.10 | DMARC progression to p=quarantine | foundation | #311 |
+| FP8.1 | GA4 bot filter | foundation | #312 |
+| FP8.2 | event plan instrumented | foundation | #313 |
+| FP8.3 | weekly baseline report | foundation | #314 |
+| FP8.4 | success metrics defined | foundation | #315 |
+| FP10.1 | "Unknown" theme backfill | foundation | #209 |
+| FP10.2 | change-only history writer, from P0.8 | foundation | #316 |
+| FP10.3 | "Updated X ago" computed in the browser from scraped_at, so cached HTML never… | foundation | #317 |
+| FP10.4 | "More [theme] sets" no longer shows unpriced promo items | foundation | #318 |
+| FP9 | Documentation and operations (ADRs, runbooks, daily log, reconciliation, DEPLOY_POLICY.md) | foundation | #319 |
+| D-1 | Supabase unavailable | foundation | #320 |
+| D-2 | Restore | foundation | #321 |
+| D-3 | Snapshot corrupted or stale | foundation | #322 |
+| D-4 | Retailer kill switch | foundation | #323 |
+| D-5 | Circuit breaker | foundation | #324 |
+| D-6 | Stop-the-line with no human | foundation | #325 |
+| D-7 | Email provider failure | foundation | #326 |
+| D-8 | Migration rehearsal | foundation | #327 |
+| D-9 | Load | foundation | #328 |
+| RC-1 | Readiness Certificate 1: festive core (target signed ~6 Oct) | foundation | #329 |
+| RC-2 | Readiness Certificate 2: accounts and alerts (target signed ~11 Oct) | foundation | #330 |
+| R.J | Retailer: Jaiman Toys (shadow → G-RET → live) | build | #331 |
+| R.H | Retailer: Hamleys (allowed paths only; shadow → G-RET → live) | build | #332 |
+| R.F | Retailer: FirstCry (variant-level identity, public price not Club; shadow → G-RET → live) | build | #333 |
+| H | Price history chart (KV-delivered inline SVG step chart) | build | #334 |
+| W.A | Guest hearts (W.A1–W.A4) | build | #335 |
+| W.B | Accounts (W.B1–W.B14) | build | #336 |
+| W.C | Alerts (W.C1–W.C8) | build | #337 |
+| T.1 | #246 | trust | #246 |
+| T.2 | #237 | trust | #237 |
+| T.3 | #223 MyBrickHouse match for 40912, then 40912's verdict | trust | #223 |
+| T.4 | #176 Pick-a-Brick hero image | trust | #176 |
+| T.5 | Where-to-buy "Expect to pay 30–50% more than US prices": source it or remove … | trust | #338 |
+| T.6 | Static article prices: systemic fix (D13) | trust | #339 |
+| T.7 | #235 LCP on / and /deals | trust | #235 |
+| T.8 | Pipelines | trust | #203, #200, #201 (+ QP #35, VID #73) |
+| T.9 | Newsletter: pending and failed_lint drafts, restart threshold, move to news@news. | trust | #340 |
+| T.10 | #122 growth | trust | #122 |
+| T.11 | Evidence-based closure of #164, #204, #205, #206, #207, #211, #212, #215, #220 | trust | #164, #204, #205, #206, #207, #211, #212, #215, #220 |
+| T.13 | Instagram App Review prerequisites (privacy and data-deletion pages from FP7) | trust | #341 |
+| T.14 | Video script self-correction ceiling | trust | #342 |
+| I1 | Migration drift count: 5 vs 6 | stage-0 | #343 |
+| I2 | Log quota 1 GB vs 5 GB; "grace period is over" restrictions | foundation | #344 |
+| I3 | Small zero-cost breaches (Workers CPU $0.12, R2 ~15 GB, Class A pace) | foundation | #345 |
+| I4 | "Updated X ago" computed at render time? | stage-0 | #346 |
+| I5 | History writer change-only? stock changes kept? | stage-0 | #347 |
+| I6 | Are Hamleys prices reachable within its robots scope? | stage-0 | #348 |
+| I7 | Actions minutes and repo visibility unknown | stage-0 | #349 |
+| I8 | Netlify downgrade never reconfirmed | stage-0 | #350 |
+| I9 | Growth webhook cause: "404" vs "usage_exceeded" | foundation | #351 |
+| I10 | Untracked or unpushed work | stage-0 | #352 |
+| I11 | Supabase Free downloadable backups? | stage-0 | #353 |
+| I12 | Does a stores table exist? | stage-0 | #354 |
+| I13 | No DMARC record | foundation | #355 |
+| I14 | Resend pay-as-you-go state unknown | stage-0 | #356 |
+| I15 | Supabase quotas are per organisation (staging must be a separate org) | foundation | #357 |
+| I16 | abhinav@ (personal address) is the only system sender | foundation | #358 |
+| I17 | Send Email Hook availability on Free unconfirmed | stage-0 | #359 |
+
+**17.7 Parked register:** X.1 ADMIN_PAT scope (~1 Nov) · X.2 monthly manual audit (date in this tracker) · X.3 CGI pipeline (Cycle 3 planning) · X.4 npm audit / PR #41 (G-CLOSE re-check) · X.5 #108 rate-limit rule (D-9 result) · X.6 deploy-protection settings (only if someone else joins the repo) · D25 Amazon/Flipkart · D16 heat map · D14 Shareables · D15 AEO/GEO · engagement backlog (Cycle 3 planning).
+
+---
+
 ## Terminal tasks 2026-09-24: cleanup safety, posting cadence, rework email, Health Check 2, social ban-phrase, Data API grants
 
 Six items from the 2026-09-24 brief, each filed as its own issue before work began. Order: 3 → 1 → 2 → 4 → 5 → 6. No issue closed yet; each closes only with an evidence comment.

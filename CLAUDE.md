@@ -22,6 +22,31 @@ SESSION START: Read `BOI_MASTER_TRACKER.md` — header block (metadata, current 
 
 **Handover docs:** Pattern retired after Day 35. Write a changelog entry in `BOI_MASTER_TRACKER.md` §Sprint changelog instead. No new Day_N_Ground_Truth files — `docs/handover/` is frozen.
 
+**Cycle 2 plan:** `docs/plans/BOI_Cycle2_Master_Plan.md` (v2.3, approved 27 Sep 2026) is the scope, gate and open-item register for Cycle 2. Every plan ID has a GitHub issue (label `cycle-2` plus `stage-0` / `foundation` / `build` / `trust`, title prefixed with the plan ID). No closing keywords (`Closes #`, `Fixes #`) in commits or PRs; issues close only through an evidence comment. Email addresses and DNS: `docs/email/ADDRESSES.md`.
+
+---
+
+## Cycle 2 guardrails (binding, plan §13)
+
+These are rules, not guidance. Where an older rule further down this file conflicts with one of them (e.g. the Resend `from` address or Netlify-era notes), the guardrail wins, and the older rule is updated when the work that changes it lands.
+
+- **G1 — Public pages stay cached.** No cookies, headers or session reads on public routes. Auth UI is client-only. Middleware only on `/account` and `/auth`. Enforced by the FP3.4 CI check.
+- **G2 — Every new request path goes in the budget:** Supabase calls, Worker routes, KV/R2 operations, emails, Actions jobs. Volume stated in the PR; plan §10 updated.
+- **G3 — Pages get price data only through the snapshot reader.** The Supabase RPC is a fallback, never the primary path.
+- **G4 — Retailers are data.** The registry plus runtime display flags. No retailer-specific branches in display code.
+- **G5 — Every scraper uses the contract** (FP5): identity ladder, breaker, batched writes, change-only history, heartbeat, robots snapshot, bot identity.
+- **G6 — Nothing is guessed.** Unmatched listings go to the queue. Remaps purge history, with a backup first.
+- **G7 — Migrations only from repo files,** rehearsed on staging, rollback SQL, backup first. Never through MCP.
+- **G8 — RLS everywhere;** explicit grants per role; the negative-test suite must pass.
+- **G9 — Flags before launches.**
+- **G10 — Jobs are safe to re-run** (dedupe keys; write only after validation).
+- **G11 — Honest wording comes from data** (store lists, counts, "tracking since").
+- **G12 — Every email goes through the gateway,** with a stream, an idempotency key and a suppression check. No direct provider calls anywhere else.
+- **G13 — Every scheduled job writes a heartbeat.** A job without one isn't allowed in production.
+- **G14 — Fail honest, not wrong.** Any new code path must state its failure behaviour, and that behaviour must degrade to older-but-labelled data or to no output, never to incorrect output.
+
+Transitional note (27 Sep 2026): G3, G12 and G13 describe systems that don't exist yet (snapshot reader FP1.1, email gateway FP4.6, heartbeats FP6.1). Until each lands, existing code paths are grandfathered, but no *new* code path may add a direct price read, a direct provider email call, or an un-heartbeated scheduled job without saying so in the PR and linking the pillar issue.
+
 ---
 
 ## Git rules

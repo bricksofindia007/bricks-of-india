@@ -554,9 +554,9 @@
 <!-- =================================================================== -->
 <script id="boi-data" type="application/json">{
   "meta": {
-    "lastUpdated": "2026-09-24",
-    "trackerVersion": "v2.8",
-    "currentSprint": "2026-09-24 (latest): Six terminal tasks, each filed first (#177-#182). [3 Cleanup, #177, PR #183, Tier 2 held] deny-by-default selection: nothing referenced by a non-terminal row can be deleted; prod dry-run 252+17 files, 0 overlap with the 51 approved/pending/rejected asset paths; 18 tests. [1 Cadence, #178, branch fix/178-posting-cadence, Tier 2 to chat] QP had been posting DAILY (no Mon/Wed/Fri gate) -- QP poller DISABLED 2026-09-24T03:42:54Z with Abhinav's approval, #34-37 untouched; per-platform cap, retry counts toward cap, publish_attempts log, missed-slot watchdog, approved_at trigger; migration validated in rolled-back tx, not applied. 09-13/14 no-post = Supabase HTTP 402 project restriction. [2 Rework email, #179, PR #184, Tier 2 held] rework poller had no notification step; real send verified for QP #36. [4 Health Check 2, #180, PR #185, Tier 1] reads guides (/blog 308s there) with maybeSingle; branch run 35953249510 success; guides 20.6 days stale -> #187. [5 Social, #181, PR #186, Tier 1] banned phrase regenerates (max 2) with list parsed from Codex PAGE 17; live Gemini 3/3 + 4/4 clean. [6 Grants, #182, PR #189, Tier 1] explicit GRANT backfill + CI check; follow-ups #188. Tier 1 merges blocked by terminal permission classifier -- awaiting manual merge. Full detail in BOI_MASTER_TRACKER.md. PREVIOUS: 2026-09-22 (latest): Issue #170 resolved for real (publish-drafts.yml retired, PR #174, 566359b) + storage cleanup dual-bucket flip (PR #175, e4163cf). [170] Read the actual admin approve/reject code: approve re-enters generate-approved-drafts.ts's real generation queue (fresh attempt, not a stale republish); reject sets status='rejected', doesn't delete (a real doc/behavior mismatch also fixed). Definitive answer found in generate-approved-drafts.ts's own dated policy comment: as of 2026-06-28, a draft that fails quality gates is rejected+deleted outright, not parked in failed_lint -- the model this cron served was superseded the same day its own header was last written. Retired: workflow deleted, script kept+marked deprecated, CLAUDE.md/DATA_SOURCES.md corrected. Also found+fixed a second bug live: lint_workflow_timeouts.py didn't handle a deleted workflow file (FileNotFoundError is an OSError subclass), tripped by this PR's own deletion. 3 real failed_lint drafts left untouched, a separate undecided follow-up. [Storage] Real numbers reconciled before executing, not the user's given snapshot counts: social-assets had 292 DB-referenced candidates but only 88 still existed (204 already-gone ghosts from the 2026-09-12 cleanup, correctly no-op'd); quiet-panic-assets 15 of 18 named files eligible, 3 correctly excluded by the 72h age guard (posted within the last 3 days despite older render-date filenames). Real live run: social-assets 419.2->284.8 MB (-134.4MB, 88 files), quiet-panic-assets 120.4->47.6 MB (-72.8MB, 15 files), 0 failures, verified via independent before/after byte-count queries. Workflow code merged (extended cleanup-published-assets.js to cover quiet-panic-assets, scheduled runs now always live) -- but schedule verification is PENDING, not done: only a manual workflow_dispatch (dry_run=false) has run so far (35686858870, success, independently confirmed idempotent), not a real schedule-triggered run. Cron is Sunday 04:00 UTC; flip merged Tuesday 09-22; no Sunday has occurred since. First genuine scheduled run: 2026-09-27 04:00 UTC, not yet happened. health-check.mjs now watches this workflow's freshness too. Full detail + tables in BOI_MASTER_TRACKER.md. PREVIOUS (2026-09-22): 2026-09-22 (latest): Two write-job audit follow-ups. [1] Issue #171 FIXED -- snapshot-prices.js now paginates past PostgREST's 1000-row cap (PR #173, 72ee44a), verified with a real production run: 1882 rows written, 0 failed, and price_snapshots for today independently re-queried at exactly 1882 rows (was capped at 1000, matches store_prices's real total exactly now). [2] Issue #170's two open questions stated plainly, not resolved -- (1) is publish-drafts.mjs's auto-republish job still wanted at all, or has manual /admin/pending approve/reject already superseded it; (2) if still wanted, is the fix really just status='draft' -> 'failed_lint', or does the admin approval flow move a row somewhere else first. Real current backlog: 3 rows sitting in status=failed_lint right now, 2 of them 93 days old, all three with real generated bodies never republished. Full detail in BOI_MASTER_TRACKER.md. PREVIOUS (2026-09-22, earlier): 2026-09-22 (latest): Tier 1 FULLY CLOSED. [1] retirement-check.yml schedule enabled (Sunday 02:45 UTC, PR #168, 942bd21) -- verified real via GitHub's own content API (not just local git diff) and workflow state=active. [2] Full write-job audit -- every scheduled DB-writing workflow (~24 of ~34 scheduled jobs) checked for real row-level evidence, not just green checkmarks. ~21 confirmed genuinely healthy with real logged counts (mrp-refresh: 724 writes, sync-catalogue: 7554 upserted, generate-drafts: 3 published, radar: 35 rows written, content-quality: 241 new/204 resolved, social-automation: real row IDs, video pipelines: real inserts or clear self-explanatory no-ops, etc). 3 confirmed bugs found this session, matching the exact pattern the task was hunting (write job reports success while writing nothing/incomplete) -- 1 already fixed (guide-staleness-guard.js's article_id uuid/bigint mismatch, root-caused to a missing precedent from content-linter.mjs/visual-renderer.mjs's own existing type guard, built 2026-05-29 but never carried forward to the newer script), 2 newly found and FILED not fixed blind: issue #170 (publish-drafts.yml has queried the wrong pending_drafts.status for ~3 months -- real rows with generated bodies sit at status=failed_lint, not draft, likely a regression from before the pipeline's current draft/approved/failed_lint semantics existed) and issue #171 (snapshot-prices.js has no pagination past PostgREST's 1000-row cap -- store_prices has 1882 rows, daily price_snapshots capped at exactly 1000, 47% silently missing, feeding a LAB price-trend feature). Also fixed technical-hygiene.mjs's ReviewedSetPrices check (PR #172, f6a4df8) to respect yesterday's new ineligibility labels instead of alerting forever on an already-accepted condition, and filed issue #169 (a genuine, unrelated finding: same slug live in both reviews and news_articles with opposite BUY NOW/WAIT verdicts). Full detail + evidence table in BOI_MASTER_TRACKER.md. Next: Tier 2 (heat map + watchlist). PREVIOUS (2026-09-21): 2026-09-21 (latest): Content-freshness mechanism BUILT, deployed, verified live -- Tier 1 closed. PR #167 (188ad11). [1] retirement-check.mjs -- new universal, idempotent, auto-correcting weekly job (reviews.set_id/news_articles.set_number -> sets.retired), same pattern proven on 25 real rows this session. Shipped as workflow_dispatch-only (DEPLOY_POLICY Tier 2, new automation), manually dispatched for real post-merge (run success, correctly found 0 corrections needed -- everything already fixed) -- schedule-enable is the one pending operator decision, proposed Sunday 02:45 UTC. [2] backfill-review-source-retailer.mjs run for real: 114/121 eligible frozen reviews connected to source_retailer tracking (7 correctly skipped -- IMPORT ONLY verdict, DB-constraint-excluded), content retrofitted to the deterministic retailer block, pre-backfill content backed up. reviews table now 142/195 source_retailer-tracked (was 28). [3] Deliberately-excluded remainder labeled, not dropped: 4 broken-link + 3 GWP + 12 genuinely-untracked reviews all get content_quality_issues info labels + GitHub issues (#165, #166); found a NEW related issue along the way -- 7 reviews say IMPORT ONLY but their set is now in-stock at a tracked retailer (issue #164), correctly not auto-fixed (different verdict category). [4] guide-staleness-guard.js --limit raised 3->100 (was a ~9-month cycle to check all 26 once), run for real: 25 guide_staleness flags live. Also fixed a real pre-existing bug found by running it live -- content_quality_issues.article_id is uuid but guides.id is bigint, so every flag insert from this job had silently failed since 2026-08-09 (the monthly workflow reported success while writing zero rows). [5] guide_set_retired check added for the 3 guides with real /sets/ links only (not the other 23, per design) -- run for real, all 3 correctly flagged. Full detail + tables in BOI_MASTER_TRACKER.md. PREVIOUS (2026-09-21, earlier): 2026-09-21 (latest): Content-freshness pre-design investigation -- real answers to 3 unknowns, mechanism proposed not built. [1] The earlier scoping pass's 'zero scraper coverage' finding for the 161 frozen reviews was WRONG -- its own diagnostic script compared reviews.set_id (a UUID) against store_prices.set_id (actually a set number), an impossible match. Corrected join shows 87% (126/145) of frozen non-retired reviews DO have real store_prices coverage -- a backfill gap (source_retailer never populated when the pipeline shipped), not a coverage gap. Remaining 13%: 4 broken set_id links, 3 GWP items, 12 genuinely untracked (licensed/crossover exclusives). [2] Guides confirmed structurally different -- only 3/26 have any /sets/ link at all; the other prices are illustrative prose, no set to hook a live-price check to. No automated per-guide mechanism proposed. [3] sets.retired confirmed free -- same Brickset-linked ingest (populate-mrp.js) as lego_mrp_inr, already on every sets row a price mechanism joins against; 76-78% coverage on the sets that matter. Proposed design: retirement-check as its own universal, cheap, weekly, auto-correcting job (decoupled from price coverage -- would have caught this session's '6 extra retired reviews' automatically); price re-verification backfill for the 87%-coverage review subset into the existing reviews-source-refresh.mjs; guide-staleness-guard.js batch size raised so all 26 get checked well inside a year, still monthly, still flag-only. Full detail + summary table in BOI_MASTER_TRACKER.md."
+    "lastUpdated": "2026-09-27",
+    "trackerVersion": "v2.9",
+    "currentSprint": "2026-09-27 (latest): Cycle 1 closed out; Cycle 2 Master Plan v2.3 (approved 27 Sep) committed at docs/plans/BOI_Cycle2_Master_Plan.md. Stage 0 (27-29 Sep, read-only) in progress: P0.1 evidence closures done (#164, #181, #205, #206, #207, #211, #212 closed; #204, #215, #220 open with evidence), P0.2 docs-only close-out commit (this one: tracker + this JSON reconciled, G1-G14 guardrails in CLAUDE.md, docs/email/ADDRESSES.md), 112 plan-ID issues created (#248-#359, label cycle-2 + stage). Next: Stage 1 foundation pillars FP1-FP10 from 29 Sep, gated by RC-1 (~6 Oct) and RC-2 (~11 Oct). RLFM on hold by decision (D23). Growth events lost since 1 Sep are permanent. PREVIOUS: 2026-09-24 (latest): Six terminal tasks, each filed first (#177-#182). [3 Cleanup, #177, PR #183, Tier 2 held] deny-by-default selection: nothing referenced by a non-terminal row can be deleted; prod dry-run 252+17 files, 0 overlap with the 51 approved/pending/rejected asset paths; 18 tests. [1 Cadence, #178, branch fix/178-posting-cadence, Tier 2 to chat] QP had been posting DAILY (no Mon/Wed/Fri gate) -- QP poller DISABLED 2026-09-24T03:42:54Z with Abhinav's approval, #34-37 untouched; per-platform cap, retry counts toward cap, publish_attempts log, missed-slot watchdog, approved_at trigger; migration validated in rolled-back tx, not applied. 09-13/14 no-post = Supabase HTTP 402 project restriction. [2 Rework email, #179, PR #184, Tier 2 held] rework poller had no notification step; real send verified for QP #36. [4 Health Check 2, #180, PR #185, Tier 1] reads guides (/blog 308s there) with maybeSingle; branch run 35953249510 success; guides 20.6 days stale -> #187. [5 Social, #181, PR #186, Tier 1] banned phrase regenerates (max 2) with list parsed from Codex PAGE 17; live Gemini 3/3 + 4/4 clean. [6 Grants, #182, PR #189, Tier 1] explicit GRANT backfill + CI check; follow-ups #188. Tier 1 merges blocked by terminal permission classifier -- awaiting manual merge. Full detail in BOI_MASTER_TRACKER.md. PREVIOUS: 2026-09-22 (latest): Issue #170 resolved for real (publish-drafts.yml retired, PR #174, 566359b) + storage cleanup dual-bucket flip (PR #175, e4163cf). [170] Read the actual admin approve/reject code: approve re-enters generate-approved-drafts.ts's real generation queue (fresh attempt, not a stale republish); reject sets status='rejected', doesn't delete (a real doc/behavior mismatch also fixed). Definitive answer found in generate-approved-drafts.ts's own dated policy comment: as of 2026-06-28, a draft that fails quality gates is rejected+deleted outright, not parked in failed_lint -- the model this cron served was superseded the same day its own header was last written. Retired: workflow deleted, script kept+marked deprecated, CLAUDE.md/DATA_SOURCES.md corrected. Also found+fixed a second bug live: lint_workflow_timeouts.py didn't handle a deleted workflow file (FileNotFoundError is an OSError subclass), tripped by this PR's own deletion. 3 real failed_lint drafts left untouched, a separate undecided follow-up. [Storage] Real numbers reconciled before executing, not the user's given snapshot counts: social-assets had 292 DB-referenced candidates but only 88 still existed (204 already-gone ghosts from the 2026-09-12 cleanup, correctly no-op'd); quiet-panic-assets 15 of 18 named files eligible, 3 correctly excluded by the 72h age guard (posted within the last 3 days despite older render-date filenames). Real live run: social-assets 419.2->284.8 MB (-134.4MB, 88 files), quiet-panic-assets 120.4->47.6 MB (-72.8MB, 15 files), 0 failures, verified via independent before/after byte-count queries. Workflow code merged (extended cleanup-published-assets.js to cover quiet-panic-assets, scheduled runs now always live) -- but schedule verification is PENDING, not done: only a manual workflow_dispatch (dry_run=false) has run so far (35686858870, success, independently confirmed idempotent), not a real schedule-triggered run. Cron is Sunday 04:00 UTC; flip merged Tuesday 09-22; no Sunday has occurred since. First genuine scheduled run: 2026-09-27 04:00 UTC, not yet happened. health-check.mjs now watches this workflow's freshness too. Full detail + tables in BOI_MASTER_TRACKER.md. PREVIOUS (2026-09-22): 2026-09-22 (latest): Two write-job audit follow-ups. [1] Issue #171 FIXED -- snapshot-prices.js now paginates past PostgREST's 1000-row cap (PR #173, 72ee44a), verified with a real production run: 1882 rows written, 0 failed, and price_snapshots for today independently re-queried at exactly 1882 rows (was capped at 1000, matches store_prices's real total exactly now). [2] Issue #170's two open questions stated plainly, not resolved -- (1) is publish-drafts.mjs's auto-republish job still wanted at all, or has manual /admin/pending approve/reject already superseded it; (2) if still wanted, is the fix really just status='draft' -> 'failed_lint', or does the admin approval flow move a row somewhere else first. Real current backlog: 3 rows sitting in status=failed_lint right now, 2 of them 93 days old, all three with real generated bodies never republished. Full detail in BOI_MASTER_TRACKER.md. PREVIOUS (2026-09-22, earlier): 2026-09-22 (latest): Tier 1 FULLY CLOSED. [1] retirement-check.yml schedule enabled (Sunday 02:45 UTC, PR #168, 942bd21) -- verified real via GitHub's own content API (not just local git diff) and workflow state=active. [2] Full write-job audit -- every scheduled DB-writing workflow (~24 of ~34 scheduled jobs) checked for real row-level evidence, not just green checkmarks. ~21 confirmed genuinely healthy with real logged counts (mrp-refresh: 724 writes, sync-catalogue: 7554 upserted, generate-drafts: 3 published, radar: 35 rows written, content-quality: 241 new/204 resolved, social-automation: real row IDs, video pipelines: real inserts or clear self-explanatory no-ops, etc). 3 confirmed bugs found this session, matching the exact pattern the task was hunting (write job reports success while writing nothing/incomplete) -- 1 already fixed (guide-staleness-guard.js's article_id uuid/bigint mismatch, root-caused to a missing precedent from content-linter.mjs/visual-renderer.mjs's own existing type guard, built 2026-05-29 but never carried forward to the newer script), 2 newly found and FILED not fixed blind: issue #170 (publish-drafts.yml has queried the wrong pending_drafts.status for ~3 months -- real rows with generated bodies sit at status=failed_lint, not draft, likely a regression from before the pipeline's current draft/approved/failed_lint semantics existed) and issue #171 (snapshot-prices.js has no pagination past PostgREST's 1000-row cap -- store_prices has 1882 rows, daily price_snapshots capped at exactly 1000, 47% silently missing, feeding a LAB price-trend feature). Also fixed technical-hygiene.mjs's ReviewedSetPrices check (PR #172, f6a4df8) to respect yesterday's new ineligibility labels instead of alerting forever on an already-accepted condition, and filed issue #169 (a genuine, unrelated finding: same slug live in both reviews and news_articles with opposite BUY NOW/WAIT verdicts). Full detail + evidence table in BOI_MASTER_TRACKER.md. Next: Tier 2 (heat map + watchlist). PREVIOUS (2026-09-21): 2026-09-21 (latest): Content-freshness mechanism BUILT, deployed, verified live -- Tier 1 closed. PR #167 (188ad11). [1] retirement-check.mjs -- new universal, idempotent, auto-correcting weekly job (reviews.set_id/news_articles.set_number -> sets.retired), same pattern proven on 25 real rows this session. Shipped as workflow_dispatch-only (DEPLOY_POLICY Tier 2, new automation), manually dispatched for real post-merge (run success, correctly found 0 corrections needed -- everything already fixed) -- schedule-enable is the one pending operator decision, proposed Sunday 02:45 UTC. [2] backfill-review-source-retailer.mjs run for real: 114/121 eligible frozen reviews connected to source_retailer tracking (7 correctly skipped -- IMPORT ONLY verdict, DB-constraint-excluded), content retrofitted to the deterministic retailer block, pre-backfill content backed up. reviews table now 142/195 source_retailer-tracked (was 28). [3] Deliberately-excluded remainder labeled, not dropped: 4 broken-link + 3 GWP + 12 genuinely-untracked reviews all get content_quality_issues info labels + GitHub issues (#165, #166); found a NEW related issue along the way -- 7 reviews say IMPORT ONLY but their set is now in-stock at a tracked retailer (issue #164), correctly not auto-fixed (different verdict category). [4] guide-staleness-guard.js --limit raised 3->100 (was a ~9-month cycle to check all 26 once), run for real: 25 guide_staleness flags live. Also fixed a real pre-existing bug found by running it live -- content_quality_issues.article_id is uuid but guides.id is bigint, so every flag insert from this job had silently failed since 2026-08-09 (the monthly workflow reported success while writing zero rows). [5] guide_set_retired check added for the 3 guides with real /sets/ links only (not the other 23, per design) -- run for real, all 3 correctly flagged. Full detail + tables in BOI_MASTER_TRACKER.md. PREVIOUS (2026-09-21, earlier): 2026-09-21 (latest): Content-freshness pre-design investigation -- real answers to 3 unknowns, mechanism proposed not built. [1] The earlier scoping pass's 'zero scraper coverage' finding for the 161 frozen reviews was WRONG -- its own diagnostic script compared reviews.set_id (a UUID) against store_prices.set_id (actually a set number), an impossible match. Corrected join shows 87% (126/145) of frozen non-retired reviews DO have real store_prices coverage -- a backfill gap (source_retailer never populated when the pipeline shipped), not a coverage gap. Remaining 13%: 4 broken set_id links, 3 GWP items, 12 genuinely untracked (licensed/crossover exclusives). [2] Guides confirmed structurally different -- only 3/26 have any /sets/ link at all; the other prices are illustrative prose, no set to hook a live-price check to. No automated per-guide mechanism proposed. [3] sets.retired confirmed free -- same Brickset-linked ingest (populate-mrp.js) as lego_mrp_inr, already on every sets row a price mechanism joins against; 76-78% coverage on the sets that matter. Proposed design: retirement-check as its own universal, cheap, weekly, auto-correcting job (decoupled from price coverage -- would have caught this session's '6 extra retired reviews' automatically); price re-verification backfill for the 87%-coverage review subset into the existing reviews-source-refresh.mjs; guide-staleness-guard.js batch size raised so all 26 get checked well inside a year, still monthly, still flag-only. Full detail + summary table in BOI_MASTER_TRACKER.md."
   },
   "kpis": {
     "healthScore": 85,
@@ -566,20 +566,20 @@
     "netlifyMinutesLeft": 9999,
     "netlifyResetDate": "2026-06-22",
     "daysSinceLastDeploy": 0,
-    "lastDeployDate": "2026-09-12",
-    "lastDeployCommit": "78b587c1 (Workers Version ID) · fix: mobile share-button overflow (PR #83), deployed via the new deploy-cloudflare.yml pipeline (run 34674267055). First successful deploy through the automated build + human-gated-approval pipeline -- verified live in the real DOM against bricksofindia.com, not inferred from CI status. Site is now served from Cloudflare Workers (OpenNext), not Netlify -- see top-of-file entry for what is and isn't independently verified about that transition.",
+    "lastDeployDate": "2026-09-27",
+    "lastDeployCommit": "64d1670c · Build & Deploy to Cloudflare Workers run 36289112868 (Gate 13, #245), deployed 02:55 UTC 27 Sep. Batched deploys: approve only the newest run, 1-2 a day (~790 Supabase requests per build).",
     "voiceTestStatus": "Pending",
     "geoScore": 26,
     "geoScoreTarget": 75,
     "lastAuditDate": "2026-05-25",
     "nextAuditDate": "2026-06-25",
     "nextActions": [
-      "URGENT: Visit /admin/pending — 312 approved signals need Generate Article + Publish (/news 16d stale, /blog 36d stale)",
-      "Run community_spotlights migration in Supabase dashboard SQL editor (supabase/migrations/20260525120000_community_spotlights.sql)",
-      "Run guides migration in Supabase dashboard SQL editor (supabase/migrations/20260525000000_guides.sql)",
-      "GSC setup: verify bricksofindia.com, submit sitemap.xml, request indexing for 10 key pages",
-      "CE-01 subject outreach: identify 2 Indian AFOL builders for /community spotlights (post in r/IndiaLEGO + AFOL India Facebook group)",
-      "IG token re-exchange by 2026-07-16 (expires ~2026-07-23)"
+      "Stage 0 report to Abhinav by Mon 29 Sep morning IST (P0.1-P0.15)",
+      "Abhinav: root _dmarc TXT (draft in docs/email/ADDRESSES.md) + Brevo root-domain authentication (FP4.2/FP4.4, #303/#305)",
+      "Abhinav: confirm Resend pay-as-you-go OFF (screenshot) and Story #76 email once generated (P0.1/I14, #356)",
+      "Abhinav: separate Supabase org + staging project (FP2.1, #267); Drive OAuth client for backups (FP2.6, #272)",
+      "Trust track: Gate 14 + #246 batch 1 (T.1); homepage \"500+ Active deals\" is still hardcoded, real count 139 (#204)",
+      "Open verifications: Check 11b first reading, #183 Sunday cleanup, Gates 12/13 first run: GitHub schedules stalled since 07:34 UTC 27 Sep"
     ],
     "openManualChecks": [
       "Confirm Scrape Store Prices failure root cause and fix",
@@ -1133,11 +1133,11 @@
       "id": "RLFM-01",
       "title": "LAN RLFM application draft",
       "category": "Brand",
-      "status": "scheduled",
+      "status": "blocked",
       "priority": "P3",
       "depsBlock": [],
       "blocks": [],
-      "notes": "Apply at one-year mark with live stats"
+      "notes": "ON HOLD BY DECISION (Cycle 1 open item #9, recorded 2026-09-27). Reconsider after Cycle 2 G-CLOSE (plan decision D23); all 57 #246 reviews must be corrected before any restart (T.1). Original note: apply at one-year mark with live stats."
     },
     {
       "id": "PERF-01",
@@ -1803,7 +1803,1008 @@
       "owner": "GitHub Actions cron 0 4 * * 0 — cleanup-published-assets.yml",
       "notes": "Dry-run only, no live deletion wired to a schedule. cleanup-published-assets.js against social-assets — surfaces file count + full list in the run summary so accumulation is visible before it becomes a quota incident again. Built after the 982 MB backlog found 2026-08-15 (PR #29); real live cleanup already run once that session, bucket confirmed at 283 MB after."
     }
-  ]
+  ],
+  "cycle2Register": [
+    {
+      "planId": "P0.1",
+      "title": "Close all Cycle 1 pending verifications",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 248,
+      "status": "in progress (Stage 0 evidence posted 27 Sep)"
+    },
+    {
+      "planId": "P0.2",
+      "title": "Docs-only close-out commit",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 249,
+      "status": "done in this commit"
+    },
+    {
+      "planId": "P0.3",
+      "title": "Supabase support answer: log quota, restriction history, no grace period",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 250,
+      "status": "answered 27 Sep (Supabase support)"
+    },
+    {
+      "planId": "P0.4",
+      "title": "#197 drift inventory",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 197,
+      "status": "open"
+    },
+    {
+      "planId": "P0.5",
+      "title": "Untracked patches, generate_sfx.py, unpushed branches",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 251,
+      "status": "open"
+    },
+    {
+      "planId": "P0.6",
+      "title": "GA4 bot-filter state and event plan",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 252,
+      "status": "open"
+    },
+    {
+      "planId": "P0.7",
+      "title": "Capacity baseline for every verify cell in plan §10",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 253,
+      "status": "open"
+    },
+    {
+      "planId": "P0.8",
+      "title": "Price history: change-only writer? stock changes kept? where \"Updated X ago\" is computed",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 254,
+      "status": "open"
+    },
+    {
+      "planId": "P0.9",
+      "title": "Security audit for all 3 roles, every table",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 255,
+      "status": "open"
+    },
+    {
+      "planId": "P0.10",
+      "title": "Netlify plan state (B1), B5/B7, Cloudflare Images Sources",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 256,
+      "status": "open"
+    },
+    {
+      "planId": "P0.11",
+      "title": "Jaiman postmortem",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 257,
+      "status": "open"
+    },
+    {
+      "planId": "P0.12",
+      "title": "Retailer feasibility spikes (Jaiman, Hamleys, FirstCry) plus Brickset terms",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 258,
+      "status": "open"
+    },
+    {
+      "planId": "P0.13",
+      "title": "Email inventory",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 259,
+      "status": "open"
+    },
+    {
+      "planId": "P0.14",
+      "title": "Supabase platform facts (orgs/projects, Send Email Hook on Free, auth settings)",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 260,
+      "status": "open"
+    },
+    {
+      "planId": "P0.15",
+      "title": "Cloudflare platform facts (KV, Access, DMARC Management, Email Routing)",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 261,
+      "status": "open"
+    },
+    {
+      "planId": "P0.16",
+      "title": "Answer the G0 decisions",
+      "stage": "stage-0",
+      "planSection": "§6.1",
+      "issue": 262,
+      "status": "open"
+    },
+    {
+      "planId": "FP1.1",
+      "title": "Price snapshot layer",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 263,
+      "status": "open"
+    },
+    {
+      "planId": "FP1.2",
+      "title": "Request budget and per-caller daily report",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 264,
+      "status": "open"
+    },
+    {
+      "planId": "FP1.3",
+      "title": "/api/img resize and size cap",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 265,
+      "status": "open"
+    },
+    {
+      "planId": "FP1.4",
+      "title": "R2 lifecycle tuning",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 242,
+      "status": "open"
+    },
+    {
+      "planId": "FP1.5",
+      "title": "Cold-render review",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 266,
+      "status": "open"
+    },
+    {
+      "planId": "FP2.1",
+      "title": "Staging Supabase project in a separate organisation",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 267,
+      "status": "open"
+    },
+    {
+      "planId": "FP2.2",
+      "title": "Staging Worker",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 268,
+      "status": "open"
+    },
+    {
+      "planId": "FP2.3",
+      "title": "Fix #197 plus a CI migration-parity check",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 269,
+      "status": "open"
+    },
+    {
+      "planId": "FP2.4",
+      "title": "Flag system",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 270,
+      "status": "open"
+    },
+    {
+      "planId": "FP2.5",
+      "title": "Release trains in DEPLOY_POLICY.md",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 271,
+      "status": "open"
+    },
+    {
+      "planId": "FP2.6",
+      "title": "Backups plus restore drill (3 tiers: Drive, HDD, pre-change snapshots)",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 272,
+      "status": "open"
+    },
+    {
+      "planId": "FP3.1",
+      "title": "Act on the P0.9 audit",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 273,
+      "status": "open"
+    },
+    {
+      "planId": "FP3.2",
+      "title": "RLS on every table in every exposed schema",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 274,
+      "status": "open"
+    },
+    {
+      "planId": "FP3.3",
+      "title": "Grants checker covers anon, authenticated and service_role, with a negative-t…",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 275,
+      "status": "open"
+    },
+    {
+      "planId": "FP3.4",
+      "title": "Static-route CI check",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 276,
+      "status": "open"
+    },
+    {
+      "planId": "FP3.5",
+      "title": "Turnstile widget plus Supabase auth rate limits, configured and tested on sta…",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 277,
+      "status": "open"
+    },
+    {
+      "planId": "FP3.6",
+      "title": "Secrets manifest updated for every new secret",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 278,
+      "status": "open"
+    },
+    {
+      "planId": "FP3.7",
+      "title": "/.well-known/security.txt pointing to security@",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 279,
+      "status": "open"
+    },
+    {
+      "planId": "FP5.1",
+      "title": "Retailer registry",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 280,
+      "status": "open"
+    },
+    {
+      "planId": "FP5.2",
+      "title": "Shared scraper-contract module",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 281,
+      "status": "open"
+    },
+    {
+      "planId": "FP5.3",
+      "title": "Circuit breaker",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 282,
+      "status": "open"
+    },
+    {
+      "planId": "FP5.4",
+      "title": "Identity-ladder module with test fixtures",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 283,
+      "status": "open"
+    },
+    {
+      "planId": "FP5.5",
+      "title": "unmatched_listings queue plus a weekly review list in the ops digest",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 284,
+      "status": "open"
+    },
+    {
+      "planId": "FP5.6",
+      "title": "Match-audit report per run",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 285,
+      "status": "open"
+    },
+    {
+      "planId": "FP5.7",
+      "title": "Change-only history writer plus a purge-on-remap tool",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 286,
+      "status": "open"
+    },
+    {
+      "planId": "FP5.8",
+      "title": "Retrofit MyBrickHouse and Toycra onto the contract",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 287,
+      "status": "open"
+    },
+    {
+      "planId": "FP5.9",
+      "title": "Worker Cron Trigger plus GH_DISPATCH_TOKEN, one dispatch per retailer",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 288,
+      "status": "open"
+    },
+    {
+      "planId": "FP5.10",
+      "title": "Scraper identity: BricksOfIndiaBot UA, /bot page, robots/agents.md snapshots",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 289,
+      "status": "open"
+    },
+    {
+      "planId": "FP6.1",
+      "title": "Sentinel Worker",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 290,
+      "status": "open"
+    },
+    {
+      "planId": "FP6.2",
+      "title": "External probe",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 291,
+      "status": "open"
+    },
+    {
+      "planId": "FP6.3",
+      "title": "Daily ops digest at 08:00 IST to ops@",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 292,
+      "status": "open"
+    },
+    {
+      "planId": "FP6.4",
+      "title": "Automatic stop-the-line and hard quota guards",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 293,
+      "status": "open"
+    },
+    {
+      "planId": "FP6.5",
+      "title": "Monitoring for Actions minutes and Workers CPU",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 294,
+      "status": "open"
+    },
+    {
+      "planId": "FP7.1",
+      "title": "Privacy policy rewrite",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 295,
+      "status": "open"
+    },
+    {
+      "planId": "FP7.2",
+      "title": "Terms of use",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 296,
+      "status": "open"
+    },
+    {
+      "planId": "FP7.3",
+      "title": "Consent model",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 297,
+      "status": "open"
+    },
+    {
+      "planId": "FP7.4",
+      "title": "Account-deletion flow design plus a public data-deletion page",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 298,
+      "status": "open"
+    },
+    {
+      "planId": "FP7.5",
+      "title": "18+ rule",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 299,
+      "status": "open"
+    },
+    {
+      "planId": "FP7.6",
+      "title": "Corrections page with the policy, a log of dated corrections, and corrections@",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 300,
+      "status": "open"
+    },
+    {
+      "planId": "FP7.7",
+      "title": "Abhinav's review",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 301,
+      "status": "open"
+    },
+    {
+      "planId": "FP4.1",
+      "title": "check the Resend account",
+      "stage": "foundation",
+      "planSection": "§6.3",
+      "issue": 302,
+      "status": "open"
+    },
+    {
+      "planId": "FP4.2",
+      "title": "DNS: root DMARC, Resend notify./news., Brevo root/notify./ops.",
+      "stage": "foundation",
+      "planSection": "§6.3",
+      "issue": 303,
+      "status": "open"
+    },
+    {
+      "planId": "FP4.3",
+      "title": "ImprovMX aliases and Gmail labels/filters",
+      "stage": "foundation",
+      "planSection": "§6.3",
+      "issue": 304,
+      "status": "open"
+    },
+    {
+      "planId": "FP4.4",
+      "title": "Brevo account and sender identities",
+      "stage": "foundation",
+      "planSection": "§6.3",
+      "issue": 305,
+      "status": "open"
+    },
+    {
+      "planId": "FP4.5",
+      "title": "\"Send mail as\" through Brevo SMTP for human replies",
+      "stage": "foundation",
+      "planSection": "§6.3",
+      "issue": 306,
+      "status": "open"
+    },
+    {
+      "planId": "FP4.6",
+      "title": "Email gateway (streams, ledger, suppression, idempotency, failover, templates, unsubscribe)",
+      "stage": "foundation",
+      "planSection": "§6.3",
+      "issue": 307,
+      "status": "open"
+    },
+    {
+      "planId": "FP4.7",
+      "title": "Webhook receiver (Resend and Brevo events → suppression and engagement)",
+      "stage": "foundation",
+      "planSection": "§6.3",
+      "issue": 308,
+      "status": "open"
+    },
+    {
+      "planId": "FP4.8",
+      "title": "Sign-in email path (Send Email Hook or SMTP with swap runbook)",
+      "stage": "foundation",
+      "planSection": "§6.3",
+      "issue": 309,
+      "status": "open"
+    },
+    {
+      "planId": "FP4.9",
+      "title": "move every existing sender onto the gateway",
+      "stage": "foundation",
+      "planSection": "§6.3",
+      "issue": 310,
+      "status": "open"
+    },
+    {
+      "planId": "FP4.10",
+      "title": "DMARC progression to p=quarantine",
+      "stage": "foundation",
+      "planSection": "§6.3",
+      "issue": 311,
+      "status": "open"
+    },
+    {
+      "planId": "FP8.1",
+      "title": "GA4 bot filter",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 312,
+      "status": "open"
+    },
+    {
+      "planId": "FP8.2",
+      "title": "event plan instrumented",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 313,
+      "status": "open"
+    },
+    {
+      "planId": "FP8.3",
+      "title": "weekly baseline report",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 314,
+      "status": "open"
+    },
+    {
+      "planId": "FP8.4",
+      "title": "success metrics defined",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 315,
+      "status": "open"
+    },
+    {
+      "planId": "FP10.1",
+      "title": "\"Unknown\" theme backfill",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 209,
+      "status": "open"
+    },
+    {
+      "planId": "FP10.2",
+      "title": "change-only history writer, from P0.8",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 316,
+      "status": "open"
+    },
+    {
+      "planId": "FP10.3",
+      "title": "\"Updated X ago\" computed in the browser from scraped_at, so cached HTML never…",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 317,
+      "status": "open"
+    },
+    {
+      "planId": "FP10.4",
+      "title": "\"More [theme] sets\" no longer shows unpriced promo items",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 318,
+      "status": "open"
+    },
+    {
+      "planId": "FP9",
+      "title": "Documentation and operations (ADRs, runbooks, daily log, reconciliation, DEPLOY_POLICY.md)",
+      "stage": "foundation",
+      "planSection": "§6.2",
+      "issue": 319,
+      "status": "open"
+    },
+    {
+      "planId": "D-1",
+      "title": "Supabase unavailable",
+      "stage": "foundation",
+      "planSection": "§7.1",
+      "issue": 320,
+      "status": "open"
+    },
+    {
+      "planId": "D-2",
+      "title": "Restore",
+      "stage": "foundation",
+      "planSection": "§7.1",
+      "issue": 321,
+      "status": "open"
+    },
+    {
+      "planId": "D-3",
+      "title": "Snapshot corrupted or stale",
+      "stage": "foundation",
+      "planSection": "§7.1",
+      "issue": 322,
+      "status": "open"
+    },
+    {
+      "planId": "D-4",
+      "title": "Retailer kill switch",
+      "stage": "foundation",
+      "planSection": "§7.1",
+      "issue": 323,
+      "status": "open"
+    },
+    {
+      "planId": "D-5",
+      "title": "Circuit breaker",
+      "stage": "foundation",
+      "planSection": "§7.1",
+      "issue": 324,
+      "status": "open"
+    },
+    {
+      "planId": "D-6",
+      "title": "Stop-the-line with no human",
+      "stage": "foundation",
+      "planSection": "§7.1",
+      "issue": 325,
+      "status": "open"
+    },
+    {
+      "planId": "D-7",
+      "title": "Email provider failure",
+      "stage": "foundation",
+      "planSection": "§7.1",
+      "issue": 326,
+      "status": "open"
+    },
+    {
+      "planId": "D-8",
+      "title": "Migration rehearsal",
+      "stage": "foundation",
+      "planSection": "§7.1",
+      "issue": 327,
+      "status": "open"
+    },
+    {
+      "planId": "D-9",
+      "title": "Load",
+      "stage": "foundation",
+      "planSection": "§7.1",
+      "issue": 328,
+      "status": "open"
+    },
+    {
+      "planId": "RC-1",
+      "title": "Readiness Certificate 1: festive core (target signed ~6 Oct)",
+      "stage": "foundation",
+      "planSection": "§7.2",
+      "issue": 329,
+      "status": "open"
+    },
+    {
+      "planId": "RC-2",
+      "title": "Readiness Certificate 2: accounts and alerts (target signed ~11 Oct)",
+      "stage": "foundation",
+      "planSection": "§7.3",
+      "issue": 330,
+      "status": "open"
+    },
+    {
+      "planId": "R.J",
+      "title": "Retailer: Jaiman Toys (shadow → G-RET → live)",
+      "stage": "build",
+      "planSection": "§9.1",
+      "issue": 331,
+      "status": "open"
+    },
+    {
+      "planId": "R.H",
+      "title": "Retailer: Hamleys (allowed paths only; shadow → G-RET → live)",
+      "stage": "build",
+      "planSection": "§9.1",
+      "issue": 332,
+      "status": "open"
+    },
+    {
+      "planId": "R.F",
+      "title": "Retailer: FirstCry (variant-level identity, public price not Club; shadow → G-RET → live)",
+      "stage": "build",
+      "planSection": "§9.1",
+      "issue": 333,
+      "status": "open"
+    },
+    {
+      "planId": "H",
+      "title": "Price history chart (KV-delivered inline SVG step chart)",
+      "stage": "build",
+      "planSection": "§9.2",
+      "issue": 334,
+      "status": "open"
+    },
+    {
+      "planId": "W.A",
+      "title": "Guest hearts (W.A1–W.A4)",
+      "stage": "build",
+      "planSection": "§9.3",
+      "issue": 335,
+      "status": "open"
+    },
+    {
+      "planId": "W.B",
+      "title": "Accounts (W.B1–W.B14)",
+      "stage": "build",
+      "planSection": "§9.3",
+      "issue": 336,
+      "status": "open"
+    },
+    {
+      "planId": "W.C",
+      "title": "Alerts (W.C1–W.C8)",
+      "stage": "build",
+      "planSection": "§9.3",
+      "issue": 337,
+      "status": "open"
+    },
+    {
+      "planId": "T.1",
+      "title": "#246",
+      "stage": "trust",
+      "planSection": "§16.1",
+      "issue": 246,
+      "status": "open"
+    },
+    {
+      "planId": "T.2",
+      "title": "#237",
+      "stage": "trust",
+      "planSection": "§16.1",
+      "issue": 237,
+      "status": "open"
+    },
+    {
+      "planId": "T.3",
+      "title": "#223 MyBrickHouse match for 40912, then 40912's verdict",
+      "stage": "trust",
+      "planSection": "§16.1",
+      "issue": 223,
+      "status": "open"
+    },
+    {
+      "planId": "T.4",
+      "title": "#176 Pick-a-Brick hero image",
+      "stage": "trust",
+      "planSection": "§16.1",
+      "issue": 176,
+      "status": "open"
+    },
+    {
+      "planId": "T.5",
+      "title": "Where-to-buy \"Expect to pay 30–50% more than US prices\": source it or remove …",
+      "stage": "trust",
+      "planSection": "§16.1",
+      "issue": 338,
+      "status": "open"
+    },
+    {
+      "planId": "T.6",
+      "title": "Static article prices: systemic fix (D13)",
+      "stage": "trust",
+      "planSection": "§16.1",
+      "issue": 339,
+      "status": "open"
+    },
+    {
+      "planId": "T.7",
+      "title": "#235 LCP on / and /deals",
+      "stage": "trust",
+      "planSection": "§16.1",
+      "issue": 235,
+      "status": "open"
+    },
+    {
+      "planId": "T.8",
+      "title": "Pipelines",
+      "stage": "trust",
+      "planSection": "§16.1",
+      "issue": "#203, #200, #201 (+ QP #35, VID #73)",
+      "status": "open"
+    },
+    {
+      "planId": "T.9",
+      "title": "Newsletter: pending and failed_lint drafts, restart threshold, move to news@news.",
+      "stage": "trust",
+      "planSection": "§16.1",
+      "issue": 340,
+      "status": "open"
+    },
+    {
+      "planId": "T.10",
+      "title": "#122 growth",
+      "stage": "trust",
+      "planSection": "§16.1",
+      "issue": 122,
+      "status": "open"
+    },
+    {
+      "planId": "T.11",
+      "title": "Evidence-based closure of #164, #204, #205, #206, #207, #211, #212, #215, #220",
+      "stage": "trust",
+      "planSection": "§16.1",
+      "issue": "#164, #204, #205, #206, #207, #211, #212, #215, #220",
+      "status": "open"
+    },
+    {
+      "planId": "T.13",
+      "title": "Instagram App Review prerequisites (privacy and data-deletion pages from FP7)",
+      "stage": "trust",
+      "planSection": "§16.1",
+      "issue": 341,
+      "status": "open"
+    },
+    {
+      "planId": "T.14",
+      "title": "Video script self-correction ceiling",
+      "stage": "trust",
+      "planSection": "§16.1",
+      "issue": 342,
+      "status": "open"
+    },
+    {
+      "planId": "I1",
+      "title": "Migration drift count: 5 vs 6",
+      "stage": "stage-0",
+      "planSection": "§15",
+      "issue": 343,
+      "status": "open"
+    },
+    {
+      "planId": "I2",
+      "title": "Log quota 1 GB vs 5 GB; \"grace period is over\" restrictions",
+      "stage": "foundation",
+      "planSection": "§15",
+      "issue": 344,
+      "status": "open"
+    },
+    {
+      "planId": "I3",
+      "title": "Small zero-cost breaches (Workers CPU $0.12, R2 ~15 GB, Class A pace)",
+      "stage": "foundation",
+      "planSection": "§15",
+      "issue": 345,
+      "status": "open"
+    },
+    {
+      "planId": "I4",
+      "title": "\"Updated X ago\" computed at render time?",
+      "stage": "stage-0",
+      "planSection": "§15",
+      "issue": 346,
+      "status": "open"
+    },
+    {
+      "planId": "I5",
+      "title": "History writer change-only? stock changes kept?",
+      "stage": "stage-0",
+      "planSection": "§15",
+      "issue": 347,
+      "status": "open"
+    },
+    {
+      "planId": "I6",
+      "title": "Are Hamleys prices reachable within its robots scope?",
+      "stage": "stage-0",
+      "planSection": "§15",
+      "issue": 348,
+      "status": "open"
+    },
+    {
+      "planId": "I7",
+      "title": "Actions minutes and repo visibility unknown",
+      "stage": "stage-0",
+      "planSection": "§15",
+      "issue": 349,
+      "status": "open"
+    },
+    {
+      "planId": "I8",
+      "title": "Netlify downgrade never reconfirmed",
+      "stage": "stage-0",
+      "planSection": "§15",
+      "issue": 350,
+      "status": "open"
+    },
+    {
+      "planId": "I9",
+      "title": "Growth webhook cause: \"404\" vs \"usage_exceeded\"",
+      "stage": "foundation",
+      "planSection": "§15",
+      "issue": 351,
+      "status": "open"
+    },
+    {
+      "planId": "I10",
+      "title": "Untracked or unpushed work",
+      "stage": "stage-0",
+      "planSection": "§15",
+      "issue": 352,
+      "status": "open"
+    },
+    {
+      "planId": "I11",
+      "title": "Supabase Free downloadable backups?",
+      "stage": "stage-0",
+      "planSection": "§15",
+      "issue": 353,
+      "status": "open"
+    },
+    {
+      "planId": "I12",
+      "title": "Does a stores table exist?",
+      "stage": "stage-0",
+      "planSection": "§15",
+      "issue": 354,
+      "status": "open"
+    },
+    {
+      "planId": "I13",
+      "title": "No DMARC record",
+      "stage": "foundation",
+      "planSection": "§15",
+      "issue": 355,
+      "status": "open"
+    },
+    {
+      "planId": "I14",
+      "title": "Resend pay-as-you-go state unknown",
+      "stage": "stage-0",
+      "planSection": "§15",
+      "issue": 356,
+      "status": "open"
+    },
+    {
+      "planId": "I15",
+      "title": "Supabase quotas are per organisation (staging must be a separate org)",
+      "stage": "foundation",
+      "planSection": "§15",
+      "issue": 357,
+      "status": "open"
+    },
+    {
+      "planId": "I16",
+      "title": "abhinav@ (personal address) is the only system sender",
+      "stage": "foundation",
+      "planSection": "§15",
+      "issue": 358,
+      "status": "open"
+    },
+    {
+      "planId": "I17",
+      "title": "Send Email Hook availability on Free unconfirmed",
+      "stage": "stage-0",
+      "planSection": "§15",
+      "issue": 359,
+      "status": "open"
+    },
+    {
+      "planId": "T.12",
+      "title": "Moved into the foundation as drill D-9",
+      "stage": "trust",
+      "planSection": "§16.1",
+      "issue": "see D-9 (#328)",
+      "status": "moved"
+    }
+  ],
+  "cycle2Notes": {
+    "plan": "docs/plans/BOI_Cycle2_Master_Plan.md (v2.3, approved 27 Sep 2026)",
+    "zeroCostExceptions": "I3 (#345): Cloudflare Workers Paid ~$5/month kept (CPU ~105 ms/request); Workers CPU overage $0.12 (36.8M/30M ms); R2 ~15 GB vs 10 GB free (lifecycle 30d set 27 Sep); R2 Class A 834k by 26 Sep, on pace past 1M. Owners FP1.3/FP1.4/FP2.5.",
+    "growthEventsLost": "growth.newsletter_events last row 2026-09-01 12:01 UTC; events since then are permanently lost. Receiver replaced by FP4.7 (#308).",
+    "rlfm": "On hold by decision (D23).",
+    "decisionsWithoutIssues": "D1-D25 and E1-E7 are decisions in plan §14, deliberately without issues."
+  }
 }</script>
 
 <!-- =================================================================== -->
