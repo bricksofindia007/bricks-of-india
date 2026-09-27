@@ -1,11 +1,11 @@
-# ADR 0003 (DRAFT): Price snapshot layer in Workers KV
+# ADR 0003: Price snapshot layer in Workers KV
 
-**Status:** Proposed, 27 Sep 2026 (FP1.1 / FP2.4, P4 Step 3). Awaiting chat sign-off; nothing built. Detail: `docs/plans/FP1.1_snapshot_design.md`.
+**Status:** Accepted, 27 Sep 2026 (approved by Abhinav, Prescription P5 Step 5). Proposed the same day (FP1.1 / FP2.4, P4 Step 3). Cutover (`snapshot_read` ON) is a separate Tier 2 decision after the parity clock. Detail: `docs/plans/FP1.1_snapshot_design.md`.
 
 ## Context
 Page renders are the biggest Supabase caller: ~20k of 36k requests/day, and `rpc/set_page_data` alone is ~9.5k/day. Egress is projected at ~3.85 GB of the 5 GB Free-plan quota, the grace period is used up (R1), and the 8–11 Oct sale lands in the last 4 days of the cycle (R38).
 
-## Decision (proposed)
+## Decision
 1. After each scrape cycle, a publisher writes **one KV key per changed set** (`set:{n}:v1`: offers, anchor, badge, tie list, change-point history ≤180 days/60 points, minimal catalogue fields, checksum), plus `list:deals:v1`, `list:home:v1`, and `meta:heartbeat` **last**. Measured size: 0.45–1.1 KB per set today, ≤ ~4 KB at the history cap.
 2. **Writes go through a separate `boi-scheduler` Worker** with a KV binding and HMAC-signed requests. It doesn't use a Cloudflare API token: Cloudflare's KV permissions are account-scoped, with no per-namespace scoping, so a token can't be limited to this namespace.
 3. **The reader** validates version, checksum and freshness against the heartbeat, falls back to the Supabase RPC, then to the cached page with its real age (G14). Set pages, /deals and the homepage lists switch; reviews and articles stay on Supabase (FP1.5).

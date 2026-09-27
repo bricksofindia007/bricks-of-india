@@ -1,5 +1,25 @@
 # BOI Master Tracker
 
+## P4 addendum 2 + Prescription P5 received — 2026-09-27 (evening)
+
+Record: `docs/logs/cycle2/2026-09-27.md` (section "P4 addendum 2 and P5").
+
+| Plan ID | Issue | Status |
+|---|---|---|
+| — | #365 | QP #38 **discarded** (not posted, never to be posted), row backed up; its 4.5 MB asset is NOT reachable by the QP cleanup (it selects `posted_both` only, and the age guard needs `posted_at`), gap filed as #399 |
+| I22 | #371 | closed 27 Sep: temporary ImprovMX aliases alerts@, notifications@, newsletter@ → bricksofindia007 created by Abhinav |
+| FP4 (email) | — | Gmail "Send mail as" hello@/privacy@/corrections@ via Brevo SMTP live; test passed DKIM, SPF, DMARC (**R33 proven**); root DMARC + Brevo root auth seen in DNS; Gmail filters BOI/Hello, BOI/Privacy, BOI/Corrections, BOI/Ops, [CRITICAL] → important (`docs/email/ADDRESSES.md`) |
+| FP7.1 | #295 | + open item: Brevo SMTP open-tracking pixel on human replies. Abhinav decides off/on; if on, the privacy policy must disclose it |
+| T.9 | #340 | **PARKED** (Abhinav): 6 pending + 3 failed_lint newsletter drafts. **Trigger:** before any newsletter restart (D22) |
+| FP2.6 | #272 | **PARKED** (Abhinav): Google OAuth client for Drive + first encrypted HDD backup. **Trigger:** RC-1. RC-1 checklist flagged **BLOCKED on Abhinav** (Tier A backups + drill D-2 are RC-1 lines) |
+| FP1.1 / FP5.9 | #263 / #288 | **APPROVED** (P5 Step 5); ADR 0003 accepted. Build: PR 1 boi-scheduler, PR 2 publisher + reader + flags, staging first |
+| FP2.3 | #269 | Tier 2 production repair **APPROVED** with a precondition (P5 Step 4) |
+| D13 | — | **DECIDED** (P5 Decision 1): correct-at-publish ₹ stays, labelled by template (T.6); never-matched figures are #246 defects; catalogue conflicts queued for Abhinav, write-back only for 0 values |
+
+**New standing rule (P5):** every migration goes to staging first, no exceptions.
+
+---
+
 ## Prescriptions P2–P4: IDs closed or changed — 2026-09-27
 
 Full day record with evidence: `docs/logs/cycle2/2026-09-27.md`. Plan now **v2.5** (v2.4 approved by Abhinav in P4). Migrations applied today: 69 FP5.7, 70 FP3.1, 71 FP5.1 part 1, 72 FP5.1 part 2, 73 FP5.5 (production `schema_migrations` = 73). Deploy: run 36330670886 (`b9bf2c4`).

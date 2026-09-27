@@ -574,12 +574,13 @@
     "lastAuditDate": "2026-05-25",
     "nextAuditDate": "2026-06-25",
     "nextActions": [
-      "Sign-off: FP1.1 snapshot design + ADR 0003 draft; FP5.9 dispatcher (GH_DISPATCH_TOKEN on boi-scheduler); FP2.3 production metadata repair (Tier 2)",
-      "Abhinav: confirm staging usage shows under its own Supabase organisation (R28); confirm both FP6.4 proof emails arrived",
-      "Abhinav: 24h Workers CPU median vs previous version for FP1.3 (#265)",
-      "Verify: QP #35 posts once to both platforms and #38 stays held; FP5.7 second-cycle rows/day; #387 draft leaves the queue",
-      "Build next: Gate 14 read-only run over 200 reviews (Step 5), then #246 batch 1 (Step 6, GA4-ranked)",
-      "Pending cleanup: delete %APPDATA%\\postgresql\\pgpass.conf after the FP2.3 production repair"
+      "P5 Step 1: finish Gate 14 (PR #398): article coherence judge in Actions, catalogue facts in prompt, shared regeneration, 0-value write-back; enable for new drafts (Tier 2)",
+      "P5 Step 3: #246 batch 1 (top 10 by GA4, defects only per D13), for approval",
+      "P5 Step 4: FP2.3 precondition check, then metadata repair, ci_readonly parity check, delete pgpass.conf",
+      "P5 Step 5: FP1.1/FP5.9 PR 1 boi-scheduler (Cloudflare setup list to Abhinav before deploy), then PR 2",
+      "P5 Step 6: egress split by caller + sale projection (read-only report)",
+      "Waiting: QP #35 posts; FP5.7 second cycle; #387 draft leaves the queue",
+      "Abhinav: Brevo open-tracking pixel decision (FP7.1 #295); FP2.6 Drive OAuth + HDD backup before RC-1"
     ],
     "openManualChecks": [
       "Confirm Scrape Store Prices failure root cause and fix",
@@ -1939,7 +1940,7 @@
       "stage": "foundation",
       "planSection": "§6.2",
       "issue": 263,
-      "status": "design + ADR 0003 draft for sign-off (docs/plans/FP1.1_snapshot_design.md)"
+      "status": "APPROVED 27 Sep (P5); ADR 0003 accepted; build PR 1 scheduler + PR 2 publisher/reader/flags, staging first"
     },
     {
       "planId": "FP1.2",
@@ -1995,7 +1996,7 @@
       "stage": "foundation",
       "planSection": "§6.2",
       "issue": 269,
-      "status": "D-8 rehearsal 0 diff (draft #375 baseline v3); production repair awaits Tier 2 sign-off"
+      "status": "D-8 0 diff; production metadata repair APPROVED (P5 Step 4) with precondition"
     },
     {
       "planId": "FP2.4",
@@ -2019,7 +2020,7 @@
       "stage": "foundation",
       "planSection": "§6.2",
       "issue": 272,
-      "status": "open"
+      "status": "PARKED 27 Sep (Abhinav): Drive OAuth client + first HDD backup; trigger: RC-1 (RC-1 blocked on Abhinav: Tier A + D-2)"
     },
     {
       "planId": "FP3.1",
@@ -2147,7 +2148,7 @@
       "stage": "foundation",
       "planSection": "§6.2",
       "issue": 288,
-      "status": "design for sign-off (docs/plans/FP5.9_cron_trigger_design.md); token goes on boi-scheduler"
+      "status": "APPROVED 27 Sep (P5); built in PR 1 on boi-scheduler, inert until GH_DISPATCH_TOKEN confirmed"
     },
     {
       "planId": "FP5.10",
@@ -2619,7 +2620,7 @@
       "stage": "trust",
       "planSection": "§16.1",
       "issue": 340,
-      "status": "open"
+      "status": "PARKED 27 Sep (Abhinav): 6 pending + 3 failed_lint drafts; trigger: before any newsletter restart (D22)"
     },
     {
       "planId": "T.10",
@@ -2859,7 +2860,7 @@
       "stage": "foundation",
       "planSection": "§15",
       "issue": 371,
-      "status": "open"
+      "status": "closed 27 Sep: temporary aliases alerts@/notifications@/newsletter@ created (#371)"
     },
     {
       "planId": "I23",

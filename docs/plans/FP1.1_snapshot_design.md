@@ -1,6 +1,6 @@
 # FP1.1 price snapshot layer + FP2.4 flags: DESIGN (not applied)
 
-**Status:** for chat sign-off (P4 Step 3, 27 Sep 2026). Nothing is built or created. ADR 0003 (draft) records the decisions.
+**Status:** APPROVED by Abhinav (P5 Step 5, 27 Sep 2026); build as foundation PRs 1 (boi-scheduler) and 2 (publisher + reader + FP2.4 flags), staging first. Designed in P4 Step 3. ADR 0003 records the decisions.
 **Plan:** v2.4 §6.2 FP1.1, FP1.5, FP1.6, FP2.4, FP6.1; risks R1, R10, R25, R31, R38; drill D-3.
 
 ## 1. Key schema, with measured sizes

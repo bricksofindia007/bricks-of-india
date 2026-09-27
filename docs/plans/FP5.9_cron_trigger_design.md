@@ -1,6 +1,6 @@
 # FP5.9: Cron Trigger dispatcher (DESIGN; build only after GH_DISPATCH_TOKEN is set and a foundation PR slot is free)
 
-**Status:** design for sign-off (P4 Step 7, 27 Sep 2026). Nothing built.
+**Status:** APPROVED by Abhinav (P5 Step 5, 27 Sep 2026); built in foundation PR 1 with `boi-scheduler`, inert until Abhinav confirms `GH_DISPATCH_TOKEN` is set. Designed in P4 Step 7.
 
 ## Problem, measured
 `scrape-prices.yml` runs on GitHub's scheduler (`0 */6 * * *`). The last 11 scheduled runs (24–27 Sep) started **2h43 to 5h33 late** (median **~3h55**): slot → start = 21:13, 03:50, 11:19, 16:44, 21:11, 03:55, 10:56, 15:56, 20:43, 04:06, 11:33 UTC. One of today's slots (12:00) hadn't started by 16:25 UTC. Prices go stale, and the 12h freshness rule (PR-A) hides badges when two slots slip.
