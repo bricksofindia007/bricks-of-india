@@ -15,6 +15,9 @@ on:
       - 'scripts/video/engine.py'
       - 'scripts/video/missed_slot_watchdog.py'
       - '.github/workflows/video-cadence-tests.yml'
+      - 'scripts/video/coherence_judge.py'
+      - 'scripts/video/test_coherence_judge.py'
+      - 'scripts/video/generate_quiet_panic_video.py'
   workflow_dispatch:
 
 jobs:
@@ -33,3 +36,7 @@ jobs:
       - name: Run cadence unit tests
         working-directory: scripts/video
         run: python -m unittest test_cadence -v
+
+      - name: Run coherence judge unit tests (#365, fail-closed)
+        working-directory: scripts/video
+        run: python -m unittest test_coherence_judge -v

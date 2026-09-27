@@ -223,14 +223,14 @@ jobs:
       # notify script -- same Resend plumbing, same verified from-address,
       # same BRIEF_EMAIL secret.
       - name: Setup Node (for notification steps)
-        if: steps.render.outputs.status == 'pending_approval' || steps.render.outputs.status == 'script_gen_exhausted'
+        if: steps.render.outputs.status == 'pending_approval' || steps.render.outputs.status == 'script_gen_exhausted' || steps.render.outputs.status == 'held_for_review'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
 
       - name: Install Node dependencies (for notification steps)
-        if: steps.render.outputs.status == 'pending_approval' || steps.render.outputs.status == 'script_gen_exhausted'
+        if: steps.render.outputs.status == 'pending_approval' || steps.render.outputs.status == 'script_gen_exhausted' || steps.render.outputs.status == 'held_for_review'
         run: npm ci
 
       - name: Send "video ready for review" notification
@@ -251,6 +251,33 @@ jobs:
             ${{ steps.render.outputs.storage_url }}
 
             Watch this, then tell Claude "approved" or "rejected: <reason>" in chat.
+        run: node scripts/workflow-failure-notify.mjs
+
+      # #365 (2026-09-27): the coherence judge now FAILS CLOSED. When it gives
+      # no verdict (dead model, quota, timeout) and nothing else failed, the
+      # row is publish_blocked but the video is uploaded, and this step asks
+      # for a human verdict instead of the gate silently passing it.
+      - name: Send "held for manual review" notification
+        if: steps.render.outputs.status == 'held_for_review'
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL: ${{ secrets.BRIEF_EMAIL }}
+          NOTIFY_TYPE: custom
+          SUBJECT: "Quiet Panic HELD for manual review (coherence judge unavailable): ${{ steps.render.outputs.set_title }} (#${{ steps.render.outputs.set_number }})"
+          BODY: |
+            A new Quiet Panic video passed every gate it could be checked on,
+            but the LLM coherence judge returned no verdict, so the script was
+            NOT auto-passed. The row is publish_blocked until you judge it.
+
+            Set: ${{ steps.render.outputs.set_title }} (#${{ steps.render.outputs.set_number }})
+            Price: Rs.${{ steps.render.outputs.price_inr }}
+            Row id: ${{ steps.render.outputs.post_id }}
+
+            Watch it here:
+            ${{ steps.render.outputs.storage_url }}
+
+            If the script is coherent, tell Claude "approved with override"
+            (sets gate_override=true + a reason); otherwise "rejected: <reason>".
         run: node scripts/workflow-failure-notify.mjs
 
       - name: Send "no video produced" notification
