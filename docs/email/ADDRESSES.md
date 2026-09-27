@@ -2,7 +2,7 @@
 
 Source: `docs/plans/BOI_Cycle2_Master_Plan.md` §6.3 (FP4, decisions E1–E7). The plan is the design; this file is the operating record of what exists. Update it in the same commit as any address, provider or DNS change.
 
-**Status as of 27 Sep 2026** (setup done by Abhinav on the evening of 27 Sep; DNS re-checked by public DoH lookup on 27 Sep ~07:30 UTC during Stage 0 P0.15. Correction 27 Sep: this file first said "~07:30 UTC", which was IST misread as UTC).
+**Status as of 27 Sep 2026, evening** (P4 addendum 2: temporary legacy aliases, Brevo root auth, Gmail "Send mail as" and filters done by Abhinav; root DMARC and Brevo root records re-checked by public DoH at 19:20 UTC). Earlier status, 27 Sep morning: (setup done by Abhinav on the evening of 27 Sep; DNS re-checked by public DoH lookup on 27 Sep ~07:30 UTC during Stage 0 P0.15. Correction 27 Sep: this file first said "~07:30 UTC", which was IST misread as UTC).
 
 ## Principles (plan §6.3)
 
@@ -17,9 +17,9 @@ Source: `docs/plans/BOI_Cycle2_Master_Plan.md` §6.3 (FP4, decisions E1–E7). T
 | Address | Role | Incoming mail goes to | Sends through | Status (27 Sep) |
 |---|---|---|---|---|
 | abhinav@bricksofindia.com | Personal only; to stop being a system sender (FP4.9) | bricksofindia007@gmail.com | — (still used as the `from` of most system email today, see "Current senders" below) | Existing |
-| hello@bricksofindia.com | Public contact, Reply-To on every user email, contact form | bricksofindia007@gmail.com (label *BOI/Hello*) | Human replies: Gmail "Send mail as" via Brevo SMTP (E5) | ✅ ImprovMX alias. "Send mail as" pending Brevo root auth |
-| privacy@bricksofindia.com | DPDP grievance contact, consent withdrawal, deletion requests, Meta data-deletion contact | bricksofindia007@gmail.com (label *BOI/Privacy*, starred) | Brevo SMTP | ✅ ImprovMX alias |
-| corrections@bricksofindia.com | Readers report factual errors (corrections page, every review and article) | bricksofindia007@gmail.com (label *BOI/Corrections*) | Brevo SMTP | ✅ ImprovMX alias |
+| hello@bricksofindia.com | Public contact, Reply-To on every user email, contact form | bricksofindia007@gmail.com (label *BOI/Hello*) | Human replies: Gmail "Send mail as" via Brevo SMTP (E5) | ✅ ImprovMX alias. ✅ "Send mail as" live (27 Sep) |
+| privacy@bricksofindia.com | DPDP grievance contact, consent withdrawal, deletion requests, Meta data-deletion contact | bricksofindia007@gmail.com (label *BOI/Privacy*, starred) | Brevo SMTP | ✅ ImprovMX alias. ✅ "Send mail as" live (27 Sep) |
+| corrections@bricksofindia.com | Readers report factual errors (corrections page, every review and article) | bricksofindia007@gmail.com (label *BOI/Corrections*) | Brevo SMTP | ✅ ImprovMX alias. ✅ "Send mail as" live (27 Sep) |
 | security@bricksofindia.com | Security reports (`/.well-known/security.txt`, FP3.7) | bricksofindia007@gmail.com | — | ✅ ImprovMX alias |
 | login@bricksofindia.com | Sender: sign-in links, account notices | alias → hello@ | Resend (root) → failover Brevo (root) | ✅ ImprovMX alias. Brevo root failover pending |
 | alerts@notify.bricksofindia.com | Sender: price-alert digests | none (Reply-To hello@) | Resend (`notify.`) → Brevo (`notify.`) per E4 | ✅ Resend domain verified. Brevo `notify.` not set up |
@@ -29,11 +29,11 @@ Source: `docs/plans/BOI_Cycle2_Master_Plan.md` §6.3 (FP4, decisions E1–E7). T
 | bot@bricksofindia.com | Contact in the scraper user agent and `/bot` page (FP5.10) | → ops@ destination | — | ✅ ImprovMX alias |
 | postmaster@bricksofindia.com | Standard address providers expect | → ops@ destination | — | ✅ ImprovMX alias |
 | abuse@bricksofindia.com | Standard address providers expect | → ops@ destination | — | ✅ ImprovMX alias |
-| alerts@bricksofindia.com | **Legacy root sender** (workflow-freshness-watchdog); moves to system@ops. in FP4.9 (I22, #371) | temporary alias → ops@ destination, so replies and bounces reach a human | Resend (root), until FP4.9 | ⏳ PENDING: temporary ImprovMX alias, Abhinav creates |
-| notifications@bricksofindia.com | **Legacy root sender** (VID-P4/VID-QP and social notifiers); moves in FP4.9 (I22, #371) | temporary alias → ops@ destination | Resend (root), until FP4.9 | ⏳ PENDING: temporary ImprovMX alias, Abhinav creates |
-| newsletter@bricksofindia.com | **Legacy root sender** (growth-engine newsletter, paused D22); moves to news@news. in FP4.9 (I22, #371) | temporary alias → ops@ destination | Resend Broadcasts (root), until FP4.9 | ⏳ PENDING: temporary ImprovMX alias, Abhinav creates |
+| alerts@bricksofindia.com | **Legacy root sender** (workflow-freshness-watchdog); moves to system@ops. in FP4.9 (I22, #371) | temporary alias → bricksofindia007@gmail.com, so replies and bounces reach a human | Resend (root), until FP4.9 | ✅ Temporary ImprovMX alias (27 Sep, #371 closed). Remove in FP4.9 |
+| notifications@bricksofindia.com | **Legacy root sender** (VID-P4/VID-QP and social notifiers); moves in FP4.9 (I22, #371) | temporary alias → bricksofindia007@gmail.com | Resend (root), until FP4.9 | ✅ Temporary ImprovMX alias (27 Sep, #371 closed). Remove in FP4.9 |
+| newsletter@bricksofindia.com | **Legacy root sender** (growth-engine newsletter, paused D22); moves to news@news. in FP4.9 (I22, #371) | temporary alias → bricksofindia007@gmail.com | Resend Broadcasts (root), until FP4.9 | ✅ Temporary ImprovMX alias (27 Sep, #371 closed). Remove in FP4.9 |
 
-ImprovMX (free): 1 domain, 25 aliases, 500 forwards/day, no sending. In use: 10 (abhinav@ + the 9 aliases above); 13 once the three temporary legacy-sender aliases (alerts@, notifications@, newsletter@ → ops@) exist. They're removed when FP4.9 retires those senders.
+ImprovMX (free): 1 domain, 25 aliases, 500 forwards/day, no sending. In use: 13 (abhinav@, the 9 aliases above, and the three temporary legacy-sender aliases alerts@, notifications@, newsletter@ → bricksofindia007@gmail.com, created 27 Sep). They're removed when FP4.9 retires those senders.
 
 ## Setup status (27 Sep)
 
@@ -43,10 +43,13 @@ ImprovMX (free): 1 domain, 25 aliases, 500 forwards/day, no sending. In use: 10 
 | Resend `notify.bricksofindia.com` (alerts@): DKIM present | ✅ VERIFIED |
 | Resend `news.bricksofindia.com` (news@): DKIM present | ✅ VERIFIED |
 | Brevo `ops.bricksofindia.com` (system@): verification code, DKIM, and its own DMARC `p=none` | ✅ VERIFIED |
-| Root `_dmarc.bricksofindia.com` (covers root, notify. and news.) | ❌ MISSING (NXDOMAIN on 27 Sep ~07:30 UTC) |
-| Brevo authentication of the root domain (sign-in failover, human replies as hello@/privacy@) | ⏳ PENDING (no `brevo-code` TXT and no `brevo1/2._domainkey` on root) |
-| Gmail labels/filters per alias; "Send mail as" hello@, privacy@, corrections@ via Brevo SMTP | ⏳ Abhinav, after Brevo root auth |
-| Resend pay-as-you-go confirmed OFF | ⏳ Abhinav (screenshot). The repo's Resend key is send-only, so the terminal can't read account settings |
+| Root `_dmarc.bricksofindia.com` (covers root, notify. and news.) | ✅ PRESENT on 27 Sep: `v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com` (was NXDOMAIN on 27 Sep) |
+| Brevo authentication of the root domain (sign-in failover, human replies as hello@/privacy@) | ✅ DONE: root `brevo-code` TXT and `brevo1._domainkey` CNAME present on 27 Sep |
+| Gmail "Send mail as" hello@, privacy@, corrections@ via Brevo SMTP | ✅ DONE (Abhinav, 27 Sep). Test message passed **DKIM, SPF and DMARC** (R33 proven) |
+| Gmail filters: *BOI/Hello*, *BOI/Privacy*, *BOI/Corrections*, *BOI/Ops* (ops@, bot@, postmaster@, abuse@), and subject `[CRITICAL]` → marked important | ✅ DONE (Abhinav, 27 Sep) |
+| Temporary ImprovMX aliases alerts@, notifications@, newsletter@ → bricksofindia007@gmail.com | ✅ DONE (Abhinav, 27 Sep; I22 #371 closed). Removed when FP4.9 retires those senders |
+| **Open:** Brevo SMTP adds an open-tracking pixel to human replies sent as hello@/privacy@/corrections@ | ⏳ Abhinav decides whether to turn it off in Brevo. If it stays on, the FP7.1 privacy policy must disclose it (tracked on FP7.1 #295) |
+| Resend pay-as-you-go confirmed OFF | ✅ Confirmed off by Abhinav (Part B7, 27 Sep; R30) |
 
 ## DNS records (public lookup, 27 Sep ~07:30 UTC)
 
@@ -64,9 +67,11 @@ ImprovMX (free): 1 domain, 25 aliases, 500 forwards/day, no sending. In use: 10 
 | ops.bricksofindia.com | TXT | `brevo-code:…` | Brevo domain verification (`ops.`) |
 | brevo1/brevo2._domainkey.ops.bricksofindia.com | CNAME | b1/b2.ops-bricksofindia-com.dkim.brevo.com | Brevo DKIM (`ops.`) |
 | _dmarc.ops.bricksofindia.com | TXT | `v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com` | DMARC (`ops.`) |
-| _dmarc.bricksofindia.com | TXT | **none** | ❌ to add (below) |
+| _dmarc.bricksofindia.com | TXT | `v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com` | Root DMARC (added by Abhinav; seen 27 Sep) |
+| bricksofindia.com | TXT | `brevo-code:…` | Brevo domain verification (root) |
+| brevo1._domainkey.bricksofindia.com | CNAME | b1.bricksofindia-com.dkim.brevo.com | Brevo DKIM (root) |
 
-### Root DMARC: DRAFT, not applied (Abhinav adds it in the Cloudflare dashboard)
+### Root DMARC: applied (fallback option below, seen 27 Sep). Kept for the record
 
 Preferred (if Cloudflare DMARC Management is enabled for the zone; it gives the exact `rua` address when turned on):
 

@@ -431,7 +431,7 @@ Opens: snapshot cutover → price history → guest hearts → retailer shadow r
 - [ ] FP1.3 `/api/img` fixed; FP1.4 R2 lifecycle set from the 29 Sep reading
 - [ ] FP5.1–5.7 contract, breaker, registry and kill switch; FP5.8 retrofit **0 differences over ≥12 cycles**; FP5.9 Cron Trigger **≥3 days of lag measured, max gap < 12h**; FP5.10 bot identity
 - [ ] FP6.1–6.4 sentinel, probe, ops digest, automatic stop-the-line
-- [ ] FP2.6 Tier A backups running to Drive
+- [ ] FP2.6 Tier A backups running to Drive — ⛔ **BLOCKED on Abhinav** (27 Sep, P4 addendum 2): FP2.6 is PARKED until RC-1 (his Google OAuth client for Drive `drive.file`, first encrypted HDD backup). RC-1 can't be signed until Tier A backups run and drill **D-2** passes (#272, #329)
 - [ ] FP10.1, FP10.2, FP10.4 data fixes (FP10.3 already done); FP5.7 stock column live
 - [ ] Drills **D-1, D-2, D-3, D-4, D-5, D-6, D-8, D-9** passed
 - [ ] FP9 docs for the above (ADRs: snapshot, registry, scraper contract, staging, backups, sentinel; runbooks: kill switch, stop-the-line, snapshot fallback, restore)
