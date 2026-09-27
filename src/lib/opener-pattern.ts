@@ -12,8 +12,10 @@
 // Widened 2026-09-27 (operator decision on #194): ANY opening sentence that
 // starts with "Your wallet". The narrow called/blinked/wants pattern left 45
 // of 143 recent pieces opening "Your wallet is/can/might…" (#237).
-/** An opening sentence that starts with "Your wallet". */
-export const BANNED_OPENER_RE = /^\s*your\s+wallet\b/i;
+// Extended the same day to "The wallet…" (4 recent pieces had already moved
+// to that phrasing).
+/** An opening sentence that starts with "Your wallet" or "The wallet". */
+export const BANNED_OPENER_RE = /^\s*(?:your|the)\s+wallet\b/i;
 
 /** First sentence of a body, ignoring leading HTML comments, markdown markers and blank lines. */
 export function openingSentence(body: string): string {
@@ -32,4 +34,4 @@ export function bannedOpener(body: string): string | null {
 }
 
 export const OPENER_FEEDBACK =
-  'Your draft opens with a "Your wallet…" sentence, which is banned. Rewrite ONLY the opening sentence: open with the set, the news or a concrete fact instead. The wallet can still appear later in the piece.';
+  'Your draft opens with a "Your wallet…" / "The wallet…" sentence, which is banned. Rewrite ONLY the opening sentence: open with the set, the news or a concrete fact instead. The wallet can still appear later in the piece.';

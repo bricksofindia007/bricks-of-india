@@ -11,6 +11,7 @@ describe('Gate 12 opener pattern (#194)', () => {
     expect(bannedOpener('Your wallet is about to have a very complicated day.')).not.toBeNull();
     expect(bannedOpener('Your wallet can breathe easy for now.')).not.toBeNull();
     expect(bannedOpener("Your wallet's worst nightmare just landed.")).not.toBeNull();
+    expect(bannedOpener('The wallet is already bracing itself.')).not.toBeNull();
   });
   it('allows the wallet later in the piece and other openers', () => {
     expect(bannedOpener('LEGO just revealed the 10332 Medieval Town Square. Your wallet called.')).toBeNull();
