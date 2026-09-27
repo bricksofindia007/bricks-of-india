@@ -133,11 +133,7 @@ if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set — check
 
 ## Price data rules
 
-**Two price tables exist — do not confuse them:**
-- `prices` — legacy table. Schema: `store_name`, `availability`, `is_active`, `buy_url`. No longer written to by active scrapers. Used as fallback on `/deals`.
-- `store_prices` — active scraper table. Schema: `store_id`, `in_stock`, `product_url`, `scraped_at`. Written by `scripts/scrape-now.mjs` every 6h. All listing pages (`/sets`, `/sets/page/[page]`, `/compare`) read from this table.
-
-When adding price display to any new page, always use `store_prices`, never `prices`.
+**One price table: `store_prices`** — schema `set_id`, `store_id` (FK to `stores`, the FP5.1 retailer registry), `price_inr`, `in_stock`, `product_url`, `scraped_at`. Written by `scripts/scrape-now.mjs` every 6h; `price_history` is written change-only by the `trg_price_history_on_change` trigger on it (FP5.7, ADR 0002). Deals, badges and best price come from the `set_price_summary` view. The legacy `prices` table was dead since 2026-05-10 (every price NULL) and was dropped on 2026-09-27 (FP5.1, backup in `boi-db-backups6-09-27-fp5.1\`); /deals does not read it.
 
 ---
 
