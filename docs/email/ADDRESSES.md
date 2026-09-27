@@ -33,7 +33,7 @@ Source: `docs/plans/BOI_Cycle2_Master_Plan.md` §6.3 (FP4, decisions E1–E7). T
 | notifications@bricksofindia.com | **Legacy root sender** (VID-P4/VID-QP and social notifiers); moves in FP4.9 (I22, #371) | temporary alias → bricksofindia007@gmail.com | Resend (root), until FP4.9 | ✅ Temporary ImprovMX alias (27 Sep, #371 closed). Remove in FP4.9 |
 | newsletter@bricksofindia.com | **Legacy root sender** (growth-engine newsletter, paused D22); moves to news@news. in FP4.9 (I22, #371) | temporary alias → bricksofindia007@gmail.com | Resend Broadcasts (root), until FP4.9 | ✅ Temporary ImprovMX alias (27 Sep, #371 closed). Remove in FP4.9 |
 
-ImprovMX (free): 1 domain, 25 aliases, 500 forwards/day, no sending. In use: 13 (abhinav@, the 9 aliases above, and the three temporary legacy-sender aliases alerts@, notifications@, newsletter@ → bricksofindia007@gmail.com, created 27 Sep). They're removed when FP4.9 retires those senders.
+ImprovMX (free): 1 domain, 25 aliases, 500 forwards/day, no sending. In use: **12 of 25 per the ImprovMX dashboard** (Abhinav, 27 Sep evening): the 9 aliases above plus the three temporary legacy-sender aliases alerts@, notifications@, newsletter@ → bricksofindia007@gmail.com. (This file had estimated 13 by counting abhinav@; the dashboard figure wins.) They're removed when FP4.9 retires those senders.
 
 ## Setup status (27 Sep)
 
@@ -46,9 +46,10 @@ ImprovMX (free): 1 domain, 25 aliases, 500 forwards/day, no sending. In use: 13 
 | Root `_dmarc.bricksofindia.com` (covers root, notify. and news.) | ✅ PRESENT on 27 Sep: `v=DMARC1; p=none; rua=mailto:rua@dmarc.brevo.com` (was NXDOMAIN on 27 Sep) |
 | Brevo authentication of the root domain (sign-in failover, human replies as hello@/privacy@) | ✅ DONE: root `brevo-code` TXT and `brevo1._domainkey` CNAME present on 27 Sep |
 | Gmail "Send mail as" hello@, privacy@, corrections@ via Brevo SMTP | ✅ DONE (Abhinav, 27 Sep). Test message passed **DKIM, SPF and DMARC** (R33 proven) |
-| Gmail filters: *BOI/Hello*, *BOI/Privacy*, *BOI/Corrections*, *BOI/Ops* (ops@, bot@, postmaster@, abuse@), and subject `[CRITICAL]` → marked important | ✅ DONE (Abhinav, 27 Sep) |
+| Gmail filters: *BOI/Hello*, *BOI/Privacy*, *BOI/Corrections*, *BOI/Ops* (ops@, bot@, postmaster@, abuse@), and subject `[CRITICAL]` → marked important | ✅ DONE (Abhinav, 27 Sep) Re-check pending: that *BOI/Privacy* also has "Star it" ticked |
+| Send-as relay: `smtp-relay.brevo.com:587` (TLS); the live test from hello@ to an external inbox passed SPF, DKIM (signed as bricksofindia.com) and DMARC | ✅ (Abhinav, 27 Sep) |
 | Temporary ImprovMX aliases alerts@, notifications@, newsletter@ → bricksofindia007@gmail.com | ✅ DONE (Abhinav, 27 Sep; I22 #371 closed). Removed when FP4.9 retires those senders |
-| **Open:** Brevo SMTP adds an open-tracking pixel to human replies sent as hello@/privacy@/corrections@ | ⏳ Abhinav decides whether to turn it off in Brevo. If it stays on, the FP7.1 privacy policy must disclose it (tracked on FP7.1 #295) |
+| **Open:** Brevo SMTP adds an open-tracking pixel to human replies sent as hello@/privacy@/corrections@ (confirmed on the test send; no visible branded footer; it affects **every** message sent through these three addresses, including one-off human replies) | ⏳ Abhinav decides whether to turn it off in Brevo. If it stays on, the FP7.1 privacy policy must disclose it (tracked on FP7.1 #295) |
 | Resend pay-as-you-go confirmed OFF | ✅ Confirmed off by Abhinav (Part B7, 27 Sep; R30) |
 
 ## DNS records (public lookup, 27 Sep ~07:30 UTC)
