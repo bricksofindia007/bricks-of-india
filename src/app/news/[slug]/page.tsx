@@ -131,7 +131,7 @@ export default async function NewsArticlePage(props: Props) {
           <h2 className="font-heading text-dark text-3xl mb-4">FREQUENTLY ASKED QUESTIONS</h2>
           <div className="space-y-3">
             {(() => { const faqs = [
-              { q: 'Where can I buy the latest LEGO sets in India?', a: 'Toycra and MyBrickHouse are the most reliable online sources. Use code ABHINAV12 at Toycra for 12% off.' },
+              { q: 'Where can I buy the latest LEGO sets in India?', a: 'We track live prices at Toycra and MyBrickHouse; Amazon India and Flipkart also sell LEGO. Use code ABHINAV12 at Toycra for 12% off (we may earn a commission — see our affiliate disclosure).' },
               { q: 'What is the best LEGO deal in India right now?', a: 'Check our deals page for the current best prices updated ' + PRICE_CADENCE + '. Use code ABHINAV12 at Toycra for an exclusive 12% discount.' },
               { q: 'Are LEGO sets available in India?', a: 'Yes — most major LEGO sets are available in India through stores like Toycra, MyBrickHouse, Amazon India, and Flipkart.' },
               { q: 'Why are LEGO sets expensive in India?', a: 'Import duties, GST, and currency conversion all contribute to LEGO prices in India being higher than in the US or UK. We cover this in detail in our guide on why Indian LEGO prices are what they are.' },

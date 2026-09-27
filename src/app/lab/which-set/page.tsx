@@ -261,7 +261,7 @@ export default function WhichSetPage() {
               <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--boi-text)', marginBottom: 10 }}>Where to buy in India</div>
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {STORES.map(store => (
-                  <a key={store.name} href={store.url} target="_blank" rel="noopener noreferrer"
+                  <a key={store.name} href={store.url} target="_blank" rel="noopener noreferrer sponsored"
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', border: '1.5px solid #F7A800', borderRadius: 10, textDecoration: 'none', color: 'var(--boi-text)', fontWeight: 600, fontSize: '0.86rem' }}>
                     <span>{store.name}</span>
                     {store.note && <span style={{ fontSize: '0.73rem', color: 'var(--boi-saffron)', fontWeight: 700 }}>{store.note}</span>}
