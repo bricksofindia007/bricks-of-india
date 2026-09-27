@@ -3,8 +3,9 @@
  * Bricks of India — Shopify Price Scraper
  *
  * Fetches /products.json from each store, parses LEGO set numbers,
- * matches against Supabase inventory, then upserts store_prices and
- * appends to price_history.
+ * matches against Supabase inventory, then upserts store_prices. price_history
+ * is written by the DB trigger trg_price_history_on_change (FP5.7): one row
+ * per first observation or price/stock change, not per run.
  *
  * No HTML parsing. No Playwright. Pure Shopify JSON API.
  *
@@ -286,28 +287,26 @@ async function main() {
       console.log(`  Reconciliation: no stale in_stock rows for ${store.name}`);
     }
 
-    // ── Append to price_history ─────────────────────────────────────────────
-    // All matched+deduped products with a real price get a history row.
-    // This is append-only — used for deal calculations and trend analysis.
-    const historyRows = matched
-      .filter((p) => p.priceInr !== null)
-      .map((p) => ({
-        set_id:      p.setNumber,
-        store_id:    p.storeId,
-        price_inr:   p.priceInr,
-        recorded_at: now,
-      }));
-
-    if (historyRows.length > 0) {
-      if (DRY_RUN) {
-        console.log(`  [DRY RUN] Would insert ${historyRows.length} rows to price_history`);
-      } else {
-        for (let i = 0; i < historyRows.length; i += BATCH) {
-          const batch = historyRows.slice(i, i + BATCH);
-          const { error: histErr } = await supabase.from('price_history').insert(batch);
-          if (histErr) console.error(`  History insert error batch ${i}: ${histErr.message}`);
-        }
-        console.log(`  Recorded ${historyRows.length} price history rows`);
+    // ── price_history: written by the DB, change-only (FP5.7, 2026-09-27) ──
+    // This block used to append EVERY matched listing on EVERY run (~1,500
+    // rows/run, ~99.5% repeats) and never recorded stock. Now the trigger
+    // trg_price_history_on_change on store_prices (migration
+    // 20260927135145) writes one row per first observation or price/stock
+    // change -- including the #140 reconcile flips above -- in the same
+    // statement as the upsert, so no history row can exist without its
+    // store_prices change or vice versa. Here we only COUNT what it wrote
+    // this run (1 HEAD request), for the log and the summary.
+    let historyWritten = null;
+    if (!DRY_RUN) {
+      const { count, error: histCountErr } = await supabase
+        .from('price_history')
+        .select('*', { count: 'exact', head: true })
+        .eq('store_id', store.id)
+        .gte('recorded_at', now);
+      if (histCountErr) console.error(`  History count error: ${histCountErr.message}`);
+      else {
+        historyWritten = count ?? 0;
+        console.log(`  price_history rows written by the change-only trigger this run: ${historyWritten}`);
       }
     }
 
@@ -318,6 +317,7 @@ async function main() {
       matched:   allMatched.length,
       dupes:     dupesRemoved,
       upserted:  upsertedCount,
+      history:   historyWritten,
       unmatched: unmatched.length,
     });
     console.log('');
@@ -331,7 +331,7 @@ async function main() {
     if (s.error) {
       console.log(`  ${s.store}: ERROR — ${s.error}`);
     } else {
-      console.log(`  ${s.store}: ${s.fetched} fetched → ${s.parsed} LEGO → ${s.matched} matched (${s.dupes ?? 0} dupes removed) → ${s.upserted} upserted`);
+      console.log(`  ${s.store}: ${s.fetched} fetched → ${s.parsed} LEGO → ${s.matched} matched (${s.dupes ?? 0} dupes removed) → ${s.upserted} upserted → ${s.history ?? 'n/a'} history rows (change-only)`);
     }
   }
   const totalUpserted = summary.reduce((n, s) => n + (s.upserted ?? 0), 0);
