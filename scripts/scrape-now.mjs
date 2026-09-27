@@ -23,6 +23,17 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { STORES, withRetry, fetchAllProducts, extractSetNumber, parseProduct, isMoreCanonical } from './lib/retailer-fetch.mjs';
 import { getSecret } from '../src/lib/get-secret';
+import { mkdirSync, writeFileSync } from 'fs';
+
+// FP5 contract comparison (P4 Step 4g): when CONTRACT_CACHE_DIR is set, keep a
+// copy of the catalogue and feeds this run ALREADY fetched, so the non-writing
+// comparison step re-fetches nothing (G2). Never affects the scrape itself.
+function writeContractCache(name, data) {
+  const dir = process.env.CONTRACT_CACHE_DIR;
+  if (!dir) return;
+  try { mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, name), JSON.stringify(data)); }
+  catch (e) { console.warn(`  [contract-cache] could not write ${name}: ${e.message}`); }
+}
 
 // ── Load .env.local when running locally ────────────────────────────────────
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -126,6 +137,7 @@ async function main() {
   // Load known set numbers from Supabase for matching (paginate to bypass 1000-row PostgREST cap)
   console.log('Loading set inventory from Supabase...');
   const knownSets = new Set();
+  const catalogueRows = []; // FP5 contract comparison cache (CONTRACT_CACHE_DIR)
   const PAGE = 1000;
   for (let offset = 0; ; offset += PAGE) {
     const { data: page, error: pageError } = await supabase
@@ -138,6 +150,7 @@ async function main() {
     }
     for (const s of page ?? []) {
       knownSets.add(s.set_number);
+      catalogueRows.push([s.set_number, s.name]);
       if (s.name) knownSetsByName.set(
         s.name.toLowerCase().replace(/[™®©\s]+/g, ' ').trim(),
         s.set_number,
@@ -146,6 +159,7 @@ async function main() {
     if ((page ?? []).length < PAGE) break;
   }
   console.log(`Loaded ${knownSets.size} known sets from Supabase.\n`);
+  writeContractCache('catalogue.json', catalogueRows);
 
   const now = new Date().toISOString();
   const summary = [];
@@ -157,6 +171,7 @@ async function main() {
     try {
       allProducts = await fetchAllProducts(store.domain, store.path);
       console.log(`  Fetched ${allProducts.length} products total`);
+      writeContractCache(`feed-${store.id}.json`, allProducts);
     } catch (err) {
       console.error(`  FAILED to fetch: ${err.message}`);
       summary.push({ store: store.name, fetched: 0, parsed: 0, matched: 0, upserted: 0, error: err.message });
