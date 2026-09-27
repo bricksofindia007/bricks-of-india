@@ -46,7 +46,34 @@ jobs:
           # fetch sets not yet in Supabase. Not required for price-only scraping.
           REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          # FP5 contract comparison input (P4 Step 4g): scrape-now keeps a copy of the
+          # catalogue + feeds it already fetched; the comparison step below reads them.
+          CONTRACT_CACHE_DIR: ${{ runner.temp }}/contract-cache
         run: npx tsx scripts/scrape-now.mjs
+
+      # FP5.2-5.6 contract comparison -- NON-WRITING (P4 Step 4g, Tier 2 first live
+      # run). Runs the new contract (identity ladder, parse validation, breaker,
+      # policy hashes) over the feeds this run already fetched and diffs it against
+      # the legacy parser + store_prices. Writes NOTHING to the database; never
+      # affects this job's result (continue-on-error). Starts the FP5.8 >=12-cycle
+      # clock. G2: 0 retailer re-fetches; ~4 policy-file GETs and ~12 small
+      # Supabase reads per cycle.
+      - name: FP5 contract comparison (non-writing)
+        if: always() && steps.scrape.outcome == 'success'
+        continue-on-error: true
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/scraper-contract-dryrun.mjs --from-cache "${{ runner.temp }}/contract-cache" --out out/match-audit
+
+      - name: Upload FP5.6 match audit
+        if: always() && steps.scrape.outcome == 'success'
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: match-audit-${{ github.run_id }}
+          path: out/match-audit
+          retention-days: 14
 
       - name: Sync new/changed sets to IndexNow
         if: always()
