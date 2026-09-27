@@ -21,11 +21,14 @@ for (const line of envRaw.split('\n')) {
   if (eq > 0) env[line.slice(0, eq).trim()] = line.slice(eq + 1).trim();
 }
 
-// Service role key required — anon key cannot UPDATE due to RLS
-const supabase = createClient(
-  env.NEXT_PUBLIC_SUPABASE_URL,
-  env.SUPABASE_SERVICE_ROLE_KEY ?? env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
-);
+// Service role key required. The old anon-key fallback ran 39 UPDATEs that RLS
+// silently turned into no-ops (found by FP3.3, #275); anon has no write grants at
+// all now, so fail loudly instead of pretending to write (G14).
+if (!env.SUPABASE_SERVICE_ROLE_KEY) {
+  console.error('SUPABASE_SERVICE_ROLE_KEY is not set -- refusing to run (the anon key cannot write).');
+  process.exit(1);
+}
+const supabase = createClient(env.NEXT_PUBLIC_SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY.replace(/^\uFEFF/, '').trim());
 
 // ── Per-title overrides (checked before keyword rules) ───────────────────────
 // Exact title substring matches that need a specific set, different from what
