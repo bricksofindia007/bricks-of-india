@@ -1,7 +1,7 @@
 -- FP2.3 BASELINE (draft, P1 Step 7; regenerated P4 Step 9 to include FP3.1, FP5.1 (both parts) and FP5.5, 27 Sep 2026). DO NOT APPLY TO PRODUCTION.
 --
 -- Production schema as of 20260927164937 (73 schema_migrations rows, the last
--- being FP5.5). It replaces the 60 archived files (61 once #396 lands its FP5.5 file) (supabase/migrations/_archive/)
+-- being FP5.5). It replaces the 61 archived files (supabase/migrations/_archive/)
 -- and the 73-row history exported verbatim to supabase/migrations/_history/.
 --
 -- Built from: pg_dump 17.6 --schema-only --schema=public --schema=growth against
