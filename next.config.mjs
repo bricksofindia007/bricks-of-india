@@ -330,9 +330,19 @@ const nextConfig = {
           { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
         ],
       },
-      // Set detail + pagination — 1h fresh, 1d stale
+      // Cache hints below are aligned with each route's real ISR interval
+      // (2026-09-26): a hint shorter than the page's revalidate only makes
+      // downstream caches re-ask for a page that cannot have changed yet.
+      // Set detail — 6h (SET_PAGE_REVALIDATE_SECONDS, src/app/sets/[slug]), 1d stale
       {
-        source: '/sets/:path+',
+        source: '/sets/:slug',
+        headers: [
+          { key: 'Cache-Control', value: 'public, s-maxage=21600, stale-while-revalidate=86400' },
+        ],
+      },
+      // Set pagination — 1h (prices via unstable_cache READ_REVALIDATE_SECONDS), 1d stale
+      {
+        source: '/sets/page/:path*',
         headers: [
           { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' },
         ],
@@ -351,6 +361,13 @@ const nextConfig = {
           { key: 'Cache-Control', value: 'public, s-maxage=1800, stale-while-revalidate=86400' },
         ],
       },
+      // /lab/deals is hourly ISR (PR-B) — overrides the rule above (last match wins)
+      {
+        source: '/lab/deals',
+        headers: [
+          { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' },
+        ],
+      },
       // Content listing pages — 5min fresh, 1h stale
       {
         source: '/(news|blog|reviews)',
@@ -358,18 +375,18 @@ const nextConfig = {
           { key: 'Cache-Control', value: 'public, s-maxage=300, stale-while-revalidate=3600' },
         ],
       },
-      // Content detail pages — 30min fresh, 1d stale
+      // Content detail pages — 1h (their ISR revalidate), 1d stale
       {
         source: '/(news|blog|reviews)/:path+',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=1800, stale-while-revalidate=86400' },
+          { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' },
         ],
       },
-      // Sitemap — 1h fresh
+      // Sitemap — 1d (its revalidate, operator decision 2026-09-26)
       {
         source: '/sitemap.xml',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=3600' },
+          { key: 'Cache-Control', value: 'public, s-maxage=86400' },
         ],
       },
     ];
