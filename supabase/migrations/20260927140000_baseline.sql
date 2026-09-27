@@ -23,6 +23,13 @@
 -- Production repair (P5 Step 4b, Tier 2): mark the 69 replaced versions reverted and record
 -- this version as applied, metadata only; versions 70-73 stay as they are.
 
+-- anon-grant-ok: this baseline reproduces production EXACTLY (D-8 0 diff), including
+-- the excess anon INSERT/UPDATE/DELETE grants production still carries on 30 tables and
+-- 2 views. Checked 27 Sep (P5 Step 4a): none is exploitable (every table has RLS on, and its
+-- only write policies are service_role-only or the intended newsletter INSERT; both views are
+-- security_invoker and not updatable). Narrowing them is a production change -> its own
+-- migration, staging first: FP3.3 (#275). Not done here, or staging would stop equalling production.
+
 -- ── Extensions (versions as in production 27 Sep) ────────────────────────────
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements WITH SCHEMA extensions;  -- 1.11
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA extensions;          -- 1.1
