@@ -1,0 +1,52 @@
+name: Retailer reachability probe (FP5.10)
+
+# FP5.10 (Prescription P1 Step 8, 27 Sep 2026): can a GitHub-hosted runner
+# reach the three candidate retailers at all? Stage 0 (P0.12) tested them
+# only from Abhinav's machine; bot defences often treat datacentre IPs
+# differently.
+#
+# ONE GET per site, bot identity in the user agent, 3s apart. Records status,
+# bytes, time and whether the price markers are present. No DB writes, no
+# secrets, no schedule -- workflow_dispatch only.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    # Three curl calls capped at 30s each plus pauses; no run history yet,
+    # so this is a hard ceiling, not a sized estimate.
+    timeout-minutes: 5
+    steps:
+      - name: Probe (one GET per site)
+        env:
+          UA: 'BricksOfIndiaBot/1.0 (+https://bricksofindia.com; bot@bricksofindia.com) reachability probe'
+        run: |
+          set -u
+          probe() {
+            name="$1"; url="$2"; marker="$3"
+            out=$(curl -s -o body.bin -A "$UA" --max-time 30 \
+              -w '%{http_code} %{size_download} %{time_total}' "$url") || true
+            read -r status bytes secs <<< "${out:-000 0 0}"
+            hits=$(grep -oE "$marker" body.bin 2>/dev/null | wc -l)
+            [ "$hits" -gt 0 ] && present=yes || present=no
+            echo "$name | $status | $bytes | ${secs}s | markers($marker)=$hits ($present) | $url"
+            echo "| $name | $status | $bytes | ${secs}s | \`$marker\` × $hits ($present) | $url |" >> "$GITHUB_STEP_SUMMARY"
+          }
+          {
+            echo "## Retailer reachability from a GitHub-hosted runner"
+            echo "| Site | HTTP | Bytes | Time | Price markers | URL |"
+            echo "|---|---|---|---|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+          # Jaiman (Shopify): products.json page 1, "price":"..." per variant.
+          probe jaiman  'https://jaimantoys.com/products.json?page=1' '"price":"[0-9.]+"'
+          sleep 3
+          # Hamleys (Fynd): one allowed /product/ page; price in the embedded state.
+          probe hamleys 'https://hamleys.in/product/lego-harry-potter-hogwarts-castle-71043-building-kit-6020-piece-multicolor-16y-unozfwv-ra' '"effective":\{"(min|max)":[0-9]+'
+          sleep 3
+          # FirstCry: the LEGO listing; server-rendered selling-price tiles.
+          probe firstcry 'https://www.firstcry.com/lego/0/0/354' 'rupee_sp'
