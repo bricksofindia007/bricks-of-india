@@ -5,6 +5,7 @@ import type { CSSProperties } from 'react';
 import { unstable_cache } from 'next/cache';
 import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
+import { baselinePrices, type HistRow } from '@/lib/price-baseline';
 
 export const metadata: Metadata = buildMetadata({
   title: 'LEGO Price Drops in India — The Lab',
@@ -84,23 +85,38 @@ const getPriceDropsData = unstable_cache(
       if (data.length < PAGE) break;
     }
 
-    // ── 2. Baseline prices: oldest 5 pages of price_history in the 30-day window ─
-    // Order ASC → first occurrence per (set_id, store_id) = oldest available price.
-    const baselineMap = new Map<string, number>();
-    for (let page = 0; page < 5; page++) {
+    // ── 2. Baseline = price at the window start (#383) ─────────────────────────
+    // price_history is change-only since FP5.7, so the price 30 days ago is
+    // the LATEST row at or before `since`; the oldest row inside the window
+    // would be the first change (e.g. the already-dropped price). See
+    // src/lib/price-baseline.ts. Pre-window rows are compacted change points
+    // (~3.6k on 27 Sep), newest first; in-window rows oldest first as the
+    // fallback for listings first seen inside the window.
+    const preWindow: HistRow[] = [];
+    for (let page = 0; page < 20; page++) {
       const { data } = await supabase
         .from('price_history')
-        .select('set_id, store_id, price_inr')
-        .gte('recorded_at', since)
+        .select('set_id, store_id, price_inr, recorded_at')
+        .lte('recorded_at', since)
+        .order('recorded_at', { ascending: false })
+        .range(page * PAGE, page * PAGE + PAGE - 1);
+      if (!data || data.length === 0) break;
+      preWindow.push(...(data as HistRow[]));
+      if (data.length < PAGE) break;
+    }
+    const inWindow: HistRow[] = [];
+    for (let page = 0; page < 20; page++) {
+      const { data } = await supabase
+        .from('price_history')
+        .select('set_id, store_id, price_inr, recorded_at')
+        .gt('recorded_at', since)
         .order('recorded_at', { ascending: true })
         .range(page * PAGE, page * PAGE + PAGE - 1);
       if (!data || data.length === 0) break;
-      for (const r of data as { set_id: string; store_id: string; price_inr: number }[]) {
-        const key = `${r.set_id}:${r.store_id}`;
-        if (!baselineMap.has(key)) baselineMap.set(key, r.price_inr);
-      }
+      inWindow.push(...(data as HistRow[]));
       if (data.length < PAGE) break;
     }
+    const baselineMap = baselinePrices(preWindow, inWindow);
 
     // ── 3. Compute drops ──────────────────────────────────────────────────────────
     type RawDrop = { set_id: string; store_id: string; old_price: number; new_price: number; drop_inr: number; drop_pct: number; scraped_at: string };

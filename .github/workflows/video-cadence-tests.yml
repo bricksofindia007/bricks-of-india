@@ -17,6 +17,8 @@ on:
       - '.github/workflows/video-cadence-tests.yml'
       - 'scripts/video/coherence_judge.py'
       - 'scripts/video/test_coherence_judge.py'
+      - 'scripts/video/price_baseline.py'
+      - 'scripts/video/test_price_baseline.py'
       - 'scripts/video/generate_quiet_panic_video.py'
   workflow_dispatch:
 
@@ -40,3 +42,7 @@ jobs:
       - name: Run coherence judge unit tests (#365, fail-closed)
         working-directory: scripts/video
         run: python -m unittest test_coherence_judge -v
+
+      - name: Run price baseline unit tests (#383)
+        working-directory: scripts/video
+        run: python -m unittest test_price_baseline -v
