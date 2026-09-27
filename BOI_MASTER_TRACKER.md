@@ -313,6 +313,13 @@ All labelled `cycle-2` plus one stage label; titles prefixed with the plan ID; c
 | I24 | R2 Class A ~49k/day from runtime ISR regeneration, not deploys | foundation | #373 |
 | I25 | Supabase requests 36,450/24h; quiet-hour renders ≈13.7k/day | foundation | #374 |
 
+**P0.9 (#255) / FP3.1 (#273) intake: splinter lint findings (27 Sep, evidence `boi-db-backups6-09-27-fp3.0\splinter_after_2026-09-27.csv`).** Filed here to be worked with the audit, not re-investigated now:
+- **function_search_path_mutable (WARN, 14 functions)**, e.g. `sync_index_tier_for_set`, `compute_index_tier`, `trg_sync_index_tier_on_*`, `assign_quiet_panic_sequence_number`. Fix: `SET search_path = ''` (or pinned) per function.
+- **`public.get_distinct_themes()` is SECURITY DEFINER and executable by anon/authenticated via `/rest/v1/rpc/get_distinct_themes`** (WARN ×2). Decide: SECURITY INVOKER, or keep it with a pinned search_path and a documented reason.
+- **`newsletter_subscribers` "Public insert newsletter" INSERT policy is always-true (WARN): intentional.** It's the anon signup insert (roles `{public}`, `WITH CHECK true`; CLAUDE.md email rules). Record as accepted; no SELECT/UPDATE/DELETE for anon.
+- **rls_enabled_no_policy (INFO, 21 tables)**, e.g. `growth.*` ingestion tables and `public.capacity_usage_snapshots`. Deny-all to API roles by design (service_role and growth roles only). Confirm per table in the audit.
+- (Also still open: `extension_in_public` for **pg_trgm**, a separate item from FP3.0.)
+
 **v2.4 decisions (no issues, by rule):** **D26** chart history before stock data: show it, labelled "listed price (stock not recorded)" (before 7 Oct). **D27** FirstCry paise: display exactly as listed; best-price, ties and deal math use the exact value (before R.F ~13 Oct). **D28** Jaiman "box damage": exclude in v1, recorded in `unmatched_listings` with reason `condition:box_damage` (before R.J shadow ~7 Oct).
 
 **17.7 Parked register:** X.1 ADMIN_PAT scope (~1 Nov) · X.2 monthly manual audit (date in this tracker) · X.3 CGI pipeline (Cycle 3 planning) · X.4 npm audit / PR #41 (G-CLOSE re-check) · X.5 #108 rate-limit rule (D-9 result) · X.6 deploy-protection settings (only if someone else joins the repo) · D25 Amazon/Flipkart · D16 heat map · D14 Shareables · D15 AEO/GEO · engagement backlog (Cycle 3 planning).
