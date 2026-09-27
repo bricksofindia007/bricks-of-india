@@ -1,8 +1,9 @@
--- FP2.3 BASELINE (draft, P1 Step 7; regenerated P4 Step 9 to include FP3.1, FP5.1 (both parts) and FP5.5, 27 Sep 2026). DO NOT APPLY TO PRODUCTION.
+-- FP2.3 BASELINE v4 (P5 Step 4a, 27 Sep 2026): production schema as of migration 69 (FP5.7). DO NOT APPLY TO PRODUCTION.
 --
--- Production schema as of 20260927164937 (73 schema_migrations rows, the last
--- being FP5.5). It replaces the 61 archived files (supabase/migrations/_archive/)
--- and the 73-row history exported verbatim to supabase/migrations/_history/.
+-- Production schema as of 20260927135145 (the first 69 schema_migrations rows, the last
+-- being FP5.7). It replaces the 57 archived files (supabase/migrations/_archive/)
+-- and the 69-row history exported verbatim to supabase/migrations/_history/. Migrations 70-73
+-- (FP3.1, FP5.1 parts 1+2, FP5.5 unmatched_listings) stay separate repo files applied on top.
 --
 -- Built from: pg_dump 17.6 --schema-only --schema=public --schema=growth against
 -- production (server 17.6), then:
@@ -15,11 +16,12 @@
 -- Prerequisite: supabase/roles.sql (growth LOGIN roles, no passwords) must run first,
 -- because this file GRANTs to those roles.
 --
--- Rehearsal (D-8, #327, needs the staging project from 29 Sep): apply roles.sql and
--- this file to an empty staging DB, then `pg_dump --schema-only -n public -n growth`
--- both sides and diff. Expect 0 differences except the lines listed in the PR.
--- Production repair (P2): record this version as applied with
--- `supabase migration repair --status applied <version>` ONLY after the rehearsal is clean.
+-- Rehearsal (D-8, #327): apply roles.sql, this file, then the four repo files
+-- 20260927150105, 20260927152208, 20260927153249, 20260927164937 to an empty staging DB,
+-- then `pg_dump --schema-only -n public -n growth` both sides and diff.
+-- Result 27 Sep 2026 ~19:55 UTC (P5 Step 4a): 0 differences (5,090 lines), stores rows identical.
+-- Production repair (P5 Step 4b, Tier 2): mark the 69 replaced versions reverted and record
+-- this version as applied, metadata only; versions 70-73 stay as they are.
 
 -- ── Extensions (versions as in production 27 Sep) ────────────────────────────
 CREATE EXTENSION IF NOT EXISTS pg_stat_statements WITH SCHEMA extensions;  -- 1.11
@@ -95,7 +97,6 @@ COMMENT ON SCHEMA public IS 'standard public schema';
 
 CREATE FUNCTION public.assign_quiet_panic_sequence_number() RETURNS trigger
     LANGUAGE plpgsql
-    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   IF NEW.sequence_number IS NULL THEN
@@ -176,7 +177,6 @@ COMMENT ON FUNCTION public.capacity_snapshot(p_days integer) IS 'Snapshot API-ro
 
 CREATE FUNCTION public.check_qp_posts_title_consistency() RETURNS trigger
     LANGUAGE plpgsql
-    SET search_path TO 'public', 'pg_temp'
     AS $_$
 DECLARE
   canonical_name text;
@@ -252,7 +252,6 @@ ALTER FUNCTION public.check_qp_posts_title_consistency() OWNER TO postgres;
 
 CREATE FUNCTION public.check_video_posts_title_consistency() RETURNS trigger
     LANGUAGE plpgsql
-    SET search_path TO 'public', 'pg_temp'
     AS $_$
 DECLARE
   canonical_name text;
@@ -329,7 +328,6 @@ ALTER FUNCTION public.check_video_posts_title_consistency() OWNER TO postgres;
 
 CREATE FUNCTION public.classify_rejection_reason(p_reason text) RETURNS text
     LANGUAGE plpgsql IMMUTABLE
-    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   IF p_reason IS NULL OR btrim(p_reason) = '' THEN
@@ -359,7 +357,6 @@ ALTER FUNCTION public.classify_rejection_reason(p_reason text) OWNER TO postgres
 
 CREATE FUNCTION public.clear_regeneration_priority_on_requeue() RETURNS trigger
     LANGUAGE plpgsql
-    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   UPDATE content_rejections
@@ -381,7 +378,6 @@ ALTER FUNCTION public.clear_regeneration_priority_on_requeue() OWNER TO postgres
 
 CREATE FUNCTION public.compute_index_tier(p_name text, p_theme text, p_year integer, p_has_price boolean) RETURNS text
     LANGUAGE plpgsql IMMUTABLE
-    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   tier3_keywords text := '(key.?chain|key.?light|bag.?tag|\ywatch\y|\ydvd\y|sticker|d.?tickers|backpack|lunch.?box|notebook|hoodie|t.?shirt|sweatshirt|\ymug\y|plush|battery.?pack|connector.?pegs|\yaxles?\y|bricks.?pack|modulex|\ywire\y|extension|building.?plates)';
@@ -440,8 +436,7 @@ ALTER FUNCTION public.db_usage_report() OWNER TO postgres;
 --
 
 CREATE FUNCTION public.get_distinct_themes() RETURNS TABLE(theme text)
-    LANGUAGE sql STABLE
-    SET search_path TO 'public', 'pg_temp'
+    LANGUAGE sql STABLE SECURITY DEFINER
     AS $$
   SELECT DISTINCT s.theme
   FROM   sets s
@@ -490,7 +485,6 @@ ALTER FUNCTION public.price_history_on_change() OWNER TO postgres;
 
 CREATE FUNCTION public.reconcile_page_load_errors() RETURNS void
     LANGUAGE plpgsql
-    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   total_articles integer;
@@ -589,7 +583,6 @@ ALTER FUNCTION public.reconcile_page_load_errors() OWNER TO postgres;
 
 CREATE FUNCTION public.reject_video_post(p_video_id uuid, p_reason text) RETURNS uuid
     LANGUAGE plpgsql
-    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_current_status text;
@@ -869,55 +862,11 @@ COMMENT ON FUNCTION public.sets_bulk_patch(p_rows jsonb) IS 'Batch lego_mrp_inr 
 
 
 --
--- Name: stores_guard_anchor_rank(); Type: FUNCTION; Schema: public; Owner: postgres
---
-
-CREATE FUNCTION public.stores_guard_anchor_rank() RETURNS trigger
-    LANGUAGE plpgsql
-    SET search_path TO 'public', 'pg_temp'
-    AS $$
-BEGIN
-  IF (TG_OP = 'UPDATE' AND (NEW.mrp_anchor_rank IS DISTINCT FROM OLD.mrp_anchor_rank
-                            OR NEW.anchor_policy IS DISTINCT FROM OLD.anchor_policy))
-     OR (TG_OP = 'INSERT' AND (NEW.mrp_anchor_rank IS NOT NULL OR NEW.anchor_policy IS NOT NULL)) THEN
-    IF coalesce(current_setting('boi.tier2_change', true), '') <> 'on' THEN
-      RAISE EXCEPTION 'stores.mrp_anchor_rank / anchor_policy are Tier 2 only (they move every MRP anchor, deal and badge). Set boi.tier2_change=on inside an approved Tier 2 migration.';
-    END IF;
-  END IF;
-  RETURN NEW;
-END
-$$;
-
-
-ALTER FUNCTION public.stores_guard_anchor_rank() OWNER TO postgres;
-
---
--- Name: stores_record_breaker_trip(text, text); Type: FUNCTION; Schema: public; Owner: postgres
---
-
-CREATE FUNCTION public.stores_record_breaker_trip(p_store text, p_reason text) RETURNS TABLE(breaker_trips smallint, display_enabled boolean)
-    LANGUAGE sql
-    SET search_path TO 'public', 'pg_temp'
-    AS $$
-  UPDATE public.stores s
-     SET breaker_trips        = s.breaker_trips + 1,
-         last_breaker_trip_at = now(),
-         display_enabled      = CASE WHEN s.breaker_trips + 1 >= 2 THEN false ELSE s.display_enabled END,
-         disabled_reason      = CASE WHEN s.breaker_trips + 1 >= 2 THEN 'circuit breaker: ' || p_reason ELSE s.disabled_reason END
-   WHERE s.id = p_store
-  RETURNING s.breaker_trips, s.display_enabled;
-$$;
-
-
-ALTER FUNCTION public.stores_record_breaker_trip(p_store text, p_reason text) OWNER TO postgres;
-
---
 -- Name: sync_index_tier_for_set(text); Type: FUNCTION; Schema: public; Owner: postgres
 --
 
 CREATE FUNCTION public.sync_index_tier_for_set(p_set_number text) RETURNS void
     LANGUAGE plpgsql
-    SET search_path TO 'public', 'pg_temp'
     AS $$
 DECLARE
   v_has_price boolean;
@@ -942,7 +891,6 @@ ALTER FUNCTION public.sync_index_tier_for_set(p_set_number text) OWNER TO postgr
 
 CREATE FUNCTION public.trg_sync_index_tier_on_sets() RETURNS trigger
     LANGUAGE plpgsql
-    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   PERFORM sync_index_tier_for_set(NEW.set_number);
@@ -959,7 +907,6 @@ ALTER FUNCTION public.trg_sync_index_tier_on_sets() OWNER TO postgres;
 
 CREATE FUNCTION public.trg_sync_index_tier_on_store_prices() RETURNS trigger
     LANGUAGE plpgsql
-    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   PERFORM sync_index_tier_for_set(NEW.set_id);
@@ -976,7 +923,6 @@ ALTER FUNCTION public.trg_sync_index_tier_on_store_prices() OWNER TO postgres;
 
 CREATE FUNCTION public.trg_sync_index_tier_on_store_prices_delete() RETURNS trigger
     LANGUAGE plpgsql
-    SET search_path TO 'public', 'pg_temp'
     AS $$
 BEGIN
   PERFORM sync_index_tier_for_set(OLD.set_id);
@@ -993,7 +939,6 @@ ALTER FUNCTION public.trg_sync_index_tier_on_store_prices_delete() OWNER TO post
 
 CREATE FUNCTION public.update_updated_at() RETURNS trigger
     LANGUAGE plpgsql
-    SET search_path TO 'public', 'pg_temp'
     AS $$
   BEGIN
     NEW.updated_at = NOW();
@@ -1940,6 +1885,26 @@ ALTER SEQUENCE public.price_snapshots_id_seq OWNED BY public.price_snapshots.id;
 
 
 --
+-- Name: prices; Type: TABLE; Schema: public; Owner: postgres
+--
+
+CREATE TABLE public.prices (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    set_id uuid,
+    store_name text NOT NULL,
+    store_url text NOT NULL,
+    price_inr integer,
+    availability text DEFAULT 'unknown'::text,
+    buy_url text NOT NULL,
+    scraped_at timestamp with time zone DEFAULT now(),
+    is_active boolean DEFAULT true,
+    CONSTRAINT prices_availability_check CHECK ((availability = ANY (ARRAY['in_stock'::text, 'out_of_stock'::text, 'unknown'::text])))
+);
+
+
+ALTER TABLE public.prices OWNER TO postgres;
+
+--
 -- Name: publish_attempts; Type: TABLE; Schema: public; Owner: postgres
 --
 
@@ -2208,7 +2173,8 @@ CREATE TABLE public.store_prices (
     in_stock boolean DEFAULT false NOT NULL,
     product_url text NOT NULL,
     scraped_at timestamp with time zone DEFAULT now() NOT NULL,
-    compare_at_price_inr integer
+    compare_at_price_inr integer,
+    CONSTRAINT store_prices_store_id_check CHECK ((store_id = ANY (ARRAY['toycra'::text, 'mybrickhouse'::text, 'jaiman'::text])))
 );
 
 
@@ -2222,99 +2188,33 @@ COMMENT ON COLUMN public.store_prices.compare_at_price_inr IS 'Listing''s displa
 
 
 --
--- Name: stores; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.stores (
-    id text NOT NULL,
-    name text NOT NULL,
-    site_url text NOT NULL,
-    display_enabled boolean DEFAULT false NOT NULL,
-    display_order smallint DEFAULT 100 NOT NULL,
-    affiliate_note text,
-    mrp_anchor_rank smallint,
-    price_precision smallint DEFAULT 0 NOT NULL,
-    scraper_kind text NOT NULL,
-    scraper_config jsonb DEFAULT '{}'::jsonb NOT NULL,
-    robots_checked_at timestamp with time zone,
-    breaker_trips smallint DEFAULT 0 NOT NULL,
-    last_breaker_trip_at timestamp with time zone,
-    disabled_reason text,
-    created_at timestamp with time zone DEFAULT now() NOT NULL,
-    updated_at timestamp with time zone DEFAULT now() NOT NULL,
-    anchor_policy text,
-    CONSTRAINT stores_anchor_policy_check CHECK ((anchor_policy = ANY (ARRAY['compare_at_or_listed'::text, 'compare_at_capped_by_catalogue'::text]))),
-    CONSTRAINT stores_anchor_rank_needs_policy CHECK (((mrp_anchor_rank IS NULL) OR (anchor_policy IS NOT NULL))),
-    CONSTRAINT stores_breaker_trips_check CHECK ((breaker_trips >= 0)),
-    CONSTRAINT stores_id_check CHECK ((id ~ '^[a-z0-9-]+$'::text)),
-    CONSTRAINT stores_mrp_anchor_rank_check CHECK (((mrp_anchor_rank IS NULL) OR (mrp_anchor_rank >= 1))),
-    CONSTRAINT stores_price_precision_check CHECK (((price_precision >= 0) AND (price_precision <= 2))),
-    CONSTRAINT stores_scraper_kind_check CHECK ((scraper_kind = ANY (ARRAY['shopify_json'::text, 'fynd_html'::text, 'firstcry_html'::text, 'manual'::text]))),
-    CONSTRAINT stores_site_url_check CHECK ((site_url ~ '^https://'::text))
-);
-
-
-ALTER TABLE public.stores OWNER TO postgres;
-
---
--- Name: TABLE stores; Type: COMMENT; Schema: public; Owner: postgres
---
-
-COMMENT ON TABLE public.stores IS 'FP5.1 retailer registry (G4: retailers are data). display_enabled is the one switch every consumer filters on.';
-
-
---
--- Name: COLUMN stores.mrp_anchor_rank; Type: COMMENT; Schema: public; Owner: postgres
---
-
-COMMENT ON COLUMN public.stores.mrp_anchor_rank IS 'TIER 2 ONLY. Which store''s listed/compare-at price anchors MRP in set_price_summary (1 = first choice; NULL = never an anchor). Changing it changes every deal, badge and discount on the site. Never a routine update: the stores_guard_anchor_rank trigger rejects any change unless the session runs SET LOCAL boi.tier2_change = ''on'' inside an approved Tier 2 migration.';
-
-
---
--- Name: COLUMN stores.price_precision; Type: COMMENT; Schema: public; Owner: postgres
---
-
-COMMENT ON COLUMN public.stores.price_precision IS 'D27: decimal places displayed (FirstCry 2 for paise; others 0).';
-
-
---
--- Name: COLUMN stores.breaker_trips; Type: COMMENT; Schema: public; Owner: postgres
---
-
-COMMENT ON COLUMN public.stores.breaker_trips IS 'FP5.3 consecutive circuit-breaker trips; the 2nd sets display_enabled=false + disabled_reason (runbook).';
-
-
---
--- Name: COLUMN stores.anchor_policy; Type: COMMENT; Schema: public; Owner: postgres
---
-
-COMMENT ON COLUMN public.stores.anchor_policy IS 'TIER 2 ONLY. How this store''s listing becomes the MRP anchor in set_price_summary. Changing it changes deals, badges and discounts site-wide; the stores_guard_anchor_rank trigger rejects any change unless SET LOCAL boi.tier2_change = ''on''.';
-
-
---
 -- Name: set_price_summary; Type: VIEW; Schema: public; Owner: postgres
 --
 
 CREATE VIEW public.set_price_summary WITH (security_invoker='true') AS
  WITH cur AS (
-         SELECT sp.set_id,
-            sp.store_id,
-            sp.price_inr,
-            sp.compare_at_price_inr,
-            sp.in_stock,
-            sp.scraped_at
-           FROM (public.store_prices sp
-             JOIN public.stores st ON (((st.id = sp.store_id) AND st.display_enabled)))
-          WHERE ((sp.price_inr IS NOT NULL) AND (sp.scraped_at > (now() - '12:00:00'::interval)))
-        ), anchor_row AS (
-         SELECT DISTINCT ON (c.set_id) c.set_id,
-            c.store_id,
-            c.price_inr,
-            c.compare_at_price_inr AS ca,
-            st.anchor_policy
-           FROM (cur c
-             JOIN public.stores st ON (((st.id = c.store_id) AND (st.mrp_anchor_rank IS NOT NULL))))
-          ORDER BY c.set_id, st.mrp_anchor_rank
+         SELECT store_prices.set_id,
+            store_prices.store_id,
+            store_prices.price_inr,
+            store_prices.compare_at_price_inr,
+            store_prices.in_stock,
+            store_prices.scraped_at
+           FROM public.store_prices
+          WHERE ((store_prices.price_inr IS NOT NULL) AND (store_prices.scraped_at > (now() - '12:00:00'::interval)))
+        ), mbh AS (
+         SELECT cur.set_id,
+                CASE
+                    WHEN ((cur.compare_at_price_inr)::numeric > cur.price_inr) THEN (cur.compare_at_price_inr)::numeric
+                    ELSE cur.price_inr
+                END AS mrp
+           FROM cur
+          WHERE (cur.store_id = 'mybrickhouse'::text)
+        ), toy AS (
+         SELECT cur.set_id,
+            cur.price_inr,
+            cur.compare_at_price_inr AS ca
+           FROM cur
+          WHERE (cur.store_id = 'toycra'::text)
         ), live AS (
          SELECT cur.set_id,
             min(cur.price_inr) AS best_price_inr,
@@ -2332,26 +2232,29 @@ CREATE VIEW public.set_price_summary WITH (security_invoker='true') AS
         ), anchored AS (
          SELECT s.set_number AS set_id,
                 CASE
-                    WHEN (a_1.set_id IS NOT NULL) THEN
+                    WHEN (m.set_id IS NOT NULL) THEN m.mrp
+                    WHEN (t.set_id IS NOT NULL) THEN
                     CASE
-                        WHEN ((a_1.anchor_policy = 'compare_at_capped_by_catalogue'::text) AND ((a_1.ca)::numeric > a_1.price_inr) AND s.mrp_verified AND (s.lego_mrp_inr IS NOT NULL) AND (a_1.ca > s.lego_mrp_inr)) THEN (s.lego_mrp_inr)::numeric
-                        WHEN ((a_1.ca)::numeric > a_1.price_inr) THEN (a_1.ca)::numeric
-                        ELSE a_1.price_inr
+                        WHEN (((t.ca)::numeric > t.price_inr) AND s.mrp_verified AND (s.lego_mrp_inr IS NOT NULL) AND (t.ca > s.lego_mrp_inr)) THEN (s.lego_mrp_inr)::numeric
+                        WHEN ((t.ca)::numeric > t.price_inr) THEN (t.ca)::numeric
+                        ELSE t.price_inr
                     END
                     WHEN (s.mrp_verified AND (s.lego_mrp_inr IS NOT NULL)) THEN (s.lego_mrp_inr)::numeric
                     ELSE NULL::numeric
                 END AS anchor_mrp_inr,
                 CASE
-                    WHEN (a_1.set_id IS NOT NULL) THEN
+                    WHEN (m.set_id IS NOT NULL) THEN 'mybrickhouse'::text
+                    WHEN (t.set_id IS NOT NULL) THEN
                     CASE
-                        WHEN ((a_1.anchor_policy = 'compare_at_capped_by_catalogue'::text) AND ((a_1.ca)::numeric > a_1.price_inr) AND s.mrp_verified AND (s.lego_mrp_inr IS NOT NULL) AND (a_1.ca > s.lego_mrp_inr)) THEN 'catalogue'::text
-                        ELSE a_1.store_id
+                        WHEN (((t.ca)::numeric > t.price_inr) AND s.mrp_verified AND (s.lego_mrp_inr IS NOT NULL) AND (t.ca > s.lego_mrp_inr)) THEN 'catalogue'::text
+                        ELSE 'toycra'::text
                     END
                     WHEN (s.mrp_verified AND (s.lego_mrp_inr IS NOT NULL)) THEN 'catalogue'::text
                     ELSE NULL::text
                 END AS anchor_source
-           FROM (public.sets s
-             LEFT JOIN anchor_row a_1 ON ((a_1.set_id = s.set_number)))
+           FROM ((public.sets s
+             LEFT JOIN mbh m ON ((m.set_id = s.set_number)))
+             LEFT JOIN toy t ON ((t.set_id = s.set_number)))
         )
  SELECT a.set_id,
     a.anchor_mrp_inr,
@@ -2401,68 +2304,6 @@ CREATE TABLE public.social_automation_heartbeat (
 
 
 ALTER TABLE public.social_automation_heartbeat OWNER TO postgres;
-
---
--- Name: unmatched_listings; Type: TABLE; Schema: public; Owner: postgres
---
-
-CREATE TABLE public.unmatched_listings (
-    id bigint NOT NULL,
-    store_id text NOT NULL,
-    product_key text NOT NULL,
-    title text NOT NULL,
-    skus text[] DEFAULT '{}'::text[] NOT NULL,
-    url text,
-    price_inr numeric(12,2),
-    in_stock boolean,
-    reason text NOT NULL,
-    detail text,
-    first_seen_at timestamp with time zone DEFAULT now() NOT NULL,
-    last_seen_at timestamp with time zone DEFAULT now() NOT NULL,
-    times_seen integer DEFAULT 1 NOT NULL,
-    status text DEFAULT 'open'::text NOT NULL,
-    resolved_set_number text,
-    resolved_by text,
-    resolved_at timestamp with time zone,
-    CONSTRAINT unmatched_listings_check CHECK (((status <> 'resolved'::text) OR (resolved_set_number IS NOT NULL))),
-    CONSTRAINT unmatched_listings_reason_check CHECK ((reason = ANY (ARRAY['condition:box_damage'::text, 'sku_handle_conflict'::text, 'sku_name_mismatch'::text, 'multi_set_listing'::text, 'cmf_box'::text, 'no_catalogue_match'::text, 'ambiguous_numbers'::text, 'invalid_parse'::text]))),
-    CONSTRAINT unmatched_listings_status_check CHECK ((status = ANY (ARRAY['open'::text, 'resolved'::text, 'ignored'::text])))
-);
-
-
-ALTER TABLE public.unmatched_listings OWNER TO postgres;
-
---
--- Name: unmatched_listings_id_seq; Type: SEQUENCE; Schema: public; Owner: postgres
---
-
-ALTER TABLE public.unmatched_listings ALTER COLUMN id ADD GENERATED ALWAYS AS IDENTITY (
-    SEQUENCE NAME public.unmatched_listings_id_seq
-    START WITH 1
-    INCREMENT BY 1
-    NO MINVALUE
-    NO MAXVALUE
-    CACHE 1
-);
-
-
---
--- Name: unmatched_listings_weekly; Type: VIEW; Schema: public; Owner: postgres
---
-
-CREATE VIEW public.unmatched_listings_weekly WITH (security_invoker='true') AS
- SELECT store_id,
-    reason,
-    count(*) AS listings,
-    max(last_seen_at) AS last_seen,
-    (array_agg(title ORDER BY last_seen_at DESC))[1:10] AS example_titles
-   FROM public.unmatched_listings
-  WHERE ((status = 'open'::text) AND (last_seen_at > (now() - '7 days'::interval)))
-  GROUP BY store_id, reason
-  ORDER BY (count(*)) DESC;
-
-
-ALTER VIEW public.unmatched_listings_weekly OWNER TO postgres;
 
 --
 -- Name: v_published_articles_public; Type: VIEW; Schema: public; Owner: postgres
@@ -3031,6 +2872,22 @@ ALTER TABLE ONLY public.price_snapshots
 
 
 --
+-- Name: prices prices_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.prices
+    ADD CONSTRAINT prices_pkey PRIMARY KEY (id);
+
+
+--
+-- Name: prices prices_set_id_store_name_key; Type: CONSTRAINT; Schema: public; Owner: postgres
+--
+
+ALTER TABLE ONLY public.prices
+    ADD CONSTRAINT prices_set_id_store_name_key UNIQUE (set_id, store_name);
+
+
+--
 -- Name: publish_attempts publish_attempts_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
 --
 
@@ -3116,30 +2973,6 @@ ALTER TABLE ONLY public.store_prices
 
 ALTER TABLE ONLY public.store_prices
     ADD CONSTRAINT store_prices_set_id_store_id_key UNIQUE (set_id, store_id);
-
-
---
--- Name: stores stores_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.stores
-    ADD CONSTRAINT stores_pkey PRIMARY KEY (id);
-
-
---
--- Name: unmatched_listings unmatched_listings_pkey; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.unmatched_listings
-    ADD CONSTRAINT unmatched_listings_pkey PRIMARY KEY (id);
-
-
---
--- Name: unmatched_listings unmatched_listings_store_id_product_key_key; Type: CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.unmatched_listings
-    ADD CONSTRAINT unmatched_listings_store_id_product_key_key UNIQUE (store_id, product_key);
 
 
 --
@@ -3432,6 +3265,34 @@ CREATE INDEX idx_price_snapshots_set_date ON public.price_snapshots USING btree 
 
 
 --
+-- Name: idx_prices_is_active; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_prices_is_active ON public.prices USING btree (is_active);
+
+
+--
+-- Name: idx_prices_scraped_at; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_prices_scraped_at ON public.prices USING btree (scraped_at DESC);
+
+
+--
+-- Name: idx_prices_set_id; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_prices_set_id ON public.prices USING btree (set_id);
+
+
+--
+-- Name: idx_prices_store_name; Type: INDEX; Schema: public; Owner: postgres
+--
+
+CREATE INDEX idx_prices_store_name ON public.prices USING btree (store_name);
+
+
+--
 -- Name: idx_quiet_panic_posts_rework_queue; Type: INDEX; Schema: public; Owner: postgres
 --
 
@@ -3565,20 +3426,6 @@ CREATE INDEX raw_signals_url_hash_idx ON public.raw_signals USING btree (url_has
 
 
 --
--- Name: stores_mrp_anchor_rank_key; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE UNIQUE INDEX stores_mrp_anchor_rank_key ON public.stores USING btree (mrp_anchor_rank) WHERE (mrp_anchor_rank IS NOT NULL);
-
-
---
--- Name: unmatched_listings_open_idx; Type: INDEX; Schema: public; Owner: postgres
---
-
-CREATE INDEX unmatched_listings_open_idx ON public.unmatched_listings USING btree (status, last_seen_at DESC);
-
-
---
 -- Name: pending_drafts pending_drafts_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
 --
 
@@ -3632,20 +3479,6 @@ CREATE TRIGGER store_prices_sync_index_tier_delete_trigger AFTER DELETE ON publi
 --
 
 CREATE TRIGGER store_prices_sync_index_tier_trigger AFTER INSERT OR UPDATE OF price_inr ON public.store_prices FOR EACH ROW EXECUTE FUNCTION public.trg_sync_index_tier_on_store_prices();
-
-
---
--- Name: stores stores_guard_anchor_rank; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER stores_guard_anchor_rank BEFORE INSERT OR UPDATE OF mrp_anchor_rank, anchor_policy ON public.stores FOR EACH ROW EXECUTE FUNCTION public.stores_guard_anchor_rank();
-
-
---
--- Name: stores stores_updated_at; Type: TRIGGER; Schema: public; Owner: postgres
---
-
-CREATE TRIGGER stores_updated_at BEFORE UPDATE ON public.stores FOR EACH ROW EXECUTE FUNCTION public.update_updated_at();
 
 
 --
@@ -3722,11 +3555,11 @@ ALTER TABLE ONLY public.content_rejections
 
 
 --
--- Name: price_history price_history_store_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
+-- Name: prices prices_set_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
 --
 
-ALTER TABLE ONLY public.price_history
-    ADD CONSTRAINT price_history_store_id_fkey FOREIGN KEY (store_id) REFERENCES public.stores(id);
+ALTER TABLE ONLY public.prices
+    ADD CONSTRAINT prices_set_id_fkey FOREIGN KEY (set_id) REFERENCES public.sets(id) ON DELETE CASCADE;
 
 
 --
@@ -3751,30 +3584,6 @@ ALTER TABLE ONLY public.reviews
 
 ALTER TABLE ONLY public.sets
     ADD CONSTRAINT sets_gwp_parent_set_number_fkey FOREIGN KEY (gwp_parent_set_number) REFERENCES public.sets(set_number);
-
-
---
--- Name: store_prices store_prices_store_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.store_prices
-    ADD CONSTRAINT store_prices_store_id_fkey FOREIGN KEY (store_id) REFERENCES public.stores(id);
-
-
---
--- Name: unmatched_listings unmatched_listings_resolved_set_number_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.unmatched_listings
-    ADD CONSTRAINT unmatched_listings_resolved_set_number_fkey FOREIGN KEY (resolved_set_number) REFERENCES public.sets(set_number);
-
-
---
--- Name: unmatched_listings unmatched_listings_store_id_fkey; Type: FK CONSTRAINT; Schema: public; Owner: postgres
---
-
-ALTER TABLE ONLY public.unmatched_listings
-    ADD CONSTRAINT unmatched_listings_store_id_fkey FOREIGN KEY (store_id) REFERENCES public.stores(id);
 
 
 --
@@ -3930,13 +3739,6 @@ CREATE POLICY "Public read cmf_figures" ON public.cmf_figures FOR SELECT TO anon
 
 
 --
--- Name: stores Public read enabled stores; Type: POLICY; Schema: public; Owner: postgres
---
-
-CREATE POLICY "Public read enabled stores" ON public.stores FOR SELECT TO anon USING (display_enabled);
-
-
---
 -- Name: featured_videos Public read featured_videos; Type: POLICY; Schema: public; Owner: postgres
 --
 
@@ -3969,6 +3771,13 @@ CREATE POLICY "Public read price_history" ON public.price_history FOR SELECT TO 
 --
 
 CREATE POLICY "Public read price_snapshots" ON public.price_snapshots FOR SELECT TO anon USING (true);
+
+
+--
+-- Name: prices Public read prices; Type: POLICY; Schema: public; Owner: postgres
+--
+
+CREATE POLICY "Public read prices" ON public.prices FOR SELECT TO anon USING (true);
 
 
 --
@@ -4172,6 +3981,12 @@ CREATE POLICY price_snapshots_anon_select ON public.price_snapshots FOR SELECT T
 
 
 --
+-- Name: prices; Type: ROW SECURITY; Schema: public; Owner: postgres
+--
+
+ALTER TABLE public.prices ENABLE ROW LEVEL SECURITY;
+
+--
 -- Name: guides public can read guides; Type: POLICY; Schema: public; Owner: postgres
 --
 
@@ -4261,18 +4076,6 @@ ALTER TABLE public.social_automation_heartbeat ENABLE ROW LEVEL SECURITY;
 --
 
 ALTER TABLE public.store_prices ENABLE ROW LEVEL SECURITY;
-
---
--- Name: stores; Type: ROW SECURITY; Schema: public; Owner: postgres
---
-
-ALTER TABLE public.stores ENABLE ROW LEVEL SECURITY;
-
---
--- Name: unmatched_listings; Type: ROW SECURITY; Schema: public; Owner: postgres
---
-
-ALTER TABLE public.unmatched_listings ENABLE ROW LEVEL SECURITY;
 
 --
 -- Name: video_posts; Type: ROW SECURITY; Schema: public; Owner: postgres
@@ -4387,7 +4190,6 @@ GRANT ALL ON FUNCTION public.db_usage_report() TO service_role;
 -- Name: FUNCTION get_distinct_themes(); Type: ACL; Schema: public; Owner: postgres
 --
 
-REVOKE ALL ON FUNCTION public.get_distinct_themes() FROM PUBLIC;
 GRANT ALL ON FUNCTION public.get_distinct_themes() TO anon;
 GRANT ALL ON FUNCTION public.get_distinct_themes() TO authenticated;
 GRANT ALL ON FUNCTION public.get_distinct_themes() TO service_role;
@@ -4458,22 +4260,6 @@ GRANT ALL ON FUNCTION public.set_page_data(p_set_number text, p_slug text) TO se
 
 REVOKE ALL ON FUNCTION public.sets_bulk_patch(p_rows jsonb) FROM PUBLIC;
 GRANT ALL ON FUNCTION public.sets_bulk_patch(p_rows jsonb) TO service_role;
-
-
---
--- Name: FUNCTION stores_guard_anchor_rank(); Type: ACL; Schema: public; Owner: postgres
---
-
-REVOKE ALL ON FUNCTION public.stores_guard_anchor_rank() FROM PUBLIC;
-GRANT ALL ON FUNCTION public.stores_guard_anchor_rank() TO service_role;
-
-
---
--- Name: FUNCTION stores_record_breaker_trip(p_store text, p_reason text); Type: ACL; Schema: public; Owner: postgres
---
-
-REVOKE ALL ON FUNCTION public.stores_record_breaker_trip(p_store text, p_reason text) FROM PUBLIC;
-GRANT ALL ON FUNCTION public.stores_record_breaker_trip(p_store text, p_reason text) TO service_role;
 
 
 --
@@ -4924,6 +4710,15 @@ GRANT ALL ON SEQUENCE public.price_snapshots_id_seq TO service_role;
 
 
 --
+-- Name: TABLE prices; Type: ACL; Schema: public; Owner: postgres
+--
+
+GRANT SELECT,INSERT,DELETE,MAINTAIN,UPDATE ON TABLE public.prices TO anon;
+GRANT SELECT,INSERT,DELETE,MAINTAIN,UPDATE ON TABLE public.prices TO authenticated;
+GRANT ALL ON TABLE public.prices TO service_role;
+
+
+--
 -- Name: TABLE publish_attempts; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -4988,14 +4783,6 @@ GRANT SELECT ON TABLE public.store_prices TO growth_service;
 
 
 --
--- Name: TABLE stores; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT ALL ON TABLE public.stores TO service_role;
-GRANT SELECT ON TABLE public.stores TO anon;
-
-
---
 -- Name: TABLE set_price_summary; Type: ACL; Schema: public; Owner: postgres
 --
 
@@ -5009,27 +4796,6 @@ GRANT SELECT,MAINTAIN ON TABLE public.set_price_summary TO service_role;
 GRANT SELECT,INSERT,DELETE,MAINTAIN,UPDATE ON TABLE public.social_automation_heartbeat TO anon;
 GRANT SELECT,INSERT,DELETE,MAINTAIN,UPDATE ON TABLE public.social_automation_heartbeat TO authenticated;
 GRANT ALL ON TABLE public.social_automation_heartbeat TO service_role;
-
-
---
--- Name: TABLE unmatched_listings; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT ALL ON TABLE public.unmatched_listings TO service_role;
-
-
---
--- Name: SEQUENCE unmatched_listings_id_seq; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT ALL ON SEQUENCE public.unmatched_listings_id_seq TO service_role;
-
-
---
--- Name: TABLE unmatched_listings_weekly; Type: ACL; Schema: public; Owner: postgres
---
-
-GRANT ALL ON TABLE public.unmatched_listings_weekly TO service_role;
 
 
 --
