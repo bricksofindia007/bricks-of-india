@@ -9,8 +9,11 @@
 // Only the opening sentence is checked -- the wallet as a character later in
 // the piece is house style and stays allowed.
 
-/** "Your wallet called / blinked / wants …" as the opening sentence. */
-export const BANNED_OPENER_RE = /^\s*your\s+wallet\b[^.!?\n]{0,25}?\b(called|calls|blinked|blinks|wants|wanted)\b/i;
+// Widened 2026-09-27 (operator decision on #194): ANY opening sentence that
+// starts with "Your wallet". The narrow called/blinked/wants pattern left 45
+// of 143 recent pieces opening "Your wallet is/can/might…" (#237).
+/** An opening sentence that starts with "Your wallet". */
+export const BANNED_OPENER_RE = /^\s*your\s+wallet\b/i;
 
 /** First sentence of a body, ignoring leading HTML comments, markdown markers and blank lines. */
 export function openingSentence(body: string): string {
@@ -29,4 +32,4 @@ export function bannedOpener(body: string): string | null {
 }
 
 export const OPENER_FEEDBACK =
-  'Your draft opens with "Your wallet called/blinked/wants…", which is banned. Rewrite ONLY the opening sentence: open with the set, the news or a concrete fact instead. The wallet can still appear later in the piece.';
+  'Your draft opens with a "Your wallet…" sentence, which is banned. Rewrite ONLY the opening sentence: open with the set, the news or a concrete fact instead. The wallet can still appear later in the piece.';
