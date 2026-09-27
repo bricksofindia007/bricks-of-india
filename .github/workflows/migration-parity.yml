@@ -1,0 +1,64 @@
+# FP2.3 step 6 (P5 Step 4c, #197): repo migrations vs production schema_migrations,
+# read through ci_readonly (SELECT on supabase_migrations.schema_migrations only).
+# Nightly on main, and on every PR that touches supabase/migrations/.
+# Every run also proves the check can fail: two deliberate drift fixtures must exit 1.
+# Failure behaviour (G14): if production can't be read, the job fails; parity is
+# never reported without being checked.
+# Budget (G2): 1 DB connection + 1 query per run (~1/day + migration PRs).
+name: Migration parity
+
+on:
+  schedule:
+    - cron: '40 2 * * *'
+  pull_request:
+    paths:
+      - 'supabase/migrations/**'
+      - 'scripts/ci/migration-parity.mjs'
+      - '.github/workflows/migration-parity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  parity:
+    runs-on: ubuntu-latest
+    # git diff + one psql query + two node runs: ~30s. Sized like lint-migration-grants.yml.
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Read production migration history (ci_readonly)
+        env:
+          CI_READONLY_DB_URL: ${{ secrets.CI_READONLY_DB_URL }}
+        run: |
+          if [ -z "$CI_READONLY_DB_URL" ]; then echo "::error::CI_READONLY_DB_URL not configured -- parity NOT checked"; exit 1; fi
+          psql "$CI_READONLY_DB_URL" -X -At -v ON_ERROR_STOP=1 \
+            -c "select version from supabase_migrations.schema_migrations order by version" > "$RUNNER_TEMP/prod_versions.txt"
+          echo "production rows: $(wc -l < "$RUNNER_TEMP/prod_versions.txt")"
+
+      - name: Drift fixtures must fail (self-test)
+        run: |
+          set +e
+          F1="$RUNNER_TEMP/drift1"; mkdir -p "$F1"; cp supabase/migrations/*.sql "$F1/"; : > "$F1/20000101000000_drift_fixture.sql"
+          node scripts/ci/migration-parity.mjs --prod "$RUNNER_TEMP/prod_versions.txt" --dir "$F1"; r1=$?
+          F2="$RUNNER_TEMP/drift2"; mkdir -p "$F2"; cp supabase/migrations/*.sql "$F2/"; rm "$F2/$(ls supabase/migrations/*.sql | head -1 | xargs basename)"
+          node scripts/ci/migration-parity.mjs --prod "$RUNNER_TEMP/prod_versions.txt" --dir "$F2"; r2=$?
+          set -e
+          if [ "$r1" -ne 1 ] || [ "$r2" -ne 1 ]; then echo "::error::parity check did not fail on a drift fixture (exit $r1/$r2)"; exit 1; fi
+          echo "Self-test OK: both drift fixtures failed as expected"
+
+      - name: Parity (repo vs production)
+        run: |
+          ADDED=""
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            ADDED=$(git diff --name-only --diff-filter=A "origin/${{ github.event.pull_request.base.ref }}"...HEAD -- 'supabase/migrations/*.sql' \
+              ':(exclude)supabase/migrations/_history/**' ':(exclude)supabase/migrations/_archive/**' | tr '\n' ' ')
+          fi
+          node scripts/ci/migration-parity.mjs --prod "$RUNNER_TEMP/prod_versions.txt" --pr-added "$ADDED"
