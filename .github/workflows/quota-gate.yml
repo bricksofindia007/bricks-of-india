@@ -1,0 +1,67 @@
+name: Quota gate (FP6.4, reusable)
+
+# Called as the FIRST job of every non-essential workflow (P4 Step 2):
+#   quota-gate:
+#     uses: ./.github/workflows/quota-gate.yml
+#     with: { job: radar, needs: 'read,write' }
+#     secrets: inherit
+#   <main job>:
+#     needs: [quota-gate]
+#     if: needs.quota-gate.outputs.proceed == 'true'
+# Reads Supabase usage once (db_usage_report + capacity_snapshot) and closes at
+# storage >= 800 MB (upload), DB >= 400 MB (write), egress projected >= 4.0 GB
+# (read), or when usage can't be read. A closed upload guard also dispatches
+# cleanup-published-assets.yml. Essential workflows never call this.
+
+on:
+  workflow_call:
+    inputs:
+      job:
+        type: string
+        required: true
+      needs:
+        description: 'Comma-separated: read, write, upload'
+        type: string
+        required: true
+      simulate:
+        description: 'BOI_QUOTA_SIMULATE override for proof runs only (e.g. storage_mb=800)'
+        type: string
+        required: false
+        default: ''
+    outputs:
+      proceed:
+        value: ${{ jobs.gate.outputs.proceed }}
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    # Two small RPCs + an optional email/dispatch; the ceiling covers npm ci.
+    timeout-minutes: 5
+    outputs:
+      proceed: ${{ steps.gate.outputs.proceed }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: |
+            scripts
+            package.json
+            package-lock.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci --ignore-scripts
+      - id: gate
+        name: Evaluate quota guards
+        env:
+          NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          RESEND_API_KEY:            ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL:               ${{ secrets.BRIEF_EMAIL }}
+          GITHUB_TOKEN:              ${{ github.token }}
+          BOI_QUOTA_SIMULATE:        ${{ inputs.simulate }}
+        run: node scripts/quota-gate.mjs --job "${{ inputs.job }}" --needs "${{ inputs.needs }}"

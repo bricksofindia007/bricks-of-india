@@ -18,6 +18,9 @@ on:
       - 'scripts/video/coherence_judge.py'
       - 'scripts/video/test_coherence_judge.py'
       - 'scripts/video/price_baseline.py'
+      - 'config/quota_guard.py'
+      - 'config/test_quota_guard.py'
+      - 'scripts/video/quota.py'
       - 'scripts/video/test_price_baseline.py'
       - 'scripts/video/generate_quiet_panic_video.py'
   workflow_dispatch:
@@ -46,3 +49,6 @@ jobs:
       - name: Run price baseline unit tests (#383)
         working-directory: scripts/video
         run: python -m unittest test_price_baseline -v
+
+      - name: Run quota guard unit tests (FP6.4)
+        run: python -m unittest config.test_quota_guard -v

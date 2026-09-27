@@ -285,6 +285,8 @@ def upload_video_to_storage(sb, local_path: str, filename: str) -> str:
     video_path-only row was unpublishable from there until someone
     manually uploaded it. Uploading at generation time instead means every
     future render is publishable regardless of where generation happened."""
+    from quota import guard_upload  # FP6.4: refuse BEFORE touching Storage
+    guard_upload(sb, 'VID-QP', f'video {filename}')
     with open(local_path, 'rb') as f:
         sb.storage.from_(VIDEO_STORAGE_BUCKET).upload(
             filename, f, {'content-type': 'video/mp4', 'upsert': 'true'}
@@ -1708,6 +1710,10 @@ def main():
     if not args.test_batch:
         parser.print_help()
         return
+
+    # FP6.4: storage guard closed -> skip the whole run before any work.
+    from quota import preflight_or_exit
+    preflight_or_exit(get_supabase(), 'VID-QP')
 
     with open(args.test_batch) as f:
         candidates = json.load(f)

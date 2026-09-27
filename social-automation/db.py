@@ -259,6 +259,8 @@ def record_heartbeat(platform: str, success: bool | None, error: str | None = No
 def upload_to_storage(local_path: str, filename: str) -> str:
     """Upload file to social-assets bucket. Returns public URL."""
     client = _client()
+    from quota import guard_upload  # FP6.4: refuse BEFORE touching Storage
+    guard_upload(client, filename)
     content_type = 'video/mp4' if filename.endswith('.mp4') else 'image/jpeg'
     with open(local_path, 'rb') as f:
         client.storage.from_(BUCKET_NAME).upload(

@@ -285,6 +285,8 @@ def upload_video_to_storage(sb, video_path: str, filename: str) -> str:
     a video/ prefix so they never collide with SOC-AUTO-01's own
     {set_num}_reels.mp4 naming in the same bucket.
     """
+    from quota import guard_upload  # FP6.4: refuse BEFORE touching Storage
+    guard_upload(sb, 'VID-P4', f'video {filename}')
     storage_path = f'video/{filename}'
     with open(video_path, 'rb') as f:
         sb.storage.from_(VIDEO_STORAGE_BUCKET).upload(
@@ -308,6 +310,8 @@ def extract_and_upload_qc_frames(sb, video_path: str, video_id: str, count: int 
     "qc_frames" referenced in engine.py's comments were the operator manually
     reviewing the rendered output, not a generated artifact.
     """
+    from quota import guard_upload  # FP6.4: refuse BEFORE touching Storage
+    guard_upload(sb, 'VID-P4', f'QC frames for {video_id}')
     import subprocess
     import tempfile
 
