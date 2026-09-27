@@ -3,10 +3,7 @@
 import { useEffect, useState } from 'react';
 import type { SeriesData, FigureData } from './page';
 
-const STORE_LABELS: Record<string, string> = {
-  toycra:       'Toycra',
-  mybrickhouse: 'MyBrickHouse',
-};
+// Store names come from the retailer registry via the server page (FP5.1).
 
 function fmtInr(n: number) {
   return `₹${Math.round(n).toLocaleString('en-IN')}`;
@@ -86,7 +83,7 @@ function FigureLightbox({ figure, onClose }: { figure: FigureData; onClose: () =
   );
 }
 
-export function MinifigHq({ seriesList }: { seriesList: SeriesData[] }) {
+export function MinifigHq({ seriesList, storeLabels }: { seriesList: SeriesData[]; storeLabels: Record<string, string> }) {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [lightboxFigure, setLightboxFigure] = useState<FigureData | null>(null);
 
@@ -147,7 +144,7 @@ export function MinifigHq({ seriesList }: { seriesList: SeriesData[] }) {
             <span>
               <span style={{ color: '#374151' }}>
                 Packs available at{' '}
-                <strong>{STORE_LABELS[cheapest.store_id] ?? cheapest.store_id}</strong> for{' '}
+                <strong>{storeLabels[cheapest.store_id] ?? cheapest.store_id}</strong> for{' '}
                 <strong style={{ color: 'var(--color-primary-dark)' }}>{fmtInr(cheapest.price_inr)}</strong>
                 {' '}(blind bag)
               </span>

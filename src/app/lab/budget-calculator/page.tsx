@@ -5,17 +5,13 @@ import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { BudgetForm } from './BudgetForm';
 import { PRICE_CADENCE } from '@/lib/price-freshness';
+import { getStores, storeLabels } from '@/lib/stores';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Budget Calculator — The Lab',
   description: 'Find the best LEGO sets for your budget — live Indian store prices across Toycra and MyBrickHouse. Updated ' + PRICE_CADENCE + '.',
   path: '/lab/budget-calculator',
 });
-
-const STORE_LABELS: Record<string, string> = {
-  toycra:       'Toycra',
-  mybrickhouse: 'MyBrickHouse',
-};
 
 interface SetResult {
   set_number: string;
@@ -36,6 +32,8 @@ export default async function BudgetCalculatorPage(
     searchParams: Promise<{ min?: string; max?: string }>;
   }
 ) {
+  // FP5.1: store names come from the retailer registry (src/lib/stores.ts).
+  const STORE_LABELS = storeLabels(await getStores());
   const searchParams = await props.searchParams;
   const min = Math.max(0, parseInt(searchParams.min ?? '1000', 10) || 0);
   const max = Math.max(min, parseInt(searchParams.max ?? '5000', 10) || 5000);

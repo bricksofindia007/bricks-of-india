@@ -24,6 +24,11 @@
 import http from 'node:http';
 import { setPageData } from './jsonld-price-fixtures.mjs';
 
+const STORES_FIXTURE = [
+  { id: 'mybrickhouse', name: 'MyBrickHouse', site_url: 'https://lego.mybrickhouse.com', display_order: 10, affiliate_note: null, price_precision: 0 },
+  { id: 'toycra', name: 'Toycra', site_url: 'https://www.toycra.com', display_order: 20, affiliate_note: 'ABHINAV12 gives 12% off at Toycra; we earn a commission.', price_precision: 0 },
+];
+
 const PORT = Number(process.env.SUPABASE_STUB_PORT ?? 54321);
 let hits = 0;
 
@@ -45,6 +50,11 @@ http.createServer((req, res) => {
     return;
   }
   req.resume();
+  // FP5.1: pages name and list stores from the registry (src/lib/stores.ts).
+  // Serve the two production rows so fixture set pages render store rows.
+  if (req.method === 'GET' && req.url?.startsWith('/rest/v1/stores')) {
+    return json(200, STORES_FIXTURE, { 'Content-Range': `0-${STORES_FIXTURE.length - 1}/*` });
+  }
   if (req.url?.startsWith('/rest/v1/rpc/')) return json(200, null);
   if (accept.includes('application/vnd.pgrst.object+json')) {
     return json(406, { code: 'PGRST116', details: 'The result contains 0 rows', hint: null, message: 'JSON object requested, multiple (or no) rows returned' });

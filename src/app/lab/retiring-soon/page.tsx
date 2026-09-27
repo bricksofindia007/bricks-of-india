@@ -3,17 +3,13 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
+import { getStores, storeLabels } from '@/lib/stores';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Retirement Radar — The Lab',
   description: 'LEGO sets retiring soon in India — 90-day window. Buy before they\'re gone. Updated weekly.',
   path: '/lab/retiring-soon',
 });
-
-const STORE_LABELS: Record<string, string> = {
-  toycra:       'Toycra',
-  mybrickhouse: 'MyBrickHouse',
-};
 
 function fmtInr(n: number) {
   return `₹${Math.round(n).toLocaleString('en-IN')}`;
@@ -44,6 +40,8 @@ interface RetSet {
 }
 
 export default async function RetiringSoonPage() {
+  // FP5.1: store names come from the retailer registry (src/lib/stores.ts).
+  const STORE_LABELS = storeLabels(await getStores());
   const supabase = createServerClient();
 
   const { data: setsRaw } = await supabase

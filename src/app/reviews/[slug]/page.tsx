@@ -12,6 +12,7 @@ import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { Byline } from '@/components/content/Byline';
 import { JsonLd } from '@/components/JsonLd';
 import { buildReviewSchema } from '@/lib/schemas';
+import { getStores, storeLabels } from '@/lib/stores';
 // Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
@@ -32,12 +33,7 @@ export async function generateStaticParams() {
 
 interface Props { params: Promise<{ slug: string }> }
 
-const TRACKED_STORES = [
-  { id: 'toycra',       name: 'Toycra'      },
-  { id: 'mybrickhouse', name: 'MyBrickHouse' },
-];
-
-const STORE_NAMES: Record<string, string> = Object.fromEntries(TRACKED_STORES.map((s) => [s.id, s.name]));
+// Stores come from the retailer registry (FP5.1, src/lib/stores.ts).
 
 // Verdict-driven badge — NOT rating-driven. A null rating (IMPORT ONLY: an
 // availability call, not a quality score) still needs a badge that reflects
@@ -80,6 +76,9 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 }
 
 export default async function ReviewPage(props: Props) {
+  const stores = await getStores();
+  const TRACKED_STORES = stores.map((st) => ({ id: st.id, name: st.name }));
+  const STORE_NAMES = storeLabels(stores);
   const params = await props.params;
   const { data: review } = await supabase
     .from('reviews')

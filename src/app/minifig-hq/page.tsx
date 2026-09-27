@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { MinifigHq } from './MinifigHq';
+import { getStores, storeLabels } from '@/lib/stores';
 
 // Nav label is "Minifig HQ" (2026-08-11 rebuild — promoted from a /lab
 // tool to its own top-nav slot, replacing Community there). Title, meta
@@ -112,7 +113,7 @@ export default async function MinifigHqPage() {
         </p>
       </div>
 
-      <MinifigHq seriesList={seriesList} />
+      <MinifigHq seriesList={seriesList} storeLabels={storeLabels(await getStores())} />
     </div>
   );
 }

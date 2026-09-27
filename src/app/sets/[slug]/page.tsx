@@ -12,12 +12,13 @@ import { formatPrice, whatsappShareUrl, socialCardImage, setMetaDescription } fr
 import { MASCOTS } from '@/lib/brand';
 import { resolveThemeSlug } from '@/lib/themeMapping';
 import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/Badge';
-import { priceLabel, storeName, ANCHOR_SOURCE_LABEL, type SetPriceSummary } from '@/lib/price-summary';
+import { priceLabel, ANCHOR_SOURCE_LABEL, type SetPriceSummary } from '@/lib/price-summary';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { SetCard } from '@/components/sets/SetCard';
 import { SetImage } from '@/components/sets/SetImage';
 import { JsonLd } from '@/components/JsonLd';
 import { buildProductSchema, buildFAQSchema } from '@/lib/schemas';
+import { getStores, storeLabels } from '@/lib/stores';
 // Durable-cache guard (2026-07-02): a revalidate must always be set, or
 // rendered pages persist across deploys. Set pages use 6h (operator decision
 // 2026-09-26): 26k crawlable URLs, and Supabase egress is the binding Free
@@ -35,12 +36,9 @@ interface Props {
   params: Promise<{ slug: string }>;
 }
 
-// ── The 2 stores we actively track ───────────────────────────────────────────
-// Alphabetical (R5: no store gets precedence; ties are shown with equal weight).
-const TRACKED_STORES = [
-  { id: 'mybrickhouse', name: 'MyBrickHouse',  url: 'https://mybrickhouse.com' },
-  { id: 'toycra',       name: 'Toycra',       url: 'https://www.toycra.com'   },
-];
+// Stores come from the retailer registry (FP5.1, src/lib/stores.ts): enabled
+// stores in display_order. The table below re-sorts them (R5: stores at the
+// lowest price first, then alphabetical; no store gets precedence).
 
 // Fix A (2026-09-26): everything this page renders comes from ONE read-only
 // RPC, public.set_page_data (migration 20260926030000), instead of 8
@@ -133,6 +131,9 @@ export default async function SetPage(props: Props) {
   const pageData = await getSetPageData(params.slug);
   if (!pageData?.set) notFound();
   const set = pageData.set;
+  const stores = await getStores();
+  const TRACKED_STORES = stores.map((st) => ({ id: st.id, name: st.name, url: st.site_url }));
+  const STORE_NAMES = storeLabels(stores);
 
   // ── store_prices for this set (from set_page_data) ───────────────────────
   const storePrices = pageData.store_prices;
@@ -212,10 +213,6 @@ export default async function SetPage(props: Props) {
   const waText   = `Check out ${set.name} price comparison on Bricks of India — use code ABHINAV12 for 12% off at Toycra!`;
 
 
-  const STORE_NAMES: Record<string, string> = {
-    toycra:       'Toycra',
-    mybrickhouse: 'MyBrickHouse',
-  };
 
   return (
     <div className="bg-white min-h-screen">
@@ -475,9 +472,9 @@ export default async function SetPage(props: Props) {
                     q: `Where is ${set.name} cheapest in India?`,
                     // R5: every store at the lowest price is named, alphabetically.
                     a: summary?.best_price_inr != null && summary.best_store_ids?.length
-                      ? `Based on our latest comparison, ${summary.best_store_ids.map(storeName).join(' and ')} ${summary.best_store_ids.length > 1 ? 'share' : 'has'} the lowest in-stock price at ${formatPrice(summary.best_price_inr)}. Prices are checked ${PRICE_CADENCE}.`
+                      ? `Based on our latest comparison, ${summary.best_store_ids.map((id) => STORE_NAMES[id] ?? id).join(' and ')} ${summary.best_store_ids.length > 1 ? 'share' : 'has'} the lowest in-stock price at ${formatPrice(summary.best_price_inr)}. Prices are checked ${PRICE_CADENCE}.`
                       : hasPrices
-                      ? `The lowest in-stock price we last saw was ${formatPrice(bestStorePrice!.price_inr)} at ${storeName(bestStorePrice!.store_id)}, but that price is more than 12 hours old — check the store for today's price.`
+                      ? `The lowest in-stock price we last saw was ${formatPrice(bestStorePrice!.price_inr)} at ${STORE_NAMES[bestStorePrice!.store_id] ?? bestStorePrice!.store_id}, but that price is more than 12 hours old — check the store for today's price.`
                       : `We're currently setting up price tracking for ${set.name}. Check Toycra, MyBrickHouse, and Amazon India for live prices.`,
                   },
                   {

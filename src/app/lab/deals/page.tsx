@@ -6,6 +6,7 @@ import { slugify } from '@/lib/utils';
 import { PRICE_CADENCE, READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { getDeals } from '@/lib/price-summary';
 import { PriceAge } from '@/components/ui/PriceAge';
+import { getStores, storeLabels } from '@/lib/stores';
 
 export const metadata: Metadata = buildMetadata({
   title: 'India Deals Today — The Lab',
@@ -16,11 +17,6 @@ export const metadata: Metadata = buildMetadata({
 // Hourly ISR (PR-B). Without a revalidate this page was built once, fully
 // static, and changed only on deploy.
 export const revalidate = 3600; // = READ_REVALIDATE_SECONDS (segment config must be a literal)
-
-const STORE_LABELS: Record<string, string> = {
-  toycra:       'Toycra',
-  mybrickhouse: 'MyBrickHouse',
-};
 
 interface DealRow {
   set_id:      string;
@@ -40,6 +36,8 @@ interface DealRow {
 }
 
 export default async function DealsPage() {
+  // FP5.1: store names come from the retailer registry (src/lib/stores.ts).
+  const STORE_LABELS = storeLabels(await getStores());
   const supabase = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
 
   // PR-B: same locked rules as /deals (public.set_price_summary): a deal is a
@@ -121,7 +119,7 @@ export default async function DealsPage() {
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: 16 }}>
             {deals.map((deal) => (
-              <DealCard key={`${deal.set_id}-${deal.store_id}`} deal={deal} />
+              <DealCard key={`${deal.set_id}-${deal.store_id}`} deal={deal} labels={STORE_LABELS} />
             ))}
           </div>
         )}
@@ -130,8 +128,8 @@ export default async function DealsPage() {
   );
 }
 
-function DealCard({ deal }: { deal: DealRow }) {
-  const storeName = deal.stores.map((id) => STORE_LABELS[id] ?? id).join(' & ');
+function DealCard({ deal, labels }: { deal: DealRow; labels: Record<string, string> }) {
+  const storeName = deal.stores.map((id) => labels[id] ?? id).join(' & ');
   const setSlug   = `${deal.set.set_number}-${slugify(deal.set.name)}`;
 
 

@@ -3,6 +3,7 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { CmfTracker } from './CmfTracker';
+import { getStores, storeLabels } from '@/lib/stores';
 
 export const metadata: Metadata = buildMetadata({
   title: 'CMF Tracker — The Lab',
@@ -111,7 +112,7 @@ export default async function CmfTrackerPage() {
         </p>
       </div>
 
-      <CmfTracker seriesList={seriesList} />
+      <CmfTracker seriesList={seriesList} storeLabels={storeLabels(await getStores())} />
     </div>
   );
 }

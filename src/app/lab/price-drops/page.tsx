@@ -6,6 +6,7 @@ import { unstable_cache } from 'next/cache';
 import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { baselinePrices, type HistRow } from '@/lib/price-baseline';
+import { getStores, storeLabels } from '@/lib/stores';
 
 export const metadata: Metadata = buildMetadata({
   title: 'LEGO Price Drops in India — The Lab',
@@ -14,11 +15,6 @@ export const metadata: Metadata = buildMetadata({
   path: '/lab/price-drops',
 });
 
-const STORE_LABELS: Record<string, string> = {
-  toycra:       'Toycra',
-  mybrickhouse: 'MyBrickHouse',
-};
-const STORE_IDS = ['toycra', 'mybrickhouse'];
 
 function fmtInr(n: number) {
   return `₹${Math.round(n).toLocaleString('en-IN')}`;
@@ -165,6 +161,10 @@ const getPriceDropsData = unstable_cache(
 );
 
 export default async function PriceDropsPage(props: Props) {
+  // FP5.1: store names come from the retailer registry (src/lib/stores.ts).
+  const stores = await getStores();
+  const STORE_LABELS = storeLabels(stores);
+  const STORE_IDS = stores.map((s) => s.id);
   const searchParams = await props.searchParams;
   const storeFilter  = searchParams.store  || '';
   const themeFilter  = searchParams.theme  || '';
