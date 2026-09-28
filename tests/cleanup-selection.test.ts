@@ -52,10 +52,29 @@ describe('age guard', () => {
     expect(select(rows, QP).toDelete).toEqual([]);
   });
 
-  it('never passes a NULL posted_at while the guard is on (known discarded-row gap)', () => {
+  it('ages a discarded row (NULL posted_at) from its last recorded activity (#399)', () => {
+    const old = [{ id: 1, status: 'discarded', posted_at: null, created_at: OLD, storage_url: url(QP, 'a.mp4') }];
+    expect(select(old, QP).toDelete).toEqual(['a.mp4']);
+    // approved recently -> still inside the 72h window even though created long ago
+    const touched = [{ id: 1, status: 'discarded', posted_at: null, created_at: OLD, approved_at: RECENT, storage_url: url(QP, 'a.mp4') }];
+    expect(select(touched, QP).toDelete).toEqual([]);
+  });
+
+  it('QP #38 shape: discarded, created 25 Sep 09:14, eligible once the cutoff (now - 72h) passes its created_at, i.e. from 28 Sep 09:14', () => {
+    const row = [{ id: 38, status: 'discarded', posted_at: null, created_at: '2026-09-25T09:14:00Z', storage_url: url(QP, '77983_2026-09-25_090536.mp4') }];
+    expect(select(row, QP, '2026-09-25T09:00:00Z').toDelete).toEqual([]);
+    expect(select(row, QP, '2026-09-25T09:15:00Z').toDelete).toEqual(['77983_2026-09-25_090536.mp4']);
+  });
+
+  it('never passes a discarded row with no timestamp at all while the guard is on (fail closed)', () => {
     const rows = [{ id: 1, status: 'discarded', posted_at: null, storage_url: url(QP, 'a.mp4') }];
     expect(select(rows, QP).toDelete).toEqual([]);
     expect(select(rows, QP, null).toDelete).toEqual(['a.mp4']);
+  });
+
+  it('a non-terminal row never ages in, whatever its timestamps', () => {
+    const rows = [{ id: 1, status: 'rejected', posted_at: null, created_at: OLD, storage_url: url(QP, 'a.mp4') }];
+    expect(select(rows, QP).toDelete).toEqual([]);
   });
 });
 

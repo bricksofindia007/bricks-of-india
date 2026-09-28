@@ -1,0 +1,40 @@
+# P6 Step 2b (read-only): distinct set pages re-rendered per day vs repeats, and the share of
+# unpriced sets, read from the R2 incremental cache (+ Cloudflare analytics, best effort).
+# Writes nothing. Budget (G2): manual dispatch; ~40 R2 list calls, 27 Supabase reads, 2 GraphQL.
+name: Set render census
+
+on:
+  workflow_dispatch:
+    inputs:
+      window_hours:
+        description: 'Look-back window in hours'
+        default: '24'
+
+permissions:
+  contents: read
+
+jobs:
+  census:
+    runs-on: ubuntu-latest
+    # No runs yet: ~40 paginated list calls + 27 reads, well under a minute. Resize after 3 runs.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Census
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          WINDOW_HOURS: ${{ inputs.window_hours }}
+          OUT_DIR: census-out
+        run: node scripts/ci/set-render-census.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: set-render-census
+          path: census-out/census.json
+          retention-days: 30

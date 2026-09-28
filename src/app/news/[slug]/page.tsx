@@ -71,7 +71,12 @@ export default async function NewsArticlePage(props: Props) {
     .replace(/^THE [A-Z\s]+$/gm, '')
     .trim();
 
-  const { data: related } = await supabase.from('news_articles').select('*').eq('category', article.category).neq('slug', params.slug).limit(3);
+  // P6 Step 2a (egress): only the columns the three related cards show. `content` was ~3 KB of
+  // every related row and was used only for "N min read"; without it the card omits reading time
+  // (never a made-up value, G14).
+  const { data: related } = await supabase.from('news_articles')
+    .select('id, slug, title, category, excerpt, hero_image, published_at')
+    .eq('category', article.category).neq('slug', params.slug).limit(3);
 
   const shareUrl = `https://bricksofindia.com/news/${params.slug}`;
   const waText = `${article.title} — via Bricks of India. Use code ABHINAV12 for 12% off at Toycra!`;

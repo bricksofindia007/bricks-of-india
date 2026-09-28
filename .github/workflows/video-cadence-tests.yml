@@ -17,6 +17,8 @@ on:
       - '.github/workflows/video-cadence-tests.yml'
       - 'scripts/video/coherence_judge.py'
       - 'scripts/video/test_coherence_judge.py'
+      - 'scripts/video/article_coherence.py'
+      - 'scripts/video/test_article_coherence.py'
       - 'scripts/video/price_baseline.py'
       - 'config/quota_guard.py'
       - 'config/test_quota_guard.py'
@@ -44,7 +46,7 @@ jobs:
 
       - name: Run coherence judge unit tests (#365, fail-closed)
         working-directory: scripts/video
-        run: python -m unittest test_coherence_judge -v
+        run: python -m unittest test_coherence_judge test_article_coherence -v
 
       - name: Run price baseline unit tests (#383)
         working-directory: scripts/video
