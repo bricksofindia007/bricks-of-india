@@ -1,6 +1,6 @@
-# FP5.9: Cron Trigger dispatcher (DESIGN; build only after GH_DISPATCH_TOKEN is set and a foundation PR slot is free)
+# FP5.9: Cron Trigger dispatcher (DESIGN; build only after BOI_SCHEDULER_DISPATCH_TOKEN is set and a foundation PR slot is free)
 
-**Status:** APPROVED by Abhinav (P5 Step 5, 27 Sep 2026); built in foundation PR 1 with `boi-scheduler`, inert until Abhinav confirms `GH_DISPATCH_TOKEN` is set. Designed in P4 Step 7.
+**Status:** APPROVED by Abhinav (P5 Step 5, 27 Sep 2026); built in foundation PR 1 with `boi-scheduler`, inert until Abhinav confirms `BOI_SCHEDULER_DISPATCH_TOKEN` is set. Designed in P4 Step 7.
 
 ## Problem, measured
 `scrape-prices.yml` runs on GitHub's scheduler (`0 */6 * * *`). The last 11 scheduled runs (24–27 Sep) started **2h43 to 5h33 late** (median **~3h55**): slot → start = 21:13, 03:50, 11:19, 16:44, 21:11, 03:55, 10:56, 15:56, 20:43, 04:06, 11:33 UTC. One of today's slots (12:00) hadn't started by 16:25 UTC. Prices go stale, and the 12h freshness rule (PR-A) hides badges when two slots slip.
@@ -11,7 +11,7 @@
   - `mybrickhouse` at `0 */6 * * *`
   - `toycra` at `5 */6 * * *`
   - later: `hamleys` `10 */6`, `firstcry` `15 */6`, `jaiman` `20 */6`
-- **Action:** `POST https://api.github.com/repos/bricksofindia007/bricks-of-india/actions/workflows/scrape-prices.yml/dispatches` with `{"ref":"main","inputs":{"store":"<id>"}}`, using the `GH_DISPATCH_TOKEN` Worker secret (a fine-grained PAT: *Actions: write* on this repo only).
+- **Action:** `POST https://api.github.com/repos/bricksofindia007/bricks-of-india/actions/workflows/scrape-prices.yml/dispatches` with `{"ref":"main","inputs":{"store":"<id>"}}`, using the `BOI_SCHEDULER_DISPATCH_TOKEN` Worker secret (a fine-grained PAT: *Actions: write* on this repo only).
   - `scrape-prices.yml` gains a `store` input so each dispatch scrapes one retailer (per-retailer failure isolation, FP5 contract).
   - The GitHub `schedule:` stays as a **backstop**. The workflow skips if a successful run for the same store started < 2h ago, which keeps it idempotent (G10).
 - **Retries:** a non-2xx dispatch is retried twice (after 30s and 90s). If it still fails, the Worker writes a `meta:dispatch_fail` KV note, which the FP6.1 sentinel picks up and alerts on through the existing sender (FP4 later).
@@ -30,12 +30,12 @@
 
 ## Exactly where the token goes
 - **Worker:** `boi-scheduler` (production). It doesn't exist until the FP1.1 design is signed off and its first deploy lands; create it before setting the secret.
-- **Secret name:** `GH_DISPATCH_TOKEN` (Worker secret, type *Secret*, not a plain variable).
-- **How:** `npx wrangler secret put GH_DISPATCH_TOKEN --name boi-scheduler`, or Dashboard → Workers & Pages → `boi-scheduler` → Settings → Variables and Secrets → Add.
+- **Secret name:** `BOI_SCHEDULER_DISPATCH_TOKEN` (Worker secret, type *Secret*, not a plain variable).
+- **How:** `npx wrangler secret put BOI_SCHEDULER_DISPATCH_TOKEN --name boi-scheduler`, or Dashboard → Workers & Pages → `boi-scheduler` → Settings → Variables and Secrets → Add.
 - **Not** on the site Worker, **not** on `boi-scheduler-staging`, and not needed as a GitHub secret (the Worker is the only dispatcher).
-- **Confirm by** telling the terminal "GH_DISPATCH_TOKEN set on boi-scheduler". The terminal verifies with `wrangler secret list --name boi-scheduler` (names only).
+- **Confirm by** telling the terminal "BOI_SCHEDULER_DISPATCH_TOKEN set on boi-scheduler". The terminal verifies with `wrangler secret list --name boi-scheduler` (names only).
 
 ## Needs from Abhinav before the build
-1. `GH_DISPATCH_TOKEN`: already created (27 Sep). Set it on `boi-scheduler` as above once that Worker exists, then confirm.
+1. `BOI_SCHEDULER_DISPATCH_TOKEN`: already created (27 Sep). Set it on `boi-scheduler` as above once that Worker exists, then confirm.
 2. The FP1.1 sign-off on `boi-scheduler` (shared Worker).
 3. A free foundation PR slot (after FP6.4 #395 or the Step 4 contract PR merges).
