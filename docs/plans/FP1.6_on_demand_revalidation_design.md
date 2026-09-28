@@ -33,11 +33,11 @@ Old builds are dead weight as soon as the next build serves traffic. An age rule
 
 **Numbers** (unpriced ≈ 94% of ~39.5k/day set calls ≈ 37k/day; the crawl revisits a page ~1.4×/day):
 
-| | now (6 h) | 72 h, normal days (≤ 1 deploy/day) | 72 h, deploy freeze 5–11 Oct |
+| | now (6 h) | 72 h, normal days (≤ 1 deploy/day) | 72 h, a run of days with no site deploy |
 |---|---|---|---|
 | unpriced renders per page per day | ~1.4 | ~1.0 (a deploy empties the cache daily) | ~0.33 |
 | Supabase calls/day saved | — | **~11k** (≈ 30 MB/day) | **~28k** (≈ 75 MB/day) |
-| over the freeze (7 days) | — | — | **≈ 0.5 GB egress, ≈ 200k Class A** |
+| over 7 deploy-free days | — | — | **≈ 0.5 GB egress, ≈ 200k Class A** |
 
 - **Cost of being stale:** with ~1.1 new listings a day, at most ~3–4 sets at a time can show "No retailer listing found as of {time}" while a listing exists, each for ≤ 72 h. FP1.6 (§3) removes even that by revalidating a set when it gains a listing.
 - 24 h would save little (renders ~1.0/day already), and 7 days roughly doubles the stale window for little extra during normal weeks. **72 h is the knee.**
@@ -51,15 +51,14 @@ Old builds are dead weight as soon as the next build serves traffic. An age rule
 - **Gate:** B7 (on-demand revalidation actually works on Workers) is re-verified on the staging Worker first, as the plan requires.
 - **Failure behaviour (G14):** if the endpoint fails, pages just wait for their time-based TTL. The stale window is labelled "as of {time}". It's never wrong, only older.
 
-## 4. Sequencing to meet the 5–11 Oct deploy freeze (P7 item 7)
-**Rules:** ≤ 1 site deploy/day; the snapshot reader (flag OFF) must be **deployed before 5 Oct**; cutover is a **KV flag flip** (`flags:v1.snapshot_read`), never a deploy. `boi-scheduler` is its own Worker, so its deploys don't count against the site freeze.
+## 4. Sequence (P9 item 1, G18: dependencies and evidence gates, no dates)
+Standing safeguards: **≤ 1 batched site deploy a day**; the FP6.4 egress guard.
 
-| Day | Work | Site deploy? |
+| Step | Waiting on | Evidence gate to move on |
 |---|---|---|
-| 29 Sep | PR 1 build: `boi-scheduler` + signed write endpoint + heartbeat + FP5.9 dispatcher (inert). Deploys once Abhinav's Cloudflare items (#263) exist | no (separate Worker) |
-| 30 Sep–1 Oct | PR 2: publisher (after each scrape), parity job, **reader behind `snapshot_read` (default OFF, read from KV at runtime)**, FP2.4 flags, A1 (`list:priced-sets`, `cat:{n}`), **§2 unpriced TTL + wording**, `/api/revalidate` (FP1.6 endpoint, but the publisher doesn't call it yet) | — |
-| **2 Oct** | **one batched site deploy**: PR 2 site parts, TTL, wording. Parity mode starts: KV written, no page reads it | **yes (1)** |
-| 2–5 Oct | parity clock: 100% over ≥ 12 cycles (≥ 3 days) **including the 2 Oct deploy** | spare days 3–4 Oct, for fixes only |
-| 5–11 Oct | **freeze**. If parity is 12/12: the cutover (Tier 2) is a KV write of `snapshot_read=true` through the signed endpoint. Rollback is the same flip back. FP1.6's publisher calls can be enabled by the same flag mechanism (`revalidate_calls`) | **no** |
-
-If PR 2 slips past 4 Oct, the reader waits for 12 Oct. Nothing ships inside the freeze.
+| a. PR 1 `boi-scheduler` deploys (first live run Tier 2) | Abhinav's Cloudflare items (#263): KV namespace IDs, `SNAPSHOT_HMAC_KEY`, `BOI_SCHEDULER_DISPATCH_TOKEN` | signed write 200 / unsigned 401 on the live Worker; heartbeat present |
+| b. PR 2 built and rehearsed on the **current** staging project (Sydney is needed only before the D-9 load drill): publisher, parity job, reader behind `snapshot_read` (OFF), FP2.4 flags, A1 keys, 72 h unpriced TTL + wording, `/api/revalidate` | PR 1 deployed on staging | staging parity report 100%; reader OFF renders unchanged |
+| c. PR 2 deploys with `snapshot_read` OFF; the publisher starts; the parity count starts | b | first production parity report |
+| d. Parity: **100% over ≥ 12 consecutive cycles, ≥ 3 days, including ≥ 1 site deploy**. Any normal batched deploy counts; if none happens naturally inside the window, I say so and a routine batched one is scheduled | c | the count itself |
+| e. Cutover: `snapshot_read` flipped ON through a signed KV write (**Tier 2**), never a deploy. Rollback is the same flip back | d + Abhinav's sign-off on the parity evidence | post-flip checks: pages served from KV, fallback counter ~0 |
+| FP1.6 on-demand revalidation (publisher calls `/api/revalidate`; first listing → immediate) | c, plus B7 re-verified on the staging Worker | a changed set's page revalidates within its cycle |

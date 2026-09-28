@@ -1,5 +1,38 @@
 # BOI Master Tracker
 
+## P7 + P8 — 2026-09-28 (evening)
+
+Record: `docs/logs/cycle2/2026-09-28.md`. **New guardrail G17** (no command prints a secret's value). **Deploys 28 Sep: 1** (`e258968`: related-news trim + /bot).
+
+| Item | Issue / PR | Status |
+|---|---|---|
+| Growth-role exposure | #416, #418 (NOLOGIN, staging applied), #419 (SCRAM helper) | rotation procedure posted; Abhinav rotates `growth_service`; NOLOGIN to prod via the job |
+| 5 unused GitHub secrets | — | **deleted** (33 → 28) |
+| 43019 alias + FP5.8 SAFE/UNSAFE | #417, #418 (alias applied on staging) | count **3/12** (re-classified) |
+| QP judge rubric | #421 | acceptance met twice; first live run (Tier 2) next VID-QP generation after merge |
+| R2 prune | #420 | first live run (Tier 2) at the next site deploy |
+| FP1.3 | #265 | profile shows **no code regression** (86.9 vs 86.5 CPU-ms); recommend close |
+| PR 1 boi-scheduler | #423 | built + e2e tested; deploy waits on #263 Cloudflare items |
+| #387 | closed | draft left the queue |
+| Duplicate news auto-publish | #422 | filed |
+
+### Standing list: assigned vs reported
+| Assigned in | Item | Status |
+|---|---|---|
+| P5 Step 1 / P8 | #398 Gate 14: 1b (prompt facts, shared regeneration, write-back) | **not started** (next) |
+| P5 Step 1 / P8 | #398 Gate 14: 1d (enable for new drafts) | **not started** (after 1b) |
+| P5 Step 2 / P8 | T.6 "Prices as of" | queued; **proposed reorder before 1d** so the 3/4 Oct deploy happens |
+| P5 Step 5 | PR 1 | ✅ built (#423); deploy waits on Cloudflare items |
+| P5 Step 5 | PR 2 (publisher, parity, reader + flags, A1, TTL, /api/revalidate) | **not started**; needed by 2 Oct |
+| P5 decision 5 | Sydney staging rebuild + 12-row seed | waiting for Abhinav's project details |
+| P6 / #412 | batch 1 apply | waiting for approval + migration secrets |
+| P6 Step 4 | article judge slices | slice 1 done; slice 2 due 29 Sep |
+| P7 / #399 | first live cleanup run | due after 29 Sep 09:01 |
+| P7 item 6 | FP1.6 build | designed; built with PR 2 |
+| P8 items 1–9 | all | ✅ reported |
+
+---
+
 ## P6 + P6 addendum — 2026-09-28
 
 Record: `docs/logs/cycle2/2026-09-28.md`.

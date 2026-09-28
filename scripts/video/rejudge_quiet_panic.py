@@ -31,7 +31,7 @@ from datetime import datetime, timezone
 
 import requests
 
-from coherence_judge import COHERENCE_JUDGE_MODEL, judge_coherence
+from coherence_judge import COHERENCE_JUDGE_MODEL, judge_coherence, qp_judge_prompt
 
 ELIGIBLE = {'approved', 'pending_approval'}
 
@@ -40,16 +40,34 @@ def _env(name: str) -> str:
     return (os.environ.get(name) or '').strip().lstrip('﻿')
 
 
+def _pieces(url: str, h: dict, set_number: str):
+    try:
+        r = requests.get(f'{url}/rest/v1/sets', params={'set_number': f'eq.{set_number}', 'select': 'pieces'}, headers=h, timeout=30)
+        return (r.json() or [{}])[0].get('pieces') or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+_PROMPT_CTX: dict = {}
+
+
+def _prompt_for(row: dict) -> str:
+    """QP rubric + this row's set facts (P8 item 5)."""
+    return qp_judge_prompt(row['set_title'], row['set_number'], row.get('price_inr'),
+                           _pieces(_PROMPT_CTX['url'], _PROMPT_CTX['h'], row['set_number']))
+
+
 def main(ids: list[str], read_only: bool = False) -> int:
     url, key = _env('SUPABASE_URL').rstrip('/'), _env('SUPABASE_SERVICE_ROLE_KEY')
     if not url or not key:
         print('ERROR: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set', file=sys.stderr)
         return 1
     h = {'apikey': key, 'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'}
+    _PROMPT_CTX.update(url=url, h=h)
     rc = 0
     for rid in ids:
         r = requests.get(f'{url}/rest/v1/quiet_panic_posts',
-                         params={'id': f'eq.{rid}', 'select': 'id,sequence_number,set_number,set_title,status,script,gate_results'},
+                         params={'id': f'eq.{rid}', 'select': 'id,sequence_number,set_number,set_title,status,script,gate_results,price_inr'},
                          headers=h, timeout=30)
         r.raise_for_status()
         rows = r.json()
@@ -58,13 +76,13 @@ def main(ids: list[str], read_only: bool = False) -> int:
         row = rows[0]
         tag = f"QP #{row['sequence_number']} {row['set_number']} {row['set_title']}"
         if read_only:
-            verdict = judge_coherence(row['script'] or '')
+            verdict = judge_coherence(row['script'] or '', prompt=_prompt_for(row))
             outcome = 'COHERENT' if verdict['pass'] else ('HELD (no verdict)' if verdict.get('held') else 'INCOHERENT')
             print(f"{tag} [status={row['status']}, READ-ONLY, nothing written]: {outcome} | {verdict['detail'][:300]}")
             continue
         if row['status'] not in ELIGIBLE:
             print(f'{tag}: status={row["status"]} -- not eligible, untouched'); continue
-        verdict = judge_coherence(row['script'] or '')
+        verdict = judge_coherence(row['script'] or '', prompt=_prompt_for(row))
         gates = dict(row.get('gate_results') or {})
         prev = (gates.get('coherence') or {}).get('detail')
         gates['coherence'] = {**verdict, 'model': COHERENCE_JUDGE_MODEL,
