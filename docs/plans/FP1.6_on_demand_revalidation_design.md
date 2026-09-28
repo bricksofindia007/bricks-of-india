@@ -23,13 +23,13 @@ Old builds are dead weight as soon as the next build serves traffic. An age rule
 - **Expected:** storage drops from 19.5 GB to ~2 builds ≈ **1–4 GB** within ~1 day of the first run, under the 10 GB free allowance, and stays there.
 - **What Abhinav sets in the dashboard: nothing.** Keep `incremental-cache-30d` exactly as it is; it's the backstop and is longer than every TTL here. After the first real run, check **R2 → `bricksofindia-next-cache` → Settings → Object lifecycle rules**: it should show `incremental-cache-30d`, the multipart rule, and one `prune-<buildId>` rule per old build.
 
-## 2. Unpriced set TTL (P7 item 7): proposal **72 h**
+## 2. Unpriced set TTL (P7 item 7): **72 h, APPROVED by Abhinav (P8 item 4)**
 **Mechanism:**
 - The route segment's revalidate becomes **72 h**, and the `set_page_data` read is cached 72 h.
 - If the result has any store row (**priced set**), the page makes a second, small read of the set's offers with a **6 h** data-cache life. It uses a distinct cache key, so the two entries never mix. Next uses the lowest `revalidate` in a render, so a priced page still regenerates every **6 h** and an unpriced page every **72 h**.
 - Price staleness is unchanged: prices older than 12 h show their age and drop badges (G14).
 
-**Wording:** every store without a row reads **"No listing found at {store} as of {time}"** (time = the render's data time, IST), replacing today's "Not available at {store}", which implies the set can't be bought. A set with no rows at all reads "No retailer listing found as of {time}". Never "unavailable".
+**Wording (approved):** every store without a row reads **"No listing found at {store} as of {time}"** (time = the render's data time, IST), replacing today's "Not available at {store}", which implies the set can't be bought. A set with no rows at all reads "No retailer listing found as of {time}". Never "unavailable".
 
 **Numbers** (unpriced ≈ 94% of ~39.5k/day set calls ≈ 37k/day; the crawl revisits a page ~1.4×/day):
 
@@ -43,7 +43,8 @@ Old builds are dead weight as soon as the next build serves traffic. An age rule
 - 24 h would save little (renders ~1.0/day already), and 7 days roughly doubles the stale window for little extra during normal weeks. **72 h is the knee.**
 
 ## 3. FP1.6 on-demand revalidation
-- **Trigger:** the snapshot publisher (PR 2) already knows, every cycle, which sets changed (offers, prices, stock, and **priced ↔ unpriced transitions**). After writing KV, it calls a signed site endpoint `POST /api/revalidate` (the same HMAC scheme as `boi-scheduler`, with its own key `SITE_REVALIDATE_HMAC_KEY`) with ≤ 100 paths per call.
+- **Trigger:** the snapshot publisher (PR 2) already knows, every cycle, which sets changed (offers, prices, stock, and **priced ↔ unpriced transitions**).
+- **First listing → immediate revalidation (P8 item 4):** when a set gains its **first** listing (it enters `list:priced-sets`, i.e. unpriced → priced), the publisher revalidates that set's page **in the same cycle**, before anything else in the batch. This takes the "No listing found at {store} as of {time}" staleness to **zero** once FP1.6 lands. The same applies in reverse: when a set's last listing disappears, its page is revalidated so it stops showing a price. Until FP1.6 lands, the worst case is the 72 h window, about 3–4 sets at a time at ~1.1 new listings/day. After writing KV, it calls a signed site endpoint `POST /api/revalidate` (the same HMAC scheme as `boi-scheduler`, with its own key `SITE_REVALIDATE_HMAC_KEY`) with ≤ 100 paths per call.
 - **Endpoint:** it verifies the signature, a 5-minute window and nonce reuse. It calls `revalidatePath('/sets/<slug>')`, and `revalidateTag('set:<n>')` so the set's data-cache entries are dropped too, and the "as of" time can't go stale behind a fresh page. It returns 401 on any failure and does nothing. OpenNext's DO queue and tag cache (already configured) do the rest.
 - **Then the time-based fallbacks lengthen:** priced 6 h → **24 h** (a changed price revalidates within the cycle); unpriced 72 h → **7 days**.
 - **Expected:** renders ≈ changed sets per cycle (~10–25 × 4) + first renders per deploy + crawl hits past the TTL. Class A falls from ~47k/day toward ~15–20k/day.
