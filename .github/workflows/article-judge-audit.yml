@@ -1,0 +1,56 @@
+# P6 Step 4 / P5 Step 1a (#390): read-only run of the Gate 14 article coherence judge over
+# published reviews, in budgeted slices. Uses the same fail-closed Groq judge as VID-QP.
+# QUOTA SAFETY: GROQ_API_KEY is shared with the VID-P4/VID-QP judges (fail closed). This job has a
+# hard per-run token budget (input token_budget, default 60,000, well under the free tier's daily
+# allowance), paces itself to half the per-minute rate, and stops at the first held reply
+# (429/quota/5xx) with no retry. So the article judge is always the one that stops first.
+# Writes nothing to the database. Budget (G2): manual dispatch; <= ~40 Groq calls per run.
+name: Article judge audit (read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      offset:
+        description: 'Start at this review (slug order); use next_offset from the previous run'
+        default: '0'
+      limit:
+        description: 'Max reviews to consider'
+        default: '1000'
+      token_budget:
+        description: 'Hard Groq token budget for this run'
+        default: '60000'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: article-judge-audit
+  cancel-in-progress: false
+
+jobs:
+  judge:
+    runs-on: ubuntu-latest
+    # No runs yet: ~35 calls paced ~25 s apart ~= 15 min. Resize after 3 runs.
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - run: pip install requests==2.32.3
+      - name: Judge
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          ARTICLE_JUDGE_OFFSET: ${{ inputs.offset }}
+          ARTICLE_JUDGE_LIMIT: ${{ inputs.limit }}
+          ARTICLE_JUDGE_TOKEN_BUDGET: ${{ inputs.token_budget }}
+          OUT_DIR: article-judge-out
+        run: python scripts/video/article_coherence.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: article-judge-${{ inputs.offset }}
+          path: article-judge-out/
+          retention-days: 30
