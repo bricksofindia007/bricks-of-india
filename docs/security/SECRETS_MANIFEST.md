@@ -1,6 +1,8 @@
 # Secrets manifest (FP3.6)
 
-**Names, locations, users and rotation only. Never values.** Created 28 Sep 2026 (P6 addendum item 10). Update it in the same commit as any secret that is added, moved, rotated or removed. The source of truth for GitHub is `gh secret list` / `gh variable list`; this file adds *who uses it* and *how it rotates*.
+**Names, locations, users and rotation only. Never values.** Created 28 Sep 2026 (P6 addendum item 10).
+
+**Machine-checked source of truth for GitHub Actions secrets:** `.github/secrets-manifest.json`. `scripts/audit-secrets-manifest.mjs` (in `code-audit.yml`) fails on any workflow/secret drift. It was resynced on 28 Sep (it had drifted on 20+ workflows). This file is the human companion: it covers what the JSON can't (local files, environment secrets, Cloudflare Worker secrets) plus rotation notes. Update both in the same commit when a secret is added, moved, rotated or removed.
 
 ## Local files on Abhinav's machine (never committed, never printed by the terminal)
 | File | Holds (key names only) | Used by | Rotation / notes |
@@ -29,14 +31,14 @@
 | `ELEVENLABS_API_KEY`, `ELEVENLABS_API_KEY_ASMR`, `ELEVENLABS_VOICE_ID` | video pipelines (TTS) | |
 | `IG_ACCESS_TOKEN`, `IG_USER_ID`, `FB_APP_ID`, `FB_APP_SECRET` | Instagram posting | `IG_ACCESS_TOKEN` is refreshed automatically by `ig-token-refresh.yml` (60-day long-lived token) |
 | `ADMIN_PAT` | `ig-token-refresh.yml` (writes `IG_ACCESS_TOKEN`) | fine-grained PAT, this repo, Secrets read/write. **Record its expiry date here when next rotated** |
-| `GH_DISPATCH_TOKEN` (GitHub secret, set 27 May 2026) | `brief.yml` (morning brief reads Actions state) | ⚠️ **Same name as the FP5.9 Worker secret, but a different token and a different store.** Proposal: rename this one to `BRIEF_GH_TOKEN` when next touched, to avoid confusion |
+| `GH_DISPATCH_TOKEN` (GitHub secret, set 27 May 2026) | `brief.yml` (morning brief reads Actions state) | Unrelated to FP5.9: the Worker's dispatcher secret is named `BOI_SCHEDULER_DISPATCH_TOKEN` (P7 item 8) |
 | `YOUTUBE_CLIENT_SECRETS` | YouTube upload | OAuth client JSON |
 | `NEXT_PUBLIC_GA_MEASUREMENT_ID`, `NEXT_PUBLIC_SITE_URL` | site build | not secret, stored as secrets |
-| `ADMIN_PASSWORD`, `GMAIL_APP_PASSWORD`, `GMAIL_USER`, `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID` | **no workflow references them (28 Sep grep)** | candidates for removal. GMAIL_* have been dead since the move to Resend; Netlify is on the free tier and unused by the Cloudflare deploy. `ADMIN_PASSWORD` is used by the site runtime (Cloudflare env), not Actions. **Abhinav decides** before any deletion |
+| `ADMIN_PASSWORD`, `GMAIL_APP_PASSWORD`, `GMAIL_USER`, `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID` | **no workflow references these GitHub secrets**, and no code in either repo reads them (28 Sep, P7 item 8) | **listed for Abhinav to delete** (see the 28 Sep log). `ADMIN_PASSWORD`'s *runtime* value lives in the Cloudflare Worker env (`src/app/admin/*` reads it there); only the GitHub copy is unused |
 
 ## Cloudflare Worker secrets (FP1.1 / FP5.9, PR 1; set by Abhinav, see #263)
 | Worker | Secret | Also in GitHub as | Rotation |
 |---|---|---|---|
 | `boi-scheduler` | `SNAPSHOT_HMAC_KEY` | `SNAPSHOT_HMAC_KEY` (same value) | generate a new one, set both in one step (commands in #263); old signatures stop verifying at once |
-| `boi-scheduler` | `GH_DISPATCH_TOKEN` (fine-grained PAT, this repo, Actions read/write; created 27 Sep with a 90-day expiry, **~26 Dec 2026**; recommend 366 days, plus a calendar reminder) | none | regenerate on GitHub → `wrangler secret put GH_DISPATCH_TOKEN --name boi-scheduler` |
+| `boi-scheduler` | **`BOI_SCHEDULER_DISPATCH_TOKEN`** (renamed 28 Sep, P7 item 8, so it can't be confused with the old `GH_DISPATCH_TOKEN` repo secret. Fine-grained PAT, this repo, Actions read/write; created 27 Sep with a 90-day expiry, **~26 Dec 2026**; recommend 366 days, plus a calendar reminder) | none | regenerate on GitHub → `npx wrangler secret put BOI_SCHEDULER_DISPATCH_TOKEN --name boi-scheduler` |
 | `boi-scheduler-staging` | `SNAPSHOT_HMAC_KEY` (a different value) | `SNAPSHOT_HMAC_KEY_STAGING` | as above. **Held** until the Sydney staging project exists (P5 decision 5) |
