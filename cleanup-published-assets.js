@@ -15,16 +15,13 @@ const AGE_GUARD = !process.argv.includes('--no-age-guard');
 const AGE_GUARD_HOURS = 72;
 const PAGE = 1000;
 
-// KNOWN GAP (found live 2026-08-14): a discarded/rejected row's posted_at is
-// never set -- it was never actually posted, so nothing ever populated that
-// column. Postgres/PostgREST's `<` never matches NULL, so under the default
-// age guard a discarded/rejected row is silently excluded forever, not just
-// delayed 72h -- it can only be reached via --no-age-guard. Left as-is
-// deliberately rather than silently substituting created_at as a fallback:
-// that's a real behavior decision for a human to make, not something to
-// guess at inside a cleanup script. Applies identically to both buckets
-// below (video_posts.discarded and quiet_panic_posts.discarded share the
-// same posted_at-never-set shape).
+// Discarded rows (#399, approved by Abhinav 27 Sep, P5): a discarded row is never
+// posted, so posted_at is NULL. It now ages from its last recorded activity
+// (latest of created_at / approved_at / ig_posted_at / yt_posted_at; there is no
+// discard timestamp) and is eligible after the same 72h guard. A discarded row
+// with no timestamp at all stays excluded (fail closed). 'rejected' is NOT a
+// terminal status and is never selected. Found live 2026-08-14 (the old gap:
+// NULL posted_at never passed the guard, so discarded assets stayed forever).
 const AGE_CUTOFF_ISO = new Date(Date.now() - AGE_GUARD_HOURS * 60 * 60 * 1000).toISOString();
 
 async function fetchAll(queryFn) {
@@ -89,7 +86,7 @@ async function collectSocialAssetsPaths() {
   const cutoff = AGE_GUARD ? AGE_CUTOFF_ISO : null;
 
   const posts = await fetchAll(() =>
-    supabase.from('video_posts').select('id, status, posted_at, storage_url, qc_frame_urls').order('id'));
+    supabase.from('video_posts').select('id, status, posted_at, created_at, approved_at, ig_posted_at, yt_posted_at, storage_url, qc_frame_urls').order('id'));
 
   const candidates = candidatePaths(posts, BUCKET, cutoff);
 
@@ -118,7 +115,7 @@ async function collectQuietPanicAssetsPaths() {
   const cutoff = AGE_GUARD ? AGE_CUTOFF_ISO : null;
 
   const posts = await fetchAll(() =>
-    supabase.from('quiet_panic_posts').select('id, status, posted_at, storage_url').order('id'));
+    supabase.from('quiet_panic_posts').select('id, status, posted_at, created_at, approved_at, ig_posted_at, yt_posted_at, storage_url').order('id'));
 
   return {
     bucket: BUCKET,
@@ -128,7 +125,7 @@ async function collectQuietPanicAssetsPaths() {
 
 async function processBucket(collectFn) {
   const { bucket, toDelete: paths, blocked } = await collectFn();
-  const guardNote = AGE_GUARD ? `age guard ON, posted_at < ${AGE_CUTOFF_ISO} (${AGE_GUARD_HOURS}h)` : 'age guard OFF (--no-age-guard)';
+  const guardNote = AGE_GUARD ? `age guard ON, posted_at (discarded: last activity) < ${AGE_CUTOFF_ISO} (${AGE_GUARD_HOURS}h)` : 'age guard OFF (--no-age-guard)';
   const mode = DRY_RUN ? '[DRY RUN]' : 'LIVE RUN';
   console.log(`\n=== ${bucket} ===`);
   console.log(`${mode} (${guardNote}) — ${paths.length} files targeted:`);

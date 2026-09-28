@@ -39,14 +39,27 @@ export function isTerminal(status) {
   return TERMINAL_STATUSES.includes(status);
 }
 
-// posted_at is compared as an ISO string, matching the previous PostgREST
-// `.lt('posted_at', cutoff)` semantics exactly -- including the known gap
-// that a NULL posted_at (discarded rows are never posted) never passes the
-// guard, so such rows are only reachable with the guard off.
+// The age guard's reference time. A posted row ages from posted_at (compared as
+// an ISO instant, matching the previous PostgREST `.lt('posted_at', cutoff)`).
+// A 'discarded' row is never posted, so posted_at is NULL (#399, found with QP
+// #38): it ages from its LAST RECORDED ACTIVITY -- the latest of created_at,
+// approved_at, ig_posted_at, yt_posted_at -- because no discard timestamp is
+// stored. A row with no usable timestamp at all never passes (fail closed, G14).
+const ACTIVITY_COLUMNS = ['created_at', 'approved_at', 'ig_posted_at', 'yt_posted_at'];
+
+export function ageReference(row) {
+  if (row.posted_at) return row.posted_at;
+  if (row.status !== 'discarded') return null;
+  const times = ACTIVITY_COLUMNS.map((c) => row[c]).filter(Boolean)
+    .map((t) => new Date(t).getTime()).filter(Number.isFinite);
+  return times.length ? new Date(Math.max(...times)).toISOString() : null;
+}
+
 export function passesAgeGuard(row, ageCutoffIso) {
   if (!ageCutoffIso) return true;
-  if (!row.posted_at) return false;
-  return new Date(row.posted_at).getTime() < new Date(ageCutoffIso).getTime();
+  const ref = ageReference(row);
+  if (!ref) return false;
+  return new Date(ref).getTime() < new Date(ageCutoffIso).getTime();
 }
 
 // Paths referenced by any non-terminal row. These are never deleted.
