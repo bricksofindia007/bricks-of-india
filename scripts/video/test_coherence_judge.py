@@ -93,8 +93,7 @@ class JudgeTests(unittest.TestCase):
         for rule in ('UNEXPLAINED NUMBER', 'WRONG SET OR PRICE', 'NO IDENTIFIABLE SET', 'CONTRADICTION'):
             self.assertIn(rule, p)
         self.assertIn('never a reason to fail', p)
-        self.assertTrue(p.endswith('SCRIPT:
-'))
+        self.assertTrue(p.endswith('SCRIPT:' + chr(10)))
         self.assertIn('piece count: not provided', cj.qp_judge_prompt('X', '1', None, None))
 
     def test_only_held_failures(self):
