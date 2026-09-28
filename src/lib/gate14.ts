@@ -64,7 +64,7 @@ function inrAllowed(v: number, f: Gate14Facts): boolean {
     if (Math.abs(v - Math.round(b * 0.12)) <= 2) return true;                // the saving itself
   }
   const mrps = f.mrp.filter((x) => x > 0);
-  for (const m of mrps) for (const p of f.prices) if (Math.abs(v - (m - p)) <= 2) return true; // "₹X below MRP"
+  for (const m of mrps) for (const p of f.prices) if (Math.abs(v - Math.abs(m - p)) <= 2) return true; // "₹X below/above MRP"
   return false;
 }
 
