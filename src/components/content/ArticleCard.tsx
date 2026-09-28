@@ -20,7 +20,7 @@ interface CardArticle {
   title: string;
   category: string;
   excerpt: string;
-  content: string;
+  content?: string | null; // optional: callers that don't fetch it get no reading time
   hero_image: string | null;
   published_at: string;
 }
@@ -67,7 +67,7 @@ export function ArticleCard({ article, type }: ArticleCardProps) {
         <p className="text-text-secondary text-sm line-clamp-2 mb-3 font-body">{stripMarkdown(article.excerpt)}</p>
         <div className="flex items-center justify-between text-xs text-text-secondary">
           <span>{formatDate(article.published_at)}</span>
-          <span>{readingTime(article.content)}</span>
+          {article.content ? <span>{readingTime(article.content)}</span> : null}
         </div>
       </div>
     </Link>
