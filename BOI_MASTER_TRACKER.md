@@ -1,5 +1,47 @@
 # BOI Master Tracker
 
+## P6 + P6 addendum — 2026-09-28
+
+Record: `docs/logs/cycle2/2026-09-28.md`.
+
+| Item | Issue / PR | Status |
+|---|---|---|
+| db-migrate job (only path for migrations + data fixes) | #403 / PR #404 | built and rehearsed on staging; **waiting for Abhinav's environment secrets** |
+| Related-news trim (−84% per render) | PR #405 | merged; deploy waiting for approval |
+| Set render census (94% unpriced long-tail crawl) + FP1.1 Amendment A1 | #406 merged; `82a1d4e` | A1 is in the design + ADR 0003, and is built in PR 2 |
+| #246 batch 1 rev 2 (12 reviews incl. T.3; catalogue 71819/40897) | #246 / draft PR #412 | **waiting for approval** (plus the Natural History Museum decision) |
+| Gate 14 article judge (budgeted) | PR #407 merged | slice 1: 35 judged / 15 incoherent; one slice a day |
+| Story numbering / #201 | #201 | **closed** (Story #76 approved 27 Sep 13:26) |
+| **T.8 VID #73 approval** | — | **DONE**: `approved` 26 Sep 09:01; queued behind #67–#72 (one post a day) |
+| /bot page (FP5.10) | PR #408 | merged; deploy waiting; 200 + sitemap check after the deploy |
+| QP #31–#34 (published while fail-open) | #365 | read-only: #31/#32/#34 INCOHERENT, #33 COHERENT; **Abhinav decides (G16)** |
+| FP5.8 retrofit | — | 2 cycles, 3 known diffs each; 0/12 toward the bar; bar needs a decision |
+| G4 leftovers | #410 | filed; gate: before any new retailer's shadow run |
+| FP1.4 R2 | #242 | storage 19.5 GB (>10), Class A projected 1.40M (>1M); recommend lifecycle 3 days + FP1.6 |
+| T.11 | #164 #205 #206 #207 #211 #212 #181 closed; #215 open | #215 waits for FP5.9 + FP6.1 |
+| T.3 Sea Serpent | #223 | match fixed 26 Sep (#225); verdict fix in batch 1 |
+| T.15 gemini branch | #367 | superseded by #146; **recommend close** |
+| Secrets manifest (FP3.6) | `docs/security/SECRETS_MANIFEST.md` | created; records staging.env.txt |
+
+### Standing list: assigned vs reported (kept at the end of every report)
+| Assigned in | Item | Reported? |
+|---|---|---|
+| P4 Step 1 | QP #35 posted once to both; #38 discarded; FP5.7 2nd cycle; #387 draft leaves the queue | ✅ ✅ ✅ · **#387: open**, reported after today's generate-drafts run (~13:45 UTC) |
+| P4 Step 5 / P5 Step 1 | Gate 14: judge (1a), prompt facts + shared regeneration + 0-value write-back (1b), limits (1c), enable for new drafts (1d) | 1a ✅ (audit running), 1c ✅ · **1b, 1d not started** |
+| P5 Step 2 | T.6 "Prices as of" template | queued after #398 (and after T.3, which is folded into batch 1) |
+| P5 Step 4 | FP2.3 repair + parity + pgpass | ✅ closed |
+| P5 Step 5 | PR 1 boi-scheduler + FP5.9 dispatcher; PR 2 publisher/reader/flags (+A1) | **not started**; Cloudflare list on #263 (Abhinav) |
+| P5 Step 6 / P6 Step 2 | egress split, trim, census, A1, lever | ✅ (lever: recommendation only) |
+| P5 decision 5 | Sydney staging rebuild + keep-alive + delete Singapore | waiting for Abhinav's project details |
+| P5 decision 6 | FP1.3 like-for-like CPU comparison | **open**: 24 h mark 28 Sep 16:33 UTC |
+| P5 decision 3 / #399 | first live cleanup under the new rule | **open**: after 29 Sep 09:01 UTC |
+| P6 Step 1 | db-migrate job | ✅ built (#404); secrets pending |
+| P6 Step 3 | batch 1 presentation + link scan + catalogue rule | ✅ (#246) |
+| P6 Step 4 | article judge, budgeted | ✅ (slices continue daily) |
+| P6 addendum 1–11 | reconciliation | ✅ all reported (log 28 Sep) |
+
+---
+
 ## P5 executed — 2026-09-28
 
 Record: `docs/logs/cycle2/2026-09-28.md`. **New guardrail G16** (published content is corrected, never removed) is in CLAUDE.md. Verified: since 24 Sep only the approved duplicates (#169, 11381, 75455; all 308 to live pages) and the heat map (307) were removed.
