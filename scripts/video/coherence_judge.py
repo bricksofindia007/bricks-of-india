@@ -52,10 +52,13 @@ def _held(reason: str) -> dict:
     }
 
 
-def judge_coherence(full_text: str, post=None, api_key: str | None = None, timeout: int = 30) -> dict:
+def judge_coherence(full_text: str, post=None, api_key: str | None = None, timeout: int = 30,
+                    prompt: str = JUDGE_PROMPT, max_tokens: int = 200) -> dict:
     """Returns a gate dict: {'pass': bool, 'detail': str} plus 'held': True
     when no real verdict was obtained. `post` is injectable for tests
-    (defaults to requests.post)."""
+    (defaults to requests.post). `prompt` lets the article judge (Gate 14,
+    scripts/article_coherence.py) reuse this exact fail-closed contract with
+    its own instructions; the default is the VID-QP script prompt."""
     key = (api_key if api_key is not None else os.environ.get('GROQ_API_KEY', '')).strip().lstrip('﻿')
     if not key:
         return _held('GROQ_API_KEY not set')
@@ -68,8 +71,8 @@ def judge_coherence(full_text: str, post=None, api_key: str | None = None, timeo
             headers={'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'},
             json={
                 'model': COHERENCE_JUDGE_MODEL,
-                'messages': [{'role': 'user', 'content': JUDGE_PROMPT + full_text}],
-                'max_tokens': 200,
+                'messages': [{'role': 'user', 'content': prompt + full_text}],
+                'max_tokens': max_tokens,
                 'temperature': 0.0,
                 'reasoning_effort': COHERENCE_JUDGE_REASONING_EFFORT,
             },

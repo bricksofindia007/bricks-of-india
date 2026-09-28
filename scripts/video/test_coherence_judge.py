@@ -76,6 +76,17 @@ class JudgeTests(unittest.TestCase):
             r = cj.judge_coherence('x', post=_post_returning(resp), api_key='k')
             self.assertEqual((r['pass'], r['held']), (False, True))
 
+    def test_custom_prompt_is_sent_and_contract_unchanged(self):
+        seen = []
+        r = cj.judge_coherence('BODY', post=_post_returning(_Resp(content='INCOHERENT: two verdicts'), seen),
+                               api_key='k', prompt='ARTICLE PROMPT: ', max_tokens=300)
+        self.assertEqual(seen[0]['messages'][0]['content'], 'ARTICLE PROMPT: BODY')
+        self.assertEqual(seen[0]['max_tokens'], 300)
+        self.assertFalse(r['pass'])
+        self.assertNotIn('held', r)
+        held = cj.judge_coherence('BODY', post=_post_returning(_Resp(status=429)), api_key='k', prompt='P')
+        self.assertTrue(held['held'])
+
     def test_only_held_failures(self):
         held = cj._held('x')
         ok = {'pass': True, 'detail': ''}
