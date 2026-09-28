@@ -16,7 +16,7 @@
 | `staging-migrations` *(to create, #404)* | `MIGRATE_DB_URL` | staging session-pooler URI as `postgres` | `db-migrate.yml` job 1 | set again after the Sydney rebuild; rotate with the staging DB password |
 | `production-migrations` *(to create, #404; required reviewer bricksofindia007)* | `MIGRATE_DB_URL` | production session-pooler URI as `postgres` (a dedicated migration role isn't possible on Supabase: `postgres` can't grant its own membership) | `db-migrate.yml` job 2 | rotate with the production DB password (Supabase → Database → Reset password), then update this secret only |
 
-## GitHub Actions: repository secrets (33, as of 28 Sep 2026)
+## GitHub Actions: repository secrets (28, as of 28 Sep 2026, after 5 unused ones were deleted)
 | Secret | Used by | Rotation / notes |
 |---|---|---|
 | `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | most pipelines and checks; site build | service key: rotate via Supabase API keys (JWT secret roll changes all). Read through `getSecret()` / `get_secret()` (BOM) |
@@ -34,7 +34,7 @@
 | `GH_DISPATCH_TOKEN` (GitHub secret, set 27 May 2026) | `brief.yml` (morning brief reads Actions state) | Unrelated to FP5.9: the Worker's dispatcher secret is named `BOI_SCHEDULER_DISPATCH_TOKEN` (P7 item 8) |
 | `YOUTUBE_CLIENT_SECRETS` | YouTube upload | OAuth client JSON |
 | `NEXT_PUBLIC_GA_MEASUREMENT_ID`, `NEXT_PUBLIC_SITE_URL` | site build | not secret, stored as secrets |
-| `ADMIN_PASSWORD`, `GMAIL_APP_PASSWORD`, `GMAIL_USER`, `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID` | **no workflow references these GitHub secrets**, and no code in either repo reads them (28 Sep, P7 item 8) | **listed for Abhinav to delete** (see the 28 Sep log). `ADMIN_PASSWORD`'s *runtime* value lives in the Cloudflare Worker env (`src/app/admin/*` reads it there); only the GitHub copy is unused |
+| ~~`ADMIN_PASSWORD`, `GMAIL_APP_PASSWORD`, `GMAIL_USER`, `NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`~~ | none | **Deleted 28 Sep 2026** (P8 item 8, `gh secret delete`). They were referenced by no workflow or code. `ADMIN_PASSWORD`'s runtime value still lives in the Cloudflare Worker env, which is unaffected |
 
 ## Cloudflare Worker secrets (FP1.1 / FP5.9, PR 1; set by Abhinav, see #263)
 | Worker | Secret | Also in GitHub as | Rotation |
