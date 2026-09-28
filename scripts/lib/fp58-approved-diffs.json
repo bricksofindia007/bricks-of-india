@@ -1,8 +1,0 @@
-{
-  "_comment": "FP5.8 retrofit bar (P7 item 5): the ONLY differences allowed between the FP5 contract and the legacy parser on the same feed. Approval record: docs/plans/FP5.8_retrofit_bar.md. Any other difference, or a missing one, resets the 12-cycle count. Keys are store:set:kind.",
-  "approved": [
-    "mybrickhouse:43019:only-legacy",
-    "toycra:42233:only-legacy",
-    "toycra:71051:only-legacy"
-  ]
-}
