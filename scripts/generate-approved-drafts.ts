@@ -26,6 +26,7 @@ import { passesAutoPublishGates } from '../src/lib/auto-publish-gate';
 import { publishOneDraft, PublishInsertError } from '../src/lib/publish-draft';
 import { buildRetailerSourcePriceContext } from '../src/lib/prompts/draft-prompt';
 import { STORE_DISPLAY_NAME } from './lib/reviews-source.mjs';
+import { loadRecentNews, cataloguedCandidates, decideSameSet, holdReason } from '../src/lib/same-set-guard';
 
 // ── CLI flags ─────────────────────────────────────────────────────────────────
 
@@ -352,7 +353,7 @@ if (IS_MAIN) (async () => {
 
   let q = sb
     .from('pending_drafts')
-    .select('id, source_url, source_title, source_excerpt, source_published_at, draft_format, draft_title, source_retailer, source_price_inr, source_stock_status, source_checked_at, opinion_forced_take, draft_category')
+    .select('id, source_url, source_title, source_excerpt, source_published_at, draft_format, draft_title, source_retailer, source_price_inr, source_stock_status, source_checked_at, opinion_forced_take, draft_category, approved_by, discard_reason')
     .eq('status', 'approved')
     .is('draft_body', null)
     .order('created_at', { ascending: true });
@@ -409,6 +410,13 @@ if (IS_MAIN) (async () => {
   // shipped in one batch precisely this way).
   const batchOpeners: string[] = [];
 
+  // #422 same-set repeat guard (src/lib/same-set-guard.ts): news already
+  // published about a set in the last 7 days (one query per run), plus sets
+  // published earlier in THIS run (the 40900 pair shipped 41 s apart).
+  const recentNews = await loadRecentNews(sb);
+  const batchSets = new Map<string, string>();
+  let heldSameSet = 0;
+
   for (let i = 0; i < queue.length; i++) {
     await acquireGeminiSlot();
 
@@ -417,6 +425,24 @@ if (IS_MAIN) (async () => {
     process.stdout.write(`[${i + 1}/${queue.length}] ${label}... `);
 
     try {
+      // #422: before drafting, so a repeat costs no model tokens.
+      const catalogued = await cataloguedCandidates(sb, draft);
+      const hit = decideSameSet(draft, catalogued, recentNews, batchSets);
+      if (hit) {
+        const { error: holdErr } = await sb.from('pending_drafts').update({
+          status: 'draft',
+          discard_reason: holdReason(hit).slice(0, 500),
+        }).eq('id', draft.id);
+        if (holdErr) {
+          console.error('[supabase-write] table=pending_drafts op=update(holdSameSet) error:', holdErr);
+          failed++;
+        } else {
+          heldSameSet++;
+        }
+        console.log(`HELD (same set ${hit.set_number}: ${hit.path}) -- back in /admin/pending`);
+        continue;
+      }
+
       const outcome = await generateBodyWithFailover(draft, batchOpeners);
 
       // Policy change 2026-06-28 (Abhinav, this session): "let review/opinion/
@@ -434,6 +460,7 @@ if (IS_MAIN) (async () => {
       if (!outcome.requiresManualApproval && passesAutoPublishGates(outcome)) {
         const { path, slug } = await autoPublish(draft, outcome);
         batchOpeners.push(outcome.body);
+        for (const set of catalogued) batchSets.set(set, `${path}/${slug}`);
         geminiAttempted++;
         if (outcome.failoverUsed) { fallbackAttempted++; fallbackOk++; } else { geminiOk++; }
         const failoverNote = outcome.failoverUsed ? ` [${outcome.provider.toUpperCase()} FAILOVER]` : '';
@@ -598,6 +625,7 @@ if (IS_MAIN) (async () => {
       // 'cerebras'); this is just the run-level rollup.
       fallback:    { attempted: fallbackAttempted, ok: fallbackOk, lint_failed: fallbackLintFailed },
       both_failed: bothFailed,
+      held_same_set: heldSameSet,  // #422
     };
     const { error: updateErr } = await sb
       .from('generator_runs')
@@ -619,7 +647,7 @@ if (IS_MAIN) (async () => {
   const total = geminiOk + fallbackOk;
   const lintFailed = geminiLintFailed + fallbackLintFailed;
   const dur   = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected+deleted (quality gates), ${bothFailed} rejected+deleted (both providers failed), ${failed} failed (retrying next run), ${publishRejected} rejected at insert (terminal), ${deferred} deferred of ${queue.length} — ${dur}s total`);
+  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected+deleted (quality gates), ${bothFailed} rejected+deleted (both providers failed), ${failed} failed (retrying next run), ${publishRejected} rejected at insert (terminal), ${deferred} deferred, ${heldSameSet} held (same set, #422) of ${queue.length} — ${dur}s total`);
 })().catch(err => {
   console.error('FATAL:', err);
   process.exit(1);
