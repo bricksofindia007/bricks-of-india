@@ -11,6 +11,10 @@ on:
       row_ids:
         description: 'Space-separated quiet_panic_posts ids'
         required: true
+      read_only:
+        description: 'Judge any status and write NOTHING (audit of already-published scripts)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -34,4 +38,5 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           ROW_IDS: ${{ inputs.row_ids }}
-        run: python rejudge_quiet_panic.py $ROW_IDS
+          READ_ONLY: ${{ inputs.read_only }}
+        run: python rejudge_quiet_panic.py $([ "$READ_ONLY" = "true" ] && echo --read-only) $ROW_IDS

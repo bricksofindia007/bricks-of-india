@@ -14,7 +14,11 @@ through on that pass. For each row id given:
   * fail or held (no verdict) -> status='publish_blocked', exactly like any
     other gate failure; publishing then needs gate_override + a reason.
 
-Usage: python rejudge_quiet_panic.py <row_id> [<row_id> ...]
+Usage: python rejudge_quiet_panic.py [--read-only] <row_id> [<row_id> ...]
+
+--read-only (P6 addendum item 4): judge rows in ANY status (including already
+published ones) and print the verdict. Writes NOTHING -- no gate_results, no
+status. Used to audit scripts published while the judge failed open.
 Env: SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GROQ_API_KEY.
 """
 
@@ -36,7 +40,7 @@ def _env(name: str) -> str:
     return (os.environ.get(name) or '').strip().lstrip('﻿')
 
 
-def main(ids: list[str]) -> int:
+def main(ids: list[str], read_only: bool = False) -> int:
     url, key = _env('SUPABASE_URL').rstrip('/'), _env('SUPABASE_SERVICE_ROLE_KEY')
     if not url or not key:
         print('ERROR: SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY not set', file=sys.stderr)
@@ -53,6 +57,11 @@ def main(ids: list[str]) -> int:
             print(f'{rid}: NOT FOUND'); rc = 1; continue
         row = rows[0]
         tag = f"QP #{row['sequence_number']} {row['set_number']} {row['set_title']}"
+        if read_only:
+            verdict = judge_coherence(row['script'] or '')
+            outcome = 'COHERENT' if verdict['pass'] else ('HELD (no verdict)' if verdict.get('held') else 'INCOHERENT')
+            print(f"{tag} [status={row['status']}, READ-ONLY, nothing written]: {outcome} | {verdict['detail'][:300]}")
+            continue
         if row['status'] not in ELIGIBLE:
             print(f'{tag}: status={row["status"]} -- not eligible, untouched'); continue
         verdict = judge_coherence(row['script'] or '')
@@ -74,6 +83,9 @@ def main(ids: list[str]) -> int:
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
+    args = sys.argv[1:]
+    ro = '--read-only' in args
+    ids = [a for a in args if a != '--read-only']
+    if not ids:
         print(__doc__); sys.exit(2)
-    sys.exit(main(sys.argv[1:]))
+    sys.exit(main(ids, read_only=ro))
