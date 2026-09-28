@@ -115,6 +115,34 @@ async function main() {
     report.sets_requests_top_ua_cache = d.viewer.zones[0].httpRequestsAdaptiveGroups.map((g) => ({ n: g.count, cache: g.dimensions.cacheStatus, ua: g.dimensions.userAgent.slice(0, 120) }));
   } catch (e) { report.sets_requests_top_ua_cache = `unavailable: ${e.message}`; }
 
+  // ── FP1.4 R2 usage (P6 addendum item 7): storage vs 10 GB, Class A/B ops since the billing-cycle
+  // start vs 1M/10M free, lifecycle rules, daily storage trend. Read-only; best effort per query.
+  const CYCLE_START = process.env.R2_CYCLE_START ?? '2026-09-09T00:00:00Z';
+  const CLASS_A = new Set(['ListBuckets', 'PutBucket', 'ListObjects', 'PutObject', 'CopyObject', 'CompleteMultipartUpload', 'CreateMultipartUpload', 'UploadPart', 'UploadPartCopy', 'ListMultipartUploads', 'ListParts', 'PutBucketEncryption', 'PutBucketCors', 'PutBucketLifecycleConfiguration', 'LifecycleStorageTierTransition']);
+  const CLASS_B = new Set(['HeadBucket', 'HeadObject', 'GetObject', 'UsageSummary', 'GetBucketEncryption', 'GetBucketLocation', 'GetBucketCors', 'GetBucketLifecycleConfiguration']);
+  try {
+    const d = await gql(`query($a:String!,$s:Time!,$e:Time!){viewer{accounts(filter:{accountTag:$a}){r2OperationsAdaptiveGroups(limit:1000,filter:{datetime_geq:$s,datetime_leq:$e}){sum{requests} dimensions{actionType bucketName}}}}}`,
+      { a: ACCOUNT, s: CYCLE_START, e: now });
+    const g = d.viewer.accounts[0].r2OperationsAdaptiveGroups;
+    const sum = (f) => g.filter(f).reduce((n, x) => n + x.sum.requests, 0);
+    const days = (Date.now() - Date.parse(CYCLE_START)) / 864e5;
+    const a = sum((x) => CLASS_A.has(x.dimensions.actionType)), b = sum((x) => CLASS_B.has(x.dimensions.actionType));
+    report.r2_ops_since_cycle_start = { cycle_start: CYCLE_START, days: +days.toFixed(2), class_a: a, class_b: b,
+      class_a_projected_30d: Math.round(a / days * 30), class_b_projected_30d: Math.round(b / days * 30),
+      class_a_this_bucket: sum((x) => CLASS_A.has(x.dimensions.actionType) && x.dimensions.bucketName === BUCKET),
+      by_bucket_action: Object.fromEntries(g.map((x) => [`${x.dimensions.bucketName}:${x.dimensions.actionType}`, x.sum.requests])) };
+  } catch (e) { report.r2_ops_since_cycle_start = `unavailable: ${e.message}`; }
+  try {
+    const d = await gql(`query($a:String!,$b:String!,$s:Time!,$e:Time!){viewer{accounts(filter:{accountTag:$a}){r2StorageAdaptiveGroups(limit:100,orderBy:[date_ASC],filter:{datetime_geq:$s,datetime_leq:$e,bucketName:$b}){max{payloadSize metadataSize objectCount} dimensions{date}}}}}`,
+      { a: ACCOUNT, b: BUCKET, s: new Date(Date.now() - 14 * 864e5).toISOString(), e: now });
+    report.r2_storage_daily = d.viewer.accounts[0].r2StorageAdaptiveGroups.map((x) => ({ date: x.dimensions.date, gb: +((x.max.payloadSize + x.max.metadataSize) / 1e9).toFixed(2), objects: x.max.objectCount }));
+  } catch (e) { report.r2_storage_daily = `unavailable: ${e.message}`; }
+  try {
+    const j = await (await fetch(`${CF}/accounts/${ACCOUNT}/r2/buckets/${BUCKET}/lifecycle`, { headers: H })).json();
+    report.r2_lifecycle = j.success ? j.result : `unavailable: ${JSON.stringify(j.errors).slice(0, 200)}`;
+  } catch (e) { report.r2_lifecycle = `unavailable: ${e.message}`; }
+  report.build_prefix_count = prefixes.length;
+
   fs.writeFileSync(`${OUT}/census.json`, JSON.stringify({ ...report, rendered_slugs: renderedSets.map((x) => x.slug).sort() }, null, 1));
   const lines = Object.entries(report).map(([k, v]) => `- ${k}: ${typeof v === 'object' ? '`' + JSON.stringify(v).slice(0, 1500) + '`' : v}`);
   console.log(lines.join('\n'));
