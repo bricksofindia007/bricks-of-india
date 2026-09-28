@@ -574,13 +574,12 @@
     "lastAuditDate": "2026-05-25",
     "nextAuditDate": "2026-06-25",
     "nextActions": [
-      "P5 Step 1: finish Gate 14 (PR #398): article coherence judge in Actions, catalogue facts in prompt, shared regeneration, 0-value write-back; enable for new drafts (Tier 2)",
-      "P5 Step 3: #246 batch 1 (top 10 by GA4, defects only per D13), for approval",
-      "P5 Step 4: FP2.3 precondition check, then metadata repair, ci_readonly parity check, delete pgpass.conf",
-      "P5 Step 5: FP1.1/FP5.9 PR 1 boi-scheduler (Cloudflare setup list to Abhinav before deploy), then PR 2",
-      "P5 Step 6: egress split by caller + sale projection (read-only report)",
-      "Waiting: QP #35 posts; FP5.7 second cycle; #387 draft leaves the queue",
-      "Abhinav: Brevo open-tracking pixel decision (FP7.1 #295); FP2.6 Drive OAuth + HDD backup before RC-1"
+      "Abhinav: approve #246 batch 1 (+ Tower Bridge/Gremlins verdicts, 3 catalogue conflicts)",
+      "Abhinav: egress emergency lever (set-page revalidate 6h -> 24h at 4.5 GB projected)? Cloudflare UA check on the /sets spike",
+      "Abhinav: Cloudflare list on #263 (KV IDs, secrets); new Sydney staging project details",
+      "Terminal: #399 first live cleanup after 29 Sep 09:01 (Tier 2); Gate 14 article judge + prompt facts (#398); PR 1 boi-scheduler build",
+      "Terminal: FP1.3 like-for-like CPU comparison after the 24h mark (16:33 UTC)",
+      "Future prod migrations need an approved access path (pgpass deleted)"
     ],
     "openManualChecks": [
       "Confirm Scrape Store Prices failure root cause and fix",
@@ -1996,7 +1995,7 @@
       "stage": "foundation",
       "planSection": "§6.2",
       "issue": 269,
-      "status": "D-8 0 diff; production metadata repair APPROVED (P5 Step 4) with precondition"
+      "status": "closed 28 Sep: baseline v4 applied (metadata), ci_readonly parity check nightly (#400); pgpass deleted"
     },
     {
       "planId": "FP2.4",
@@ -2044,7 +2043,7 @@
       "stage": "foundation",
       "planSection": "§6.2",
       "issue": 275,
-      "status": "open"
+      "status": "28 Sep: anon/authenticated writes revoked on 32 objects (staging then prod, #402)"
     },
     {
       "planId": "FP3.4",

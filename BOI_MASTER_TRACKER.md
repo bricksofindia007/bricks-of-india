@@ -1,5 +1,25 @@
 # BOI Master Tracker
 
+## P5 executed — 2026-09-28
+
+Record: `docs/logs/cycle2/2026-09-28.md`. **New guardrail G16** (published content is corrected, never removed) is in CLAUDE.md. Verified: since 24 Sep only the approved duplicates (#169, 11381, 75455; all 308 to live pages) and the heat map (307) were removed.
+
+| Plan ID | Issue | Status |
+|---|---|---|
+| FP2.3 | #269 | **closed 28 Sep:** baseline v4 merged (#375); prod history 73 → 5 rows (metadata only, 0 schema diff); `ci_readonly` + nightly parity check with drift self-test (#400) |
+| — | #197 | **closed 28 Sep** via FP2.3 |
+| FP3.3 | #275 | anon/authenticated writes revoked on 32 objects (staging then prod, PR #402); open for the negative-test suite |
+| — | #399 | fix in PR #401; first live cleanup (Tier 2) after 29 Sep 09:01 removes QP #38's file |
+| — | #246 | batch 1 for approval (10 reviews, 44 edits); nothing applied |
+| — | #390 | Gate 14 limits recorded (invented features, part claims, wrong links → human review) |
+| FP1.1 / FP5.9 | #263 / #288 | Cloudflare list posted; staging-side secrets held until the Sydney staging project exists |
+
+**Pending cleanup DONE:** `pgpass.conf` deleted 28 Sep ~04:05 (production psql now fails). **Consequence:** future production migrations need an approved path, either Abhinav re-issuing temporary access per migration, or a GitHub Actions migration job behind an environment approval (to propose).
+
+**Egress (P5 Step 6):** ~2.17 GB used; projection 3.2–4.36 GB incl. sale; B/C scenarios cross the 4.0 GB guard during the sale. Recommendations in the log.
+
+---
+
 ## P4 addendum 2 + Prescription P5 received — 2026-09-27 (evening)
 
 Record: `docs/logs/cycle2/2026-09-27.md` (section "P4 addendum 2 and P5").
@@ -56,7 +76,7 @@ Full day record with evidence: `docs/logs/cycle2/2026-09-27.md`. Plan now **v2.5
 | — | #388 | Article gates miss numeric/self-contradiction/verdict checks: open; 40897 + 21065 corrected |
 | — | #390 | Gate 14 design input (pieces=0, no article judge): open; linked on #246 |
 
-**Pending cleanup:** delete `%APPDATA%\postgresql\pgpass.conf` after the FP2.3 production repair (then add the ci_readonly parity check). Staging access for the terminal: `~/.boi-secrets/staging.env.txt` (Abhinav's file; never printed).
+**Pending cleanup (DONE 28 Sep):** `pgpass.conf` deleted after the FP2.3 repair; ci_readonly parity check added (#400). Staging access for the terminal: `~/.boi-secrets/staging.env.txt` (Abhinav's file; never printed).
 
 ---
 
