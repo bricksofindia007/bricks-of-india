@@ -33,6 +33,44 @@ The first five are the most price-volatile sets over 180 days, i.e. the worst ca
 - **Today's footprint:** ~1,047 sets in `set_price_summary` × ~1 KB ≈ **1 MB**.
 - **All ~26k catalogue sets:** < 30 MB. That's inside the 1 GB of KV storage the plan includes.
 
+## 1a. Amendment A1 (P6 Step 2c, 28 Sep 2026): an unpriced set renders with ZERO Supabase calls
+
+**Why (measured 28 Sep, read-only census, `set-render-census.yml` run 36377555382):**
+- In the ~11.9 h after the 16:33 deploy, **14,551 distinct set pages** re-rendered (of 26,080 in the catalogue). **13,713 of them (94.2%) have no retailer offers**; 838 are priced (of 1,162 priced sets).
+- `set_page_data` ran ~39.5k times/day overnight (27–28 Sep), ~73% of all API requests.
+- **Every deploy starts a new ISR/data-cache prefix** (43 build prefixes in R2), so each deploy re-renders every crawled page from Supabase.
+- The original design still called `set_page_data` for catalogue fields on every set page, so it would have kept ~94% of these calls.
+
+**New keys** (same namespace, written by the same publisher through `boi-scheduler`):
+
+| Key | Value | Written |
+|---|---|---|
+| `list:priced-sets:v1` | `{v, cycle_id, sets: {set_number: {best, stores_enabled}}, checksum}`: every set with ≥ 1 enabled offer and its best price (~1.2k entries, ~25 KB) | Every cycle, before `meta:heartbeat` |
+| `cat:{set_num}:v1` | `{v, set, name, image, pieces, minifigs, year, theme, mrp, coverage, related[≤8]{set, name, image}, checksum}`: everything the page shows except offers (~0.8–1.5 KB) | Backfill of all ~26k sets once (≈ 26k writes, one-off), then only sets whose catalogue row changed (`sets.updated_at` > last run) |
+
+**Reader rule (set pages):**
+1. Read `meta:heartbeat` (cached for the render) and `list:priced-sets:v1` (cached ≤ 60 s per isolate).
+2. **Fresh heartbeat** (publisher finished ≤ 12 h ago), **set absent from `list:priced-sets`**, and a valid `cat:{n}` → render the "no Indian retailer lists this set" state with **no Supabase call**. Related cards take their price, if any, from `list:priced-sets`.
+3. Set **in** `list:priced-sets` → `cat:{n}` plus `set:{n}` (both KV). Prices older than 12 h show their age and drop badges (PRICE_STALE_HOURS, G14).
+4. **Any** of these → today's `set_page_data` path, logged as `snapshot_fallback{reason}`:
+   - heartbeat stale (so pricedness is unknown);
+   - `list:priced-sets` or `cat:{n}` missing or bad checksum;
+   - version mismatch.
+
+   Absence from the list is only trusted while the heartbeat is fresh: a stale list could hide a set that just gained an offer.
+
+**Effect:**
+- Unpriced renders (~94% of set renders) stop touching Supabase, **including right after a deploy**. KV isn't per-build, unlike the ISR and data caches.
+- At last night's rate that removes ~37k calls/day, ≈ 100 MB/day of egress.
+- KV reads: ~2 per render (list cached per isolate, plus `cat`, plus `set` when priced) ≈ 80k/day ≈ 2.4M/month, inside the 10M included.
+- Writes: the one-off 26k backfill, then tens per cycle.
+
+**Parity (§4) is extended:**
+- 50 random `cat:{n}` entries per cycle are compared field by field with `set_page_data`.
+- `list:priced-sets` must equal the set of `set_price_summary` rows with an enabled offer, exactly.
+
+**PR 2 builds A1.** The parity clock covers the new keys too.
+
 ## 2. Write path: recommendation (1)
 
 | | (1) Publisher → small Worker endpoint with a KV **binding**, HMAC-signed | (2) GitHub job writes KV with a Cloudflare API token |
@@ -55,7 +93,7 @@ The first five are the most price-volatile sets over 180 days, i.e. the worst ca
 4. **If Supabase also fails:** serve the cached ISR page with its real "Updated X ago" (client-computed age already exists).
 
 **Routes that switch (flag `snapshot_read`):**
-- `/sets/[slug]`: offers, anchor, badge, tie list, history, JSON-LD. The page's *catalogue* fields (name, image, coverage) still come from `set_page_data` until FP1.5.
+- `/sets/[slug]`: offers, anchor, badge, tie list, history, JSON-LD, **and (Amendment A1) the catalogue fields from `cat:{n}:v1`**, so an unpriced set with a fresh heartbeat renders with no Supabase call at all (§1a).
 - `/deals` (`list:deals:v1`).
 - The homepage deal list, deal count and stat counts (`list:home:v1`).
 
