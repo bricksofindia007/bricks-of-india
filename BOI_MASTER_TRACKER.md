@@ -11,10 +11,13 @@
 | 14 db-migrate job | #404 `a96cf60` | merged · envs `staging-migrations` / `production-migrations` (main only; reviewer bricksofindia007) · staging `MIGRATE_DB_URL` set · first staging plan **refused** (G7) on #418's hand-applied versions | production `MIGRATE_DB_URL` ("migrate secrets set"), then plan → apply |
 | #418 alias + dead-role NOLOGIN | #418 → `feat/db-migrate-job` (stacked, wrong base); re-landed #438 `c1edbd7` | merged to main · **not applied** in production (NOLOGIN applies with the first production run, no hold) | first production db-migrate run |
 | #412 batch 1 / #425 PR 2 | #412, #425 | **open**, retargeted to `main` (their stacked bases had merged) | #412: job; #425: #263 secrets |
-| 15 boi-scheduler | #423 `c692ba2`, #437 `14e32b9` (Node 22) | merged · staging Worker **deployed + live-verified** (`/health` 200, unsigned `/publish` 401) · production run 36528301953 **waiting** at the `production` gate | your approval in the UI, then the #263 secrets |
+| 15 boi-scheduler | #423 `c692ba2`, #437 `14e32b9` (Node 22) | merged · staging + **production deployed, live-verified** inert/fail-closed (`/health` 200 target=production, unsigned `/publish` 401; crons `0 */6`, `5 */6`) | your #263 secrets |
 | 3a build vs approval | — | reconciled: run 36330670886 built 16:30:32 UTC *after* approval; scrape 16:32:40–16:33:48 landed after the prerender, so 11:34 data was the newest available. No 3c change | — |
-| 3b stale badges (>12h) hidden in the browser | #439 `91943a4` | merged · **not deployed** | next site deploy, then live check (a 13h-old price shows no badge) |
+| 3b stale badges (>12h) hidden in the browser | #439 `91943a4` | merged · deployed (run 36603721411) · **live-verified**: /sets/71848 Hot deal 1 → 0 and /deals Hot deal 102 / Deal 14 / Only at 116 → 0 with the browser clock +13h | — |
 | 4 code audit | #440 `65f0c82` | merged · **live-verified**: code-audit run 36599652612 all green (tsc 0 errors, npm audit = X.4 accepted only, secrets manifest pass) · `tsc` now in the required `snapshot-tests` | — |
+| 40900 A → C 308 | #428 `83cd0de` | deployed (run 36603721411) · **live-verified** 308 A → C; C and B 200 · data fix **not applied** | production db-migrate (connection, below) |
+| R2 prune first live run | #420 `6f4744a` | deployed · **ran** (apply): 46 builds, kept current + previous, 44 prune rules; storage_before 22.86 GB / 708,077 objects | lifecycle expiry (~1 day), then an `r2-prune-dry-run` read for storage_after |
+| db-migrate production | #441, #442 `6e71cdd` | staging plan PASS; production plan run 36603763525 **failed**: `FATAL: password authentication failed for user "postgres"` (pooler reached, password rejected) | a correct production DB password (file was removed after the secret was set) |
 
 ## P11 — 2026-09-29 (ledger states: merged / deployed / live-verified / open)
 
