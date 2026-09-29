@@ -1,0 +1,53 @@
+# boi-scheduler Worker deploy (FP1.1 PR 1 + FP5.9, P5 Step 5). Separate from the site deploy:
+# it doesn't count against the 1-site-deploy-a-day rule or the 5-11 Oct freeze.
+# Staging first, then production (production waits for the `production` environment approval).
+# Until Abhinav's KV namespace IDs are in workers/boi-scheduler/wrangler.jsonc (#263) the deploy fails
+# on the placeholder IDs -- the intended inert state.
+# Budget (G2): manual dispatch only.
+name: Deploy boi-scheduler
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'staging first, then production'
+        type: choice
+        options: [staging, production]
+        default: staging
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-scheduler
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.target == 'production' && 'production' || 'staging-scheduler' }}
+    # No runs yet: npm ci + a small wrangler deploy is ~2 min. Resize after 3 runs.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - run: npm ci
+      - run: npx vitest run tests/boi-scheduler.test.ts
+      - name: Refuse placeholder KV IDs
+        run: |
+          if grep -q "REPLACE_WITH_" workers/boi-scheduler/wrangler.jsonc; then
+            echo "::error::KV namespace IDs are still placeholders (#263). Nothing deployed."; exit 1; fi
+      - name: wrangler deploy (${{ inputs.target }})
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler deploy --config workers/boi-scheduler/wrangler.jsonc ${{ inputs.target == 'staging' && '--env staging' || '' }}
+      - name: Health check
+        run: |
+          sleep 5
+          sub=${{ inputs.target == 'staging' && 'boi-scheduler-staging' || 'boi-scheduler' }}
+          echo "Check https://$sub.<account-subdomain>.workers.dev/health (subdomain printed by wrangler above)"
