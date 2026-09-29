@@ -19,6 +19,11 @@
 //   verdict    exactly one verdict line, equal to reviews.verdict
 //   leak       narrated source ("the reviewer", "the source", "according to
 //              the article", "they also note") is not our editorial voice
+//   gwp        (P10 item 4) a gift-with-purchase set, or one with no retail
+//              price anywhere, gets NO price claim: any sentence with a ₹/$/£/€
+//              figure must say it's not sold separately, or be a plain spend-
+//              threshold statement ("free with orders over US$100"). An
+//              "import price" or "estimated" figure is never allowed for it.
 
 export type Gate14Facts = {
   setNumber: string;
@@ -30,8 +35,11 @@ export type Gate14Facts = {
   mrp: number[];               // anchor MRP and/or catalogue MRP
   verdict: string | null;      // reviews.verdict
   otherSetNumbers?: Set<string>;
+  // P10 item 4: sets.is_gwp, Brickset availability "LEGO Gift with Purchase",
+  // or no retail price anywhere (no store row, no MRP, no LEGO.com price).
+  promotional?: boolean;
 };
-export type Gate14Finding = { rule: 'pieces' | 'minifigs' | 'year' | 'inr' | 'foreign' | 'verdict' | 'leak'; detail: string; sentence: string };
+export type Gate14Finding = { rule: 'pieces' | 'minifigs' | 'year' | 'inr' | 'foreign' | 'verdict' | 'leak' | 'gwp'; detail: string; sentence: string };
 
 const sentences = (t: string) => t.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter(Boolean);
 const num = (s: string) => Number(s.replace(/,/g, ''));
@@ -68,8 +76,35 @@ function inrAllowed(v: number, f: Gate14Facts): boolean {
   return false;
 }
 
+// P10 item 4: price claims about a gift-with-purchase set.
+const MONEY_RE = /(?:₹|US\$|\$|£|€|USD\s?|GBP\s?|EUR\s?)\s?\d/;
+const NOT_SOLD = /not (?:sold|available) separately|isn['’]t sold separately|no retail price/i;
+const THRESHOLD = /\b(threshold|spend\w*|qualifying|minimum|requirement|free with|orders? (?:of|over|above|totall?ing|exceeding)|purchases? (?:of|over|above|totall?ing|exceeding))\b/i;
+const PRICE_WORDS = /\b(import(?:ed)? price|estimated (?:import )?(?:price|cost)|retail price|priced at|price tag|costs?|price of|worth|mrp|when imported)\b/i;
+const SET_NO = /\b\d{4,7}\b/g;
+/**
+ * Sentences that state a price for a GWP set. With setNumber: only sentences naming it.
+ * Without: every sentence, except those that name only OTHER set numbers (e.g. the parent
+ * retail set's own price) -- pass `about` = the GWP set numbers the text is about.
+ */
+export function gwpPriceClaims(body: string, setNumber?: string, about: string[] = []): string[] {
+  const named = (s: string) => [...s.matchAll(SET_NO)].map((m) => m[0]).filter((n) => !/^(19|20)\d\d$/.test(n));
+  return sentences(body).filter((s) => {
+    if (setNumber && !new RegExp(`(?:^|\\D)${setNumber}(?:\\D|$)`).test(s)) return false;
+    if (!setNumber && about.length) {
+      const ns = named(s);
+      if (ns.length && !ns.some((n) => about.includes(n))) return false;  // about another (retail) set
+    }
+    if (!MONEY_RE.test(s) || NOT_SOLD.test(s)) return false;
+    if (THRESHOLD.test(s) && !PRICE_WORDS.test(s)) return false;  // a spend requirement, not its price
+    return true;
+  });
+}
+
 export function gate14Check(body: string, f: Gate14Facts): Gate14Finding[] {
   const out: Gate14Finding[] = [];
+  const gwpClaims = f.promotional ? new Set(gwpPriceClaims(body, undefined, [f.setNumber])) : new Set<string>();
+  for (const s of gwpClaims) out.push({ rule: 'gwp', detail: `${f.setNumber} is a gift with purchase / has no retail price: no price claim; say it isn't sold separately`, sentence: s });
   const others = f.otherSetNumbers ?? new Set<string>();
   for (const s of sentences(body)) {
     const mentionsOther = [...s.matchAll(/\b\d{4,6}\b/g)].some((x) => x[0] !== f.setNumber && others.has(x[0]));
@@ -95,6 +130,7 @@ export function gate14Check(body: string, f: Gate14Facts): Gate14Finding[] {
     if (f.year && RELEASE_RE.test(s) && !comparison && !/\b(original|first|since|back in|anniversary|retir)/i.test(s)) {
       for (const y of s.match(/\b(19[5-9]\d|20[0-3]\d)\b/g) ?? []) if (Number(y) !== f.year) out.push({ rule: 'year', detail: `mentions ${y}; catalogue ${f.year}`, sentence: s });
     }
+    if (gwpClaims.has(s)) { if (LEAK_RE.test(s)) out.push({ rule: 'leak', detail: `narrated source: "${s.match(LEAK_RE)![0]}"`, sentence: s }); continue; }
     const named = NAMED_SOURCE.test(s);
     if (FOREIGN_RE.test(s) && !named) out.push({ rule: 'foreign', detail: 'foreign-currency price without a named source', sentence: s });
     if (/\b(import|estimat)/i.test(s) && /₹/.test(s) && !named) out.push({ rule: 'foreign', detail: '"import/estimated" ₹ price without a named source', sentence: s });
