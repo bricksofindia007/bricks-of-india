@@ -5,6 +5,11 @@ import { supabase } from '@/lib/supabase';
 import { ReviewCard } from '@/components/content/ArticleCard';
 import { MASCOTS } from '@/lib/brand';
 
+// P10 revalidate audit (29 Sep): this route had no revalidate of its own and was either built
+// once per deploy (its data froze between deploys) or refreshed only as a side effect of a shared
+// read. Its cadence is now explicit and checked in CI.
+export const revalidate = 3600; // = READ_REVALIDATE_SECONDS (src/lib/route-cadence.ts; segment config must be a literal)
+
 export const metadata: Metadata = buildMetadata({
   title: 'LEGO Reviews India — Honest Verdicts',
   description: 'Honest, opinionated LEGO set reviews for Indian buyers. We tell you exactly what to buy and what to skip. No corporate speak. No fence-sitting.',

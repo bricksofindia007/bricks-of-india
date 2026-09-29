@@ -5,6 +5,11 @@ import { createServerClient } from '@/lib/supabase';
 import { CmfTracker } from './CmfTracker';
 import { getStores, storeLabels } from '@/lib/stores';
 
+// P10 revalidate audit (29 Sep): this route had no revalidate of its own and was either built
+// once per deploy (its data froze between deploys) or refreshed only as a side effect of a shared
+// read. Its cadence is now explicit and checked in CI.
+export const revalidate = 3600; // = READ_REVALIDATE_SECONDS (src/lib/route-cadence.ts; segment config must be a literal)
+
 export const metadata: Metadata = buildMetadata({
   title: 'CMF Tracker — The Lab',
   description: 'Browse every LEGO Collectible Minifigures series from 2010–2026 and track which figures you own.',
