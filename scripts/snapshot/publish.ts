@@ -364,7 +364,7 @@ async function catBackfill() {
   const cmd = process.argv[2];
   const out = cmd === 'cycle' ? await cycle(process.argv.includes('--parity'))
     : cmd === 'cat-backfill' ? await catBackfill()
-    : cmd === 'parity' ? await parity(db())
+    : cmd === 'parity' ? await parity(db(), clean(process.env.PARITY_EXTRA).split(',').filter(Boolean))  // PARITY_EXTRA: drill sets always checked
     : (() => { throw new Error('usage: publish.ts cycle [--parity] | cat-backfill | parity'); })();
   const text = JSON.stringify(out, null, 1);
   console.log(text);
