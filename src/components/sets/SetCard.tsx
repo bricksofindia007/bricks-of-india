@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { formatPrice, slugify } from '@/lib/utils';
 import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/Badge';
 import { SetImage } from '@/components/sets/SetImage';
+import { FreshOnly } from '@/components/ui/FreshOnly';
 import type { LegoSet } from '@/lib/supabase';
 import { priceLabel, storeName, type SetPriceSummary } from '@/lib/price-summary';
 
@@ -63,13 +64,19 @@ export function SetCard({ set, bestPrice, priceCount, summary }: SetCardProps) {
             {shownPrice ? (
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  {label?.kind === 'best' && <BestPriceBadge />}
-                  {label?.kind === 'only' && <OnlyAtBadge store={storeName(label.stores[0])} />}
+                  <FreshOnly scrapedAt={summary?.best_scraped_at}>
+                    {label?.kind === 'best' && <BestPriceBadge />}
+                    {label?.kind === 'only' && <OnlyAtBadge store={storeName(label.stores[0])} />}
+                  </FreshOnly>
                   <span className={`font-price font-bold text-sm ${freshPrice ? 'text-deal-green' : 'text-dark'}`}>
                     {formatPrice(shownPrice)}
                   </span>
                 </div>
-                {summary?.deal_tier && <DealBadge tier={summary.deal_tier} pct={summary.discount_pct} />}
+                {summary?.deal_tier && (
+                  <FreshOnly scrapedAt={summary.best_scraped_at}>
+                    <DealBadge tier={summary.deal_tier} pct={summary.discount_pct} />
+                  </FreshOnly>
+                )}
               </div>
             ) : mrp ? (
               <span className="font-price text-sm text-dark font-bold">
