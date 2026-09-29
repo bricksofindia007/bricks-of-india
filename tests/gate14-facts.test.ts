@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { resolveGate14Facts, catalogueFactsPrompt, gate14Feedback, isUnverifiableOnly, writeBackPieces } from '../src/lib/gate14-facts';
-import { gate14Check } from '../src/lib/gate14';
+import { gate14Check, gwpPriceClaims } from '../src/lib/gate14';
 
 // Minimal Supabase fake: each table returns canned data; update() records its call.
 function fakeSb(tables: Record<string, unknown>, updateError: { code?: string; message: string } | null = null) {
@@ -24,13 +24,44 @@ function fakeSb(tables: Record<string, unknown>, updateError: { code?: string; m
 const okJson = (body: unknown) => Promise.resolve({ ok: true, json: () => Promise.resolve(body) });
 
 describe('Gate 14 step 1b: facts, prompt, feedback, write-back (#398)', () => {
-  it('uses the catalogue first and makes no API call when it has the facts', async () => {
+  it('uses the catalogue first: no Rebrickable call; one Brickset call (availability for the GWP rule)', async () => {
     const { sb } = fakeSb({ sets: { set_number: '10305', name: "Lion Knights' Castle", pieces: 4514, minifigs: 22, year: 2022, lego_mrp_inr: 34999 }, store_prices: [{ price_inr: 32999 }], set_price_summary: { anchor_mrp_inr: 34999 } });
-    let calls = 0;
-    const r = await resolveGate14Facts(sb, '10305', { fetch: () => { calls++; return okJson({}); }, rebrickableKey: 'k', bricksetKey: 'k' });
-    expect(calls).toBe(0);
-    expect(r!.facts).toMatchObject({ pieces: 4514, minifigs: 22, year: 2022, prices: [32999], mrp: [34999, 34999] });
+    const hosts: string[] = [];
+    const r = await resolveGate14Facts(sb, '10305', { fetch: (u) => { hosts.push(new URL(u).host); return okJson({ status: 'success', sets: [{ pieces: 1, minifigs: 1, availability: 'LEGO exclusive', LEGOCom: { US: { retailPrice: 399.99 } } }] }); }, rebrickableKey: 'k', bricksetKey: 'k' });
+    expect(hosts).toEqual(['brickset.com']);
+    expect(r!.facts).toMatchObject({ pieces: 4514, minifigs: 22, year: 2022, prices: [32999], mrp: [34999, 34999], promotional: false });
     expect(r!.piecesSource).toBe('sets');
+  });
+
+  it('P10 GWP: promotional from the catalogue flag, from Brickset, or from no retail price anywhere', async () => {
+    const bs = (availability: string, US?: number) => () => okJson({ status: 'success', sets: [{ pieces: 218, availability, LEGOCom: US ? { US: { retailPrice: US } } : {} }] });
+    const row = (extra = {}) => fakeSb({ sets: { set_number: '40900', name: 'Scary Haunted Tree', pieces: 218, minifigs: 0, year: 2026, lego_mrp_inr: null, ...extra }, store_prices: [], set_price_summary: null }).sb;
+    expect((await resolveGate14Facts(row({ is_gwp: true }), '40900', {}))!.facts.promotional).toBe(true);
+    expect((await resolveGate14Facts(row(), '40900', { fetch: bs('LEGO Gift with Purchase'), bricksetKey: 'k' }))!.facts.promotional).toBe(true);
+    expect((await resolveGate14Facts(row(), '40900', { fetch: bs('Retail'), bricksetKey: 'k' }))!.facts.promotional).toBe(true);   // no price anywhere
+    expect((await resolveGate14Facts(row(), '40900', { fetch: bs('Retail', 19.99), bricksetKey: 'k' }))!.facts.promotional).toBe(false);
+    expect((await resolveGate14Facts(row(), '40900', {}))!.facts.promotional).toBe(false);   // Brickset unknown: that arm unused
+  });
+
+  it('P10 GWP: price claims fail; "not sold separately" and plain spend thresholds pass; prompt says so', () => {
+    const f = { setNumber: '40900', name: 'Scary Haunted Tree', pieces: 218, minifigs: 0, year: 2026, prices: [], mrp: [], verdict: 'IMPORT ONLY', promotional: true };
+    const bad = 'The estimated import price is ₹12,600.\nBased on a US price of $24.99, it lands around ₹3,400.\nVerdict: IMPORT ONLY';
+    const findings = gate14Check(bad, f);
+    expect(findings.filter((x) => x.rule === 'gwp')).toHaveLength(2);
+    expect(findings.some((x) => x.rule === 'inr' || x.rule === 'foreign')).toBe(false);   // reported once, as gwp
+    const good = "40900 is a gift with purchase: it isn't sold separately, so it has no retail price.\n"
+      + 'Reports put the threshold at around US$100 / £90 / €100 on LEGO.com.\nUse code ABHINAV12 for 12% off on orders above ₹500 at Toycra.\nVerdict: IMPORT ONLY';
+    expect(gate14Check(good, f).filter((x) => x.rule === 'gwp')).toEqual([]);
+    expect(gate14Check('A threshold of $100 is worth ₹8,400 in import terms.', f).map((x) => x.rule)).toContain('gwp');
+    expect(gate14Check(bad, { ...f, promotional: false }).some((x) => x.rule === 'gwp')).toBe(false);
+    expect(catalogueFactsPrompt(f)).toMatch(/GIFT WITH PURCHASE \/ NO RETAIL PRICE: 40900 is not sold separately/);
+    expect(catalogueFactsPrompt({ ...f, promotional: false })).not.toMatch(/GIFT WITH PURCHASE/);
+  });
+
+  it('P10 GWP scan helper: only sentences naming the set when a set number is given', () => {
+    const body = 'The 10305 castle costs ₹34,999. The free 40900 tree is priced at ₹3,400.';
+    expect(gwpPriceClaims(body, '40900')).toEqual(['The free 40900 tree is priced at ₹3,400.']);
+    expect(gwpPriceClaims(body)).toHaveLength(2);
   });
 
   it('falls back to Rebrickable for pieces and Brickset for minifigs when the catalogue has 0', async () => {
@@ -70,7 +101,7 @@ describe('Gate 14 step 1b: facts, prompt, feedback, write-back (#398)', () => {
   });
 
   it('write-back: only for a 0/NULL catalogue count, guarded in SQL, with a dated source', async () => {
-    const base = { facts: { setNumber: '71819', name: 'X', pieces: 1212, minifigs: null, year: null, prices: [], mrp: [], verdict: null }, minifigsSource: null } as const;
+    const base = { facts: { setNumber: '71819', name: 'X', pieces: 1212, minifigs: null, year: null, prices: [] as number[], mrp: [] as number[], verdict: null }, minifigsSource: null };
     const had = fakeSb({});
     expect(await writeBackPieces(had.sb, { ...base, piecesSource: 'sets', catalogueHadPieces: true })).toBe('not-needed');
     expect(had.calls.length).toBe(0);

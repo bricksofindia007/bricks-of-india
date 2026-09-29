@@ -36,6 +36,11 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      # P11 item 5: a backspace or other control byte in a script/SQL/config file (the heredoc
+      # escaping bug, twice) fails the build. No dependencies needed.
+      - name: No control characters in tracked text files
+        run: node scripts/ci/check-control-chars.mjs
+
       - run: npm ci
 
       - name: Review/aggregateRating schema integrity check (GSC-01)

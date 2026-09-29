@@ -19,6 +19,15 @@ const nextConfig = {
         destination: '/compare',
         permanent: true,
       },
+      // #422 (G16 merge of a true duplicate, signed off by Abhinav): the 22 Sep
+      // 40900 reveal and the 28 Sep one are the same news; the 28 Sep page
+      // survives (corrected) and the 22 Sep URL 308s to it. This must be live
+      // BEFORE supabase/data-fixes/422-40900-merge.sql removes the old row.
+      {
+        source: '/news/lego-40900-scary-haunted-tree-gwp-revealed-halloween-2026',
+        destination: '/news/lego-creator-40900-scary-haunted-tree-revealed-as-new-gift-w',
+        permanent: true,
+      },
       // Nav & Content Overhaul, 2026-08-09 -- Blog/Opinion retired as
       // standalone sections; blog_posts rows migrated into guides (non-
       // Opinion categories) and news_articles (Opinion, category='Opinion').

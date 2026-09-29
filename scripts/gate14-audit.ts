@@ -133,7 +133,7 @@ const writeCache = (f: string, d: unknown) => fs.writeFileSync(path.join(CACHE, 
       const t = m[1].replace(/^"|"$/g, '').match(/^(?:LEGO )?(.*?) Review — Is It Worth Buying in India\?/);
       if (t) views.set(t[1].toLowerCase(), (views.get(t[1].toLowerCase()) ?? 0) + Number(m[2]));
     }
-    const nameOf = (f: any) => (/^lego/i.test(f.setName ?? f.title) ? (f.setName ?? f.title).replace(/^lego\s+/i, '') : (f.setName ?? f.title)).toLowerCase();
+    const nameOf = (f: any) => (/^lego\b/i.test(f.setName ?? f.title) ? (f.setName ?? f.title).replace(/^lego\s+/i, '') : (f.setName ?? f.title)).toLowerCase();
     const bySet = new Map<string, number>(); for (const f of flagged) bySet.set(nameOf(f), (bySet.get(nameOf(f)) ?? 0) + 1);
     for (const f of flagged) { f.ga4Views = views.get(nameOf(f)) ?? 0; f.ga4SharedTitle = (bySet.get(nameOf(f)) ?? 0) > 1; }
     flagged.sort((a, b) => b.ga4Views - a.ga4Views || b.findings.length - a.findings.length || a.slug.localeCompare(b.slug));
