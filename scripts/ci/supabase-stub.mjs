@@ -22,7 +22,7 @@
 // the best in-stock price the page displays. Fixture set numbers (99xxx)
 // don't exist in the real catalogue.
 import http from 'node:http';
-import { setPageData } from './jsonld-price-fixtures.mjs';
+import { setPageData, fixtureStorePrices, fixtureSummary } from './jsonld-price-fixtures.mjs';
 
 const STORES_FIXTURE = [
   { id: 'mybrickhouse', name: 'MyBrickHouse', site_url: 'https://lego.mybrickhouse.com', display_order: 10, affiliate_note: null, price_precision: 0 },
@@ -54,6 +54,28 @@ http.createServer((req, res) => {
   // Serve the two production rows so fixture set pages render store rows.
   if (req.method === 'GET' && req.url?.startsWith('/rest/v1/stores')) {
     return json(200, STORES_FIXTURE, { 'Content-Range': `0-${STORES_FIXTURE.length - 1}/*` });
+  }
+  // P10 revalidate audit: one content row per detail route, so the audit can
+  // render /news|/reviews|/guides|/community/ci-fixture and read its revalidate.
+  const content = req.method === 'GET' && /^\/rest\/v1\/(news_articles|reviews|guides|community_spotlights)\?/.exec(req.url ?? '');
+  if (content && new URL(req.url, 'http://x').searchParams.get('slug') === 'eq.ci-fixture' && accept.includes('application/vnd.pgrst.object+json')) {
+    return json(200, {
+      id: '00000000-0000-0000-0000-000000000001', slug: 'ci-fixture', title: 'CI fixture article', content: 'CI fixture body.',
+      excerpt: 'CI fixture excerpt for the revalidate audit.', published_at: '2026-09-01T00:00:00Z', created_at: '2026-09-01T00:00:00Z',
+      updated_at: '2026-09-01T00:00:00Z', category: 'News', hero_image: null, featured_image_url: null, seo_title: 'CI fixture article',
+      seo_description: 'CI fixture excerpt for the revalidate audit.', verdict: null, rating: null, set_id: null, set_number: null,
+      sets: null, author: null, youtube_url: null, tags: [], image_url: null, source_url: null, name: 'CI fixture',
+    });
+  }
+  // P10: the set page's separate 6 h offers read, for fixture sets.
+  const fx = req.method === 'GET' && /^\/rest\/v1\/(store_prices|set_price_summary)\?/.exec(req.url ?? '');
+  if (fx) {
+    const setId = new URL(req.url, 'http://x').searchParams.get('set_id')?.replace(/^eq\./, '');
+    if (fx[1] === 'store_prices' && fixtureStorePrices(setId)) return json(200, fixtureStorePrices(setId));
+    if (fx[1] === 'set_price_summary' && fixtureSummary(setId)) {
+      const s = fixtureSummary(setId);
+      return accept.includes('application/vnd.pgrst.object+json') ? json(200, s) : json(200, [s]);
+    }
   }
   if (req.url?.startsWith('/rest/v1/rpc/')) return json(200, null);
   if (accept.includes('application/vnd.pgrst.object+json')) {

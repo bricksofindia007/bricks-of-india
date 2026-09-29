@@ -291,7 +291,13 @@ const nextConfig = {
     ],
   },
   async headers() {
-    return [
+    // Revalidate audit (P10, scripts/ci/revalidate-audit.mjs): with
+    // REVALIDATE_AUDIT=1 the fixed Cache-Control hints below are dropped, so a
+    // response carries Next's own s-maxage = the route's EFFECTIVE revalidate
+    // (the lowest of its segment config and every data read in the render).
+    // Never set in production.
+    const audit = process.env.REVALIDATE_AUDIT === '1';
+    const rules = [
       // Security headers — all routes
       {
         source: '/(.*)',
@@ -390,6 +396,9 @@ const nextConfig = {
         ],
       },
     ];
+    return audit
+      ? rules.map((r) => ({ ...r, headers: r.headers.filter((h) => h.key !== 'Cache-Control') })).filter((r) => r.headers.length)
+      : rules;
   },
 };
 
