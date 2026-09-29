@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-// @ts-expect-error -- plain .mjs module
 import { planRules } from '../scripts/ci/r2-prune-builds.mjs';
 
 describe('R2 prune (P8 item 6)', () => {

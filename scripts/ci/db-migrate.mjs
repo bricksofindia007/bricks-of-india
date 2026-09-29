@@ -29,6 +29,7 @@ export const FIXES_DIR = 'supabase/data-fixes';
 export const BACKUP_RETENTION_DAYS = 30;
 
 export function parseHeader(sql) {
+  /** @type {{ issue: number | null, backupTables: string[], expectBefore: { sql: string, count: number } | null, expectAfter: { sql: string, count: number } | null }} */
   const h = { issue: null, backupTables: [], expectBefore: null, expectAfter: null };
   for (const line of sql.split(/\r?\n/)) {
     if (!line.startsWith('--')) { if (line.trim() === '') continue; break; }

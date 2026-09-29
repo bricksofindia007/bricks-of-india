@@ -1,5 +1,4 @@
 import { describe, it, expect } from 'vitest';
-// @ts-expect-error -- plain .mjs module
 import { parseHeader, lintFile, plan, stripDollarQuoted, backupName } from '../scripts/ci/db-migrate.mjs';
 
 const FIX = `-- boi:issue 246
@@ -15,7 +14,7 @@ describe('db-migrate (P6 Step 1, #403)', () => {
     expect(h.issue).toBe(246);
     expect(h.backupTables).toEqual(['public.reviews']);
     expect(h.expectBefore).toEqual({ sql: "select count(*) from public.reviews where slug in ('a','b')", count: 2 });
-    expect(h.expectAfter.count).toBe(2);
+    expect(h.expectAfter?.count).toBe(2);
   });
   it('accepts a well-formed data fix', () => {
     expect(lintFile('fix', '246-batch1.sql', FIX)).toEqual([]);
