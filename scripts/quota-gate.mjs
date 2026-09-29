@@ -23,10 +23,13 @@ const job = arg('--job') ?? 'unknown-job';
 const needs = (arg('--needs') ?? 'read').split(',').map((s) => s.trim()).filter(Boolean);
 const clean = (v) => (v ?? '').replace(/^﻿/, '').trim();
 
-function output(proceed) {
+function output(proceed, why = '') {
   const f = process.env.GITHUB_OUTPUT;
   if (f) appendFileSync(f, `proceed=${proceed}\n`);
   console.log(`[quota-gate] ${job}: proceed=${proceed}`);
+  // P12 (d): a paused run still ends green, so put the reason on the run
+  // summary page as an annotation instead of only in the step log.
+  if (!proceed) console.log(`::warning title=Quota gate paused ${job}::${why || 'see gate log'}`);
 }
 
 async function dispatchCleanup() {
@@ -74,10 +77,16 @@ async function main() {
     (usage.simulated ? '\n\nThis reading is SIMULATED (BOI_QUOTA_SIMULATE) -- a proof run, not a real breach.' : ''),
   ).catch((e) => console.error('[quota-gate] alert send failed:', e?.message ?? e));
   if (cleanup) console.log(`[quota-gate] ${cleanup}`);
-  return output(false);
+  return output(false, blocked.map(([n, d]) => `${n}: ${d.detail}`).join('; '));
 }
 
-main().catch((e) => {
-  console.error('[quota-gate] gate crashed -> fail closed:', e?.message ?? e);
-  output(false);
+main().catch(async (e) => {
+  // P12 (d): this path used to fail closed with no alert -- a silent skip.
+  const msg = e?.message ?? String(e);
+  console.error('[quota-gate] gate crashed -> fail closed:', msg);
+  await sendAlert(
+    `🚨 BOI quota gate crashed, paused ${job}`,
+    `${job} did not run: the FP6.4 quota gate crashed and failed closed.\nError: ${msg}`,
+  ).catch((err) => console.error('[quota-gate] alert send failed:', err?.message ?? err));
+  output(false, `gate crashed: ${msg}`);
 });

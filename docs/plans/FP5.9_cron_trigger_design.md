@@ -18,6 +18,15 @@
 - **Registry-driven:** the retailer list is read from `stores` (enabled scrapers only) via the publisher's cached copy in KV, so adding a retailer needs no Worker redeploy. Initially it's the static list above.
 - **Heartbeat (G13):** each dispatch writes `meta:dispatch:{store}` = `{slot, dispatched_at, http_status}`; each scrape run writes its own finish time. That gives lag per dispatch without GitHub API reads.
 
+## Video publish pollers (P12, Abhinav, 29 Sep 2026)
+GitHub fires the `*/15` VID-P4 poller cron only 4–8 times a day. On 28 Sep no tick landed in the 19:30–23:59 IST slot and #67 wasn't posted (P12 item 0, #436). Once the dispatcher is live, boi-scheduler also dispatches the video pollers at their slot, so posting doesn't depend on GitHub cron luck:
+- **VID-P4:** `video-publish-poller.yml` at 19:30 IST daily (`0 14 * * *` UTC), plus one backup dispatch at 21:30 IST (`0 16 * * *`).
+- **VID-QP:** `video-publish-poller-quiet-panic.yml` at its slot, 00:00 IST Mon/Wed/Fri (`30 18 * * SUN,TUE,THU` UTC; Cloudflare accepts day names, which avoids numbering ambiguity), plus one backup 2 h later.
+- The pollers' own cadence code still decides whether to post: one post per IST day, in queue order, and the 07:00 IST catch-up after a missed slot. A duplicate or backup dispatch is therefore a recorded `skipped` row, never a second post.
+- The GitHub `schedule:` crons stay as a fallback.
+- Heartbeat: `meta:dispatch:vidp4` / `meta:dispatch:vidqp`, same shape as the store dispatches. Failures go to `meta:dispatch_fail`.
+- Budget: +2/day (VID-P4) and +6/week (VID-QP) Worker cron invocations and GitHub dispatches.
+
 ## Measurement (acceptance)
 - **Lag** = scrape run `run_started_at` − the cron slot, over **≥ 12 dispatches** (3 days × 4 slots) for each retailer.
 - **Pass:** median < 10 min, max < 30 min, and 0 missed slots. It's reported in the tracker, with the baseline above (median ~3h55) side by side.

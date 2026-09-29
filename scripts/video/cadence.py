@@ -40,11 +40,21 @@ class Pipeline:
     order_column: str            # queue order -- story_number / sequence_number
     slot_weekdays: frozenset     # IST weekdays (Mon=0) that have a slot
     slot_start_ist: tuple        # (hour, minute) IST the slot opens
+    # (hour, minute) IST the slot opens instead on the day after a missed
+    # slot, or None for no catch-up. See slot_status().
+    catchup_start_ist: tuple | None = None
 
 
+# P12 (2026-09-29): GitHub fires the */15 poller cron only 4-8 times a day,
+# usually once inside 19:30-23:59 IST. On 28 Sep no tick landed there (17:07
+# IST, then 00:16 IST the next day), so the day's post was lost and #67 sat.
+# After a missed day the slot opens at 07:00 IST instead, so any daytime tick
+# recovers it. Still one post per IST day, in queue order -- the catch-up post
+# IS that day's post, never an extra one.
 VIDP4 = Pipeline(
     key='vidp4', label='VID-P4', table='video_posts', order_column='story_number',
     slot_weekdays=frozenset(range(7)), slot_start_ist=(19, 30),
+    catchup_start_ist=(7, 0),
 )
 
 # VID-QP slot days are Mon/Wed/Fri (Abhinav, 2026-09-24). No time-of-day was
@@ -70,8 +80,8 @@ def ist_day_bounds_utc(day: date) -> tuple[datetime, datetime]:
     return start, start + timedelta(days=1)
 
 
-def slot_start_utc(p: Pipeline, day: date) -> datetime:
-    h, m = p.slot_start_ist
+def slot_start_utc(p: Pipeline, day: date, catchup: bool = False) -> datetime:
+    h, m = p.catchup_start_ist if (catchup and p.catchup_start_ist) else p.slot_start_ist
     return datetime.combine(day, time(h, m), tzinfo=timezone.utc) - IST_OFFSET
 
 
@@ -79,16 +89,20 @@ def is_slot_day(p: Pipeline, day: date) -> bool:
     return day.weekday() in p.slot_weekdays
 
 
-def slot_status(p: Pipeline, now_utc: datetime) -> tuple[bool, str]:
-    """(open, reason). Open = today (IST) is a slot day and the slot has started."""
+def slot_status(p: Pipeline, now_utc: datetime, catchup: bool = False) -> tuple[bool, str]:
+    """(open, reason). Open = today (IST) is a slot day and the slot has started.
+    catchup=True (the previous slot was missed, see catchup_due) opens it at
+    catchup_start_ist instead of slot_start_ist."""
     day = ist_date(now_utc)
     if not is_slot_day(p, day):
         return False, f'{p.label}: {day:%a %Y-%m-%d} is not a slot day (slot days: {_weekday_names(p)})'
-    if now_utc < slot_start_utc(p, day):
+    catchup = catchup and p.catchup_start_ist is not None
+    kind = 'catch-up slot' if catchup else 'slot'
+    if now_utc < slot_start_utc(p, day, catchup):
         now_ist = now_utc + IST_OFFSET
-        h, m = p.slot_start_ist
-        return False, f'{p.label}: before slot ({h:02d}:{m:02d} IST) -- current IST {now_ist:%H:%M}'
-    return True, f'{p.label}: slot open for {day:%a %Y-%m-%d}'
+        h, m = p.catchup_start_ist if catchup else p.slot_start_ist
+        return False, f'{p.label}: before {kind} ({h:02d}:{m:02d} IST) -- current IST {now_ist:%H:%M}'
+    return True, f'{p.label}: {kind} open for {day:%a %Y-%m-%d}'
 
 
 def _weekday_names(p: Pipeline) -> str:
@@ -171,6 +185,50 @@ def anything_posted_on(sb, p: Pipeline, day: date) -> str | None:
     return None
 
 
+def catchup_due(sb, p: Pipeline, now_utc: datetime, head_row: dict | None) -> bool:
+    """True when today's slot should open at catchup_start_ist: the previous
+    IST day was a slot day, nothing went live on it, and head_row (the next
+    approved row) was already waiting before that slot opened -- the same
+    test the missed-slot watchdog uses to call a slot missed."""
+    if p.catchup_start_ist is None or not head_row:
+        return False
+    yesterday = ist_date(now_utc) - timedelta(days=1)
+    if not is_slot_day(p, yesterday):
+        return False
+    if not row_was_waiting_before(head_row, slot_start_utc(p, yesterday)):
+        return False
+    return anything_posted_on(sb, p, yesterday) is None
+
+
+def record_skip(sb, p: Pipeline, row: dict | None, reason: str) -> None:
+    """P12 (c): every poller run that decides not to post writes one
+    publish_attempts row saying why -- no silent skips. row = the queue head
+    (None when nothing is queued). Never raises.
+
+    kind='skipped' needs migration 20260929060000 (the kind CHECK), which
+    lands through the db-migrate job. Until it is applied, the insert is
+    rejected by the CHECK and the skip is recorded as kind='publish',
+    outcome='deferred', detail 'skipped: <reason>' instead, so skips are
+    never lost in between. The watchdog reads both forms."""
+    base = {
+        'pipeline': p.key,
+        'row_id': (row or {}).get('id'),
+        'row_number': (row or {}).get(p.order_column),
+        'outcome': 'deferred',
+    }
+    try:
+        sb.table('publish_attempts').insert({**base, 'kind': 'skipped', 'detail': reason[:2000]}).execute()
+        return
+    except Exception as exc:  # noqa: BLE001
+        if 'publish_attempts_kind_check' not in str(exc):
+            print(f'[cadence] WARN: could not record skip: {exc}', file=sys.stderr)
+            return
+    try:
+        sb.table('publish_attempts').insert({**base, 'kind': 'publish', 'detail': f'skipped: {reason}'[:2000]}).execute()
+    except Exception as exc:  # noqa: BLE001
+        print(f'[cadence] WARN: could not record skip (fallback form): {exc}', file=sys.stderr)
+
+
 def record_attempt(sb, p: Pipeline, row: dict | None, kind: str, outcome: str,
                    platform: str | None = None, detail: str | None = None) -> None:
     """Append one publish_attempts row. Never raises -- recording is an audit
@@ -246,7 +304,7 @@ def check_missed_slot(sb, p: Pipeline, now_utc: datetime, send_alert) -> dict:
 
     attempts = (
         sb.table('publish_attempts').select('row_id, row_number, kind, platform, outcome, detail, attempted_at')
-        .eq('pipeline', p.key).in_('kind', ['publish', 'retry'])
+        .eq('pipeline', p.key).in_('kind', ['publish', 'retry', 'skipped'])
         .gte('attempted_at', day_start.isoformat()).lt('attempted_at', day_end.isoformat())
         .order('attempted_at').execute().data or []
     )

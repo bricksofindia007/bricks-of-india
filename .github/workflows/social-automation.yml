@@ -6,9 +6,10 @@ on:
   workflow_dispatch:         # Manual trigger for testing
 
 jobs:
-  # FP6.4 quota gate (P4 Step 2): non-essential workflow -- pauses when a
-  # Free-plan guard is closed (storage >= 800 MB / DB >= 400 MB / egress
-  # projected >= 4.0 GB) or usage is unreadable. See quota-gate.yml.
+  # FP6.4 quota gate, narrowed P12 (29 Sep 2026, Abhinav): publishing is
+  # essential, so only the storage-upload guard (>= 800 MB) can pause this
+  # job -- it uploads the image to Storage before posting (IG needs a public
+  # URL). DB size and egress never pause it. See quota-gate.yml.
   quota-gate:
     uses: ./.github/workflows/quota-gate.yml
     permissions:
@@ -16,7 +17,7 @@ jobs:
       actions: write
     with:
       job: social-automation
-      needs: 'read,write,upload'
+      needs: 'upload'
     secrets: inherit
 
   post:

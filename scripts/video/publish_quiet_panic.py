@@ -474,23 +474,28 @@ def poll_and_publish() -> int:
     now_utc = datetime.now(timezone.utc)
     today = cadence.ist_date(now_utc)
 
+    approved_res = sb.table('quiet_panic_posts').select('*').eq('status', 'approved').order('sequence_number').execute()
+    approved_rows = approved_res.data
+    head = approved_rows[0] if approved_rows else None
+
+    # P12 (c): every exit below that doesn't post records why
+    # (publish_attempts kind='skipped'). No silent skips.
+    def skip(reason: str) -> int:
+        print(f'[publish_quiet_panic] {reason}. Nothing to do this tick.')
+        cadence.record_skip(sb, cadence.VIDQP, head, reason)
+        return 0
+
     slot_open, slot_reason = cadence.slot_status(cadence.VIDQP, now_utc)
     if not slot_open:
-        print(f'[publish_quiet_panic] {slot_reason}. Nothing to do this tick.')
-        return 0
+        return skip(f'{slot_reason}; {len(approved_rows)} approved row(s) waiting')
 
     already_posted_id = cadence.anything_posted_on(sb, cadence.VIDQP, today)
     if already_posted_id:
-        print(f'[publish_quiet_panic] Already published today (IST): quiet_panic_posts {already_posted_id}. '
-              f'Holding all approved rows for the next slot (daily cap={DAILY_CAP}).')
-        return 0
-
-    approved_res = sb.table('quiet_panic_posts').select('*').eq('status', 'approved').order('sequence_number').execute()
-    approved_rows = approved_res.data
+        return skip(f'VID-QP: already published today (IST): quiet_panic_posts {already_posted_id}; '
+                    f'{len(approved_rows)} approved row(s) held for the next slot (daily cap={DAILY_CAP})')
 
     if not approved_rows:
-        print('[publish_quiet_panic] No approved rows found. Nothing to publish.')
-        return 0
+        return skip('VID-QP: no approved rows queued')
 
     print(f'[publish_quiet_panic] Found {len(approved_rows)} approved row(s) queued; publishing at most {DAILY_CAP} this run.')
     exit_code = 0
@@ -577,6 +582,9 @@ def retry_missing_platforms_all(sb) -> bool:
     slot_open, slot_reason = cadence.slot_status(cadence.VIDQP, now_utc)
     if not slot_open:
         print(f'[publish_quiet_panic] retry_missing_platforms_all: {len(stuck_rows)} row(s) waiting, deferred -- {slot_reason}.')
+        for post in stuck_rows:  # P12 (c): no silent skips
+            missing = 'yt' if post['status'] == 'posted_ig' else 'ig'
+            cadence.record_attempt(sb, cadence.VIDQP, post, 'retry', 'deferred', platform=missing, detail=slot_reason)
         return True
 
     print(f'[publish_quiet_panic] retry_missing_platforms_all: {len(stuck_rows)} row(s) with a missing platform.')
