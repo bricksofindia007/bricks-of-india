@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-// @ts-expect-error -- plain .mjs module
 import { compareParity, repoVersions, versionOf } from '../scripts/ci/migration-parity.mjs';
 
 const V = ['20260927140000', '20260927150105', '20260927152208'];

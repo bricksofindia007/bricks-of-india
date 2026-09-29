@@ -247,3 +247,9 @@ jobs:
 
       - name: Run prompt snapshot tests
         run: npm test
+
+      # P12 4a: the same type check the weekly code-audit runs, now in this
+      # REQUIRED per-PR job, so a type error can't reach main and surface
+      # only on the next weekly audit (28 Sep run: 1 error; 4 by 29 Sep).
+      - name: TypeScript type check
+        run: npx tsc --noEmit
