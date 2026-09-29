@@ -24,6 +24,11 @@ on:
         type: choice
         options: [plan, apply]
         default: plan
+      scope:
+        description: 'all = migrations + data fixes; migrations = migrations only, fixes stay pending (P12)'
+        type: choice
+        options: [all, migrations]
+        default: all
 
 permissions:
   contents: read
@@ -50,6 +55,7 @@ jobs:
         env:
           TARGET: staging
           MODE: ${{ inputs.mode }}
+          SCOPE: ${{ inputs.scope }}
           DATABASE_URL: ${{ secrets.MIGRATE_DB_URL }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUT_DIR: db-migrate-out
@@ -76,6 +82,7 @@ jobs:
         env:
           TARGET: production
           MODE: ${{ inputs.mode }}
+          SCOPE: ${{ inputs.scope }}
           DATABASE_URL: ${{ secrets.MIGRATE_DB_URL }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUT_DIR: db-migrate-out
