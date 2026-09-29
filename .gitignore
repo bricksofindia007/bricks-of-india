@@ -58,3 +58,6 @@ social-automation/__pycache__/
 audit-block1.log
 diagnostics/
 scripts/test-env.mjs
+
+# Wrangler local dev secrets (never committed)
+.dev.vars
