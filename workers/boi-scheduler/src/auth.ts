@@ -37,11 +37,9 @@ function timingSafeEqualHex(a: string, b: string): boolean {
 }
 
 export type Write = { key: string; value: unknown };
-export type Verdict = { ok: true; writes: Write[] } | { ok: false; reason: string };
 
-/** Everything except the nonce-reuse check (which needs storage): header shape, clock skew,
- *  signature, body size, JSON shape, key prefixes, per-value size. */
-export async function verifyAndParse(opts: { key: string | undefined; ts: string | null; nonce: string | null; sig: string | null; body: string; nowS: number }): Promise<Verdict> {
+/** Header shape, clock skew, body size and signature (shared by /publish and /read). */
+async function checkSigned(opts: { key: string | undefined; ts: string | null; nonce: string | null; sig: string | null; body: string; nowS: number }): Promise<{ ok: true } | { ok: false; reason: string }> {
   const { key, ts, nonce, sig, body, nowS } = opts;
   if (!key || key.length < 32) return { ok: false, reason: 'no signing key configured' };
   if (!ts || !/^\d{9,11}$/.test(ts)) return { ok: false, reason: 'bad timestamp' };
@@ -50,6 +48,33 @@ export async function verifyAndParse(opts: { key: string | undefined; ts: string
   if (!sig || !/^[0-9a-f]{64}$/.test(sig)) return { ok: false, reason: 'bad signature format' };
   if (enc.encode(body).length > MAX_BODY_BYTES) return { ok: false, reason: 'body too large' };
   if (!timingSafeEqualHex(await sign(key, ts, nonce, body), sig)) return { ok: false, reason: 'signature mismatch' };
+  return { ok: true };
+}
+export type Verdict = { ok: true; writes: Write[] } | { ok: false; reason: string };
+
+type SignedOpts = { key: string | undefined; ts: string | null; nonce: string | null; sig: string | null; body: string; nowS: number };
+
+// PR 2: POST /read, signed like /publish, for the parity job (FP1.1 §4). Read-only; at most
+// MAX_READS snapshot keys per call; the Worker's own keys (nonces etc.) can't be read.
+export const MAX_READS = 100;
+export type ReadVerdict = { ok: true; keys: string[] } | { ok: false; reason: string };
+export async function verifyRead(opts: SignedOpts): Promise<ReadVerdict> {
+  const c = await checkSigned(opts);
+  if (!c.ok) return c;
+  let parsed: any;
+  try { parsed = JSON.parse(opts.body); } catch { return { ok: false, reason: 'body is not JSON' }; }
+  const keys = parsed?.keys;
+  if (!Array.isArray(keys) || keys.length === 0 || keys.length > MAX_READS) return { ok: false, reason: 'bad key list' };
+  for (const k of keys) if (typeof k !== 'string' || !KEY_RE.test(k) || RESERVED_RE.test(k)) return { ok: false, reason: `key not allowed: ${String(k).slice(0, 60)}` };
+  return { ok: true, keys };
+}
+
+/** Everything except the nonce-reuse check (which needs storage): header shape, clock skew,
+ *  signature, body size, JSON shape, key prefixes, per-value size. */
+export async function verifyAndParse(opts: SignedOpts): Promise<Verdict> {
+  const c = await checkSigned(opts);
+  if (!c.ok) return c;
+  const { body } = opts;
   let parsed: any;
   try { parsed = JSON.parse(body); } catch { return { ok: false, reason: 'body is not JSON' }; }
   const writes = parsed?.writes;

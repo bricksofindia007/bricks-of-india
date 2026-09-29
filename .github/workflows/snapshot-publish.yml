@@ -1,0 +1,98 @@
+name: snapshot-publish
+
+# FP1.1 PR 2 (design docs/plans/FP1.1_snapshot_design.md; FP1.6 §3 for revalidation).
+# After each price scrape: publish set:/cat:/list: snapshots and meta:heartbeat through
+# boi-scheduler's signed /publish, then the parity check (§4).
+#
+# INERT until Abhinav's Cloudflare items (#263) exist: with no SNAPSHOT_HMAC_KEY secret or
+# BOI_SCHEDULER_URL variable, the job logs a notice and exits 0. Publishing never changes
+# what the site shows: pages read snapshots only when the KV flag snapshot_read is ON, which
+# is a separate Tier 2 flip after Abhinav signs off the parity evidence (P9 item 1e).
+#
+# Failure behaviour (G14): a failed publish exits non-zero BEFORE meta:heartbeat is written,
+# so readers keep the previous snapshot by its own age and fall back once it's > 12 h old.
+# A parity mismatch alerts through Check 11's sender and restarts the parity streak.
+
+on:
+  workflow_run:
+    workflows: ['Scrape Store Prices']
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'cycle (with parity) | cat-backfill (one-off) | parity'
+        required: true
+        default: 'cycle'
+        type: choice
+        options: [cycle, cat-backfill, parity]
+      cat_offset:
+        description: 'cat-backfill only: resume from this offset'
+        required: false
+        default: '0'
+      cat_backfill_started:
+        description: 'cat-backfill resume only: the original run''s start time (ISO)'
+        required: false
+        default: ''
+
+concurrency:
+  group: snapshot-publish
+  cancel-in-progress: false
+
+jobs:
+  # FP6.4 quota gate: parity is non-essential; if the gate is closed the heartbeat simply
+  # ages and pages fall back to Supabase, which is today's behaviour.
+  quota-gate:
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    uses: ./.github/workflows/quota-gate.yml
+    permissions:
+      contents: read
+      actions: write
+    with:
+      job: snapshot-publish
+      needs: 'read'
+    secrets: inherit
+
+  publish:
+    needs: [quota-gate]
+    if: needs.quota-gate.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    # Rehearsal on staging data (29 Sep): a cycle with parity took well under a minute; the
+    # one-off cat backfill (26k set_page_data reads) is the long case. Sized for the backfill.
+    timeout-minutes: 90
+    env:
+      NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      SNAPSHOT_HMAC_KEY:         ${{ secrets.SNAPSHOT_HMAC_KEY }}
+      SITE_REVALIDATE_HMAC_KEY:  ${{ secrets.SITE_REVALIDATE_HMAC_KEY }}
+      BOI_SCHEDULER_URL:         ${{ vars.BOI_SCHEDULER_URL }}
+      SITE_URL:                  https://bricksofindia.com
+      SNAPSHOT_TARGET:           production
+      RESEND_API_KEY:            ${{ secrets.RESEND_API_KEY }}
+      BRIEF_EMAIL:               ${{ secrets.BRIEF_EMAIL }}
+      CAT_OFFSET:                ${{ inputs.cat_offset }}
+      CAT_BACKFILL_STARTED:      ${{ inputs.cat_backfill_started }}
+    steps:
+      - name: Inert until #263
+        id: ready
+        run: |
+          if [ -z "$SNAPSHOT_HMAC_KEY" ] || [ -z "$BOI_SCHEDULER_URL" ]; then
+            echo "::notice::snapshot publisher inert: SNAPSHOT_HMAC_KEY secret / BOI_SCHEDULER_URL variable not set yet (#263)"
+            echo "go=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "go=true" >> "$GITHUB_OUTPUT"
+          fi
+      - uses: actions/checkout@v4
+        if: steps.ready.outputs.go == 'true'
+      - uses: actions/setup-node@v4
+        if: steps.ready.outputs.go == 'true'
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        if: steps.ready.outputs.go == 'true'
+      - name: Publish
+        if: steps.ready.outputs.go == 'true'
+        run: |
+          MODE="${{ inputs.mode || 'cycle' }}"
+          if [ "$MODE" = "cycle" ]; then npx tsx scripts/snapshot/publish.ts cycle --parity
+          else npx tsx scripts/snapshot/publish.ts "$MODE"; fi

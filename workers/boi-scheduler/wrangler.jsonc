@@ -1,5 +1,5 @@
 // boi-scheduler (FP1.1 PR 1 + FP5.9, P5 Step 5). Deployed on its own by .github/workflows/deploy-scheduler.yml,
-// never by the site deploy. Not a site deploy: it doesn't count against the site's 1/day rule or the freeze.
+// never by the site deploy. Not a site deploy: it doesn't count against the site's 1/day batched-deploy rule.
 //
 // KV namespace IDs are NOT secrets: boi-snapshots and boi-snapshots-staging, created by Abhinav (#263, 29 Sep).
 // Deploying still needs the secrets below; without SNAPSHOT_HMAC_KEY /publish and /read answer 401 to everything.

@@ -7,6 +7,9 @@ import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
 import { SET_PAGE_REVALIDATE_SECONDS, UNPRICED_SET_REVALIDATE_SECONDS, PRICE_CADENCE, bestInStock, isPriceFresh, formatIst } from '@/lib/price-freshness';
 import { unstable_cache } from 'next/cache';
+import { readSetPageSnapshot } from '@/lib/snapshot/reader';
+import { getRuntimeFlags } from '@/lib/runtime-flags';
+import { snapshotKv } from '@/lib/snapshot/kv';
 import { PriceAge } from '@/components/ui/PriceAge';
 import { getSet } from '@/lib/rebrickable';
 import { formatPrice, whatsappShareUrl, socialCardImage, setMetaDescription } from '@/lib/utils';
@@ -62,6 +65,13 @@ type SetPageData = {
   as_of: string;
 };
 
+// FP1.1 PR 2: with the runtime flag snapshot_read ON (flag:v1 in KV, default
+// OFF), the page is rebuilt from the KV snapshot -- the same fields
+// set_page_data returns -- and an unpriced set makes no Supabase call at all
+// (A1). Any doubt -> today's path below, logged as snapshot_fallback{reason}.
+const priceTtlMarker = (n: string) =>
+  unstable_cache(async () => 1, ['snapshot-price-ttl', n], { revalidate: SET_PAGE_REVALIDATE_SECONDS, tags: [`set:${n}`] })();
+
 const readRpc = (setNumber: string, slug: string) =>
   unstable_cache(async () => {
     const { data, error } = await createServerClient().rpc('set_page_data', { p_set_number: setNumber, p_slug: slug });
@@ -84,6 +94,16 @@ const readPriceSide = (setNumber: string) =>
 
 const getSetPageData = cache(async (slug: string): Promise<SetPageData | null> => {
   const setNumber = slug.split('-')[0];
+  const kv = await snapshotKv();
+  if ((await getRuntimeFlags(kv)).snapshot_read) {
+    const r = await readSetPageSnapshot(kv, setNumber, slug);
+    if (r.ok) {
+      if (r.priced) await priceTtlMarker(setNumber);
+      return r.data as unknown as SetPageData;
+    }
+    console.log(`snapshot_fallback{reason=${r.reason}} set=${setNumber}`);
+  }
+
   const { d: rpc, at } = await readRpc(setNumber, slug);
   const d: SetPageData = { ...rpc, as_of: at };
   if (d.set && d.store_prices?.length) {

@@ -174,3 +174,20 @@ The staging Supabase project now exists in its own organisation (Abhinav, 27 Sep
 5. **Bindings (in repo config, no dashboard work):**
    - site Worker: `BOI_SNAPSHOTS` (read);
    - `boi-scheduler`: `BOI_SNAPSHOTS` (read/write) plus cron triggers.
+
+## 10. Amendment A2: PR 2 as built (29 Sep 2026, #263 / P9 item 1b)
+
+Where the build differs from, or pins down, §1–§5:
+
+1. **Exactness over re-modelling.** `cat:{n}:v1` = `{set, related, coverage}` and `set:{n}:v1` = `{store_prices, summary}`, which are exactly the fields `set_page_data` returns. The reader (`src/lib/snapshot/reader.ts`) rebuilds the RPC's output, so `/sets/[slug]` renders the same code on either path, and parity compares the two outputs field by field (`parityForm`: only `as_of` and the order of unordered arrays are normalised).
+2. **`list:priced-sets:v1` holds every set with a store row *or* a `set_price_summary` row.** The view also returns rows for sets whose only data is a verified catalogue MRP (anchor, no offers); leaving them out would lose the MRP panel. Each entry is `{best, offers}`; `offers > 0` drives FP1.6's first-listing / last-listing revalidation.
+3. **Aging rule.** `set_price_summary` drops store rows older than 12 h at query time. The reader falls back (`aging`) whenever a row crosses that line between publish and render, so a snapshot can never show a badge the live view would have dropped.
+4. **No per-cycle field in `set:`/`cat:` values**, so unchanged sets keep their checksum. `boi-scheduler` skips a write whose checksum matches the stored value (reads are the cheap side of KV). Staging rehearsal: first cycle 1,181 writes; second cycle **2 writes** (list + heartbeat), 1,179 unchanged.
+5. **Signed `POST /read`** on `boi-scheduler` (same HMAC and nonce rules as `/publish`, ≤ 100 keys, the Worker's own keys unreadable). It's used only by the parity job and the publisher's previous-list lookup. The site stays read-only against KV through its binding.
+6. **Catalogue cursor** `meta:catcursor:v1`: the backfill's start time, then each cycle's. A cycle re-reads `cat:` for sets whose row changed (`updated_at`/`created_at`), for every set in a theme where a changed set is among the 5 newest (the related list is the 4 newest others), for sets linked from articles published since the cursor, and for sets with a new or updated review. Anything this misses (for example a correction that adds a set link to an old article) is what parity's 50 random catalogue sets per cycle are for.
+7. **Flags key is `flag:v1`** (the key `boi-scheduler` already reads for `dispatch_enabled`), not `flags:v1`. Safe defaults are unchanged (§5).
+8. **72 h TTL and wording are built in PR 2** (FP1.6 §2).
+   - Reads are cached with `unstable_cache`, so each cached value carries its read time, and "as of {time}" is never newer than the data.
+   - A priced page adds a 6 h read of its offers (RPC path) or a 6 h marker (snapshot path), so it keeps the 6 h clock.
+   - All entries are tagged `set:<n>` for `/api/revalidate`.
+9. **Not in PR 2:** the site Worker's `BOI_SNAPSHOTS` binding (it needs the namespace ID from #263; a placeholder would fail the site deploy), and the `list:deals:v1` / `list:home:v1` readers. Set pages are ~94% of the Supabase load (#406).
