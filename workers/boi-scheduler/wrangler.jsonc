@@ -1,8 +1,8 @@
 // boi-scheduler (FP1.1 PR 1 + FP5.9, P5 Step 5). Deployed on its own by .github/workflows/deploy-scheduler.yml,
 // never by the site deploy. Not a site deploy: it doesn't count against the site's 1/day rule or the freeze.
 //
-// KV namespace IDs are NOT secrets. Abhinav creates the two namespaces (#263) and the IDs go below;
-// until then the placeholders make any deploy fail, which is the intended inert state.
+// KV namespace IDs are NOT secrets: boi-snapshots and boi-snapshots-staging, created by Abhinav (#263, 29 Sep).
+// Deploying still needs the secrets below; without SNAPSHOT_HMAC_KEY /publish and /read answer 401 to everything.
 // Secrets (set by Abhinav with `wrangler secret put`, #263): SNAPSHOT_HMAC_KEY, BOI_SCHEDULER_DISPATCH_TOKEN (production only).
 {
   "$schema": "../../node_modules/wrangler/config-schema.json",
@@ -11,14 +11,14 @@
   "compatibility_date": "2026-09-01",
   "workers_dev": true,
   "vars": { "TARGET": "production", "GITHUB_REPO": "bricksofindia007/bricks-of-india" },
-  "kv_namespaces": [{ "binding": "BOI_SNAPSHOTS", "id": "REPLACE_WITH_PROD_KV_NAMESPACE_ID" }],
+  "kv_namespaces": [{ "binding": "BOI_SNAPSHOTS", "id": "0af7352788ac4ba2a8c0440cfca849b1" }],
   // FP5.9: one dispatch slot per retailer (mybrickhouse :00, toycra :05); also the heartbeat ticks.
   "triggers": { "crons": ["0 */6 * * *", "5 */6 * * *"] },
   "env": {
     "staging": {
       "name": "boi-scheduler-staging",
       "vars": { "TARGET": "staging", "GITHUB_REPO": "bricksofindia007/bricks-of-india" },
-      "kv_namespaces": [{ "binding": "BOI_SNAPSHOTS", "id": "REPLACE_WITH_STAGING_KV_NAMESPACE_ID" }],
+      "kv_namespaces": [{ "binding": "BOI_SNAPSHOTS", "id": "0efa505226894c95b5e24d7ccd8612d1" }],
       // crons disabled on staging except during a drill (FP1.1 §8)
       "triggers": { "crons": [] }
     }
