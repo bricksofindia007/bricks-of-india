@@ -18,6 +18,7 @@ import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { SetCard } from '@/components/sets/SetCard';
 import { SetImage } from '@/components/sets/SetImage';
 import { JsonLd } from '@/components/JsonLd';
+import { FreshOnly } from '@/components/ui/FreshOnly';
 import { buildProductSchema, buildFAQSchema } from '@/lib/schemas';
 import { getStores, storeLabels } from '@/lib/stores';
 // Durable-cache guard (2026-07-02): a revalidate must always be set, or
@@ -334,7 +335,11 @@ export default async function SetPage(props: Props) {
                     <p className="text-xs text-gray-500">{ANCHOR_SOURCE_LABEL[summary.anchor_source]}</p>
                   )}
                 </div>
-                {summary?.deal_tier ? <DealBadge tier={summary.deal_tier} pct={summary.discount_pct} /> : <span className="text-3xl">🏷️</span>}
+                {summary?.deal_tier ? (
+                  <FreshOnly scrapedAt={summary.best_scraped_at} fallback={<span className="text-3xl">🏷️</span>}>
+                    <DealBadge tier={summary.deal_tier} pct={summary.discount_pct} />
+                  </FreshOnly>
+                ) : <span className="text-3xl">🏷️</span>}
               </div>
             )}
 
@@ -370,8 +375,10 @@ export default async function SetPage(props: Props) {
                     <div key={store.id} className="px-5 py-4">
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div className="flex items-center gap-3">
-                          {atBest && label?.kind === 'best' && <BestPriceBadge />}
-                          {atBest && label?.kind === 'only' && <OnlyAtBadge store={store.name} />}
+                          <FreshOnly scrapedAt={summary?.best_scraped_at}>
+                            {atBest && label?.kind === 'best' && <BestPriceBadge />}
+                            {atBest && label?.kind === 'only' && <OnlyAtBadge store={store.name} />}
+                          </FreshOnly>
                           <span className="font-bold text-dark">{store.name}</span>
                           {!sp.in_stock && (
                             <span className="text-sm text-gray-500 font-bold">Out of stock at {store.name}</span>

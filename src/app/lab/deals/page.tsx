@@ -5,6 +5,7 @@ import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { PRICE_CADENCE, READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { getDeals } from '@/lib/price-summary';
+import { FreshOnly } from '@/components/ui/FreshOnly';
 import { PriceAge } from '@/components/ui/PriceAge';
 import { getStores, storeLabels } from '@/lib/stores';
 
@@ -156,15 +157,17 @@ function DealCard({ deal, labels }: { deal: DealRow; labels: Record<string, stri
         ) : (
           <span style={{ fontSize: '2.5rem' }}>🧱</span>
         )}
-        {/* Discount badge */}
-        <div style={{
-          position: 'absolute', top: 10, right: 10,
-          background: 'var(--boi-saffron)', color: '#fff',
-          fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '0.88rem',
-          padding: '3px 10px', borderRadius: 20, lineHeight: 1.5,
-        }}>
-          {deal.discountPct}% OFF
-        </div>
+        {/* Discount badge -- hidden in the browser once the price is over 12h old (P12 3b) */}
+        <FreshOnly scrapedAt={deal.scraped_at || null}>
+          <div style={{
+            position: 'absolute', top: 10, right: 10,
+            background: 'var(--boi-saffron)', color: '#fff',
+            fontFamily: 'var(--font-fredoka)', fontWeight: 700, fontSize: '0.88rem',
+            padding: '3px 10px', borderRadius: 20, lineHeight: 1.5,
+          }}>
+            {deal.discountPct}% OFF
+          </div>
+        </FreshOnly>
       </div>
 
       {/* Body */}
