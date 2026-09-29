@@ -7,6 +7,8 @@
 //   99002 -- two fresh in-stock stores. lowPrice = the cheaper one.
 //   99003 -- nothing buyable (one sold out, one in stock but 30h old):
 //            no lowPrice and no displayed best price.
+//   99004 -- no store rows at all (an unpriced set; P10 revalidate audit:
+//            the page must take the 72 h unpriced clock).
 const hAgo = (h) => new Date(Date.now() - h * 3_600_000).toISOString();
 
 export const FIXTURES = {
@@ -22,7 +24,20 @@ export const FIXTURES = {
     { store_id: 'toycra', price_inr: 999, in_stock: false, age: 1 },
     { store_id: 'mybrickhouse', price_inr: 1299, in_stock: true, age: 30 },
   ] },
+  '99004': { expectLow: null, rows: [] },
 };
+
+// The set page reads its offers separately on the 6 h clock (P10): the stub
+// serves the same fixture rows for GET /rest/v1/store_prices and
+// /rest/v1/set_price_summary filtered to a fixture set.
+export function fixtureStorePrices(setNumber) {
+  const d = setPageData(setNumber);
+  return d ? d.store_prices : null;
+}
+export function fixtureSummary(setNumber) {
+  const d = setPageData(setNumber);
+  return d ? d.summary : null;
+}
 
 export function setPageData(setNumber) {
   const f = FIXTURES[setNumber];

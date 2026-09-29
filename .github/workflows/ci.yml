@@ -82,7 +82,13 @@ jobs:
           for i in $(seq 1 20); do curl -sf -o /dev/null http://127.0.0.1:54321/rest/v1/health && break; sleep 0.5; done
           curl -sf -o /dev/null http://127.0.0.1:54321/rest/v1/health && echo "stub up"
 
+      # P10: REVALIDATE_AUDIT=1 drops next.config's fixed Cache-Control hints from
+      # THIS (CI-only) build, so each response carries Next's own s-maxage = the
+      # route's effective revalidate for scripts/ci/revalidate-audit.ts below.
+      # The deploy build (deploy-cloudflare.yml) never sets it.
       - run: npm run build
+        env:
+          REVALIDATE_AUDIT: '1'
 
       - name: Scan client bundle and static public files for email leak
         run: |
@@ -212,6 +218,10 @@ jobs:
           # #220: JSON-LD lowPrice = displayed best in-stock price on 3
           # fixture set pages served by the stub (scripts/ci/jsonld-price-fixtures.mjs).
           node scripts/ci/check-jsonld-price.mjs http://localhost:3000 || FAIL=1
+          # P10: every route's effective revalidate == its intended cadence
+          # (src/lib/route-cadence.ts). Build-time routes from the prerender
+          # manifest; per-param routes rendered from stub fixtures.
+          AUDIT_BASE=http://localhost:3000 AUDIT_SAMPLES=ci npx tsx scripts/ci/revalidate-audit.ts || FAIL=1
           kill $SERVER_PID
           exit $FAIL
 
