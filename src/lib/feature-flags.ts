@@ -81,4 +81,10 @@ export const FEATURE_FLAGS = {
   //     "unverifiable";
   //   - a looked-up piece count is written back to a sets row whose pieces is 0.
   gate14ReviewEnforce: false,
+
+  // P10 item 4: gift-with-purchase sets no Indian store lists get a "no price, not sold
+  // separately" price context in EVERY format's prompt (news too), instead of the
+  // "USD x 1.35" estimate that turned spend thresholds into invented import prices.
+  // Off until Abhinav enables it.
+  gwpNoPriceContext: false,
 } as const;

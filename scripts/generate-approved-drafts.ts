@@ -190,6 +190,18 @@ function setIdentityHeader(setNumber: string | null, setName?: string | null): s
     : '';
 }
 
+/** Brickset availability "LEGO Gift with Purchase" (one call; false on any failure -> the old path). */
+async function bricksetIsGwp(setNumber: string): Promise<boolean> {
+  const key = getSecret('BRICKSET_API_KEY');
+  if (!key) return false;
+  try {
+    const params = JSON.stringify({ setNumber: `${setNumber}-1`, pageSize: 1 });
+    const r = await fetch(`https://brickset.com/api/v3.asmx/getSets?apiKey=${encodeURIComponent(key)}&userHash=&params=${encodeURIComponent(params)}`, { signal: AbortSignal.timeout(8000) });
+    const j = r.ok ? await r.json() as { status?: string; sets?: { availability?: string }[] } : null;
+    return j?.status === 'success' && j.sets?.[0]?.availability === 'LEGO Gift with Purchase';
+  } catch { return false; }
+}
+
 export async function buildIndiaPriceContext(setNumber: string | null, setName?: string | null): Promise<string> {
   const head = setIdentityHeader(setNumber, setName);
   if (!setNumber) return 'INDIA PRICE DATA: set number could not be identified. Acknowledge price uncertainty; do not state a specific figure.';
@@ -213,9 +225,17 @@ export async function buildIndiaPriceContext(setNumber: string | null, setName?:
 
   const { data: setRow } = await sb
     .from('sets')
-    .select('lego_mrp_inr')
+    .select('lego_mrp_inr, is_gwp')
     .eq('set_number', setNumber)
     .maybeSingle();
+
+  // P10 item 4 (behind FEATURE_FLAGS.gwpNoPriceContext): a gift with purchase that no Indian
+  // store lists has NO price. Without this branch the "USD x 1.35" estimate below turned spend
+  // thresholds into invented import prices (40900: US$100 -> "₹12,600"; 11 articles found).
+  // Checked before the MRP branch: some GWPs carry a catalogue MRP (40697).
+  if (FEATURE_FLAGS.gwpNoPriceContext && (setRow?.is_gwp === true || await bricksetIsGwp(setNumber))) {
+    return head + `INDIA PRICE DATA: ${setNumber} is a GIFT WITH PURCHASE and no Indian store lists it on its own. It is NOT sold separately and has NO retail price. Do NOT state or estimate any price, import price or ₹/$ figure for it. Say it isn't sold separately and comes free with a qualifying LEGO order; a spend threshold may be mentioned only as the requirement to get it, never as its price. Verdict: IMPORT ONLY.`;
+  }
   if (setRow?.lego_mrp_inr) {
     return head + `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices). Use this figure. Mention Toycra / MyBrickHouse may list it within 4–6 weeks.`;
   }

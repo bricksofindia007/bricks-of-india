@@ -37,7 +37,7 @@ export async function resolveGate14Facts(
 ): Promise<ResolvedGate14Facts | null> {
   const f = opts.fetch ?? (fetch as unknown as Fetch);
   const { data: set, error } = await sb.from('sets')
-    .select('set_number, name, pieces, minifigs, year, lego_mrp_inr')
+    .select('set_number, name, pieces, minifigs, year, lego_mrp_inr, is_gwp')
     .eq('set_number', setNumber).maybeSingle();
   if (error || !set) return null;
 
@@ -58,7 +58,10 @@ export async function resolveGate14Facts(
       if (n > 0) { pieces = n; piecesSource = 'rebrickable'; }
     } catch (e) { console.warn(`[gate14] Rebrickable lookup failed for ${setNumber}: ${(e as Error).message}`); }
   }
-  if ((!pieces || minifigs == null) && opts.bricksetKey) {
+  // One Brickset call per review draft (when a key is set): pieces/minifigs if the catalogue
+  // lacks them, and (P10 item 4) availability + LEGO.com retail prices for the GWP rule.
+  let bricksetGwp = false, legoComPrice: boolean | null = null;
+  if (opts.bricksetKey) {
     try {
       const params = JSON.stringify({ setNumber: `${setNumber}-1`, pageSize: 1 });
       const url = `https://brickset.com/api/v3.asmx/getSets?apiKey=${encodeURIComponent(opts.bricksetKey)}&userHash=&params=${encodeURIComponent(params)}`;
@@ -67,15 +70,24 @@ export async function resolveGate14Facts(
       const b = j?.status === 'success' ? j.sets?.[0] : null;
       if (b && !pieces && Number(b.pieces) > 0) { pieces = Number(b.pieces); piecesSource = 'brickset'; }
       if (b && minifigs == null && b.minifigs != null) { minifigs = Number(b.minifigs); minifigsSource = 'brickset'; }
+      if (b) {
+        bricksetGwp = b.availability === 'LEGO Gift with Purchase';
+        legoComPrice = Object.values((b.LEGOCom ?? {}) as Record<string, { retailPrice?: number }>).some((x) => Number(x?.retailPrice) > 0);
+      }
     } catch (e) { console.warn(`[gate14] Brickset lookup failed for ${setNumber}: ${(e as Error).message}`); }
   }
 
+  const prices = ((sp ?? []) as { price_inr: number | null }[]).map((r) => Number(r.price_inr)).filter((x) => x > 0);
+  const mrp = [summ?.anchor_mrp_inr, set.lego_mrp_inr].map(Number).filter((x) => x > 0);
+  // P10 item 4: GWP by the catalogue flag or Brickset, or no retail price anywhere. "Anywhere"
+  // needs Brickset's answer: if Brickset couldn't be read (legoComPrice null), that arm isn't used.
+  const noRetailPrice = !prices.length && !mrp.length && legoComPrice === false;
+  // A real Indian listing always wins (the sets.is_gwp contract): a GWP a store sells on its
+  // own has a price, and Gate 14's price rules apply to it instead.
   return {
     facts: {
-      setNumber, name: set.name, pieces, minifigs, year: set.year ?? null,
-      prices: ((sp ?? []) as { price_inr: number | null }[]).map((r) => Number(r.price_inr)).filter((x) => x > 0),
-      mrp: [summ?.anchor_mrp_inr, set.lego_mrp_inr].map(Number).filter((x) => x > 0),
-      verdict: null,
+      setNumber, name: set.name, pieces, minifigs, year: set.year ?? null, prices, mrp, verdict: null,
+      promotional: !prices.length && (set.is_gwp === true || bricksetGwp || noRetailPrice),
     },
     piecesSource, minifigsSource, catalogueHadPieces: Number(set.pieces) > 0,
   };
@@ -99,6 +111,10 @@ export function catalogueFactsPrompt(f: Gate14Facts): string {
       + 'No $, £, € or "estimated import" figure unless you name its source (LEGO.com, Brickset) in the same sentence. '
       + 'Exactly one verdict line. Write in our own voice; never narrate another reviewer or "the article".',
   ];
+  if (f.promotional) {
+    lines.push(`GIFT WITH PURCHASE / NO RETAIL PRICE: ${f.setNumber} is not sold separately. State NO price, import price or ₹/$ estimate `
+      + 'for it. Say it is not sold separately and what it comes with; a spend threshold is a requirement to get it, never its price.');
+  }
   return lines.join('\n');
 }
 
