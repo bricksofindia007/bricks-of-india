@@ -574,11 +574,11 @@
     "lastAuditDate": "2026-05-25",
     "nextAuditDate": "2026-06-25",
     "nextActions": [
-      "Abhinav (decisions): #435 batch 2 text sign-off (flagged verdict/piece-count changes); #263 secrets",
-      "Abhinav (dependencies): #404 MIGRATE_DB_URL -> applies #428 data fix, #433 is_gwp fill, #412 + #435 batches",
-      "Next batched site deploy (not deployed yet): #428 308, #420 R2 prune first live run, #429/#432 code",
-      "Terminal, waiting on events: revalidate before/after + egress re-split (24 h after 01:42 UTC); #434 first content-quality run; #432 first GWP generation; #398 shadow findings; #399 cleanup; QP judge first run",
-      "Ledger rule (P11): states are merged / deployed / live-verified / open, never intended"
+      "Abhinav: approve production scheduler deploy run 36528301953, then the #263 secrets",
+      "Abhinav: production MIGRATE_DB_URL -> terminal dispatches db-migrate plan, then apply (each production run needs your UI approval): #404 ledger, #436 skipped kind, #438 alias + NOLOGIN, #428/#433 fixes, #412 + #435 batches",
+      "Next site deploy (not deployed): #439 stale-badge hide, #428 308, #420 R2 prune",
+      "Terminal, waiting on events: first poller runs on b140930 (skipped rows); a missed day to live-verify the 07:00 IST catch-up; growth_service rotation -> growth-ingest-nightly",
+      "Rule (P12): staging migrations only through db-migrate; check PR base before merge"
     ],
     "openManualChecks": [
       "Confirm Scrape Store Prices failure root cause and fix",

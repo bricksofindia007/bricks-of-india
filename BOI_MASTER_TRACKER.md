@@ -1,5 +1,21 @@
 # BOI Master Tracker
 
+## P12 — 2026-09-29 (ledger states: merged / deployed / live-verified / open)
+
+| Item | PR / issue | State | Waiting on |
+|---|---|---|---|
+| 0 VID-P4 missed 28 Sep slot | #436 `b140930` | merged (Tier 2, approved). Cause: GitHub fired the `*/15` cron 4 times on 28 Sep, none in 19:30–23:59 IST; the gate passed every run. #67 **posted_both** 29 Sep 16:08 UTC run (pre-#436 code): IG Dd4KK35kqQh, YT ZYA7GuxDckI | first poller run on `b140930` (Actions "deployed"); a missed day to live-verify the 07:00 IST catch-up |
+| 0 `skipped` rows | #436 + migration `20260929060000` | merged · migration **not applied**; until then skips are written as `publish/deferred` "skipped: …" | first production db-migrate run |
+| 0 publishers essential; social gate = upload only | #436 | merged | first runs on `b140930` |
+| 0 FP5.9: scheduler dispatches video pollers at slot | `docs/plans/FP5.9…` (#436) | design recorded | dispatcher live (#263 secrets) |
+| 14 db-migrate job | #404 `a96cf60` | merged · envs `staging-migrations` / `production-migrations` (main only; reviewer bricksofindia007) · staging `MIGRATE_DB_URL` set · first staging plan **refused** (G7) on #418's hand-applied versions | production `MIGRATE_DB_URL` ("migrate secrets set"), then plan → apply |
+| #418 alias + dead-role NOLOGIN | #418 → `feat/db-migrate-job` (stacked, wrong base); re-landed #438 `c1edbd7` | merged to main · **not applied** in production (NOLOGIN applies with the first production run, no hold) | first production db-migrate run |
+| #412 batch 1 / #425 PR 2 | #412, #425 | **open**, retargeted to `main` (their stacked bases had merged) | #412: job; #425: #263 secrets |
+| 15 boi-scheduler | #423 `c692ba2`, #437 `14e32b9` (Node 22) | merged · staging Worker **deployed + live-verified** (`/health` 200, unsigned `/publish` 401) · production run 36528301953 **waiting** at the `production` gate | your approval in the UI, then the #263 secrets |
+| 3a build vs approval | — | reconciled: run 36330670886 built 16:30:32 UTC *after* approval; scrape 16:32:40–16:33:48 landed after the prerender, so 11:34 data was the newest available. No 3c change | — |
+| 3b stale badges (>12h) hidden in the browser | #439 `91943a4` | merged · **not deployed** | next site deploy, then live check (a 13h-old price shows no badge) |
+| 4 code audit | #440 `65f0c82` | merged · **live-verified**: code-audit run 36599652612 all green (tsc 0 errors, npm audit = X.4 accepted only, secrets manifest pass) · `tsc` now in the required `snapshot-tests` | — |
+
 ## P11 — 2026-09-29 (ledger states: merged / deployed / live-verified / open)
 
 | Item | PR / issue | State | Waiting on |
