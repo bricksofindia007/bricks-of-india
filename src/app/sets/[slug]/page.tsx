@@ -5,7 +5,8 @@ import { cache } from 'react';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
-import { SET_PAGE_REVALIDATE_SECONDS, PRICE_CADENCE, bestInStock, isPriceFresh } from '@/lib/price-freshness';
+import { SET_PAGE_REVALIDATE_SECONDS, UNPRICED_SET_REVALIDATE_SECONDS, PRICE_CADENCE, bestInStock, isPriceFresh, formatIst } from '@/lib/price-freshness';
+import { unstable_cache } from 'next/cache';
 import { PriceAge } from '@/components/ui/PriceAge';
 import { getSet } from '@/lib/rebrickable';
 import { formatPrice, whatsappShareUrl, socialCardImage, setMetaDescription } from '@/lib/utils';
@@ -20,13 +21,15 @@ import { JsonLd } from '@/components/JsonLd';
 import { buildProductSchema, buildFAQSchema } from '@/lib/schemas';
 import { getStores, storeLabels } from '@/lib/stores';
 // Durable-cache guard (2026-07-02): a revalidate must always be set, or
-// rendered pages persist across deploys. Set pages use 6h (operator decision
-// 2026-09-26): 26k crawlable URLs, and Supabase egress is the binding Free
-// quota. = SET_PAGE_REVALIDATE_SECONDS (segment config must be a literal).
-export const revalidate = 21600;
-// The Supabase read (set_page_data) expires on the same 6h clock via a
-// per-read `next.revalidate`, NOT fetchCache='default-cache', which cached
-// it until the next deploy.
+// rendered pages persist across deploys. 72 h = UNPRICED_SET_REVALIDATE_SECONDS
+// (FP1.6 §2, approved P8 item 4; segment config must be a literal). A priced
+// page adds a 6 h read (SET_PAGE_REVALIDATE_SECONDS) and Next takes the
+// lowest revalidate in a render, so priced pages still refresh every 6 h.
+export const revalidate = 259200;
+// Reads are cached with unstable_cache (not fetchCache='default-cache', which
+// cached until the next deploy), so each cached value carries the time it was
+// read: that's the "as of" time the page shows, never newer than the data.
+// Tagged set:<n> for FP1.6's revalidateTag.
 
 export async function generateStaticParams() {
   return [];
@@ -55,16 +58,38 @@ type SetPageData = {
   // PR-B: public.set_price_summary rows (R2-R6), folded into the same call.
   summary: SetPriceSummary | null;
   related_summaries: SetPriceSummary[];
+  // When this data was read (ISO). Shown as "as of {time}" (FP1.6 §2 wording).
+  as_of: string;
 };
+
+const readRpc = (setNumber: string, slug: string) =>
+  unstable_cache(async () => {
+    const { data, error } = await createServerClient().rpc('set_page_data', { p_set_number: setNumber, p_slug: slug });
+    if (error) throw error;  // thrown results are never cached
+    return { d: data as Omit<SetPageData, 'as_of'>, at: new Date().toISOString() };
+  }, ['set_page_data', slug], { revalidate: UNPRICED_SET_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
+
+// Priced page: the offers and summary on the 6 h clock, under their own key.
+const readPriceSide = (setNumber: string) =>
+  unstable_cache(async () => {
+    const sb = createServerClient();
+    const [sp, sum] = await Promise.all([
+      sb.from('store_prices').select('*').eq('set_id', setNumber).order('store_id'),
+      sb.from('set_price_summary').select('*').eq('set_id', setNumber).maybeSingle(),
+    ]);
+    if (sp.error) throw sp.error;
+    if (sum.error) throw sum.error;
+    return { store_prices: sp.data ?? [], summary: (sum.data ?? null) as SetPriceSummary | null, at: new Date().toISOString() };
+  }, ['set_price_side', setNumber], { revalidate: SET_PAGE_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
 
 const getSetPageData = cache(async (slug: string): Promise<SetPageData | null> => {
   const setNumber = slug.split('-')[0];
-  // Set pages read on a 6h clock (SET_PAGE_REVALIDATE_SECONDS; operator
-  // decision 2026-09-26: 26k crawlable URLs, egress is the binding quota).
-  const client = createServerClient({ revalidate: SET_PAGE_REVALIDATE_SECONDS });
-  const { data, error } = await client.rpc('set_page_data', { p_set_number: setNumber, p_slug: slug });
-  if (error) throw error;
-  const d = data as SetPageData;
+  const { d: rpc, at } = await readRpc(setNumber, slug);
+  const d: SetPageData = { ...rpc, as_of: at };
+  if (d.set && d.store_prices?.length) {
+    const p = await readPriceSide(setNumber);
+    d.store_prices = p.store_prices; d.summary = p.summary; d.as_of = p.at;
+  }
   if (d.set) return d;
 
   // Fallback: Rebrickable (runtime only — never called at build time since
@@ -131,7 +156,8 @@ export default async function SetPage(props: Props) {
   const pageData = await getSetPageData(params.slug);
   if (!pageData?.set) notFound();
   const set = pageData.set;
-  const stores = await getStores();
+  // Same clock as the page: 6 h when priced, 72 h when not (see getStores).
+  const stores = await getStores(pageData.store_prices?.length ? SET_PAGE_REVALIDATE_SECONDS : UNPRICED_SET_REVALIDATE_SECONDS);
   const TRACKED_STORES = stores.map((st) => ({ id: st.id, name: st.name, url: st.site_url }));
   const STORE_NAMES = storeLabels(stores);
 
@@ -335,7 +361,7 @@ export default async function SetPage(props: Props) {
                     return (
                       <div key={store.id} className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
                         <span className="font-bold text-dark">{store.name}</span>
-                        <span className="text-gray-400 text-sm">Not available at {store.name}</span>
+                        <span className="text-gray-400 text-sm">No listing found at {store.name} as of {formatIst(pageData.as_of)}</span>
                       </div>
                     );
                   }
@@ -413,7 +439,7 @@ export default async function SetPage(props: Props) {
             </div>
 
             {/* Staleness indicator */}
-            <p className="text-xs mb-4 text-gray-400"><PriceAge scrapedAt={lastUpdated} /></p>
+            <p className="text-xs mb-4 text-gray-400">{lastUpdated ? <PriceAge scrapedAt={lastUpdated} /> : `No retailer listing found as of ${formatIst(pageData.as_of)}`}</p>
 
             {/* Price disclaimer */}
             <p className="text-xs text-gray-400 mb-6">

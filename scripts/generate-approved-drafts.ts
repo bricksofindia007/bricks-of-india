@@ -26,6 +26,8 @@ import { passesAutoPublishGates } from '../src/lib/auto-publish-gate';
 import { publishOneDraft, PublishInsertError } from '../src/lib/publish-draft';
 import { buildRetailerSourcePriceContext } from '../src/lib/prompts/draft-prompt';
 import { STORE_DISPLAY_NAME } from './lib/reviews-source.mjs';
+import { resolveGate14Facts, catalogueFactsPrompt, writeBackPieces, isUnverifiableOnly } from '../src/lib/gate14-facts';
+import { FEATURE_FLAGS } from '../src/lib/feature-flags';
 
 // ── CLI flags ─────────────────────────────────────────────────────────────────
 
@@ -325,6 +327,30 @@ async function generateBodyWithFailover(draft: any, batchOpeners?: string[]): Pr
   // be traced from evidence rather than inferred.
   console.log(`[context] draft=${draft.id} set=${setNumber ?? 'none'} via=${resolvedSet?.via ?? '-'} name=${JSON.stringify(resolvedSet?.name ?? null)} price_context=${JSON.stringify(indiaPriceContext)}`);
 
+  // Gate 14 (#398 1b): catalogue facts for review drafts. Shadow unless
+  // FEATURE_FLAGS.gate14ReviewEnforce (step 1d). A failed lookup = no facts,
+  // and the draft proceeds exactly as before (shadow) -- see gate14-facts.ts.
+  let gate14: DraftGenerationInput['gate14'];
+  let factsBlock = '';
+  if (draft.draft_format === 'review' && setNumber) {
+    const enforce = FEATURE_FLAGS.gate14ReviewEnforce;
+    const resolved = await resolveGate14Facts(sb, setNumber, {
+      rebrickableKey: getSecret('REBRICKABLE_API_KEY'), bricksetKey: getSecret('BRICKSET_API_KEY'),
+    }).catch((e) => { console.warn(`[gate14] facts lookup failed for ${setNumber}: ${(e as Error).message}`); return null; });
+    if (resolved) {
+      if (draft.source_price_inr) resolved.facts.prices.push(Number(draft.source_price_inr));
+      gate14 = { facts: resolved.facts, enforce };
+      console.log(`[gate14] ${enforce ? 'enforce' : 'shadow'} facts set=${setNumber} pieces=${resolved.facts.pieces ?? '?'}(${resolved.piecesSource ?? '-'}) minifigs=${resolved.facts.minifigs ?? '?'}(${resolved.minifigsSource ?? '-'}) year=${resolved.facts.year ?? '?'} prices=${resolved.facts.prices.length} mrp=${resolved.facts.mrp.length}`);
+      if (enforce) {
+        factsBlock = `
+
+${catalogueFactsPrompt(resolved.facts)}`;
+        const wb = await writeBackPieces(sb, resolved);
+        if (wb !== 'not-needed') console.log(`[gate14] pieces write-back set=${setNumber}: ${wb}`);
+      }
+    }
+  }
+
   const input: DraftGenerationInput = {
     format:            draft.draft_format as string,
     sourceTitle:       draft.source_title as string | null,
@@ -333,8 +359,9 @@ async function generateBodyWithFailover(draft: any, batchOpeners?: string[]): Pr
     setNumber,
     fullBody,
     sourceExcerpt:     draft.source_excerpt as string | null,
-    indiaPriceContext,
+    indiaPriceContext: indiaPriceContext + factsBlock,
     forceOpinionTake:  draft.opinion_forced_take === true,
+    gate14,
   };
 
   return generateWithFailover(input, sb, GEMINI_KEY!, GROQ_KEY ?? undefined, CEREBRAS_KEY ?? undefined, batchOpeners);
@@ -408,6 +435,7 @@ if (IS_MAIN) (async () => {
   // hasn't been queried for yet (both Jul-1 "Your wallet called…" articles
   // shipped in one batch precisely this way).
   const batchOpeners: string[] = [];
+  let heldGate14 = 0;  // #398
 
   for (let i = 0; i < queue.length; i++) {
     await acquireGeminiSlot();
@@ -418,6 +446,23 @@ if (IS_MAIN) (async () => {
 
     try {
       const outcome = await generateBodyWithFailover(draft, batchOpeners);
+
+      // Gate 14 (#398): shadow findings are logged only. When enforced, a draft
+      // whose only findings are unverifiable claims (a fact we couldn't look
+      // up) is held for review rather than rejected -- the gap is ours, not the
+      // model's. Contradicted facts fail the lint and take the reject path below.
+      if (outcome.gate14) {
+        const g = outcome.gate14;
+        console.log(`[gate14] ${g.enforce ? 'enforce' : 'shadow'} findings=${g.findings.length}${g.findings.length ? ' ' + JSON.stringify(g.findings.map((x) => `[${x.rule}] ${x.detail}`)) : ''}`);
+        if (g.enforce && isUnverifiableOnly(g.findings)) {
+          const reason = `gate14_unverifiable: ${g.findings.map((x) => `[${x.rule}] ${x.detail}`).join('; ')}`.slice(0, 500);
+          const { error: holdErr } = await sb.from('pending_drafts').update({ status: 'draft', discard_reason: reason }).eq('id', draft.id);
+          if (holdErr) { console.error('[supabase-write] table=pending_drafts op=update(holdGate14) error:', holdErr); failed++; }
+          else heldGate14++;
+          console.log('HELD (Gate 14: unverifiable facts) -- back in /admin/pending');
+          continue;
+        }
+      }
 
       // Policy change 2026-06-28 (Abhinav, this session): "let review/opinion/
       // guide auto-publish too, IF they pass the exact same gates as news (no
@@ -598,6 +643,7 @@ if (IS_MAIN) (async () => {
       // 'cerebras'); this is just the run-level rollup.
       fallback:    { attempted: fallbackAttempted, ok: fallbackOk, lint_failed: fallbackLintFailed },
       both_failed: bothFailed,
+      held_gate14: heldGate14,  // #398
     };
     const { error: updateErr } = await sb
       .from('generator_runs')
@@ -619,7 +665,7 @@ if (IS_MAIN) (async () => {
   const total = geminiOk + fallbackOk;
   const lintFailed = geminiLintFailed + fallbackLintFailed;
   const dur   = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected+deleted (quality gates), ${bothFailed} rejected+deleted (both providers failed), ${failed} failed (retrying next run), ${publishRejected} rejected at insert (terminal), ${deferred} deferred of ${queue.length} — ${dur}s total`);
+  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected+deleted (quality gates), ${bothFailed} rejected+deleted (both providers failed), ${failed} failed (retrying next run), ${publishRejected} rejected at insert (terminal), ${deferred} deferred, ${heldGate14} held (Gate 14 unverifiable) of ${queue.length} — ${dur}s total`);
 })().catch(err => {
   console.error('FATAL:', err);
   process.exit(1);
