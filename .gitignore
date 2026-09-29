@@ -16,6 +16,7 @@
 # opennext / wrangler (Cloudflare Workers build + local dev state)
 /.open-next/
 /.wrangler/
+**/.wrangler/
 
 # production
 /build

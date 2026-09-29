@@ -24,8 +24,13 @@ export type Store = {
   price_precision: number;
 };
 
-export const getStores = cache(async (): Promise<Store[]> => {
-  const sb = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
+// revalidate: a page passes its own clock. In a render Next takes the LOWEST
+// fetch revalidate as the page's interval, so a 1 h registry read made every
+// set page regenerate hourly whatever its segment said (found 29 Sep, FP1.6).
+// The registry changes rarely; a store turned off shows as "No listing found
+// at {store}" until the page's own TTL, which is true, never wrong.
+export const getStores = cache(async (revalidate: number = READ_REVALIDATE_SECONDS): Promise<Store[]> => {
+  const sb = createServerClient({ revalidate });
   const { data, error } = await sb
     .from('stores')
     .select('id, name, site_url, display_order, affiliate_note, price_precision')
