@@ -574,11 +574,11 @@
     "lastAuditDate": "2026-05-25",
     "nextAuditDate": "2026-06-25",
     "nextActions": [
-      "Abhinav (decisions): #428 40900 sign-off (survivor C); #429 merge + gwpNoPriceContext flag + is_gwp from Brickset; #430 crawler recommendation; #424 merge",
-      "Abhinav (dependencies): #263 secrets -> PR 1 deploy -> PR 2 (#425, snapshot_read OFF); #404 MIGRATE_DB_URL; #412 approval; growth_service rotation",
-      "Terminal, waiting on events: revalidate before/after + egress re-split (24 h after 01:42 UTC deploy); #398 shadow findings from real review drafts; #399 cleanup (QP #38 eligible); QP judge first live run; article judge slice 3",
-      "Next batched site deploy carries #420 (R2 prune first live run, Tier 2)",
-      "Snapshot cutover gate: 100% parity >= 12 cycles, >= 3 days, >= 1 site deploy; plus d' (#426 site binding + lists); then sign-off; then KV flip"
+      "Abhinav (decisions): #435 batch 2 text sign-off (flagged verdict/piece-count changes); #263 secrets",
+      "Abhinav (dependencies): #404 MIGRATE_DB_URL -> applies #428 data fix, #433 is_gwp fill, #412 + #435 batches",
+      "Next batched site deploy (not deployed yet): #428 308, #420 R2 prune first live run, #429/#432 code",
+      "Terminal, waiting on events: revalidate before/after + egress re-split (24 h after 01:42 UTC); #434 first content-quality run; #432 first GWP generation; #398 shadow findings; #399 cleanup; QP judge first run",
+      "Ledger rule (P11): states are merged / deployed / live-verified / open, never intended"
     ],
     "openManualChecks": [
       "Confirm Scrape Store Prices failure root cause and fix",

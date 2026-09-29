@@ -1,5 +1,23 @@
 # BOI Master Tracker
 
+## P11 — 2026-09-29 (ledger states: merged / deployed / live-verified / open)
+
+| Item | PR / issue | State | Waiting on |
+|---|---|---|---|
+| Revalidate fix + audit + CI | #427 `9dfedd8` | merged · deployed 01:42 UTC · **live-verified** (wording on live pages; audit 47/47) | 24 h after the deploy for before/after + egress re-split |
+| `/themes` trust incident | log 29 Sep | recorded: ~25 h stale-badge time, longest 16 h 44 m; closed by #427 | — |
+| 40900 merge (C survives) | #428 `83cd0de` | merged · **not deployed** (308) · data fix **not applied** | next batched deploy (308), then #404 secrets (data fix) |
+| Gate 14 GWP rule | #429 `86bc20b` | merged · shadow | real review drafts; then 1d |
+| GWP prompt context ON | #432 `bf7ac7a` | merged · takes effect on the next `generate-drafts` run | a generation run that meets a GWP draft (Tier 2 report) |
+| `is_gwp` fill (19 changes) | #433 `e952874` | merged · **not applied** | #404 secrets |
+| Batch 2 (16 GWP articles) | #435 | **draft** | your text sign-off, then #404 secrets |
+| Quality bot (#430) | #434 `4f849e0` | merged · first live run pending | the next scheduled `content-quality` run (Tier 2 report) |
+| Same-set guard | #424 `8493470` | merged · takes effect on the next `generate-drafts` run | that run |
+| Control-character CI check | #431 `8197107` | merged · **live-verified** (ran in CI) | — |
+| #398 1b findings | `7df8a70` | merged · shadow | real review drafts through generation |
+| R2 prune | #420 `6f4744a` | merged · **not deployed** | next batched deploy (first live run, Tier 2) |
+| PR 1 / PR 2 | #423 / #425 | **open** (KV IDs in) | your #263 secrets → PR 1 deploy (step a) |
+
 ## P10 — 2026-09-29 (G18: waiting-on, no dates)
 
 Record: `docs/logs/cycle2/2026-09-29.md` (P10 section). **Site deploys 29 Sep: 1** (run 36508872790, `9dfedd8`, live 01:42:42 UTC: #427 + #398 flag off + #421). A deploy for `6f4744a` (#420) waits for the next batch.
