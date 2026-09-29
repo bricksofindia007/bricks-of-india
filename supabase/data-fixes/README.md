@@ -17,4 +17,6 @@ Rules:
 - **Both assertions are required.** Each is a single-number `select` and the exact expected value.
 - Every table the file changes is listed in `boi:backup-tables`. It's copied into the private `boi_backups` schema first (never a workflow artifact: this repo is public). Backups are kept 30 days.
 - G16: corrections are made in place with a dated note. Never delete or unpublish published rows.
-- Staging must hold the rows a fix touches, or its before-count fails there and production never runs. Content tables are part of the staging seed.
+- Staging must hold the rows a fix touches, or its before-count fails there and production never runs. Content tables are part of the staging seed. **Not true yet (P12, 30 Sep 2026):** staging has 0 `news_articles` rows and no seed tool exists, so #422's before-count failed on staging (apply run 36613512262). Open decision: seed staging's public content tables, or add a staging no-rows mode.
+- **Widening a constraint is allowed:** a migration may drop and re-add a constraint (e.g. adding a value to a CHECK) in its single transaction. The rule is that no data or columns are lost, not "additive only" (P12, `20260929060000`).
+- **A backup of a table created in the same run is skipped, correctly:** backups run before anything is applied, so a table a pending migration creates (e.g. `set_name_aliases` for fix 287) doesn't exist yet and is logged `backup skipped: … does not exist yet`. There is nothing to lose. The fix's `expect-before` (typically `= 0`) is the guard.
