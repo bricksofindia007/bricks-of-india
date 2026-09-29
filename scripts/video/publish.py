@@ -600,8 +600,16 @@ def publish_video_post(sb, video_post: dict) -> dict:
         sb.table('video_posts').update({'storage_url': storage_url}).eq('id', video_post['id']).execute()
 
     if not video_post.get('qc_frame_urls'):
-        qc_urls = extract_and_upload_qc_frames(sb, local_video_path, video_post['id'])
-        sb.table('video_posts').update({'qc_frame_urls': qc_urls}).eq('id', video_post['id']).execute()
+        # P12 (b): QC frames are a Storage upload but not needed to post. A
+        # closed storage guard (>= 800 MB) skips them; it never stops the post.
+        # (The video upload above stays guarded: IG needs a public URL, and
+        # approved rows already have storage_url from generation.)
+        from quota import QuotaBlockedError
+        try:
+            qc_urls = extract_and_upload_qc_frames(sb, local_video_path, video_post['id'])
+            sb.table('video_posts').update({'qc_frame_urls': qc_urls}).eq('id', video_post['id']).execute()
+        except QuotaBlockedError as exc:
+            print(f'[publish] QC frames not uploaded (storage guard): {exc}. Publishing without them.')
 
     caption = build_ig_caption(video_post['script'])
     yt_meta = build_yt_metadata(video_post['set_title'], video_post.get('set_number'), video_post['script'])

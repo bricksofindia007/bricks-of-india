@@ -2455,6 +2455,9 @@ def retry_missing_platforms_all(sb) -> bool:
     slot_open, slot_reason = cadence.slot_status(cadence.VIDP4, now_utc)
     if not slot_open:
         print(f"retry_missing_platforms_all: {len(stuck_rows)} row(s) waiting, deferred -- {slot_reason}.")
+        for video_post in stuck_rows:  # P12 (c): no silent skips
+            missing = "yt" if video_post["status"] == "posted_ig" else "ig"
+            cadence.record_attempt(sb, cadence.VIDP4, video_post, "retry", "deferred", platform=missing, detail=slot_reason)
         return True
 
     print(f"retry_missing_platforms_all: {len(stuck_rows)} row(s) with a missing platform.")
@@ -2745,21 +2748,6 @@ def main() -> None:
         # also holds this slot. Slot = VID-P4 daily from 19:30 IST.
         now_utc = datetime.now(timezone.utc)
         today = cadence.ist_date(now_utc)
-        already_posted_id = cadence.anything_posted_on(sb, cadence.VIDP4, today)
-        if already_posted_id:
-            print(f"Already published today (IST): video_posts {already_posted_id}. "
-                  f"Holding all approved rows for tomorrow's poll -- at most one publish per calendar day.")
-            return
-
-        # Fixed evening window, not a single once-a-day trigger -- the poller
-        # still ticks every 15 minutes; before 19:30 IST this is a deliberate
-        # silent no-op so a missed 19:30 tick is recovered by 19:45/20:00/etc.
-        # the same evening.
-        slot_open, slot_reason = cadence.slot_status(cadence.VIDP4, now_utc)
-        if not slot_open:
-            print(f"{slot_reason}. Nothing to do this tick.")
-            return
-
         # Explicit, tested sort key: story_number, not created_at. They
         # currently always agree (story_number is assigned by a BEFORE
         # INSERT trigger off row-creation order -- see
@@ -2769,10 +2757,35 @@ def main() -> None:
         # defines "Story #N" ordering.
         approved_res = sb.table("video_posts").select("*").eq("status", "approved").order("story_number").execute()
         approved_rows = approved_res.data
+        head = approved_rows[0] if approved_rows else None
+
+        # P12 (c): every exit below that doesn't post records why
+        # (publish_attempts kind='skipped'), so the missed-slot alert can
+        # quote it. No silent skips.
+        def skip(reason: str) -> None:
+            print(f"{reason}. Nothing to do this tick.")
+            cadence.record_skip(sb, cadence.VIDP4, head, reason)
+
+        already_posted_id = cadence.anything_posted_on(sb, cadence.VIDP4, today)
+        if already_posted_id:
+            skip(f"VID-P4: already published today (IST): video_posts {already_posted_id}; "
+                 f"{len(approved_rows)} approved row(s) held for the next slot -- at most one publish per calendar day")
+            return
 
         if not approved_rows:
-            print("No approved rows found. Nothing to publish.")
+            skip("VID-P4: no approved rows queued")
             return
+
+        # Fixed evening window, not a single once-a-day trigger -- the poller
+        # ticks every 15 minutes on paper, but GitHub fires only 4-8 of those
+        # a day (P12). If yesterday's slot was missed, today's opens at
+        # 07:00 IST instead of 19:30 so a daytime tick recovers it.
+        catchup = cadence.catchup_due(sb, cadence.VIDP4, now_utc, head)
+        slot_open, slot_reason = cadence.slot_status(cadence.VIDP4, now_utc, catchup=catchup)
+        if not slot_open:
+            skip(f"{slot_reason}; {len(approved_rows)} approved row(s) waiting, next is story #{head.get('story_number')}")
+            return
+        print(slot_reason)
 
         print(f"Found {len(approved_rows)} approved row(s) queued; publishing at most one this run (daily cap).")
         exit_code = 0
