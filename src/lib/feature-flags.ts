@@ -85,6 +85,6 @@ export const FEATURE_FLAGS = {
   // P10 item 4: gift-with-purchase sets no Indian store lists get a "no price, not sold
   // separately" price context in EVERY format's prompt (news too), instead of the
   // "USD x 1.35" estimate that turned spend thresholds into invented import prices.
-  // Off until Abhinav enables it.
-  gwpNoPriceContext: false,
+  // ON 29 Sep 2026 (P11 item 2, Abhinav, Tier 2): this is the cause of invented import prices.
+  gwpNoPriceContext: true,
 } as const;
