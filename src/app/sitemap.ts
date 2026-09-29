@@ -52,6 +52,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/community`, priority: 0.8 },
     { url: `${base}/about`, priority: 0.6 },
     { url: `${base}/contact`, priority: 0.5 },
+    { url: `${base}/bot`, priority: 0.3 }, // FP5.10: who our price bot is
     { url: `${base}/legal/disclaimer`, priority: 0.3 },
     { url: `${base}/legal/affiliate-disclosure`, priority: 0.3 },
     { url: `${base}/legal/privacy`, priority: 0.3 },

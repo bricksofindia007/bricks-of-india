@@ -61,7 +61,7 @@ from quiet_panic_script_gen import (  # noqa: E402
 # with working-directory: scripts/video (see video-generate-quiet-panic.yml).
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from config.feature_flags import FEATURE_FLAGS  # noqa: E402
-from coherence_judge import judge_coherence, only_held_failures  # noqa: E402
+from coherence_judge import judge_coherence, only_held_failures, qp_judge_prompt  # noqa: E402
 
 # Retry budget for script-gen's pre-TTS validation (added 2026-08-01 after
 # a real 3-for-3 miss streak on Rapunzel's Castle in production CI, all
@@ -1030,7 +1030,7 @@ def gate_price_plausibility(full_text: str, price_inr: float) -> dict:
     return {'pass': True, 'detail': 'no implausible comparisons found (or none recognized against the reference table)'}
 
 
-def gate_coherence_llm_judge(full_text: str) -> dict:
+def gate_coherence_llm_judge(full_text: str, facts: dict | None = None) -> dict:
     """LLM coherence judge on the FINAL script text. Implementation lives in
     coherence_judge.py (#365, 2026-09-27).
 
@@ -1043,11 +1043,17 @@ def gate_coherence_llm_judge(full_text: str) -> dict:
     Now: model openai/gpt-oss-120b, and it FAILS CLOSED. No real verdict
     means pass=False with held=True, so the row lands publish_blocked. It is
     still uploaded and a "held for manual review" email goes out; see
-    _render_segments_core() and the workflow's held_for_review step."""
-    return judge_coherence(full_text)
+    _render_segments_core() and the workflow's held_for_review step.
+
+    2026-09-28 (P8 item 5): judged with the QP rubric (coherence_judge.QP_RUBRIC) against the set's
+    facts -- fails only for an unexplained number, a wrong set/price, no identifiable set, or a
+    contradiction; terse fragments pass. Still fail-closed."""
+    f = facts or {}
+    return judge_coherence(full_text, prompt=qp_judge_prompt(f.get('set_title', ''), f.get('set_number', ''),
+                                                            f.get('price_inr'), f.get('pieces')))
 
 
-def run_all_gates(segments: list, total_duration: float, price_inr: int) -> dict:
+def run_all_gates(segments: list, total_duration: float, price_inr: int, facts: dict | None = None) -> dict:
     full_text = ' '.join(s['text'] for s in segments)
 
     result = {
@@ -1059,7 +1065,7 @@ def run_all_gates(segments: list, total_duration: float, price_inr: int) -> dict
         'banned_constructions': gate_banned_constructions(full_text),
         'vocab_complexity': gate_vocab_complexity(full_text),
         'price_plausibility': gate_price_plausibility(full_text, price_inr),
-        'coherence': gate_coherence_llm_judge(full_text),
+        'coherence': gate_coherence_llm_judge(full_text, facts),
     }
 
     # SHADOW MODE (2026-08-16), gated (2026-08-18) behind
@@ -1215,6 +1221,17 @@ def _retry_backoff_sleep(attempt: int, provider_failure: bool) -> None:
 # Full per-candidate pipeline
 # ---------------------------------------------------------------------------
 
+def _set_pieces(set_number: str):
+    """Catalogue piece count for the QP judge's facts; None if it can't be read (the rubric then
+    treats "<n> pieces" as explained rather than failing on a missing fact)."""
+    try:
+        r = get_supabase().table('sets').select('pieces').eq('set_number', set_number).limit(1).execute()
+        return (r.data or [{}])[0].get('pieces') or None
+    except Exception as e:  # noqa: BLE001 -- a missing fact must not block the render
+        print(f'WARN: pieces lookup failed for {set_number}: {e}', file=sys.stderr)
+        return None
+
+
 def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_image_url: str, segments: list) -> dict:
     """The actual render pipeline (TTS -> gates -> images -> audio mix ->
     video assembly -> Storage upload), factored out of process_candidate()
@@ -1278,7 +1295,9 @@ def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_i
     total_video_duration = intro_duration + total_measured + outro_duration
 
     # 2. Gates (after TTS, per section 0's design note).
-    gate_results = run_all_gates(segments, total_video_duration, price_inr)
+    gate_results = run_all_gates(segments, total_video_duration, price_inr,
+                                 facts={'set_title': set_title, 'set_number': set_number, 'price_inr': price_inr,
+                                        'pieces': _set_pieces(set_number)})
     for name, result in gate_results.items():
         print(f'  GATE {name}: {"PASS" if result["pass"] else "FAIL"} -- {result["detail"]}')
     all_passed = all(r['pass'] for r in gate_results.values())

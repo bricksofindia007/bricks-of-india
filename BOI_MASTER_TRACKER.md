@@ -1,5 +1,140 @@
 # BOI Master Tracker
 
+## P11 — 2026-09-29 (ledger states: merged / deployed / live-verified / open)
+
+| Item | PR / issue | State | Waiting on |
+|---|---|---|---|
+| Revalidate fix + audit + CI | #427 `9dfedd8` | merged · deployed 01:42 UTC · **live-verified** (wording on live pages; audit 47/47) | 24 h after the deploy for before/after + egress re-split |
+| `/themes` trust incident | log 29 Sep | recorded: ~25 h stale-badge time, longest 16 h 44 m; closed by #427 | — |
+| 40900 merge (C survives) | #428 `83cd0de` | merged · **not deployed** (308) · data fix **not applied** | next batched deploy (308), then #404 secrets (data fix) |
+| Gate 14 GWP rule | #429 `86bc20b` | merged · shadow | real review drafts; then 1d |
+| GWP prompt context ON | #432 `bf7ac7a` | merged · takes effect on the next `generate-drafts` run | a generation run that meets a GWP draft (Tier 2 report) |
+| `is_gwp` fill (19 changes) | #433 `e952874` | merged · **not applied** | #404 secrets |
+| Batch 2 (16 GWP articles) | #435 | **draft** | your text sign-off, then #404 secrets |
+| Quality bot (#430) | #434 `4f849e0` | merged · first live run pending | the next scheduled `content-quality` run (Tier 2 report) |
+| Same-set guard | #424 `8493470` | merged · takes effect on the next `generate-drafts` run | that run |
+| Control-character CI check | #431 `8197107` | merged · **live-verified** (ran in CI) | — |
+| #398 1b findings | `7df8a70` | merged · shadow | real review drafts through generation |
+| R2 prune | #420 `6f4744a` | merged · **not deployed** | next batched deploy (first live run, Tier 2) |
+| PR 1 / PR 2 | #423 / #425 | **open** (KV IDs in) | your #263 secrets → PR 1 deploy (step a) |
+
+## P10 — 2026-09-29 (G18: waiting-on, no dates)
+
+Record: `docs/logs/cycle2/2026-09-29.md` (P10 section). **Site deploys 29 Sep: 1** (run 36508872790, `9dfedd8`, live 01:42:42 UTC: #427 + #398 flag off + #421). A deploy for `6f4744a` (#420) waits for the next batch.
+
+| Item | Issue / PR | Status | Waiting on |
+|---|---|---|---|
+| 1 Revalidate fix split out + 72 h unpriced + wording | #427 | ✅ **live** 01:42 UTC. Set pages were effectively **1 h** in production since `b9bf2c4` (live 27 Sep 16:33 UTC), now 6 h priced / 72 h unpriced. 5 routes were frozen per deploy (themes, guides, reviews/opinion/community listings) and now have explicit cadences | — |
+| 1 Route audit + CI check | #427 (`scripts/ci/revalidate-audit.ts`, `src/lib/route-cadence.ts`) | ✅ in the required CI job; 47/47 | — |
+| 1 Before/after measurement + egress re-split | census run 36510292336 (before: R2 PutObject 90.9k/24 h; Class A projected 1.46M/30 d vs 1M free) | before captured | 24 h after the deploy + today's content-quality run inside that window |
+| 1 #425 rebased on #427 | #425 | ✅ merged main via PR 1; `/api/revalidate` registered | — |
+| 2 #398 1b merged, flag off | `7df8a70` | ✅ shadow live | real review drafts through generation (the findings report) → 1d |
+| 3 40900 merge + corrections | #428 (draft) | survivor **C** (accurate), A 308s to C; B corrected; invented prices removed on both | your sign-off, then #404 secrets (job path) |
+| 4 GWP rule + prompt context + scan | #429 | built: Gate 14 `gwp` (shadow); prompt branch behind `gwpNoPriceContext` (off); scan: **A 11 articles / 14 claims, B 9 / 14** → #246 comment | merge approval; flag decision; `is_gwp` population from Brickset (proposal: 17 missing, 2 wrong) |
+| 5 #426 sequencing | #426, FP1.6 §4 (d′) | ✅ re-sequenced: not before c; before e | — |
+| R2 prune (P8 item 6) | #420 merged `6f4744a` | the ledger said "live at next deploy", but it had **not** been merged; now merged | the next batched deploy (first live run, Tier 2) |
+| KV namespace IDs (#263) | PR 1 `44aecc6`, carried to #425 | ✅ in `wrangler.jsonc`; dry-run OK both envs | Abhinav's secrets (#263) → PR 1 deploy (step a) |
+| Crawler: 44% of requests = our headless Chrome | #430 | found: `content-quality.yml` → `visual-renderer.mjs`, daily; 1,028 loads/run; ~9.1k uncached renders; ≈ 9–11k Supabase req (est.) | your decision on the recommendation (block prefetch/assets, scope, UA) |
+| FP8.1 internal traffic | #312 | ✅ recorded (the bot-filter part stays open) | — |
+| FP4 Gmail setup | #304 | ✅ closed with evidence | — |
+| Brevo anonymous tracking / FP7.1 disclosure | #305, #295 | ✅ recorded; the disclosure is added to FP7.1's requirements | FP7.1 rewrite |
+| Found: `\b` → backspace bytes | #429 | fixed in `gate14-audit.ts` and `review-verdict-refresh.ts` (it over-protected; no published text affected) | merge |
+
+## P9 — 2026-09-28/29 (G18: no dates; every item states what it waits on)
+
+Record: `docs/logs/cycle2/2026-09-29.md`. **New guardrail G18** (dates are never deadlines; `a0db51d`). **Site deploys since the 28 Sep batch: 0.**
+
+| Item | Issue / PR | Status | Waiting on |
+|---|---|---|---|
+| G18 + dated schedule removed (FP1.6 §4, 28 Sep log, scheduler comment) | `a0db51d`, #425 | ✅ done | — |
+| Snapshot sequence a–e | FP1.6 design §4 | a: PR 1 built (#423); b: **PR 2 built + rehearsed on current staging (#425)** | a: #263 Cloudflare items; c: a + secrets + site KV binding (#426); d: the parity count; e: Abhinav's sign-off |
+| FP1.3 | #265 | ✅ **closed** with evidence | — |
+| QP rubric | #421 | ✅ merged `1b3cd71` | first live run = next scheduled VID-QP generation (the 28 Sep run preceded the merge) |
+| Same-set repeat guard | #422 / PR #424 | built; production replay holds the 40900 duplicate, passes the original and the roundup | merge approval |
+| 40900 articles (there are 3) | #422 comment | A (22 Sep) and C (28 Sep) are true duplicates; B is a distinct angle; conflicting ₹12,600 / ₹2,700 / ₹3,400 and WAIT / AVOID+IMPORT ONLY / IMPORT ONLY | Abhinav: 308 C→A + corrections to A and B (G16), then the Step 1 job (#404 secrets) |
+| Trust queue 1b | #398 | ✅ **built** (`7270577`): prompt facts, shared regeneration with 11–13, hold on unverifiable, pieces write-back; flag OFF = shadow | merge approval (shadow goes live); then 1d |
+| Trust queue 1d → T.6 → Step 8 | #398 … | queued, order unchanged | 1d: shadow evidence from live review drafts + Abhinav's enable decision |
+| PR 2 | #425 (stacked on #423) | built; staging rehearsal: 100/100 parity, planted defect caught, heals next cycle | c above |
+| Set pages regenerate hourly in production | #426 item 3 | found 29 Sep (`getStores()` 1 h clock caps the page); fixed in #425 | #425 merge |
+| PR 2 follow-ups | #426 | filed | see issue (each item's dependency) |
+| Article judge slice 2 | run 36504916612 | 35 judged, **9 incoherent**, 0 held, 59,137 tokens | next slice: offset 70 on the next daily budget |
+| #399 first live cleanup | #399 | not yet eligible | QP #38's file age passes 29 Sep 09:01 UTC |
+
+## P7 + P8 — 2026-09-28 (evening)
+
+Record: `docs/logs/cycle2/2026-09-28.md`. **New guardrail G17** (no command prints a secret's value). **Deploys 28 Sep: 1** (`e258968`: related-news trim + /bot).
+
+| Item | Issue / PR | Status |
+|---|---|---|
+| Growth-role exposure | #416, #418 (NOLOGIN, staging applied), #419 (SCRAM helper) | rotation procedure posted; Abhinav rotates `growth_service`; NOLOGIN to prod via the job |
+| 5 unused GitHub secrets | — | **deleted** (33 → 28) |
+| 43019 alias + FP5.8 SAFE/UNSAFE | #417, #418 (alias applied on staging) | count **3/12** (re-classified) |
+| QP judge rubric | #421 | acceptance met twice; first live run (Tier 2) next VID-QP generation after merge |
+| R2 prune | #420 | first live run (Tier 2) at the next site deploy |
+| FP1.3 | #265 | profile shows **no code regression** (86.9 vs 86.5 CPU-ms); recommend close |
+| PR 1 boi-scheduler | #423 | built + e2e tested; deploy waits on #263 Cloudflare items |
+| #387 | closed | draft left the queue |
+| Duplicate news auto-publish | #422 | filed |
+
+### Standing list: assigned vs reported (G18: waiting-on, no dates)
+| Assigned in | Item | Status | Waiting on |
+|---|---|---|---|
+| P5 Step 1 / P8 / P9 / P10 | #398 Gate 14: 1b | ✅ merged `7df8a70` (shadow live) | findings from real review drafts |
+| P5 Step 1 / P8 / P9 / P10 | #398 Gate 14: 1d (enable for new drafts) | queued; GWP rule (#429) goes in first | shadow evidence + Abhinav's decision |
+| P5 Step 2 / P9 | T.6 "Prices as of" | queued after 1d (**no reorder**, P9 item 2) | 1d |
+| P5 Step 5 | PR 1 | ✅ built (#423); KV IDs in | Abhinav's #263 secrets |
+| P5 Step 5 / P9 | PR 2 | ✅ built + rehearsed (#425) | PR 1 deployed + secrets + site binding (#426) |
+| P5 decision 5 | Sydney staging rebuild + 12-row seed | — | Abhinav's project details (needed only before the D-9 drill) |
+| P6 / #412 | batch 1 apply | — | approval + #404 migration secrets |
+| P6 Step 4 | article judge slices | slices 1–2 done (offset 70 next) | the next daily token budget |
+| P7 / #399 | first live cleanup run | — | QP #38's file becomes eligible |
+| P7 item 6 | FP1.6 build | endpoint + transitions built in #425 | PR 2 deployed; B7 on the staging Worker |
+| P8 items 1–9 | all | ✅ reported | — |
+
+---
+
+## P6 + P6 addendum — 2026-09-28
+
+Record: `docs/logs/cycle2/2026-09-28.md`.
+
+| Item | Issue / PR | Status |
+|---|---|---|
+| db-migrate job (only path for migrations + data fixes) | #403 / PR #404 | built and rehearsed on staging; **waiting for Abhinav's environment secrets** |
+| Related-news trim (−84% per render) | PR #405 | merged; deploy waiting for approval |
+| Set render census (94% unpriced long-tail crawl) + FP1.1 Amendment A1 | #406 merged; `82a1d4e` | A1 is in the design + ADR 0003, and is built in PR 2 |
+| #246 batch 1 rev 2 (12 reviews incl. T.3; catalogue 71819/40897) | #246 / draft PR #412 | **waiting for approval** (plus the Natural History Museum decision) |
+| Gate 14 article judge (budgeted) | PR #407 merged | slice 1: 35 judged / 15 incoherent; one slice a day |
+| Story numbering / #201 | #201 | **closed** (Story #76 approved 27 Sep 13:26) |
+| **T.8 VID #73 approval** | — | **DONE**: `approved` 26 Sep 09:01; queued behind #67–#72 (one post a day) |
+| /bot page (FP5.10) | PR #408 | merged; deploy waiting; 200 + sitemap check after the deploy |
+| QP #31–#34 (published while fail-open) | #365 | read-only: #31/#32/#34 INCOHERENT, #33 COHERENT; **Abhinav decides (G16)** |
+| FP5.8 retrofit | — | 2 cycles, 3 known diffs each; 0/12 toward the bar; bar needs a decision |
+| G4 leftovers | #410 | filed; gate: before any new retailer's shadow run |
+| FP1.4 R2 | #242 | storage 19.5 GB (>10), Class A projected 1.40M (>1M); recommend lifecycle 3 days + FP1.6 |
+| T.11 | #164 #205 #206 #207 #211 #212 #181 closed; #215 open | #215 waits for FP5.9 + FP6.1 |
+| T.3 Sea Serpent | #223 | match fixed 26 Sep (#225); verdict fix in batch 1 |
+| T.15 gemini branch | #367 | superseded by #146; **recommend close** |
+| Secrets manifest (FP3.6) | `docs/security/SECRETS_MANIFEST.md` | created; records staging.env.txt |
+
+### Standing list: assigned vs reported (kept at the end of every report)
+| Assigned in | Item | Reported? |
+|---|---|---|
+| P4 Step 1 | QP #35 posted once to both; #38 discarded; FP5.7 2nd cycle; #387 draft leaves the queue | ✅ ✅ ✅ · **#387: open**, reported after today's generate-drafts run (~13:45 UTC) |
+| P4 Step 5 / P5 Step 1 | Gate 14: judge (1a), prompt facts + shared regeneration + 0-value write-back (1b), limits (1c), enable for new drafts (1d) | 1a ✅ (audit running), 1c ✅ · **1b, 1d not started** |
+| P5 Step 2 | T.6 "Prices as of" template | queued after #398 (and after T.3, which is folded into batch 1) |
+| P5 Step 4 | FP2.3 repair + parity + pgpass | ✅ closed |
+| P5 Step 5 | PR 1 boi-scheduler + FP5.9 dispatcher; PR 2 publisher/reader/flags (+A1) | **not started**; Cloudflare list on #263 (Abhinav) |
+| P5 Step 6 / P6 Step 2 | egress split, trim, census, A1, lever | ✅ (lever: recommendation only) |
+| P5 decision 5 | Sydney staging rebuild + keep-alive + delete Singapore | waiting for Abhinav's project details |
+| P5 decision 6 | FP1.3 like-for-like CPU comparison | **open**: 24 h mark 28 Sep 16:33 UTC |
+| P5 decision 3 / #399 | first live cleanup under the new rule | **open**: after 29 Sep 09:01 UTC |
+| P6 Step 1 | db-migrate job | ✅ built (#404); secrets pending |
+| P6 Step 3 | batch 1 presentation + link scan + catalogue rule | ✅ (#246) |
+| P6 Step 4 | article judge, budgeted | ✅ (slices continue daily) |
+| P6 addendum 1–11 | reconciliation | ✅ all reported (log 28 Sep) |
+
+---
+
 ## P5 executed — 2026-09-28
 
 Record: `docs/logs/cycle2/2026-09-28.md`. **New guardrail G16** (published content is corrected, never removed) is in CLAUDE.md. Verified: since 24 Sep only the approved duplicates (#169, 11381, 75455; all 308 to live pages) and the heat map (307) were removed.

@@ -43,6 +43,37 @@ JUDGE_PROMPT = (
 )
 
 
+# QP rubric (P8 item 5, Abhinav, 28 Sep 2026). Quiet Panic scripts are deliberately terse, deadpan
+# fragments; the generic prompt above called that style "disjointed" and failed 2 of 7 previously
+# accepted scripts that had no factual errors. The QP rubric fails ONLY for the four listed reasons,
+# judged against the set's facts. Still fail-closed: no real verdict = held (see judge_coherence).
+QP_RUBRIC = (
+    "You check a short 'Quiet Panic' LEGO video script that is read aloud. Its STYLE is deliberately "
+    "terse: short fragments, deadpan one-liners, jokes, Indian cost comparisons ('That's a flight.') "
+    "and a closing verdict. Terse or playful fragments are FINE and are never a reason to fail. "
+    "Reply with exactly one line: 'COHERENT', or 'INCOHERENT: <rule number>: <quoted words>' if and "
+    "only if one of these is true:\n"
+    "1. UNEXPLAINED NUMBER: a number with no unit or referent in the script (a bare 'Seven hundred.' on "
+    "its own FAILS, even if it happens to be close to a fact), or a number that is none of: the piece "
+    "count, the price, the set number, a year, or something the script explains ('a thousand rupees is "
+    "a flight' is explained).\n"
+    "2. WRONG SET OR PRICE: the script names a different LEGO set, or states a piece count or price "
+    "that contradicts the SET FACTS below. Rounded figures within 10% are fine ('one thousand pieces' "
+    "for 1,034).\n"
+    "3. NO IDENTIFIABLE SET: nothing in the script matches the set: not its subject or theme, piece "
+    "count, price or name. (The set is shown on screen, so the name needn't be spoken.)\n"
+    "4. CONTRADICTION: two statements in the script contradict each other.\n\n"
+)
+
+
+def qp_judge_prompt(set_title: str, set_number: str, price_inr=None, pieces=None) -> str:
+    """QP rubric plus the set's facts, ready to pass as judge_coherence(prompt=...)."""
+    facts = [f'LEGO set {set_number}, "{set_title}"']
+    facts.append(f'{int(pieces):,} pieces' if pieces else 'piece count: not provided (a number followed by pieces/parts counts as explained)')
+    facts.append(f'price Rs {int(round(float(price_inr))):,}' if price_inr else 'price: not provided')
+    return QP_RUBRIC + 'SET FACTS: ' + '; '.join(facts) + '.\n\nSCRIPT:\n'
+
+
 def _held(reason: str) -> dict:
     return {
         'pass': False,
@@ -52,10 +83,13 @@ def _held(reason: str) -> dict:
     }
 
 
-def judge_coherence(full_text: str, post=None, api_key: str | None = None, timeout: int = 30) -> dict:
+def judge_coherence(full_text: str, post=None, api_key: str | None = None, timeout: int = 30,
+                    prompt: str = JUDGE_PROMPT, max_tokens: int = 200) -> dict:
     """Returns a gate dict: {'pass': bool, 'detail': str} plus 'held': True
     when no real verdict was obtained. `post` is injectable for tests
-    (defaults to requests.post)."""
+    (defaults to requests.post). `prompt` lets the article judge (Gate 14,
+    scripts/article_coherence.py) reuse this exact fail-closed contract with
+    its own instructions; the default is the VID-QP script prompt."""
     key = (api_key if api_key is not None else os.environ.get('GROQ_API_KEY', '')).strip().lstrip('﻿')
     if not key:
         return _held('GROQ_API_KEY not set')
@@ -68,8 +102,8 @@ def judge_coherence(full_text: str, post=None, api_key: str | None = None, timeo
             headers={'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'},
             json={
                 'model': COHERENCE_JUDGE_MODEL,
-                'messages': [{'role': 'user', 'content': JUDGE_PROMPT + full_text}],
-                'max_tokens': 200,
+                'messages': [{'role': 'user', 'content': prompt + full_text}],
+                'max_tokens': max_tokens,
                 'temperature': 0.0,
                 'reasoning_effort': COHERENCE_JUDGE_REASONING_EFFORT,
             },

@@ -102,6 +102,7 @@ function pickVariant(product) {
   const lines = [`## FP5 scraper-contract dry run (no writes), ${now.toISOString()}`, '', `UA: \`${BOT_UA}\``, ''];
   const contractRows = [];
   let totalDiff = 0;
+  const fp58Keys = [];
 
   for (const store of stores.filter((s) => s.scraper_kind === 'shopify_json')) {
     const cfg = store.scraper_config ?? {};
@@ -163,6 +164,9 @@ function pickVariant(product) {
       .map((r) => [r.set_id, { priceInr: Number(r.price_inr), inStock: r.in_stock }]));
     summary.breaker = evaluateBreaker(prevRun, curr);
     const logicDiff = onlyContract.length + onlyLegacy.length + priceDiff.length + stockDiff.length;
+    // FP5.8 bar (P7 item 5): record this store's exact difference keys for the per-cycle verdict below.
+    fp58Keys.push(...onlyContract.map((k) => `${store.id}:${k}:only-contract`), ...onlyLegacy.map((k) => `${store.id}:${k}:only-legacy`),
+      ...priceDiff.map((d) => `${store.id}:${d.set ?? d}:price`), ...stockDiff.map((d) => `${store.id}:${d.set ?? d}:stock`));
     totalDiff += logicDiff;
     for (const [k, c] of chosen) contractRows.push({ set_id: k, store_id: store.id, price_inr: c.priceInr, compare_at: c.compareAt, in_stock: c.inStock, scraped_at: now.toISOString() });
 
@@ -192,7 +196,15 @@ function pickVariant(product) {
     `- contract dry run:     rows ${b.rows}, deals ${b.deals} (hot ${b.hot}, deal ${b.deal}), ties ${b.tie}`,
     `- sets whose tier or best-store list differs: ${tierDiffs.length}`, ...tierDiffs.slice(0, 20).map((d) => `  - ${d}`),
     '', `**Total logic differences vs the legacy parser: ${totalDiff}**`);
-  console.log(lines.slice(-(7 + Math.min(tierDiffs.length, 20))).join('\n'));
+  // FP5.8 bar (P7 item 5): this cycle counts toward the 12 only if its differences are EXACTLY the
+  // approved set in scripts/lib/fp58-approved-diffs.json (docs/plans/FP5.8_retrofit_bar.md).
+  const approved = JSON.parse(fs.readFileSync(new URL('./lib/fp58-approved-diffs.json', import.meta.url), 'utf8')).approved;
+  const got = [...new Set(fp58Keys)].sort(), want = [...approved].sort();
+  const extra = got.filter((k) => !want.includes(k)), missing = want.filter((k) => !got.includes(k));
+  const fp58ok = extra.length === 0 && missing.length === 0;
+  lines.push(`**FP5.8 cycle verdict: ${fp58ok ? 'COUNTS' : 'RESETS'}**: differences ${fp58ok ? 'are exactly the 3 approved ones' : `unexpected ${JSON.stringify(extra)}, approved-but-absent ${JSON.stringify(missing)}`}`);
+  fs.writeFileSync(path.join(OUT, 'fp58.json'), JSON.stringify({ at: now.toISOString(), counts: fp58ok, got, extra, missing }, null, 1));
+  console.log(lines.slice(-(8 + Math.min(tierDiffs.length, 20))).join('\n'));
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
   fs.writeFileSync(path.join(OUT, 'summary.md'), lines.join('\n') + '\n');
 })().catch((e) => { console.error('dry run failed:', e); process.exit(1); });

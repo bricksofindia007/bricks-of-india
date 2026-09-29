@@ -30,9 +30,14 @@
  * @param {string} sourceLabel
  *   Short label for fix_detail on auto-resolved rows (e.g. the calling
  *   script's filename), so a reconciliation's origin is traceable later.
+ * @param {{ inScope?: (slug: string, checkName: string) => boolean }} [opts]
+ *   #430 (P11): a caller that checks only SOME articles (or some checks on some articles) passes
+ *   inScope, and only open rows inside it can be auto-resolved. Without it an unchecked article's
+ *   open issue would read as "no longer detected" -- the same failure as the 2026-08-24 incident
+ *   above, by article instead of by check_name. Omitted = the whole owned scope (unchanged).
  * @returns {Promise<{inserted: number, touched: number, resolved: number, openBefore: number}>}
  */
-export async function reconcileIssues(sb, issues, ownedCheckNames, sourceLabel) {
+export async function reconcileIssues(sb, issues, ownedCheckNames, sourceLabel, opts = {}) {
   const ownedList = [...new Set(ownedCheckNames)];
   if (ownedList.length === 0) {
     console.warn('  reconcileIssues: ownedCheckNames is empty -- nothing will ever be reconciled or auto-resolved.');
@@ -140,7 +145,12 @@ export async function reconcileIssues(sb, issues, ownedCheckNames, sourceLabel) 
 
   // Auto-resolve: previously open IN THIS SCRIPT'S OWN SCOPE, not
   // re-detected this run. Never touches a check_name outside ownedList.
-  const goneKeys = [...openByKey.keys()].filter(k => !seenKeys.has(k));
+  const inScope = opts.inScope ?? (() => true);
+  const goneKeys = [...openByKey.keys()].filter(k => {
+    if (seenKeys.has(k)) return false;
+    const [slug, check] = k.split('|');
+    return inScope(slug, check);
+  });
   let resolvedCount = 0;
   const RESOLVE_BATCH = 200; // ids go in the URL; 200 uuids keeps it well under limits
   const resolvedAt = new Date().toISOString();

@@ -1,6 +1,18 @@
 /**
  * BOI Visual Renderer v2 — Playwright headless checks on live published pages.
  * Runs AFTER auto-fixer so it sees corrected pages.
+ *
+ * #430 (P11 item 3, approved): this job was 44% of the site's requests (1,028 full page loads a
+ * day, ~33 requests each, ~9.1k uncached Worker renders, mostly Next <Link> RSC prefetches). Now:
+ *   - scope: articles published/updated in the last CHANGED_HOURS (both viewports) plus a
+ *     rotating daily sample of ~SAMPLE_PER_DAY others (desktop only), so every article is
+ *     re-checked every ceil(total / SAMPLE_PER_DAY) days;
+ *   - blocked: images, fonts, media, /_next/image, /api/img and every RSC / prefetch request.
+ *     The hero check fetches only the hero's own URL once;
+ *   - identifiable: UA suffix "BOI-QualityBot/1 (+https://bricksofindia.com/bot)";
+ *   - reconcile only auto-resolves issues for articles/checks actually run (inScope).
+ * Env: VR_CHANGED_HOURS (48), VR_SAMPLE_PER_DAY (50), VR_FULL=1 (old full sweep, both viewports);
+ *      local smoke only: VR_LIMIT=<n>, VR_NO_WRITE=1 (skip the DB reconcile).
  * Writes issues to content_quality_issues.
  *
  * Usage: node --env-file=.env.local scripts/visual-renderer.mjs
@@ -45,12 +57,13 @@ const RUN_AT = new Date().toISOString();
 
 // ── Load published article URLs ───────────────────────────────────────────────
 
+const UPDATED_AT = new Set(['reviews', 'guides']);  // news_articles / blog_posts have no updated_at
 async function loadUrls(table, pathPrefix, extraFilter) {
   const rows = [];
   let offset = 0;
   const PAGE = 100;
   while (true) {
-    let q = sb.from(table).select('slug, title, hero_image, category').range(offset, offset + PAGE - 1);
+    let q = sb.from(table).select(`slug, title, hero_image, category, published_at${UPDATED_AT.has(table) ? ', updated_at' : ''}`).range(offset, offset + PAGE - 1);
     if (extraFilter) q = extraFilter(q);
     const { data } = await q;
     if (!data?.length) break;
@@ -67,13 +80,58 @@ const [news, opinion, reviews, guides] = await Promise.all([
   loadUrls('reviews', '/reviews'),
   loadUrls('guides', '/guides'),
 ]);
-const articles = [...news, ...opinion, ...reviews, ...guides];
-console.log(`Visual renderer: ${articles.length} articles × 2 viewports = ${articles.length * 2} page checks\n`);
+const allArticles = [...news, ...opinion, ...reviews, ...guides];
+
+// #430 scope: changed (both viewports) + rotating sample (desktop only)
+const CHANGED_HOURS = Number(process.env.VR_CHANGED_HOURS ?? 48);
+const SAMPLE_PER_DAY = Number(process.env.VR_SAMPLE_PER_DAY ?? 50);
+const FULL = process.env.VR_FULL === '1';
+const since = Date.now() - CHANGED_HOURS * 3600_000;
+const changed = (a) => [a.published_at, a.updated_at].some((t) => t && Date.parse(t) >= since);
+const buckets = Math.max(1, Math.ceil(allArticles.length / SAMPLE_PER_DAY));
+const dayIndex = Math.floor(Date.now() / 86_400_000);
+const bucketOf = (slug) => { let h = 2166136261; for (const ch of slug) { h ^= ch.charCodeAt(0); h = Math.imul(h, 16777619); } return (h >>> 0) % buckets; };
+const articles = FULL ? allArticles.map((a) => ({ ...a, _viewports: ['desktop', 'mobile'] }))
+  : allArticles.flatMap((a) => changed(a) ? [{ ...a, _viewports: ['desktop', 'mobile'] }]
+    : bucketOf(a.slug) === dayIndex % buckets ? [{ ...a, _viewports: ['desktop'] }] : []);
+if (process.env.VR_LIMIT) articles.splice(Number(process.env.VR_LIMIT));  // local smoke tests only
+const nChanged = articles.filter((a) => a._viewports.length === 2).length;
+const loads = articles.reduce((k, a) => k + a._viewports.length, 0);
+console.log(`Visual renderer: ${articles.length} of ${allArticles.length} articles (${FULL ? 'FULL sweep' : `${nChanged} changed in ${CHANGED_HOURS}h + ${articles.length - nChanged} rotating sample, bucket ${dayIndex % buckets}/${buckets}`}) = ${loads} page loads\n`);
 
 const VIEWPORTS = [
   { name: 'desktop', width: 1280, height: 800 },
   { name: 'mobile',  width: 375,  height: 812 },
 ];
+const MOBILE_ONLY = new Set(['horizontal_scroll', 'mobile_overflow']);
+const DESKTOP_ONLY = new Set(['h1_missing', 'multiple_h1', 'image_render_broken', 'raw_markdown_visible', 'font_body']);
+// What reconcile may auto-resolve: only checks actually run on articles actually loaded.
+const ranOn = new Map(articles.map((a) => [a.slug, new Set(a._viewports)]));
+const inScope = (slug, check) => {
+  const v = ranOn.get(slug);
+  if (!v) return false;
+  if (MOBILE_ONLY.has(check)) return v.has('mobile');
+  if (DESKTOP_ONLY.has(check)) return v.has('desktop');
+  return true;
+};
+
+// Requests the checks don't need (#430): images, fonts, media, image transforms, RSC/prefetch.
+const BLOCK_TYPES = new Set(['image', 'font', 'media']);
+let blocked = 0, allowed = 0;
+async function blockUnneeded(page) {
+  await page.route('**/*', (route) => {
+    const req = route.request();
+    const url = req.url();
+    const h = req.headers();
+    if (BLOCK_TYPES.has(req.resourceType()) || url.includes('/_next/image') || url.includes('/api/img')
+        || url.includes('_rsc=') || h['rsc'] === '1' || 'next-router-prefetch' in h || h['purpose'] === 'prefetch') {
+      blocked++;
+      return route.abort();
+    }
+    allowed++;
+    return route.continue();
+  });
+}
 
 const BANNED_TEXT = ['Lorem ipsum', '[object Object]', 'undefined', 'null'];
 const RAW_MD_RE   = /\*\*[^*]+\*\*|\*[^*\n]+\*|^#{1,6}\s/m;
@@ -120,13 +178,17 @@ const browser = await chromium.launch({
 });
 
 let desktopChecked = 0, mobileChecked = 0;
+// Identifiable UA (#430): Chromium's own UA plus our bot token, so Cloudflare and GA4 can tell it apart.
+const baseUA = await (async () => { const p = await browser.newPage(); const ua = await p.evaluate(() => navigator.userAgent); await p.close(); return ua; })();
+const context = await browser.newContext({ userAgent: `${baseUA} BOI-QualityBot/1 (+https://bricksofindia.com/bot)` });
 
 for (const art of articles) {
   process.stdout.write(`  ${art.slug.slice(0, 50)}… `);
   const artIssues = [];
 
-  for (const vp of VIEWPORTS) {
-    const page = await browser.newPage();
+  for (const vp of VIEWPORTS.filter((v) => art._viewports.includes(v.name))) {
+    const page = await context.newPage();
+    await blockUnneeded(page);
     await page.setViewportSize({ width: vp.width, height: vp.height });
 
     // page_load_error
@@ -192,18 +254,24 @@ for (const art of articles) {
     // container, where one exists; falls back to the generic selector only
     // if that more specific one isn't found, to avoid silently checking
     // nothing on a page structure this script doesn't yet know about.
+    // #430: images are blocked in the page, so the hero is checked by fetching ONLY its own URL
+    // (the src the page chose, e.g. its /_next/image variant) once: 200 + an image content-type +
+    // non-empty body = it renders. One request instead of every image on the page.
     if (vp.name === 'desktop' && art.hero_image) {
-      const heroNaturalWidth = await page.evaluate(async () => {
+      const heroSrc = await page.evaluate(() => {
         const img = document.querySelector('article img[src], main img[src], img[src]');
-        if (!img) return -1;
-        const deadline = Date.now() + 8000;
-        while (!img.complete && Date.now() < deadline) {
-          await new Promise(r => setTimeout(r, 100));
-        }
-        return img.naturalWidth;
+        return img ? (img.currentSrc || img.src) : null;
       });
-      if (heroNaturalWidth === 0) {
-        flag(art, 'image_render_broken', 'critical', 'Hero image failed to render (naturalWidth=0 after waiting for load completion)');
+      if (heroSrc) {
+        let ok = false, why = '';
+        try {
+          const r = await context.request.get(heroSrc, { timeout: 15000 });
+          const type = r.headers()['content-type'] ?? '';
+          const len = (await r.body()).length;
+          ok = r.ok() && type.startsWith('image/') && len > 0;
+          why = `HTTP ${r.status()} ${type || 'no content-type'} ${len} bytes`;
+        } catch (e) { why = e.message.slice(0, 80); }
+        if (!ok) flag(art, 'image_render_broken', 'critical', `Hero image failed to load (${why}): ${heroSrc.slice(0, 120)}`);
       }
     }
 
@@ -260,6 +328,7 @@ for (const art of articles) {
   console.log(issues.filter(i => i.article_slug === art.slug).length > 0 ? 'ISSUES' : 'OK');
 }
 
+await context.close();
 await browser.close();
 
 // ── Write to DB ───────────────────────────────────────────────────────────────
@@ -277,12 +346,13 @@ await browser.close();
 // not just the 4 duplicates). Now reconciles the same way content-
 // linter.mjs does, scoped to this script's own check_names only.
 console.log(`\nReconciling ${issues.length} visual issue(s)…`);
-await reconcileIssues(sb, issues, OWNED_CHECK_NAMES, 'visual-renderer.mjs');
+if (process.env.VR_NO_WRITE === '1') console.log('VR_NO_WRITE=1: not reconciling (local smoke test)', JSON.stringify(issues.map((i) => [i.article_slug, i.check_name, i.detail])));
+else await reconcileIssues(sb, issues, OWNED_CHECK_NAMES, 'visual-renderer.mjs', { inScope });
 
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 const counts = { critical: 0, warning: 0, info: 0 };
 for (const i of issues) counts[i.severity] = (counts[i.severity] || 0) + 1;
 
-console.log(`\nVisual renderer complete: ${articles.length} pages checked (${desktopChecked} desktop, ${mobileChecked} mobile)`);
+console.log(`\nVisual renderer complete: ${articles.length} articles, ${desktopChecked + mobileChecked} page loads (${desktopChecked} desktop, ${mobileChecked} mobile); requests allowed ${allowed}, blocked ${blocked}`);
 console.log(`Critical: ${counts.critical} | Warning: ${counts.warning}`);
