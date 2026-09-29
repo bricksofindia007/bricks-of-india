@@ -1,0 +1,105 @@
+# P6 Step 1 (#403): the ONLY path for schema migrations and approved data fixes
+# (supabase/migrations/*.sql, supabase/data-fixes/<issue>-<name>.sql). Replaces the direct
+# connection from a workstation (pgpass deleted 28 Sep 2026).
+#
+#   Actions -> DB migrate -> Run workflow (branch: main) -> mode: plan | apply
+#
+# Job 1 staging    (environment staging-migrations):   pending files -> apply -> parity must pass.
+# Job 2 production (environment production-migrations, required reviewer): runs only after
+#   staging succeeded and a reviewer approves: back up (in-database, boi_backups schema) ->
+#   apply each file in ONE transaction (data fixes: before/after count assertions abort on
+#   mismatch) -> parity -> evidence comment on every linked issue.
+# Credentials: environment secret MIGRATE_DB_URL in each environment (set by Abhinav only).
+# Backups are never workflow artifacts: this repo is public. Artifacts carry the evidence text only.
+# Failure behaviour (G14): any lint/assertion/SQL error rolls that file back, stops the run,
+# fails the job; production never starts if staging failed.
+# Budget (G2): manual dispatch only; per run 2 DB connections per target, a few dozen queries.
+name: DB migrate
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'plan = list pending files and check parity (no writes); apply = back up and apply'
+        type: choice
+        options: [plan, apply]
+        default: plan
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: db-migrate
+  cancel-in-progress: false
+
+jobs:
+  staging:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: staging-migrations
+    # No runs yet to measure: parse + backups + apply is ~1-3 min. Resize after 3 runs (CLAUDE.md).
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: psql --version
+      - name: Staging (${{ inputs.mode }})
+        env:
+          TARGET: staging
+          MODE: ${{ inputs.mode }}
+          DATABASE_URL: ${{ secrets.MIGRATE_DB_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OUT_DIR: db-migrate-out
+        run: node scripts/ci/db-migrate.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidence-staging
+          path: db-migrate-out/evidence-staging.*
+          retention-days: 90
+
+  production:
+    if: github.ref == 'refs/heads/main'
+    needs: staging
+    runs-on: ubuntu-latest
+    environment: production-migrations
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Production (${{ inputs.mode }})
+        env:
+          TARGET: production
+          MODE: ${{ inputs.mode }}
+          DATABASE_URL: ${{ secrets.MIGRATE_DB_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OUT_DIR: db-migrate-out
+        run: node scripts/ci/db-migrate.mjs
+      - uses: actions/download-artifact@v4
+        if: always()
+        with:
+          name: evidence-staging
+          path: db-migrate-out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidence-production
+          path: db-migrate-out/evidence-production.*
+          retention-days: 90
+      - name: Evidence to linked issues
+        if: always() && inputs.mode == 'apply'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          f=db-migrate-out/evidence-production.json
+          [ -f "$f" ] || { echo "no production evidence file (job failed before writing it)"; exit 0; }
+          issues=$(node -e "const e=require('./$f'); if(!e.applied.length && !e.failed) process.exit(0); console.log(e.issues.join(' '))")
+          [ -n "$issues" ] || { echo "nothing applied; no comment"; exit 0; }
+          { echo "**db-migrate evidence** ([run]($RUN_URL))"; echo; echo '### Staging'; cat db-migrate-out/evidence-staging.md 2>/dev/null || echo '(missing)'; echo; echo '### Production'; cat db-migrate-out/evidence-production.md; } > comment.md
+          for n in $issues; do gh issue comment "$n" --body-file comment.md; done
