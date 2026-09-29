@@ -10,6 +10,8 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { OPENER_FEEDBACK } from './opener-pattern';
 import { AFFILIATE_FEEDBACK } from './affiliate-disclosure';
+import { gate14Check, type Gate14Facts, type Gate14Finding } from './gate14';
+import { gate14Feedback } from './gate14-facts';
 export type DraftGenerationInput = {
   format: string;
   sourceTitle: string | null;
@@ -21,6 +23,10 @@ export type DraftGenerationInput = {
   indiaPriceContext: string;
   // Opinion fortnightly cadence fallback path — see draft-prompt.ts.
   forceOpinionTake?: boolean;
+  // Gate 14 (#398 1b): catalogue facts for a review draft. enforce=false is
+  // shadow mode (findings computed and returned, nothing else changes);
+  // enforce=true joins the Gates 11-13 regeneration and fails the lint.
+  gate14?: { facts: Gate14Facts; enforce: boolean };
 };
 
 export type GenerationOutcome = {
@@ -36,6 +42,7 @@ export type GenerationOutcome = {
   lintResult: LintResult | null;
   hardRules: HardRuleResult[];
   hardFail: boolean;
+  gate14?: { findings: Gate14Finding[]; enforce: boolean };
 };
 
 // Added 2026-06-28 (Abhinav, this session): "what fails through Gemini and
@@ -134,18 +141,21 @@ export async function generateWithFailover(
   async function lintWithFeedbackRetry(
     call: (userPromptOverride: string) => Promise<string>,
     first: ReturnType<typeof parseDraftResponse>,
-  ): Promise<{ parsed: ReturnType<typeof parseDraftResponse>; lint: LintResult | null; retried: boolean }> {
+  ): Promise<{ parsed: ReturnType<typeof parseDraftResponse>; lint: LintResult | null; retried: boolean; gate14: Gate14Finding[] }> {
     const lint = await runLint(first.body, first.verdict, first.wordCount, first.title).catch(() => null);
     const citationFailed = !!lint?.gates.citationIdentity && !lint.gates.citationIdentity.pass;
     const openerFailed = !!lint?.gates.openerPattern && !lint.gates.openerPattern.pass;
     const affiliateFailed = !!lint?.gates.affiliateDisclosure && !lint.gates.affiliateDisclosure.pass;
-    if (!citationFailed && !openerFailed && !affiliateFailed) return { parsed: first, lint, retried: false };
+    const g14First = gate14For(first);
+    const gate14Failed = !!input.gate14?.enforce && g14First.length > 0;
+    if (!citationFailed && !openerFailed && !affiliateFailed && !gate14Failed) return { parsed: first, lint: withGate14(lint, g14First), retried: false, gate14: g14First };
     const feedback: string[] = [];
     if (citationFailed) feedback.push(citationFeedback(await unverifiedSetCitations(sb, `${first.title}
 ${first.body}`)));
     if (openerFailed) feedback.push(OPENER_FEEDBACK);
     if (affiliateFailed) feedback.push(AFFILIATE_FEEDBACK);
-    vlog(`Feedback gates failed (${[citationFailed && 'Gate 11', openerFailed && 'Gate 12', affiliateFailed && 'Gate 13'].filter(Boolean).join(', ')}) -- regenerating once with feedback`);
+    if (gate14Failed) feedback.push(gate14Feedback(g14First));
+    vlog(`Feedback gates failed (${[citationFailed && 'Gate 11', openerFailed && 'Gate 12', affiliateFailed && 'Gate 13', gate14Failed && 'Gate 14'].filter(Boolean).join(', ')}) -- regenerating once with feedback`);
     try {
       const text = await call(`${userPrompt}
 
@@ -153,11 +163,29 @@ REVISION REQUIRED: ${feedback.join(' ')}`);
       const second = parseDraftResponse(text, input.format);
       const lint2 = await runLint(second.body, second.verdict, second.wordCount, second.title).catch(() => null);
       vlog(`After regeneration: Gate 11 ${lint2?.gates.citationIdentity?.pass === false ? 'FAIL' : 'ok'}, Gate 12 ${lint2?.gates.openerPattern?.pass === false ? 'FAIL' : 'ok'}`);
-      return { parsed: second, lint: lint2, retried: true };
+      const g14Second = gate14For(second);
+      return { parsed: second, lint: withGate14(lint2, g14Second), retried: true, gate14: g14Second };
     } catch (err) {
       vlog(`Regeneration call failed: ${err instanceof Error ? err.message.slice(0, 120) : String(err)} -- keeping the failing first draft`);
-      return { parsed: first, lint, retried: true };
+      return { parsed: first, lint: withGate14(lint, g14First), retried: true, gate14: g14First };
     }
+  }
+
+  // Gate 14 (#398 1b): reviews only; the draft's own verdict is the one the
+  // body must carry exactly once.
+  function gate14For(p: ReturnType<typeof parseDraftResponse>): Gate14Finding[] {
+    if (!input.gate14 || input.format !== 'review') return [];
+    return gate14Check(p.body, { ...input.gate14.facts, verdict: p.verdict });
+  }
+  // Enforced findings fail the lint by name, so the existing reject path
+  // reports "gate14: ..." like any other failing gate. Shadow mode: untouched.
+  function withGate14(lint: LintResult | null, findings: Gate14Finding[]): LintResult | null {
+    if (!lint || !input.gate14?.enforce || findings.length === 0) return lint;
+    return {
+      ...lint,
+      overallPass: false,
+      gates: { ...lint.gates, gate14: { pass: false, severity: 'fail', reason: findings.slice(0, 5).map((x) => `[${x.rule}] ${x.detail}`).join('; ') } },
+    };
   }
 
   // ── Gemini first ─────────────────────────────────────────────────────────────
@@ -168,7 +196,7 @@ REVISION REQUIRED: ${feedback.join(' ')}`);
   try {
     const { text } = await gemini.call({ systemPrompt, userPrompt });
     vlog('Gemini succeeded — running lint + Gate 7');
-    const { parsed, lint } = await lintWithFeedbackRetry(
+    const { parsed, lint, gate14 } = await lintWithFeedbackRetry(
       async (up) => (await gemini.call({ systemPrompt, userPrompt: up })).text,
       parseDraftResponse(text, input.format),
     );
@@ -190,6 +218,7 @@ REVISION REQUIRED: ${feedback.join(' ')}`);
       lintResult: lint,
       hardRules,
       hardFail,
+      ...(input.gate14 ? { gate14: { findings: gate14, enforce: input.gate14.enforce } } : {}),
     };
   } catch (err) {
     geminiErr = err;
@@ -297,5 +326,6 @@ REVISION REQUIRED: ${feedback.join(' ')}`);
     lintResult: lint,
     hardRules,
     hardFail,
+    ...(input.gate14 ? { gate14: { findings: retried.gate14, enforce: input.gate14.enforce } } : {}),
   };
 }

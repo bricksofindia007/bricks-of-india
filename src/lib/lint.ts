@@ -50,6 +50,8 @@ export type LintResult = {
     citationIdentity: LintGateResult | null;
     openerPattern: LintGateResult;
     affiliateDisclosure: LintGateResult;
+    // Gate 14 (#398 1b): set by generate-with-failover only when enforced (reviews).
+    gate14?: LintGateResult;
   };
 };
 
