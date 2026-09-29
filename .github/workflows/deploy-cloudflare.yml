@@ -178,3 +178,15 @@ jobs:
             fi
           done
           exit $FAIL
+
+      - name: Prune old R2 cache builds (keep current + previous; P8 item 6, #242)
+        # Tier 2 first live run (P8). Keeps the just-deployed build and the previous one (rollback);
+        # every older incremental-cache/<build>/ prefix gets a 1-day lifecycle rule. The 30-day
+        # backstop rule is preserved. continue-on-error: a failed prune must never fail a deploy
+        # (G14 -- the worst case is storage staying where it is).
+        continue-on-error: true
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          MODE: apply
+        run: CURRENT_BUILD_ID="$(cat .open-next/assets/BUILD_ID)" node scripts/ci/r2-prune-builds.mjs
