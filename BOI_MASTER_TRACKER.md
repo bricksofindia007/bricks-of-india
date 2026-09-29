@@ -1,5 +1,27 @@
 # BOI Master Tracker
 
+## P10 — 2026-09-29 (G18: waiting-on, no dates)
+
+Record: `docs/logs/cycle2/2026-09-29.md` (P10 section). **Site deploys 29 Sep: 1** (run 36508872790, `9dfedd8`, live 01:42:42 UTC: #427 + #398 flag off + #421). A deploy for `6f4744a` (#420) waits for the next batch.
+
+| Item | Issue / PR | Status | Waiting on |
+|---|---|---|---|
+| 1 Revalidate fix split out + 72 h unpriced + wording | #427 | ✅ **live** 01:42 UTC. Set pages were effectively **1 h** in production since `b9bf2c4` (live 27 Sep 16:33 UTC), now 6 h priced / 72 h unpriced. 5 routes were frozen per deploy (themes, guides, reviews/opinion/community listings) and now have explicit cadences | — |
+| 1 Route audit + CI check | #427 (`scripts/ci/revalidate-audit.ts`, `src/lib/route-cadence.ts`) | ✅ in the required CI job; 47/47 | — |
+| 1 Before/after measurement + egress re-split | census run 36510292336 (before: R2 PutObject 90.9k/24 h; Class A projected 1.46M/30 d vs 1M free) | before captured | 24 h after the deploy + today's content-quality run inside that window |
+| 1 #425 rebased on #427 | #425 | ✅ merged main via PR 1; `/api/revalidate` registered | — |
+| 2 #398 1b merged, flag off | `7df8a70` | ✅ shadow live | real review drafts through generation (the findings report) → 1d |
+| 3 40900 merge + corrections | #428 (draft) | survivor **C** (accurate), A 308s to C; B corrected; invented prices removed on both | your sign-off, then #404 secrets (job path) |
+| 4 GWP rule + prompt context + scan | #429 | built: Gate 14 `gwp` (shadow); prompt branch behind `gwpNoPriceContext` (off); scan: **A 11 articles / 14 claims, B 9 / 14** → #246 comment | merge approval; flag decision; `is_gwp` population from Brickset (proposal: 17 missing, 2 wrong) |
+| 5 #426 sequencing | #426, FP1.6 §4 (d′) | ✅ re-sequenced: not before c; before e | — |
+| R2 prune (P8 item 6) | #420 merged `6f4744a` | the ledger said "live at next deploy", but it had **not** been merged; now merged | the next batched deploy (first live run, Tier 2) |
+| KV namespace IDs (#263) | PR 1 `44aecc6`, carried to #425 | ✅ in `wrangler.jsonc`; dry-run OK both envs | Abhinav's secrets (#263) → PR 1 deploy (step a) |
+| Crawler: 44% of requests = our headless Chrome | #430 | found: `content-quality.yml` → `visual-renderer.mjs`, daily; 1,028 loads/run; ~9.1k uncached renders; ≈ 9–11k Supabase req (est.) | your decision on the recommendation (block prefetch/assets, scope, UA) |
+| FP8.1 internal traffic | #312 | ✅ recorded (the bot-filter part stays open) | — |
+| FP4 Gmail setup | #304 | ✅ closed with evidence | — |
+| Brevo anonymous tracking / FP7.1 disclosure | #305, #295 | ✅ recorded; the disclosure is added to FP7.1's requirements | FP7.1 rewrite |
+| Found: `\b` → backspace bytes | #429 | fixed in `gate14-audit.ts` and `review-verdict-refresh.ts` (it over-protected; no published text affected) | merge |
+
 ## P9 — 2026-09-28/29 (G18: no dates; every item states what it waits on)
 
 Record: `docs/logs/cycle2/2026-09-29.md`. **New guardrail G18** (dates are never deadlines; `a0db51d`). **Site deploys since the 28 Sep batch: 0.**
@@ -39,10 +61,10 @@ Record: `docs/logs/cycle2/2026-09-28.md`. **New guardrail G17** (no command prin
 ### Standing list: assigned vs reported (G18: waiting-on, no dates)
 | Assigned in | Item | Status | Waiting on |
 |---|---|---|---|
-| P5 Step 1 / P8 / P9 | #398 Gate 14: 1b | ✅ built (`7270577`, shadow) | merge approval |
-| P5 Step 1 / P8 / P9 | #398 Gate 14: 1d (enable for new drafts) | queued | shadow evidence + Abhinav's decision |
+| P5 Step 1 / P8 / P9 / P10 | #398 Gate 14: 1b | ✅ merged `7df8a70` (shadow live) | findings from real review drafts |
+| P5 Step 1 / P8 / P9 / P10 | #398 Gate 14: 1d (enable for new drafts) | queued; GWP rule (#429) goes in first | shadow evidence + Abhinav's decision |
 | P5 Step 2 / P9 | T.6 "Prices as of" | queued after 1d (**no reorder**, P9 item 2) | 1d |
-| P5 Step 5 | PR 1 | ✅ built (#423) | #263 Cloudflare items |
+| P5 Step 5 | PR 1 | ✅ built (#423); KV IDs in | Abhinav's #263 secrets |
 | P5 Step 5 / P9 | PR 2 | ✅ built + rehearsed (#425) | PR 1 deployed + secrets + site binding (#426) |
 | P5 decision 5 | Sydney staging rebuild + 12-row seed | — | Abhinav's project details (needed only before the D-9 drill) |
 | P6 / #412 | batch 1 apply | — | approval + #404 migration secrets |
