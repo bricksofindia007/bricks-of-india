@@ -1,0 +1,31 @@
+# P8 item 6: dry run of the post-deploy R2 prune (scripts/ci/r2-prune-builds.mjs). Lists the
+# builds, the rules it WOULD write and storage now. Changes nothing.
+# Budget (G2): manual dispatch; ~45 R2 list calls + 1 GraphQL.
+name: R2 prune (dry run)
+
+on:
+  workflow_dispatch:
+    inputs:
+      current_build_id:
+        description: 'Build ID treated as current (the live deploy)'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    # No runs yet: ~45 paginated list calls, well under a minute. Resize after 3 runs.
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CURRENT_BUILD_ID: ${{ inputs.current_build_id }}
+          MODE: dry-run
+        run: node scripts/ci/r2-prune-builds.mjs

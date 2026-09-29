@@ -76,6 +76,26 @@ class JudgeTests(unittest.TestCase):
             r = cj.judge_coherence('x', post=_post_returning(resp), api_key='k')
             self.assertEqual((r['pass'], r['held']), (False, True))
 
+    def test_custom_prompt_is_sent_and_contract_unchanged(self):
+        seen = []
+        r = cj.judge_coherence('BODY', post=_post_returning(_Resp(content='INCOHERENT: two verdicts'), seen),
+                               api_key='k', prompt='ARTICLE PROMPT: ', max_tokens=300)
+        self.assertEqual(seen[0]['messages'][0]['content'], 'ARTICLE PROMPT: BODY')
+        self.assertEqual(seen[0]['max_tokens'], 300)
+        self.assertFalse(r['pass'])
+        self.assertNotIn('held', r)
+        held = cj.judge_coherence('BODY', post=_post_returning(_Resp(status=429)), api_key='k', prompt='P')
+        self.assertTrue(held['held'])
+
+    def test_qp_rubric_prompt_carries_facts_and_rules(self):
+        p = cj.qp_judge_prompt('Mosasaurus Dinosaur Boat Attack', '77983', 10999, 703)
+        self.assertIn('SET FACTS: LEGO set 77983, "Mosasaurus Dinosaur Boat Attack"; 703 pieces; price Rs 10,999.', p)
+        for rule in ('UNEXPLAINED NUMBER', 'WRONG SET OR PRICE', 'NO IDENTIFIABLE SET', 'CONTRADICTION'):
+            self.assertIn(rule, p)
+        self.assertIn('never a reason to fail', p)
+        self.assertTrue(p.endswith('SCRIPT:' + chr(10)))
+        self.assertIn('piece count: not provided', cj.qp_judge_prompt('X', '1', None, None))
+
     def test_only_held_failures(self):
         held = cj._held('x')
         ok = {'pass': True, 'detail': ''}
