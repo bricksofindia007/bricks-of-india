@@ -1,3 +1,4 @@
+-- boi:issue 441
 -- P12 item 0c (29 Sep 2026): publish_attempts accepts kind='skipped'.
 --
 -- Why: every video poller run that decides not to post now records why
