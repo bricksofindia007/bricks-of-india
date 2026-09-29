@@ -1,5 +1,25 @@
 # BOI Master Tracker
 
+## P9 — 2026-09-28/29 (G18: no dates; every item states what it waits on)
+
+Record: `docs/logs/cycle2/2026-09-29.md`. **New guardrail G18** (dates are never deadlines; `a0db51d`). **Site deploys since the 28 Sep batch: 0.**
+
+| Item | Issue / PR | Status | Waiting on |
+|---|---|---|---|
+| G18 + dated schedule removed (FP1.6 §4, 28 Sep log, scheduler comment) | `a0db51d`, #425 | ✅ done | — |
+| Snapshot sequence a–e | FP1.6 design §4 | a: PR 1 built (#423); b: **PR 2 built + rehearsed on current staging (#425)** | a: #263 Cloudflare items; c: a + secrets + site KV binding (#426); d: the parity count; e: Abhinav's sign-off |
+| FP1.3 | #265 | ✅ **closed** with evidence | — |
+| QP rubric | #421 | ✅ merged `1b3cd71` | first live run = next scheduled VID-QP generation (the 28 Sep run preceded the merge) |
+| Same-set repeat guard | #422 / PR #424 | built; production replay holds the 40900 duplicate, passes the original and the roundup | merge approval |
+| 40900 articles (there are 3) | #422 comment | A (22 Sep) and C (28 Sep) are true duplicates; B is a distinct angle; conflicting ₹12,600 / ₹2,700 / ₹3,400 and WAIT / AVOID+IMPORT ONLY / IMPORT ONLY | Abhinav: 308 C→A + corrections to A and B (G16), then the Step 1 job (#404 secrets) |
+| Trust queue 1b | #398 | ✅ **built** (`7270577`): prompt facts, shared regeneration with 11–13, hold on unverifiable, pieces write-back; flag OFF = shadow | merge approval (shadow goes live); then 1d |
+| Trust queue 1d → T.6 → Step 8 | #398 … | queued, order unchanged | 1d: shadow evidence from live review drafts + Abhinav's enable decision |
+| PR 2 | #425 (stacked on #423) | built; staging rehearsal: 100/100 parity, planted defect caught, heals next cycle | c above |
+| Set pages regenerate hourly in production | #426 item 3 | found 29 Sep (`getStores()` 1 h clock caps the page); fixed in #425 | #425 merge |
+| PR 2 follow-ups | #426 | filed | see issue (each item's dependency) |
+| Article judge slice 2 | run 36504916612 | 35 judged, **9 incoherent**, 0 held, 59,137 tokens | next slice: offset 70 on the next daily budget |
+| #399 first live cleanup | #399 | not yet eligible | QP #38's file age passes 29 Sep 09:01 UTC |
+
 ## P7 + P8 — 2026-09-28 (evening)
 
 Record: `docs/logs/cycle2/2026-09-28.md`. **New guardrail G17** (no command prints a secret's value). **Deploys 28 Sep: 1** (`e258968`: related-news trim + /bot).
@@ -16,20 +36,20 @@ Record: `docs/logs/cycle2/2026-09-28.md`. **New guardrail G17** (no command prin
 | #387 | closed | draft left the queue |
 | Duplicate news auto-publish | #422 | filed |
 
-### Standing list: assigned vs reported
-| Assigned in | Item | Status |
-|---|---|---|
-| P5 Step 1 / P8 | #398 Gate 14: 1b (prompt facts, shared regeneration, write-back) | **not started** (next) |
-| P5 Step 1 / P8 | #398 Gate 14: 1d (enable for new drafts) | **not started** (after 1b) |
-| P5 Step 2 / P8 | T.6 "Prices as of" | queued; **proposed reorder before 1d** so the 3/4 Oct deploy happens |
-| P5 Step 5 | PR 1 | ✅ built (#423); deploy waits on Cloudflare items |
-| P5 Step 5 | PR 2 (publisher, parity, reader + flags, A1, TTL, /api/revalidate) | **not started**; needed by 2 Oct |
-| P5 decision 5 | Sydney staging rebuild + 12-row seed | waiting for Abhinav's project details |
-| P6 / #412 | batch 1 apply | waiting for approval + migration secrets |
-| P6 Step 4 | article judge slices | slice 1 done; slice 2 due 29 Sep |
-| P7 / #399 | first live cleanup run | due after 29 Sep 09:01 |
-| P7 item 6 | FP1.6 build | designed; built with PR 2 |
-| P8 items 1–9 | all | ✅ reported |
+### Standing list: assigned vs reported (G18: waiting-on, no dates)
+| Assigned in | Item | Status | Waiting on |
+|---|---|---|---|
+| P5 Step 1 / P8 / P9 | #398 Gate 14: 1b | ✅ built (`7270577`, shadow) | merge approval |
+| P5 Step 1 / P8 / P9 | #398 Gate 14: 1d (enable for new drafts) | queued | shadow evidence + Abhinav's decision |
+| P5 Step 2 / P9 | T.6 "Prices as of" | queued after 1d (**no reorder**, P9 item 2) | 1d |
+| P5 Step 5 | PR 1 | ✅ built (#423) | #263 Cloudflare items |
+| P5 Step 5 / P9 | PR 2 | ✅ built + rehearsed (#425) | PR 1 deployed + secrets + site binding (#426) |
+| P5 decision 5 | Sydney staging rebuild + 12-row seed | — | Abhinav's project details (needed only before the D-9 drill) |
+| P6 / #412 | batch 1 apply | — | approval + #404 migration secrets |
+| P6 Step 4 | article judge slices | slices 1–2 done (offset 70 next) | the next daily token budget |
+| P7 / #399 | first live cleanup run | — | QP #38's file becomes eligible |
+| P7 item 6 | FP1.6 build | endpoint + transitions built in #425 | PR 2 deployed; B7 on the staging Worker |
+| P8 items 1–9 | all | ✅ reported | — |
 
 ---
 
