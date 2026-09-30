@@ -11,6 +11,19 @@ on:
         required: false
         default: 'false'
         type: boolean
+      # P14 pre-write stop (#450): approve ONE run for a held store. The run
+      # writes that store only if its own available count is within 2% of
+      # approve_available. Nothing persists; leave both empty on normal runs.
+      approve_store:
+        description: 'Approve one run for this held store (e.g. lego.in); empty = no approval'
+        required: false
+        default: ''
+        type: string
+      approve_available:
+        description: 'Expected available product count for approve_store (this run writes only within 2%)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   scrape:
@@ -49,7 +62,21 @@ jobs:
           # FP5 contract comparison input (P4 Step 4g): scrape-now keeps a copy of the
           # catalogue + feeds it already fetched; the comparison step below reads them.
           CONTRACT_CACHE_DIR: ${{ runner.temp }}/contract-cache
+          # P14 4.4: per-run feed facts for guarded stores (artifact only).
+          SCRAPE_RUN_OUT: out/scrape-run
+          APPROVE_STORE: ${{ github.event.inputs.approve_store || '' }}
+          APPROVE_AVAILABLE: ${{ github.event.inputs.approve_available || '' }}
         run: npx tsx scripts/scrape-now.mjs
+
+      - name: Upload per-run feed facts (P14 4.4)
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: scrape-run-${{ github.run_id }}
+          path: out/scrape-run
+          retention-days: 14
+          if-no-files-found: ignore
 
       # FP5.2-5.6 contract comparison -- NON-WRITING (P4 Step 4g, Tier 2 first live
       # run). Runs the new contract (identity ladder, parse validation, breaker,
@@ -75,8 +102,11 @@ jobs:
           path: out/match-audit
           retention-days: 14
 
+      # P14 4.5 (#454): only after a real write -- never on a dry run, a
+      # failed scrape, or a run where every guarded store was held and
+      # nothing was upserted. Toycra writes still count as a write.
       - name: Sync new/changed sets to IndexNow
-        if: always()
+        if: steps.scrape.outcome == 'success' && steps.scrape.outputs.wrote == 'true' && github.event.inputs.dry_run != 'true'
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -114,11 +144,15 @@ jobs:
 
       # continue-on-error above would otherwise leave the job green on a real
       # failure; this step is the sole authority on pass/fail.
-      - name: Fail job if scrape or freshness failed
+      - name: Fail job if scrape or freshness failed, or a store was held
         if: always()
         run: |
           if [ "${{ steps.scrape.outcome }}" = "failure" ] || [ "${{ steps.freshness.outcome }}" = "failure" ]; then
             echo "::error::scrape or freshness check failed -- see step logs above; alert email already sent"
+            exit 1
+          fi
+          if [ -n "${{ steps.scrape.outputs.held_stores }}" ]; then
+            echo "::error::pre-write stop held: ${{ steps.scrape.outputs.held_stores }} (nothing written for it; alert email already sent)"
             exit 1
           fi
           echo "Scrape and freshness check passed."
