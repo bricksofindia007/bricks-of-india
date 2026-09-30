@@ -66,7 +66,7 @@ describe('the 29 Sep bad payload is held', () => {
     const rows = rowsOf(allUnavailable);
     const plan = planStoreWrite({ baseline, stats: feedStats(allUnavailable), rows, storedRows: rows, policy: POLICY_OK, approval: null });
     expect(plan.write).toBe(false);
-    expect(plan.metrics.changed).toBe(0); // the old breaker's "changed 0.00%" blind spot
+    expect((plan.metrics as any).changed).toBe(0); // the old breaker's "changed 0.00%" blind spot
     expect(plan.reasons.join()).toMatch(/share/);
   });
   it('all unavailable against good stored rows -> held on share and change', () => {
@@ -109,8 +109,8 @@ describe('changes and approvals', () => {
     expect(plan.write).toBe(false);
   });
   it('approval inputs parse from the workflow env; empty means none', () => {
-    expect(approvalFromEnv({ APPROVE_STORE: 'lego.in', APPROVE_AVAILABLE: '842' })).toEqual({ store: 'lego.in', available: 842 });
-    expect(approvalFromEnv({ APPROVE_STORE: '', APPROVE_AVAILABLE: '' })).toBeNull();
+    expect(approvalFromEnv({ APPROVE_STORE: 'lego.in', APPROVE_AVAILABLE: '842' } as any)).toEqual({ store: 'lego.in', available: 842 });
+    expect(approvalFromEnv({ APPROVE_STORE: '', APPROVE_AVAILABLE: '' } as any)).toBeNull();
   });
 });
 
