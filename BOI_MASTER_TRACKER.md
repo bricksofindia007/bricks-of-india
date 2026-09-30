@@ -1,5 +1,27 @@
 # BOI Master Tracker
 
+## P14 — 2026-09-30 (ledger states: merged / deployed / live-verified / open)
+
+Report: `docs/reports/P14_legoin_assessment_2026-09-30.md` (+ Step 4 inventory appendix). Evidence outside the repo: `C:\Users\bharg\boi-evidence\2026-09-30-legoin\` (`SHA256SUMS.txt` sha256 `3f35306323c5…`).
+
+| Item | PR / issue / run | State | Waiting on |
+|---|---|---|---|
+| lego.in assessment (Steps 0, 1, 4, 5, 7, 8; Phases 1–3, 5) | this report | **open — report delivered** | Abhinav's decisions ("Needs Abhinav") |
+| Live damage: lego.in rows all `in_stock=false` | #450; runs 36567076036, 36636639478, 36668696301, 36712257724 | **open** — still written every scheduled run; 816 false history rows, none added since | #458 merged, then one approved run |
+| Correction: **handover §4.1 cause statement was wrong** ("the feed itself read unavailable, most likely during the move") | run 36755143181 | recorded — cause is the old host + Node's `accept-language: *` from a US runner (en-US, all unavailable); lego.in reads 842/873 through the same code on the same runner | — |
+| Correction: **chat's first MRP spot-check was wrong** (it sampled only full-price items) | report Phase 2.3–2.4 | recorded — 41 sale variants carry compare_at > price; compare_at is below every verified MRP (22/22) and above only unverified ones (18) | — |
+| Probe v1 | #453 `cceab2d` | merged | — |
+| Probe v2 (every case, one job, IP, headers, body diff) | #456 `cec8df1`; run 36755143181 | merged; **run 1 done (cause named)** | run 2: the next scheduled scrape start (watcher dispatches within 5 min) |
+| Site builds from #453 / #456 | runs 36750672824, 36755087276 | **deployed — intended to stay unapproved** (Abhinav's instruction); both approved in `production` by account `bricksofindia007`, same account as the terminal's `gh`; this session made no approval call. Shipped `src/app/sitemap.ts`, `src/lib/publish-draft.ts` (#446 guard); 2 site deploys today; live `/`, `/sets/40894`, `/deals`, `/bot` 200 | Abhinav: who approved |
+| Switch to lego.in + pre-write stop | #458 (draft) `d4e6b17`, `fa792b7` | **open, HELD** — tests 290/290, tsc clean; local dry run holds lego.in (842/873 stock changes) | Abhinav's approval (Tier 2) |
+| IndexNow during dry_run | #454 | open (fixed inside #458, not merged) | #458 |
+| Registry name "MyBrickHouse" → lego.in | #455 (+ correction comment) | open | #458, copy approval, db-migrate |
+| 18 unverified MRPs under live compare_at (R1) | #457 | open | MRP verification |
+| R3 re-run of 3.3 | report Phase 3.3 | done — 29 badges anchored on lego.in's listed price fail R3's wording (none above a verified MRP) | Abhinav's ruling |
+| 816 false history rows: selection rule + Phase 5 order | report Step 5 / Phase 5 | designed, **not applied** (draft SQL outside the repo) | #458, restore run, approval |
+| #263 token | report Step 8 | steps given; `scrape-prices.yml` lacks the `store` input FP5.9 dispatches | Abhinav creates the PAT; `store` input decision |
+| #448 / #452 | runs 36672372988 / 36672894555 | production waiting / pending | Abhinav's approval |
+
 ## P13 — 2026-09-30 (ledger states: merged / deployed / live-verified / open)
 
 | Item | PR / issue / run | State | Waiting on |
