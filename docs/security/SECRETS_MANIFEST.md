@@ -21,7 +21,7 @@
 ## Rotating the `postgres` password (production or staging), P12, 29 Sep 2026
 **The only way is the Supabase dashboard reset:** Project Settings → Database → Reset database password.
 - `ALTER ROLE postgres ... PASSWORD` is refused on Supabase: `only superusers can alter privileged roles`. `postgres` isn't a superuser there.
-- `scripts/tools/scram_alter_role.py` (#419) works only for roles `postgres` can alter (e.g. `growth_service`, `ci_readonly`), never for `postgres` itself. Note: #419 is still an open PR, so the helper isn't on `main`.
+- `scripts/tools/scram_alter_role.py` (#419, merged 30 Sep `915147c`) works only for roles `postgres` can alter (e.g. `growth_service`, `ci_readonly`), never for `postgres` itself.
 
 Procedure:
 1. Generate the password locally: `python -c "import secrets; print(secrets.token_urlsafe(32))"`, which gives 43 URL-safe characters. Save it to `~/.boi-secrets/prod_db_pw.txt` (single dot).
@@ -31,6 +31,17 @@ Procedure:
 5. Dispatch a db-migrate **plan** run (Abhinav approves production). Once it connects, delete `prod_db_pw.txt`.
 
 Failure signatures: `password authentication failed for user "postgres"` means the pooler found the project but the password is wrong or not propagated yet. `Tenant or user not found` means the wrong pooler host or region; production is only on `aws-1-ap-southeast-2`.
+
+## Named exception: `ALTER ROLE growth_service` in the SQL editor (P13, 30 Sep 2026, approved by Abhinav)
+Production changes normally go only through `db-migrate.yml`. **One-off exception:** the `growth_service` password is set by pasting the `ALTER ROLE growth_service PASSWORD 'SCRAM-SHA-256$…'` statement, produced by `scripts/tools/scram_alter_role.py` (#419), into the Supabase SQL editor. **Reason:** a password verifier (hash) can't go in a repo file, because this repo is public. Only the verifier reaches Postgres; the plaintext never does. Scope: this role's password only. Any other role change still goes through the job.
+
+**Where the `growth_service` credential lives** (names and locations only, G17). All 4 are updated in the same rotation:
+1. growth-engine repo secret `GROWTH_DATABASE_URL` (used by the ingest, forecast and newsletter workflows).
+2. growth-engine repo secret `GROWTH_SERVICE_DB_PASSWORD` (unused: **delete**, don't re-create).
+3. local `boi-growth-engine/.env.local`, key `GROWTH_DATABASE_URL`.
+4. local `boi-growth-engine/secrets/growth_database_url.txt` (missed by #416's first list; found in the 30 Sep reconciliation).
+
+Also delete `GROWTH_DASHBOARD_DATABASE_URL` (growth-engine repo secret): its role `growth_dashboard` is NOLOGIN since migration `20260928120500`.
 
 ## GitHub Actions: repository secrets (28, as of 28 Sep 2026, after 5 unused ones were deleted)
 | Secret | Used by | Rotation / notes |
