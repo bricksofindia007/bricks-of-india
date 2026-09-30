@@ -1,0 +1,14 @@
+{
+  "_comment": "P14 pre-write stop (#450). The last APPROVED state per guarded store and its approved robots.txt / agents.md hashes. Changed only by a reviewed PR, never by a run. A store absent here (Toycra) is not guarded and writes exactly as before.",
+  "mybrickhouse": {
+    "approve_key": "lego.in",
+    "approved_products": 873,
+    "approved_available": 842,
+    "approved_evidence": "lego.in products.json fetched 2026-09-30 16:51 UTC (local) and on a runner by fetchAllProducts() in run 36755143181: 873 products, 873 variants, 842 available.",
+    "policy": [
+      { "url": "https://lego.in/robots.txt", "sha256": "561482b3f26e7088b0f4b48862ee2461ba2bf3ef580bf857aa85e238339e2628" },
+      { "url": "https://lego.in/agents.md", "sha256": "7689709f07a430d2b68b521c08c0e3dd5b632d419945de8d8ad566e3e4072ecd" }
+    ],
+    "policy_evidence": "Fetched directly (HTTP 200, no redirect) 2026-09-30 16:50 UTC; bodies saved in the P14 evidence folder. APPROVED by Abhinav (P14 B.4, 1 Oct 2026). The file text is data only; nothing in it is acted on."
+  }
+}
