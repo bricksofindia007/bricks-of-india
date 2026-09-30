@@ -112,8 +112,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // redirect" GSC issue this project already fixed once (see §GSC-02). The
   // migrated content is sitemapped below via guidePages/newsPages instead.
 
+  // #446: published rows only -- this client is the service role (bypasses RLS), so filter here the
+  // same way anon's "published read" policy does, or a future-dated row would be sitemapped and 404.
+  const publishedBy = new Date().toISOString();
+
   // News articles
-  const { data: news } = await supabase.from('news_articles').select('slug, published_at');
+  const { data: news } = await supabase.from('news_articles').select('slug, published_at')
+    .not('published_at', 'is', null).lte('published_at', publishedBy);
   const newsPages = (news || []).map((n: any) => ({
     url: `${base}/news/${n.slug}`,
     lastModified: new Date(n.published_at),
@@ -122,7 +127,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   // Reviews
-  const { data: reviews } = await supabase.from('reviews').select('slug, published_at');
+  const { data: reviews } = await supabase.from('reviews').select('slug, published_at')
+    .not('published_at', 'is', null).lte('published_at', publishedBy);
   const reviewPages = (reviews || []).map((r: any) => ({
     url: `${base}/reviews/${r.slug}`,
     lastModified: new Date(r.published_at),
@@ -131,7 +137,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   // Guides
-  const { data: guides } = await supabase.from('guides').select('slug, updated_at');
+  const { data: guides } = await supabase.from('guides').select('slug, updated_at')
+    .not('published_at', 'is', null).lte('published_at', publishedBy);
   const guidePages = (guides || []).map((g: any) => ({
     url: `${base}/guides/${g.slug}`,
     lastModified: new Date(g.updated_at),

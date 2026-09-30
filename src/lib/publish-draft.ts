@@ -213,6 +213,18 @@ export function cqsHardCheck(body: string): string | null {
 
 // ── Slug + target resolution ──────────────────────────────────────────────────
 
+/**
+ * #446 (P12): rows are published immediately -- there is no scheduling. A future published_at would
+ * be hidden from anon by the published-only read policy, so its page 404s and that 404 gets cached.
+ * The database trigger reject_future_published_at enforces the same limit (5 minutes of clock skew).
+ */
+export const MAX_PUBLISHED_AT_SKEW_MS = 5 * 60_000;
+export function assertPublishedAtNotFuture(publishedAt: string, nowMs = Date.now()): void {
+  const t = Date.parse(publishedAt);
+  if (!Number.isFinite(t)) throw new Error(`published_at is not a valid timestamp: ${publishedAt}`);
+  if (t > nowMs + MAX_PUBLISHED_AT_SKEW_MS) throw new Error(`published_at ${publishedAt} is in the future; publishing is immediate (#446)`);
+}
+
 export function generateSlug(title: string): string {
   return (title || 'untitled')
     .toLowerCase()
@@ -940,6 +952,7 @@ export async function publishOneDraft(
     ? excerptRaw
     : `${excerptRaw.slice(0, 156).replace(/\s+\S*$/, '')}…`;
   const now     = new Date().toISOString();
+  assertPublishedAtNotFuture(now);
 
   // Review-format articles carry verdict + a matched set reference for
   // Review/Product JSON-LD (buildReviewSchema()) and, as of 2026-07-05, for
