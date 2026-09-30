@@ -38,6 +38,22 @@ Report: `docs/reports/P14_legoin_assessment_2026-09-30.md` (+ Step 4 inventory a
 | F FirstCry markup | #461 | open | plan v2.6 |
 | Matrix run 2 at a scheduled start | watcher armed | not yet: no scheduled scrape since 12:02 on 30 Sep | the next scheduled scrape start |
 
+### P14 round 3 — 2026-10-01 (chat authorizes; terminal merges/approves via CLI)
+
+| Item | PR / issue / run | State | Authorization / waiting on |
+|---|---|---|---|
+| lego.in scraper fix (switch + pre-write stop + en-IN) | PR #458 → `a459bd5` | **merged**; site build 36765458541 left unapproved (no site code) | merge authorized by chat (P14 round 3 item 1) |
+| First run (must hold) | run 36765504522 | **held** as designed: 873 products, 842 available, robots/agents hashes match, 4 pages 200 direct from lego.in; 844/873 rows would change | — |
+| Approved lego.in write | run 36765750134 (`approve_store=lego.in`, `approve_available=842`) | **live in the database**: 873 rows written, 842 in stock, freshness OK; 844 restore history rows (expected) | dispatched per chat's item-1 conditions (all met) |
+| Live pages /sets/40650, /sets/40894 | — | data correct (40650 ₹1,649 in stock; 40894 ₹2,499 in stock, "Only at lego.in"); **pages still show the old cached price data** (6 h price cache, no on-demand refresh) | cache expiry (~00:24 / ~01:06 UTC, 1 Oct) |
+| Deal / Hot / Only at | live `set_price_summary` vs model on current rows | **match**: 97 Hot, 13 Deal, 323 ties, 385 Only at (lego.in 279, Toycra 106), 563 Best Price; 0 sets differ | — |
+| 40900 news correction | #448, run 36672372988 | **applied on production** 19:32 UTC: backup first (news_articles 493 rows), before 2 / after 2, parity 13 = 13; file sha256 `5b652be3…44e9` (same commit as staging) | approved by terminal via CLI on chat's authorization (item 3a) |
+| Traffic-report read permission | #452, run 36672894555 | **applied on production** 19:34 UTC: ci_readonly SELECT on growth.platform_metrics_daily only; parity 14 = 14 | approved by terminal via CLI on Abhinav's Tier 2 approval (item 3b), after 3a |
+| Traffic report | run 36766736864 | done: 1,511 GA4 sessions over the 10 days with data (16 Sep–28 Sep; no rows for 19, 23, 26 Sep; 29–30 Sep not yet pulled) | — |
+| Toycra banner line | PR #462 (`8b093be`) | open; CI green; diff + ancestry shown to chat. Toycra-side 12% **not established** (Toycra's site doesn't state it); commission wording no longer beside the code (flagged) | chat's deploy authorization |
+| Search Console read test | growth-engine PR #4 (draft) | open, HELD (workflow `id-token: write` = Tier 2) | Abhinav confirms the service account on the property; Tier 2 OK |
+| History fix (D) | draft SQL outside the repo | **not applied**: 816 + 775 = 1,591 rows; expect-after 69 | restore verified live; staging needs price_history in the seed (Tier 2 grant); Abhinav's approval |
+
 ## P13 — 2026-09-30 (ledger states: merged / deployed / live-verified / open)
 
 | Item | PR / issue / run | State | Waiting on |
