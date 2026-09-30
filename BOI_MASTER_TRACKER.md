@@ -1,5 +1,22 @@
 # BOI Master Tracker
 
+## P12 close-out — 2026-09-30 (ledger states: merged / deployed / live-verified / open)
+
+| Item | PR / issue / run | State | Waiting on |
+|---|---|---|---|
+| Production DB password → `production-migrations` `MIGRATE_DB_URL` | dashboard reset (token_urlsafe(32)); runbook `docs/security/SECRETS_MANIFEST.md` | **live-verified**: local psql connected (after ~11 min pooler delay), secret set 29 Sep 18:27 UTC, plan run 36612147614 green. File deleted by Abhinav. `ALTER ROLE postgres` is refused on Supabase: rotation is dashboard-only | — |
+| Staging content seed (FP2.1, option A) | #444 `5cb4111`, #445 `a9f6eb7`, issue #443 | merged · **live-verified**: seed run 36661793220 — sets (is_gwp, gwp_parent_set_number, pieces) 26,080 = 26,080, news 493 = 493, reviews 205 = 205, guides 27 = 27, fingerprints match. `ci_readonly` reads exactly these 4 tables (migration `20260929200000`). db-migrate gained `scope=migrations`; misnamed data-fix files now fail lint | — |
+| (a) migrations-only apply | run 36661461198 | **applied** on production: `20260928100000` ledger, `20260928120000` aliases, `20260928120500` NOLOGIN, `20260929060000` skipped kind, `20260929200000` ci_readonly read; parity 12 = 12 | — |
+| (c) data fixes | run 36662235630 | **applied** on production: 287 (0→1), 422 (3→2), 433 (19→19); plan run 36663328361 confirms "data fixes 3, applied 3" | — |
+| (d) 40900 merge | #428, fix 422 | **live-verified**: A 308 → C; A's row gone; C carries the merged text + dated note; B and `/sets/40900-scary-haunted-tree` 200. Cached sitemap still lists A (HIT, s-maxage ~14 h) until it regenerates | sitemap regeneration / next deploy |
+| (d) growth dead roles | migration `20260928120500` | **applied**; the migration's own LOGIN check passed in production; staging read: growth_dashboard / growth_webhook login=false | — |
+| (d) is_gwp fill | #433, fix `433-is-gwp-fill.sql` (was silently skipped as `is-gwp-fill.sql`) | **live-verified**: production 19/19 (17 true, 2 false); staging backup diff: exactly 19 rows, only `is_gwp` | — |
+| #287 alias | fix 287 | **applied**: 43019 = "Soccer Ball" | — |
+| Anon/authenticated published-only read | #447 `afae48a`, issue #446, run 36663835488 | migration **applied** on production (parity 13 = 13) · **live-verified**: anon = service counts 492 / 205 / 27; /, /news, /reviews, /guides, one article of each, /sitemap.xml 200. `publish-draft.ts` guard + sitemap filter **not deployed** | next batched site deploy |
+| 40900 note reword (no price figures) | #448 (draft, Tier 2 signed off) | **draft**; "$100" source: Jay's Brick Blog citing Stonewars ("rumoured purchase threshold US$100 / £90 / €100"); decision pending: attribute vs "a qualifying spend (not yet confirmed by LEGO)" | Abhinav's wording choice; then ships with #412 + #435 |
+| #412 batch 1 / #435 batch 2 | #412, #435 | **draft**, rehearse on seeded staging | #435 dated India-availability notes; batch run |
+| Process rules (P12) | memory + README + runbook | staging changes only via db-migrate; check PR base before merge; permissions/roles/grants/secrets = Tier 2 incl. follow-ups (#445 accepted once) | — |
+
 ## P12 — 2026-09-29 (ledger states: merged / deployed / live-verified / open)
 
 | Item | PR / issue | State | Waiting on |
