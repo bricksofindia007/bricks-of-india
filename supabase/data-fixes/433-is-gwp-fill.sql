@@ -1,4 +1,4 @@
--- boi:issue 246
+-- boi:issue 433
 -- boi:backup-tables public.sets
 -- boi:expect-before select count(*) from public.sets where (set_number, is_gwp) in (values ('40730', false), ('40774', false), ('40887', false), ('40892', false), ('40893', false), ('40897', false), ('40899', false), ('40900', false), ('40901', false), ('40902', false), ('40906', false), ('40913', false), ('40916', false), ('40917', false), ('5009005', false), ('5010927', false), ('5011072', false), ('30730', true), ('40919', true)) = 19
 -- boi:expect-after select count(*) from public.sets where (set_number, is_gwp) in (values ('40730', true), ('40774', true), ('40887', true), ('40892', true), ('40893', true), ('40897', true), ('40899', true), ('40900', true), ('40901', true), ('40902', true), ('40906', true), ('40913', true), ('40916', true), ('40917', true), ('5009005', true), ('5010927', true), ('5011072', true), ('30730', false), ('40919', false)) = 19

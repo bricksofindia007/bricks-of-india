@@ -7,10 +7,10 @@
 //
 // * Production is read ONLY as ci_readonly (read-only role, SELECT on exactly these tables; migration
 //   20260929200000). The script refuses any other production user.
-// * Staging is written in ONE transaction: sets upserted (other tables reference it), then
-//   news_articles / reviews / guides truncated and reloaded. Any error rolls everything back.
-// * Every column is copied: the site selects * from all four tables. None holds an email, IP address
-//   or user id (P12 check against the baseline); the job fails if production has a column staging lacks.
+// * Staging is written in ONE transaction: sets gets ONLY the columns data fixes change (UPDATE on rows
+//   staging already has -- its own catalogue / price data is untouched), then news_articles / reviews /
+//   guides are truncated and reloaded with every column (the site selects * from them). Any error rolls
+//   everything back. None of the tables holds an email, IP address or user id (P12 check against the baseline).
 // * Evidence: per table, the production count, the staging count and an md5 fingerprint over the copied
 //   columns on both sides (hashes only -- the repo and its artifacts are public). The transaction commits
 //   only if they match.
@@ -20,29 +20,30 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 export const PROD_REF = 'hqpaiarhmiocmjrzjhtw';
-// mode 'replace' = truncate + reload; 'upsert' = insert-or-update by id (rows other tables reference).
-// `skipInFingerprint`: columns a staging trigger rewrites on update (sets_updated_at), so they can't match.
+// mode 'replace' = truncate + reload every column.
+// mode 'columns' = UPDATE only the listed columns on rows staging already has (by id); no inserts, and
+//   no other column is touched, so staging's own catalogue / price pipeline data stays as it is (P12 q3).
+//   sets: exactly the columns approved data fixes change -- is_gwp + gwp_parent_set_number (#433),
+//   pieces (#412 catalogue fix). None of them fires the name/theme/year index-tier trigger.
+//   A new fix that changes another sets column adds it here first (data-fixes README).
 export const TABLES = [
-  { table: 'sets', mode: 'upsert', skipInFingerprint: ['updated_at'] },
+  { table: 'sets', mode: 'columns', columns: ['is_gwp', 'gwp_parent_set_number', 'pieces'], skipInFingerprint: [] },
   { table: 'news_articles', mode: 'replace', skipInFingerprint: [] },
   { table: 'reviews', mode: 'replace', skipInFingerprint: [] },
   { table: 'guides', mode: 'replace', skipInFingerprint: [] },
 ];
 
-export function fingerprintSql(table, cols, where = '') {
+export function fingerprintSql(table, cols, where = '', from = `public.${table}`) {
   const row = cols.map((c) => `coalesce(${q(c)}::text, '<null>')`).join(` || '|' || `);
-  return `select count(*) || ' ' || coalesce(md5(string_agg(md5(${row}), '' order by id::text)), '-') from public.${table} ${where}`;
+  return `select count(*) || ' ' || coalesce(md5(string_agg(md5(${row}), '' order by id::text)), '-') from ${from} ${where}`;
 }
 
-// Only rows that differ are updated: an update fires sets' index-tier trigger once per row, and
-// updated_at (rewritten by a trigger) is left out of the comparison.
-export function upsertSql(table, cols, ignore = []) {
-  const list = cols.map(q).join(', ');
+// 'columns' mode: only the listed columns, only rows that differ, only ids staging already has.
+export function columnsUpdateSql(table, cols) {
   const upd = cols.filter((c) => c !== 'id');
-  const set = upd.map((c) => `${q(c)} = excluded.${q(c)}`).join(', ');
-  const cmp = upd.filter((c) => !ignore.includes(c));
-  const where = `(${cmp.map((c) => `t.${q(c)}`).join(', ')}) is distinct from (${cmp.map((c) => `excluded.${q(c)}`).join(', ')})`;
-  return `insert into public.${table} as t (${list}) select ${list} from seed_${table} on conflict (id) do update set ${set} where ${where};`;
+  const set = upd.map((c) => `${q(c)} = s.${q(c)}`).join(', ');
+  const where = `(${upd.map((c) => `t.${q(c)}`).join(', ')}) is distinct from (${upd.map((c) => `s.${q(c)}`).join(', ')})`;
+  return `update public.${table} t set ${set} from seed_${table} s where t.id = s.id and ${where};`;
 }
 
 // Replace tables load through a temp table so identity columns (guides.id is GENERATED ALWAYS) keep
@@ -87,7 +88,8 @@ async function main() {
 
   const plan = [];
   for (const t of TABLES) {
-    const pc = columns(PROD, t.table), sc = columns(STG, t.table);
+    const sc = columns(STG, t.table);
+    const pc = t.mode === 'columns' ? ['id', ...t.columns] : columns(PROD, t.table);
     const missing = pc.filter((c) => !sc.includes(c));
     if (missing.length) throw new Error(`${t.table}: staging lacks column(s) ${missing.join(', ')} -- run staging migrations first`);
     const file = path.resolve(OUT, `${t.table}.csv`);
@@ -108,28 +110,43 @@ async function main() {
 export function buildLoadSql(plan) {
   const lines = ['begin;'];
   for (const t of plan) {
-    lines.push(`create temp table seed_${t.table} (like public.${t.table}) on commit drop;`);
-    lines.push(`\\copy seed_${t.table} (${t.cols.map(q).join(', ')}) from '${t.file.replace(/\\/g, '/')}' with (format csv)`);
+    const list = t.cols.map(q).join(', ');
+    // 'columns' mode can't use LIKE (NOT NULL on the columns it doesn't carry); it holds just id + the listed columns.
+    lines.push(t.mode === 'columns'
+      ? `create temp table seed_${t.table} on commit drop as select ${list} from public.${t.table} with no data;`
+      : `create temp table seed_${t.table} (like public.${t.table}) on commit drop;`);
+    lines.push(`\\copy seed_${t.table} (${list}) from '${t.file.replace(/\\/g, '/')}' with (format csv)`);
   }
-  for (const t of plan.filter((p) => p.mode === 'upsert')) lines.push(upsertSql(t.table, t.cols, t.skipInFingerprint));
+  for (const t of plan.filter((p) => p.mode === 'columns')) lines.push(columnsUpdateSql(t.table, t.cols));
   const replace = plan.filter((p) => p.mode === 'replace');
-  lines.push(`truncate ${replace.map((p) => `public.${p.table}`).join(', ')};`);
+  if (replace.length) lines.push(`truncate ${replace.map((p) => `public.${p.table}`).join(', ')};`);
   for (const t of replace) lines.push(replaceSql(t.table, t.cols));
   lines.push(`select setval(pg_get_serial_sequence('public.guides', 'id'), coalesce(max(id), 1)) from public.guides;`);
   const checks = plan.map((t) => {
-    const where = t.mode === 'upsert' ? `where id in (select id from seed_${t.table})` : '';
-    return `  if (${fingerprintSql(t.table, t.fpCols, where)}) <> '${t.prodFp}' then raise exception 'seed mismatch on ${t.table}'; end if;`;
+    if (t.mode !== 'columns') return `  if (${fingerprintSql(t.table, t.fpCols)}) <> '${t.prodFp}' then raise exception 'seed mismatch on ${t.table}'; end if;`;
+    // the loaded copy must equal production (CSV integrity), and staging must equal that copy on the ids both have
+    const both = (other) => `where id in (select id from ${other})`;
+    return [
+      `  if (${fingerprintSql(t.table, t.fpCols, '', `seed_${t.table}`)}) <> '${t.prodFp}' then raise exception 'seed copy of ${t.table} differs from production'; end if;`,
+      `  if (${fingerprintSql(t.table, t.fpCols, both(`seed_${t.table}`))}) <> (${fingerprintSql(t.table, t.fpCols, both(`public.${t.table}`), `seed_${t.table}`)}) then raise exception 'seed mismatch on ${t.table}'; end if;`,
+    ].join('\n');
   });
   lines.push(`do $$ begin\n${checks.join('\n')}\nend $$;`);
   lines.push(...plan.map((t) => `select '${t.table}|' || (select count(*) from public.${t.table});`));
+  lines.push(...plan.filter((t) => t.mode === 'columns').map((t) =>
+    `select '${t.table}:not_on_staging|' || (select count(*) from seed_${t.table} s where not exists (select 1 from public.${t.table} x where x.id = s.id));`));
   lines.push('commit;');
   return lines.join('\n') + '\n';
 }
 
 function finish(plan, res, OUT, log, say) {
   const counts = Object.fromEntries(res.out.split('\n').filter((l) => l.includes('|')).map((l) => l.split('|')).map(([k, v]) => [k, Number(v)]));
-  const evidence = { tables: plan.map((t) => ({ table: t.table, mode: t.mode, columns: t.cols.length, production_rows: Number(t.prodFp.split(' ')[0]), staging_rows_after: counts[t.table], fingerprint_match: true })) };
-  for (const e of evidence.tables) say(`${e.table} (${e.mode}): production ${e.production_rows}, staging after ${e.staging_rows_after}, fingerprint match`);
+  const evidence = { tables: plan.map((t) => ({
+    table: t.table, mode: t.mode, columns: t.cols, production_rows: Number(t.prodFp.split(' ')[0]), staging_rows_after: counts[t.table],
+    ...(t.mode === 'columns' ? { production_rows_not_on_staging: counts[`${t.table}:not_on_staging`] } : {}), fingerprint_match: true,
+  })) };
+  for (const e of evidence.tables) say(`${e.table} (${e.mode}${e.mode === 'columns' ? `: ${e.columns.join(', ')}` : ''}): production ${e.production_rows}, staging after ${e.staging_rows_after}` +
+    `${e.mode === 'columns' ? `, production rows not on staging ${e.production_rows_not_on_staging} (left alone)` : ''}, fingerprint match`);
   for (const t of plan) fs.rmSync(t.file, { force: true }); // never upload content: the repo is public
   fs.writeFileSync(path.join(OUT, 'evidence-seed.json'), JSON.stringify(evidence, null, 1));
   fs.writeFileSync(path.join(OUT, 'evidence-seed.md'), log.join('\n') + '\n');
