@@ -5,8 +5,8 @@
 //
 //   PROD_URL=<ci_readonly> STAGING_URL=<staging postgres> OUT_DIR=seed-out node scripts/ci/seed-staging.mjs
 //
-// * Production is read ONLY as ci_readonly (read-only role, SELECT on exactly these tables; migration
-//   20260929200000). The script refuses any other production user.
+// * Production is read ONLY as ci_readonly (read-only role, SELECT on exactly these tables; migrations
+//   20260929200000 and 20261001010000 for price_history). The script refuses any other production user.
 // * Staging is written in ONE transaction: sets gets ONLY the columns data fixes change (UPDATE on rows
 //   staging already has -- its own catalogue / price data is untouched), then news_articles / reviews /
 //   guides are truncated and reloaded with every column (the site selects * from them). Any error rolls
@@ -31,6 +31,10 @@ export const TABLES = [
   { table: 'news_articles', mode: 'replace', skipInFingerprint: [] },
   { table: 'reviews', mode: 'replace', skipInFingerprint: [] },
   { table: 'guides', mode: 'replace', skipInFingerprint: [] },
+  // #450 (P14 round 4, Tier 2 approved): the lego.in history fix is rehearsed on a faithful copy.
+  // ci_readonly SELECT from migration 20261001010000. Set ids, store ids, prices, stock flags and
+  // timestamps only; no personal data.
+  { table: 'price_history', mode: 'replace', skipInFingerprint: [] },
 ];
 
 export function fingerprintSql(table, cols, where = '', from = `public.${table}`) {
