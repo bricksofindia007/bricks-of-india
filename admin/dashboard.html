@@ -574,11 +574,11 @@
     "lastAuditDate": "2026-05-25",
     "nextAuditDate": "2026-06-25",
     "nextActions": [
-      "Terminal: after the sitemap cache expires, confirm /sitemap.xml lists 492 news URLs (A gone) and record it in the P12 ledger",
-      "Next batch through db-migrate (rehearsed on seeded staging): #412, #435 (+ India-availability notes), #448",
-      "Next batched site deploy (not deployed): #446 publish-draft guard + sitemap filter; Tier 1 hygiene (Node 24 actions, pinned runner, supabase/**/*.md in paths-ignore)",
-      "Terminal, waiting on events: R2 storage_after (lifecycle expiry, then r2-prune-dry-run); first poller run writing kind='skipped'; #263 scheduler secrets",
-      "Rules (P12): staging only via db-migrate; PR base check before merge; permissions/roles/grants/secrets = Tier 2 incl. follow-ups"
+      "Abhinav: approve db-migrate run 36672372988 (#448 production), then 36672894555 (#451 ci_readonly GA4 read)",
+      "Abhinav: MyBrickHouse (#450) display decision; 1e breaker/policy-stop PR approval; backups DB-credential choice; growth_service rotation (steps in P13 report)",
+      "Terminal, waiting on events: next scheduled scrape (MBH self-heal?); sitemap 492 after cache expiry; R2 storage_after; QP generation (#421/#365)",
+      "Held until MyBrickHouse is resolved: #412 then #435 (rebuilt on #412's 40897 output + India-availability notes)",
+      "Rules (P12/P13): staging only via db-migrate; PR base check; permissions/roles/grants/secrets = Tier 2 incl. follow-ups"
     ],
     "openManualChecks": [
       "Confirm Scrape Store Prices failure root cause and fix",

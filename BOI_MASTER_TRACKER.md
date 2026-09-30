@@ -1,5 +1,21 @@
 # BOI Master Tracker
 
+## P13 — 2026-09-30 (ledger states: merged / deployed / live-verified / open)
+
+| Item | PR / issue / run | State | Waiting on |
+|---|---|---|---|
+| 1a MyBrickHouse probe | #449 `d4aa935`, run 36671917193 | **done**: runner gets the same feed as off-GitHub (250 products, 244 available / 6 not, both UAs, HTTP 200). robots.txt / agents.md **301 → lego.in** (Shopify storefront; allows `/`, `/products.json` not disallowed). **Not a block.** Earlier "runner gets different data" inference was wrong | — |
+| 1a root cause | #450 | **open**: scraper parse is correct (843/873 in stock locally); the runner's cached feed at 12:16 / 21:57 / 04:24 agreed with all-false rows (dry run `stock 0`), so the feed read `available:false` then. Transient (storefront move) vs request-dependent unknown | the next scheduled scrape (self-heal would flip ~843 rows back) |
+| 1b display-off model | read-only, `price-summary-model.mjs` on production data | **done**: MBH off → anchor moves on 653 sets (579 → Toycra, 74 → catalogue), 5 new Deal + 2 Deal→Hot badges with **no price change**, 220 sets lose their only listing; deals 114 → 119 | — |
+| 1c display off | — | **stopped** (misleading per 1b); nothing changed | Abhinav's decision |
+| 1d incident issue | #450 | filed (timeline + evidence); 816 false history rows untouched | root cause → backed-up correction proposal |
+| 1e breaker + policy stop in front of the scraper | — | proposed (P13 report) | Tier 2 PR approval |
+| 2 #448 alone | #448 `b0c4612`, run 36672372988 | merged · **staging applied** (before 2, after 2; news_articles 492 backed up) · **production waiting for approval** | Abhinav's approval |
+| 3 #416 | #419 `915147c`, `2fd879b`, #416 comment | #419 **merged**; named SQL-editor exception + 4 locations in `SECRETS_MANIFEST.md`; #416 updated | Abhinav rotates (steps in report), then "growth_service rotated" |
+| 4 Backups Tier A | #272 | **design ready, not built**: the Sunday full dump needs a DB credential (a role/secret choice, Tier 2 under the P13 rule) | Abhinav's credential decision |
+| 5 GA4 read path | #452 `80fca97`, issue #451, run 36672894555 | merged · staging rehearsal (rolled back) passed · apply **queued** behind run 36672372988 | #448 approval, then this run's production approval, then `traffic-report.yml` |
+| 5 Search Console ingestion | #451 | proposed (P13 report) | Abhinav's setup |
+
 ## P12 close-out — 2026-09-30 (ledger states: merged / deployed / live-verified / open)
 
 | Item | PR / issue / run | State | Waiting on |
