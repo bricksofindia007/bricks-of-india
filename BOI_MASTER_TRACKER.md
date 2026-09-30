@@ -51,7 +51,7 @@ Report: `docs/reports/P14_legoin_assessment_2026-09-30.md` (+ Step 4 inventory a
 | Traffic-report read permission | #452, run 36672894555 | **applied on production** 19:34 UTC: ci_readonly SELECT on growth.platform_metrics_daily only; parity 14 = 14 | approved by terminal via CLI on Abhinav's Tier 2 approval (item 3b), after 3a |
 | Traffic report | run 36766736864 | done: 1,511 GA4 sessions over the 10 days with data (16 Sep–28 Sep; no rows for 19, 23, 26 Sep; 29–30 Sep not yet pulled) | — |
 | Toycra banner line | PR #462 (`8b093be`) | open; CI green; diff + ancestry shown to chat. Toycra-side 12% **not established** (Toycra's site doesn't state it); commission wording no longer beside the code (flagged) | chat's deploy authorization |
-| Search Console read test | growth-engine PR #4 (draft) | open, HELD (workflow `id-token: write` = Tier 2) | Abhinav confirms the service account on the property; Tier 2 OK |
+| Search Console read test | growth-engine PR #4 → `ff69855`; run 36767772716 | **merged; read works** (HTTP 200): 22–28 Sep **0 clicks, 60 impressions** (4, 4, 12, 6, 18, 5, 11) | merged on Abhinav's "Step 4 unblocked, test now" (service account confirmed Viewer on GA4, Restricted on sc-domain:bricksofindia.com); read as the Tier 2 OK for the workflow's `id-token: write` |
 | History fix (D) | draft SQL outside the repo | **not applied**: 816 + 775 = 1,591 rows; expect-after 69 | restore verified live; staging needs price_history in the seed (Tier 2 grant); Abhinav's approval |
 
 ## P13 — 2026-09-30 (ledger states: merged / deployed / live-verified / open)
