@@ -18,7 +18,7 @@ permissions:
 jobs:
   matrix:
     runs-on: ubuntu-latest
-    # ~30 page GETs at 2 s spacing plus npm ci; no run history yet, so this is
+    # ~2 x 25 page GETs at 2 s spacing plus npm ci; no run history yet, so this is
     # a hard ceiling, not a sized estimate.
     timeout-minutes: 15
     steps:
@@ -31,19 +31,22 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Matrix under plain node (no dependencies needed)
-        run: node scripts/probes/legoin-availability-matrix.mjs --out out/matrix-node
-
       # The live scraper runs under `npx tsx` after `npm ci`, with supabase-js
       # loaded and Toycra fetched first. Reproduce that runtime and order
       # without any secret.
       - name: Install dependencies (for tsx and the scrape-now import set)
         run: npm ci
 
-      - name: Matrix under npx tsx, plus the scrape-now fetch order
+      # Every case runs back to back in one process, in this one job, on this
+      # one runner; case 1 is the scraper's own fetch in scrape-now order
+      # (Toycra first). The script records the public IP before each case.
+      - name: Matrix under node 20
+        run: node scripts/probes/legoin-availability-matrix.mjs --out out/matrix-node
+
+      - name: Matrix under npx tsx (the scraper's runtime), every case again
         env:
           MATRIX_RUNTIME: tsx
-        run: npx tsx scripts/probes/legoin-availability-matrix.mjs --out out/matrix-tsx --only 'node\.|seq\.' --with-sequence
+        run: npx tsx scripts/probes/legoin-availability-matrix.mjs --out out/matrix-tsx
 
       - name: Upload matrix
         if: always()
