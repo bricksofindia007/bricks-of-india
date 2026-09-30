@@ -190,6 +190,7 @@ async function main() {
     try {
       allProducts = await fetchAllProducts(store.domain, store.path, {
         redirect: store.redirect,
+        headers: store.headers,
         onPage: baseline ? (p) => pages.push(p) : undefined,
       });
       console.log(`  Fetched ${allProducts.length} products total`);

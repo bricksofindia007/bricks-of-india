@@ -30,10 +30,12 @@ export const STORES = [
     // fetchAllProducts(), on the same runner and IP in the same job
     // (run 36755143181, IP 57.151.86.240). So the fix is the canonical host,
     // fetched directly: any redirect is an error, never followed.
-    // Not changed here (untested on a runner): an explicit Accept-Language.
+    // Plus an explicit Accept-Language: en-IN (P14 B.2, Abhinav) so the
+    // store's locale never depends on Node's default `accept-language: *`.
     domain:   'lego.in',
     path:     '/products.json',
     redirect: 'error',
+    headers:  { 'Accept-Language': 'en-IN' },
   },
 ];
 
@@ -55,6 +57,8 @@ export async function withRetry(fn, retries = 3, baseMs = 2000) {
  * Fetch all products from a Shopify store via paginated /products.json.
  *
  * opts.redirect: fetch redirect mode ('follow' when omitted, as before).
+ * opts.headers: extra request headers (e.g. Accept-Language), merged after
+ * the default User-Agent / Accept.
  * opts.onPage({ url, finalUrl, status, redirected, body }): called with each
  * page's raw body before parsing, for per-run logging (P14 4.4). Omitting
  * opts keeps the pre-P14 behaviour exactly (Toycra, reviews-source).
@@ -69,7 +73,7 @@ export async function fetchAllProducts(domain, path, opts = {}) {
 
     const data = await withRetry(async () => {
       const res = await fetch(url, {
-        headers: { 'User-Agent': 'BricksOfIndia/1.0 (+https://bricksofindia.com)', Accept: 'application/json' },
+        headers: { 'User-Agent': 'BricksOfIndia/1.0 (+https://bricksofindia.com)', Accept: 'application/json', ...(opts.headers ?? {}) },
         signal: AbortSignal.timeout(30_000),
         ...(opts.redirect ? { redirect: opts.redirect } : {}),
       });

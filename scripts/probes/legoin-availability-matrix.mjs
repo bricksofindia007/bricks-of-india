@@ -25,7 +25,7 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import http from 'node:http';
 import path from 'node:path';
-import { fetchAllProducts } from '../lib/retailer-fetch.mjs';
+import { fetchAllProducts, STORES } from '../lib/retailer-fetch.mjs';
 
 const args = process.argv.slice(2);
 const OUT = args[args.indexOf('--out') + 1] || 'out/legoin-matrix';
@@ -40,6 +40,8 @@ const PAUSE_MS = 2000;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const sha256 = (buf) => createHash('sha256').update(buf).digest('hex');
 const NULL_DEV = process.platform === 'win32' ? 'NUL' : '/dev/null';
+// The live scraper's lego.in store entry (domain, path, redirect, headers), used as-is.
+const LEGOIN = STORES.find((s) => s.id === 'mybrickhouse');
 
 function publicIp() {
   try { return JSON.parse(execFileSync('curl', ['-s', '--max-time', '10', IP_ECHO]).toString()).ip; }
@@ -78,7 +80,7 @@ function fetchHeaders(res) {
 
 // The scraper's own function, unchanged: wrap globalThis.fetch only to observe
 // each response (status, final URL, headers, body sha256, page-1 body).
-async function scraperFn(domain, pathName) {
+async function scraperFn(domain, pathName, opts) {
   const pages = [];
   const realFetch = globalThis.fetch;
   globalThis.fetch = async (input, init) => {
@@ -87,7 +89,7 @@ async function scraperFn(domain, pathName) {
     pages.push({ url: String(input), status: res.status, redirected: res.redirected, final_url: res.url, response_headers: fetchHeaders(res), body_sha256: sha256(buf), ...counts(buf), _body: buf });
     return res;
   };
-  try { await fetchAllProducts(domain, pathName); } finally { globalThis.fetch = realFetch; }
+  try { await fetchAllProducts(domain, pathName, opts); } finally { globalThis.fetch = realFetch; }
   return pages;
 }
 
@@ -158,6 +160,8 @@ async function main() {
     node_no_extra: await captureOnLoopback((u) => fetch(u)),
     curl_default: await captureOnLoopback(curlSend([])),
     curl_scraper_headers: await captureOnLoopback(curlSend(['-A', SCRAPER_UA, '-H', 'Accept: application/json'])),
+    // P14 B.2: what the scraper sends for lego.in with its store config (explicit Accept-Language).
+    node_legoin_store_config: await captureOnLoopback((u) => fetch(u, { headers: { ...SCRAPER_HEADERS, ...(LEGOIN.headers ?? {}) } })),
   };
   const nd = sent.node_scraper_headers;
   const NODE_EXTRAS = { 'accept-language': nd['accept-language'], 'sec-fetch-mode': nd['sec-fetch-mode'], 'accept-encoding': nd['accept-encoding'] };
@@ -171,6 +175,12 @@ async function main() {
     const mbh = await scraperFn(HOSTS.old, '/products.json');
     return [...toycra.map((p) => ({ ...p, store: 'toycra' })), ...mbh.map((p) => ({ ...p, store: 'mybrickhouse' }))];
   } }];
+  // P14 B.2: the scraper's own fetch with lego.in's exact store config (Accept-Language: en-IN,
+  // redirect: 'error'), and the old host with only en-IN added, for comparison.
+  cases.push({ id: 'legoin.store-config.scraper-fn', host: LEGOIN.domain, client: "scraper's fetchAllProducts with STORES config", headers: `scraper + ${JSON.stringify(LEGOIN.headers ?? {})}, redirect ${LEGOIN.redirect ?? 'follow'}`,
+    run: () => scraperFn(LEGOIN.domain, LEGOIN.path, { redirect: LEGOIN.redirect, headers: LEGOIN.headers }) });
+  cases.push({ id: 'old.scraper-fn+en-IN', host: HOSTS.old, client: "scraper's fetchAllProducts", headers: 'scraper + Accept-Language: en-IN',
+    run: () => scraperFn(HOSTS.old, '/products.json', { headers: { 'Accept-Language': 'en-IN' } }) });
   for (const [hk, host] of Object.entries(HOSTS)) {
     const url = `https://${host}/products.json?limit=250&page=1`;
     cases.push({ id: `${hk}.node.scraper-fn`, host, client: "scraper's fetchAllProducts (all pages)", headers: 'scraper', run: () => scraperFn(host, '/products.json') });
