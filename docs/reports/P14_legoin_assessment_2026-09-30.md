@@ -195,3 +195,84 @@ Runner reachability: probe run **36757573367** (18:17): all three **HTTP 200**. 
 8. **Retired verdicts (R4 content check):** 17 reviews/Review articles say RETIRED while lego.in sells the set new; correct with dated notes or leave.
 9. **#263:** create the PAT per Step 8, and decide the `store` input for `scrape-prices.yml` (FP5.9).
 10. **#448 / #452** production approvals (unchanged).
+
+---
+
+# P14 round 2 (1 Oct 2026, terminal)
+
+## A. Deploys
+
+**A.1 Approval records** (`GET …/actions/runs/{id}/approvals`): both runs have exactly one review, `state: "approved"`, `user: bricksofindia007` (id 275265500), `comment: ""` (empty), environment `production`. The approvals API carries **no timestamp**; the deployment status timeline gives it (`GET …/deployments/{id}/statuses`):
+
+| Run | Deployment | waiting | queued (= approved) | in_progress | success |
+|---|---|---|---|---|---|
+| 36750672824 (`cceab2d`) | 6765687630 | 17:20:29 | **17:24:04** | 17:24:06 | 17:26:26 |
+| 36755087276 (`cec8df1`) | 6766429176 | 17:57:17 | **17:57:58** | 17:58:00 | 17:59:54 |
+
+Both runs: `actor` = `triggering_actor` = `bricksofindia007`, event `push` (the #453 / #456 squash merges from this terminal).
+
+**No call from this terminal touched a pending deployment or a review.** This session's transcript (`~/.claude/projects/C--Users-bharg/46c52288-861c-4be2-b7bb-1e3edad3754b.jsonl`, sha256 `b30c0aa6792bf86f6ce42400918fbc5c003619cf1374e138e71c6bed6a83db8f` when read) holds 174 shell calls up to that point. Calls mentioning `pending_deployments`, `/approvals`, `environments/`, `deployments/<id>` or `environment_ids`: 9, **all GET** (the first at 16:53 read #448/#452's pending deployments; the rest were the 18:23+ investigation). Calls using `gh api` with a write method (`-X/--method POST|PUT|PATCH|DELETE`) or body fields (`-f/-F/--field/--raw-field/--input`): **0**. The only other Claude session touched on 30 Sep (`d75f715f…`, 16:29:54–16:36:34) made **0** tool calls. PowerShell history: 0 matches; no Git Bash history file. So the approvals at 17:24:04 and 17:57:58 did not come from this terminal's tools; who made them is **not established**.
+
+**A.2 Who can approve.** GitHub docs: `POST /repos/{owner}/{repo}/actions/runs/{run_id}/pending_deployments` — "Required reviewers with read access to the repository contents and deployments"; "OAuth app tokens and personal access tokens (classic) need the repo scope" (REST, workflow runs); for fine-grained tokens it is listed under **Repository permissions for "Deployments" (write)** (REST, permissions required for fine-grained PATs). Our settings (`GET …/environments/production`): one rule, `required_reviewers` = [`bricksofindia007`], `prevent_self_review: false`, `can_admins_bypass: true`. This terminal: `gh auth status` → account `bricksofindia007`, OAuth token (keyring), scopes `gist, read:org, repo`. **So the terminal's token can approve production deployments** (same account as the only required reviewer, `repo` scope). Options (Tier 2, not applied):
+
+| Option | What | Stops the terminal approving? | Trade-offs |
+|---|---|---|---|
+| 1. Fine-grained PAT for the terminal | Replace the keyring OAuth token with a fine-grained PAT (owner `bricksofindia007`, repo `bricks-of-india` only): Contents RW, Pull requests RW, Issues RW, Actions RW (dispatch), Workflows RW (edit workflow files), Metadata R; **no Deployments, Environments, Administration or Secrets** | Yes: the approve endpoint needs Deployments write | Same identity in git history. Secret and environment changes become impossible from the terminal (they're Tier 2 anyway: Abhinav does them). Token expiry to manage. Abhinav's browser approvals unchanged |
+| 2. Machine user | A second GitHub account for the terminal (write collaborator, **not** a reviewer); Abhinav's account stays sole reviewer | Yes: not a required reviewer | Cleanest audit trail (commits, merges, dispatches attributed to the bot). One more account and its token and 2FA to manage |
+| 3. `prevent_self_review: true` | A reviewer can't approve a run they triggered | **Only with option 2.** Today every run is triggered by `bricksofindia007`, the only reviewer, so with one account it would block **every** approval, Abhinav's included | A useful second lock once the terminal pushes as a different identity |
+| 4. `can_admins_bypass: false` | Admins can't skip the protection rules | Closes the admin bypass path for any admin token | Abhinav also loses the bypass (he can still approve) |
+
+Recommendation: **1 + 4** now (no new account; removes the approve and bypass paths from the terminal); **2 + 3** if a separate identity is wanted.
+
+**A.3 #446 closed** with an evidence comment (issuecomment-5917399976): `afae48a` is an ancestor of the deployed `cec8df1` (run 36755087276; not in the previous deploy `6e71cdd`); live `/sitemap.xml` (30 Sep 18:36, HTTP 200, `x-nextjs-cache: HIT`) lists 493 news / 208 reviews / 27 guides = the published rows; with no future-dated rows the filter's effect itself isn't observable. The Tier 1 hygiene batch did not ride with it.
+
+**A.4** #448 run 36672372988: **still waiting** (staging success; `production-migrations` pending). #452 run 36672894555: **still pending** (queued behind it).
+
+## B. Before merging #458
+
+**B.1 (report §2.8, restated with evidence).** The 397 feed products outside the storefront "all" listing (none carries tag `age`):
+- **BOI matches 397 / 397** (SKU); **available 386**, unavailable 11.
+- In the lego.in-feed model (`phase3-model.json`): **112** sets "Only at lego.in", **274** "Best Price" (≥ 2 stores in stock), **59** with a Deal/Hot badge (2 with lego.in the best price).
+- **10 product pages, one request each** (30 Sep 18:04; the 40894 page reused from 17:40): 40894, 42676, 31386, 71863, 75446, 75442, 11502, 76338, 60481, 31382 → **all HTTP 200, "Add to cart" enabled, JSON-LD `InStock`, `data-stock="in"`, meta robots "index, follow"** (`hidden/*.html`, hashes in `SHA256SUMS.txt`).
+- **Findable:** the store's `/search?q=<set>&type=product` returns each of the 10 (10/10); all 397 are in `/collections/all/products.json` (873 = products.json). Only the HTML `/collections/all` listing omits them.
+- **No unpurchasable listing was found counted as in stock** (10/10 purchasable), so under B.1's condition the restore doesn't wait on a rule.
+
+**B.2 Explicit `Accept-Language: en-IN`**: #458 commit `028e9b8`. Runner proof: **run 36760318930** (probe dispatched on the #458 branch; runner IP 64.236.134.169, 18:41–18:43 UTC): the scraper's own `fetchAllProducts()` with lego.in's exact `STORES` config sends `accept-language: en-IN` (loopback capture) and reads **842 / 873** on all 4 pages (`content-language: en-IN`) under node 20 and tsx, i.e. within 842 ± 2%. Refinement to Phase 1: the old host with `Accept-Language: en-IN` also reads **0 / 873**, so on `lego.mybrickhouse.com` any `Accept-Language` value tested (`*`, `en-IN`) reads all unavailable from a runner; the fix is the host.
+
+**B.3 Recorded:** R3 is replaced. An anchor is valid under ruling C (compare-at if above the listed price, else the listed price) and must never be above a verified catalogue MRP. The 29 listed-price anchors pass (0 above a verified MRP); all 153 badges in the lego.in model pass.
+
+**B.4 Recorded:** fingerprint APPROVED: robots.txt `561482b3f26e7088b0f4b48862ee2461ba2bf3ef580bf857aa85e238339e2628`, agents.md `7689709f07a430d2b68b521c08c0e3dd5b632d419945de8d8ad566e3e4072ecd`; written to `scripts/lib/store-baselines.json` in #458 (`03f5a69`). File text is data only.
+
+## D. History fix: staging note (for later)
+
+`scripts/ci/seed-staging.mjs:29` `TABLES` seeds catalogue and content tables, not `price_history` or `store_prices`, so staging does **not** hold the 816 rows. Faithful rehearsal: add `price_history` rows for `store_id='mybrickhouse'` to the seed allowlist first, re-seed, and require staging's `expect-before` counts to equal production's. Final SQL and counts come after the restore run (its `scraped_at` is part of the rule).
+
+## E. Retired verdicts (read-only)
+
+**All 123 BOI-retired sets vs Brickset** (`getSets`, one call, 1 Oct; `brickset-retired123.json` sha256 `9b782d7ca002d459…`): **agree 123** (Brickset exit date already passed), disagree 0, unknown 0. The flag is right about LEGO.
+
+**The 53 sentences on 18 pages** (`retired-sentences-classified.json` sha256 `8739e596ff5b5bf5…`); Brickset retirement for all 17 sets: **true** (17/17):
+
+| Sentence (as published) | Count | Class |
+|---|---|---|
+| "Verdict: RETIRED." | 18 | (i) LEGO retirement: true |
+| "This set has been discontinued by LEGO and is no longer available through MyBrickHouse or Toycra." | 18 | (i) true + (ii) India availability: false today |
+| "Standard disclaimer: this set is retired — there's nothing left to buy." | 8 | (i) true + (ii) false today |
+| "Check the secondary/resale market if you still want one." | 8 | (ii) |
+| "Retired Icons and Star Wars sets typically appreciate 2-5x over 3-5 years." (guide) | 1 | (i) general statement, not about one set |
+
+**Proposed dated correction note for (ii)** (no static price or stock claim):
+> *Correction, [date]: an earlier version of this review said this set was no longer available in India. LEGO has retired it, but Indian stores may still have stock. See live prices and stock on the [LEGO [Name] ([number]) price page](/sets/[slug]).*
+
+with the corrected lines reading "Verdict: RETIRED. LEGO has discontinued this set." and "Standard disclaimer: this set is retired by LEGO; check the live price page before assuming it's gone." **#459** filed for `retirement-check.mjs:100-138` writing availability claims from the retirement flag. No edits.
+
+## F. Issues filed
+
+- **#460**: `scrape-prices.yml` has no `store` input, which the boi-scheduler Worker sends (FP5.9 blocker).
+- **#461**: FirstCry markup changed since plan §9.1 (`rupee_sp` note stale; for plan v2.6).
+
+## Needs Abhinav (round 2)
+
+1. **A.1/A.2:** who approved at 17:24:04 and 17:57:58, and which of options 1–4 to apply (Tier 2).
+2. **#458 merge approval** (then C: the first run must hold → I report its parsed counts → your `approve_available`).
+3. **E:** the correction wording for the (ii) sentences, and #459.

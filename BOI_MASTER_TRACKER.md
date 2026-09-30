@@ -22,6 +22,22 @@ Report: `docs/reports/P14_legoin_assessment_2026-09-30.md` (+ Step 4 inventory a
 | #263 token | report Step 8 | steps given; `scrape-prices.yml` lacks the `store` input FP5.9 dispatches | Abhinav creates the PAT; `store` input decision |
 | #448 / #452 | runs 36672372988 / 36672894555 | production waiting / pending | Abhinav's approval |
 
+### P14 round 2 — 2026-10-01
+
+| Item | PR / issue / run | State | Waiting on |
+|---|---|---|---|
+| **Site deploys on 30 Sep: 2, over the 1-a-day cap** | runs 36750672824 (`cceab2d`, approved 17:24:04), 36755087276 (`cec8df1`, approved 17:57:58) | **deployed** (not planned); approver account `bricksofindia007`, comment empty; no call from this terminal approved (transcript: 0 write `gh api` calls) | **approver pending Abhinav's answer** |
+| Terminal can approve production (OAuth `repo` scope, sole reviewer, admins bypass on) | report round 2 A.2 | options 1–4 proposed (Tier 2), not applied | Abhinav's decision |
+| #446 | issuecomment-5917399976 | **closed** — code guard deployed in `cec8df1` (close condition) | — |
+| B.1 397 unlisted products | report round 2 B.1 | done — 397 matched, 386 available, 10/10 pages purchasable + InStock + searchable | — |
+| B.2 explicit `Accept-Language: en-IN` | #458 `028e9b8`; run 36760318930 | on the PR (not merged) — runner reads 842/873 with lego.in's store config | #458 merge approval |
+| B.3 R3 replaced (ruling C, never above a verified MRP) | report round 2 B.3 | recorded — 29 listed-price anchors pass; 153/153 badges pass | — |
+| B.4 lego.in fingerprint | #458 `03f5a69` | **APPROVED** (robots `561482b3…2628`, agents `7689709f…2ecd`) | #458 merge |
+| E retired verdicts | #459 | open — 123/123 BOI-retired agree with Brickset; 53 sentences classified; correction wording proposed | Abhinav's wording decision |
+| F FP5.9 `store` input | #460 | open | #263, after #458 |
+| F FirstCry markup | #461 | open | plan v2.6 |
+| Matrix run 2 at a scheduled start | watcher armed | not yet: no scheduled scrape since 12:02 on 30 Sep | the next scheduled scrape start |
+
 ## P13 — 2026-09-30 (ledger states: merged / deployed / live-verified / open)
 
 | Item | PR / issue / run | State | Waiting on |
