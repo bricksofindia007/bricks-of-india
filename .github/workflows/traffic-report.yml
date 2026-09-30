@@ -1,0 +1,37 @@
+# P13 item 5 (#451): GA4 website traffic, read as ci_readonly from growth.platform_metrics_daily
+# (migration 20260930070000). Dispatch-only, read-only; prints daily aggregates (sessions, active
+# users) and nothing else. The growth engine writes these rows nightly (ingestion/ga4.py:
+# views = sessions, reach = activeUsers).
+# Budget (G2): manual dispatch; one read-only query per run.
+name: Traffic report (read-only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'How many days back'
+        default: '14'
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    # No runs yet: one psql query. Resize after 3 runs.
+    timeout-minutes: 5
+    steps:
+      - run: psql --version
+      - name: GA4 sessions per day (ci_readonly)
+        env:
+          DATABASE_URL: ${{ secrets.CI_READONLY_DB_URL }}
+          DAYS: ${{ inputs.days }}
+        run: |
+          set -eu
+          case "$DAYS" in ''|*[!0-9]*) echo "days must be a number"; exit 1;; esac
+          psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -P pager=off -c "
+            select metric_date, views as sessions, reach as active_users, pulled_at::date as pulled
+            from growth.platform_metrics_daily
+            where platform = 'website' and metric_date >= current_date - $DAYS
+            order by metric_date" | tee report.txt
+          { echo '## GA4 website traffic (growth.platform_metrics_daily)'; echo '```'; cat report.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
