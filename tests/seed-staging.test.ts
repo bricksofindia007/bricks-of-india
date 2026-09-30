@@ -4,7 +4,7 @@ import { strayFixFiles } from '../scripts/ci/db-migrate.mjs';
 
 describe('seed-staging (P12, #443)', () => {
   it('allowlist is exactly the four public-content tables; sets syncs only the columns fixes change', () => {
-    expect(TABLES.map((t) => [t.table, t.mode])).toEqual([['sets', 'columns'], ['news_articles', 'replace'], ['reviews', 'replace'], ['guides', 'replace']]);
+    expect(TABLES.map((t) => [t.table, t.mode])).toEqual([['sets', 'columns'], ['news_articles', 'replace'], ['reviews', 'replace'], ['guides', 'replace'], ['price_history', 'replace']]);
     expect(TABLES[0].columns).toEqual(['is_gwp', 'gwp_parent_set_number', 'pieces']);
   });
   it('knows the production ref it must refuse to write to', () => {
