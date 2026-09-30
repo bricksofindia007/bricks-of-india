@@ -7,7 +7,8 @@
 # 1. Staging's pending migrations (db-migrate, scope=migrations) so both schemas match.
 # 2. scripts/ci/seed-staging.mjs: reads production ONLY as ci_readonly (read-only, SELECT on exactly
 #    sets / news_articles / reviews / guides, migration 20260929200000; never MIGRATE_DB_URL), writes
-#    staging in one transaction (sets upserted, the three content tables truncated and reloaded) and
+#    staging in one transaction (sets: only is_gwp / gwp_parent_set_number / pieces on rows staging has;
+#    the three content tables truncated and reloaded) and
 #    commits only if every table's fingerprint matches production.
 # Credentials: repo secret CI_READONLY_DB_URL (production, read-only) and environment secret
 # STAGING_DB_URL in `staging-seed` (staging, postgres). The environment requires Abhinav's approval.

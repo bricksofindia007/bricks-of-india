@@ -33,6 +33,7 @@ on:
 permissions:
   contents: read
   issues: write
+  pull-requests: write   # evidence comment when boi:issue is a PR (e.g. #433)
 
 concurrency:
   group: db-migrate
@@ -109,4 +110,4 @@ jobs:
           issues=$(node -e "const e=require('./$f'); if(!e.applied.length && !e.failed) process.exit(0); console.log(e.issues.join(' '))")
           [ -n "$issues" ] || { echo "nothing applied; no comment"; exit 0; }
           { echo "**db-migrate evidence** ([run]($RUN_URL))"; echo; echo '### Staging'; cat db-migrate-out/evidence-staging.md 2>/dev/null || echo '(missing)'; echo; echo '### Production'; cat db-migrate-out/evidence-production.md; } > comment.md
-          for n in $issues; do gh issue comment "$n" --body-file comment.md; done
+          for n in $issues; do gh api "repos/$GITHUB_REPOSITORY/issues/$n/comments" -F body=@comment.md --silent; done  # REST works for issues AND PRs (e.g. #433)
