@@ -2,7 +2,9 @@
 // P6 Step 1 (#403): the ONLY path for schema migrations and approved data fixes.
 // Run by .github/workflows/db-migrate.yml, once per target (staging, then production).
 //
-//   TARGET=staging|production MODE=plan|apply DATABASE_URL=... node scripts/ci/db-migrate.mjs
+//   TARGET=staging|production MODE=plan|apply [SCOPE=all|migrations] DATABASE_URL=... node scripts/ci/db-migrate.mjs
+//   SCOPE=migrations (P12): apply pending migrations only and leave data fixes pending, e.g. to land a
+//   grant the staging seed needs before any fix can rehearse on seeded staging.
 //
 // Pending work = repo files the target hasn't recorded:
 //   * migrations  supabase/migrations/<14-digit version>_<name>.sql  vs supabase_migrations.schema_migrations
@@ -97,6 +99,11 @@ export function plan({ migrations, fixes, appliedVersions, appliedFixes }) {
   };
 }
 
+/** P12: .sql files in the fixes dir that listRepo would skip (no <issue>- prefix). Never silent: lint fails on them. */
+export function strayFixFiles(names) {
+  return names.filter((n) => n.endsWith('.sql') && !/^\d+-/.test(n));
+}
+
 export function backupName(table, stamp) {
   return `${table.replace('.', '__')}__${stamp}`;
 }
@@ -111,6 +118,8 @@ const lit = (s) => `'${String(s).replace(/'/g, "''")}'`;
 
 async function main() {
   const TARGET = process.env.TARGET, MODE = process.env.MODE ?? 'plan', URL = process.env.DATABASE_URL;
+  const SCOPE = process.env.SCOPE || 'all';
+  if (!['all', 'migrations'].includes(SCOPE)) throw new Error('SCOPE must be all or migrations');
   const OUT = process.env.OUT_DIR ?? 'db-migrate-out', RUN_URL = process.env.RUN_URL ?? '';
   if (!['staging', 'production'].includes(TARGET)) throw new Error('TARGET must be staging or production');
   if (!URL) throw new Error(`DATABASE_URL not set -- the ${TARGET} environment secret MIGRATE_DB_URL is missing`);
@@ -132,15 +141,19 @@ async function main() {
   const migrations = listRepo(MIGRATIONS_DIR, 'migration');
   const fixes = listRepo(FIXES_DIR, 'fix');
   const p = plan({ migrations, fixes, appliedVersions, appliedFixes });
+  const heldFixes = SCOPE === 'migrations' ? p.pendingFixes : [];
+  if (SCOPE === 'migrations') p.pendingFixes = [];
 
-  say(`## db-migrate: ${TARGET} (${MODE})`);
+  say(`## db-migrate: ${TARGET} (${MODE}${SCOPE === 'migrations' ? ', migrations only' : ''})`);
   say(`repo migrations ${migrations.length}, applied on ${TARGET} ${appliedVersions.length}; repo data fixes ${fixes.length}, applied ${appliedFixes.length}`);
   if (p.targetOnly.length) throw new Error(`${TARGET} has versions with no repo file (${p.targetOnly.join(', ')}) -- refusing to apply anything (G7)`);
   const items = [...p.pendingMigrations.map((f) => ({ kind: 'migration', name: f, file: path.join(MIGRATIONS_DIR, f) })),
                  ...p.pendingFixes.map((f) => ({ kind: 'fix', name: f, file: path.join(FIXES_DIR, f) }))];
-  const problems = [];
+  const problems = strayFixFiles(fs.existsSync(FIXES_DIR) ? fs.readdirSync(FIXES_DIR) : [])
+    .map((n) => `${n}: data-fix files are named <issue>-<name>.sql -- this one would never be applied`);
   for (const it of items) { it.sql = fs.readFileSync(it.file, 'utf8'); it.header = parseHeader(it.sql); problems.push(...lintFile(it.kind, it.name, it.sql)); }
   say(`pending: ${items.length ? items.map((i) => `${i.kind} ${i.name}`).join('; ') : 'nothing'}`);
+  if (heldFixes.length) say(`held (scope=migrations): ${heldFixes.map((f) => `fix ${f}`).join('; ')}`);
   if (problems.length) throw new Error(`lint:\n- ${problems.join('\n- ')}`);
   if (p.pendingFixes.length && !hasLedger && !p.pendingMigrations.some((f) => f.includes('data_fix_ledger'))) throw new Error('data-fix ledger (supabase_migrations.data_fix_log) missing and not pending');
   const evidence = { target: TARGET, mode: MODE, applied: [], backups: [], issues: [...new Set(items.map((i) => i.header.issue))] };

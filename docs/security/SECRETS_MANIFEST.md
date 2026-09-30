@@ -15,6 +15,7 @@
 | Environment | Secret | Holds | Used by | Rotation |
 |---|---|---|---|---|
 | `staging-migrations` *(created 29 Sep 2026; main only)* | `MIGRATE_DB_URL` | staging session-pooler URI as `postgres` | `db-migrate.yml` job 1 | set again after the Sydney rebuild; rotate with the staging DB password |
+| `staging-seed` *(created 29 Sep 2026; main only; required reviewer bricksofindia007)* | `STAGING_DB_URL` | staging session-pooler URI as `postgres` | `seed-staging.yml` (writes the staging content seed, #443) | set again after each staging rebuild; rotate with the staging DB password |
 | `production-migrations` *(created 29 Sep 2026; main only; required reviewer bricksofindia007, self-review allowed)* | `MIGRATE_DB_URL` | production session-pooler URI as `postgres` (a dedicated migration role isn't possible on Supabase: `postgres` can't grant its own membership) | `db-migrate.yml` job 2 | rotate with the production DB password, **dashboard reset only** (procedure below), then update this secret only. Set 29 Sep 2026 18:27 UTC |
 
 ## Rotating the `postgres` password (production or staging), P12, 29 Sep 2026
@@ -35,7 +36,7 @@ Failure signatures: `password authentication failed for user "postgres"` means t
 | Secret | Used by | Rotation / notes |
 |---|---|---|
 | `SUPABASE_SERVICE_ROLE_KEY`, `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` | most pipelines and checks; site build | service key: rotate via Supabase API keys (JWT secret roll changes all). Read through `getSecret()` / `get_secret()` (BOM) |
-| `CI_READONLY_DB_URL` | `migration-parity.yml` | role `ci_readonly` (SELECT on `schema_migrations` only). Rotate with a new locally computed SCRAM verifier plus `gh secret set` (the procedure is in #400) |
+| `CI_READONLY_DB_URL` | `migration-parity.yml`, `seed-staging.yml` | role `ci_readonly`, read-only: SELECT on `schema_migrations` and, from P12 (#443, migration `20260929200000`), on the 4 public-content tables `sets`, `news_articles`, `reviews`, `guides` (the same rows anon reads; the migration fails if it can read anything else). Rotate with a new locally computed SCRAM verifier plus `gh secret set` (the procedure is in #400) |
 | `STAGING_SUPABASE_URL`, `STAGING_SUPABASE_PUBLISHABLE_KEY` | `staging-keepalive.yml` | replace after the Sydney rebuild |
 | `CLOUDFLARE_API_TOKEN` (+ variable `CLOUDFLARE_ACCOUNT_ID`) | `deploy-cloudflare.yml`, `set-render-census.yml` | deploy token. It has **no** Zone Analytics Read (census, 28 Sep). Rotate in Cloudflare → My Profile → API Tokens |
 | `GROQ_API_KEY` | VID-P4/VID-QP coherence judges (fail closed), article judge audit (budgeted), model canary | shared quota: the article judge must stop first (P6 Step 4) |

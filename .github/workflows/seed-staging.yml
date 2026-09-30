@@ -1,0 +1,65 @@
+# P12 (#443, FP2.1): seed staging with production's public content so data fixes rehearse on real rows
+# (supabase/data-fixes/README.md: expect-before counts must match production).
+#
+#   Actions -> Seed staging -> Run workflow (branch: main)
+# Run manually, and after every staging rebuild.
+#
+# 1. Staging's pending migrations (db-migrate, scope=migrations) so both schemas match.
+# 2. scripts/ci/seed-staging.mjs: reads production ONLY as ci_readonly (read-only, SELECT on exactly
+#    sets / news_articles / reviews / guides, migration 20260929200000; never MIGRATE_DB_URL), writes
+#    staging in one transaction (sets upserted, the three content tables truncated and reloaded) and
+#    commits only if every table's fingerprint matches production.
+# Credentials: repo secret CI_READONLY_DB_URL (production, read-only) and environment secret
+# STAGING_DB_URL in `staging-seed` (staging, postgres). The environment requires Abhinav's approval.
+# Evidence artifacts carry counts and md5 fingerprints only -- never content (this repo is public).
+# Failure behaviour (G14): any error rolls the staging transaction back; staging keeps its old rows.
+# Budget (G2): manual only. Per run ~1 read of 4 tables on production (~15-25 MB egress: sets ~26k
+# rows, plus all news/reviews/guides text) and one staging load.
+name: Seed staging
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: db-migrate   # never overlaps a migration run
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: staging-seed
+    # No runs yet: export + load of ~26k set rows and the content tables is a few minutes. Resize after 3 runs.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: psql --version
+      - name: Staging migrations first (scope=migrations)
+        env:
+          TARGET: staging
+          MODE: apply
+          SCOPE: migrations
+          DATABASE_URL: ${{ secrets.STAGING_DB_URL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          OUT_DIR: seed-out
+        run: node scripts/ci/db-migrate.mjs
+      - name: Seed staging from production (ci_readonly)
+        env:
+          PROD_URL: ${{ secrets.CI_READONLY_DB_URL }}
+          STAGING_URL: ${{ secrets.STAGING_DB_URL }}
+          OUT_DIR: seed-out
+        run: node scripts/ci/seed-staging.mjs
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: evidence-seed
+          path: |
+            seed-out/evidence-seed.*
+            seed-out/evidence-staging.*
+          retention-days: 90
