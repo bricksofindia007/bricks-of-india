@@ -33,7 +33,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const supabase = createServerClient({ revalidate: 86400 });
 
   const staticPages = [
-    { url: base, priority: 1.0 },
+    // A7 (1 Oct 2026): the homepage exactly as Google inspects it ("https://bricksofindia.com/"),
+    // which Search Console reported as having no referring sitemap.
+    { url: `${base}/`, priority: 1.0 },
     { url: `${base}/sets`, priority: 0.9 },
     { url: `${base}/deals`, priority: 0.9 },
     { url: `${base}/reviews`, priority: 0.8 },
