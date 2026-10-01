@@ -119,7 +119,7 @@ const SKIP_FETCH_DOMAINS = new Set([
 const UA = 'BricksOfIndia-RadarBot/1.0 (+https://bricksofindia.com)';
 
 const INDIA_STORE_PRIORITY: Record<string, number> = { mybrickhouse: 1, toycra: 2 };
-const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: 'MyBrickHouse', toycra: 'Toycra' };
+const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: 'LEGO.in', toycra: 'Toycra' };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -171,15 +171,6 @@ function fmtInr(n: number): string {
   const rest  = s.slice(0, -3);
   if (!rest) return last3;
   return rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + last3;
-}
-
-async function fetchLiveUsdInr(): Promise<number | null> {
-  try {
-    const r = await fetch('https://open.er-api.com/v6/latest/USD', { signal: AbortSignal.timeout(5000) });
-    const d = await r.json() as { rates?: { INR?: number } };
-    const rate = d?.rates?.INR;
-    return (rate && rate > 75 && rate < 130) ? Math.round(rate) : null;
-  } catch { return null; }
 }
 
 // 2026-09-26: the model must see WHICH set the prices belong to, so it can't
@@ -238,15 +229,12 @@ export async function buildIndiaPriceContext(setNumber: string | null, setName?:
     return head + `INDIA PRICE DATA: ${setNumber} is a GIFT WITH PURCHASE and no Indian store lists it on its own. It is NOT sold separately and has NO retail price. Do NOT state or estimate any price, import price or ₹/$ figure for it. Say it isn't sold separately and comes free with a qualifying LEGO order; a spend threshold may be mentioned only as the requirement to get it, never as its price. Verdict: IMPORT ONLY.`;
   }
   if (setRow?.lego_mrp_inr) {
-    return head + `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices). Use this figure. Mention Toycra / MyBrickHouse may list it within 4–6 weeks.`;
+    return head + `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices). Use this figure.`;
   }
 
-  const rate = await fetchLiveUsdInr();
-  if (rate) {
-    return head + `INDIA PRICE DATA: no store prices or official India MRP in our database. You MUST still include a ₹ figure in the India Paragraph — use this formula: USD retail price × 1.35 × ${rate} = estimated INR (the 1.35 factor covers import duty and retailer markup). Example: $99.99 USD → ₹${Math.round(99.99 * 1.35 * rate).toLocaleString('en-IN')} estimated. Round to nearest ₹100. Label it clearly as "estimated import price — not confirmed India retail." If the source does not mention any USD price, use IMPORT ONLY verdict and state the set is not currently available at any official India retailer.`;
-  }
+  // G19 + chat (1 Oct 2026): no US-price formula. The model states that Indian pricing isn't announced.
+  return head + `INDIA PRICE DATA: no store prices or official India MRP in our database. Do NOT estimate an Indian price from a US, UK or EU price, an exchange rate or any formula, and give no ₹ figure for this set. In the India Paragraph write exactly: "Official Indian pricing hasn't been announced yet." Then name the stores to watch (Toycra and LEGO.in).`;
 
-  return head + 'INDIA PRICE DATA: no price data available. Use IMPORT ONLY verdict. State the set is not currently available at any official India retailer, and omit a specific price figure.';
 }
 
 // ── Auto-publish ──────────────────────────────────────────────────────────────

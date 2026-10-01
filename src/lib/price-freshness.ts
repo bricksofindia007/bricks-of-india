@@ -9,8 +9,7 @@
 // Scraper cadence -- must match .github/workflows/scrape-prices.yml (cron: every 6th hour, minute 0).
 export const SCRAPE_INTERVAL_HOURS = 6;
 
-/** Human text for the cadence, used by every page that states it. */
-export const PRICE_CADENCE = `every ${SCRAPE_INTERVAL_HOURS} hours`;
+// G19 (1 Oct 2026): no public text states the cadence, so there is no PRICE_CADENCE text constant.
 
 /** A price row older than this (two missed scrapes) shows its real age and gets no badges. */
 export const PRICE_STALE_HOURS = 2 * SCRAPE_INTERVAL_HOURS;

@@ -1,4 +1,3 @@
-import { PRICE_CADENCE } from './price-freshness';
 export type LabTool = {
   id: string;
   name: string;
@@ -29,7 +28,7 @@ export const LAB_TOOLS: LabTool[] = [
     id: "price-drops",
     name: "Price Drop Board",
     emoji: "📉",
-    tagline: "Today's steepest falls. Prices checked " + PRICE_CADENCE + ". Suspicious by nature.",
+    tagline: "Today's steepest falls. Suspicious by nature.",
     href: "/lab/price-drops",
     status: "live",
   },
@@ -48,7 +47,7 @@ export const LAB_TOOLS: LabTool[] = [
     id: "india-deals",
     name: "India Deals Today",
     emoji: "🏷️",
-    tagline: "Every set currently discounted across Indian stores. Updated " + PRICE_CADENCE + ".",
+    tagline: "Every set currently discounted across Indian stores.",
     href: "/lab/deals",
     status: "live",
   },

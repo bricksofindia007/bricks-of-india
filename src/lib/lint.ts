@@ -18,7 +18,7 @@ export const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: 
 export const VALID_VERDICTS = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID']);
 
 export const INDIA_COMPARISON_RE = /\b(biryani|chai|EMI|Spotify|Netflix|petrol|samosa|litre|liter|movie.?ticket|PVR|butter.?chicken|Swiggy|Zomato|iPhone|months? of|weeks? of|auto.?rickshaw|mango)\b/i;
-export const INDIA_STORE_RE      = /\b(Toycra|MyBrickHouse|Amazon|Flipkart|import.?only)\b/i;
+export const INDIA_STORE_RE      = /\b(Toycra|MyBrickHouse|lego\.in|Amazon|Flipkart|import.?only)\b/i;
 
 // Numbers that are years — excluded from set-number candidates
 const YEAR_MIN = 1932;
@@ -576,7 +576,8 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
     overallPass = false;
   } else {
     const indiaSeg = body.slice(markerIdx);
-    if (!/₹[\d,]+/.test(indiaSeg)) {
+    // "Official Indian pricing hasn't been announced yet." stands in for a ₹ figure (G19 + chat, 1 Oct 2026: no US-price estimates).
+    if (!/₹[\d,]+/.test(indiaSeg) && !/official indian pricing hasn['’]?t been announced/i.test(indiaSeg)) {
       if (isCommunity) {
         indiaParagraphGate = { pass: false, severity: 'warn', reason: 'No ₹ price found in India paragraph (community content)' };
         warnings.push('[Gate 2 WARN] No INR price in India Paragraph (community content)');
@@ -585,7 +586,7 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
         overallPass = false;
       }
     } else if (!INDIA_STORE_RE.test(indiaSeg)) {
-      indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No store mention (Toycra / MyBrickHouse / Amazon / Flipkart / import-only)' };
+      indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No store mention (Toycra / LEGO.in / Amazon / Flipkart / import-only)' };
       overallPass = false;
     } else if (!INDIA_COMPARISON_RE.test(indiaSeg)) {
       if (isCommunity) {

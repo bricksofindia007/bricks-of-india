@@ -1,13 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { bestInStock, badgeEligible, isPriceFresh, PRICE_STALE_HOURS, PRICE_CADENCE } from '../src/lib/price-freshness';
+import { bestInStock, badgeEligible, isPriceFresh, PRICE_STALE_HOURS } from '../src/lib/price-freshness';
 
 const NOW = Date.parse('2026-09-26T12:00:00Z');
 const hAgo = (h: number) => new Date(NOW - h * 3_600_000).toISOString();
 
 describe('price freshness', () => {
-  it('stale threshold is two scrape intervals and cadence text derives from one constant', () => {
+  it('stale threshold is two scrape intervals', () => {
     expect(PRICE_STALE_HOURS).toBe(12);
-    expect(PRICE_CADENCE).toBe('every 6 hours');
   });
   it('fresh within 12h, stale after, unknown never fresh', () => {
     expect(isPriceFresh(hAgo(11.9), NOW)).toBe(true);
