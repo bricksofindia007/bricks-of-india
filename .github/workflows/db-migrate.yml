@@ -29,6 +29,11 @@ on:
         type: choice
         options: [all, migrations]
         default: all
+      stop_after:
+        description: 'Z5(b): staging = run staging only (production job is skipped, not rejected); production = staging then production (needs approval)'
+        type: choice
+        options: [production, staging]
+        default: production
 
 permissions:
   contents: read
@@ -69,7 +74,9 @@ jobs:
           retention-days: 90
 
   production:
-    if: github.ref == 'refs/heads/main'
+    # Z5(b): a staging-only rehearsal skips this job (the run ends green) instead of being rejected
+    # at the approval gate, which GitHub records as a failure and emails.
+    if: github.ref == 'refs/heads/main' && inputs.stop_after != 'staging'
     needs: staging
     runs-on: ubuntu-latest
     environment: production-migrations
