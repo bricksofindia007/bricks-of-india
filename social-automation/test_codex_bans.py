@@ -7,10 +7,15 @@ No network: generate_caption is stubbed for the pipeline-loop tests.
 Run: cd social-automation && python -m unittest test_codex_bans -v
 """
 
+import json
+import os
 import unittest
 from unittest import mock
 
-import caption_writer
+# G19: the real term list is a CI secret; these tests run on a synthetic one.
+os.environ.setdefault('G19_TERMS', json.dumps({'terms': {'t': [r'\bzorblax\b']}, 'allow': []}))
+
+import caption_writer  # noqa: E402
 
 # The hand-copied tuple that lived in caption_writer.py before #181. The
 # parser must reproduce it exactly from the codex text, so moving to

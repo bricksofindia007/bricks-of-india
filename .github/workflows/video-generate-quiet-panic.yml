@@ -65,6 +65,8 @@ jobs:
     needs: [quota-gate]
     if: needs.quota-gate.outputs.proceed == 'true'
     runs-on: ubuntu-latest
+    env:
+      G19_TERMS: ${{ secrets.G19_TERMS }}  # G19 term list (never in the repo); gates fail closed without it
     # 10 most recent runs: successful runs range 4m12s-19m49s (gh run list
     # --workflow=video-generate-quiet-panic.yml --limit 10, 2026-08-18) --
     # wide variance from the up-to-5x script-gen retry loop on pre-TTS
