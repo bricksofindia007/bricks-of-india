@@ -39,7 +39,7 @@ function walk(dir, acc = []) {
   return acc;
 }
 
-const SKIP_LINE = /^\s*(\/\/|\*|\/\*|import\s|export\s+\*|console\.|throw\s|super\(|.*\bclassName=)/;
+const SKIP_LINE = /^\s*(\/\/|\*|\/\*|import\s|export\s+\*|console\.|throw\s|super\()/;
 
 // Constants whose VALUE is public text: inline them before scanning (src/lib/price-freshness.ts).
 const CONSTS = { PRICE_CADENCE: 'every 6 hours' };
@@ -63,7 +63,9 @@ function visibleStrings(src) {
   noBlock.split('\n').forEach((line, i) => {
     if (SKIP_LINE.test(line)) return;
     // HTML entities in JSX text (&apos; etc.) would otherwise read as code (the ';') and hide the line.
-    const l = line.replace(/\/\/.*$/, '').replace(/&(apos|rsquo|lsquo|quot|amp|nbsp|mdash|ndash);/g, "'");
+    // className values are dropped (not whole lines: a <p className=...>text</p> line is still public text).
+    const l = line.replace(/\/\/.*$/, '').replace(/&(apos|rsquo|lsquo|quot|amp|nbsp|mdash|ndash);/g, "'")
+      .replace(/\bclassName=(\{`[^`]*`\}|"[^"]*"|'[^']*'|\{[^{}]*\})/g, '');
     for (const m of l.matchAll(/'((?:[^'\\]|\\.){6,})'|"((?:[^"\\]|\\.){6,})"|`((?:[^`\\]|\\.){6,})`/g)) {
       const v = (m[1] ?? m[2] ?? m[3]).replace(/\$\{[^}]*\}/g, ' ');
       if (/^(https?:|\/|@\/|\.\/|\[[\w-]+\]|[a-z0-9_.-]+$)/i.test(v) || !/\s/.test(v)) continue; // paths, ids, log tags, single tokens
