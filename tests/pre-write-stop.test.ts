@@ -12,7 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
-import { planStoreWrite, feedStats, checkPolicy, changedRatio, approvalFromEnv, loadBaselines } from '../scripts/lib/pre-write-stop.mjs';
+import { planStoreWrite, planReconcile, feedStats, checkPolicy, changedRatio, approvalFromEnv, loadBaselines } from '../scripts/lib/pre-write-stop.mjs';
 import { parseProduct } from '../scripts/lib/retailer-fetch.mjs';
 
 const good = JSON.parse(fs.readFileSync('tests/fixtures/legoin-feed-2026-09-30.json', 'utf8')).products;
@@ -131,5 +131,26 @@ describe('Toycra is guarded by the same rules (B2, 1 Oct 2026)', () => {
   });
   it('a store with no entry still writes', () => {
     expect(planStoreWrite({ baseline: undefined, stats: bad, rows: [], storedRows: goodRows, policy: { ok: false, results: [] }, approval: null } as any).write).toBe(true);
+  });
+});
+
+describe('A8: Toycra feed lists in-stock products only', () => {
+  const toycra = loadBaselines().toycra;
+  it('baseline marks the feed and caps reconcile flips', () => {
+    expect(toycra.feed_lists_in_stock_only).toBe(true);
+    expect(toycra.max_reconcile_flips).toBe(30);
+  });
+  it('a 100%-available feed is not held by the share rule', () => {
+    const stats = { products: 664, available_products: 664 } as any;
+    const plan = planStoreWrite({ baseline: toycra, stats, rows: [], storedRows: [], policy: POLICY_OK, approval: null });
+    expect(plan.write).toBe(true);
+  });
+  it('reconcile up to the cap proceeds; above it is held', () => {
+    expect(planReconcile({ baseline: toycra, staleCount: 14 }).reconcile).toBe(true);
+    expect(planReconcile({ baseline: toycra, staleCount: 30 }).reconcile).toBe(true);
+    expect(planReconcile({ baseline: toycra, staleCount: 31 }).held).toBe(true);
+  });
+  it('stores without a cap reconcile as before', () => {
+    expect(planReconcile({ baseline: loadBaselines().mybrickhouse, staleCount: 500 }).reconcile).toBe(true);
   });
 });

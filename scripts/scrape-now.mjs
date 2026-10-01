@@ -25,7 +25,7 @@ import { STORES, withRetry, fetchAllProducts, extractSetNumber, parseProduct, is
 import { getSecret } from '../src/lib/get-secret';
 import { mkdirSync, writeFileSync, appendFileSync } from 'fs';
 import { createHash } from 'crypto';
-import { loadBaselines, checkPolicy, feedStats, planStoreWrite, approvalFromEnv } from './lib/pre-write-stop.mjs';
+import { loadBaselines, checkPolicy, feedStats, planStoreWrite, planReconcile, approvalFromEnv } from './lib/pre-write-stop.mjs';
 import { sendAlert } from './lib/alert.mjs';
 
 // P14 4.4: per-run facts for guarded stores (counts, hashes, raw tags) go to
@@ -362,6 +362,11 @@ async function main() {
       .lt('scraped_at', staleCutoff);
     if (staleSelErr) {
       console.error(`  Reconciliation select error: ${staleSelErr.message}`);
+    } else if ((staleRows ?? []).length > 0 && planReconcile({ baseline, staleCount: staleRows.length }).held) {
+      // A8: too many rows would flip to out of stock at once -- likely a broken feed, not a sell-out.
+      const rp = planReconcile({ baseline, staleCount: staleRows.length });
+      console.log(`  Reconcile HELD: ${rp.reasons.join('; ')}`);
+      if (!DRY_RUN) await sendAlert(`[BOI] Reconcile held: ${store.name}`, `${rp.reasons.join('; ')}. Nothing was flipped to out of stock; a person should check the feed.`);
     } else if ((staleRows ?? []).length > 0) {
       if (DRY_RUN) {
         console.log(`  [DRY RUN] Would reconcile ${staleRows.length} stale in_stock=true row(s) -> false (not seen in >20h): ${staleRows.slice(0, 5).map((r) => r.set_id).join(', ')}${staleRows.length > 5 ? ', ...' : ''}`);

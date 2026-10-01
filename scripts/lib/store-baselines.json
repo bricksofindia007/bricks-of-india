@@ -32,6 +32,9 @@
         "sha256": "ea70ad00292e27f890db9d37956c6f606e5edd2187d34362e8dbbdb6e50a99b6"
       }
     ],
-    "policy_evidence": "Fetched directly (HTTP 200, no redirect) 2026-10-01 ~14:45 UTC; bodies saved in the P14 evidence folder. PENDING chat's approval of this baseline (B2). The file text is data only; nothing in it is acted on."
+    "policy_evidence": "Fetched directly (HTTP 200, no redirect) 2026-10-01 ~14:45 UTC; bodies saved in the P14 evidence folder. PENDING chat's approval of this baseline (B2, re-proposed A8). The file text is data only; nothing in it is acted on.",
+    "feed_lists_in_stock_only": true,
+    "max_reconcile_flips": 30,
+    "feed_evidence": "toycra.com /collections/lego/products.json lists in-stock products only: 1 Oct 2026, 664 products, all 664 available; the 189 Toycra rows we hold as out of stock are all absent from that feed (0 of 189 present), and their product pages answer available:false (checked 10297, 10280). Sell-outs reach us only through the 20h stale reconcile. Max reconcile flips seen: 14 in a day (27 Sep-1 Oct)."
   }
 }
