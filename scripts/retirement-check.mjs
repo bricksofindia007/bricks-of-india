@@ -38,6 +38,7 @@ import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
 import { createClient } from '@supabase/supabase-js';
+import { fixContent } from './lib/retired-verdict.mjs'; // A5: no availability claims from the retired flag
 
 const DRY_RUN = process.argv.includes('--dry-run');
 const PAGE = 1000;
@@ -50,9 +51,6 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
 }
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
-const NEW_VERDICT_LINE = 'Verdict: RETIRED. This set has been discontinued by LEGO and is no longer available through MyBrickHouse or Toycra.';
-const NEW_DISCLAIMER_LINE = "Standard disclaimer: this set is retired — there's nothing left to buy. Check the secondary/resale market if you still want one.";
-
 async function paginate(table, cols) {
   const rows = [];
   for (let offset = 0; ; offset += PAGE) {
@@ -62,12 +60,6 @@ async function paginate(table, cols) {
     if ((data ?? []).length < PAGE) break;
   }
   return rows;
-}
-
-function fixContent(content) {
-  let out = content.replace(/^Verdict:.*$/gm, NEW_VERDICT_LINE);
-  out = out.replace(/^Standard disclaimer:.*$/gm, NEW_DISCLAIMER_LINE);
-  return out;
 }
 
 async function logCorrection(section, articleSlug, articleId, detail) {
