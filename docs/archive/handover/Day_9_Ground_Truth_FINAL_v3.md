@@ -127,7 +127,7 @@ git status  # expect: nothing to commit, working tree clean
 - **ImprovMX SMTP:** free plan is receive-only — no outbound SMTP capability. MX records remain on ImprovMX for forwarding.
 
 ### Database
-- **Table:** `newsletter_subscribers` — 2 rows as of session end (`toab82@gmail.com`, `kungfu500@gmail.com`, both active)
+- **Table:** `newsletter_subscribers` — 2 rows as of session end (`[third-party email removed]`, `[third-party email removed]`, both active)
 - **RLS:** enabled, anon INSERT only (migration `20260510000000`). No SELECT/UPDATE/DELETE for anon.
 
 ### Logging in Netlify function logs

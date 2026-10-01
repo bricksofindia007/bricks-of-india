@@ -77,7 +77,7 @@ duplicate-slug data. Terminal held that commit (467e0af) for Abhinav's
 explicit approval, as required. Two later commits were then classified
 and approved as Tier 1 in isolation — both genuinely docs-only diffs
 against what was live (a DEPLOY_POLICY.md commit, then a
-BOI_MASTER_TRACKER.md logging commit) — without checking that both were
+boi-ops/BOI_MASTER_TRACKER.md (private repo) logging commit) — without checking that both were
 descendants of the still-unapproved 467e0af. Approving either one
 deployed the full tree, which included 467e0af's changes. The redirect
 went live without Abhinav ever approving that specific commit. No harm
@@ -95,7 +95,7 @@ independently evaluating the change himself.
 ## Logging
 
 Every classification (tier + specific criterion that decided it) gets
-logged to BOI_MASTER_TRACKER.md as it happens — both auto-approvals and
+logged to boi-ops/BOI_MASTER_TRACKER.md (private repo) as it happens — both auto-approvals and
 held items.
 
 ## Review cadence
