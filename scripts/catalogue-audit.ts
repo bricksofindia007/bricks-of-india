@@ -89,37 +89,56 @@ async function audit() {
   const listedSetNumbers = Array.from(new Set(storePriceRows.map((r) => r.set_id)));
   console.log('distinct listed set_numbers (Toycra/MyBrickHouse, any status):', listedSetNumbers.length);
 
+  // (g) 1 Oct 2026: the check is what the PAGE shows, not the legacy column. A listed set's page
+  // shows an MRP from the store anchor (set_price_summary.anchor_mrp_inr, R2) or a verified catalogue
+  // MRP. Gifts with purchase have no retail price by design (is_gwp) and are not counted.
+  // Only sets a store lists now count (in stock, or seen in the last 7 days).
+  const recent = new Set((await fetchAllPaginated<{ set_id: string; in_stock: boolean; scraped_at: string }>('store_prices', 'set_id, in_stock, scraped_at'))
+    .filter((r) => r.in_stock || Date.now() - Date.parse(r.scraped_at) < 7 * 86400000).map((r) => r.set_id));
+  const anchors = new Map((await fetchAllPaginated<{ set_id: string; anchor_mrp_inr: number | null }>('set_price_summary', 'set_id, anchor_mrp_inr'))
+    .map((r) => [r.set_id, r.anchor_mrp_inr]));
   const missingMrpSets: { set_number: string; name: string }[] = [];
   const CHUNK = 200;
-  for (let i = 0; i < listedSetNumbers.length; i += CHUNK) {
-    const chunk = listedSetNumbers.slice(i, i + CHUNK);
-    const { data, error } = await sb.from('sets').select('set_number, name, lego_mrp_inr').in('set_number', chunk);
+  const current = listedSetNumbers.filter((n) => recent.has(n));
+  for (let i = 0; i < current.length; i += CHUNK) {
+    const chunk = current.slice(i, i + CHUNK);
+    const { data, error } = await sb.from('sets').select('set_number, name, lego_mrp_inr, mrp_verified, is_gwp').in('set_number', chunk);
     if (error) throw error;
     const found = new Set((data ?? []).map((s) => s.set_number));
     for (const s of data ?? []) {
-      if (s.lego_mrp_inr === null || s.lego_mrp_inr === undefined) {
-        missingMrpSets.push({ set_number: s.set_number, name: s.name });
-      }
+      if (s.is_gwp) continue;
+      const pageShowsMrp = anchors.get(s.set_number) != null || (s.lego_mrp_inr != null && s.mrp_verified);
+      if (!pageShowsMrp) missingMrpSets.push({ set_number: s.set_number, name: s.name });
     }
     for (const sn of chunk) {
       if (!found.has(sn)) missingMrpSets.push({ set_number: sn, name: '(not found in sets table)' });
     }
   }
 
-  const mrpCoveredCount = listedSetNumbers.length - missingMrpSets.length;
-  const pricePct = listedSetNumbers.length ? Math.round((mrpCoveredCount / listedSetNumbers.length) * 100) : 100;
-  console.log(`listed sets with lego_mrp_inr: ${mrpCoveredCount}/${listedSetNumbers.length} (${pricePct}%)`);
+  const mrpCoveredCount = current.length - missingMrpSets.length;
+  const pricePct = current.length ? Math.round((mrpCoveredCount / current.length) * 100) : 100;
+  console.log(`currently listed sets whose page shows an MRP (store anchor or verified; GWPs excluded): ${mrpCoveredCount}/${current.length} (${pricePct}%)`);
   if (missingMrpSets.length > 0) {
-    const sample = missingMrpSets
-      .slice(0, 20)
-      .map((s) => `${s.set_number} (${s.name})`)
-      .join(', ');
+    const sample = missingMrpSets.slice(0, 20).map((s) => `${s.set_number} (${s.name})`).join(', ');
     const more = missingMrpSets.length > 20 ? ` and ${missingMrpSets.length - 20} more` : '';
-    failures.push({
-      key: 'mrp_coverage',
-      message: `${missingMrpSets.length} of ${listedSetNumbers.length} listed sets (Toycra/MyBrickHouse) have no lego_mrp_inr: ${sample}${more}`,
-    });
+    failures.push({ key: 'mrp_coverage', message: `${missingMrpSets.length} of ${current.length} currently listed set pages show no MRP: ${sample}${more}` });
   }
+
+  // (g) Theme shown as "Unknown" (or blank) on an indexable set page.
+  const { data: badTheme } = await sb.from('sets').select('set_number, name')
+    .or('theme.is.null,theme.eq.,theme.eq.Unknown').neq('index_tier', 'tier3').eq('noindex_override', false).limit(50);
+  console.log(`indexable set pages with a blank/"Unknown" theme: ${(badTheme ?? []).length}`);
+  if ((badTheme ?? []).length) failures.push({ key: 'unknown_theme', message: `${badTheme!.length} indexable set pages show theme "Unknown": ${badTheme!.slice(0, 10).map((s) => s.set_number + ' (' + s.name + ')').join(', ')}` });
+
+  // (g) A store row linked to another set's product page (the product URL names a different 5-6 digit set number).
+  const linkRows = await fetchAllPaginated<{ set_id: string; store_id: string; product_url: string | null }>('store_prices', 'set_id, store_id, product_url');
+  const wrongLinks = linkRows.filter((r) => {
+    const h = (r.product_url ?? '').split('/products/')[1] ?? '';
+    const nums: string[] = h.match(/(?<!\d)\d{5,6}(?!\d)/g) ?? [];
+    return nums.length > 0 && !nums.includes(r.set_id);
+  });
+  console.log(`store rows linking to a different set's product: ${wrongLinks.length}`);
+  if (wrongLinks.length) failures.push({ key: 'wrong_store_link', message: `${wrongLinks.length} store rows link to another set's product: ${wrongLinks.slice(0, 10).map((r) => r.store_id + ' ' + r.set_id).join(', ')}` });
 
   // 3. Rows with image_url
   const { count: imageRows } = await sb.from('sets').select('*', { count: 'exact', head: true }).not('image_url', 'is', null);
