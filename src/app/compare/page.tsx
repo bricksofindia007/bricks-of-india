@@ -13,7 +13,7 @@ import { getPriceSummaries } from '@/lib/price-summary';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Compare LEGO Prices in India',
-  description: 'Compare LEGO set prices across Toycra and MyBrickHouse. Updated ' + PRICE_CADENCE + '. Find the best deal in India.',
+  description: 'Compare LEGO set prices across Toycra and MyBrickHouse. Find the best deal in India.',
   path: '/compare',
 });
 

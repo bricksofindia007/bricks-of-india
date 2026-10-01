@@ -132,14 +132,14 @@ export default async function DealsPage() {
         ) : (
           <>
             {[
-              { title: 'HOT DEALS', sub: '20% or more below MRP', list: hotDeals },
-              { title: 'DEALS', sub: '10–20% below MRP', list: plainDeals },
+              { title: 'HOT DEALS', sub: 'Hot deal: 20% or more below MRP', list: hotDeals },
+              { title: 'DEALS', sub: 'Deal: 10–20% below MRP', list: plainDeals },
             ].filter((g) => g.list.length > 0).map((g) => (
               <section key={g.title} className="mb-10">
                 <h2 className="font-heading text-dark text-3xl mb-1">
                   {g.title} ({g.list.length} sets)
                 </h2>
-                <p className="text-sm text-gray-500 mb-6">{g.sub} · MRP = MyBrickHouse&apos;s listed MRP, else Toycra&apos;s, else the verified LEGO India MRP</p>
+                <p className="text-sm text-gray-500 mb-6">{g.sub}</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                   {g.list.map((d) => (
                     <SetCard
