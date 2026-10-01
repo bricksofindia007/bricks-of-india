@@ -27,7 +27,9 @@ export const PROD_REF = 'hqpaiarhmiocmjrzjhtw';
 //   pieces (#412 catalogue fix). None of them fires the name/theme/year index-tier trigger.
 //   A new fix that changes another sets column adds it here first (data-fixes README).
 export const TABLES = [
-  { table: 'sets', mode: 'columns', columns: ['is_gwp', 'gwp_parent_set_number', 'pieces'], skipInFingerprint: [] },
+  // (g) catalogue health: theme (17-unknown-themes.sql). On staging this also refreshes the index-tier
+  // trigger's inputs for those rows, which only brings staging closer to production.
+  { table: 'sets', mode: 'columns', columns: ['is_gwp', 'gwp_parent_set_number', 'pieces', 'theme'], skipInFingerprint: [] },
   { table: 'news_articles', mode: 'replace', skipInFingerprint: [] },
   { table: 'reviews', mode: 'replace', skipInFingerprint: [] },
   { table: 'guides', mode: 'replace', skipInFingerprint: [] },
@@ -35,6 +37,9 @@ export const TABLES = [
   // ci_readonly SELECT from migration 20261001010000. Set ids, store ids, prices, stock flags and
   // timestamps only; no personal data.
   { table: 'price_history', mode: 'replace', skipInFingerprint: [] },
+  // (g) catalogue health, wrong-match purge (17-wrong-store-matches.sql). Needs the Tier 2 grant
+  // migration 20261001200000 (ci_readonly SELECT on store_prices) first.
+  { table: 'store_prices', mode: 'replace', skipInFingerprint: [] },
 ];
 
 export function fingerprintSql(table, cols, where = '', from = `public.${table}`) {
