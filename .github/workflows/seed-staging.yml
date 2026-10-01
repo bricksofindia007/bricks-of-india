@@ -32,7 +32,7 @@ jobs:
   seed:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    environment: staging-seed
+    # C3: no environment (private on Free); the staging URL is a repo secret.
     # No runs yet: export + load of ~26k set rows and the content tables is a few minutes. Resize after 3 runs.
     timeout-minutes: 20
     steps:
@@ -46,14 +46,14 @@ jobs:
           TARGET: staging
           MODE: apply
           SCOPE: migrations
-          DATABASE_URL: ${{ secrets.STAGING_DB_URL }}
+          DATABASE_URL: ${{ secrets.STAGING_SEED_DB_URL }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUT_DIR: seed-out
         run: node scripts/ci/db-migrate.mjs
       - name: Seed staging from production (ci_readonly)
         env:
           PROD_URL: ${{ secrets.CI_READONLY_DB_URL }}
-          STAGING_URL: ${{ secrets.STAGING_DB_URL }}
+          STAGING_URL: ${{ secrets.STAGING_SEED_DB_URL }}
           OUT_DIR: seed-out
         run: node scripts/ci/seed-staging.mjs
       - uses: actions/upload-artifact@v4

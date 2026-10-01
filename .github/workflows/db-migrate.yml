@@ -29,6 +29,15 @@ on:
         type: choice
         options: [all, migrations]
         default: all
+      target:
+        description: 'C3: staging only, or staging then production (production only after chat authorizes)'
+        type: choice
+        options: [staging, production]
+        default: staging
+      authorization:
+        description: 'For target=production: the chat authorization being acted on (logged). Required then.'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -43,7 +52,7 @@ jobs:
   staging:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    environment: staging-migrations
+    # C3: environment secrets aren't available to private repos on Free -> repo secret.
     # No runs yet to measure: parse + backups + apply is ~1-3 min. Resize after 3 runs (CLAUDE.md).
     timeout-minutes: 20
     steps:
@@ -57,7 +66,7 @@ jobs:
           TARGET: staging
           MODE: ${{ inputs.mode }}
           SCOPE: ${{ inputs.scope }}
-          DATABASE_URL: ${{ secrets.MIGRATE_DB_URL }}
+          DATABASE_URL: ${{ secrets.MIGRATE_DB_URL_STAGING }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUT_DIR: db-migrate-out
         run: node scripts/ci/db-migrate.mjs
@@ -69,10 +78,10 @@ jobs:
           retention-days: 90
 
   production:
-    if: github.ref == 'refs/heads/main'
+    # C3: production runs only when the terminal dispatches target=production with chat's authorization.
+    if: github.ref == 'refs/heads/main' && inputs.target == 'production' && inputs.authorization != ''
     needs: staging
     runs-on: ubuntu-latest
-    environment: production-migrations
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
@@ -84,7 +93,7 @@ jobs:
           TARGET: production
           MODE: ${{ inputs.mode }}
           SCOPE: ${{ inputs.scope }}
-          DATABASE_URL: ${{ secrets.MIGRATE_DB_URL }}
+          DATABASE_URL: ${{ secrets.MIGRATE_DB_URL_PRODUCTION }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUT_DIR: db-migrate-out
         run: node scripts/ci/db-migrate.mjs
