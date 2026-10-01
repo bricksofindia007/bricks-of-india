@@ -90,6 +90,19 @@ Report: `docs/reports/P14_legoin_assessment_2026-09-30.md` (+ Step 4 inventory a
 | Homepage as Googlebot | — | healthy for re-indexing (200, full HTML) | — |
 | Repo visibility | — | evidence only: going private on Free loses environment reviewers and environment secrets; recommendation: move plans/reports/evidence to a private repo | Abhinav's decision |
 
+### P14 round 6 — 2026-10-01 (authorizations logged first; states updated as work lands)
+
+GitHub stays on the **Free plan**; spending limit stays $0.
+
+**Authorizations received (chat/Abhinav, this round):**
+- **A1:** copy-fix deploy (run 36816417535) AUTHORIZED. This is the **2nd site deploy today**: a named exception (G19, text-only).
+- **A2:** remaining G19 wording APPROVED (footer, MRP line, set/news FAQ, US-price formula, newsletter icons, admin title, privacy wording, store labels → lego.in, 8 dead sitemap URLs). One PR; the deploy needs chat's authorization (next day's batch). Articles go through db-migrate with a dated G16 note, staging first.
+- **A3:** the banned-term list moves out of committed files into the Actions secret `G19_TERMS` (both repos). Merge both once green.
+- **B1:** merge of the scraper per-store input PR AUTHORIZED.
+- **B2:** pre-write safety check for Toycra: PR, then show chat.
+- **C1–C4:** Actions-minutes measurement, docs move plan, go-private plan, exposure check (read-only / plans only). Approach approved by Abhinav.
+- **D1, D2:** homepage as Googlebot; correction wording for the 17 "unavailable in India" items (no edits).
+
 ## P13 — 2026-09-30 (ledger states: merged / deployed / live-verified / open)
 
 | Item | PR / issue / run | State | Waiting on |
