@@ -27,6 +27,20 @@ import { mkdirSync, writeFileSync, appendFileSync } from 'fs';
 import { createHash } from 'crypto';
 import { loadBaselines, checkPolicy, feedStats, planStoreWrite, approvalFromEnv } from './lib/pre-write-stop.mjs';
 import { sendAlert } from './lib/alert.mjs';
+import { createWriteStream } from 'fs';
+
+// B3 (P14 round 7): the public Actions log carries pass/fail and counts only. With
+// QUIET_LOGS=1 every detail line (feed URLs, policy hashes, per-set lines, errors) goes to
+// out/scrape-run/detail.log, which the workflow stores in the private boi-ops repo (B2).
+const QUIET = process.env.QUIET_LOGS === '1';
+const say = (line) => process.stdout.write(line + '\n');
+if (QUIET) {
+  mkdirSync('out/scrape-run', { recursive: true });
+  const detail = createWriteStream('out/scrape-run/detail.log', { flags: 'a' });
+  const sink = (...a) => detail.write(a.map((x) => (typeof x === 'string' ? x : (x instanceof Error ? x.stack : JSON.stringify(x)))).join(' ') + '\n');
+  console.log = sink; console.info = sink; console.warn = sink; console.error = sink;
+  process.on('exit', (code) => { if (code !== 0) say(`Scrape FAILED, exit ${code} (details stored privately)`); });
+}
 
 // P14 4.4: per-run facts for guarded stores (counts, hashes, raw tags) go to
 // this directory; the workflow uploads it as an artifact. Raw tags are never
@@ -416,23 +430,23 @@ async function main() {
   }
 
   // ── Summary ─────────────────────────────────────────────────────────────────
-  console.log('═══════════════════════════════');
-  console.log(DRY_RUN ? '  DRY RUN COMPLETE — no data written' : '  SCRAPE COMPLETE');
-  console.log('═══════════════════════════════');
+  say('═══════════════════════════════');
+  say(DRY_RUN ? '  DRY RUN COMPLETE — no data written' : '  SCRAPE COMPLETE');
+  say('═══════════════════════════════');
   for (const s of summary) {
     if (s.error) {
-      console.log(`  ${s.store}: ERROR — ${s.error}`);
+      say(`  ${s.store}: ERROR${QUIET ? ' (details stored privately)' : ` — ${s.error}`}`);
     } else if (s.held) {
-      console.log(`  ${s.store}: HELD by the pre-write stop — ${s.fetched} fetched → ${s.matched} matched → 0 written (${s.held.length} reason(s))`);
+      say(`  ${s.store}: HELD by the pre-write stop — ${s.fetched} fetched → ${s.matched} matched → 0 written (${s.held.length} reason(s))`);
     } else {
-      console.log(`  ${s.store}: ${s.fetched} fetched → ${s.parsed} LEGO → ${s.matched} matched (${s.dupes ?? 0} dupes removed) → ${s.upserted} upserted → ${s.history ?? 'n/a'} history rows (change-only)`);
+      say(`  ${s.store}: ${s.fetched} fetched → ${s.parsed} LEGO → ${s.matched} matched (${s.dupes ?? 0} dupes removed) → ${s.upserted} upserted → ${s.history ?? 'n/a'} history rows (change-only)`);
     }
   }
   const totalUpserted = summary.reduce((n, s) => n + (s.upserted ?? 0), 0);
-  console.log(`\n  Total upserted: ${totalUpserted}`);
-  console.log(`  Started:  ${startedAt}`);
-  console.log(`  Finished: ${new Date().toISOString()}`);
-  console.log('═══════════════════════════════\n');
+  say(`\n  Total upserted: ${totalUpserted}`);
+  say(`  Started:  ${startedAt}`);
+  say(`  Finished: ${new Date().toISOString()}`);
+  say('═══════════════════════════════\n');
 
   // Step outputs for the workflow: IndexNow runs only after a real write
   // (P14 4.5); a held store fails the job so the alert path fires.
