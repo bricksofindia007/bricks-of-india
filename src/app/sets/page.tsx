@@ -15,7 +15,7 @@ import { SETS_PRICE_BANDS } from '@/lib/price-bands';
 export const metadata: Metadata = buildMetadata({
   title: 'All LEGO Sets in India',
   description: 'Browse every LEGO set available in India. Filter by theme, price, and availability. ' +
-    'Compare prices across Toycra and MyBrickHouse. Updated ' + PRICE_CADENCE + '.',
+    'Compare prices across Toycra and MyBrickHouse.',
   path: '/sets',
 });
 

@@ -132,7 +132,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
       path: `/sets/${params.slug}`,
       image: socialCardImage(set.image_url),
       ogTitle: `${set.name} (${set.set_number}) — Best Price in India`,
-      ogDescription: `Compare ${set.name} prices across Indian stores. Best deal updated ${PRICE_CADENCE}.`,
+      ogDescription: `Compare ${set.name} prices across Indian stores.`,
     }),
     // GSC-01 Part A: Tier 3 (merch/parts/exclusives, not real LEGO sets)
     // stays crawlable -- follow: true -- so link equity and any existing

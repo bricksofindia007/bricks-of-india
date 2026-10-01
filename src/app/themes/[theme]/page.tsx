@@ -10,7 +10,6 @@ import { rawThemesFor } from '@/lib/themeMapping';
 import { getThemeCardUrl, getThemeCardOgUrl } from '@/lib/themeCard';
 import { JsonLd } from '@/components/JsonLd';
 import { buildItemListSchema } from '@/lib/schemas';
-import { PRICE_CADENCE } from '@/lib/price-freshness';
 import { getPriceSummaries } from '@/lib/price-summary';
 
 // P10 revalidate audit (29 Sep): this route had no revalidate of its own and was either built
@@ -36,7 +35,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     path: `/themes/${params.theme}`,
     image: getThemeCardOgUrl(theme.slug),
     ogTitle: `LEGO ${theme.name} Sets India 2026 — Bricks of India`,
-    ogDescription: `Compare all LEGO ${theme.name} prices across Indian stores. Updated ${PRICE_CADENCE}.`,
+    ogDescription: `Compare all LEGO ${theme.name} prices across Indian stores.`,
   });
 }
 

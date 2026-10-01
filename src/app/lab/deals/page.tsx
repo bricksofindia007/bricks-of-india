@@ -11,7 +11,7 @@ import { getStores, storeLabels } from '@/lib/stores';
 
 export const metadata: Metadata = buildMetadata({
   title: 'India Deals Today — The Lab',
-  description: 'Every LEGO set currently discounted across Indian stores — Toycra and MyBrickHouse. Sorted by discount %. Updated ' + PRICE_CADENCE + '.',
+  description: 'Every LEGO set currently discounted across Indian stores — Toycra and MyBrickHouse. Sorted by discount %.',
   path: '/lab/deals',
 });
 
