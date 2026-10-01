@@ -4,7 +4,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const STORE_NAMES: Record<string, string> = {
-  mybrickhouse: 'lego.in',
+  mybrickhouse: 'LEGO.in',
   toycra: 'Toycra',
 };
 export const storeName = (id: string) => STORE_NAMES[id] ?? id;

@@ -139,9 +139,9 @@ const FORBIDDEN_SUBS: [RegExp, string][] = [
 ];
 
 const JAIMAN_SUBS: [RegExp, string][] = [
-  [/MyBrickHouse,\s*Toycra,\s*and\s*Jaiman\s*Toys/gi, 'lego.in and Toycra'],
+  [/MyBrickHouse,\s*Toycra,\s*and\s*Jaiman\s*Toys/gi, 'LEGO.in and Toycra'],
   [/Toycra,\s*and\s*Jaiman\s*Toys/gi,                 'Toycra'],
-  [/MyBrickHouse\s*and\s*Jaiman\s*Toys/gi,             'lego.in and Toycra'],
+  [/MyBrickHouse\s*and\s*Jaiman\s*Toys/gi,             'LEGO.in and Toycra'],
   [/,?\s*and\s*Jaiman\s*Toys/gi,                       ''],
   [/Jaiman\s*Toys/gi,                                  'Toycra'],
 ];
@@ -185,13 +185,13 @@ export function prePublishAutoFix(body: string, draft: { source_title?: string |
   const hasPrice = /₹[\d,]+/.test(c);
   const hasStore = /MyBrickHouse|lego\.in|Toycra/i.test(c);
   if (hasPrice && !hasStore) {
-    c = c.replace(/(₹[\d,]+[^.\n]*\.)/, '$1 Available at lego.in and Toycra (use code ABHINAV12 for 12% off above ₹500; we earn a commission).');
+    c = c.replace(/(₹[\d,]+[^.\n]*\.)/, '$1 Available at LEGO.in and Toycra (use code ABHINAV12 for 12% off above ₹500; we earn a commission).');
   }
 
   const hasVerdict = /\b(BUY NOW|WAIT|IMPORT ONLY|AVOID)\b/.test(c);
   const hasSetNum = /\b\d{4,6}\b/.test(slug);
   if (hasPrice && !hasVerdict && hasSetNum) {
-    c = c.replace(/\s+$/, '') + '\n\n**Verdict: WAIT** — check prices at lego.in and Toycra before pulling the trigger.';
+    c = c.replace(/\s+$/, '') + '\n\n**Verdict: WAIT** — check prices at LEGO.in and Toycra before pulling the trigger.';
   }
 
   if (!/on that bombshell/i.test(c)) c = c.replace(/\s+$/, '') + '\n\n' + SIGNOFF_TEXT;

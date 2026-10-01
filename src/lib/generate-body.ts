@@ -115,7 +115,7 @@ export async function buildIndiaPriceContext(
     .eq('set_id', setNumber);
 
   const INDIA_STORE_PRIORITY: Record<string, number> = { mybrickhouse: 1, toycra: 2 };
-  const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: 'lego.in', toycra: 'Toycra' };
+  const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: 'LEGO.in', toycra: 'Toycra' };
 
   const priced = (sp ?? [])
     .sort((a: any, b: any) => (INDIA_STORE_PRIORITY[a.store_id] ?? 9) - (INDIA_STORE_PRIORITY[b.store_id] ?? 9));
@@ -149,7 +149,7 @@ export async function buildIndiaPriceContext(
   }
 
   // G19 + chat (1 Oct 2026): no US-price formula. The model states that Indian pricing isn't announced.
-  return head + `INDIA PRICE DATA: no store prices or official India MRP in our database. Do NOT estimate an Indian price from a US, UK or EU price, an exchange rate or any formula, and give no ₹ figure for this set. In the India Paragraph write exactly: "Official Indian pricing hasn't been announced yet." Then name the stores to watch (Toycra and lego.in) and the 4–6 week India lag.`;
+  return head + `INDIA PRICE DATA: no store prices or official India MRP in our database. Do NOT estimate an Indian price from a US, UK or EU price, an exchange rate or any formula, and give no ₹ figure for this set. In the India Paragraph write exactly: "Official Indian pricing hasn't been announced yet." Then name the stores to watch (Toycra and LEGO.in).`;
 
 }
 

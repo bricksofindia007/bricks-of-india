@@ -12,7 +12,7 @@ import { getPriceSummaries } from '@/lib/price-summary';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Compare LEGO Prices in India',
-  description: 'Compare LEGO set prices across Toycra and lego.in. Find the best deal in India.',
+  description: 'Compare LEGO set prices across Toycra and LEGO.in. Find the best deal in India.',
   path: '/compare',
 });
 
@@ -216,7 +216,7 @@ export default async function ComparePage(props: Props) {
               <p className="text-gray-300 font-body">
                 {total > 0
                   ? `${total.toLocaleString()} sets. Cheapest first.`
-                  : 'Search LEGO sets across Toycra and lego.in.'}
+                  : 'Search LEGO sets across Toycra and LEGO.in.'}
               </p>
             </div>
             <Image

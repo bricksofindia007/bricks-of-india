@@ -17,7 +17,7 @@ export function formatPrice(price: number): string {
 // the <meta name="description"> tag (generateMetadata) and the Product
 // JSON-LD (buildProductSchema) so they can't drift apart.
 export function setMetaDescription(setName: string): string {
-  return `Find the best price for ${setName} in India. Compare prices across Toycra and lego.in.`;
+  return `Find the best price for ${setName} in India. Compare prices across Toycra and LEGO.in.`;
 }
 
 export function slugify(text: string): string {

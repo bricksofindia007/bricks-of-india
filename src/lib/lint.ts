@@ -586,7 +586,7 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
         overallPass = false;
       }
     } else if (!INDIA_STORE_RE.test(indiaSeg)) {
-      indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No store mention (Toycra / lego.in / Amazon / Flipkart / import-only)' };
+      indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No store mention (Toycra / LEGO.in / Amazon / Flipkart / import-only)' };
       overallPass = false;
     } else if (!INDIA_COMPARISON_RE.test(indiaSeg)) {
       if (isCommunity) {

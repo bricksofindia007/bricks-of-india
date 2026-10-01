@@ -11,7 +11,7 @@ import { getStores, storeLabels } from '@/lib/stores';
 
 export const metadata: Metadata = buildMetadata({
   title: 'India Deals Today — The Lab',
-  description: 'Every LEGO set currently discounted across Indian stores — Toycra and lego.in. Sorted by discount %.',
+  description: 'Every LEGO set currently discounted across Indian stores — Toycra and LEGO.in. Sorted by discount %.',
   path: '/lab/deals',
 });
 
@@ -88,7 +88,7 @@ export default async function DealsPage() {
           Your wallet is already open. We found the discounts. The stores did not make this easy.
         </p>
         <p style={{ color: '#CBD5E0', fontSize: '0.72rem', margin: 0 }}>
-          Toycra, lego.in · Sorted by discount %
+          Toycra, LEGO.in · Sorted by discount %
         </p>
       </div>
 

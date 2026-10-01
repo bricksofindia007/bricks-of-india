@@ -119,7 +119,7 @@ const SKIP_FETCH_DOMAINS = new Set([
 const UA = 'BricksOfIndia-RadarBot/1.0 (+https://bricksofindia.com)';
 
 const INDIA_STORE_PRIORITY: Record<string, number> = { mybrickhouse: 1, toycra: 2 };
-const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: 'lego.in', toycra: 'Toycra' };
+const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: 'LEGO.in', toycra: 'Toycra' };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -229,11 +229,11 @@ export async function buildIndiaPriceContext(setNumber: string | null, setName?:
     return head + `INDIA PRICE DATA: ${setNumber} is a GIFT WITH PURCHASE and no Indian store lists it on its own. It is NOT sold separately and has NO retail price. Do NOT state or estimate any price, import price or ₹/$ figure for it. Say it isn't sold separately and comes free with a qualifying LEGO order; a spend threshold may be mentioned only as the requirement to get it, never as its price. Verdict: IMPORT ONLY.`;
   }
   if (setRow?.lego_mrp_inr) {
-    return head + `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices). Use this figure. Mention Toycra / lego.in may list it within 4–6 weeks.`;
+    return head + `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices). Use this figure.`;
   }
 
   // G19 + chat (1 Oct 2026): no US-price formula. The model states that Indian pricing isn't announced.
-  return head + `INDIA PRICE DATA: no store prices or official India MRP in our database. Do NOT estimate an Indian price from a US, UK or EU price, an exchange rate or any formula, and give no ₹ figure for this set. In the India Paragraph write exactly: "Official Indian pricing hasn't been announced yet." Then name the stores to watch (Toycra and lego.in) and the 4–6 week India lag.`;
+  return head + `INDIA PRICE DATA: no store prices or official India MRP in our database. Do NOT estimate an Indian price from a US, UK or EU price, an exchange rate or any formula, and give no ₹ figure for this set. In the India Paragraph write exactly: "Official Indian pricing hasn't been announced yet." Then name the stores to watch (Toycra and LEGO.in).`;
 
 }
 

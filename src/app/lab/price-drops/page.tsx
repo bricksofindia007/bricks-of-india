@@ -10,7 +10,7 @@ import { getStores, storeLabels } from '@/lib/stores';
 
 export const metadata: Metadata = buildMetadata({
   title: 'LEGO Price Drops in India — The Lab',
-  description: 'LEGO price drops across Indian stores — Toycra and lego.in. Sorted by biggest drop.',
+  description: 'LEGO price drops across Indian stores — Toycra and LEGO.in. Sorted by biggest drop.',
   path: '/lab/price-drops',
 });
 
@@ -204,7 +204,7 @@ export default async function PriceDropsPage(props: Props) {
           {hasFilters ? ' (filtered)' : ' — min ₹200 or 5%'}
         </p>
         <p style={{ color: '#CBD5E0', fontSize: '0.72rem', margin: 0 }}>
-          Toycra · lego.in · Sorted by biggest ₹ drop
+          Toycra · LEGO.in · Sorted by biggest ₹ drop
         </p>
       </div>
 

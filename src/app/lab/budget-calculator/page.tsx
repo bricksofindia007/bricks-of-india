@@ -8,7 +8,7 @@ import { getStores, storeLabels } from '@/lib/stores';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Budget Calculator — The Lab',
-  description: 'Find the best LEGO sets for your budget — live Indian store prices across Toycra and lego.in.',
+  description: 'Find the best LEGO sets for your budget — live Indian store prices across Toycra and LEGO.in.',
   path: '/lab/budget-calculator',
 });
 
@@ -119,7 +119,7 @@ export default async function BudgetCalculatorPage(
           Find the best LEGO sets for your budget — live Indian store prices.
         </p>
         <p style={{ color: '#CBD5E0', fontSize: '0.72rem', margin: 0 }}>
-          Toycra, lego.in · Sorted by piece count
+          Toycra, LEGO.in · Sorted by piece count
         </p>
       </div>
 
