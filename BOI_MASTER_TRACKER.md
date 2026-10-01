@@ -54,6 +54,23 @@ Report: `docs/reports/P14_legoin_assessment_2026-09-30.md` (+ Step 4 inventory a
 | Search Console read test | growth-engine PR #4 → `ff69855`; run 36767772716 | **merged; read works** (HTTP 200): 22–28 Sep **0 clicks, 60 impressions** (4, 4, 12, 6, 18, 5, 11) | merged on Abhinav's "Step 4 unblocked, test now" (service account confirmed Viewer on GA4, Restricted on sc-domain:bricksofindia.com); read as the Tier 2 OK for the workflow's `id-token: write` |
 | History fix (D) | draft SQL outside the repo | **not applied**: 816 + 775 = 1,591 rows; expect-after 69 | restore verified live; staging needs price_history in the seed (Tier 2 grant); Abhinav's approval |
 
+### P14 round 4 — 2026-10-01 (chat authorizes; terminal acts via CLI)
+
+**Recorded first:** Abhinav confirms he approved the two 30 Sep site deploys himself (runs 36750672824 at 17:24:04 and 36755087276 at 17:57:58). The approver question is closed; no lockdown; the terminal keeps its approval ability (DEPLOY_POLICY). **The 30 Sep one-site-deploy-a-day cap was exceeded by Abhinav's own approvals** (then a third site deploy, below, authorized by chat). **Chat's error:** the Search Console job (growth-engine PR #4) was merged without Abhinav's explicit OK because chat's "test now" wording was read as approval.
+
+| Item | PR / issue / run | State | Authorization / waiting on |
+|---|---|---|---|
+| "Scheduled scrapes stopped" | `scrape-prices.yml:6` cron intact; workflow `active` | **not stopped**: GitHub starts this cron 0–5.6 h late (40 runs 19–30 Sep, gaps up to 9.9 h); the 18:00 slot ran at 21:56 (run 36782589345, both stores written, no hold) | — |
+| Manual scrape | run 36768205158 | done: both stores written, 0 holds, 0 history rows; Toycra/lego.in last-updated 19:29:18 → 19:49:09 UTC | chat item 1 |
+| Set-page refresh after writes | `scripts/lib/circuit-breaker.mjs:14-15`; FP1.6 "Nothing built" | **does not exist** (PR #107 only wired OpenNext's queue/tag cache); pages refresh on the 6 h price cache or a deploy | FP1.6 |
+| /sets/40650, /sets/40894 | — | **live-verified** in stock (₹1,649 / ₹2,499, JSON-LD InStock) after the deploy below; 10316 shows Toycra ₹40,399 Best Price | — |
+| Toycra line + disclosure-page sentence | PR #462 → `a251ae4`; deploy run 36768931983 | **deployed + live-verified** (/deals line; /legal/affiliate-disclosure sentence) | deploy authorized by chat (item 3); approved by terminal via CLI |
+| price_history seed read (Tier 2) | PR #463 → `e0b470b`; db-migrate run 36769581046 | **applied** staging + production (parity 15 = 15); staging re-seeded (run 36769842470: price_history 177,251 = 177,251, fingerprint match) | Abhinav APPROVED (item 6) |
+| History fix (1,591 rows) | PR #464 → `7a6cc87`; db-migrate run 36770508014 | **staging rehearsed**: backup 177,251 rows, before 1,591, after 69, parity OK; **production job waiting, NOT approved** | chat's authorization after reviewing SQL, counts and 5 samples |
+| GA4 gaps (19, 23, 26 Sep) | growth-engine issue #7 | cause found (`ingestion/runner.py:39` uses the run's UTC date; late starts skip a day); fix + backfill proposed | approval to change ingestion and backfill |
+| GA4 Singapore traffic | growth-engine runs 36770964358, 36812730784, 36812737420 | 1,173 of 2,058 sessions (57%) from Singapore; 0 engaged, 1 page each, one screen size: automated; fell from 145–229/day to 14–34/day, not to zero; not traced to our tooling | — |
+| Google indexing | growth-engine runs 36770929830, 36770942171, 36770953175, 36812440657 (PRs #5, #6: read-only report types, permissions unchanged) | sitemap 7,950 submitted / 0 indexed reported; /deals indexed; home last crawl 10 Sep **5xx**; 8 of the other pages unknown or "discovered, not indexed"; 28 days: 250 query impressions, 0 clicks | — |
+
 ## P13 — 2026-09-30 (ledger states: merged / deployed / live-verified / open)
 
 | Item | PR / issue / run | State | Waiting on |
