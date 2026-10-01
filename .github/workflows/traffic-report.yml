@@ -1,6 +1,7 @@
 # P13 item 5 (#451): GA4 website traffic, read as ci_readonly from growth.platform_metrics_daily
 # (migration 20260930070000). Dispatch-only, read-only; prints daily aggregates (sessions, active
-# users) and nothing else. The growth engine writes these rows nightly (ingestion/ga4.py:
+# users) and nothing else. real_visitors = sessions excluding Singapore direct-Chrome (automated,
+# 0 engaged sessions; P14 round 5); the raw sessions column is kept. The growth engine writes these rows nightly (ingestion/ga4.py:
 # views = sessions, reach = activeUsers).
 # Budget (G2): manual dispatch; one read-only query per run.
 name: Traffic report (read-only)
@@ -30,7 +31,10 @@ jobs:
           set -eu
           case "$DAYS" in ''|*[!0-9]*) echo "days must be a number"; exit 1;; esac
           psql "$DATABASE_URL" -X -q -v ON_ERROR_STOP=1 -P pager=off -c "
-            select metric_date, views as sessions, reach as active_users, pulled_at::date as pulled
+            select metric_date, views as sessions,
+                   (raw->>'ga4_sessions_real_visitors')::int as real_visitors,
+                   (raw->>'ga4_sessions_sg_direct_chrome')::int as sg_direct_chrome,
+                   reach as active_users, pulled_at::date as pulled
             from growth.platform_metrics_daily
             where platform = 'website' and metric_date >= current_date - $DAYS
             order by metric_date" | tee report.txt
