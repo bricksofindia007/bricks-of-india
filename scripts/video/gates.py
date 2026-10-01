@@ -13,6 +13,10 @@ catch.
 
 from __future__ import annotations
 
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))
+from config.g19 import g19_hits  # noqa: E402  (G19, 1 Oct 2026)
 import os
 import re
 from dataclasses import dataclass, field
@@ -370,6 +374,17 @@ def gate_no_first_person_build(script: str) -> GateResult:
 # the spoken script -- this is global content, and Indian retailer names
 # mean nothing to a non-Indian viewer regardless.
 _STORE_NAME_RE = re.compile(r"\btoycra\b|\bmy\s*brick\s*house\b|\bmybrickhouse\b", re.IGNORECASE)
+
+
+def gate_g19(script: str) -> GateResult:
+    """G19 (1 Oct 2026): the script must not describe how Bricks of India works
+    (scraping, bots, feeds, update frequency, AI/model names, pipelines, gates,
+    pricing rules, infrastructure). Term list: config/g19-terms.json."""
+    hits = g19_hits(script)
+    if hits:
+        h = hits[0]
+        return GateResult("g19_no_method_talk", False, f'{h["category"]}: "{h["term"]}" in "{h["sentence"][:80]}"')
+    return GateResult("g19_no_method_talk", True)
 
 
 def gate_no_store_names(script: str) -> GateResult:
@@ -861,4 +876,5 @@ def run_all_gates(
     report.results.append(gate_price_math(script, price_inr))
     report.results.append(gate_coherence_llm_judge(script))
     report.results.append(gate_no_store_names(script))
+    report.results.append(gate_g19(script))
     return report

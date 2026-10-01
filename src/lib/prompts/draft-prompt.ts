@@ -1,6 +1,7 @@
 // Canonical Gemini prompt constants and builders for BOI article generation.
 // Source of truth for both the web (generate-body.ts) and GHA batch script.
 // The .js batch script is the original canonical source — keep this in sync.
+import { G19_PROMPT_RULE } from '../g19';
 
 export const VOICE_EXAMPLES = `ANTI-FABRICATION RULES (HIGHEST PRIORITY — VIOLATIONS WILL BE REJECTED):
 
@@ -109,6 +110,7 @@ GOOD INDIA PARAGRAPH (no price data):
 "No Indian store prices yet. Based on the US retail price of $239.99 and current exchange rates, expect this to land somewhere around ₹32,000–35,000 when it arrives. That is roughly 10 months of Spotify Premium Family Plan. MyBrickHouse and Toycra are the stores to watch — use code ABHINAV12 at Toycra for 12% off above ₹500. Expect a 4–6 week lag from global launch."
 
 WHAT NEVER APPEARS IN BOI ARTICLES:
+- How Bricks of India works (G19). ${G19_PROMPT_RULE}
 - "So," at the start of any sentence that opens the article
 - *asterisks* around any word for any reason
 - "folks", "enthusiasts", "at the end of the day"

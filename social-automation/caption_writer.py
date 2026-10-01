@@ -3,6 +3,10 @@ caption_writer.py — Generates Instagram captions using Gemini Flash.
 Voice: Jeremy Clarkson meets Indian wallet anxiety.
 """
 
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))
+from config.g19 import PROMPT_RULE as G19_RULE, g19_hits  # noqa: E402  (G19, 1 Oct 2026)
 import os
 import re
 import sys
@@ -157,7 +161,7 @@ End the caption with exactly this text, no modifications:
                     # untouched by this change. CAPTION_SCOPE_NOTE appended
                     # last (Phase 4d) so its "don't do X" constraint has
                     # recency over the codex's own verdict-system material.
-                    system_instruction=_load_codex() + '\n\n---\n\n' + SYSTEM_PROMPT + '\n\n' + CAPTION_SCOPE_NOTE,
+                    system_instruction=_load_codex() + '\n\n---\n\n' + SYSTEM_PROMPT + '\n\n' + CAPTION_SCOPE_NOTE + '\n\nG19: ' + G19_RULE,
                 ),
             )
             caption = response.text.strip()
@@ -273,10 +277,14 @@ def find_offvoice_phrases(caption_text: str) -> list[str]:
     OFFVOICE_PHRASES (see above). Returns the list of banned phrases found,
     empty if none."""
     normalized = _normalize_quotes(caption_text or '').lower()
-    return [
+    found = [
         phrase for phrase in OFFVOICE_PHRASES
         if _normalize_quotes(phrase).lower() in normalized
     ]
+    # G19 (1 Oct 2026): method talk counts as a banned phrase, so the caller's
+    # regenerate-with-feedback loop rewrites it (config/g19-terms.json).
+    found += [f"G19 {h['category']}: {h['term']}" for h in g19_hits(caption_text or '')]
+    return found
 
 
 # Real, current Instagram caption limit (Graph API POST /{ig-user-id}/media)

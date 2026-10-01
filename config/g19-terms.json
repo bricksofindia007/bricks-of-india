@@ -1,0 +1,75 @@
+{
+  "_comment": "G19 (CLAUDE.md, 1 Oct 2026): nothing public may reveal how Bricks of India works. ONE term list used by the CI public-text check (scripts/ci/g19-check.mjs), the article lint gate (src/lib/g19.ts -> src/lib/lint.ts), and the video/caption quality gates (Python). Patterns are case-insensitive regex, written to work in both JavaScript and Python. Narrow on purpose so ordinary LEGO writing (a Technic 'automatic gearbox', 'feed a family') isn't rejected.",
+  "terms": {
+    "frequency": [
+      "every\\s+(\\d+|six|few|couple of)\\s*(hours?|hrs?|minutes?|mins?)",
+      "\\b(hourly|twice[- ]daily)\\b",
+      "\\bupdated\\s+(daily|hourly|every|twice|nightly)\\b",
+      "\\b(checked|refreshed|scraped|tracked|synced|updated)\\s+(daily|hourly|nightly|weekly)\\b",
+      "\\breal[- ]time\\s+(prices?|data|pricing)\\b"
+    ],
+    "scraping": [
+      "\\bscrap(e|es|ed|er|ers|ing)\\b",
+      "\\bcrawl(er|ers|ing)\\b"
+    ],
+    "bot": [
+      "\\b(our|price|a|the)\\s+bots?\\b",
+      "\\bbots?\\s+(visit|visits|read|reads|check|checks|crawl|collect)",
+      "\\buser[- ]agent\\b"
+    ],
+    "feeds-apis": [
+      "\\bshopify\\b",
+      "products\\.json",
+      "\\b(product|price|data|retailer|json|store)\\s+feeds?\\b",
+      "\\bapis?\\b"
+    ],
+    "automation": [
+      "\\bautomat(ed|ically)\\s+(scrap|track|updat|check|generat|written|writ|publish|collect|fetch)",
+      "\\bautomation\\b",
+      "\\bcron\\b",
+      "\\bpipelines?\\b",
+      "\\bworkflows?\\b",
+      "\\bwebhooks?\\b"
+    ],
+    "ai": [
+      "\\b(ai|machine|computer)[- ](generated|written|powered|assisted)\\b",
+      "\\b(generated|written|drafted)\\s+(by|with|using)\\s+(an?\\s+)?(ai|llm|model|machine|chatbot)\\b",
+      "\\bllms?\\b",
+      "\\blarge language model",
+      "\\b(gemini|groq|cerebras|openai|chatgpt|anthropic|elevenlabs|gpt-[\\w.]+)\\b",
+      "\\bclaude\\b"
+    ],
+    "gates": [
+      "\\b(quality|lint|fact|factuality|publish|content)[- ]?gates?\\b",
+      "\\blinter\\b"
+    ],
+    "pricing-rule": [
+      "\\bMRP\\s*=",
+      "\\bMRP\\s+reference\\b",
+      "\\banchor(ed|ing)?\\s+(price|mrp|rule|store)",
+      "\\blisted MRP,?\\s+else\\b",
+      "\\bas listed by\\b"
+    ],
+    "infra-security": [
+      "\\brate[- ]limit",
+      "\\badvisory only\\b",
+      "\\bcloudflare\\b",
+      "\\bsupabase\\b",
+      "\\bgithub actions\\b",
+      "\\bnext\\.js\\b",
+      "\\bvercel\\b",
+      "\\bnetlify\\b"
+    ],
+    "internal-paths": [
+      "/api/",
+      "/admin\\b",
+      "\\bpending[ _]drafts\\b",
+      "\\b(store_prices|price_history|set_price_summary)\\b"
+    ]
+  },
+  "allow": [
+    "\\bUpdated\\s+\\d+\\s*(m|min|mins|minutes?|h|hrs?|hours?|d|days?)\\s+ago\\b",
+    "\\bbot \\[at\\] bricksofindia \\[dot\\] com\\b",
+    "\\bBricksOfIndiaBot belongs to Bricks of India\\b"
+  ]
+}

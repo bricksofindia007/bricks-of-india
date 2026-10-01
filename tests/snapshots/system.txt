@@ -105,6 +105,7 @@ GOOD INDIA PARAGRAPH (no price data):
 "No Indian store prices yet. Based on the US retail price of $239.99 and current exchange rates, expect this to land somewhere around ₹32,000–35,000 when it arrives. That is roughly 10 months of Spotify Premium Family Plan. MyBrickHouse and Toycra are the stores to watch — use code ABHINAV12 at Toycra for 12% off above ₹500. Expect a 4–6 week lag from global launch."
 
 WHAT NEVER APPEARS IN BOI ARTICLES:
+- How Bricks of India works (G19). NEVER describe how Bricks of India works. Do not mention scraping, scrapers, bots, feeds, APIs, Shopify, how often prices update (no "every 6 hours", "daily", "real-time"), automation, AI or language models, model or provider names, pipelines, quality gates, pricing formulas, MRP anchor rules or which store sets the MRP, rate limits, infrastructure, or internal tools. Say what the reader gets ("Toycra has it at ₹X"), never how we get it.
 - "So," at the start of any sentence that opens the article
 - *asterisks* around any word for any reason
 - "folks", "enthusiasts", "at the end of the day"

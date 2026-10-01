@@ -42,6 +42,7 @@ load_dotenv(BASE_DIR / '.env')
 # repo-root utility, not engine.py/publish.py-specific.
 sys.path.insert(0, str((BASE_DIR.parent.parent).resolve()))
 from config.feature_flags import FEATURE_FLAGS  # noqa: E402
+from config.g19 import PROMPT_RULE as G19_RULE, g19_hits  # noqa: E402  (G19, 1 Oct 2026)
 
 
 def get_secret(name: str, default: str = '') -> str:
@@ -618,7 +619,9 @@ markdown code fence, no explanation before or after. Each element:
 "voice" is a boolean (true/false per the segment-count rule above). \
 "sfx_tag" must be one of the six valid tags listed above. Exactly 8 \
 segments total, 3-4 with voice:true (following the rule above), the last \
-voice:true segment being the verdict line."""
+voice:true segment being the verdict line.
+
+G19: """ + G19_RULE.replace('{', '{{').replace('}', '}}')
 
 
 def _build_reference_block() -> str:
@@ -701,6 +704,10 @@ def _extract_json_array(text: str) -> list:
 
 
 def _validate_segments(segments: list) -> None:
+    # G19 (1 Oct 2026): no method talk in published scripts.
+    _g19 = g19_hits(' '.join(str(seg.get('text', '')) for seg in segments if isinstance(seg, dict)))
+    if _g19:
+        raise ValueError(f"G19: script describes how the site works ({_g19[0]['category']}: {_g19[0]['term']!r})")
     if not isinstance(segments, list) or not segments:
         raise ValueError('Script-gen output is not a non-empty JSON array.')
     for i, seg in enumerate(segments):
