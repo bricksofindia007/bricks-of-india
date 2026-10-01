@@ -62,7 +62,8 @@ function visibleStrings(src) {
   const noBlock = inlineConsts(src).replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
   noBlock.split('\n').forEach((line, i) => {
     if (SKIP_LINE.test(line)) return;
-    const l = line.replace(/\/\/.*$/, '');
+    // HTML entities in JSX text (&apos; etc.) would otherwise read as code (the ';') and hide the line.
+    const l = line.replace(/\/\/.*$/, '').replace(/&(apos|rsquo|lsquo|quot|amp|nbsp|mdash|ndash);/g, "'");
     for (const m of l.matchAll(/'((?:[^'\\]|\\.){6,})'|"((?:[^"\\]|\\.){6,})"|`((?:[^`\\]|\\.){6,})`/g)) {
       const v = (m[1] ?? m[2] ?? m[3]).replace(/\$\{[^}]*\}/g, ' ');
       if (/^(https?:|\/|@\/|\.\/|\[[\w-]+\]|[a-z0-9_.-]+$)/i.test(v) || !/\s/.test(v)) continue; // paths, ids, log tags, single tokens

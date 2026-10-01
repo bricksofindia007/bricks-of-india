@@ -48,7 +48,9 @@
       "\\bMRP\\s+reference\\b",
       "\\banchor(ed|ing)?\\s+(price|mrp|rule|store)",
       "\\blisted MRP,?\\s+else\\b",
-      "\\bas listed by\\b"
+      "\\bas listed by\\b",
+      "\\bbased on the US (retail )?price\\b",
+      "\\blocal pricing adjustments?\\b"
     ],
     "infra-security": [
       "\\brate[- ]limit",
