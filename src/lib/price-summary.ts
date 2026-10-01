@@ -4,16 +4,10 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 export const STORE_NAMES: Record<string, string> = {
-  mybrickhouse: 'MyBrickHouse',
+  mybrickhouse: 'lego.in',
   toycra: 'Toycra',
 };
 export const storeName = (id: string) => STORE_NAMES[id] ?? id;
-
-export const ANCHOR_SOURCE_LABEL: Record<string, string> = {
-  mybrickhouse: 'as listed by MyBrickHouse',
-  toycra: 'as listed by Toycra',
-  catalogue: 'verified LEGO India MRP',
-};
 
 export type DealTier = 'hot' | 'deal';
 

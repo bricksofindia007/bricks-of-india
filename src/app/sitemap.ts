@@ -98,7 +98,11 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     allSets.push(...data);
     if (data.length < PAGE) break;
   }
-  const setPages = allSets.map((s) => ({
+  // The set page reads the set number as the slug's first "-" segment, so a set number that
+  // starts with letters and contains "-" (DOTS-HP, WIZARD-CARDS, BONSAI-2…) can't resolve to its
+  // own page: 8 answer 404 and 4 show a different set (1 Oct 2026 crawl). Kept out of the sitemap
+  // until the page lookup handles them.
+  const setPages = allSets.filter((s) => !/^[A-Za-z][^-]*-/.test(s.set_number)).map((s) => ({
     url: `${base}/sets/${s.set_number}-${slugify(s.name)}`,
     lastModified: new Date(s.updated_at),
     changeFrequency: 'daily' as const,

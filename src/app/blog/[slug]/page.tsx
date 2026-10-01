@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { supabaseRead as supabase } from '@/lib/supabase';
-import { READ_REVALIDATE_SECONDS, PRICE_CADENCE } from '@/lib/price-freshness';
+import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import ReactMarkdown from 'react-markdown';
 import { formatDate, readingTime, whatsappShareUrl, twitterShareUrl, socialCardImage } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
@@ -106,11 +106,11 @@ export default async function BlogPostPage(props: Props) {
           <h2 className="font-heading text-dark text-3xl mb-4">FREQUENTLY ASKED QUESTIONS</h2>
           <div className="space-y-3">
             {(() => { const faqs = [
-              { q: 'Where is the cheapest place to buy LEGO in India?', a: 'It depends on the set — each set page compares live prices at Toycra and MyBrickHouse. Code ABHINAV12 takes 12% off at Toycra (min. ₹500; we may earn a commission). Amazon India and Flipkart also sell LEGO.' },
+              { q: 'Where is the cheapest place to buy LEGO in India?', a: 'It depends on the set — each set page compares live prices at Toycra and lego.in. Code ABHINAV12 takes 12% off at Toycra (min. ₹500; we may earn a commission). Amazon India and Flipkart also sell LEGO.' },
               { q: 'Are LEGO sets worth buying in India in 2026?', a: 'Absolutely — if you buy from the right stores at the right price. Use our price comparison tool to ensure you\'re not overpaying. The sets are genuine and the builds are genuinely enjoyable.' },
               { q: 'Is there a LEGO discount code for India?', a: 'Yes! Use code ABHINAV12 at Toycra for 12% off any LEGO set. Minimum purchase ₹500. No usage limits. This is an exclusive Bricks of India deal.' },
-              { q: 'Can I trust the prices on Bricks of India?', a: 'Our prices are scraped ' + PRICE_CADENCE + ' from actual retailer websites. We always recommend verifying on the store website before purchase, as prices can change. We\'re accurate, not psychic.' },
-              { q: 'How do I know if a LEGO set is genuine in India?', a: 'Buy from authorised retailers: Toycra, MyBrickHouse, Amazon India, and Flipkart. If a price looks too good to be true, it probably is.' },
+              { q: 'Can I trust the prices on Bricks of India?', a: 'Our prices come from the retailers\' own websites. We always recommend verifying on the store website before purchase, as prices can change. We\'re accurate, not psychic.' },
+              { q: 'How do I know if a LEGO set is genuine in India?', a: 'Buy from authorised retailers: Toycra, lego.in, Amazon India, and Flipkart. If a price looks too good to be true, it probably is.' },
             ]; return (<><JsonLd data={buildFAQSchema(faqs)} />{faqs.map((faq, i) => (
               <details key={i} className="border-2 border-border rounded-xl overflow-hidden">
                 <summary className="px-4 py-3 font-bold text-dark cursor-pointer hover:bg-light-grey transition-colors">{faq.q}</summary>

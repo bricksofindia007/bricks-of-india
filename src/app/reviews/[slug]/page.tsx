@@ -362,14 +362,14 @@ export default async function ReviewPage(props: Props) {
                 q: `Where can I buy ${set?.name || 'this set'} cheapest in India?`,
                 a: bestStorePrice
                   ? `Based on our latest tracking, ${TRACKED_STORES.find(s => s.id === bestStorePrice?.store_id)?.name ?? 'a tracked store'} has the best price. Use code ABHINAV12 at Toycra for 12% off.`
-                  : `Check Toycra and MyBrickHouse for current prices. Use code ABHINAV12 at Toycra for an exclusive 12% off.`,
+                  : `Check Toycra and lego.in for current prices. Use code ABHINAV12 at Toycra for an exclusive 12% off.`,
               },
               {
                 q: `What is the price of ${set?.name || 'this set'} in India?`,
                 a: set?.lego_mrp_inr
                   ? set.mrp_verified
                     ? `The confirmed LEGO India MRP is ₹${set.lego_mrp_inr.toLocaleString('en-IN')}. Some stores may sell at a discount. Compare prices above.`
-                    : `Based on the US retail price, this set works out to roughly ₹${set.lego_mrp_inr.toLocaleString('en-IN')} in India before local pricing adjustments. Check lego.com/en-in for the official MRP.`
+                    : `Official Indian pricing hasn't been announced yet.`
                   : 'Check our price comparison tool for current prices across Indian stores.',
               },
               {

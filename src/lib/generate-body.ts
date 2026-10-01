@@ -92,15 +92,6 @@ function fmtInr(n: number): string {
   return rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + last3;
 }
 
-async function fetchLiveUsdInr(): Promise<number | null> {
-  try {
-    const r = await fetch('https://open.er-api.com/v6/latest/USD', { signal: AbortSignal.timeout(5000) });
-    const d = await r.json();
-    const rate = d?.rates?.INR;
-    return (rate && rate > 75 && rate < 130) ? Math.round(rate) : null;
-  } catch { return null; }
-}
-
 // 2026-09-26: the model must see WHICH set the prices belong to, so it can't
 // attach them to a different product (Donkey Kong "(2000)" incident).
 function setIdentityHeader(setNumber: string | null, setName?: string | null): string {
@@ -124,7 +115,7 @@ export async function buildIndiaPriceContext(
     .eq('set_id', setNumber);
 
   const INDIA_STORE_PRIORITY: Record<string, number> = { mybrickhouse: 1, toycra: 2 };
-  const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: 'MyBrickHouse', toycra: 'Toycra' };
+  const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: 'lego.in', toycra: 'Toycra' };
 
   const priced = (sp ?? [])
     .sort((a: any, b: any) => (INDIA_STORE_PRIORITY[a.store_id] ?? 9) - (INDIA_STORE_PRIORITY[b.store_id] ?? 9));
@@ -157,12 +148,9 @@ export async function buildIndiaPriceContext(
     return head + `INDIA PRICE DATA: Confirmed India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (retailer-labeled, verified live). Use this exact figure.`;
   }
 
-  const rate = await fetchLiveUsdInr();
-  if (rate) {
-    return head + `INDIA PRICE DATA: no store prices or official India MRP in our database. You MUST still include a ₹ figure in the India Paragraph — use this formula: USD retail price × 1.35 × ${rate} = estimated INR (the 1.35 factor covers import duty and retailer markup). Example: $99.99 USD → ₹${Math.round(99.99 * 1.35 * rate).toLocaleString('en-IN')} estimated. Round to nearest ₹100. Label it clearly as "estimated import price — not confirmed India retail." If the source does not mention any USD price, use IMPORT ONLY verdict and state the set is not currently available at any official India retailer.`;
-  }
+  // G19 + chat (1 Oct 2026): no US-price formula. The model states that Indian pricing isn't announced.
+  return head + `INDIA PRICE DATA: no store prices or official India MRP in our database. Do NOT estimate an Indian price from a US, UK or EU price, an exchange rate or any formula, and give no ₹ figure for this set. In the India Paragraph write exactly: "Official Indian pricing hasn't been announced yet." Then name the stores to watch (Toycra and lego.in) and the 4–6 week India lag.`;
 
-  return head + 'INDIA PRICE DATA: no price data available. Use IMPORT ONLY verdict. State the set is not currently available at any official India retailer, and omit a specific price figure.';
 }
 
 // ── Core generation ───────────────────────────────────────────────────────────

@@ -12,7 +12,7 @@ export const revalidate = 3600; // = READ_REVALIDATE_SECONDS (src/lib/route-cade
 
 export const metadata: Metadata = buildMetadata({
   title: 'Retirement Radar — The Lab',
-  description: 'LEGO sets retiring soon in India — 90-day window. Buy before they\'re gone. Updated weekly.',
+  description: 'LEGO sets retiring soon in India — 90-day window. Buy before they\'re gone.',
   path: '/lab/retiring-soon',
 });
 
@@ -118,7 +118,7 @@ export default async function RetiringSoonPage() {
           {results.length} LEGO set{results.length !== 1 ? 's' : ''} retiring in the next 90 days. Buy before they&apos;re gone.
         </p>
         <p style={{ color: '#CBD5E0', fontSize: '0.72rem', margin: 0 }}>
-          Data from Brickset · Updated weekly · Sorted by retirement date
+          Data from Brickset · Sorted by retirement date
         </p>
       </div>
 

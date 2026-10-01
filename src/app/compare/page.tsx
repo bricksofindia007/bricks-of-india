@@ -8,12 +8,11 @@ import { SetCard } from '@/components/sets/SetCard';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { MASCOTS, THEMES, PRICE_RANGES } from '@/lib/brand';
-import { PRICE_CADENCE } from '@/lib/price-freshness';
 import { getPriceSummaries } from '@/lib/price-summary';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Compare LEGO Prices in India',
-  description: 'Compare LEGO set prices across Toycra and MyBrickHouse. Find the best deal in India.',
+  description: 'Compare LEGO set prices across Toycra and lego.in. Find the best deal in India.',
   path: '/compare',
 });
 
@@ -216,8 +215,8 @@ export default async function ComparePage(props: Props) {
               </h1>
               <p className="text-gray-300 font-body">
                 {total > 0
-                  ? `${total.toLocaleString()} sets. Updated ${PRICE_CADENCE}. Cheapest first.`
-                  : 'Search LEGO sets across Toycra and MyBrickHouse.'}
+                  ? `${total.toLocaleString()} sets. Cheapest first.`
+                  : 'Search LEGO sets across Toycra and lego.in.'}
               </p>
             </div>
             <Image
@@ -374,7 +373,7 @@ export default async function ComparePage(props: Props) {
 
       <div className="max-w-site mx-auto px-4 pb-8">
         <p className="text-xs text-gray-400 text-center border-t border-border pt-4">
-          Prices updated {PRICE_CADENCE}. Always verify the final price on the retailer&apos;s website before purchase.
+          Always check the final price on the store&apos;s website before you buy.
           LEGO® is a trademark of The LEGO Group which does not sponsor or endorse this site.
         </p>
       </div>

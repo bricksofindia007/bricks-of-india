@@ -78,9 +78,9 @@ export function SetCard({ set, bestPrice, priceCount, summary }: SetCardProps) {
                   </FreshOnly>
                 )}
               </div>
-            ) : mrp ? (
+            ) : mrp && mrpVerified ? (
               <span className="font-price text-sm text-dark font-bold">
-                {mrpVerified ? 'MRP' : 'Est. MRP'}: {formatPrice(mrp)}
+                MRP: {formatPrice(mrp)}
               </span>
             ) : (
               <span className="text-xs text-gray-400 italic">Price TBD</span>

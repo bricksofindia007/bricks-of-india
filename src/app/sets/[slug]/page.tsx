@@ -5,7 +5,7 @@ import { cache } from 'react';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
-import { SET_PAGE_REVALIDATE_SECONDS, UNPRICED_SET_REVALIDATE_SECONDS, PRICE_CADENCE, bestInStock, isPriceFresh, formatIst } from '@/lib/price-freshness';
+import { SET_PAGE_REVALIDATE_SECONDS, UNPRICED_SET_REVALIDATE_SECONDS, bestInStock, isPriceFresh, formatIst } from '@/lib/price-freshness';
 import { unstable_cache } from 'next/cache';
 import { PriceAge } from '@/components/ui/PriceAge';
 import { getSet } from '@/lib/rebrickable';
@@ -13,7 +13,7 @@ import { formatPrice, whatsappShareUrl, socialCardImage, setMetaDescription } fr
 import { MASCOTS } from '@/lib/brand';
 import { resolveThemeSlug } from '@/lib/themeMapping';
 import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/Badge';
-import { priceLabel, ANCHOR_SOURCE_LABEL, type SetPriceSummary } from '@/lib/price-summary';
+import { priceLabel, type SetPriceSummary } from '@/lib/price-summary';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { SetCard } from '@/components/sets/SetCard';
 import { SetImage } from '@/components/sets/SetImage';
@@ -324,16 +324,13 @@ export default async function SetPage(props: Props) {
 
             {/* MRP (R2): the anchor and its source win over any other MRP. The
                 US-price estimate shows only when there is no anchor at all. */}
-            {(anchorMrp || set.lego_mrp_inr) && (
+            {(anchorMrp || (set.lego_mrp_inr && set.mrp_verified)) && (
               <div className="bg-light-grey rounded-xl p-4 mb-6 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs text-gray-400 uppercase tracking-wide font-bold">
-                    {anchorMrp ? 'MRP' : set.mrp_verified ? 'MRP' : 'Est. MRP (from US price)'}
+                    MRP
                   </p>
                   <p className="font-price text-2xl font-bold text-dark">{formatPrice(anchorMrp ?? set.lego_mrp_inr!)}</p>
-                  {anchorMrp && summary?.anchor_source && (
-                    <p className="text-xs text-gray-500">{ANCHOR_SOURCE_LABEL[summary.anchor_source]}</p>
-                  )}
                 </div>
                 {summary?.deal_tier ? (
                   <FreshOnly scrapedAt={summary.best_scraped_at} fallback={<span className="text-3xl">🏷️</span>}>
@@ -450,7 +447,7 @@ export default async function SetPage(props: Props) {
 
             {/* Price disclaimer */}
             <p className="text-xs text-gray-400 mb-6">
-              Prices updated {PRICE_CADENCE}. Always verify the final price on the retailer&apos;s website before purchase.
+              Always check the final price on the store&apos;s website before you buy.
               LEGO® is a trademark of The LEGO Group which does not sponsor or endorse this site.
             </p>
 
@@ -505,23 +502,23 @@ export default async function SetPage(props: Props) {
                     q: `Where is ${set.name} cheapest in India?`,
                     // R5: every store at the lowest price is named, alphabetically.
                     a: summary?.best_price_inr != null && summary.best_store_ids?.length
-                      ? `Based on our latest comparison, ${summary.best_store_ids.map((id) => STORE_NAMES[id] ?? id).join(' and ')} ${summary.best_store_ids.length > 1 ? 'share' : 'has'} the lowest in-stock price at ${formatPrice(summary.best_price_inr)}. Prices are checked ${PRICE_CADENCE}.`
+                      ? `Based on our latest comparison, ${summary.best_store_ids.map((id) => STORE_NAMES[id] ?? id).join(' and ')} ${summary.best_store_ids.length > 1 ? 'share' : 'has'} the lowest in-stock price at ${formatPrice(summary.best_price_inr)}.`
                       : hasPrices
                       ? `The lowest in-stock price we last saw was ${formatPrice(bestStorePrice!.price_inr)} at ${STORE_NAMES[bestStorePrice!.store_id] ?? bestStorePrice!.store_id}, but that price is more than 12 hours old — check the store for today's price.`
-                      : `We're currently setting up price tracking for ${set.name}. Check Toycra, MyBrickHouse, and Amazon India for live prices.`,
+                      : `We're currently setting up price tracking for ${set.name}. Check Toycra, lego.in, and Amazon India for live prices.`,
                   },
                   {
                     q: `Is ${set.name} available in India?`,
-                    a: `${set.name} availability is tracked across Toycra and MyBrickHouse. Check individual store links above for real-time stock.`,
+                    a: `${set.name} availability is tracked across Toycra and lego.in. Check the store links above for current stock.`,
                   },
                   {
                     q: `What is the official MRP of ${set.name} in India?`,
                     a: anchorMrp && summary?.anchor_source
-                      ? `The MRP for ${set.name} is ${formatPrice(anchorMrp)} (${ANCHOR_SOURCE_LABEL[summary.anchor_source]}).`
+                      ? `The MRP for ${set.name} is ${formatPrice(anchorMrp)}.`
                       : set.lego_mrp_inr
                       ? set.mrp_verified
                         ? `The confirmed LEGO India MRP for ${set.name} is ${formatPrice(set.lego_mrp_inr)}.`
-                        : `Based on the US retail price, ${set.name} works out to roughly ${formatPrice(set.lego_mrp_inr)} in India before local pricing adjustments. Check lego.com/en-in for the official MRP.`
+                        : `Official Indian pricing hasn't been announced yet.`
                       : `The official India MRP for ${set.name} hasn't been confirmed. Check lego.com/en-in for the latest official pricing.`,
                   },
                   {
