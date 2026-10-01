@@ -1167,7 +1167,17 @@ def _try_tier1_pre_tts_remediation(
     if fixed_raw == raw_script_text.strip():
         return None  # not quote-wrapped -- nothing for this fix to do
     new_report = gates.run_all_gates(fixed_raw, pieces, sets_lookup, recent, price_inr)
-    return new_report if new_report.all_passed else None
+    return new_report if new_report.passed_or_held else None
+
+
+def held_escalation_text(report: gates.GateReport) -> str:
+    """#378: reviewer-facing sentence for held (judge-unavailable) gates, or ''."""
+    held = [r.gate for r in report.results if not r.passed and r.held]
+    if not held:
+        return ""
+    return (f" The coherence judge could not run ({', '.join(held)} held, fail-closed since #378), "
+            "so no regeneration was tried: a person must judge whether the script reads as coherent "
+            "English, then approve with a gate override reason, or reject.")
 
 
 def build_escalation_note(report: gates.GateReport, remediation_attempted: str) -> dict:
@@ -1243,7 +1253,10 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
         # on to fail on content gates instead, a genuinely different reason.
         provider_error = None
         report = gates.run_all_gates(raw_script.text, candidate.get("pieces"), sets_lookup, recent, candidate["price_inr"])
-        if report.all_passed:
+        # #378: held-only failures (judge unavailable) are not regenerated --
+        # a new script can't fix a judge outage. The story continues to human
+        # review carrying an escalation note (see held_escalation_text()).
+        if report.passed_or_held:
             # Sanitized text, not raw -- this is what actually reaches TTS
             # and gets stored as the canonical script (see gates.sanitize_script).
             return report.sanitized_script, report, raw_script.provider, raw_script.input_tokens, raw_script.output_tokens
@@ -2528,7 +2541,7 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
     # the pre-fix text as the audit trail; report.sanitized_script is the
     # corrected, TTS-ready canonical script.
     report = gates.run_all_gates(row["script"], pieces, sets_lookup, recent, row["price_inr"])
-    if not report.all_passed:
+    if not report.passed_or_held:
         print("ERROR: existing script no longer passes gates after re-sanitization -- aborting, not re-rendering.", file=sys.stderr)
         for r in report.results:
             status = "PASS" if r.passed else "FAIL"
@@ -2599,8 +2612,10 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
         )
         escalation_note = build_escalation_note(
             report,
-            remediation_attempted=f"Manual --rerender requested by operator; {retry_note}.",
+            remediation_attempted=f"Manual --rerender requested by operator; {retry_note}.{held_escalation_text(report)}",
         )
+    elif not report.all_passed:
+        escalation_note = build_escalation_note(report, remediation_attempted=held_escalation_text(report).strip())
 
     print(f"Applying Story #{row['story_number']} badge...")
     badged_path = output_path.with_name(output_path.stem + "_badged.mp4")
@@ -3019,8 +3034,10 @@ def main() -> None:
             )
             escalation_note = build_escalation_note(
                 report,
-                remediation_attempted=f"{retry_note}.",
+                remediation_attempted=f"{retry_note}.{held_escalation_text(report)}",
             )
+        elif not report.all_passed:
+            escalation_note = build_escalation_note(report, remediation_attempted=held_escalation_text(report).strip())
 
         insert_kwargs = dict(
             provider=script_provider, input_tokens=script_input_tokens, output_tokens=script_output_tokens,

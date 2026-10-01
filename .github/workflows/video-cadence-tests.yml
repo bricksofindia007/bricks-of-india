@@ -25,6 +25,8 @@ on:
       - 'scripts/video/quota.py'
       - 'scripts/video/test_price_baseline.py'
       - 'scripts/video/generate_quiet_panic_video.py'
+      - 'scripts/video/gates.py'
+      - 'scripts/video/test_gates_g10.py'
   workflow_dispatch:
 
 jobs:
@@ -47,6 +49,13 @@ jobs:
       - name: Run coherence judge unit tests (#365, fail-closed)
         working-directory: scripts/video
         run: python -m unittest test_coherence_judge test_article_coherence -v
+
+      # gates.py and publish.py import a few third-party modules; no network, no secrets.
+      - name: Run VID-P4 G10 fail-closed tests (#378)
+        working-directory: scripts/video
+        run: |
+          pip install --quiet requests num2words pillow python-dotenv
+          python -m unittest test_gates_g10 -v
 
       - name: Run price baseline unit tests (#383)
         working-directory: scripts/video
