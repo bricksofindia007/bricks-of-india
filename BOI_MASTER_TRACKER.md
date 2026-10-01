@@ -103,6 +103,27 @@ GitHub stays on the **Free plan**; spending limit stays $0.
 - **C1–C4:** Actions-minutes measurement, docs move plan, go-private plan, exposure check (read-only / plans only). Approach approved by Abhinav.
 - **D1, D2:** homepage as Googlebot; correction wording for the 17 "unavailable in India" items (no edits).
 
+**States (end of round):**
+
+| Item | PR / issue / run | State | Authorization / waiting on |
+|---|---|---|---|
+| A1 copy-fix deploy | run 36816417535 (approved, then **cancelled by my merge of PR #467**, concurrency cancel-in-progress); replacement run 36823147039 (`b6a593b` = `a1cdd32` + scraper input + tracker; no src/public change) | **deployed + live-verified** 06:12 UTC: robots.txt 0 comment lines / 163 rules; llms.txt clean; /bot two sentences; /deals subs; disclosure sentence; homepage meta without frequency | chat A1; named exception (2nd site deploy, G19 text-only). My error: merged #467 while the approved deploy was building |
+| A2 template wording | PR #472 (`2c11b43`) | **open**, CI green; G19 check on its tree = 0 findings | chat reviews diff; deploy next day's batch |
+| A2 articles (foreign-price estimates) | PR #474 + #475 (header fix) + #477 (103 rows, price guard); db-migrate 36828791434 (staging 110 applied; production **rejected by me**: 7 sets got lego.in prices at 12:36 UTC); 36880425177 | staging **applied** (110); production job **waiting** (103 rows) | chat's authorization; 72 pages held (#471 comment) |
+| A2 sitemap dead URLs | in PR #472; issue #473 (page bug) | open | as #472 |
+| A2 newsletter icons | growth-engine PR #11 (draft) | open, held | after the #472 deploy is live |
+| A3 term list → secret | `G19_TERMS` set in both repos 07:13 UTC; PR #476; growth-engine PR #10 → `cd15adc` | growth-engine **merged**; #476 open: CI job reads the secret, prints file:line only, red only on the 38 A2 findings | merges right after #472; #469 and growth #9 closed (superseded) |
+| B1 scraper store input | PR #467 → `b6a593b` | **merged** | chat B1 |
+| B2 Toycra pre-write stop | PR #478 | open, CI green | chat reviews baseline (664/664, policy hashes) |
+| B3 scrape watch | run 36862815562 (12:35) | lego.in 10 history rows: 7 new listings + 3 stock changes, all match the live feed; **not false** | — |
+| C1 minutes | issue #481 | Sept 6,586 (both repos) vs 2,000; private not viable on Free | chat picks cuts; spending limit unreadable (needs `user` scope) |
+| C2 docs move | draft PR #480 | plan only | chat review; then create private repo |
+| C3 go-private | draft PR #479 | plan only; do not merge | C1 says no |
+| C4 exposure | issue #482 | logs clean; 67 public artifacts (no secret values); personal emails in committed docs | chat decisions |
+| D1 homepage as Googlebot | — | **healthy**: 200, robots index/follow, canonical, no X-Robots-Tag; TTFB 1.7–2.5 s | chat requests re-indexing |
+| D2 17 corrections | local `boi-evidence\2026-10-01-g19\d2-retired-17.json` | wording sent to chat; all 17 sets in stock today | chat approves wording |
+| Follow-ups | issue #483 | Worker `G19_TERMS` for admin generation; #469 refs | Abhinav / chat |
+
 ## P13 — 2026-09-30 (ledger states: merged / deployed / live-verified / open)
 
 | Item | PR / issue / run | State | Waiting on |
