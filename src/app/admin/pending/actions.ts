@@ -1,5 +1,6 @@
 'use server';
 
+import { requireAdmin } from '@/app/admin/require-admin';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
@@ -29,6 +30,7 @@ export async function logout() {
 }
 
 export async function approveDraft(formData: FormData) {
+  await requireAdmin();
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending';
   const supabase   = createServerClient();
@@ -44,6 +46,7 @@ export async function approveDraft(formData: FormData) {
 }
 
 export async function rejectDraft(formData: FormData) {
+  await requireAdmin();
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending';
   const supabase   = createServerClient();
@@ -59,6 +62,7 @@ export async function rejectDraft(formData: FormData) {
 }
 
 export async function approveAll(formData: FormData) {
+  await requireAdmin();
   const format     = (formData.get('format') as string) || null;
   const domain     = (formData.get('domain') as string) || null;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending';
@@ -95,6 +99,7 @@ export async function approveAll(formData: FormData) {
 // ── Generate Article (on-demand, single draft) ────────────────────────────────
 
 export async function generateArticle(formData: FormData) {
+  await requireAdmin();
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
   try {
@@ -199,6 +204,7 @@ async function sendLintAlert(draftTitle: string, gateMessage: string): Promise<v
 // ── publishDraft — single draft via Publish button ────────────────────────────
 
 export async function publishDraft(formData: FormData) {
+  await requireAdmin();
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
   const supabase   = createServerClient();
