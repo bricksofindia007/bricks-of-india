@@ -253,3 +253,22 @@ jobs:
       # only on the next weekly audit (28 Sep run: 1 error; 4 by 29 Sep).
       - name: TypeScript type check
         run: npx tsc --noEmit
+
+  # G19 (CLAUDE.md, 1 Oct 2026): fail if public text reveals how the site works --
+  # public text files (robots.txt rules only, llms.txt, manifest, brand guide) and the
+  # user-visible strings in site code. The term list is the G19_TERMS secret, never in
+  # the repo; the job prints file:line only.
+  g19-public-text:
+    runs-on: ubuntu-latest
+    # Pure file scan, no install: well under a minute.
+    timeout-minutes: 3
+    env:
+      G19_TERMS: ${{ secrets.G19_TERMS }}
+      G19_FORK_PR: ${{ github.event.pull_request.head.repo.fork || 'false' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: G19 public-text check
+        run: node scripts/ci/g19-check.mjs

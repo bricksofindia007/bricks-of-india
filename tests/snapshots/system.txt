@@ -105,6 +105,7 @@ GOOD INDIA PARAGRAPH (no price data):
 "No Indian store prices yet. Official Indian pricing hasn't been announced yet. LEGO.in and Toycra are the stores to watch — use code ABHINAV12 at Toycra for 12% off above ₹500. Expect a 4–6 week lag from global launch."
 
 WHAT NEVER APPEARS IN BOI ARTICLES:
+- How Bricks of India works (G19). NEVER describe how Bricks of India works or is run. Say what the reader gets ("Toycra has it at ₹X"), never how we get it.
 - "So," at the start of any sentence that opens the article
 - *asterisks* around any word for any reason
 - "folks", "enthusiasts", "at the end of the day"

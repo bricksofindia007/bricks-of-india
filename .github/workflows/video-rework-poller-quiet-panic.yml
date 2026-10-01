@@ -55,6 +55,8 @@ jobs:
     needs: [quota-gate]
     if: needs.quota-gate.outputs.proceed == 'true'
     runs-on: ubuntu-latest
+    env:
+      G19_TERMS: ${{ secrets.G19_TERMS }}  # G19 term list (never in the repo); gates fail closed without it
     # 10 most recent runs: 1m47s-8m38s (gh run list
     # --workflow=video-rework-poller-quiet-panic.yml --limit 10,
     # 2026-08-18). ~2x observed max (one 8m38s outlier among mostly 1-4min

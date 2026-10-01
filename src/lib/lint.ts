@@ -8,6 +8,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 import { bannedOpener } from './opener-pattern';
 import { undisclosedAffiliateMentions } from './affiliate-disclosure';
+import { g19Hits } from './g19';
 export const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: [number, number] }> = {
   news    : { pass: [270,  440], fail: [225,  500] },  // target 300–400
   review  : { pass: [450,  770], fail: [375,  875] },  // target 500–700
@@ -50,6 +51,8 @@ export type LintResult = {
     citationIdentity: LintGateResult | null;
     openerPattern: LintGateResult;
     affiliateDisclosure: LintGateResult;
+    // Gate 15 (G19): nothing public reveals how the site works.
+    g19: LintGateResult;
     // Gate 14 (#398 1b): set by generate-with-failover only when enforced (reviews).
     gate14?: LintGateResult;
   };
@@ -644,6 +647,18 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
     : { pass: true, severity: 'ok' };
   if (undisclosed.length) overallPass = false;
 
+  // Gate 15 (G19, 1 Oct 2026): the article must not describe how Bricks of India works.
+  // The term list is the G19_TERMS secret (src/lib/g19.ts). Without it the gate fails closed.
+  // The reason never names the matched words (logs are public).
+  const g19 = g19Hits(`${draft.title ?? ''}
+${body}`);
+  const g19Gate: LintGateResult = g19 === null
+    ? { pass: false, severity: 'fail', reason: 'G19: term list not configured (G19_TERMS secret missing)' }
+    : g19.length
+    ? { pass: false, severity: 'fail', reason: `G19: ${g19.length} sentence(s) describe how the site works (first: sentence ${g19[0].index + 1})` }
+    : { pass: true, severity: 'ok' };
+  if (g19 === null || g19.length) overallPass = false;
+
   let citationIdentityGate: LintGateResult | null = null;
 
   if (!options.skipFactuality) {
@@ -708,6 +723,7 @@ ${body}`);
       citationIdentity: citationIdentityGate,
       openerPattern: openerPatternGate,
       affiliateDisclosure: affiliateDisclosureGate,
+      g19: g19Gate,
     },
   };
 }
