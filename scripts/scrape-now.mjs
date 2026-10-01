@@ -273,7 +273,7 @@ async function main() {
     }));
 
     // ── Pre-write stop (P14 Phase 4, #450) -- before ANY write for this store ──
-    // Guarded stores only (store-baselines.json); Toycra has no entry and is
+    // Guarded stores only (store-baselines.json; lego.in and, since B2, Toycra). A store without an entry is
     // never held. A hold skips this store's upsert, stale reconcile and
     // history (the trigger only fires on the upsert), then alerts.
     if (baseline) {

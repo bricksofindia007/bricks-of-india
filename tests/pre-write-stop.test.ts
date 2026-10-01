@@ -114,14 +114,22 @@ describe('changes and approvals', () => {
   });
 });
 
-describe('Toycra writes in every case', () => {
+describe('Toycra is guarded by the same rules (B2, 1 Oct 2026)', () => {
+  const toycra = loadBaselines().toycra;
   const bad = { products: 1, available_products: 0 } as any;
+  it('has a baseline on the canonical host', () => {
+    expect(toycra.approve_key).toBe('toycra.com');
+    expect(toycra.policy.map((p: { url: string }) => p.url)).toEqual(['https://toycra.com/robots.txt', 'https://toycra.com/agents.md']);
+  });
   it.each([
     ['bad policy', { ok: false, results: [] }, null],
     ['all unavailable', POLICY_OK, null],
     ['foreign approval', POLICY_OK, { store: 'lego.in', available: 1 }],
-  ])('%s -> write (no baseline entry)', (_n, policy, approval) => {
-    const plan = planStoreWrite({ baseline: loadBaselines().toycra, stats: bad, rows: [], storedRows: goodRows, policy, approval });
-    expect(plan.write).toBe(true);
+  ])('%s -> HOLD', (_n, policy, approval) => {
+    const plan = planStoreWrite({ baseline: toycra, stats: bad, rows: [], storedRows: goodRows, policy, approval });
+    expect(plan.write).toBe(false);
+  });
+  it('a store with no entry still writes', () => {
+    expect(planStoreWrite({ baseline: undefined, stats: bad, rows: [], storedRows: goodRows, policy: { ok: false, results: [] }, approval: null } as any).write).toBe(true);
   });
 });
