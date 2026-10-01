@@ -124,6 +124,24 @@ GitHub stays on the **Free plan**; spending limit stays $0.
 | D2 17 corrections | local `boi-evidence\2026-10-01-g19\d2-retired-17.json` | wording sent to chat; all 17 sets in stock today | chat approves wording |
 | Follow-ups | issue #483 | Worker `G19_TERMS` for admin generation; #469 refs | Abhinav / chat |
 
+### P14 round 7 — 2026-10-01 (authorizations logged first)
+
+GitHub stays on the Free plan; chat confirmed the Actions budget is $0 with stop-usage on.
+
+**Abhinav's decisions:**
+- **Z1:** the store's display name is **"LEGO.in"** everywhere public (registry name via db-migrate, staging first; labels; content; dated notes). URLs stay lowercase.
+- **Z2:** GitHub must not stay public. A $0 private route is to be designed (self-hosted runner); design only, chat reviews first.
+
+**Chat authorizations:**
+- **A2:** #472 APPROVED with two edits (blog FAQ sentence; delete the generator's "may list it within 4–6 weeks" instruction). Merge; ship as the next UTC day's single batched deploy with A1 and A7 (tree-ancestry check). Then #476, then growth-engine #11 (after the deploy).
+- **A3:** the 103-article production fix APPROVED (price guard on).
+- **A4:** the 17 corrections, wording APPROVED. db-migrate staging, then production (authorized if staging matches).
+- **B1:** APPROVED: private repo `boi-ops`; move docs/plans, docs/reports, docs/reconciliation, evidence, the tracker and the dashboard; remove third-party emails from public files; update CLAUDE.md and the sync rules; fix the rework escalation.
+- **B2:** copy the 67 artifacts to boi-ops, delete them from the public repo, stop public method/pricing artifacts.
+- **C:** Brick Rush content approved by Abhinav (drafts to chat; nothing publishes without approval).
+- **PR → chat only:** A1, A5, A9, B3.
+- **Lists/plans → chat:** A6 (production after the list is reviewed), A8 (held), A10, B4–B6, D, E, Z2, Z3.
+
 ## P13 — 2026-09-30 (ledger states: merged / deployed / live-verified / open)
 
 | Item | PR / issue / run | State | Waiting on |
