@@ -21,6 +21,7 @@ import { JsonLd } from '@/components/JsonLd';
 import { FreshOnly } from '@/components/ui/FreshOnly';
 import { buildProductSchema, buildFAQSchema } from '@/lib/schemas';
 import { getStores, storeLabels } from '@/lib/stores';
+import { setNumberCandidates, pickSetNumber, slugMatchesSet } from '@/lib/set-slug';
 // Durable-cache guard (2026-07-02): a revalidate must always be set, or
 // rendered pages persist across deploys. 72 h = UNPRICED_SET_REVALIDATE_SECONDS
 // (FP1.6 §2, approved P8 item 4; segment config must be a literal). A priced
@@ -68,7 +69,7 @@ const readRpc = (setNumber: string, slug: string) =>
     const { data, error } = await createServerClient().rpc('set_page_data', { p_set_number: setNumber, p_slug: slug });
     if (error) throw error;  // thrown results are never cached
     return { d: data as Omit<SetPageData, 'as_of'>, at: new Date().toISOString() };
-  }, ['set_page_data', slug], { revalidate: UNPRICED_SET_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
+  }, ['set_page_data', setNumber, slug], { revalidate: UNPRICED_SET_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
 
 // Priced page: the offers and summary on the 6 h clock, under their own key.
 const readPriceSide = (setNumber: string) =>
@@ -83,9 +84,25 @@ const readPriceSide = (setNumber: string) =>
     return { store_prices: sp.data ?? [], summary: (sum.data ?? null) as SetPriceSummary | null, at: new Date().toISOString() };
   }, ['set_price_side', setNumber], { revalidate: SET_PAGE_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
 
+// A1: which catalogue set a slug names, when its first "-" segment isn't it (set numbers that
+// contain "-"). One extra read, only on that path; the normal page costs nothing more.
+const resolveSetNumber = (slug: string) =>
+  unstable_cache(async () => {
+    const { data, error } = await createServerClient().from('sets').select('set_number, name').in('set_number', setNumberCandidates(slug));
+    if (error) throw error;
+    return pickSetNumber(slug, data ?? []);
+  }, ['set_slug_resolve', slug], { revalidate: UNPRICED_SET_REVALIDATE_SECONDS })();
+
 const getSetPageData = cache(async (slug: string): Promise<SetPageData | null> => {
-  const setNumber = slug.split('-')[0];
-  const { d: rpc, at } = await readRpc(setNumber, slug);
+  let setNumber = slug.split('-')[0];
+  let { d: rpc, at } = await readRpc(setNumber, slug);
+  if (!(rpc.set && slugMatchesSet(slug, rpc.set)) && slug.includes('-', setNumber.length + 1)) {
+    const resolved = await resolveSetNumber(slug);
+    if (resolved && resolved !== setNumber) {
+      setNumber = resolved;
+      ({ d: rpc, at } = await readRpc(setNumber, slug));
+    }
+  }
   const d: SetPageData = { ...rpc, as_of: at };
   if (d.set && d.store_prices?.length) {
     const p = await readPriceSide(setNumber);
