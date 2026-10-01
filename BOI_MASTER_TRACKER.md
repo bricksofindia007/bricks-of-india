@@ -71,6 +71,25 @@ Report: `docs/reports/P14_legoin_assessment_2026-09-30.md` (+ Step 4 inventory a
 | GA4 Singapore traffic | growth-engine runs 36770964358, 36812730784, 36812737420 | 1,173 of 2,058 sessions (57%) from Singapore; 0 engaged, 1 page each, one screen size: automated; fell from 145–229/day to 14–34/day, not to zero; not traced to our tooling | — |
 | Google indexing | growth-engine runs 36770929830, 36770942171, 36770953175, 36812440657 (PRs #5, #6: read-only report types, permissions unchanged) | sitemap 7,950 submitted / 0 indexed reported; /deals indexed; home last crawl 10 Sep **5xx**; 8 of the other pages unknown or "discovered, not indexed"; 28 days: 250 query impressions, 0 clicks | — |
 
+### P14 round 5 — 2026-10-01 (chat authorizes; terminal acts via CLI)
+
+**G19 added (binding, Abhinav, non-negotiable):** nothing public reveals how Bricks of India works. It is now in `CLAUDE.md` and `docs/codex/BOI_Codex_v2.md`. The crawl findings are deliberately summarized here without quoting the sentences, because this repo is public. The full list stays local and goes to chat.
+
+| Item | PR / issue / run | State | Authorization / waiting on |
+|---|---|---|---|
+| History fix (1,591 false lego.in rows) | PR #464 → `7a6cc87`; db-migrate run 36770508014 | **applied on production**: backup 177,251 rows; before 1,591, after 69; 5 samples checked | chat authorized (item 1); approved by terminal via CLI |
+| GA4 re-pull + backfill + real-visitors view | growth-engine PR #8 → `e883573`; backfill run 36814816785; bricks-of-india PR #466 → `ac45ebd` | **merged + backfilled**: 19, 23, 26 Sep filled; 16–30 Sep 2,043 sessions / 876 real visitors (GA4 UI 2,038); Singapore direct-Chrome counted separately, raw kept | chat authorized (item 2) |
+| Store name "lego.in" | PR #465 → `beb2d3c`; db-migrate run 36815161160 | **applied staging + production; live-verified** on /sets/40650 (store row "Only at lego.in", seller lego.in); about 30 hard-coded "MyBrickHouse" labels remain in code (#455 comment) | chat authorized (item 3); labels wait on the #471 wording |
+| G19 copy fix (4b) | PR #468 → `a1cdd32`; deploy run 36816417535 | **merged; deploy waiting** (not approved) | chat's deploy authorization |
+| G19 crawl (4a) | local evidence `boi-evidence\2026-10-01-g19\` | **done**: 7,995 URLs (7,957 × 200); 44 rows; 10 already fixed by #468 (live after deploy), the rest to chat | — |
+| G19 remaining wording (4c) | issue #471 | **open**: 38 code findings in 21 files, 3 news articles, newsletter icon host, admin page title, privacy-page provider | chat's wording approval (G16 for articles) |
+| G19 prevention (4d) | PR #469 (draft, `c188b78`); growth-engine PR #9 (draft, `107e7a7`) | **open, held**; the crawl found 2 checker gaps (entities, className lines), now fixed; US-price formula terms added | chat's review of the term list; CI fails until 4c lands |
+| Scraper per-store input | PR #467 | **open**; CI green (lint, snapshot-tests, email guard) | chat's merge authorization; then the 2 scheduler secrets (Abhinav) |
+| Sitemap 404s | issue #470 | **open**: 8 placeholder set URLs in the sitemap answer 404 | chat's decision |
+| Scheduled scrapes after the fix | runs 36782589345, 36815857443 | normal: lego.in 873 written, **0 history rows** each; watch continues | — |
+| Homepage as Googlebot | — | healthy for re-indexing (200, full HTML) | — |
+| Repo visibility | — | evidence only: going private on Free loses environment reviewers and environment secrets; recommendation: move plans/reports/evidence to a private repo | Abhinav's decision |
+
 ## P13 — 2026-09-30 (ledger states: merged / deployed / live-verified / open)
 
 | Item | PR / issue / run | State | Waiting on |
