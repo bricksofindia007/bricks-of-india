@@ -109,6 +109,8 @@ function pickVariant(product) {
     const get = pacedFetcher();
     const summary = newRunSummary(store.id);
     summary.policy = await checkPolicy(cfg.domain, { robots_sha256: cfg.robots_sha256 ?? null, agents_sha256: cfg.agents_sha256 ?? null }, get);
+    // FP5.9 (#460): a per-store scrape run caches only that store's feed; skip the others.
+    if (CACHE && !fs.existsSync(path.join(CACHE, `feed-${store.id}.json`))) { lines.push(`### ${store.name}`, '- not scraped in this run (store filter); skipped', ''); continue; }
     const products = CACHE ? JSON.parse(fs.readFileSync(path.join(CACHE, `feed-${store.id}.json`), 'utf8')) : await fetchFeed(get, cfg.domain, cfg.path);
     summary.fetched = products.length;
 

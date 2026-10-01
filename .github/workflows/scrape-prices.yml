@@ -14,6 +14,12 @@ on:
       # P14 pre-write stop (#450): approve ONE run for a held store. The run
       # writes that store only if its own available count is within 2% of
       # approve_available. Nothing persists; leave both empty on normal runs.
+      # FP5.9 (#460): the boi-scheduler Worker sends {"store": "<id>"} (one retailer per run).
+      store:
+        description: 'Scrape only this store id (mybrickhouse | toycra); empty = all stores'
+        required: false
+        default: ''
+        type: string
       approve_store:
         description: 'Approve one run for this held store (e.g. lego.in); empty = no approval'
         required: false
@@ -64,6 +70,7 @@ jobs:
           CONTRACT_CACHE_DIR: ${{ runner.temp }}/contract-cache
           # P14 4.4: per-run feed facts for guarded stores (artifact only).
           SCRAPE_RUN_OUT: out/scrape-run
+          SCRAPE_STORE: ${{ github.event.inputs.store || '' }}
           APPROVE_STORE: ${{ github.event.inputs.approve_store || '' }}
           APPROVE_AVAILABLE: ${{ github.event.inputs.approve_available || '' }}
         run: npx tsx scripts/scrape-now.mjs

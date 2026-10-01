@@ -181,7 +181,18 @@ async function main() {
   const approval = approvalFromEnv();
   if (approval) console.log(`Approval inputs present: store=${approval.store} available=${approval.available} (this run only)\n`);
 
-  for (const store of STORES) {
+  // FP5.9 (#460): the boi-scheduler Worker dispatches one store per run
+  // (inputs.store). Empty = every store, exactly as before.
+  const onlyStore = (process.env.SCRAPE_STORE ?? '').trim();
+  const storesToRun = onlyStore ? STORES.filter((s) => s.id === onlyStore) : STORES;
+  if (onlyStore && storesToRun.length === 0) {
+    console.error(`Unknown store "${onlyStore}" (known: ${STORES.map((s) => s.id).join(', ')})`);
+    process.exit(1);
+  }
+  if (onlyStore) console.log(`Store filter: ${onlyStore} only
+`);
+
+  for (const store of storesToRun) {
     console.log(`── ${store.name} (${store.domain}) ──`);
     const baseline = baselines[store.id] ?? null;
     const pages = [];
