@@ -63,6 +63,10 @@ jobs:
     # runs -- occasional real rework processing, not treated as a hang
     # signal).
     timeout-minutes: 18
+    # C2: escalations are filed as issues (the tracker moved to the private boi-ops repo).
+    permissions:
+      contents: read
+      issues: write
     steps:
       - uses: actions/checkout@v4
 
@@ -101,6 +105,7 @@ jobs:
       - name: Poll for rejected Quiet Panic rows and rework them
         working-directory: scripts/video
         env:
+          GITHUB_TOKEN: ${{ github.token }}  # C2: escalation issues
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ELEVENLABS_API_KEY_ASMR: ${{ secrets.ELEVENLABS_API_KEY_ASMR }}
