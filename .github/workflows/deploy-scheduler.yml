@@ -14,6 +14,10 @@ on:
         type: choice
         options: [staging, production]
         default: staging
+      authorization:
+        description: 'For target=production: the chat authorization being acted on (logged). Required then.'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -24,9 +28,9 @@ concurrency:
 
 jobs:
   deploy:
-    if: github.ref == 'refs/heads/main'
+    # C3: no environments (private on Free). Production needs chat's authorization in the input.
+    if: github.ref == 'refs/heads/main' && (inputs.target == 'staging' || inputs.authorization != '')
     runs-on: ubuntu-latest
-    environment: ${{ inputs.target == 'production' && 'production' || 'staging-scheduler' }}
     # No runs yet: npm ci + a small wrangler deploy is ~2 min. Resize after 3 runs.
     timeout-minutes: 10
     steps:

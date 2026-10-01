@@ -29,26 +29,15 @@ name: Build & Deploy to Cloudflare Workers
 # everything the older runs would have deployed.
 
 on:
-  push:
-    branches:
-      - main
-    # Tracker-commit redeploy loop: BOI_MASTER_TRACKER.md, docs/**, and
-    # admin/dashboard.html (a standalone local-file admin view, confirmed
-    # not under public/ or src/app/ -- not served by the deployed app at
-    # all) are updated on essentially every session (session-start reads,
-    # sprint changelog entries, audit reports, the Dashboard sync rule)
-    # and none of it is deployable -- every one of those commits was
-    # triggering a full build + a human-approval-gated deploy run for
-    # zero site-relevant change. Found live 2026-09-20: the first version
-    # of this ignore list didn't cover admin/dashboard.html, and the very
-    # next tracker-sync commit (which also touches that file, per the
-    # Dashboard sync rule) triggered a real build anyway -- confirmed via
-    # `gh run list` and cancelled once caught.
-    paths-ignore:
-      - 'BOI_MASTER_TRACKER.md'
-      - 'docs/**'
-      - 'admin/dashboard.html'
+  # C3 (go-private plan): production deploys run ONLY on a manual dispatch by the terminal after
+  # chat's authorization. Private repos on the Free plan have no environment reviewers, so the
+  # push trigger and the `production` environment gate are replaced by this dispatch + input.
   workflow_dispatch:
+    inputs:
+      authorization:
+        description: 'Chat authorization being acted on (logged in the run and the tracker). Required.'
+        type: string
+        required: true
 
 concurrency:
   group: deploy-cloudflare-production
@@ -58,8 +47,8 @@ jobs:
   build:
     name: Build (Next.js + OpenNext Cloudflare)
     runs-on: ubuntu-latest
-    # Approval gate (see header): nothing builds until the run is approved.
-    environment: production
+    # C3: no environment (Free private repos have none); main only, dispatch only.
+    if: github.ref == 'refs/heads/main'
     # No CI run history yet for this brand-new workflow -- same situation
     # CLAUDE.md's timeout-minutes rule already has a named precedent for
     # (video-feasibility-test.yml / video-script-gen-test-quiet-panic.yml
