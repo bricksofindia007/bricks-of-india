@@ -75,15 +75,12 @@ jobs:
           APPROVE_AVAILABLE: ${{ github.event.inputs.approve_available || '' }}
         run: npx tsx scripts/scrape-now.mjs
 
-      - name: Upload per-run feed facts (P14 4.4)
+      - name: Store per-run feed facts (private boi-ops, B2)
         if: always()
+        env:
+          BOI_OPS_TOKEN: ${{ secrets.BOI_OPS_TOKEN }}
         continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: scrape-run-${{ github.run_id }}
-          path: out/scrape-run
-          retention-days: 14
-          if-no-files-found: ignore
+        run: bash scripts/ci/push-to-boi-ops.sh out/scrape-run scrape-run/${{ github.run_id }}
 
       # FP5.2-5.6 contract comparison -- NON-WRITING (P4 Step 4g, Tier 2 first live
       # run). Runs the new contract (identity ladder, parse validation, breaker,
@@ -100,14 +97,12 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx scripts/scraper-contract-dryrun.mjs --from-cache "${{ runner.temp }}/contract-cache" --out out/match-audit
 
-      - name: Upload FP5.6 match audit
+      - name: Store FP5.6 match audit (private boi-ops, B2)
         if: always() && steps.scrape.outcome == 'success'
+        env:
+          BOI_OPS_TOKEN: ${{ secrets.BOI_OPS_TOKEN }}
         continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: match-audit-${{ github.run_id }}
-          path: out/match-audit
-          retention-days: 14
+        run: bash scripts/ci/push-to-boi-ops.sh out/match-audit match-audit/${{ github.run_id }}
 
       # P14 4.5 (#454): only after a real write -- never on a dry run, a
       # failed scrape, or a run where every guarded store was held and

@@ -48,10 +48,10 @@ jobs:
           MATRIX_RUNTIME: tsx
         run: npx tsx scripts/probes/legoin-availability-matrix.mjs --out out/matrix-tsx
 
-      - name: Upload matrix
+      - name: Store matrix (private boi-ops, B2)
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: legoin-matrix-${{ github.run_id }}
-          path: out/
-          retention-days: 14
+        env:
+          BOI_OPS_TOKEN: ${{ secrets.BOI_OPS_TOKEN }}
+        continue-on-error: true
+        run: bash scripts/ci/push-to-boi-ops.sh out legoin-matrix/${{ github.run_id }}
+
