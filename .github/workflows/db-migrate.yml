@@ -29,6 +29,10 @@ on:
         type: choice
         options: [all, migrations]
         default: all
+      fixes:
+        description: 'data fixes chat authorized for THIS run, comma-separated file names without .sql (e.g. 496-love-birds-g19,498-item0-retired-verdicts-a). Apply mode refuses if fixes are pending and this is empty; pending fixes not listed are held.'
+        type: string
+        default: ''
 
 permissions:
   contents: read
@@ -57,6 +61,7 @@ jobs:
           TARGET: staging
           MODE: ${{ inputs.mode }}
           SCOPE: ${{ inputs.scope }}
+          FIXES: ${{ inputs.fixes }}
           DATABASE_URL: ${{ secrets.MIGRATE_DB_URL }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUT_DIR: db-migrate-out
@@ -84,6 +89,7 @@ jobs:
           TARGET: production
           MODE: ${{ inputs.mode }}
           SCOPE: ${{ inputs.scope }}
+          FIXES: ${{ inputs.fixes }}
           DATABASE_URL: ${{ secrets.MIGRATE_DB_URL }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUT_DIR: db-migrate-out

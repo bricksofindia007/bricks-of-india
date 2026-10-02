@@ -100,6 +100,29 @@ export function plan({ migrations, fixes, appliedVersions, appliedFixes }) {
 }
 
 /** P12: .sql files in the fixes dir that listRepo would skip (no <issue>- prefix). Never silent: lint fails on them. */
+/**
+ * Which pending data fixes this run may apply (2 Oct 2026, after run 36968785112 applied
+ * fix 455 to production without chat's authorization). A data fix is applied only when it is
+ * named in FIXES (the workflow's `fixes` input, e.g. "496-love-birds-g19,498-item0-retired-verdicts-a").
+ *   - apply mode with pending fixes and an empty list: refuse (nothing is written).
+ *   - listed + pending: applied. Pending but not listed: held, reported.
+ *   - listed but already applied here: skipped (staging may be ahead of production).
+ *   - listed but no such file: refuse.
+ */
+export function selectFixes({ pendingFixes, allFixes, requested, mode }) {
+  const want = (requested || '').split(',').map((s) => s.trim()).filter(Boolean).map((n) => (n.endsWith('.sql') ? n : `${n}.sql`));
+  const missing = want.filter((f) => !allFixes.includes(f));
+  if (missing.length) return { error: `fixes input names files that don't exist: ${missing.join(', ')}` };
+  if (mode === 'apply' && pendingFixes.length && !want.length) {
+    return { error: `refusing: ${pendingFixes.length} data fix(es) pending (${pendingFixes.join(', ')}) and the fixes input is empty -- list exactly the fixes chat authorized for this run` };
+  }
+  return {
+    apply: pendingFixes.filter((f) => want.includes(f)),
+    held: pendingFixes.filter((f) => !want.includes(f)),
+    alreadyApplied: want.filter((f) => !pendingFixes.includes(f)),
+  };
+}
+
 export function strayFixFiles(names) {
   return names.filter((n) => n.endsWith('.sql') && !/^\d+-/.test(n));
 }
@@ -141,8 +164,15 @@ async function main() {
   const migrations = listRepo(MIGRATIONS_DIR, 'migration');
   const fixes = listRepo(FIXES_DIR, 'fix');
   const p = plan({ migrations, fixes, appliedVersions, appliedFixes });
-  const heldFixes = SCOPE === 'migrations' ? p.pendingFixes : [];
+  let heldFixes = SCOPE === 'migrations' ? p.pendingFixes : [];
+  let unauthorized = [], alreadyApplied = [];
   if (SCOPE === 'migrations') p.pendingFixes = [];
+  else {
+    const sel = selectFixes({ pendingFixes: p.pendingFixes, allFixes: fixes, requested: process.env.FIXES, mode: MODE });
+    if (sel.error) throw new Error(sel.error);
+    unauthorized = sel.held; alreadyApplied = sel.alreadyApplied;
+    p.pendingFixes = sel.apply;
+  }
 
   say(`## db-migrate: ${TARGET} (${MODE}${SCOPE === 'migrations' ? ', migrations only' : ''})`);
   say(`repo migrations ${migrations.length}, applied on ${TARGET} ${appliedVersions.length}; repo data fixes ${fixes.length}, applied ${appliedFixes.length}`);
@@ -154,6 +184,8 @@ async function main() {
   for (const it of items) { it.sql = fs.readFileSync(it.file, 'utf8'); it.header = parseHeader(it.sql); problems.push(...lintFile(it.kind, it.name, it.sql)); }
   say(`pending: ${items.length ? items.map((i) => `${i.kind} ${i.name}`).join('; ') : 'nothing'}`);
   if (heldFixes.length) say(`held (scope=migrations): ${heldFixes.map((f) => `fix ${f}`).join('; ')}`);
+  if (unauthorized.length) say(`held (not in the fixes input, not authorized for this run): ${unauthorized.map((f) => `fix ${f}`).join('; ')}`);
+  if (alreadyApplied.length) say(`already applied on ${TARGET} (skipped): ${alreadyApplied.map((f) => `fix ${f}`).join('; ')}`);
   if (problems.length) throw new Error(`lint:\n- ${problems.join('\n- ')}`);
   if (p.pendingFixes.length && !hasLedger && !p.pendingMigrations.some((f) => f.includes('data_fix_ledger'))) throw new Error('data-fix ledger (supabase_migrations.data_fix_log) missing and not pending');
   const evidence = { target: TARGET, mode: MODE, applied: [], backups: [], issues: [...new Set(items.map((i) => i.header.issue))] };

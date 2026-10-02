@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseHeader, lintFile, plan, stripDollarQuoted, backupName } from '../scripts/ci/db-migrate.mjs';
+import { parseHeader, lintFile, plan, stripDollarQuoted, backupName, selectFixes } from '../scripts/ci/db-migrate.mjs';
 
 const FIX = `-- boi:issue 246
 -- boi:backup-tables public.reviews
@@ -47,5 +47,33 @@ describe('db-migrate (P6 Step 1, #403)', () => {
   });
   it('names backups inside boi_backups', () => {
     expect(backupName('public.reviews', '20260928T101500')).toBe('public__reviews__20260928T101500');
+  });
+});
+
+// 2 Oct 2026: run 36968785112 applied fix 455 to production without authorization.
+describe('selectFixes: only fixes named in the run input are applied', () => {
+  const allFixes = ['455-mybrickhouse-to-legoin-content.sql', '496-love-birds-g19.sql', '498-item0-retired-verdicts-a.sql'];
+  it('apply with pending fixes and an empty list refuses', () => {
+    const r = selectFixes({ pendingFixes: ['455-mybrickhouse-to-legoin-content.sql'], allFixes, requested: '', mode: 'apply' });
+    expect(r.error).toMatch(/refusing/);
+  });
+  it('plan mode with an empty list only reports (no refusal)', () => {
+    const r = selectFixes({ pendingFixes: ['455-mybrickhouse-to-legoin-content.sql'], allFixes, requested: '', mode: 'plan' });
+    expect(r.error).toBeUndefined();
+    expect(r.apply).toEqual([]);
+    expect(r.held).toEqual(['455-mybrickhouse-to-legoin-content.sql']);
+  });
+  it('the 2 Oct case: 455 pending but not listed is held; the listed fixes apply', () => {
+    const r = selectFixes({ pendingFixes: allFixes, allFixes, requested: '496-love-birds-g19, 498-item0-retired-verdicts-a', mode: 'apply' });
+    expect(r.apply).toEqual(['496-love-birds-g19.sql', '498-item0-retired-verdicts-a.sql']);
+    expect(r.held).toEqual(['455-mybrickhouse-to-legoin-content.sql']);
+  });
+  it('listed but already applied here is skipped, not an error (staging ahead of production)', () => {
+    const r = selectFixes({ pendingFixes: [], allFixes, requested: '496-love-birds-g19', mode: 'apply' });
+    expect(r.apply).toEqual([]);
+    expect(r.alreadyApplied).toEqual(['496-love-birds-g19.sql']);
+  });
+  it('a listed name with no file refuses', () => {
+    expect(selectFixes({ pendingFixes: [], allFixes, requested: '499-typo', mode: 'apply' }).error).toMatch(/don't exist/);
   });
 });
