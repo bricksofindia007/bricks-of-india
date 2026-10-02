@@ -26,6 +26,9 @@ jobs:
           python-version: '3.11'
       - name: Install Python dependencies
         run: pip install -r social-automation/requirements.txt
+      - name: Idempotency tests (no network)
+        working-directory: social-automation
+        run: python -m unittest test_post_prepared -v
       - name: Post
         working-directory: social-automation
         env:
