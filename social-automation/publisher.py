@@ -240,7 +240,7 @@ def post_youtube_shorts(video_path: str, set_data: dict, caption_text: str) -> s
     title       = f"{set_data['name']} ({set_data['set_num']}) | #LEGO #Shorts"[:100]
     description = (
         f"{caption_text}\n\n"
-        f"📍 Bricks of India — India's only LEGO price tracker\n"
+        f"📍 Bricks of India — India's LEGO price tracker\n"
         f"🔗 bricksofindia.com\n\n"
         f"#LEGO #LEGOIndia #LEGOSets #BricksofIndia #Shorts #LEGOShorts"
     )

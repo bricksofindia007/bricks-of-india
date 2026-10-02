@@ -137,7 +137,7 @@ def upload_video_to_storage(sb, local_path: str, filename: str) -> str:
 def build_ig_caption(script: str) -> str:
     return (
         f'{script}\n\n'
-        f"📍 Bricks of India — India's only LEGO price tracker\n"
+        f"📍 Bricks of India — India's LEGO price tracker\n"
         f'🔗 bricksofindia.com\n\n'
         f'#LEGO #LEGOIndia #LEGOSets #BricksofIndia #QuietPanic #Reels'
     )
@@ -213,7 +213,7 @@ def build_yt_metadata(set_title: str, set_number, script: str) -> dict:
     title = f'{base_title} | The Quiet Panic #Shorts'[:100]
     description = (
         f'{script}\n\n'
-        f"📍 Bricks of India — India's only LEGO price tracker\n"
+        f"📍 Bricks of India — India's LEGO price tracker\n"
         f'🔗 bricksofindia.com\n\n'
         f'#LEGO #LEGOIndia #LEGOSets #BricksofIndia #QuietPanic #Shorts'
     )

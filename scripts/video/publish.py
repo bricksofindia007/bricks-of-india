@@ -348,7 +348,7 @@ def build_ig_caption(script: str) -> str:
     """No AI-voiceover disclosure suffix -- explicit operator decision, 2026-07-06."""
     return (
         f'{script}\n\n'
-        f"📍 Bricks of India — India's only LEGO price tracker\n"
+        f"📍 Bricks of India — India's LEGO price tracker\n"
         f'🔗 bricksofindia.com\n\n'
         f'#LEGO #LEGOIndia #LEGOSets #BricksofIndia #Reels'
     )
@@ -359,7 +359,7 @@ def build_yt_metadata(set_title: str, set_number: str | None, script: str) -> di
     title = f'{base_title} | #LEGO #Shorts'[:100]
     description = (
         f'{script}\n\n'
-        f"📍 Bricks of India — India's only LEGO price tracker\n"
+        f"📍 Bricks of India — India's LEGO price tracker\n"
         f'🔗 bricksofindia.com\n\n'
         f'#LEGO #LEGOIndia #LEGOSets #BricksofIndia #Shorts #LEGOShorts'
     )
