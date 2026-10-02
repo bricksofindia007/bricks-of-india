@@ -113,29 +113,46 @@ def _fmt_inr(amount: float) -> str:
     return '₹' + ','.join(reversed(groups)) + ',' + last3
 
 
-def get_india_price(set_num: str) -> str | None:
+def get_india_price_info(set_num: str) -> dict | None:
     """
-    Returns a formatted INR price string (e.g. '₹24,999') for a set from store_prices,
-    or None if no live price data. Picks the cheapest in-stock price across stores.
-    Used to populate the stats card India Price box with real data when available.
+    G6 (2 Oct 2026): the ONLY price social posts may state. Our live Indian data:
+      1. the best in-stock price at a store shown on the site  -> label "at <Store>"
+      2. else the store MRP (set_price_summary.anchor_mrp_inr) -> label "<Store> MRP" / "MRP"
+      3. else None: the post states no price at all.
+    Never a converted US price (the old caption prompt used USD x 1.35 x 84, which put
+    figures like Rs 51,029 for 42172 on Shorts when the Indian MRP is Rs 41,199).
+    Returns {'inr': int, 'label': str, 'text': '₹41,199'}.
     """
-    bare_num = set_num.split('-')[0]
+    client = _client()
+    candidates = [set_num, set_num.split('-')[0]] if set_num.endswith('-1') else [set_num, set_num.split('-')[0]]
     try:
-        result = (_client()
-                  .table('store_prices')
-                  .select('price_inr, in_stock')
-                  .eq('set_id', bare_num)
-                  .execute())
-        rows = [r for r in (result.data or []) if r.get('price_inr')]
-        if not rows:
-            return None
-        # Prefer in-stock rows; fall back to any price
-        in_stock = [r for r in rows if r.get('in_stock')]
-        best = min(in_stock or rows, key=lambda r: r['price_inr'])
-        return _fmt_inr(best['price_inr'])
-    except Exception as exc:
-        print(f'[db] India price lookup error for {bare_num}: {exc}')
+        stores = client.table('stores').select('id, name, display_enabled').execute().data or []
+        shown = {r['id']: r['name'] for r in stores if r.get('display_enabled')}
+        for sid in dict.fromkeys(candidates):
+            rows = (client.table('store_prices').select('store_id, price_inr, in_stock')
+                    .eq('set_id', sid).execute().data or [])
+            live = [r for r in rows if r.get('in_stock') and r.get('price_inr') and r['store_id'] in shown]
+            if live:
+                best = min(live, key=lambda r: r['price_inr'])
+                inr = int(best['price_inr'])
+                return {'inr': inr, 'label': f"at {shown[best['store_id']]}", 'text': _fmt_inr(inr)}
+            summ = (client.table('set_price_summary').select('anchor_mrp_inr, anchor_source')
+                    .eq('set_id', sid).limit(1).execute().data or [])
+            if summ and summ[0].get('anchor_mrp_inr'):
+                inr = int(float(summ[0]['anchor_mrp_inr']))
+                src = summ[0].get('anchor_source')
+                label = f"{shown[src]} MRP" if src in shown else 'MRP'
+                return {'inr': inr, 'label': label, 'text': _fmt_inr(inr)}
         return None
+    except Exception as exc:
+        print(f'[db] India price lookup error for {set_num}: {exc}')
+        return None
+
+
+def get_india_price(set_num: str) -> str | None:
+    """Formatted Indian price ('₹24,999') per get_india_price_info(), or None."""
+    info = get_india_price_info(set_num)
+    return info['text'] if info else None
 
 
 def get_all_posted_set_nums() -> set:

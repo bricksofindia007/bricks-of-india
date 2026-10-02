@@ -158,6 +158,17 @@ def main() -> None:
         )
 
     # ── Step 6: Publish ───────────────────────────────────────────────────────
+    # G6 (2 Oct 2026): the caption may state only our live Indian price, or none.
+    allowed_inr = set_data.get('india_price_inr')
+    price_issues = caption_writer.price_violations(caption_text, allowed_inr)
+    if price_issues:
+        print(f'[pipeline] Caption price check failed {price_issues} -- regenerating once...')
+        caption_text = caption_writer.generate_caption(set_data, price_feedback=price_issues)
+        price_issues = caption_writer.price_violations(caption_text, allowed_inr)
+    if price_issues:
+        raise RuntimeError('Refusing to post — caption states a price that is not our Indian '
+                           f'price (G6): {price_issues}')
+
     platforms = {'ig_feed': False, 'ig_reels': False, 'yt_shorts': False}
 
     # Instagram and YouTube are independent platforms — one failing (e.g. an
