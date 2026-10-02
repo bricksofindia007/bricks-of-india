@@ -164,7 +164,7 @@ export default async function ReviewPage(props: Props) {
     ? (availabilityLine ?? 'Sold in India: see live prices below.')
     : review.verdict;
   const shareUrl = `https://bricksofindia.com/reviews/${params.slug}`;
-  const waText = `Just read this LEGO review on Bricks of India — use ABHINAV12 for 12% off at Toycra!`;
+  const waText = `Just read this LEGO review on Bricks of India — use ABHINAV12 for 12% off full-price sets at Toycra!`;
 
   return (
     <div className="bg-white min-h-screen">

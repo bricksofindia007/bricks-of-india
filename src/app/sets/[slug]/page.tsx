@@ -254,7 +254,7 @@ export default async function SetPage(props: Props) {
 
   const review = set.reviews?.[0] || null;
   const shareUrl = `https://bricksofindia.com/sets/${params.slug}`;
-  const waText   = `Check out ${set.name} price comparison on Bricks of India — use code ABHINAV12 for 12% off at Toycra!`;
+  const waText   = `Check out ${set.name} price comparison on Bricks of India — use code ABHINAV12 for 12% off full-price sets at Toycra!`;
 
 
 

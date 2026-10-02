@@ -58,7 +58,7 @@ export default async function OpinionPostPage(props: Props) {
     .limit(3);
 
   const shareUrl = `https://bricksofindia.com/opinion/${params.slug}`;
-  const waText = `${post.title} — via Bricks of India. Use code ABHINAV12 for 12% off at Toycra!`;
+  const waText = `${post.title} — via Bricks of India. Use code ABHINAV12 for 12% off full-price sets at Toycra!`;
 
   return (
     <div className="bg-white min-h-screen">

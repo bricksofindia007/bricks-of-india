@@ -79,7 +79,7 @@ export default async function NewsArticlePage(props: Props) {
     .eq('category', article.category).neq('slug', params.slug).limit(3);
 
   const shareUrl = `https://bricksofindia.com/news/${params.slug}`;
-  const waText = `${article.title} — via Bricks of India. Use code ABHINAV12 for 12% off at Toycra!`;
+  const waText = `${article.title} — via Bricks of India. Use code ABHINAV12 for 12% off full-price sets at Toycra!`;
 
   return (
     <div className="bg-white min-h-screen">

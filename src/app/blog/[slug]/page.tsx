@@ -51,7 +51,7 @@ export default async function BlogPostPage(props: Props) {
   const { data: related } = await supabase.from('blog_posts').select('*').eq('category', post.category).neq('slug', params.slug).limit(3);
 
   const shareUrl = `https://bricksofindia.com/blog/${params.slug}`;
-  const waText = `${post.title} — via Bricks of India. Use code ABHINAV12 for 12% off at Toycra!`;
+  const waText = `${post.title} — via Bricks of India. Use code ABHINAV12 for 12% off full-price sets at Toycra!`;
 
   return (
     <div className="bg-white min-h-screen">
