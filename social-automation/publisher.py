@@ -203,7 +203,9 @@ def _load_youtube_credentials():
 
     from google.auth.exceptions import RefreshError
 
-    creds = Credentials.from_authorized_user_info(token_data, YT_SCOPES)
+    # Refresh asks Google for exactly these scopes, so use the ones this token was granted
+    # (saved by youtube_oauth_helper.py); YT_SCOPES only for older tokens without the field.
+    creds = Credentials.from_authorized_user_info(token_data, token_data.get('scopes') or YT_SCOPES)
     if creds.expired and creds.refresh_token:
         print('[publisher] Refreshing YouTube token...')
         try:
