@@ -5,8 +5,8 @@ const CF = 'https://api.cloudflare.com/client/v4';
 const T = process.env.CLOUDFLARE_API_TOKEN?.trim();
 const A = process.env.CLOUDFLARE_ACCOUNT_ID?.trim();
 const B = 'bricksofindia-next-cache';
-const BUILDS = (process.env.BUILDS || 'Y3Vxt2qdLnUjwpWae9Duh,8gzK1nRxqdGu2k-LHvuqz').split(',');
-const N = Number(process.env.SAMPLE || 250);
+const BUILDS = (process.env.BUILDS || '8gzK1nRxqdGu2k-LHvuqz').split(',');
+const N = Number(process.env.SAMPLE || 150);
 const H = { Authorization: `Bearer ${T}`, 'Content-Type': 'application/json' };
 
 async function rest(path) {
