@@ -85,11 +85,11 @@ export default async function DealsPage() {
             <p className="text-dark/70 text-xs font-bold uppercase tracking-widest mb-1">Exclusive Discount Code</p>
             <h2 className="font-heading text-dark text-3xl mb-2">12% OFF AT TOYCRA</h2>
             <p className="text-dark/80 font-body mb-4">
-              Use code{' '}
+              Code{' '}
               <span className="inline-block font-heading text-2xl bg-dark text-accent px-4 py-1 rounded-lg mx-1 leading-tight">
                 ABHINAV12
               </span>
-              {' '}at Toycra for 12% off full-price LEGO sets. Min. ₹500.
+              {' '}takes 12% off full-price sets at Toycra, minimum order ₹500.
             </p>
             <a
               href="https://www.toycra.com"

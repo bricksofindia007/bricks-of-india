@@ -1,21 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import Link from 'next/link';
 import { BRAND } from '@/lib/brand';
 
-// #212 / PR-D (2026-09-26): every placement of the ABHINAV12 code links the
-// affiliate disclosure. Line text changed by Abhinav (P14 round 3, 1 Oct 2026; "full-price
-// sets" added 2 Oct 2026: the code doesn't apply to already-discounted Toycra items);
-// the /legal/affiliate-disclosure link stays.
-function Disclosure({ className }: { className?: string }) {
-  return (
-    <span className={className}>
-      ABHINAV12 gets you 12% off full-price sets at Toycra. It’s not a fortune. But neither is your bank balance. We cannot fix everything!{' '}
-      <Link href="/legal/affiliate-disclosure" className="underline hover:no-underline">Disclosure</Link>
-    </span>
-  );
-}
+// Round 3 (Abhinav, 2 Oct 2026 night): no disclosure beside the code; it lives on the legal pages
+// (/legal/affiliate-disclosure, linked from the footer, and the Terms clause). "full-price sets" since 2 Oct.
 
 interface ToycraDiscountBannerProps {
   variant?: 'full' | 'compact' | 'inline';
@@ -41,9 +30,8 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
         >
           {BRAND.toycraCode}
         </button>
-        <span className="text-dark">takes {BRAND.toycraDiscount} off full-price sets at Toycra, minimum order {BRAND.toycraMinOrder} (<Link href="/legal/affiliate-disclosure" className="underline hover:no-underline">Disclosure</Link>).</span>
+        <span className="text-dark">takes {BRAND.toycraDiscount} off full-price sets at Toycra, minimum order {BRAND.toycraMinOrder}.</span>
         {copied && <span className="text-deal-green text-xs font-bold">✓ Copied!</span>}
-        <Disclosure className="basis-full text-xs text-gray-500" />
       </div>
     );
   }
@@ -52,7 +40,7 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
     return (
       <div className="bg-accent text-dark py-2 px-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg">
         <p className="text-sm font-bold">
-          🎉 Exclusive deal: code <span className="font-price">{BRAND.toycraCode}</span> takes {BRAND.toycraDiscount} off full-price sets at Toycra, minimum order {BRAND.toycraMinOrder} (<Link href="/legal/affiliate-disclosure" className="underline hover:no-underline">Disclosure</Link>).
+          🎉 Exclusive deal: code <span className="font-price">{BRAND.toycraCode}</span> takes {BRAND.toycraDiscount} off full-price sets at Toycra, minimum order {BRAND.toycraMinOrder}.
         </p>
         <button
           onClick={copyCode}
@@ -60,7 +48,6 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
         >
           {copied ? '✓ Copied!' : 'Copy Code'}
         </button>
-        <Disclosure className="basis-full text-xs text-dark/70" />
       </div>
     );
   }
@@ -75,9 +62,8 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
               Exclusive Bricks of India Deal at Toycra
             </p>
             <p className="text-dark text-sm">
-              Code <strong className="font-price text-base bg-dark text-accent px-2 py-0.5 rounded mx-1">{BRAND.toycraCode}</strong> takes {BRAND.toycraDiscount} off full-price sets at Toycra, minimum order {BRAND.toycraMinOrder} (<Link href="/legal/affiliate-disclosure" className="underline hover:no-underline">Disclosure</Link>). Your wallet can handle it.
+              Code <strong className="font-price text-base bg-dark text-accent px-2 py-0.5 rounded mx-1">{BRAND.toycraCode}</strong> takes {BRAND.toycraDiscount} off full-price sets at Toycra, minimum order {BRAND.toycraMinOrder}. Your wallet can handle it.
             </p>
-            <Disclosure className="block text-dark/70 text-xs mt-1" />
           </div>
         </div>
         <button

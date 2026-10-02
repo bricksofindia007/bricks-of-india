@@ -185,7 +185,7 @@ export function prePublishAutoFix(body: string, draft: { source_title?: string |
   const hasPrice = /₹[\d,]+/.test(c);
   const hasStore = /MyBrickHouse|lego\.in|Toycra/i.test(c);
   if (hasPrice && !hasStore) {
-    c = c.replace(/(₹[\d,]+[^.\n]*\.)/, '$1 Available at LEGO.in and Toycra (code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500, [Disclosure](/legal/affiliate-disclosure)).');
+    c = c.replace(/(₹[\d,]+[^.\n]*\.)/, '$1 Available at LEGO.in and Toycra (code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500).');
   }
 
   const hasVerdict = /\b(BUY NOW|WAIT|IMPORT ONLY|AVOID)\b/.test(c);
