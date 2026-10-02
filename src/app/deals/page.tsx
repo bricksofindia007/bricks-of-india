@@ -87,7 +87,7 @@ export default async function DealsPage() {
               <span className="inline-block font-heading text-2xl bg-dark text-accent px-4 py-1 rounded-lg mx-1 leading-tight">
                 ABHINAV12
               </span>
-              {' '}at Toycra for 12% off any LEGO set. Min. ₹500. No usage limits.
+              {' '}at Toycra for 12% off full-price LEGO sets. Min. ₹500. No usage limits.
             </p>
             <a
               href="https://www.toycra.com"

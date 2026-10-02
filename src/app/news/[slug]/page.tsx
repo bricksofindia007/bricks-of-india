@@ -140,7 +140,7 @@ export default async function NewsArticlePage(props: Props) {
               { q: 'What is the best LEGO deal in India right now?', a: 'Check our deals page for the current best prices. Use code ABHINAV12 at Toycra for an exclusive 12% discount.' },
               { q: 'Are LEGO sets available in India?', a: 'Yes — most major LEGO sets are available in India through stores like Toycra, LEGO.in, Amazon India, and Flipkart.' },
               { q: 'Why are LEGO sets expensive in India?', a: 'Import duties, GST, and currency conversion all contribute to LEGO prices in India being higher than in the US or UK. We cover this in detail in our guide on why Indian LEGO prices are what they are.' },
-              { q: 'Is there a discount code for LEGO in India?', a: 'Yes! Use code ABHINAV12 at Toycra for 12% off any LEGO set. Minimum purchase ₹500. No usage limits. This is an exclusive Bricks of India deal.' },
+              { q: 'Is there a discount code for LEGO in India?', a: 'Yes! Use code ABHINAV12 at Toycra for 12% off full-price LEGO sets. Minimum purchase ₹500. No usage limits. This is an exclusive Bricks of India deal.' },
             ]; return (<><JsonLd data={buildFAQSchema(faqs)} />{faqs.map((faq, i) => (
               <details key={i} className="border-2 border-border rounded-xl overflow-hidden">
                 <summary className="px-4 py-3 font-bold text-dark cursor-pointer hover:bg-light-grey transition-colors">{faq.q}</summary>

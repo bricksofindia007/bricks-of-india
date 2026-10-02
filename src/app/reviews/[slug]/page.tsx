@@ -13,7 +13,7 @@ import { Byline } from '@/components/content/Byline';
 import { JsonLd } from '@/components/JsonLd';
 import { buildReviewSchema } from '@/lib/schemas';
 import { getStores, storeLabels } from '@/lib/stores';
-import { computeIndiaStatus, indiaStatusLine, RETIRED_IN_INDIA_DAYS } from '@/lib/india-status';
+import { computeIndiaStatus, indiaStatusLine, RETIRED_IN_INDIA_DAYS, HUNT_IT_LINE } from '@/lib/india-status';
 // Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
@@ -45,6 +45,8 @@ function verdictBadge(verdict: string | null): { emoji: string; label: string; c
     case 'BUY NOW':      return { emoji: '👍', label: 'Recommended', className: 'bg-deal-green text-white' };
     case 'AVOID':        return { emoji: '👎', label: 'Skip It',     className: 'bg-warning-orange text-white' };
     case 'IMPORT ONLY':  return { emoji: '🌍', label: 'Import Only', className: 'bg-accent text-dark' };
+    case 'HUNT IT':      return { emoji: '🔎', label: 'Hunt It',     className: 'bg-primary text-white' };
+    case 'SKIP':         return { emoji: '👎', label: 'Skip It',     className: 'bg-warning-orange text-white' };
     default:              return null; // WAIT, or anything unrecognized — neutral, no badge
   }
 }
@@ -380,6 +382,7 @@ export default async function ReviewPage(props: Props) {
                   review.rating != null ? `Our rating: ${review.rating}/5.` : null,
                   badge?.label === 'Recommended' ? "Yes, we think it's a solid purchase."
                     : badge?.label === 'Skip It' ? "We'd recommend waiting for a better deal or considering alternatives."
+                    : badge?.label === 'Hunt It' ? (indiaStatus.kind === 'retired' ? `${HUNT_IT_LINE} No Indian store has it in stock right now.` : 'An Indian store lists it again: compare the live prices on this page.')
                     : badge?.label === 'Import Only' ? "It's not officially sold in India yet, so factor in import costs and timelines before buying."
                     : availabilityLine ?? (isLegacyRetiredVerdict
                       ? 'It is sold in India: compare the live prices on this page.'

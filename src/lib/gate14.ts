@@ -34,6 +34,9 @@ export type Gate14Facts = {
   prices: number[];            // every displayed store price for the set (in stock or not)
   mrp: number[];               // anchor MRP and/or catalogue MRP
   verdict: string | null;      // reviews.verdict
+  // ABHINAV12 (2 Oct 2026): the code only applies to full-price Toycra listings. When set,
+  // a code price or code saving is accepted only against these; undefined = legacy behaviour.
+  codeBases?: number[];
   otherSetNumbers?: Set<string>;
   // P10 item 4: sets.is_gwp, Brickset availability "LEGO Gift with Purchase",
   // or no retail price anywhere (no store row, no MRP, no LEGO.com price).
@@ -66,9 +69,11 @@ function inrAllowed(v: number, f: Gate14Facts): boolean {
   if (Math.abs(v - 500) < 1) return true;
   for (const b of bases) {
     if (Math.abs(v - b) <= 1) return true;                                   // displayed price / MRP
+    if (f.pieces && f.pieces > 0 && Math.abs(v - b / f.pieces) <= 0.6) return true; // per piece
+  }
+  for (const b of (f.codeBases ?? bases).filter((x) => x >= 500)) {
     if (Math.abs(v - Math.round(b * 0.88)) <= 2) return true;                // ABHINAV12 12% off
     if (Math.abs(v - (b - Math.round(b * 0.12))) <= 2) return true;
-    if (f.pieces && f.pieces > 0 && Math.abs(v - b / f.pieces) <= 0.6) return true; // per piece
     if (Math.abs(v - Math.round(b * 0.12)) <= 2) return true;                // the saving itself
   }
   const mrps = f.mrp.filter((x) => x > 0);

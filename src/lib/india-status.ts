@@ -87,6 +87,16 @@ export function indiaStatusLine(status: IndiaStatus): string | null {
   }
 }
 
+/**
+ * Buying call for a set retired in India (chat, 2 Oct 2026): rating >= 4/5 is
+ * HUNT IT (a great set you'll now only find second-hand); <= 3/5 is SKIP.
+ * Never used while an Indian store sells the set.
+ */
+export const HUNT_IT_LINE = "A great set you'll now only find second-hand.";
+export function retiredBuyingCall(rating: number | null | undefined): 'HUNT IT' | 'SKIP' {
+  return rating != null && rating >= 4 ? 'HUNT IT' : 'SKIP';
+}
+
 /** True only when public wording may say the set is retired. */
 export function mayCallRetired(status: IndiaStatus): boolean {
   return status.kind === 'retired';

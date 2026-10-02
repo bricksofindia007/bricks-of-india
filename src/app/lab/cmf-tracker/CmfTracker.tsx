@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import type { SeriesData } from './page';
+import { abhinav12Price } from '@/lib/abhinav12';
 
 // Store names come from the retailer registry via the server page (FP5.1).
 
@@ -140,9 +141,9 @@ export function CmfTracker({ seriesList, storeLabels }: { seriesList: SeriesData
                 <strong style={{ color: 'var(--color-primary-dark)' }}>{fmtInr(cheapest.price_inr)}</strong>
                 {' '}(blind bag)
               </span>
-              {cheapest.store_id === 'toycra' && cheapest.price_inr >= 500 && (
+              {abhinav12Price(cheapest) != null && (
                 <span style={{ color: '#16a34a', fontWeight: 700, marginLeft: 8 }}>
-                  · {fmtInr(Math.round(cheapest.price_inr * 0.88))} with ABHINAV12
+                  · {fmtInr(abhinav12Price(cheapest)!)} with ABHINAV12
                 </span>
               )}
             </span>
