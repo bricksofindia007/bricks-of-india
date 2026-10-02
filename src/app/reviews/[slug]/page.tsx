@@ -14,6 +14,8 @@ import { JsonLd } from '@/components/JsonLd';
 import { buildReviewSchema } from '@/lib/schemas';
 import { getStores, storeLabels } from '@/lib/stores';
 import { computeIndiaStatus, indiaStatusLine, RETIRED_IN_INDIA_DAYS } from '@/lib/india-status';
+import { getPriceSummaries, type SetPriceSummary } from '@/lib/price-summary';
+import { waitDiscountLine } from '@/lib/verdict-notes';
 // Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
@@ -97,10 +99,11 @@ export default async function ReviewPage(props: Props) {
   // Store prices — full map for all tracked stores (mirrors sets/[slug]/page.tsx pattern)
   const storePriceMap = new Map<string, { store_id: string; price_inr: number | null; in_stock: boolean; product_url: string; scraped_at: string }>();
   let recentStockEventsAt: string[] = [];
+  let priceSummary: SetPriceSummary | null = null;
   if (set?.set_number) {
     const serverClient = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
     const since = new Date(Date.now() - RETIRED_IN_INDIA_DAYS * 864e5).toISOString();
-    const [{ data: storePrices }, { data: history }] = await Promise.all([
+    const [{ data: storePrices }, { data: history }, summaries] = await Promise.all([
       serverClient
         .from('store_prices')
         .select('store_id, price_inr, in_stock, product_url, scraped_at')
@@ -111,7 +114,10 @@ export default async function ReviewPage(props: Props) {
         .select('store_id, recorded_at')
         .eq('set_id', set.set_number)
         .gte('recorded_at', since),
+      // Same Deal/Hot tier the price box badges (WAIT discount line).
+      getPriceSummaries(serverClient, [set.set_number]),
     ]);
+    priceSummary = summaries.get(set.set_number) ?? null;
     for (const sp of storePrices ?? []) {
       storePriceMap.set(sp.store_id, sp);
     }
@@ -158,6 +164,7 @@ export default async function ReviewPage(props: Props) {
   });
   const availabilityLine = indiaStatusLine(indiaStatus);
   const isLegacyRetiredVerdict = (review.verdict || '').trim().toUpperCase() === 'RETIRED';
+  const discountLine = waitDiscountLine(review.verdict, priceSummary);
   const shownVerdict = isLegacyRetiredVerdict
     ? (availabilityLine ?? 'Sold in India: see live prices below.')
     : review.verdict;
@@ -233,6 +240,7 @@ export default async function ReviewPage(props: Props) {
                 <div>
                   <h3 className="font-heading text-dark text-2xl mb-1">BRICKS OF INDIA SAYS:</h3>
                   <p className="font-bold text-lg text-dark">{shownVerdict}</p>
+                  {discountLine && <p className="text-sm text-dark mt-1">{discountLine}</p>}
                   {stars != null && (
                     <div className="mt-2 flex items-center gap-2">
                       <span className="text-primary text-xl">{stars}</span>
