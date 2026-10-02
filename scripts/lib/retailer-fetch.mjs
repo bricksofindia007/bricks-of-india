@@ -13,8 +13,13 @@ export const STORES = [
   {
     id:     'toycra',
     name:   'Toycra',
-    domain: 'www.toycra.com',
-    path:   '/collections/lego/products.json',
+    // B2 (P14 round 6): same rules as lego.in -- the canonical host fetched directly
+    // (www.toycra.com 301s to toycra.com; any redirect is now an error, never followed)
+    // with an explicit Accept-Language: en-IN, and a pre-write stop baseline.
+    domain:   'toycra.com',
+    path:     '/collections/lego/products.json',
+    redirect: 'error',
+    headers:  { 'Accept-Language': 'en-IN' },
   },
   {
     // store_id stays 'mybrickhouse' (the registry key); the display name

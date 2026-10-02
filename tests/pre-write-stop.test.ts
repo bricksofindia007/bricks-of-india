@@ -12,7 +12,7 @@
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
-import { planStoreWrite, feedStats, checkPolicy, changedRatio, approvalFromEnv, loadBaselines } from '../scripts/lib/pre-write-stop.mjs';
+import { planStoreWrite, planReconcile, feedStats, checkPolicy, changedRatio, approvalFromEnv, loadBaselines } from '../scripts/lib/pre-write-stop.mjs';
 import { parseProduct } from '../scripts/lib/retailer-fetch.mjs';
 
 const good = JSON.parse(fs.readFileSync('tests/fixtures/legoin-feed-2026-09-30.json', 'utf8')).products;
@@ -114,14 +114,43 @@ describe('changes and approvals', () => {
   });
 });
 
-describe('Toycra writes in every case', () => {
+describe('Toycra is guarded by the same rules (B2, 1 Oct 2026)', () => {
+  const toycra = loadBaselines().toycra;
   const bad = { products: 1, available_products: 0 } as any;
+  it('has a baseline on the canonical host', () => {
+    expect(toycra.approve_key).toBe('toycra.com');
+    expect(toycra.policy.map((p: { url: string }) => p.url)).toEqual(['https://toycra.com/robots.txt', 'https://toycra.com/agents.md']);
+  });
   it.each([
     ['bad policy', { ok: false, results: [] }, null],
     ['all unavailable', POLICY_OK, null],
     ['foreign approval', POLICY_OK, { store: 'lego.in', available: 1 }],
-  ])('%s -> write (no baseline entry)', (_n, policy, approval) => {
-    const plan = planStoreWrite({ baseline: loadBaselines().toycra, stats: bad, rows: [], storedRows: goodRows, policy, approval });
+  ])('%s -> HOLD', (_n, policy, approval) => {
+    const plan = planStoreWrite({ baseline: toycra, stats: bad, rows: [], storedRows: goodRows, policy, approval });
+    expect(plan.write).toBe(false);
+  });
+  it('a store with no entry still writes', () => {
+    expect(planStoreWrite({ baseline: undefined, stats: bad, rows: [], storedRows: goodRows, policy: { ok: false, results: [] }, approval: null } as any).write).toBe(true);
+  });
+});
+
+describe('A8: Toycra feed lists in-stock products only', () => {
+  const toycra = loadBaselines().toycra;
+  it('baseline marks the feed and caps reconcile flips', () => {
+    expect(toycra.feed_lists_in_stock_only).toBe(true);
+    expect(toycra.max_reconcile_flips).toBe(30);
+  });
+  it('a 100%-available feed is not held by the share rule', () => {
+    const stats = { products: 664, available_products: 664 } as any;
+    const plan = planStoreWrite({ baseline: toycra, stats, rows: [], storedRows: [], policy: POLICY_OK, approval: null });
     expect(plan.write).toBe(true);
+  });
+  it('reconcile up to the cap proceeds; above it is held', () => {
+    expect(planReconcile({ baseline: toycra, staleCount: 14 }).reconcile).toBe(true);
+    expect(planReconcile({ baseline: toycra, staleCount: 30 }).reconcile).toBe(true);
+    expect(planReconcile({ baseline: toycra, staleCount: 31 }).held).toBe(true);
+  });
+  it('stores without a cap reconcile as before', () => {
+    expect(planReconcile({ baseline: loadBaselines().mybrickhouse, staleCount: 500 }).reconcile).toBe(true);
   });
 });

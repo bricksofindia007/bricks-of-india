@@ -18,7 +18,7 @@
  *
  * Failure behaviour (G14): a hold writes nothing for that store, so its last
  * rows age past 12h and stop badging -- older-but-labelled, never wrong.
- * A store without a baseline entry (Toycra) is never held.
+ * A store without a baseline entry is never held (both stores have one since B2, 1 Oct 2026).
  */
 import { createHash } from 'node:crypto';
 import fs from 'node:fs';
@@ -92,7 +92,7 @@ export function changedRatio(rows, storedRows) {
  * @returns {{ write: boolean, held: boolean, reasons: string[], metrics: object }}
  */
 export function planStoreWrite({ baseline, stats, rows, storedRows, policy, approval }) {
-  if (!baseline) return { write: true, held: false, reasons: [], metrics: {} }; // unguarded store (Toycra)
+  if (!baseline) return { write: true, held: false, reasons: [], metrics: {} }; // unguarded store (none today)
   const reasons = [];
   const share = stats.products ? stats.available_products / stats.products : 0;
   const baseShare = baseline.approved_available / baseline.approved_products;
@@ -114,10 +114,27 @@ export function planStoreWrite({ baseline, stats, rows, storedRows, policy, appr
     metrics.approval = { store: approval.store, available: approval.available, within_2pct: tol };
     if (!tol) reasons.push(`approval: this run's available ${stats.available_products} is not within 2% of approved ${approval.available}`);
   } else {
-    if (Math.abs(share - baseShare) * 100 > RULES.maxShareMovePts) reasons.push(`available share ${metrics.share_pts}% moved > 25 points from the last approved ${metrics.approved_share_pts}%`);
+    // A8: a feed that lists in-stock products only (Toycra's collection) is 100% available by
+    // construction, so the share rule says nothing there; its sell-outs are guarded by
+    // planReconcile below instead.
+    if (!baseline.feed_lists_in_stock_only && Math.abs(share - baseShare) * 100 > RULES.maxShareMovePts) reasons.push(`available share ${metrics.share_pts}% moved > 25 points from the last approved ${metrics.approved_share_pts}%`);
     if (ch.ratio > RULES.maxChangedRatio) reasons.push(`${ch.changed}/${ch.compared} rows (${metrics.changed_pct}%) change price or stock (> 25%)`);
   }
   return { write: reasons.length === 0, held: reasons.length > 0, reasons, metrics };
+}
+
+/**
+ * A8 (P14 round 7): the stale reconcile flips rows that left the feed to in_stock=false.
+ * For a store whose feed lists in-stock products only, that is how sell-outs reach us -- and
+ * also how a broken or truncated feed would mass-write false out-of-stock rows (the lego.in
+ * incident's shape). Hold the reconcile when it would flip more than the baseline's cap.
+ */
+export function planReconcile({ baseline, staleCount }) {
+  const cap = baseline?.max_reconcile_flips;
+  if (!Number.isFinite(cap)) return { reconcile: true, held: false, reasons: [] };
+  return staleCount > cap
+    ? { reconcile: false, held: true, reasons: [`reconcile would flip ${staleCount} rows to out of stock (> ${cap} per run)`] }
+    : { reconcile: true, held: false, reasons: [] };
 }
 
 /** Workflow inputs -> approval object, or null. */
