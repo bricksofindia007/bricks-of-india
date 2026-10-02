@@ -481,19 +481,24 @@ if (IS_MAIN) (async () => {
 
       const outcome = await generateBodyWithFailover(draft, batchOpeners);
 
-      // Gate 14 (#398): shadow findings are logged only. When enforced, a draft
-      // whose only findings are unverifiable claims (a fact we couldn't look
-      // up) is held for review rather than rejected -- the gap is ours, not the
-      // model's. Contradicted facts fail the lint and take the reject path below.
+      // Gate 14 (#398): shadow findings are logged only. Enforced (chat, 2 Oct
+      // 2026): HOLD-FOR-REVIEW mode, never discard. A draft whose only failing
+      // gate is Gate 14 (after the one shared regeneration) goes back to
+      // /admin/pending with the findings as its reason, for a person to fix or
+      // approve. Drafts that also fail other gates keep those gates' policy.
       if (outcome.gate14) {
         const g = outcome.gate14;
         console.log(`[gate14] ${g.enforce ? 'enforce' : 'shadow'} findings=${g.findings.length}${g.findings.length ? ' ' + JSON.stringify(g.findings.map((x) => `[${x.rule}] ${x.detail}`)) : ''}`);
-        if (g.enforce && isUnverifiableOnly(g.findings)) {
-          const reason = `gate14_unverifiable: ${g.findings.map((x) => `[${x.rule}] ${x.detail}`).join('; ')}`.slice(0, 500);
+        const otherLintFails = Object.entries(outcome.lintResult?.gates ?? {})
+          .filter(([name, r]) => name !== 'gate14' && r && !r.pass && r.severity === 'fail').length;
+        const otherHardFails = outcome.hardRules.filter((r) => !r.pass).length;
+        const gate14Only = g.findings.length > 0 && otherLintFails === 0 && otherHardFails === 0 && !!outcome.lintResult;
+        if (g.enforce && (isUnverifiableOnly(g.findings) || gate14Only)) {
+          const reason = `${isUnverifiableOnly(g.findings) ? 'gate14_unverifiable' : 'gate14_hold'}: ${g.findings.map((x) => `[${x.rule}] ${x.detail}`).join('; ')}`.slice(0, 500);
           const { error: holdErr } = await sb.from('pending_drafts').update({ status: 'draft', discard_reason: reason }).eq('id', draft.id);
           if (holdErr) { console.error('[supabase-write] table=pending_drafts op=update(holdGate14) error:', holdErr); failed++; }
           else heldGate14++;
-          console.log('HELD (Gate 14: unverifiable facts) -- back in /admin/pending');
+          console.log(`HELD (Gate 14, ${reason.split(':')[0]}) -- back in /admin/pending`);
           continue;
         }
       }
@@ -701,7 +706,7 @@ if (IS_MAIN) (async () => {
   const total = geminiOk + fallbackOk;
   const lintFailed = geminiLintFailed + fallbackLintFailed;
   const dur   = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected+deleted (quality gates), ${bothFailed} rejected+deleted (both providers failed), ${failed} failed (retrying next run), ${publishRejected} rejected at insert (terminal), ${deferred} deferred, ${heldSameSet} held (same set, #422), ${heldGate14} held (Gate 14 unverifiable) of ${queue.length} — ${dur}s total`);
+  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected+deleted (quality gates), ${bothFailed} rejected+deleted (both providers failed), ${failed} failed (retrying next run), ${publishRejected} rejected at insert (terminal), ${deferred} deferred, ${heldSameSet} held (same set, #422), ${heldGate14} held for review (Gate 14) of ${queue.length} — ${dur}s total`);
 })().catch(err => {
   console.error('FATAL:', err);
   process.exit(1);
