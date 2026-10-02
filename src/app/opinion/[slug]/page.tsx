@@ -4,7 +4,7 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import ReactMarkdown from 'react-markdown';
+import { ArticleMarkdown } from '@/components/content/ArticleMarkdown';
 import { formatDate, readingTime, whatsappShareUrl, twitterShareUrl } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
@@ -92,7 +92,7 @@ export default async function OpinionPostPage(props: Props) {
         <Byline publishedAt={post.published_at} updatedAt={post.updated_at} />
 
         <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8 prose-p:mb-5 prose-p:leading-relaxed prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-2xl prose-h3:text-xl">
-          <ReactMarkdown>{cleanContent}</ReactMarkdown>
+          <ArticleMarkdown>{cleanContent}</ArticleMarkdown>
         </div>
 
         {/* Share */}

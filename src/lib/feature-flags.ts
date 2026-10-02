@@ -80,7 +80,9 @@ export const FEATURE_FLAGS = {
   //   - a draft still failing is rejected, or held if every finding is
   //     "unverifiable";
   //   - a looked-up piece count is written back to a sets row whose pieces is 0.
-  gate14ReviewEnforce: false,
+  // ENABLED 2 Oct 2026 (chat, round 8): hold-for-review mode, never discard
+  // (scripts/generate-approved-drafts.ts holds a Gate-14-only failure).
+  gate14ReviewEnforce: true,
 
   // P10 item 4: gift-with-purchase sets no Indian store lists get a "no price, not sold
   // separately" price context in EVERY format's prompt (news too), instead of the

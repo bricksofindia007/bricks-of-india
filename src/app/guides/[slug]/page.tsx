@@ -3,7 +3,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
-import ReactMarkdown from 'react-markdown';
+import { ArticleMarkdown } from '@/components/content/ArticleMarkdown';
 import { supabase } from '@/lib/supabase';
 import { formatDate } from '@/lib/utils';
 import { JsonLd } from '@/components/JsonLd';
@@ -85,7 +85,7 @@ export default async function GuideArticlePage(props: Props) {
         <h1 className="font-heading text-dark text-5xl md:text-6xl mb-6">{guide.title}</h1>
 
         <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8 prose-p:mb-5 prose-p:leading-relaxed prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-2xl prose-h3:text-xl">
-          <ReactMarkdown>{guide.content}</ReactMarkdown>
+          <ArticleMarkdown>{guide.content}</ArticleMarkdown>
         </div>
 
         <ToycraDiscountBanner variant="compact" />

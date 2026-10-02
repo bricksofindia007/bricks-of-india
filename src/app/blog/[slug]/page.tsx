@@ -5,7 +5,7 @@ import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { supabaseRead as supabase } from '@/lib/supabase';
 import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
-import ReactMarkdown from 'react-markdown';
+import { ArticleMarkdown } from '@/components/content/ArticleMarkdown';
 import { formatDate, readingTime, whatsappShareUrl, twitterShareUrl, socialCardImage } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
@@ -88,7 +88,7 @@ export default async function BlogPostPage(props: Props) {
         <h1 className="font-heading text-dark text-5xl md:text-6xl mb-3">{post.title}</h1>
         <Byline publishedAt={post.published_at} updatedAt={post.updated_at} />
         <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8 prose-p:mb-5 prose-p:leading-relaxed prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-2xl prose-h3:text-xl">
-          <ReactMarkdown>{cleanContent}</ReactMarkdown>
+          <ArticleMarkdown>{cleanContent}</ArticleMarkdown>
         </div>
 
         {/* Share */}
