@@ -32,6 +32,8 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 SCOPES = [
     'https://www.googleapis.com/auth/youtube.upload',
     'https://www.googleapis.com/auth/youtube.readonly',
+    'https://www.googleapis.com/auth/youtube.force-ssl',      # post comments; read video details
+    'https://www.googleapis.com/auth/yt-analytics.readonly',  # channel analytics (read only)
 ]
 
 if not Path('client_secrets.json').exists():
