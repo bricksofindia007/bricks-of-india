@@ -71,6 +71,8 @@ jobs:
           # P14 4.4: per-run feed facts for guarded stores (artifact only).
           SCRAPE_RUN_OUT: out/scrape-run
           SCRAPE_STORE: ${{ github.event.inputs.store || '' }}
+          # B3: the public log shows pass/fail + counts; details go to boi-ops via out/scrape-run.
+          QUIET_LOGS: '1'
           APPROVE_STORE: ${{ github.event.inputs.approve_store || '' }}
           APPROVE_AVAILABLE: ${{ github.event.inputs.approve_available || '' }}
         run: npx tsx scripts/scrape-now.mjs
