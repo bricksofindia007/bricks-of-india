@@ -59,5 +59,15 @@ class Idempotent(unittest.TestCase):
                 self.run_main(_DB(), manifest(tmp), 'carousel', mock.Mock(), mock.Mock())
 
 
+
+class CommentFailure(unittest.TestCase):
+    """2 Oct day 1: the Short uploaded, then the comment raised 403 and the job failed unrecorded."""
+    def test_comment_error_warns_and_does_not_raise(self):
+        yt = mock.Mock(); yt.commentThreads.return_value.insert.return_value.execute.side_effect = RuntimeError('403 insufficient scopes')
+        self.assertFalse(pp.post_comment(yt, 'vid', 'hello'))
+
+    def test_comment_ok(self):
+        self.assertTrue(pp.post_comment(mock.Mock(), 'vid', 'hello'))
+
 if __name__ == '__main__':
     unittest.main()
