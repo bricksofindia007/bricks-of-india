@@ -1,0 +1,30 @@
+name: Cloudflare metrics (read-only)
+
+# Round 11 (A4): Worker requests / errors / CPU, R2, KV and the zone's HSTS setting.
+# Manual only; aggregate numbers only; writes nothing.
+on:
+  workflow_dispatch:
+    inputs:
+      days:
+        description: 'days to report (max 30)'
+        required: false
+        default: '7'
+
+permissions:
+  contents: read
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Report
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          DAYS: ${{ inputs.days }}
+        run: node scripts/ci/cf-metrics.mjs
