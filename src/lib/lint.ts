@@ -7,7 +7,7 @@ import { unverifiedSetCitations } from './set-identity';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 import { bannedOpener } from './opener-pattern';
-import { undisclosedAffiliateMentions } from './affiliate-disclosure';
+import { nonStandardAffiliateMentions } from './affiliate-disclosure';
 import { g19Hits } from './g19';
 export const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: [number, number] }> = {
   news    : { pass: [270,  440], fail: [225,  500] },  // target 300–400
@@ -650,10 +650,11 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
     : { pass: true, severity: 'ok' };
   if (banned) overallPass = false;
 
-  // Gate 13: ABHINAV12 must carry a disclosure (the Disclosure link) in the same sentence (#212).
-  const undisclosed = undisclosedAffiliateMentions(body);
+  // Gate 13 (#212; round 3): every ABHINAV12 sentence uses the exact standard code line (full-price),
+  // no retired wording. The disclosure itself lives on the legal pages, not beside the code.
+  const undisclosed = nonStandardAffiliateMentions(body);
   const affiliateDisclosureGate: LintGateResult = undisclosed.length
-    ? { pass: false, severity: 'fail', reason: `ABHINAV12 without a disclosure in the same sentence: "${undisclosed[0].slice(0, 80)}"` }
+    ? { pass: false, severity: 'fail', reason: `ABHINAV12 line is not the standard line (or uses retired wording): "${undisclosed[0].slice(0, 80)}"` }
     : { pass: true, severity: 'ok' };
   if (undisclosed.length) overallPass = false;
 

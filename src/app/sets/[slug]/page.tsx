@@ -1,6 +1,5 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { WithDisclosureLink } from '@/components/ui/WithDisclosureLink';
 import { AFFILIATE_NOTE } from '@/lib/affiliate-disclosure';
 import type { Metadata } from 'next';
 import { cache } from 'react';
@@ -559,7 +558,7 @@ export default async function SetPage(props: Props) {
                       <span className="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
                     </summary>
                     <div className="px-4 py-3 bg-light-grey text-gray-600 font-body text-sm leading-relaxed">
-                      <WithDisclosureLink text={faq.a} />
+                      {faq.a}
                     </div>
                   </details>
                 ))}</>);})()}

@@ -1,26 +1,21 @@
-// Gate 13 (#212 / PR-D follow-up, operator decision 2026-09-27): every
-// in-text ABHINAV12 mention carries a commission disclosure IN THE SAME
-// SENTENCE. /legal/affiliate-disclosure promises the disclosure is on the
-// page; the banner line covers the page chrome, this covers article text.
+// Gate 13 (#212). Round 3 (Abhinav, 2 Oct 2026 night): the affiliate disclosure lives only on the
+// legal pages (/legal/affiliate-disclosure and the Terms clause), never beside the code. The gate now
+// checks the code line itself: every sentence that mentions ABHINAV12 carries the exact standard
+// clause (12%, full-price, ₹500 minimum) and none of the retired wording.
 
-/** The one sanctioned affiliate sentence -- used by the draft prompt, the
- *  publish-time injection and scripts, so they can never drift apart. */
-// Round 11 (chat, 2 Oct 2026): no commission wording beside the code; the same-sentence Disclosure
-// link is the disclosure. "minimum order", not "min.": the sentence splitter would cut at "min.".
-export const AFFILIATE_NOTE = 'Code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500 ([Disclosure](/legal/affiliate-disclosure)).';
+/** The one sanctioned code line -- used by the draft prompt, the publish-time injection, the site
+ *  FAQs and scripts, so they can never drift apart. "minimum order", not "min.": the sentence
+ *  splitter would cut the sentence at "min.". */
+export const AFFILIATE_NOTE = 'Code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500.';
 
-/** The Disclosure link inside AFFILIATE_NOTE; FAQ answers carry it too (WithDisclosureLink renders it). */
-export const DISCLOSURE_MD = '[Disclosure](/legal/affiliate-disclosure)';
+const STANDARD_CLAUSE = /\bcode ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500(?![\d,])/i;
+const RETIRED_WORDING = /commission|affiliate code|no usage limits/i;
 
-// A same-sentence link to the disclosure page also discloses (chat, 2 Oct 2026: "the
-// article keeps only the Disclosure link next to the code, as on the rest of the site").
-const DISCLOSURE_LINK = /\]\(\/legal\/affiliate-disclosure\)/;
-
-/** Sentences that mention ABHINAV12 with neither "commission" nor a disclosure link. */
-export function undisclosedAffiliateMentions(text: string): string[] {
+/** Sentences that mention ABHINAV12 without the exact standard clause, or with retired wording. */
+export function nonStandardAffiliateMentions(text: string): string[] {
   const sentences = text.match(/[^.!?\n]*ABHINAV12[^.!?\n]*(?:[.!?]|$)/gi) ?? [];
-  return sentences.map((s) => s.trim()).filter((s) => !/commission/i.test(s) && !DISCLOSURE_LINK.test(s));
+  return sentences.map((s) => s.trim()).filter((s) => !STANDARD_CLAUSE.test(s) || RETIRED_WORDING.test(s));
 }
 
 export const AFFILIATE_FEEDBACK =
-  `Every sentence that mentions ABHINAV12 must carry the Disclosure link in that same sentence. Use exactly: "${AFFILIATE_NOTE}" and never apply the 12% to a price.`;
+  `Every sentence that mentions ABHINAV12 must use exactly: "${AFFILIATE_NOTE}" (it says full-price). Never write "commission", "affiliate code" or "no usage limits", and never apply the 12% to a price.`;

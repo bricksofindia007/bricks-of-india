@@ -1,5 +1,4 @@
 import { BRAND } from './brand';
-import { DISCLOSURE_MD } from './affiliate-disclosure';
 import { isPriceFresh } from './price-freshness';
 
 export const organizationSchema = {
@@ -173,8 +172,7 @@ export function buildFAQSchema(items: FAQItem[]) {
     mainEntity: items.map((item) => ({
       '@type': 'Question',
       name: item.q,
-      // The Disclosure link stays a link in the structured answer (Google allows <a> here).
-      acceptedAnswer: { '@type': 'Answer', text: item.a.split(DISCLOSURE_MD).join(`<a href="${BRAND.domain}/legal/affiliate-disclosure">Disclosure</a>`) },
+      acceptedAnswer: { '@type': 'Answer', text: item.a },
     })),
   };
 }
