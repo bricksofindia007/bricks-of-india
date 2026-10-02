@@ -45,6 +45,12 @@ jobs:
       - name: Install Python dependencies
         run: pip install -r social-automation/requirements.txt
 
+      # G6 (2 Oct 2026): posts state only our live Indian price, or none. These
+      # tests (no network) must pass before anything can post.
+      - name: Indian-price rule tests
+        working-directory: social-automation
+        run: python -m unittest test_indian_price -v
+
       - name: Run pipeline
         working-directory: social-automation
         env:

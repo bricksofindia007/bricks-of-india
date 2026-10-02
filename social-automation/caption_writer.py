@@ -87,13 +87,30 @@ Link in bio. #LEGOIndia #BricksofIndia"
 _LEGO_COM_SOURCES = {'lego_coming_soon', 'lego_com'}
 
 
-def _india_price(usd_price: float | None) -> int | None:
-    if usd_price is None:
-        return None
-    return round(usd_price * 1.35 * 84)
+# G6 (2 Oct 2026): captions state ONLY our live Indian price (set_data['india_price_inr'],
+# from db.get_india_price_info: best in-stock store price, else store MRP) or no price.
+# The old "Estimated India Price = USD x 1.35 x 84" put converted US figures on posts
+# (42172 said Rs 51,029; its Indian MRP is Rs 41,199). No USD figure reaches the prompt.
+_INR_RE = re.compile(r'(?:₹|Rs\.?|INR)\s?(\d{1,3}(?:,\d{2,3})+|\d+)', re.I)
+_FOREIGN_RE = re.compile(r'(?:US\$|\$|USD|£|€|\bdollars?\b|\bconvert(?:s|ed|ing)?\b|exchange rate)', re.I)
 
 
-def generate_caption(set_data: dict, banned_feedback: list[str] | None = None) -> str:
+def price_violations(text: str, allowed_inr: int | None) -> list[str]:
+    """Price claims a caption may not make: any rupee figure other than our Indian price
+    (within Rs 1), and any foreign-currency or conversion wording."""
+    out = []
+    for m in _INR_RE.finditer(text):
+        v = int(m.group(1).replace(',', ''))
+        if allowed_inr is None or abs(v - allowed_inr) > 1:
+            out.append(f'rupee figure {m.group(0)!r} is not our Indian price'
+                       + (f' (Rs {allowed_inr:,})' if allowed_inr else ' (no Indian price: state none)'))
+    for m in _FOREIGN_RE.finditer(text):
+        out.append(f'foreign-currency/conversion wording {m.group(0)!r}')
+    return out
+
+
+def generate_caption(set_data: dict, banned_feedback: list[str] | None = None,
+                     price_feedback: list[str] | None = None) -> str:
     """banned_feedback (issue #181): phrases a previous draft of THIS caption
     used that the Voice Codex bans. When given, the prompt is re-issued with
     the full PAGE 17 ban list injected and an instruction to rewrite without
@@ -109,10 +126,14 @@ def generate_caption(set_data: dict, banned_feedback: list[str] | None = None) -
     source = set_data.get('source', 'lego_coming_soon')
     is_lego_source = source in _LEGO_COM_SOURCES
 
-    usd_price = set_data.get('usd_price')
-    india_price = _india_price(usd_price)
-    usd_str = f'{usd_price:.2f}' if usd_price else 'TBD'
-    india_str = f'{india_price:,}' if india_price else 'TBD'
+    india_inr = set_data.get('india_price_inr')
+    if india_inr:
+        price_line = (f"India price: ₹{int(india_inr):,} ({set_data.get('india_price_label') or 'our live Indian price'}). "
+                      "This is the ONLY price you may state. Use it exactly; no other rupee figure.")
+    else:
+        price_line = ("India price: none in our data. Do NOT state any price, rupee figure, "
+                      "dollar figure or conversion.")
+    price_line += " Never mention US/UK/EU prices, dollars, exchange rates or conversions."
 
     if is_lego_source:
         sign_off = (
@@ -130,8 +151,7 @@ Set Name: {set_data['name']}
 Set Number: {set_data['set_num']}
 Theme: {set_data.get('theme', 'Unknown')}
 Piece Count: {set_data.get('num_parts') or 'Unknown'}
-Global USD Price: ${usd_str}
-Estimated India Price: ₹{india_str} (calculated at USD x 1.35 x 84)
+{price_line}
 
 End the caption with exactly this text, no modifications:
 
@@ -146,6 +166,13 @@ End the caption with exactly this text, no modifications:
             + '; '.join(repr(p) for p in OFFVOICE_PHRASES)
             + '. Write a fresh caption that uses NONE of these words or phrases in any form, '
             'while keeping everything else above (facts, sign-off) exactly as instructed.'
+        )
+
+    if price_feedback:
+        user_prompt += (
+            '\n\nIMPORTANT -- PRICE REWRITE REQUIRED. Your previous draft stated a price we do not '
+            f'have: {"; ".join(price_feedback)}. Rewrite it stating only the India price given above '
+            '(or no price at all if none is given), and no foreign currency or conversion.'
         )
 
     # Retry up to 3 times on 503 capacity spikes (30s back-off each attempt)

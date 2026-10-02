@@ -934,10 +934,13 @@ def get_new_set(year_start: int | None = None, year_end: int | None = None,
                     print(f'[scraper] num_parts from Supabase sets table: {pieces}')
 
             # Supabase India price — real INR for the stats card
-            india_price = db.get_india_price(s['set_num'])
-            if india_price:
-                s['india_price'] = india_price
-                print(f'[scraper] India price from store_prices: {india_price}')
+            # G6: only our live Indian price (best in-stock, else store MRP) or none.
+            price_info = db.get_india_price_info(s['set_num'])
+            if price_info:
+                s['india_price'] = price_info['text']
+                s['india_price_inr'] = price_info['inr']
+                s['india_price_label'] = price_info['label']
+                print(f"[scraper] India price: {price_info['text']} ({price_info['label']})")
 
             print(
                 f'[scraper] Selected: {s["set_num"]} - {s["name"]} '

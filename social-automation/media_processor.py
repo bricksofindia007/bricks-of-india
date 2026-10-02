@@ -179,7 +179,6 @@ def _make_shorts_text_overlay(W: int, H: int, set_data: dict, is_stats: bool) ->
         set_num_bare = set_data.get('set_num', '').split('-')[0]
         name = set_data.get('name', '')
         num_parts = set_data.get('num_parts', 0)
-        usd_price = set_data.get('usd_price')
         theme = str(set_data.get('theme') or '')
 
         # ── Set name — top section (above product image which starts at y=420) ──
@@ -199,8 +198,9 @@ def _make_shorts_text_overlay(W: int, H: int, set_data: dict, is_stats: bool) ->
         # ── Info line (set number, pieces, price) ─────────────────────────────
         f_info = _try_font(38)
         parts_str = f'{num_parts:,}' if num_parts else 'N/A'
-        price_str = f'${usd_price:.0f}' if usd_price else 'TBD'
-        info = f'#{set_num_bare}  •  {parts_str} pcs  •  {price_str}'
+        # G6 (2 Oct 2026): our Indian price or nothing; never the US dollar price.
+        india_price = set_data.get('india_price')
+        info = f'#{set_num_bare}  •  {parts_str} pcs' + (f'  •  {india_price}' if india_price else '')
         info = _truncate_to_fit(draw, info, f_info, W - 60)
         bbox = draw.textbbox((0, 0), info, font=f_info)
         lw = bbox[2] - bbox[0]
