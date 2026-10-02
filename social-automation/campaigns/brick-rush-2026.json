@@ -1,0 +1,34 @@
+{
+ "id": "brick-rush-2026",
+ "note": "Each piece posts only when \"approved\" is true (set after Abhinav approves in chat).",
+ "days": {
+  "day1": {
+   "carousel": {
+    "approved": false,
+    "label": "Brick Rush carousel (all 50, by % off)",
+    "images": [
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/brick-rush-2026/v4/00-cover.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/brick-rush-2026/v4/01-deals-1-6.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/brick-rush-2026/v4/02-deals-7-12.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/brick-rush-2026/v4/03-deals-13-18.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/brick-rush-2026/v4/04-deals-19-24.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/brick-rush-2026/v4/05-deals-25-30.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/brick-rush-2026/v4/06-deals-31-35.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/brick-rush-2026/v4/07-deals-36-40.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/brick-rush-2026/v4/08-deals-41-45.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/brick-rush-2026/v4/09-deals-46-50.jpg"
+    ],
+    "caption": "BRICK FANS! BRICK RUSH IS ON. 🧱\n\nOctober has started and there's nowhere left for your money to hide. Brick Rush is on at LEGO Certified Stores across India, 1–11 Oct, with in-store exclusive offers.\n\nAll 50 deals, biggest % off first. Five are half price: Jabba's Sail Barge, Star Trek: U.S.S. Enterprise NCC-1701-D, The Goonies, Winnie the Pooh and Mineral Collection. Then 40%, 35% and 30% off. Biggest saving: the Death Star, ₹68,249 in store (MRP ₹1,04,999).\n\nIn-store only; conditions apply per the store. Full list: bricksofindia.com/brick-rush\n\nHit follow. We hunt the deals so your bank balance can panic in peace. Instagram @bricksofindia · YouTube @BricksofIndia · bricksofindia.com\n\nWhich one is going home with you? 👇\n\n#LEGO #LEGOIndia #BrickRush #LEGOSale #BricksOfIndia"
+   },
+   "short": {
+    "approved": false,
+    "label": "Brick Rush Short Day 1 (opening + Death Star)",
+    "video": "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/brick-rush-2026/v4/day1-short.mp4",
+    "ig_caption": "BRICK FANS! BRICK RUSH IS ON. 🧱\n\nOctober has started and there's nowhere left for your money to hide. Brick Rush is on at LEGO Certified Stores across India, 1–11 Oct, with in-store exclusive offers.\n\nDay 1: the biggest saving. The LEGO Death Star (75419) is ₹68,249 in store, 35% off its ₹1,04,999 MRP. That's ₹36,750 back in your pocket.\n\nIn-store only; conditions apply per the store. All 50 deals: bricksofindia.com/brick-rush\n\nFollow us. Your wallet won't thank you, but your shelf will. Instagram @bricksofindia · YouTube @BricksofIndia · bricksofindia.com\n\nDeath Star or something smaller: what's your Brick Rush pick? 👇\n\n#LEGO #LEGOIndia #BrickRush #LEGOSale #BricksOfIndia",
+    "yt_title": "BRICK RUSH IS ON: LEGO Death Star ₹36,750 off in store (1–11 Oct) #shorts",
+    "yt_description": "BRICK FANS! BRICK RUSH IS ON. 🧱\n\nOctober has started and there's nowhere left for your money to hide. Brick Rush is on at LEGO Certified Stores across India, 1–11 Oct, with in-store exclusive offers.\n\nDay 1: the biggest saving. The LEGO Death Star (75419) is ₹68,249 in store, 35% off its ₹1,04,999 MRP. That's ₹36,750 back in your pocket.\n\nIn-store only; conditions apply per the store. All 50 deals: bricksofindia.com/brick-rush\n\nFollow us. Your wallet won't thank you, but your shelf will. Instagram @bricksofindia · YouTube @BricksofIndia · bricksofindia.com\n\nDeath Star or something smaller: what's your Brick Rush pick? 👇\n\n#LEGO #LEGOIndia #BrickRush #LEGOSale #BricksOfIndia\n\n📍 Bricks of India — India's LEGO price tracker",
+    "pinned_comment": "All 50 Brick Rush deals, biggest % off first: bricksofindia.com/brick-rush (LEGO Certified Stores only, 1–11 Oct; conditions apply). Subscribe for daily deals. Cheaper than therapy, and more bricks. Instagram @bricksofindia · YouTube @BricksofIndia · bricksofindia.com"
+   }
+  }
+ }
+}
