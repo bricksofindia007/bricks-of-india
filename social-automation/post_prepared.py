@@ -99,6 +99,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--manifest', required=True); ap.add_argument('--day', required=True)
     ap.add_argument('--piece', choices=['carousel', 'short'], required=True)
+    ap.add_argument('--platforms', default='all',
+                    help="comma list of ig_feed, ig_reels, yt_shorts, or 'all' (2 Oct: Instagram only while YouTube is blocked)")
     a = ap.parse_args()
     m = json.loads((Path(__file__).parent / a.manifest).read_text(encoding='utf-8'))
     item = m['days'][a.day][a.piece]
@@ -107,7 +109,14 @@ def main():
     cid = f"{m['id']}:{a.day}:{a.piece}"
     label = item.get('label', cid)
 
+    wanted = None if a.platforms == 'all' else {p.strip() for p in a.platforms.split(',') if p.strip()}
+    if wanted is not None and not wanted <= set(PLATFORM_FLAG):
+        raise SystemExit(f'Refusing: unknown platform in --platforms {sorted(wanted - set(PLATFORM_FLAG))}')
+
     def once(platform, post):
+        if wanted is not None and platform not in wanted:
+            print(f'[post_prepared] {platform}: not in --platforms, skipped (not recorded; a later run can post it)')
+            return
         if already_posted(cid, platform):
             print(f'[post_prepared] {platform}: already posted for {cid}, skipping')
             return

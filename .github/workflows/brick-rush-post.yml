@@ -14,6 +14,10 @@ on:
         description: 'carousel (Instagram) or short (Instagram Reel + YouTube Short)'
         type: choice
         options: [carousel, short]
+      platforms:
+        description: "'all', or a comma list of ig_feed, ig_reels, yt_shorts (e.g. ig_reels to skip YouTube)"
+        required: false
+        default: all
 
 jobs:
   post:
@@ -37,4 +41,4 @@ jobs:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
-        run: python post_prepared.py --manifest campaigns/brick-rush-2026.json --day "${{ inputs.day }}" --piece "${{ inputs.piece }}"
+        run: python post_prepared.py --manifest campaigns/brick-rush-2026.json --day "${{ inputs.day }}" --piece "${{ inputs.piece }}" --platforms "${{ inputs.platforms }}"

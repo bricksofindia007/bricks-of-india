@@ -29,8 +29,8 @@ def manifest(tmp):
 
 
 class Idempotent(unittest.TestCase):
-    def run_main(self, db, mf, piece, reels, yt):
-        argv = ['x', '--manifest', mf, '--day', 'day1', '--piece', piece]
+    def run_main(self, db, mf, piece, reels, yt, platforms='all'):
+        argv = ['x', '--manifest', mf, '--day', 'day1', '--piece', piece, '--platforms', platforms]
         with mock.patch.dict(sys.modules, {'db': db}), mock.patch.object(sys, 'argv', argv), \
              mock.patch.object(pp.publisher, 'post_instagram_reels', reels), mock.patch.object(pp, 'youtube_upload', yt), \
              mock.patch.object(pp, 'Path', lambda *_: Path('/')):
@@ -52,6 +52,19 @@ class Idempotent(unittest.TestCase):
             self.assertEqual(len(db.rows), 2)
             self.run_main(db, mf, 'short', reels2, yt_ok)   # a third run posts nothing
             reels2.assert_not_called(); self.assertEqual(yt_ok.call_count, 1)
+
+    def test_platforms_ig_only_skips_youtube_without_recording_it(self):
+        db = _DB()
+        with tempfile.TemporaryDirectory() as tmp:
+            reels = mock.Mock(return_value='ig1'); yt = mock.Mock()
+            self.run_main(db, manifest(tmp), 'short', reels, yt, platforms='ig_reels')
+            reels.assert_called_once(); yt.assert_not_called()
+            self.assertEqual([r['set_num'] for r in db.rows], ['campaign:brick-rush-2026:day1:short:ig_reels'])
+
+    def test_unknown_platform_refuses(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(SystemExit):
+                self.run_main(_DB(), manifest(tmp), 'short', mock.Mock(), mock.Mock(), platforms='facebook')
 
     def test_unapproved_piece_refuses(self):
         with tempfile.TemporaryDirectory() as tmp:
