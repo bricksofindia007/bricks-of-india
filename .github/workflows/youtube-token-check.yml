@@ -1,0 +1,22 @@
+name: YouTube token check (read-only)
+
+# Round 10h: confirms the posting login's channel and scopes after a re-consent. Posts nothing.
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install Python dependencies
+        run: pip install -r social-automation/requirements.txt
+      - name: Check channel + scopes
+        working-directory: social-automation
+        env:
+          YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
+        run: python youtube_token_check.py
