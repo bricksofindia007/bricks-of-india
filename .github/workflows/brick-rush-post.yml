@@ -1,0 +1,40 @@
+name: Campaign post (Brick Rush)
+
+# Round 10b: posts ONE pre-approved Brick Rush piece from social-automation/campaigns/brick-rush-2026.json.
+# Manual only. The piece must be marked "approved": true in the manifest (set after Abhinav approves in chat).
+# Runs while the regular social workflows are paused (2-11 Oct).
+on:
+  workflow_dispatch:
+    inputs:
+      day:
+        description: 'campaign day key, e.g. day1'
+        required: true
+        default: day1
+      piece:
+        description: 'carousel (Instagram) or short (Instagram Reel + YouTube Short)'
+        type: choice
+        options: [carousel, short]
+
+jobs:
+  post:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.11'
+      - name: Install Python dependencies
+        run: pip install -r social-automation/requirements.txt
+      - name: Idempotency tests (no network)
+        working-directory: social-automation
+        run: python -m unittest test_post_prepared -v
+      - name: Post
+        working-directory: social-automation
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
+        run: python post_prepared.py --manifest campaigns/brick-rush-2026.json --day "${{ inputs.day }}" --piece "${{ inputs.piece }}"
