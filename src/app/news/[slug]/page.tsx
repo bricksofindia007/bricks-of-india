@@ -3,7 +3,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
-import ReactMarkdown from 'react-markdown';
+import { ArticleMarkdown } from '@/components/content/ArticleMarkdown';
 import { supabaseRead as supabase } from '@/lib/supabase';
 import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { formatDate, whatsappShareUrl, twitterShareUrl, socialCardImage } from '@/lib/utils';
@@ -117,7 +117,7 @@ export default async function NewsArticlePage(props: Props) {
         <h1 className="font-heading text-dark text-5xl md:text-6xl mb-3">{article.title}</h1>
         <Byline publishedAt={article.published_at} updatedAt={article.updated_at} />
         <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8 prose-p:mb-5 prose-p:leading-relaxed prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-2xl prose-h3:text-xl">
-          <ReactMarkdown>{cleanContent}</ReactMarkdown>
+          <ArticleMarkdown>{cleanContent}</ArticleMarkdown>
         </div>
 
         {/* Share */}
