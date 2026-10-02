@@ -650,10 +650,10 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
     : { pass: true, severity: 'ok' };
   if (banned) overallPass = false;
 
-  // Gate 13: ABHINAV12 must carry a commission disclosure in the same sentence (#212).
+  // Gate 13: ABHINAV12 must carry a disclosure (the Disclosure link) in the same sentence (#212).
   const undisclosed = undisclosedAffiliateMentions(body);
   const affiliateDisclosureGate: LintGateResult = undisclosed.length
-    ? { pass: false, severity: 'fail', reason: `ABHINAV12 without a commission disclosure in the same sentence: "${undisclosed[0].slice(0, 80)}"` }
+    ? { pass: false, severity: 'fail', reason: `ABHINAV12 without a disclosure in the same sentence: "${undisclosed[0].slice(0, 80)}"` }
     : { pass: true, severity: 'ok' };
   if (undisclosed.length) overallPass = false;
 
