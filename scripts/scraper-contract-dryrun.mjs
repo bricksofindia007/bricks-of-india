@@ -216,7 +216,7 @@ function pickVariant(product) {
     '', `**Total logic differences vs the legacy parser: ${totalDiff}**`);
   // FP5.8 badge check (P8 item 3): deal tier / best store on the SAME feed, legacy rows vs contract
   // rows. A badge difference on a set explained by a SAFE hold is part of that hold; any other badge
-  // difference is UNSAFE. (docs/plans/FP5.8_retrofit_bar.md)
+  // difference is UNSAFE. (boi-ops: docs/plans/FP5.8_retrofit_bar.md, private)
   const heldSets = new Set(fp58.safe.map((h) => h.key.split(':')[1]));
   const legacyModel = modelSummary(legacyRows, setMeta, stores, now);
   for (const k of new Set([...legacyModel.keys(), ...contractModel.keys()])) {
