@@ -548,7 +548,7 @@ export default async function SetPage(props: Props) {
                   },
                   {
                     q: `Where can I buy ${set.name} with a discount?`,
-                    a: `Use code ABHINAV12 at Toycra for 12% off full-price sets (min. ₹500 purchase). This is an exclusive Bricks of India deal with no usage limits.`,
+                    a: `Use code ABHINAV12 at Toycra for 12% off full-price sets (min. ₹500 purchase). This is an exclusive Bricks of India deal.`,
                   },
                 ]; return (<><JsonLd data={buildFAQSchema(faqs)} />{faqs.map((faq, i) => (
                   <details key={i} className="border-2 border-border rounded-xl overflow-hidden group">

@@ -75,7 +75,7 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
               Exclusive Bricks of India Deal at Toycra
             </p>
             <p className="text-dark text-sm">
-              Use code <strong className="font-price text-base bg-dark text-accent px-2 py-0.5 rounded mx-1">{BRAND.toycraCode}</strong> for {BRAND.toycraDiscount} off full-price sets. Min. purchase {BRAND.toycraMinOrder}. No limits. Your wallet can handle it.
+              Use code <strong className="font-price text-base bg-dark text-accent px-2 py-0.5 rounded mx-1">{BRAND.toycraCode}</strong> for {BRAND.toycraDiscount} off full-price sets. Min. purchase {BRAND.toycraMinOrder}. Your wallet can handle it.
             </p>
             <Disclosure className="block text-dark/70 text-xs mt-1" />
           </div>

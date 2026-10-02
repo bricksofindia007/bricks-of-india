@@ -5,7 +5,9 @@
 
 /** The one sanctioned affiliate sentence -- used by the draft prompt, the
  *  publish-time injection and scripts, so they can never drift apart. */
-export const AFFILIATE_NOTE = 'Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra (we earn a commission).';
+// Round 11 (chat, 2 Oct 2026): no commission wording beside the code; the same-sentence Disclosure
+// link is the disclosure. "minimum order", not "min.": the sentence splitter would cut at "min.".
+export const AFFILIATE_NOTE = 'Code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500 ([Disclosure](/legal/affiliate-disclosure)).';
 
 // A same-sentence link to the disclosure page also discloses (chat, 2 Oct 2026: "the
 // article keeps only the Disclosure link next to the code, as on the rest of the site").
@@ -18,4 +20,4 @@ export function undisclosedAffiliateMentions(text: string): string[] {
 }
 
 export const AFFILIATE_FEEDBACK =
-  `Every sentence that mentions ABHINAV12 must also disclose the commission in that same sentence. Use exactly: "${AFFILIATE_NOTE}" and never apply the 12% to a price.`;
+  `Every sentence that mentions ABHINAV12 must carry the Disclosure link in that same sentence. Use exactly: "${AFFILIATE_NOTE}" and never apply the 12% to a price.`;
