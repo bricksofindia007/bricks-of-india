@@ -19,4 +19,4 @@ jobs:
         working-directory: social-automation
         env:
           YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
-        run: python youtube_token_check.py
+        run: python youtube_upload_precheck.py
