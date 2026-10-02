@@ -159,7 +159,7 @@ export default async function RetiringSoonPage() {
                     const slug      = `${r.set_number}-${slugify(r.name)}`;
                     const storeName = r.store_id ? (STORE_LABELS[r.store_id] ?? r.store_id) : null;
                     // ABHINAV12 only on full-price Toycra listings (src/lib/abhinav12.ts).
-                    const discounted = r.store_id ? abhinav12Price({ store_id: r.store_id, price_inr: r.best_price, compare_at_price_inr: r.compare_at }) : null;
+                    const discounted = r.store_id ? abhinav12Price({ store_id: r.store_id, price_inr: r.best_price, compare_at_price_inr: r.compare_at, mrp_inr: r.lego_mrp_inr }) : null;
 
                     return (
                       <div key={r.set_number} style={{
