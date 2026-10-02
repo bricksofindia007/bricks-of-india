@@ -15,3 +15,15 @@ describe('Gate 13 affiliate disclosure (#212)', () => {
     expect(undisclosedAffiliateMentions('MyBrickHouse has it at ₹19,999.')).toEqual([]);
   });
 });
+
+describe('FAQ answers keep the same-sentence Disclosure link (round 11, chat 2 Oct)', () => {
+  it('the article line carries the markdown link the FAQ renderer looks for', async () => {
+    const { DISCLOSURE_MD } = await import('../src/lib/affiliate-disclosure');
+    expect(AFFILIATE_NOTE).toContain(DISCLOSURE_MD);
+  });
+  it('the FAQ JSON-LD turns it into a real link in the same sentence', async () => {
+    const { buildFAQSchema } = await import('../src/lib/schemas');
+    const text = buildFAQSchema([{ q: 'Is there a discount code?', a: `Yes. ${AFFILIATE_NOTE}` }]).mainEntity[0].acceptedAnswer.text;
+    expect(text).toBe('Yes. Code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500 (<a href="https://bricksofindia.com/legal/affiliate-disclosure">Disclosure</a>).');
+  });
+});

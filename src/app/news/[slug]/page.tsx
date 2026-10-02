@@ -1,5 +1,7 @@
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import Link from 'next/link';
+import { WithDisclosureLink } from '@/components/ui/WithDisclosureLink';
+import { AFFILIATE_NOTE } from '@/lib/affiliate-disclosure';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
@@ -136,15 +138,15 @@ export default async function NewsArticlePage(props: Props) {
           <h2 className="font-heading text-dark text-3xl mb-4">FREQUENTLY ASKED QUESTIONS</h2>
           <div className="space-y-3">
             {(() => { const faqs = [
-              { q: 'Where can I buy the latest LEGO sets in India?', a: 'We track live prices at Toycra and LEGO.in; Amazon India and Flipkart also sell LEGO. Code ABHINAV12 takes 12% off full-price sets at Toycra (min. ₹500).' },
-              { q: 'What is the best LEGO deal in India right now?', a: 'Check our deals page for the current best prices. Code ABHINAV12 takes an exclusive 12% off full-price sets at Toycra (min. ₹500).' },
+              { q: 'Where can I buy the latest LEGO sets in India?', a: 'We track live prices at Toycra and LEGO.in; Amazon India and Flipkart also sell LEGO. ' + AFFILIATE_NOTE },
+              { q: 'What is the best LEGO deal in India right now?', a: 'Check our deals page for the current best prices. ' + AFFILIATE_NOTE.replace('takes 12% off', 'takes an exclusive 12% off') },
               { q: 'Are LEGO sets available in India?', a: 'Yes — most major LEGO sets are available in India through stores like Toycra, LEGO.in, Amazon India, and Flipkart.' },
               { q: 'Why are LEGO sets expensive in India?', a: 'Import duties, GST, and currency conversion all contribute to LEGO prices in India being higher than in the US or UK. We cover this in detail in our guide on why Indian LEGO prices are what they are.' },
-              { q: 'Is there a discount code for LEGO in India?', a: 'Yes. Code ABHINAV12 takes 12% off full-price sets at Toycra (min. ₹500). This is an exclusive Bricks of India deal.' },
+              { q: 'Is there a discount code for LEGO in India?', a: `Yes. ${AFFILIATE_NOTE} This is an exclusive Bricks of India deal.` },
             ]; return (<><JsonLd data={buildFAQSchema(faqs)} />{faqs.map((faq, i) => (
               <details key={i} className="border-2 border-border rounded-xl overflow-hidden">
                 <summary className="px-4 py-3 font-bold text-dark cursor-pointer hover:bg-light-grey transition-colors">{faq.q}</summary>
-                <div className="px-4 py-3 bg-light-grey text-gray-600 font-body text-sm">{faq.a}</div>
+                <div className="px-4 py-3 bg-light-grey text-gray-600 font-body text-sm"><WithDisclosureLink text={faq.a} /></div>
               </details>
             ))}</>);})()}
           </div>

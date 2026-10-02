@@ -34,14 +34,14 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
     return (
       <div className="flex items-center gap-2 bg-amber-50 border border-accent rounded-lg px-3 py-2 text-sm">
         <span className="text-xl">🎉</span>
-        <span className="text-dark font-bold">Use code </span>
+        <span className="text-dark font-bold">Code </span>
         <button
           onClick={copyCode}
           className="bg-accent text-dark font-bold px-2 py-0.5 rounded font-price text-sm hover:bg-accent-hover transition-colors"
         >
           {BRAND.toycraCode}
         </button>
-        <span className="text-dark">for {BRAND.toycraDiscount} off full-price sets at Toycra (min. {BRAND.toycraMinOrder})</span>
+        <span className="text-dark">takes {BRAND.toycraDiscount} off full-price sets at Toycra, minimum order {BRAND.toycraMinOrder} (<Link href="/legal/affiliate-disclosure" className="underline hover:no-underline">Disclosure</Link>).</span>
         {copied && <span className="text-deal-green text-xs font-bold">✓ Copied!</span>}
         <Disclosure className="basis-full text-xs text-gray-500" />
       </div>
@@ -52,7 +52,7 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
     return (
       <div className="bg-accent text-dark py-2 px-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg">
         <p className="text-sm font-bold">
-          🎉 Exclusive deal: <span className="font-price">{BRAND.toycraCode}</span> — {BRAND.toycraDiscount} off full-price sets at Toycra. Min {BRAND.toycraMinOrder}.
+          🎉 Exclusive deal: code <span className="font-price">{BRAND.toycraCode}</span> takes {BRAND.toycraDiscount} off full-price sets at Toycra, minimum order {BRAND.toycraMinOrder} (<Link href="/legal/affiliate-disclosure" className="underline hover:no-underline">Disclosure</Link>).
         </p>
         <button
           onClick={copyCode}
@@ -75,7 +75,7 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
               Exclusive Bricks of India Deal at Toycra
             </p>
             <p className="text-dark text-sm">
-              Use code <strong className="font-price text-base bg-dark text-accent px-2 py-0.5 rounded mx-1">{BRAND.toycraCode}</strong> for {BRAND.toycraDiscount} off full-price sets. Min. purchase {BRAND.toycraMinOrder}. Your wallet can handle it.
+              Code <strong className="font-price text-base bg-dark text-accent px-2 py-0.5 rounded mx-1">{BRAND.toycraCode}</strong> takes {BRAND.toycraDiscount} off full-price sets at Toycra, minimum order {BRAND.toycraMinOrder} (<Link href="/legal/affiliate-disclosure" className="underline hover:no-underline">Disclosure</Link>). Your wallet can handle it.
             </p>
             <Disclosure className="block text-dark/70 text-xs mt-1" />
           </div>

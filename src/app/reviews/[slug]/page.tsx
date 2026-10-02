@@ -1,5 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { WithDisclosureLink } from '@/components/ui/WithDisclosureLink';
+import { AFFILIATE_NOTE } from '@/lib/affiliate-disclosure';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
@@ -400,8 +402,8 @@ export default async function ReviewPage(props: Props) {
               {
                 q: `Where can I buy ${set?.name || 'this set'} cheapest in India?`,
                 a: bestStorePrice
-                  ? `Based on our latest tracking, ${TRACKED_STORES.find(s => s.id === bestStorePrice?.store_id)?.name ?? 'a tracked store'} has the best price. Code ABHINAV12 takes 12% off full-price sets at Toycra.`
-                  : `Check Toycra and LEGO.in for current prices. Code ABHINAV12 takes 12% off full-price sets at Toycra.`,
+                  ? `Based on our latest tracking, ${TRACKED_STORES.find(s => s.id === bestStorePrice?.store_id)?.name ?? 'a tracked store'} has the best price. ${AFFILIATE_NOTE}`
+                  : `Check Toycra and LEGO.in for current prices. ${AFFILIATE_NOTE}`,
               },
               {
                 q: `What is the price of ${set?.name || 'this set'} in India?`,
@@ -424,7 +426,7 @@ export default async function ReviewPage(props: Props) {
             ].map((faq, i) => (
               <details key={i} className="border-2 border-border rounded-xl overflow-hidden">
                 <summary className="px-4 py-3 font-bold text-dark cursor-pointer hover:bg-light-grey transition-colors">{faq.q}</summary>
-                <div className="px-4 py-3 bg-light-grey text-gray-600 font-body text-sm">{faq.a}</div>
+                <div className="px-4 py-3 bg-light-grey text-gray-600 font-body text-sm"><WithDisclosureLink text={faq.a} /></div>
               </details>
             ))}
           </div>

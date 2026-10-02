@@ -9,6 +9,9 @@
 // link is the disclosure. "minimum order", not "min.": the sentence splitter would cut at "min.".
 export const AFFILIATE_NOTE = 'Code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500 ([Disclosure](/legal/affiliate-disclosure)).';
 
+/** The Disclosure link inside AFFILIATE_NOTE; FAQ answers carry it too (WithDisclosureLink renders it). */
+export const DISCLOSURE_MD = '[Disclosure](/legal/affiliate-disclosure)';
+
 // A same-sentence link to the disclosure page also discloses (chat, 2 Oct 2026: "the
 // article keeps only the Disclosure link next to the code, as on the rest of the site").
 const DISCLOSURE_LINK = /\]\(\/legal\/affiliate-disclosure\)/;
