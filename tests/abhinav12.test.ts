@@ -13,6 +13,13 @@ describe('abhinav12Price', () => {
     expect(abhinav12Price({ store_id: 'toycra', price_inr: 14999, compare_at_price_inr: 22899 })).toBeNull();
     expect(isFullPrice({ price_inr: 14999, compare_at_price_inr: 22899 })).toBe(false);
   });
+  it('below a known MRP with no compare-at is still a discount: no code price', () => {
+    expect(abhinav12Price({ store_id: 'toycra', price_inr: 9599, compare_at_price_inr: null, mrp_inr: 12999 })).toBeNull();
+    expect(abhinav12Price({ store_id: 'toycra', price_inr: 12999, compare_at_price_inr: null, mrp_inr: 12999 })).toBe(11439);
+  });
+  it('Brick Rush: all 14 Toycra rows are already discounted (e.g. 42206 ₹16,999 vs ₹22,899)', () => {
+    expect(abhinav12Price({ store_id: 'toycra', price_inr: 16999, compare_at_price_inr: 22899, mrp_inr: 22899 })).toBeNull();
+  });
   it('below the ₹500 minimum: no code price', () => {
     expect(abhinav12Price({ store_id: 'toycra', price_inr: 499, compare_at_price_inr: null })).toBeNull();
   });

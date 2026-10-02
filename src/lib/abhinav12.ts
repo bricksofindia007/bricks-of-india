@@ -9,12 +9,16 @@ export interface CodePriceInput {
   store_id: string;
   price_inr: number | null;
   compare_at_price_inr?: number | null;
+  /** The set's MRP when known: a listed price below it is a discount even without a compare-at. */
+  mrp_inr?: number | null;
 }
 
 /** True when the Toycra listing is at full price (no compare-at discount). */
-export function isFullPrice(row: Pick<CodePriceInput, 'price_inr' | 'compare_at_price_inr'>): boolean {
+export function isFullPrice(row: Pick<CodePriceInput, 'price_inr' | 'compare_at_price_inr' | 'mrp_inr'>): boolean {
   if (row.price_inr == null) return false;
-  return row.compare_at_price_inr == null || row.compare_at_price_inr <= row.price_inr;
+  if (row.compare_at_price_inr != null && row.compare_at_price_inr > row.price_inr) return false;
+  if (row.mrp_inr != null && row.mrp_inr > 0 && row.price_inr < row.mrp_inr) return false;
+  return true;
 }
 
 /** Price after ABHINAV12, or null when the code doesn't apply. */
