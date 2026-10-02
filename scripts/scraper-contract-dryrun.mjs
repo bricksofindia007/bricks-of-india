@@ -78,9 +78,15 @@ function pickVariant(product) {
     sb.from('stores').select('*').then((r) => r.data),
     all((a, b) => sb.from('store_prices').select('set_id, store_id, price_inr, compare_at_price_inr, in_stock, scraped_at').range(a, b)),
   ]);
+  // Human-approved name aliases (public.set_name_aliases, P8 item 3). A missing table (before the
+  // migration lands) just means no aliases.
+  const aliasRows = await sb.from('set_name_aliases').select('set_number, alias_name').then((r) => (r.error ? [] : r.data ?? []));
+  const normName = (n) => String(n).toLowerCase().replace(/[™®©]/g, '').replace(/\s+/g, ' ').trim().replace(/^the\s+/, '');
+  const aliasesOf = new Map();
+  for (const a of aliasRows) (aliasesOf.get(a.set_number) ?? aliasesOf.set(a.set_number, []).get(a.set_number)).push(a.alias_name);
   const catalogue = {
-    byNumber: new Map(sets.map((s) => [s.set_number, { set_number: s.set_number, name: s.name }])),
-    byName: new Map(sets.map((s) => [String(s.name).toLowerCase().replace(/[™®©]/g, '').replace(/\s+/g, ' ').trim().replace(/^the\s+/, ''), s.set_number])),
+    byNumber: new Map(sets.map((s) => [s.set_number, { set_number: s.set_number, name: s.name, aliases: aliasesOf.get(s.set_number) ?? [] }])),
+    byName: new Map([...sets.map((s) => [normName(s.name), s.set_number]), ...aliasRows.map((a) => [normName(a.alias_name), a.set_number])]),
   };
   catalogue.cmfSeries = new Map(cmf.map((c) => [c.series_set_number, c.series_name]));
   const known = new Set(sets.map((s) => s.set_number));
@@ -102,7 +108,8 @@ function pickVariant(product) {
   const lines = [`## FP5 scraper-contract dry run (no writes), ${now.toISOString()}`, '', `UA: \`${BOT_UA}\``, ''];
   const contractRows = [];
   let totalDiff = 0;
-  const fp58Keys = [];
+  const fp58 = { safe: [], unsafe: [] };
+  const legacyRows = [];
 
   for (const store of stores.filter((s) => s.scraper_kind === 'shopify_json')) {
     const cfg = store.scraper_config ?? {};
@@ -166,9 +173,20 @@ function pickVariant(product) {
       .map((r) => [r.set_id, { priceInr: Number(r.price_inr), inStock: r.in_stock }]));
     summary.breaker = evaluateBreaker(prevRun, curr);
     const logicDiff = onlyContract.length + onlyLegacy.length + priceDiff.length + stockDiff.length;
-    // FP5.8 bar (P7 item 5): record this store's exact difference keys for the per-cycle verdict below.
-    fp58Keys.push(...onlyContract.map((k) => `${store.id}:${k}:only-contract`), ...onlyLegacy.map((k) => `${store.id}:${k}:only-legacy`),
-      ...priceDiff.map((d) => `${store.id}:${d.set ?? d}:price`), ...stockDiff.map((d) => `${store.id}:${d.set ?? d}:stock`));
+    // FP5.8 bar (P8 item 3): classify every difference.
+    //   SAFE   = the contract holds back a listing the legacy parser matched, and it is in the
+    //            unmatched queue (logged; weekly alias review; must be zero unresolved at cutover)
+    //   UNSAFE = a different match (only-contract), or a different price or stock -> resets the count
+    for (const k of onlyLegacy) {
+      const url = legacy.get(k).productUrl ?? '';
+      const held = unmatched.find((u) => url.endsWith(`/products/${u.handle}`));
+      if (held) fp58.safe.push({ key: `${store.id}:${k}`, reason: held.reason, detail: held.detail ?? '', title: held.title });
+      else fp58.unsafe.push({ key: `${store.id}:${k}`, kind: 'only-legacy, not queued' });
+    }
+    for (const k of onlyContract) fp58.unsafe.push({ key: `${store.id}:${k}`, kind: 'different match (only-contract)' });
+    for (const k of priceDiff) fp58.unsafe.push({ key: `${store.id}:${k}`, kind: 'price', legacy: legacy.get(k).priceInr, contract: chosen.get(k).priceInr });
+    for (const k of stockDiff) fp58.unsafe.push({ key: `${store.id}:${k}`, kind: 'stock', legacy: legacy.get(k).inStock, contract: chosen.get(k).inStock });
+    for (const [k, r] of legacy) legacyRows.push({ set_id: k, store_id: store.id, price_inr: r.priceInr, compare_at: r.compareAtInr ?? null, in_stock: r.inStock, scraped_at: now.toISOString() });
     totalDiff += logicDiff;
     for (const [k, c] of chosen) contractRows.push({ set_id: k, store_id: store.id, price_inr: c.priceInr, compare_at: c.compareAt, in_stock: c.inStock, scraped_at: now.toISOString() });
 
@@ -198,15 +216,22 @@ function pickVariant(product) {
     `- contract dry run:     rows ${b.rows}, deals ${b.deals} (hot ${b.hot}, deal ${b.deal}), ties ${b.tie}`,
     `- sets whose tier or best-store list differs: ${tierDiffs.length}`, ...tierDiffs.slice(0, 20).map((d) => `  - ${d}`),
     '', `**Total logic differences vs the legacy parser: ${totalDiff}**`);
-  // FP5.8 bar (P7 item 5): this cycle counts toward the 12 only if its differences are EXACTLY the
-  // approved set in scripts/lib/fp58-approved-diffs.json (docs/plans/FP5.8_retrofit_bar.md).
-  const approved = JSON.parse(fs.readFileSync(new URL('./lib/fp58-approved-diffs.json', import.meta.url), 'utf8')).approved;
-  const got = [...new Set(fp58Keys)].sort(), want = [...approved].sort();
-  const extra = got.filter((k) => !want.includes(k)), missing = want.filter((k) => !got.includes(k));
-  const fp58ok = extra.length === 0 && missing.length === 0;
-  lines.push(`**FP5.8 cycle verdict: ${fp58ok ? 'COUNTS' : 'RESETS'}**: differences ${fp58ok ? 'are exactly the 3 approved ones' : `unexpected ${JSON.stringify(extra)}, approved-but-absent ${JSON.stringify(missing)}`}`);
-  fs.writeFileSync(path.join(OUT, 'fp58.json'), JSON.stringify({ at: now.toISOString(), counts: fp58ok, got, extra, missing }, null, 1));
-  console.log(lines.slice(-(8 + Math.min(tierDiffs.length, 20))).join('\n'));
+  // FP5.8 badge check (P8 item 3): deal tier / best store on the SAME feed, legacy rows vs contract
+  // rows. A badge difference on a set explained by a SAFE hold is part of that hold; any other badge
+  // difference is UNSAFE. (boi-ops: docs/plans/FP5.8_retrofit_bar.md, private)
+  const heldSets = new Set(fp58.safe.map((h) => h.key.split(':')[1]));
+  const legacyModel = modelSummary(legacyRows, setMeta, stores, now);
+  for (const k of new Set([...legacyModel.keys(), ...contractModel.keys()])) {
+    const l = legacyModel.get(k), c = contractModel.get(k);
+    const differs = (l?.deal_tier ?? null) !== (c?.deal_tier ?? null) || JSON.stringify(l?.best_store_ids ?? null) !== JSON.stringify(c?.best_store_ids ?? null);
+    if (differs && !heldSets.has(k)) fp58.unsafe.push({ key: `*:${k}`, kind: 'badge', legacy: `${l?.deal_tier ?? '-'} ${JSON.stringify(l?.best_store_ids ?? null)}`, contract: `${c?.deal_tier ?? '-'} ${JSON.stringify(c?.best_store_ids ?? null)}` });
+  }
+  const fp58ok = fp58.unsafe.length === 0;
+  lines.push(`**FP5.8 cycle verdict: ${fp58ok ? 'COUNTS' : 'RESETS'}**: ${fp58.unsafe.length} unsafe, ${fp58.safe.length} safe hold(s) for the weekly alias review`,
+    ...fp58.unsafe.map((u) => `  - UNSAFE ${u.key} ${u.kind}${u.legacy !== undefined ? ` (legacy ${u.legacy} vs contract ${u.contract})` : ''}`),
+    ...fp58.safe.map((h) => `  - safe hold ${h.key} ${h.reason}: "${h.title}" (${h.detail})`));
+  fs.writeFileSync(path.join(OUT, 'fp58.json'), JSON.stringify({ at: now.toISOString(), counts: fp58ok, ...fp58 }, null, 1));
+  console.log(lines.slice(-(8 + fp58.unsafe.length + fp58.safe.length + Math.min(tierDiffs.length, 20))).join('\n'));
   if (process.env.GITHUB_STEP_SUMMARY) fs.appendFileSync(process.env.GITHUB_STEP_SUMMARY, lines.join('\n') + '\n');
   fs.writeFileSync(path.join(OUT, 'summary.md'), lines.join('\n') + '\n');
 })().catch((e) => { console.error('dry run failed:', e); process.exit(1); });

@@ -26,6 +26,14 @@ import { nameMatchesText } from '../../src/lib/set-identity.ts';
 const NUM_RE = /(?<![\d])(\d{4,7})(?![\d])/g;
 export const MATCH_RANK = { sku: 0, text: 1, name: 2 };
 
+// A catalogue entry's name matches the listing text, or one of its human-approved aliases does
+// (public.set_name_aliases, P8 item 3). Aliases are data, never code (G4): e.g. 43019 "Football"
+// also answers to "Soccer Ball", approved by Abhinav on 28 Sep 2026 (1,498 pieces, Editions).
+export function matchesSetName(entry, text) {
+  if (nameMatchesText(entry.name, text)) return true;
+  return (entry.aliases ?? []).some((a) => nameMatchesText(a, text));
+}
+
 // Piece counts ("(1361 Pieces)", "44 pcs", "6020-piece") are never set numbers --
 // the P4 dry run caught 42207 "(1361 Pieces)" and 76269 "(5201 Pieces)"
 // colliding with catalogue sets 1361 / 5201.
@@ -55,7 +63,7 @@ export function resolveIdentity(listing, catalogue) {
     return { ok: false, reason: 'cmf_box', detail: title };
   }
   const titleNums = [...new Set(numbersIn(numText))];
-  const namedSets = titleNums.filter((n) => catalogue.byNumber.has(n) && nameMatchesText(catalogue.byNumber.get(n).name, text));
+  const namedSets = titleNums.filter((n) => catalogue.byNumber.has(n) && matchesSetName(catalogue.byNumber.get(n), text));
   if (namedSets.length > 1 || /\b(\d+\s*sets?\s*(in|combo)|combo of|set of \d+ sets|variant)\b/i.test(title) && titleNums.filter((n) => catalogue.byNumber.has(n)).length > 1) {
     return { ok: false, reason: 'multi_set_listing', detail: titleNums.join(',') };
   }
@@ -69,7 +77,7 @@ export function resolveIdentity(listing, catalogue) {
     if (handleNums.length && !handleNums.includes(n)) {
       return { ok: false, reason: 'sku_handle_conflict', detail: `sku ${n} vs handle ${handleNums.join(',')}` };
     }
-    if (nameMatchesText(catalogue.byNumber.get(n).name, text)) return { ok: true, setNumber: n, method: 'sku' };
+    if (matchesSetName(catalogue.byNumber.get(n), text)) return { ok: true, setNumber: n, method: 'sku' };
     // CMF series: the catalogue names a series number after one figure, so
     // match on the cmf_figures series name AND the same series number.
     const series = catalogue.cmfSeries?.get(n);

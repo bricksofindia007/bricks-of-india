@@ -116,3 +116,17 @@ describe('circuit breaker (FP5.3)', () => {
     expect(evaluateBreaker(prev, mk(100, (i) => ({ priceInr: 1000, inStock: i >= 25 }))).trip).toBe(false);
   });
 });
+
+describe('approved name aliases (P8 item 3, public.set_name_aliases)', () => {
+  const cat = (aliases: string[]) => ({
+    byNumber: new Map([['43019', { set_number: '43019', name: 'Football', aliases }]]),
+    byName: new Map([['football', '43019']]),
+  });
+  const listing = { store: 'toycra', title: 'Lego 43019 Editions FIFA Soccer Ball (1498 Pieces)', handle: 'lego-43019-editions-fifa-soccer-ball-1498-pieces', skus: ['43019'] };
+  it('holds a SKU whose catalogue name disagrees when no alias is approved', () => {
+    expect(resolveIdentity(listing, cat([]))).toMatchObject({ ok: false, reason: 'sku_name_mismatch' });
+  });
+  it('matches by SKU once the alias is approved (data, not code)', () => {
+    expect(resolveIdentity(listing, cat(['Soccer Ball']))).toMatchObject({ ok: true, setNumber: '43019', method: 'sku' });
+  });
+});
