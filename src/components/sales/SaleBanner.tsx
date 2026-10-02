@@ -12,10 +12,9 @@ export function SaleBanner() {
   if (!on) return null;
   return (
     <div className="bg-accent text-dark">
-      <div className="max-w-site mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2">
-        <p className="font-bold text-sm md:text-base">🧱 {BRICK_RUSH.banner}</p>
-        <Link href={`/${BRICK_RUSH.slug}`} className="shrink-0 bg-dark text-white text-sm font-bold px-4 py-2 rounded-lg hover:bg-gray-800">
-          See all 50 deals →
+      <div className="max-w-site mx-auto px-4 py-3">
+        <Link href={`/${BRICK_RUSH.slug}`} className="font-bold text-sm md:text-base hover:underline">
+          🧱 {BRICK_RUSH.banner}
         </Link>
       </div>
     </div>
