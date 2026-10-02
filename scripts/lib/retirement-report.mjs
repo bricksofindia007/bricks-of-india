@@ -30,6 +30,13 @@ export function reviewAvailabilityFindings(review, status) {
       detail: `Verdict is RETIRED; verdicts must be buying calls (Buy / Wait / Skip). India status: ${status.kind}.`,
     });
   }
+  const v = (review.verdict || '').trim().toUpperCase();
+  if (v === 'HUNT IT' && status.kind !== 'retired') {
+    out.push({
+      check: 'hunt_it_on_set_sold_in_india',
+      detail: `Verdict is HUNT IT (only second-hand), but India status is ${status.kind}; it needs a new buying call.`,
+    });
+  }
   if (status.kind !== 'retired' && OWN_AVAILABILITY_CLAIM.test(review.content || '')) {
     out.push({
       check: 'retired_wording_on_set_sold_in_india',

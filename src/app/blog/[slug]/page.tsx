@@ -51,7 +51,7 @@ export default async function BlogPostPage(props: Props) {
   const { data: related } = await supabase.from('blog_posts').select('*').eq('category', post.category).neq('slug', params.slug).limit(3);
 
   const shareUrl = `https://bricksofindia.com/blog/${params.slug}`;
-  const waText = `${post.title} — via Bricks of India. Use code ABHINAV12 for 12% off at Toycra!`;
+  const waText = `${post.title} — via Bricks of India. Use code ABHINAV12 for 12% off full-price sets at Toycra!`;
 
   return (
     <div className="bg-white min-h-screen">
@@ -108,7 +108,7 @@ export default async function BlogPostPage(props: Props) {
             {(() => { const faqs = [
               { q: 'Where is the cheapest place to buy LEGO in India?', a: 'It depends on the set — each set page compares live prices at Toycra and LEGO.in. Code ABHINAV12 takes 12% off at Toycra (min. ₹500; we may earn a commission). Amazon India and Flipkart also sell LEGO.' },
               { q: 'Are LEGO sets worth buying in India in 2026?', a: 'Absolutely — if you buy from the right stores at the right price. Use our price comparison tool to ensure you\'re not overpaying. The sets are genuine and the builds are genuinely enjoyable.' },
-              { q: 'Is there a LEGO discount code for India?', a: 'Yes! Use code ABHINAV12 at Toycra for 12% off any LEGO set. Minimum purchase ₹500. No usage limits. This is an exclusive Bricks of India deal.' },
+              { q: 'Is there a LEGO discount code for India?', a: 'Yes! Use code ABHINAV12 at Toycra for 12% off full-price LEGO sets. Minimum purchase ₹500. No usage limits. This is an exclusive Bricks of India deal.' },
               { q: 'Can I trust the prices on Bricks of India?', a: 'Prices shown are what each store lists. We always recommend verifying on the store website before purchase, as prices can change. We\'re accurate, not psychic.' },
               { q: 'How do I know if a LEGO set is genuine in India?', a: 'Buy from authorised retailers: Toycra, LEGO.in, Amazon India, and Flipkart. If a price looks too good to be true, it probably is.' },
             ]; return (<><JsonLd data={buildFAQSchema(faqs)} />{faqs.map((faq, i) => (

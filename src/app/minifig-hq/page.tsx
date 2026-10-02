@@ -37,6 +37,7 @@ export type FigureData = {
 export type PriceData = {
   store_id:  string;
   price_inr: number;
+  compare_at_price_inr?: number | null;
 };
 
 export type SeriesData = {
@@ -89,14 +90,14 @@ export default async function MinifigHqPage() {
   if (allSeriesNums.length > 0) {
     const { data: priceRows } = await supabase
       .from('store_prices')
-      .select('set_id, store_id, price_inr')
+      .select('set_id, store_id, price_inr, compare_at_price_inr')
       .eq('in_stock', true)
       .not('price_inr', 'is', null)
       .in('set_id', allSeriesNums);
 
-    for (const p of (priceRows ?? []) as { set_id: string; store_id: string; price_inr: number }[]) {
+    for (const p of (priceRows ?? []) as { set_id: string; store_id: string; price_inr: number; compare_at_price_inr: number | null }[]) {
       const idx = seriesSetToIdx.get(p.set_id);
-      if (idx !== undefined) seriesList[idx].prices.push({ store_id: p.store_id, price_inr: p.price_inr });
+      if (idx !== undefined) seriesList[idx].prices.push({ store_id: p.store_id, price_inr: p.price_inr, compare_at_price_inr: p.compare_at_price_inr });
     }
   }
 

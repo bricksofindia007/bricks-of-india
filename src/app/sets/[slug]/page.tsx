@@ -254,7 +254,7 @@ export default async function SetPage(props: Props) {
 
   const review = set.reviews?.[0] || null;
   const shareUrl = `https://bricksofindia.com/sets/${params.slug}`;
-  const waText   = `Check out ${set.name} price comparison on Bricks of India — use code ABHINAV12 for 12% off at Toycra!`;
+  const waText   = `Check out ${set.name} price comparison on Bricks of India — use code ABHINAV12 for 12% off full-price sets at Toycra!`;
 
 
 
@@ -546,7 +546,7 @@ export default async function SetPage(props: Props) {
                   },
                   {
                     q: `Where can I buy ${set.name} with a discount?`,
-                    a: `Use code ABHINAV12 at Toycra for 12% off (min. ₹500 purchase). This is an exclusive Bricks of India deal with no usage limits.`,
+                    a: `Use code ABHINAV12 at Toycra for 12% off full-price sets (min. ₹500 purchase). This is an exclusive Bricks of India deal with no usage limits.`,
                   },
                 ]; return (<><JsonLd data={buildFAQSchema(faqs)} />{faqs.map((faq, i) => (
                   <details key={i} className="border-2 border-border rounded-xl overflow-hidden group">

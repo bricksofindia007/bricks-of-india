@@ -5,6 +5,7 @@ import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { BudgetForm } from './BudgetForm';
 import { getStores, storeLabels } from '@/lib/stores';
+import { abhinav12Price } from '@/lib/abhinav12';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Budget Calculator — The Lab',
@@ -20,6 +21,7 @@ interface SetResult {
   image_url:  string | null;
   best_price: number;
   store_id:   string;
+  compare_at: number | null;
 }
 
 function fmtInr(n: number) {
@@ -41,11 +43,11 @@ export default async function BudgetCalculatorPage(
 
   // Paginate store_prices — PostgREST caps at 1000 rows
   const PAGE = 1000;
-  const allPrices: { set_id: string; store_id: string; price_inr: number }[] = [];
+  const allPrices: { set_id: string; store_id: string; price_inr: number; compare_at_price_inr: number | null }[] = [];
   for (let offset = 0; ; offset += PAGE) {
     const { data } = await supabase
       .from('store_prices')
-      .select('set_id, store_id, price_inr')
+      .select('set_id, store_id, price_inr, compare_at_price_inr')
       .eq('in_stock', true)
       .not('price_inr', 'is', null)
       .range(offset, offset + PAGE - 1);
@@ -55,11 +57,11 @@ export default async function BudgetCalculatorPage(
   }
 
   // Best price per set (lowest across all stores)
-  const bestBySet = new Map<string, { price: number; store_id: string }>();
+  const bestBySet = new Map<string, { price: number; store_id: string; compare_at: number | null }>();
   for (const p of allPrices) {
     const cur = bestBySet.get(p.set_id);
     if (!cur || p.price_inr < cur.price) {
-      bestBySet.set(p.set_id, { price: p.price_inr, store_id: p.store_id });
+      bestBySet.set(p.set_id, { price: p.price_inr, store_id: p.store_id, compare_at: p.compare_at_price_inr });
     }
   }
 
@@ -80,7 +82,7 @@ export default async function BudgetCalculatorPage(
     const setMap = new Map((setsData ?? []).map((s: any) => [s.set_number, s]));
 
     results = inBudget
-      .map(({ set_id, price, store_id }) => {
+      .map(({ set_id, price, store_id, compare_at }) => {
         const s = setMap.get(set_id);
         if (!s) return null;
         return {
@@ -91,6 +93,7 @@ export default async function BudgetCalculatorPage(
           image_url:  (s.image_url as string | null) ?? null,
           best_price: price,
           store_id,
+          compare_at,
         };
       })
       .filter((r): r is SetResult => r !== null)
@@ -142,10 +145,8 @@ export default async function BudgetCalculatorPage(
             {results.map((r) => {
               const slug        = `${r.set_number}-${slugify(r.name)}`;
               const storeName   = STORE_LABELS[r.store_id] ?? r.store_id;
-              const isToycra    = r.store_id === 'toycra';
-              const discounted  = isToycra && r.best_price >= 500
-                ? Math.round(r.best_price * 0.88)
-                : null;
+              // ABHINAV12 only on full-price Toycra listings (src/lib/abhinav12.ts).
+              const discounted  = abhinav12Price({ store_id: r.store_id, price_inr: r.best_price, compare_at_price_inr: r.compare_at });
 
               return (
                 <div key={r.set_number} style={{

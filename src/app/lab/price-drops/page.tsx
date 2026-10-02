@@ -7,6 +7,7 @@ import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { baselinePrices, type HistRow } from '@/lib/price-baseline';
 import { getStores, storeLabels } from '@/lib/stores';
+import { abhinav12Price } from '@/lib/abhinav12';
 
 export const metadata: Metadata = buildMetadata({
   title: 'LEGO Price Drops in India — The Lab',
@@ -30,6 +31,7 @@ interface DropRow {
   drop_inr:  number;
   drop_pct:  number;
   scraped_at: string;
+  compare_at: number | null;
   name:      string;
   theme:     string | null;
   image_url: string | null;
@@ -66,16 +68,16 @@ const getPriceDropsData = unstable_cache(
     const PAGE  = 1000;
 
     // ── 1. Current prices from store_prices ──────────────────────────────────────
-    const currentMap = new Map<string, { price: number; scraped_at: string }>();
+    const currentMap = new Map<string, { price: number; scraped_at: string; compare_at: number | null }>();
     for (let offset = 0; ; offset += PAGE) {
       const { data } = await supabase
         .from('store_prices')
-        .select('set_id, store_id, price_inr, scraped_at')
+        .select('set_id, store_id, price_inr, scraped_at, compare_at_price_inr')
         .not('price_inr', 'is', null)
         .range(offset, offset + PAGE - 1);
       if (!data || data.length === 0) break;
-      for (const r of data as { set_id: string; store_id: string; price_inr: number; scraped_at: string }[]) {
-        currentMap.set(`${r.set_id}:${r.store_id}`, { price: r.price_inr, scraped_at: r.scraped_at });
+      for (const r of data as { set_id: string; store_id: string; price_inr: number; scraped_at: string; compare_at_price_inr: number | null }[]) {
+        currentMap.set(`${r.set_id}:${r.store_id}`, { price: r.price_inr, scraped_at: r.scraped_at, compare_at: r.compare_at_price_inr });
       }
       if (data.length < PAGE) break;
     }
@@ -114,7 +116,7 @@ const getPriceDropsData = unstable_cache(
     const baselineMap = baselinePrices(preWindow, inWindow);
 
     // ── 3. Compute drops ──────────────────────────────────────────────────────────
-    type RawDrop = { set_id: string; store_id: string; old_price: number; new_price: number; drop_inr: number; drop_pct: number; scraped_at: string };
+    type RawDrop = { set_id: string; store_id: string; old_price: number; new_price: number; drop_inr: number; drop_pct: number; scraped_at: string; compare_at: number | null };
     const rawDrops: RawDrop[] = [];
 
     for (const [key, cur] of Array.from(currentMap.entries())) {
@@ -125,7 +127,7 @@ const getPriceDropsData = unstable_cache(
       const drop_pct = (drop_inr / baseline) * 100;
       if (drop_inr < 200 && drop_pct < 5) continue;
       const [set_id, store_id] = key.split(':');
-      rawDrops.push({ set_id, store_id, old_price: baseline, new_price: cur.price, drop_inr, drop_pct, scraped_at: cur.scraped_at });
+      rawDrops.push({ set_id, store_id, old_price: baseline, new_price: cur.price, drop_inr, drop_pct, scraped_at: cur.scraped_at, compare_at: cur.compare_at });
     }
 
     // ── 4. Fetch set metadata for matched set_ids ─────────────────────────────────
@@ -261,8 +263,8 @@ export default async function PriceDropsPage(props: Props) {
             {allRows.map(r => {
               const slug      = `${r.set_id}-${slugify(r.name)}`;
               const storeName = STORE_LABELS[r.store_id] ?? r.store_id;
-              const isToycra  = r.store_id === 'toycra';
-              const discounted = isToycra && r.new_price >= 500 ? Math.round(r.new_price * 0.88) : null;
+              // ABHINAV12 only on full-price Toycra listings (src/lib/abhinav12.ts).
+              const discounted = abhinav12Price({ store_id: r.store_id, price_inr: r.new_price, compare_at_price_inr: r.compare_at });
 
               return (
                 <div key={`${r.set_id}:${r.store_id}`} style={{

@@ -84,3 +84,21 @@ describe('retirement report (weekly job) never writes, only flags', () => {
     expect('This set has been discontinued by LEGO and is no longer available through MyBrickHouse or Toycra.').toMatch(RETIRED_WORDING);
   });
 });
+
+describe('HUNT IT / SKIP (chat, 2 Oct 2026)', async () => {
+  const { retiredBuyingCall, HUNT_IT_LINE } = await import('../src/lib/india-status');
+  it('retired in India, rated 4 or 5 -> HUNT IT; 3 or less (or unrated) -> SKIP', () => {
+    expect(retiredBuyingCall(5)).toBe('HUNT IT');
+    expect(retiredBuyingCall(4)).toBe('HUNT IT');
+    expect(retiredBuyingCall(3)).toBe('SKIP');
+    expect(retiredBuyingCall(null)).toBe('SKIP');
+    expect(HUNT_IT_LINE).toBe("A great set you'll now only find second-hand.");
+  });
+  it('the weekly report flags HUNT IT on a set an Indian store sells (10307: LEGO.in in stock)', () => {
+    const f = reviewAvailabilityFindings({ verdict: 'HUNT IT', content: 'ok' }, { kind: 'available', inStockAt: ['LEGO.in'] });
+    expect(f.map((x) => x.check)).toEqual(['hunt_it_on_set_sold_in_india']);
+  });
+  it('HUNT IT on a set retired in India (76178) is clean', () => {
+    expect(reviewAvailabilityFindings({ verdict: 'HUNT IT', content: 'ok' }, { kind: 'retired', approxResale: null })).toEqual([]);
+  });
+});

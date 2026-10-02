@@ -22,6 +22,7 @@
 // Reviews are about 1 per day.
 
 import type { Gate14Facts, Gate14Finding } from './gate14';
+import { abhinav12Price } from './abhinav12';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Sb = { from: (t: string) => any };
@@ -42,7 +43,7 @@ export async function resolveGate14Facts(
   if (error || !set) return null;
 
   const [{ data: sp }, { data: summ }] = await Promise.all([
-    sb.from('store_prices').select('price_inr').eq('set_id', setNumber),
+    sb.from('store_prices').select('store_id, price_inr, compare_at_price_inr').eq('set_id', setNumber),
     sb.from('set_price_summary').select('anchor_mrp_inr').eq('set_id', setNumber).maybeSingle(),
   ]);
 
@@ -77,7 +78,10 @@ export async function resolveGate14Facts(
     } catch (e) { console.warn(`[gate14] Brickset lookup failed for ${setNumber}: ${(e as Error).message}`); }
   }
 
-  const prices = ((sp ?? []) as { price_inr: number | null }[]).map((r) => Number(r.price_inr)).filter((x) => x > 0);
+  const spRows = (sp ?? []) as { store_id: string; price_inr: number | null; compare_at_price_inr: number | null }[];
+  const prices = spRows.map((r) => Number(r.price_inr)).filter((x) => x > 0);
+  // ABHINAV12 applies only to full-price Toycra listings (src/lib/abhinav12.ts).
+  const codeBases = spRows.filter((r) => abhinav12Price(r) != null).map((r) => Number(r.price_inr));
   const mrp = [summ?.anchor_mrp_inr, set.lego_mrp_inr].map(Number).filter((x) => x > 0);
   // P10 item 4: GWP by the catalogue flag or Brickset, or no retail price anywhere. "Anywhere"
   // needs Brickset's answer: if Brickset couldn't be read (legoComPrice null), that arm isn't used.
@@ -86,7 +90,7 @@ export async function resolveGate14Facts(
   // own has a price, and Gate 14's price rules apply to it instead.
   return {
     facts: {
-      setNumber, name: set.name, pieces, minifigs, year: set.year ?? null, prices, mrp, verdict: null,
+      setNumber, name: set.name, pieces, minifigs, year: set.year ?? null, prices, mrp, verdict: null, codeBases,
       promotional: !prices.length && (set.is_gwp === true || bricksetGwp || noRetailPrice),
     },
     piecesSource, minifigsSource, catalogueHadPieces: Number(set.pieces) > 0,
