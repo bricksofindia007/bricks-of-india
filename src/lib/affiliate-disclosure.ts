@@ -7,10 +7,14 @@
  *  publish-time injection and scripts, so they can never drift apart. */
 export const AFFILIATE_NOTE = 'Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra (we earn a commission).';
 
-/** Sentences that mention ABHINAV12 without "commission" in the same sentence. */
+// A same-sentence link to the disclosure page also discloses (chat, 2 Oct 2026: "the
+// article keeps only the Disclosure link next to the code, as on the rest of the site").
+const DISCLOSURE_LINK = /\]\(\/legal\/affiliate-disclosure\)/;
+
+/** Sentences that mention ABHINAV12 with neither "commission" nor a disclosure link. */
 export function undisclosedAffiliateMentions(text: string): string[] {
   const sentences = text.match(/[^.!?\n]*ABHINAV12[^.!?\n]*(?:[.!?]|$)/gi) ?? [];
-  return sentences.map((s) => s.trim()).filter((s) => !/commission/i.test(s));
+  return sentences.map((s) => s.trim()).filter((s) => !/commission/i.test(s) && !DISCLOSURE_LINK.test(s));
 }
 
 export const AFFILIATE_FEEDBACK =

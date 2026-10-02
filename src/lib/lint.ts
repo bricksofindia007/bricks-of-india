@@ -110,6 +110,11 @@ export function extractSetNumberCandidates(body: string): string[] {
   });
 }
 
+// Capitalised phrases after "LEGO" that are not set names (2 Oct 2026): they failed
+// factuality as "unrecognized LEGO references" (daily drafts rejected for "LEGO India
+// MRP" / "LEGO User Group"; the Brick Rush article for "LEGO Certified Store").
+export const NON_SET_PHRASES = /^(?:Certified Stores?(?:\s+India)?(?:'s)?|India MRP|User Groups?)$/;
+
 // Extract "LEGO [ProperNoun phrase]" candidates (product names, not bare theme names).
 export function extractSetNameCandidates(body: string): string[] {
   const candidates = new Set<string>();
@@ -117,6 +122,7 @@ export function extractSetNameCandidates(body: string): string[] {
   let m: RegExpExecArray | null;
   while ((m = legoNameRe.exec(body)) !== null) {
     const phrase = m[1].trim();
+    if (NON_SET_PHRASES.test(phrase)) continue;
     if (THEME_NAME_RE.test(phrase)) {
       const stripped = phrase.replace(THEME_NAME_RE, '').trim();
       if (stripped && stripped !== phrase) candidates.add(stripped);
@@ -547,7 +553,11 @@ async function gateSourceFidelity(
 export async function lintDraft(draft: LintInput, options: LintOptions = {}): Promise<LintResult> {
   const body      = draft.body || '';
   const format    = draft.format || 'news';
-  const wordCount = draft.word_count ?? body.split(/\s+/).filter(Boolean).length;
+  // Markdown table rows are data, not prose (2 Oct 2026: a 50-row price table put a
+  // ~320-word list article over every format's limit). They don't count toward Gate 1.
+  const hasTable = /^\s*\|.*\|\s*$/m.test(body);
+  const proseWords = body.split('\n').filter((l) => !/^\s*\|/.test(l)).join('\n').split(/\s+/).filter(Boolean).length;
+  const wordCount = hasTable ? proseWords : (draft.word_count ?? proseWords);
   const warnings: string[] = [];
   let overallPass = true;
 
