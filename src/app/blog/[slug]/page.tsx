@@ -1,5 +1,6 @@
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import Link from 'next/link';
+import { rebrickableResized } from '@/lib/set-image';
 import { AFFILIATE_NOTE } from '@/lib/affiliate-disclosure';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
@@ -71,7 +72,10 @@ export default async function BlogPostPage(props: Props) {
       <div className="max-w-3xl mx-auto px-4 pb-12">
         <div className="relative h-64 md:h-96 rounded-2xl overflow-hidden mb-6">
           <ImageWithFallback
-            srcs={[post.hero_image, '/fallback-hero.png'].filter(Boolean) as string[]}
+            // LCP (round 2, 2 Oct): Rebrickable's 1000x800 resize first (the Brick Rush hero original is 3.8 MB,
+            // 24 s LCP on mobile); the original, then the local fallback, if the resize 404s. Eager + high priority.
+            srcs={[post.hero_image && rebrickableResized(post.hero_image, '1000x800'), post.hero_image, '/fallback-hero.png'].filter(Boolean) as string[]}
+            priority
             alt={post.title}
             fill
             className="object-cover"
