@@ -78,9 +78,21 @@ def youtube_upload(video_url: str, title: str, description: str, comment: str | 
     vid = resp['id']
     print(f'[post_prepared] YouTube Short: https://youtube.com/shorts/{vid}')
     if comment:
-        yt.commentThreads().insert(part='snippet', body={'snippet': {'videoId': vid, 'topLevelComment': {'snippet': {'textOriginal': comment}}}}).execute()
-        print('[post_prepared] Comment posted. PIN IT BY HAND in YouTube Studio (the API cannot pin):', comment)
+        post_comment(yt, vid, comment)
     return vid
+
+
+def post_comment(yt, vid: str, comment: str) -> bool:
+    """The comment is extra to the post: if it fails (e.g. the token lacks the comment scope, 2 Oct day 1),
+    the upload still counts and is recorded; the job warns and the comment is added by hand."""
+    try:
+        yt.commentThreads().insert(part='snippet', body={'snippet': {'videoId': vid, 'topLevelComment': {'snippet': {'textOriginal': comment}}}}).execute()
+    except Exception as e:  # noqa: BLE001
+        print(f'::warning::[post_prepared] Short uploaded but the comment failed ({type(e).__name__}). '
+              'Add it and pin it by hand in YouTube Studio:', comment)
+        return False
+    print('[post_prepared] Comment posted. PIN IT BY HAND in YouTube Studio (the API cannot pin):', comment)
+    return True
 
 
 def main():
