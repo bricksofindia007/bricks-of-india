@@ -314,17 +314,25 @@ const nextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-XSS-Protection', value: '1; mode=block' },
+          // Round 11 item 3 (headers): HTTPS-only for a year (no includeSubDomains / preload
+          // until every subdomain is confirmed HTTPS; preload is hard to undo), no full URLs
+          // leaked to other sites, and browser features the site never uses switched off.
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
+          { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+          { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()' },
           // CSP in report-only mode — enforcing blocked by inline GA script (tracked: GEO-AUDIT-FIX-01)
-          // Move GA to non-inline before switching to Content-Security-Policy
+          // Move GA to non-inline before switching to Content-Security-Policy.
+          // GA4 also sends to regional collectors (region1.google-analytics.com,
+          // *.analytics.google.com) and loads from *.googletagmanager.com: covered by wildcards.
           {
             key: 'Content-Security-Policy-Report-Only',
             value: [
               "default-src 'self'",
-              "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://www.google-analytics.com",
+              "script-src 'self' 'unsafe-inline' https://www.googletagmanager.com https://*.googletagmanager.com https://www.google-analytics.com",
               "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
               "font-src 'self' https://fonts.gstatic.com",
               "img-src 'self' data: https:",
-              "connect-src 'self' https://*.supabase.co https://www.google-analytics.com https://analytics.google.com",
+              "connect-src 'self' https://*.supabase.co wss://*.supabase.co https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com",
               "frame-ancestors 'none'",
             ].join('; '),
           },
