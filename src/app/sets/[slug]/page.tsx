@@ -22,6 +22,7 @@ import { FreshOnly } from '@/components/ui/FreshOnly';
 import { buildProductSchema, buildFAQSchema } from '@/lib/schemas';
 import { getStores, storeLabels } from '@/lib/stores';
 import { setNumberCandidates, pickSetNumber, slugMatchesSet } from '@/lib/set-slug';
+import { SaleSetLine } from '@/components/sales/SaleSetLine';
 // Durable-cache guard (2026-07-02): a revalidate must always be set, or
 // rendered pages persist across deploys. 72 h = UNPRICED_SET_REVALIDATE_SECONDS
 // (FP1.6 §2, approved P8 item 4; segment config must be a literal). A priced
@@ -338,6 +339,7 @@ export default async function SetPage(props: Props) {
             </div>
             <h1 className="font-heading text-dark text-4xl md:text-5xl leading-tight mb-2">{set.name}</h1>
             <p className="text-gray-400 font-price text-sm mb-4">Set #{set.set_number}</p>
+            <SaleSetLine setNumber={set.set_number} />
 
             {/* MRP (R2): the anchor and its source win over any other MRP. The
                 US-price estimate shows only when there is no anchor at all. */}

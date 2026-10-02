@@ -17,6 +17,7 @@ import { BRAND, MASCOTS, THEMES } from '@/lib/brand';
 import { supabaseRead as supabase, createServerClient } from '@/lib/supabase';
 import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { getDeals } from '@/lib/price-summary';
+import { SaleBanner } from '@/components/sales/SaleBanner';
 
 export const revalidate = 3600; // re-fetch from Supabase at most every hour
 // Supabase reads here expire hourly via per-read `next.revalidate`
@@ -136,6 +137,7 @@ export default async function HomePage() {
 
   return (
     <div className="bg-white">
+      <SaleBanner />
       {/* ── HERO ─────────────────────────────────────────────────────────────── */}
       <section
         className="relative overflow-hidden"
