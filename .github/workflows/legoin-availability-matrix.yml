@@ -1,0 +1,57 @@
+name: lego.in availability matrix (read-only, #450)
+
+# P14 Phase 1.2: why the live scraper reads every MyBrickHouse/lego.in variant
+# as available:false on a runner while curl on a runner reads ~97% true.
+# Runs scripts/probes/legoin-availability-matrix.mjs, which fetches
+# products.json page 1 once per case (host x client x headers, one variable at
+# a time), 2 s apart, and uploads the per-case results as an artifact.
+#
+# Writes NOTHING: no database, no secrets, no IndexNow, no revalidation.
+# workflow_dispatch only; no schedule.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    # ~2 x 25 page GETs at 2 s spacing plus npm ci; no run history yet, so this is
+    # a hard ceiling, not a sized estimate.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      # Same Node major as scrape-prices.yml, so undici's default request
+      # headers match the live scraper's.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      # The live scraper runs under `npx tsx` after `npm ci`, with supabase-js
+      # loaded and Toycra fetched first. Reproduce that runtime and order
+      # without any secret.
+      - name: Install dependencies (for tsx and the scrape-now import set)
+        run: npm ci
+
+      # Every case runs back to back in one process, in this one job, on this
+      # one runner; case 1 is the scraper's own fetch in scrape-now order
+      # (Toycra first). The script records the public IP before each case.
+      - name: Matrix under node 20
+        run: node scripts/probes/legoin-availability-matrix.mjs --out out/matrix-node
+
+      - name: Matrix under npx tsx (the scraper's runtime), every case again
+        env:
+          MATRIX_RUNTIME: tsx
+        run: npx tsx scripts/probes/legoin-availability-matrix.mjs --out out/matrix-tsx
+
+      - name: Store matrix (private boi-ops, B2)
+        if: always()
+        env:
+          BOI_OPS_TOKEN: ${{ secrets.BOI_OPS_TOKEN }}
+        continue-on-error: true
+        run: bash scripts/ci/push-to-boi-ops.sh out legoin-matrix/${{ github.run_id }}
+

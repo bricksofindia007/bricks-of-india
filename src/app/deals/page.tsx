@@ -3,7 +3,7 @@ import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
-import { READ_REVALIDATE_SECONDS, PRICE_CADENCE } from '@/lib/price-freshness';
+import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { getDeals } from '@/lib/price-summary';
 import { SetCard } from '@/components/sets/SetCard';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
@@ -57,7 +57,6 @@ export default async function DealsPage() {
             <h1 className="font-heading text-white text-6xl mb-2">BEST LEGO DEALS IN INDIA</h1>
             <p className="text-white/70 font-body text-lg mb-2">
               Every set at least 10% below its MRP right now, at the price the store lists — no coupon applied.
-              Prices checked {PRICE_CADENCE}.
               Your wallet is about to have a very complicated day.
             </p>
             <p className="mt-1">
@@ -120,7 +119,7 @@ export default async function DealsPage() {
             <h2 className="font-heading text-dark text-3xl mb-2">NO DEALS RIGHT NOW</h2>
             <p className="text-gray-400 font-body mb-4">
               No set is currently 10% or more below its MRP at a store that has it in stock.
-              Prices are checked {PRICE_CADENCE} — check back soon.
+              Check back soon.
             </p>
             <Link
               href="/compare"
@@ -132,14 +131,14 @@ export default async function DealsPage() {
         ) : (
           <>
             {[
-              { title: 'HOT DEALS', sub: '20% or more below MRP', list: hotDeals },
-              { title: 'DEALS', sub: '10–20% below MRP', list: plainDeals },
+              { title: 'HOT DEALS', sub: 'Hot deal: 20% or more below MRP', list: hotDeals },
+              { title: 'DEALS', sub: 'Deal: 10–20% below MRP', list: plainDeals },
             ].filter((g) => g.list.length > 0).map((g) => (
               <section key={g.title} className="mb-10">
                 <h2 className="font-heading text-dark text-3xl mb-1">
                   {g.title} ({g.list.length} sets)
                 </h2>
-                <p className="text-sm text-gray-500 mb-6">{g.sub} · MRP = MyBrickHouse&apos;s listed MRP, else Toycra&apos;s, else the verified LEGO India MRP</p>
+                <p className="text-sm text-gray-500 mb-6">{g.sub}</p>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
                   {g.list.map((d) => (
                     <SetCard
@@ -156,7 +155,7 @@ export default async function DealsPage() {
         )}
 
         <p className="text-xs text-gray-400 text-center mt-8 border-t border-border pt-4">
-          Prices updated {PRICE_CADENCE}. Always verify the final price on the retailer&apos;s website.
+          Always check the final price on the store&apos;s website before you buy.
           LEGO® is a trademark of The LEGO Group which does not sponsor or endorse this site.
         </p>
       </div>

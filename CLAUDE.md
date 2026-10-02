@@ -1,16 +1,16 @@
 # BOI Agent Instructions
 
-**Canonical reference:** `BOI_MASTER_TRACKER.md` — read this at the start of every session.
+**Canonical reference:** `boi-ops/BOI_MASTER_TRACKER.md` (private repo `bricksofindia007/boi-ops`, cloned next to this one) — read this at the start of every session. Plans, reports, reconciliation notes, evidence, the tracker and the dashboard live in that private repo (C2, P14 round 6), not in this public one.
 
 ---
 
 ## Session discipline
 
-SESSION START: Read `BOI_MASTER_TRACKER.md` — header block (metadata, current blockers, carry-overs, lab status, deadlines). Confirm the HEAD commit field matches `git log -1 --format="%H"`. Paste summary to strategic layer. Do not use `docs/SESSION_START_CHECKLIST.md` — that file's handover-doc protocol was abandoned after Day 35 and is queued for archival.
+SESSION START: Read `boi-ops/BOI_MASTER_TRACKER.md` — header block (metadata, current blockers, carry-overs, lab status, deadlines). Confirm the HEAD commit field matches `git log -1 --format="%H"`. Paste summary to strategic layer. Do not use `docs/SESSION_START_CHECKLIST.md` — that file's handover-doc protocol was abandoned after Day 35 and is queued for archival.
 
-**Dashboard sync:** see `BOI_MASTER_TRACKER.md` § Auto-update protocol — every state change updates `admin/dashboard.html` in the same commit. Enforced on PRs by `.github/workflows/lint-tracker-dashboard-sync.yml` (added 2026-08-23, after a 30-day ground-truth audit found the rule recurring as an unenforced, self-reported violation rather than the exception) — does not cover the docs-only-direct-push fast path below, by design.
+**Dashboard sync:** see `boi-ops/BOI_MASTER_TRACKER.md` § Auto-update protocol — every state change updates `boi-ops/admin/dashboard.html` in the same commit. The sync lint moved to boi-ops with the files.
 
-**Dashboard validation:** at session start, confirm `admin/dashboard.html` JSON parses cleanly before doing anything else. If it doesn't, fix first.
+**Dashboard validation:** at session start, confirm `boi-ops/admin/dashboard.html` JSON parses cleanly before doing anything else. If it doesn't, fix first.
 
 **Issue-filing is binding, not optional.** Any future action item, pending decision, or "revisit later" note surfaced during a session — a deferred fix, an accepted risk, an operator-owned follow-up, a "not done this session, flagged not hidden" note — must be filed as a real GitHub issue before the session or PR is considered complete. A mention in chat, a commit message, or a tracker paragraph does not satisfy this — none of those are visible to anyone (including a future session) who isn't specifically reading git history end-to-end. Added 2026-08-23 after a 30-day audit found multiple real, still-open items (a confirmed-reachable, unpatched CVE deferred with a documented rationale; an operator-owned credential/OAuth follow-up; a documented internal-tooling reconciliation gap) living only in commit bodies and tracker prose, with zero corresponding issue, invisible to anything but a targeted grep. The tracker entry may still carry the full reasoning/context — the issue is the pointer that makes the item discoverable at all, not a replacement for that detail.
 
@@ -20,9 +20,9 @@ SESSION START: Read `BOI_MASTER_TRACKER.md` — header block (metadata, current 
 
 **Defect log:** `docs/BRIEF_DEFECTS.md` — log every defect found during execution. Never reuse a defect ID.
 
-**Handover docs:** Pattern retired after Day 35. Write a changelog entry in `BOI_MASTER_TRACKER.md` §Sprint changelog instead. No new Day_N_Ground_Truth files — `docs/handover/` is frozen.
+**Handover docs:** Pattern retired after Day 35. Write a changelog entry in `boi-ops/BOI_MASTER_TRACKER.md` §Sprint changelog instead. No new Day_N_Ground_Truth files — `docs/handover/` is frozen.
 
-**Cycle 2 plan:** `docs/plans/BOI_Cycle2_Master_Plan.md` (v2.4, approved 27 Sep 2026) is the scope, gate and open-item register for Cycle 2. Every plan ID has a GitHub issue (label `cycle-2` plus `stage-0` / `foundation` / `build` / `trust`, title prefixed with the plan ID). No closing keywords (`Closes #`, `Fixes #`) in commits or PRs; issues close only through an evidence comment. Email addresses and DNS: `docs/email/ADDRESSES.md`.
+**Cycle 2 plan:** `boi-ops/docs/plans/BOI_Cycle2_Master_Plan.md` (v2.4, approved 27 Sep 2026) is the scope, gate and open-item register for Cycle 2. Every plan ID has a GitHub issue (label `cycle-2` plus `stage-0` / `foundation` / `build` / `trust`, title prefixed with the plan ID). No closing keywords (`Closes #`, `Fixes #`) in commits or PRs; issues close only through an evidence comment. Email addresses and DNS: `docs/email/ADDRESSES.md`.
 
 ---
 
@@ -47,6 +47,8 @@ These are rules, not guidance. Where an older rule further down this file confli
 - **G15 — The `extensions` schema is never added to PostgREST's exposed-schema list without a security review and a chat sign-off; this is what keeps the http extension (and anything else moved there) unreachable via the Data API.** (Added 27 Sep 2026, FP3.0 #361: the http functions there still carry PUBLIC EXECUTE granted by `supabase_admin`, which `postgres` can't revoke.) Enforced by the `G15 extensions-schema exposure probe` step in `.github/workflows/ci.yml` (one live request per CI run: the `extensions` profile must return 406 PGRST106).
 - **G16 — Published content is corrected, never removed.** Reviews, articles, news, guides and every public page are fixed in place: back up the prior text, correct only what's wrong, and add a visible dated correction note. No published row is deleted or unpublished, and no public URL is retired, without chat's explicit sign-off. The only accepted exception is merging a true duplicate, and then the old URL must 308 to the surviving page. Drafts that fail quality gates before publication are not covered. (Added 27 Sep 2026 by Abhinav, binding.)
 - **G17 — No command may print a secret's value.** Secret searches list names and locations only (`grep -l`, key names, masked values). Never grep or cat `.env*` files, secret files or connection strings for content. If a value is ever printed, stop, report it, and treat it as compromised (rotate). (Added 28 Sep 2026 by Abhinav, binding, after a search printed three growth-role passwords into a session.)
+- **G18 — Dates are never deadlines.** Sequence all work by dependencies and evidence gates. Reports state what each item is waiting on (a dependency, a proof count, or a decision), never a target date. (Added 28 Sep 2026 by Abhinav, binding. It replaced the 5–11 Oct deploy freeze and every dated deploy in the snapshot plan.)
+- **G19 — Nothing public reveals how Bricks of India works.** No public page, meta tag, JSON-LD, alt text, HTML comment, public text file (robots.txt, llms.txt, manifests), email, video description, caption or article may mention: scraping or scrapers, bot behaviour, feeds, APIs, Shopify or products.json, schedules or update frequency ("every 6 hours"), automation, cron, AI/LLM generation, model or provider names, pipelines, gates, pricing formulas or anchor rules, which store is the MRP reference, security posture (rate limits, infrastructure), internal paths or tool names. Kept on purpose: the per-set "Updated X ago" label (data age, required by G11) with no frequency claim, and the /bot page's two sentences (who the bot belongs to, how to reach us). Every content-generation prompt and quality gate carries this rule. Factual content is still corrected per G16, with wording approved by chat. (Added 1 Oct 2026 by Abhinav, binding, non-negotiable.)
 
 Transitional: G3, G12 and G13 describe systems not yet built. Existing paths are grandfathered only until their migration item lands (G3 → FP1.1, G12 → FP4.9, G13 → FP6.1). No NEW path may add a direct price read, a direct provider email call or an un-heartbeated scheduled job unless chat approves it in writing and an issue tracks it.
 

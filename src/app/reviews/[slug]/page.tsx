@@ -13,6 +13,7 @@ import { Byline } from '@/components/content/Byline';
 import { JsonLd } from '@/components/JsonLd';
 import { buildReviewSchema } from '@/lib/schemas';
 import { getStores, storeLabels } from '@/lib/stores';
+import { computeIndiaStatus, indiaStatusLine, RETIRED_IN_INDIA_DAYS } from '@/lib/india-status';
 // Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
@@ -44,7 +45,6 @@ function verdictBadge(verdict: string | null): { emoji: string; label: string; c
     case 'BUY NOW':      return { emoji: '👍', label: 'Recommended', className: 'bg-deal-green text-white' };
     case 'AVOID':        return { emoji: '👎', label: 'Skip It',     className: 'bg-warning-orange text-white' };
     case 'IMPORT ONLY':  return { emoji: '🌍', label: 'Import Only', className: 'bg-accent text-dark' };
-    case 'RETIRED':      return { emoji: '⛔', label: 'Retired',     className: 'bg-gray-500 text-white' };
     default:              return null; // WAIT, or anything unrecognized — neutral, no badge
   }
 }
@@ -96,15 +96,27 @@ export default async function ReviewPage(props: Props) {
 
   // Store prices — full map for all tracked stores (mirrors sets/[slug]/page.tsx pattern)
   const storePriceMap = new Map<string, { store_id: string; price_inr: number | null; in_stock: boolean; product_url: string; scraped_at: string }>();
+  let recentStockEventsAt: string[] = [];
   if (set?.set_number) {
     const serverClient = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
-    const { data: storePrices } = await serverClient
-      .from('store_prices')
-      .select('store_id, price_inr, in_stock, product_url, scraped_at')
-      .eq('set_id', set.set_number);
+    const since = new Date(Date.now() - RETIRED_IN_INDIA_DAYS * 864e5).toISOString();
+    const [{ data: storePrices }, { data: history }] = await Promise.all([
+      serverClient
+        .from('store_prices')
+        .select('store_id, price_inr, in_stock, product_url, scraped_at')
+        .eq('set_id', set.set_number),
+      // Item 0: stock activity in the last 14 days (India status input).
+      serverClient
+        .from('price_history')
+        .select('store_id, recorded_at')
+        .eq('set_id', set.set_number)
+        .gte('recorded_at', since),
+    ]);
     for (const sp of storePrices ?? []) {
       storePriceMap.set(sp.store_id, sp);
     }
+    const tracked = new Set(TRACKED_STORES.map((t) => t.id));
+    recentStockEventsAt = (history ?? []).filter((h) => tracked.has(h.store_id)).map((h) => h.recorded_at);
   }
   const activePrices = TRACKED_STORES
     .map(s => storePriceMap.get(s.id))
@@ -134,6 +146,21 @@ export default async function ReviewPage(props: Props) {
 
   const stars = review.rating != null ? '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating) : null;
   const badge = verdictBadge(review.verdict);
+  // Item 0 (India-only rule): availability wording comes only from the India
+  // status. "Retired" is never a verdict; a legacy RETIRED verdict is not shown.
+  const indiaStatus = computeIndiaStatus({
+    legoRetired: set?.retired === true,
+    listings: TRACKED_STORES.flatMap((t) => {
+      const sp = storePriceMap.get(t.id);
+      return sp ? [{ storeName: t.name, inStock: sp.in_stock === true }] : [];
+    }),
+    recentStockEventsAt,
+  });
+  const availabilityLine = indiaStatusLine(indiaStatus);
+  const isLegacyRetiredVerdict = (review.verdict || '').trim().toUpperCase() === 'RETIRED';
+  const shownVerdict = isLegacyRetiredVerdict
+    ? (availabilityLine ?? 'Sold in India: see live prices below.')
+    : review.verdict;
   const shareUrl = `https://bricksofindia.com/reviews/${params.slug}`;
   const waText = `Just read this LEGO review on Bricks of India — use ABHINAV12 for 12% off at Toycra!`;
 
@@ -205,7 +232,7 @@ export default async function ReviewPage(props: Props) {
                 />
                 <div>
                   <h3 className="font-heading text-dark text-2xl mb-1">BRICKS OF INDIA SAYS:</h3>
-                  <p className="font-bold text-lg text-dark">{review.verdict}</p>
+                  <p className="font-bold text-lg text-dark">{shownVerdict}</p>
                   {stars != null && (
                     <div className="mt-2 flex items-center gap-2">
                       <span className="text-primary text-xl">{stars}</span>
@@ -349,27 +376,28 @@ export default async function ReviewPage(props: Props) {
               {
                 q: `Is ${set?.name || 'this set'} worth buying in India in 2026?`,
                 a: [
-                  review.verdict,
+                  isLegacyRetiredVerdict ? null : review.verdict,
                   review.rating != null ? `Our rating: ${review.rating}/5.` : null,
                   badge?.label === 'Recommended' ? "Yes, we think it's a solid purchase."
                     : badge?.label === 'Skip It' ? "We'd recommend waiting for a better deal or considering alternatives."
                     : badge?.label === 'Import Only' ? "It's not officially sold in India yet, so factor in import costs and timelines before buying."
-                    : badge?.label === 'Retired' ? "No — this set has been discontinued by LEGO and is no longer available new. Check the secondary/resale market if you're still after one."
-                    : "We'd suggest waiting for a better price before buying.",
+                    : availabilityLine ?? (isLegacyRetiredVerdict
+                      ? 'It is sold in India: compare the live prices on this page.'
+                      : "We'd suggest waiting for a better price before buying."),
                 ].filter(Boolean).join(' '),
               },
               {
                 q: `Where can I buy ${set?.name || 'this set'} cheapest in India?`,
                 a: bestStorePrice
                   ? `Based on our latest tracking, ${TRACKED_STORES.find(s => s.id === bestStorePrice?.store_id)?.name ?? 'a tracked store'} has the best price. Use code ABHINAV12 at Toycra for 12% off.`
-                  : `Check Toycra and MyBrickHouse for current prices. Use code ABHINAV12 at Toycra for an exclusive 12% off.`,
+                  : `Check Toycra and LEGO.in for current prices. Use code ABHINAV12 at Toycra for an exclusive 12% off.`,
               },
               {
                 q: `What is the price of ${set?.name || 'this set'} in India?`,
                 a: set?.lego_mrp_inr
                   ? set.mrp_verified
                     ? `The confirmed LEGO India MRP is ₹${set.lego_mrp_inr.toLocaleString('en-IN')}. Some stores may sell at a discount. Compare prices above.`
-                    : `Based on the US retail price, this set works out to roughly ₹${set.lego_mrp_inr.toLocaleString('en-IN')} in India before local pricing adjustments. Check lego.com/en-in for the official MRP.`
+                    : `Official Indian pricing hasn't been announced yet.`
                   : 'Check our price comparison tool for current prices across Indian stores.',
               },
               {

@@ -36,6 +36,11 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      # P11 item 5: a backspace or other control byte in a script/SQL/config file (the heredoc
+      # escaping bug, twice) fails the build. No dependencies needed.
+      - name: No control characters in tracked text files
+        run: node scripts/ci/check-control-chars.mjs
+
       - run: npm ci
 
       - name: Review/aggregateRating schema integrity check (GSC-01)
@@ -82,7 +87,13 @@ jobs:
           for i in $(seq 1 20); do curl -sf -o /dev/null http://127.0.0.1:54321/rest/v1/health && break; sleep 0.5; done
           curl -sf -o /dev/null http://127.0.0.1:54321/rest/v1/health && echo "stub up"
 
+      # P10: REVALIDATE_AUDIT=1 drops next.config's fixed Cache-Control hints from
+      # THIS (CI-only) build, so each response carries Next's own s-maxage = the
+      # route's effective revalidate for scripts/ci/revalidate-audit.ts below.
+      # The deploy build (deploy-cloudflare.yml) never sets it.
       - run: npm run build
+        env:
+          REVALIDATE_AUDIT: '1'
 
       - name: Scan client bundle and static public files for email leak
         run: |
@@ -212,6 +223,10 @@ jobs:
           # #220: JSON-LD lowPrice = displayed best in-stock price on 3
           # fixture set pages served by the stub (scripts/ci/jsonld-price-fixtures.mjs).
           node scripts/ci/check-jsonld-price.mjs http://localhost:3000 || FAIL=1
+          # P10: every route's effective revalidate == its intended cadence
+          # (src/lib/route-cadence.ts). Build-time routes from the prerender
+          # manifest; per-param routes rendered from stub fixtures.
+          AUDIT_BASE=http://localhost:3000 AUDIT_SAMPLES=ci npx tsx scripts/ci/revalidate-audit.ts || FAIL=1
           kill $SERVER_PID
           exit $FAIL
 
@@ -232,3 +247,28 @@ jobs:
 
       - name: Run prompt snapshot tests
         run: npm test
+
+      # P12 4a: the same type check the weekly code-audit runs, now in this
+      # REQUIRED per-PR job, so a type error can't reach main and surface
+      # only on the next weekly audit (28 Sep run: 1 error; 4 by 29 Sep).
+      - name: TypeScript type check
+        run: npx tsc --noEmit
+
+  # G19 (CLAUDE.md, 1 Oct 2026): fail if public text reveals how the site works --
+  # public text files (robots.txt rules only, llms.txt, manifest, brand guide) and the
+  # user-visible strings in site code. The term list is the G19_TERMS secret, never in
+  # the repo; the job prints file:line only.
+  g19-public-text:
+    runs-on: ubuntu-latest
+    # Pure file scan, no install: well under a minute.
+    timeout-minutes: 3
+    env:
+      G19_TERMS: ${{ secrets.G19_TERMS }}
+      G19_FORK_PR: ${{ github.event.pull_request.head.repo.fork || 'false' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: G19 public-text check
+        run: node scripts/ci/g19-check.mjs

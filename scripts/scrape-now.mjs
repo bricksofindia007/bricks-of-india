@@ -23,7 +23,34 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { STORES, withRetry, fetchAllProducts, extractSetNumber, parseProduct, isMoreCanonical } from './lib/retailer-fetch.mjs';
 import { getSecret } from '../src/lib/get-secret';
-import { mkdirSync, writeFileSync } from 'fs';
+import { mkdirSync, writeFileSync, appendFileSync } from 'fs';
+import { createHash } from 'crypto';
+import { loadBaselines, checkPolicy, feedStats, planStoreWrite, planReconcile, approvalFromEnv } from './lib/pre-write-stop.mjs';
+import { sendAlert } from './lib/alert.mjs';
+import { createWriteStream } from 'fs';
+
+// B3 (P14 round 7): the public Actions log carries pass/fail and counts only. With
+// QUIET_LOGS=1 every detail line (feed URLs, policy hashes, per-set lines, errors) goes to
+// out/scrape-run/detail.log, which the workflow stores in the private boi-ops repo (B2).
+const QUIET = process.env.QUIET_LOGS === '1';
+const say = (line) => process.stdout.write(line + '\n');
+if (QUIET) {
+  mkdirSync('out/scrape-run', { recursive: true });
+  const detail = createWriteStream('out/scrape-run/detail.log', { flags: 'a' });
+  const sink = (...a) => detail.write(a.map((x) => (typeof x === 'string' ? x : (x instanceof Error ? x.stack : JSON.stringify(x)))).join(' ') + '\n');
+  console.log = sink; console.info = sink; console.warn = sink; console.error = sink;
+  process.on('exit', (code) => { if (code !== 0) say(`Scrape FAILED, exit ${code} (details stored privately)`); });
+}
+
+// P14 4.4: per-run facts for guarded stores (counts, hashes, raw tags) go to
+// this directory; the workflow uploads it as an artifact. Raw tags are never
+// written to the database or displayed.
+function writeRunFile(name, data) {
+  const dir = process.env.SCRAPE_RUN_OUT;
+  if (!dir) return;
+  try { mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, name), JSON.stringify(data, null, 1)); }
+  catch (e) { console.warn(`  [scrape-run] could not write ${name}: ${e.message}`); }
+}
 
 // FP5 contract comparison (P4 Step 4g): when CONTRACT_CACHE_DIR is set, keep a
 // copy of the catalogue and feeds this run ALREADY fetched, so the non-writing
@@ -163,13 +190,34 @@ async function main() {
 
   const now = new Date().toISOString();
   const summary = [];
+  const heldStores = [];
+  const baselines = loadBaselines();
+  const approval = approvalFromEnv();
+  if (approval) console.log(`Approval inputs present: store=${approval.store} available=${approval.available} (this run only)\n`);
 
-  for (const store of STORES) {
+  // FP5.9 (#460): the boi-scheduler Worker dispatches one store per run
+  // (inputs.store). Empty = every store, exactly as before.
+  const onlyStore = (process.env.SCRAPE_STORE ?? '').trim();
+  const storesToRun = onlyStore ? STORES.filter((s) => s.id === onlyStore) : STORES;
+  if (onlyStore && storesToRun.length === 0) {
+    console.error(`Unknown store "${onlyStore}" (known: ${STORES.map((s) => s.id).join(', ')})`);
+    process.exit(1);
+  }
+  if (onlyStore) console.log(`Store filter: ${onlyStore} only
+`);
+
+  for (const store of storesToRun) {
     console.log(`── ${store.name} (${store.domain}) ──`);
+    const baseline = baselines[store.id] ?? null;
+    const pages = [];
 
     let allProducts;
     try {
-      allProducts = await fetchAllProducts(store.domain, store.path);
+      allProducts = await fetchAllProducts(store.domain, store.path, {
+        redirect: store.redirect,
+        headers: store.headers,
+        onPage: baseline ? (p) => pages.push(p) : undefined,
+      });
       console.log(`  Fetched ${allProducts.length} products total`);
       writeContractCache(`feed-${store.id}.json`, allProducts);
     } catch (err) {
@@ -238,6 +286,49 @@ async function main() {
       scraped_at:  now,
     }));
 
+    // ── Pre-write stop (P14 Phase 4, #450) -- before ANY write for this store ──
+    // Guarded stores only (store-baselines.json; lego.in and, since B2, Toycra). A store without an entry is
+    // never held. A hold skips this store's upsert, stale reconcile and
+    // history (the trigger only fires on the upsert), then alerts.
+    if (baseline) {
+      const stats = feedStats(allProducts);
+      const payloadSha = createHash('sha256').update(pages.map((p) => p.body).join('\n')).digest('hex');
+      // Paginated: PostgREST returns at most 1000 rows per request.
+      const storedRows = [];
+      let storedErr = null;
+      for (let off = 0; ; off += 1000) {
+        const { data, error } = await supabase.from('store_prices').select('set_id, price_inr, in_stock')
+          .eq('store_id', store.id).order('set_id').range(off, off + 999);
+        if (error) { storedErr = error; break; }
+        storedRows.push(...data);
+        if (data.length < 1000) break;
+      }
+      const policy = await checkPolicy(baseline.policy);
+      const plan = storedErr
+        ? { write: false, held: true, reasons: [`could not read stored rows: ${storedErr.message}`], metrics: {} }
+        : planStoreWrite({ baseline, stats, rows: storePricesRows, storedRows, policy, approval });
+      const { tags, ...counts } = stats;
+      console.log(`  Feed: ${pages.map((p) => `${p.finalUrl} ${p.status}${p.redirected ? ' (redirected)' : ''}`).join(' | ')}`);
+      console.log(`  Feed facts: products ${counts.products}, variants ${counts.variants}, available products ${counts.available_products}, available variants ${counts.available_variants}/${counts.variants}, compare_at ${JSON.stringify(counts.compare_at)}, sale-tagged products ${counts.sale_tagged_products}, payload sha256 ${payloadSha}`);
+      console.log(`  Policy: ${policy.results.map((r) => `${r.url} ${r.status} ${r.match ? 'match' : 'MISMATCH'} ${(r.sha256 ?? r.error ?? '').slice(0, 12)}`).join(' | ')}`);
+      console.log(`  Pre-write stop: ${plan.write ? 'WRITE' : 'HOLD'} ${JSON.stringify(plan.metrics)}`);
+      for (const r of plan.reasons) console.log(`    reason: ${r}`);
+      writeRunFile(`${store.id}.json`, { at: now, store: store.id, pages: pages.map(({ body, ...p }) => ({ ...p, bytes: body.length })), payload_sha256: payloadSha, counts, policy, plan, approval, tags });
+
+      if (plan.held) {
+        heldStores.push(store.id);
+        if (!DRY_RUN) {
+          await sendAlert(`[BOI] Pre-write stop: ${store.name} held (${store.domain}), nothing written`,
+            [`Store: ${store.name} (${store.id}), feed ${store.domain}${store.path}`, `Run: ${process.env.GITHUB_SERVER_URL ?? ''}/${process.env.GITHUB_REPOSITORY ?? ''}/actions/runs/${process.env.GITHUB_RUN_ID ?? 'local'}`,
+              '', 'Reasons:', ...plan.reasons.map((r) => `  - ${r}`), '', `Metrics: ${JSON.stringify(plan.metrics)}`,
+              '', 'To approve one run: dispatch scrape-prices.yml with approve_store=' + baseline.approve_key + ' and approve_available=<expected available count>.'].join('\n'));
+        }
+        summary.push({ store: store.name, fetched: allProducts.length, parsed: parsed.length, matched: allMatched.length, dupes: dupesRemoved, upserted: 0, history: 0, unmatched: unmatched.length, held: plan.reasons });
+        console.log('');
+        continue;
+      }
+    }
+
     const BATCH = 400;
     let upsertedCount = 0;
     let upsertErrors  = 0;
@@ -285,6 +376,11 @@ async function main() {
       .lt('scraped_at', staleCutoff);
     if (staleSelErr) {
       console.error(`  Reconciliation select error: ${staleSelErr.message}`);
+    } else if ((staleRows ?? []).length > 0 && planReconcile({ baseline, staleCount: staleRows.length }).held) {
+      // A8: too many rows would flip to out of stock at once -- likely a broken feed, not a sell-out.
+      const rp = planReconcile({ baseline, staleCount: staleRows.length });
+      console.log(`  Reconcile HELD: ${rp.reasons.join('; ')}`);
+      if (!DRY_RUN) await sendAlert(`[BOI] Reconcile held: ${store.name}`, `${rp.reasons.join('; ')}. Nothing was flipped to out of stock; a person should check the feed.`);
     } else if ((staleRows ?? []).length > 0) {
       if (DRY_RUN) {
         console.log(`  [DRY RUN] Would reconcile ${staleRows.length} stale in_stock=true row(s) -> false (not seen in >20h): ${staleRows.slice(0, 5).map((r) => r.set_id).join(', ')}${staleRows.length > 5 ? ', ...' : ''}`);
@@ -339,21 +435,29 @@ async function main() {
   }
 
   // ── Summary ─────────────────────────────────────────────────────────────────
-  console.log('═══════════════════════════════');
-  console.log(DRY_RUN ? '  DRY RUN COMPLETE — no data written' : '  SCRAPE COMPLETE');
-  console.log('═══════════════════════════════');
+  say('═══════════════════════════════');
+  say(DRY_RUN ? '  DRY RUN COMPLETE — no data written' : '  SCRAPE COMPLETE');
+  say('═══════════════════════════════');
   for (const s of summary) {
     if (s.error) {
-      console.log(`  ${s.store}: ERROR — ${s.error}`);
+      say(`  ${s.store}: ERROR${QUIET ? ' (details stored privately)' : ` — ${s.error}`}`);
+    } else if (s.held) {
+      say(`  ${s.store}: HELD by the pre-write stop — ${s.fetched} fetched → ${s.matched} matched → 0 written (${s.held.length} reason(s))`);
     } else {
-      console.log(`  ${s.store}: ${s.fetched} fetched → ${s.parsed} LEGO → ${s.matched} matched (${s.dupes ?? 0} dupes removed) → ${s.upserted} upserted → ${s.history ?? 'n/a'} history rows (change-only)`);
+      say(`  ${s.store}: ${s.fetched} fetched → ${s.parsed} LEGO → ${s.matched} matched (${s.dupes ?? 0} dupes removed) → ${s.upserted} upserted → ${s.history ?? 'n/a'} history rows (change-only)`);
     }
   }
   const totalUpserted = summary.reduce((n, s) => n + (s.upserted ?? 0), 0);
-  console.log(`\n  Total upserted: ${totalUpserted}`);
-  console.log(`  Started:  ${startedAt}`);
-  console.log(`  Finished: ${new Date().toISOString()}`);
-  console.log('═══════════════════════════════\n');
+  say(`\n  Total upserted: ${totalUpserted}`);
+  say(`  Started:  ${startedAt}`);
+  say(`  Finished: ${new Date().toISOString()}`);
+  say('═══════════════════════════════\n');
+
+  // Step outputs for the workflow: IndexNow runs only after a real write
+  // (P14 4.5); a held store fails the job so the alert path fires.
+  if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(process.env.GITHUB_OUTPUT, `wrote=${!DRY_RUN && totalUpserted > 0}\nheld_stores=${heldStores.join(',')}\n`);
+  }
 }
 
 main().catch((err) => {

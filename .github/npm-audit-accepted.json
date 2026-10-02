@@ -1,0 +1,7 @@
+{
+  "_comment": "Accepted high/critical npm advisories (plan X.4, re-checked at G-CLOSE). scripts/ci/npm-audit-check.mjs fails only on a high/critical advisory NOT listed here. Remove an entry once its fix ships. Recorded P12 item 4b (29 Sep 2026): the only highs are these two, reached via puppeteer-core -> @puppeteer/browsers -> extract-zip; the fix is a --force major bump (puppeteer-core@25), deliberately excluded since PR #41/#147.",
+  "accepted": {
+    "GHSA-jmr9-qjv8-65gv": "extract-zip unvalidated symlink path traversal (via puppeteer-core)",
+    "GHSA-7pqw-9j4j-h8q3": "extract-zip arbitrary file writes through symlink archive entries (via puppeteer-core)"
+  }
+}

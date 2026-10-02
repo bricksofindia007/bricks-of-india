@@ -33,7 +33,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const supabase = createServerClient({ revalidate: 86400 });
 
   const staticPages = [
-    { url: base, priority: 1.0 },
+    // A7 (1 Oct 2026): the homepage exactly as Google inspects it ("https://bricksofindia.com/"),
+    // which Search Console reported as having no referring sitemap.
+    { url: `${base}/`, priority: 1.0 },
     { url: `${base}/sets`, priority: 0.9 },
     { url: `${base}/deals`, priority: 0.9 },
     { url: `${base}/reviews`, priority: 0.8 },
@@ -98,6 +100,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     allSets.push(...data);
     if (data.length < PAGE) break;
   }
+  // A1: set numbers containing "-" resolve to their own page again (src/lib/set-slug.ts), so all are listed.
   const setPages = allSets.map((s) => ({
     url: `${base}/sets/${s.set_number}-${slugify(s.name)}`,
     lastModified: new Date(s.updated_at),
@@ -112,8 +115,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // redirect" GSC issue this project already fixed once (see §GSC-02). The
   // migrated content is sitemapped below via guidePages/newsPages instead.
 
+  // #446: published rows only -- this client is the service role (bypasses RLS), so filter here the
+  // same way anon's "published read" policy does, or a future-dated row would be sitemapped and 404.
+  const publishedBy = new Date().toISOString();
+
   // News articles
-  const { data: news } = await supabase.from('news_articles').select('slug, published_at');
+  const { data: news } = await supabase.from('news_articles').select('slug, published_at')
+    .not('published_at', 'is', null).lte('published_at', publishedBy);
   const newsPages = (news || []).map((n: any) => ({
     url: `${base}/news/${n.slug}`,
     lastModified: new Date(n.published_at),
@@ -122,7 +130,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   // Reviews
-  const { data: reviews } = await supabase.from('reviews').select('slug, published_at');
+  const { data: reviews } = await supabase.from('reviews').select('slug, published_at')
+    .not('published_at', 'is', null).lte('published_at', publishedBy);
   const reviewPages = (reviews || []).map((r: any) => ({
     url: `${base}/reviews/${r.slug}`,
     lastModified: new Date(r.published_at),
@@ -131,7 +140,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   // Guides
-  const { data: guides } = await supabase.from('guides').select('slug, updated_at');
+  const { data: guides } = await supabase.from('guides').select('slug, updated_at')
+    .not('published_at', 'is', null).lte('published_at', publishedBy);
   const guidePages = (guides || []).map((g: any) => ({
     url: `${base}/guides/${g.slug}`,
     lastModified: new Date(g.updated_at),

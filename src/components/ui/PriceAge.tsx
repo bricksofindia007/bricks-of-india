@@ -24,7 +24,7 @@ function relative(h: number): string {
 export function PriceAge({ scrapedAt, prefix = 'Updated', className }: { scrapedAt: string | null; prefix?: string; className?: string }) {
   const [now, setNow] = useState<number | null>(null);
   useEffect(() => setNow(Date.now()), []);
-  if (!scrapedAt) return <span className={className}>Prices not yet scraped — check stores directly</span>;
+  if (!scrapedAt) return <span className={className}>No prices yet — check stores directly</span>;
   const h = now === null ? null : priceAgeHours(scrapedAt, now);
   const stale = h !== null && h > PRICE_STALE_HOURS;
   return (

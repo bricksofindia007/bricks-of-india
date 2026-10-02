@@ -400,7 +400,7 @@ describe('passesAutoPublishGates', () => {
     lintResult: {
       overallPass: true,
       warnings: [],
-      gates: { wordCount: { pass: true, severity: 'ok' }, indiaParagraph: { pass: true, severity: 'ok' }, verdict: null, factuality: { pass: true, severity: 'ok' }, sourceFidelity: { pass: true, severity: 'ok' }, openerUniqueness: null, duplicateContent: null, citationIdentity: null, openerPattern: { pass: true, severity: 'ok' }, affiliateDisclosure: { pass: true, severity: 'ok' } },
+      gates: { wordCount: { pass: true, severity: 'ok' }, indiaParagraph: { pass: true, severity: 'ok' }, verdict: null, factuality: { pass: true, severity: 'ok' }, sourceFidelity: { pass: true, severity: 'ok' }, openerUniqueness: null, duplicateContent: null, citationIdentity: null, openerPattern: { pass: true, severity: 'ok' }, affiliateDisclosure: { pass: true, severity: 'ok' }, g19: { pass: true, severity: 'ok' } },
     },
     hardRules: [],
     hardFail: false,

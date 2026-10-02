@@ -9,8 +9,7 @@
 // Scraper cadence -- must match .github/workflows/scrape-prices.yml (cron: every 6th hour, minute 0).
 export const SCRAPE_INTERVAL_HOURS = 6;
 
-/** Human text for the cadence, used by every page that states it. */
-export const PRICE_CADENCE = `every ${SCRAPE_INTERVAL_HOURS} hours`;
+// G19 (1 Oct 2026): no public text states the cadence, so there is no PRICE_CADENCE text constant.
 
 /** A price row older than this (two missed scrapes) shows its real age and gets no badges. */
 export const PRICE_STALE_HOURS = 2 * SCRAPE_INTERVAL_HOURS;
@@ -30,6 +29,21 @@ export const READ_REVALIDATE_SECONDS = 3600;
  * never claims to be fresher than its data.
  */
 export const SET_PAGE_REVALIDATE_SECONDS = 21600;
+
+/**
+ * Unpriced set pages (FP1.6 design §2, 72 h APPROVED by Abhinav, P8 item 4):
+ * the set_page_data read and the route segment live 72 h. A priced page makes
+ * a second small read of its offers on the 6 h clock above, and Next takes the
+ * lowest revalidate in a render, so priced pages still refresh every 6 h.
+ */
+export const UNPRICED_SET_REVALIDATE_SECONDS = 259200;
+
+/** "28 Sep, 22:30 IST": the data time shown in "No listing found at {store} as of {time}". */
+export function formatIst(iso: string): string {
+  const ist = new Date(Date.parse(iso) + 330 * 60_000);
+  const mon = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][ist.getUTCMonth()];
+  return `${ist.getUTCDate()} ${mon}, ${String(ist.getUTCHours()).padStart(2, '0')}:${String(ist.getUTCMinutes()).padStart(2, '0')} IST`;
+}
 
 export type PriceRow = {
   price_inr: number | null;

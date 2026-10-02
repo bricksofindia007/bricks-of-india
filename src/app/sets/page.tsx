@@ -4,7 +4,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { unstable_cache } from 'next/cache';
 import { createServerClient } from '@/lib/supabase';
-import { READ_REVALIDATE_SECONDS, PRICE_CADENCE } from '@/lib/price-freshness';
+import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { SetCard } from '@/components/sets/SetCard';
 import { MASCOTS, THEMES } from '@/lib/brand'; // THEMES used as fallback only
 import { JsonLd } from '@/components/JsonLd';
@@ -15,7 +15,7 @@ import { SETS_PRICE_BANDS } from '@/lib/price-bands';
 export const metadata: Metadata = buildMetadata({
   title: 'All LEGO Sets in India',
   description: 'Browse every LEGO set available in India. Filter by theme, price, and availability. ' +
-    'Compare prices across Toycra and MyBrickHouse. Updated ' + PRICE_CADENCE + '.',
+    'Compare prices across Toycra and LEGO.in.',
   path: '/sets',
 });
 
@@ -400,7 +400,7 @@ export default async function SetsPage(props: Props) {
 
       <div className="max-w-site mx-auto px-4 pb-8">
         <p className="text-xs text-gray-400 text-center border-t border-border pt-4">
-          Prices updated {PRICE_CADENCE}. Always verify the final price on the retailer&apos;s website
+          Always check the final price on the store&apos;s website before you buy.
           before purchase. LEGO® is a trademark of The LEGO Group which does not sponsor or
           endorse this site.
         </p>

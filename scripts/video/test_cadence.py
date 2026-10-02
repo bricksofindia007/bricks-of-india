@@ -304,6 +304,77 @@ class StuckRendered(unittest.TestCase):
         self.assertEqual(sent, [])
 
 
+class CatchUpSlot(unittest.TestCase):
+    """P12: 28 Sep had no poller tick in 19:30-23:59 IST, so #67 never went out."""
+    HEAD = {'id': 'r67', 'story_number': 67, 'status': 'approved', 'approved_at': '2026-09-27T10:00:00+00:00'}
+
+    def test_missed_yesterday_opens_today_at_0700_ist(self):
+        now = utc('2026-09-29T02:46:00')  # 08:16 IST -- the real #1180 tick
+        sb = FakeSB(now, video_posts=[self.HEAD])
+        self.assertTrue(cadence.catchup_due(sb, VIDP4, now, self.HEAD))
+        self.assertTrue(cadence.slot_status(VIDP4, now, catchup=True)[0])
+        self.assertFalse(cadence.slot_status(VIDP4, now)[0])  # old behaviour: waits for 19:30
+        self.assertFalse(cadence.slot_status(VIDP4, utc('2026-09-29T01:29:00'), catchup=True)[0])  # 06:59 IST
+
+    def test_no_catchup_when_yesterday_posted(self):
+        now = utc('2026-09-29T02:46:00')
+        sb = FakeSB(now, video_posts=[self.HEAD, {
+            'id': 'r66', 'status': 'posted_both', 'posted_at': '2026-09-28T14:10:00+00:00',
+            'ig_posted_at': '2026-09-28T14:10:00+00:00', 'yt_posted_at': '2026-09-28T14:11:00+00:00'}])
+        self.assertFalse(cadence.catchup_due(sb, VIDP4, now, self.HEAD))
+
+    def test_no_catchup_when_head_approved_after_yesterdays_slot(self):
+        now = utc('2026-09-29T02:46:00')
+        late = dict(self.HEAD, approved_at='2026-09-28T15:00:00+00:00')  # 20:30 IST, after the slot opened
+        self.assertFalse(cadence.catchup_due(FakeSB(now, video_posts=[late]), VIDP4, now, late))
+
+    def test_no_catchup_for_qp(self):
+        now = utc('2026-09-29T02:46:00')
+        self.assertFalse(cadence.catchup_due(FakeSB(now), VIDQP, now, {'id': 'q', 'approved_at': None}))
+
+
+class RecordSkip(unittest.TestCase):
+    NOW = utc('2026-09-28T11:37:00')
+
+    def test_writes_skipped_row(self):
+        sb = FakeSB(self.NOW, publish_attempts=[])
+        cadence.record_skip(sb, VIDP4, {'id': 'r67', 'story_number': 67}, 'VID-P4: before slot (19:30 IST) -- current IST 17:07')
+        row = sb.db['publish_attempts'][0]
+        self.assertEqual((row['kind'], row['outcome'], row['row_number']), ('skipped', 'deferred', 67))
+        self.assertIn('before slot', row['detail'])
+
+    def test_falls_back_before_migration(self):
+        sb = FakeSB(self.NOW, publish_attempts=[])
+        real_table = sb.table
+
+        class CheckedQuery:
+            def __init__(self, q): self.q = q
+            def insert(self, row):
+                if row['kind'] not in ('publish', 'retry', 'missed_slot_alert', 'error_alert'):
+                    raise RuntimeError('new row violates check constraint "publish_attempts_kind_check"')
+                self.q.insert(row); return self.q
+        sb.table = lambda name: CheckedQuery(real_table(name))
+        cadence.record_skip(sb, VIDP4, {'id': 'r67', 'story_number': 67}, 'before slot')
+        row = sb.db['publish_attempts'][0]
+        self.assertEqual((row['kind'], row['outcome'], row['detail']), ('publish', 'deferred', 'skipped: before slot'))
+
+    def test_never_raises(self):
+        class Boom:
+            def table(self, _):
+                raise RuntimeError('db down')
+        cadence.record_skip(Boom(), VIDP4, None, 'x')
+
+    def test_missed_slot_alert_quotes_skip_reason(self):
+        run = utc('2026-09-29T00:15:00')  # judges Mon 28 Sep
+        sb = FakeSB(run, video_posts=[CatchUpSlot.HEAD | {'set_title': 'X'}], publish_attempts=[])
+        sb.db['_now'] = utc('2026-09-28T11:37:00')
+        cadence.record_skip(sb, VIDP4, CatchUpSlot.HEAD, 'VID-P4: before slot (19:30 IST) -- current IST 17:07')
+        sb.db['_now'] = run
+        sent = []
+        cadence.check_missed_slot(sb, VIDP4, run, lambda p, d, rows: sent.append(rows))
+        self.assertIn('skipped/deferred: VID-P4: before slot (19:30 IST) -- current IST 17:07', sent[0][0]['reason'])
+
+
 class RecordAttempt(unittest.TestCase):
     def test_never_raises(self):
         class Boom:

@@ -50,3 +50,37 @@ jobs:
           sleep 3
           # FirstCry: the LEGO listing; server-rendered selling-price tiles.
           probe firstcry 'https://www.firstcry.com/lego/0/0/354' 'rupee_sp'
+
+      # P13 item 1a (MyBrickHouse stock incident): what the runner receives from MyBrickHouse.
+      # Read-only: one products.json page per user agent, plus the policy files. Counts and
+      # headers only for the feed; the robots.txt / agents.md bodies are printed verbatim.
+      - name: MyBrickHouse (products.json availability + policy files)
+        env:
+          SCRAPER_UA: 'BricksOfIndia/1.0 (+https://bricksofindia.com)'
+          BOT_UA: 'BricksOfIndiaBot/1.0 (+https://bricksofindia.com; bot@bricksofindia.com) reachability probe'
+        run: |
+          set -u
+          base='https://lego.mybrickhouse.com'
+          feed() {
+            label="$1"; ua="$2"
+            code=$(curl -s -D hdr.txt -o feed.json -A "$ua" -H 'Accept: application/json' --max-time 30 \
+              -w '%{http_code} %{size_download}' "$base/products.json?limit=250&page=1") || code='000 0'
+            counts=$(jq -r '[.products[]?.variants[]?.available] | "products=\(length) true=\(map(select(.==true))|length) false=\(map(select(.==false))|length)"' feed.json 2>/dev/null || echo 'not JSON')
+            prods=$(jq -r '.products|length' feed.json 2>/dev/null || echo '?')
+            hdrs=$(grep -iE '^(server|content-type|cf-ray|cf-cache-status|x-shopify-stage|x-sorting-hat-shopid|retry-after|x-robots-tag|set-cookie):' hdr.txt | sed -E 's/(set-cookie: [^=]+)=.*/\1=…/I' | tr -d '\r' | tr '\n' ' ')
+            echo "MBH feed [$label] HTTP/bytes: $code | products on page 1: $prods | variants $counts"
+            echo "  headers: $hdrs"
+            echo "| MBH products.json ($label) | $code | products $prods | $counts |" >> "$GITHUB_STEP_SUMMARY"
+          }
+          echo '## MyBrickHouse from the runner' >> "$GITHUB_STEP_SUMMARY"
+          echo '| Fetch | HTTP bytes | Products | Variants |' >> "$GITHUB_STEP_SUMMARY"
+          echo '|---|---|---|---|' >> "$GITHUB_STEP_SUMMARY"
+          feed scraper-UA "$SCRAPER_UA"; sleep 3
+          feed bot-UA "$BOT_UA"; sleep 3
+          for f in robots.txt agents.md; do
+            code=$(curl -s -o "$f.body" -A "$BOT_UA" --max-time 30 -w '%{http_code} %{size_download} %{content_type}' "$base/$f") || code='000 0'
+            echo "===== $f: HTTP/bytes/type $code | sha256 $(sha256sum "$f.body" | cut -c1-12)"
+            cat "$f.body"; echo; echo "===== end $f"
+            { echo "### $f ($code)"; echo '```'; head -c 4000 "$f.body"; echo; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            sleep 3
+          done

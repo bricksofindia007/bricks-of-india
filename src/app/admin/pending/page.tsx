@@ -9,8 +9,9 @@ import { PublishAllButton } from './PublishAllButton';
 import { DraftBodyExpander } from './DraftBodyExpander';
 
 export const metadata: Metadata = buildMetadata({
-  title: 'Pending Drafts — BOI Admin',
-  description: 'Bricks of India admin: review and approve pending article drafts.',
+  title: 'Bricks of India',
+  absoluteTitle: true,
+  description: 'Bricks of India.',
   path: '/admin/pending',
   robots: { index: false, follow: false },
 });

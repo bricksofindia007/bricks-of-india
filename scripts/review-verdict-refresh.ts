@@ -146,7 +146,7 @@ async function check(original: string, revised: string, verdict: string, live: L
   if (!revised.includes('Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra (we earn a commission).')) problems.push('Toycra ABHINAV12 note missing or altered');
   if (!SIGNOFF.test(revised.slice(-400))) problems.push('sign-off missing from the end');
   // Minimal-edit check: paragraphs with nothing price/availability-related must survive verbatim.
-  const untouchable = paras(original).filter((p) => !/₹|estimat|import|india|stores?|toycra|mybrickhouse|verdict|grey|gray|netflix|spotify|emi|amul|price|cost|expensive|cheap|afford|wallet|splurge|per[‑-]?\s?piece/i.test(p));
+  const untouchable = paras(original).filter((p) => !/₹|estimat|import|\bindia|\bstores?\b|toycra|mybrickhouse|verdict|grey|gray|netflix|spotify|\bemi\b|amul|price|cost|expensive|cheap|afford|wallet|splurge|per[‑-]?\s?piece/i.test(p));
   const kept = untouchable.filter((p) => revised.includes(p)).length;
   if (untouchable.length && kept / untouchable.length < 0.8) problems.push(`rewrote too much: only ${kept}/${untouchable.length} unrelated paragraphs kept verbatim`);
   const cites = await unverifiedSetCitations(sb, revised);

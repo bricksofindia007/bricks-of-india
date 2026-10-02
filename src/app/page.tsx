@@ -15,7 +15,7 @@ import { TaglineChip } from '@/components/ui/Taglines';
 import { LabStrip } from '@/components/ui/LabStrip';
 import { BRAND, MASCOTS, THEMES } from '@/lib/brand';
 import { supabaseRead as supabase, createServerClient } from '@/lib/supabase';
-import { READ_REVALIDATE_SECONDS, PRICE_CADENCE } from '@/lib/price-freshness';
+import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { getDeals } from '@/lib/price-summary';
 
 export const revalidate = 3600; // re-fetch from Supabase at most every hour
@@ -25,7 +25,7 @@ export const revalidate = 3600; // re-fetch from Supabase at most every hour
 
 export const metadata: Metadata = buildMetadata({
   title: 'Bricks of India — LEGO Price Comparison & Reviews in India 2026',
-  description: `Compare LEGO prices across India's top stores. Updated ${PRICE_CADENCE}. Plus honest reviews and guides. ${BRAND.tagline}.`,
+  description: `Compare LEGO prices across India's top stores. Plus honest reviews and guides. ${BRAND.tagline}.`,
   path: '/',
   absoluteTitle: true,
 });
@@ -191,7 +191,7 @@ export default async function HomePage() {
               opacity: 0.85,
             }}
           >
-            Every set. Every store. Prices checked {PRICE_CADENCE}.
+            Every set. Every store.
           </p>
 
           {/* CTAs */}
@@ -313,8 +313,8 @@ export default async function HomePage() {
             <div className="flex-1 text-center md:text-left">
               <h2 className="font-heading text-dark text-5xl mb-3">FIND THE CHEAPEST PRICE IN INDIA</h2>
               <p className="text-text-secondary mb-6 font-body">
-                Type a set name or number. We&apos;ll find it across Toycra and MyBrickHouse.
-                Updated {PRICE_CADENCE}. We never sleep. Unlike your wallet.
+                Type a set name or number. We&apos;ll find it across Toycra and LEGO.in.
+                We never sleep. Unlike your wallet.
               </p>
               <div className="max-w-xl">
                 <SearchBar size="lg" placeholder="Search by name or set number... go on then." />

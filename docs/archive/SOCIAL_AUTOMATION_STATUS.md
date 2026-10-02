@@ -105,7 +105,7 @@ Merge strategy unchanged: Rebrickable wins on part count + image URL. Brickset f
 - Uploaded directly from local file (not via Supabase URL)
 - OAuth2 credentials stored as JSON in `YOUTUBE_CLIENT_SECRETS` GitHub Secret
 - Token auto-refreshes on every run
-- Account: kungfu500@gmail.com (permanent refresh token — no expiry)
+- Account: [third-party email removed] (permanent refresh token — no expiry)
 
 ---
 
@@ -145,7 +145,7 @@ Local `tmp/` files are deleted after successful upload.
 | Token | Account | Expires | Action required |
 |-------|---------|---------|----------------|
 | IG Access Token (long-lived) | bricksofindia Instagram | ~2026-07-23 | Re-exchange every 55 days. Alert at 7 days remaining. |
-| YouTube OAuth | kungfu500@gmail.com | Permanent (refresh token) | None |
+| YouTube OAuth | [third-party email removed] | Permanent (refresh token) | None |
 
 **IG System User Token (permanent):** Not yet set up. Requires Meta Business Manager → System User → generate non-expiring token. Deferred. Current workaround: 60-day long-lived token, manual re-exchange.
 

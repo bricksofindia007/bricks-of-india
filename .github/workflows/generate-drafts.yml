@@ -37,12 +37,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 120
     env:
+      G19_TERMS: ${{ secrets.G19_TERMS }}  # G19 term list (never in the repo); gates fail closed without it
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       GEMINI_API_KEY:            ${{ secrets.GEMINI_API_KEY }}
       GROQ_API_KEY:              ${{ secrets.GROQ_API_KEY }}
       CEREBRAS_API_KEY:          ${{ secrets.CEREBRAS_API_KEY }}
+      # Gate 14 (#398 1b): piece/minifig fallback lookups for review drafts
+      REBRICKABLE_API_KEY:       ${{ secrets.REBRICKABLE_API_KEY }}
+      BRICKSET_API_KEY:          ${{ secrets.BRICKSET_API_KEY }}
 
     steps:
       - name: Checkout

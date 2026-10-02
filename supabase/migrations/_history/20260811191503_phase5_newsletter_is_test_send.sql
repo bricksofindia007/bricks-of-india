@@ -13,7 +13,7 @@ alter table growth.newsletter_drafts
 
 -- Retroactive backfill: issue #4, the first real send, went to the
 -- explicit test list (bhargav.abhinav@gmail.com,
--- perfectsmiles.mumbai@gmail.com), not real subscribers.
+-- [third-party email removed]), not real subscribers.
 update growth.newsletter_drafts
   set is_test_send = true
   where id = '83dcd8e9-305e-47cb-bd59-8d463a00b6de';

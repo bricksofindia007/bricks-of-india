@@ -8,6 +8,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
 import { bannedOpener } from './opener-pattern';
 import { undisclosedAffiliateMentions } from './affiliate-disclosure';
+import { g19Hits } from './g19';
 export const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: [number, number] }> = {
   news    : { pass: [270,  440], fail: [225,  500] },  // target 300–400
   review  : { pass: [450,  770], fail: [375,  875] },  // target 500–700
@@ -18,7 +19,7 @@ export const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: 
 export const VALID_VERDICTS = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID']);
 
 export const INDIA_COMPARISON_RE = /\b(biryani|chai|EMI|Spotify|Netflix|petrol|samosa|litre|liter|movie.?ticket|PVR|butter.?chicken|Swiggy|Zomato|iPhone|months? of|weeks? of|auto.?rickshaw|mango)\b/i;
-export const INDIA_STORE_RE      = /\b(Toycra|MyBrickHouse|Amazon|Flipkart|import.?only)\b/i;
+export const INDIA_STORE_RE      = /\b(Toycra|MyBrickHouse|lego\.in|Amazon|Flipkart|import.?only)\b/i;
 
 // Numbers that are years — excluded from set-number candidates
 const YEAR_MIN = 1932;
@@ -50,6 +51,10 @@ export type LintResult = {
     citationIdentity: LintGateResult | null;
     openerPattern: LintGateResult;
     affiliateDisclosure: LintGateResult;
+    // Gate 15 (G19): nothing public reveals how the site works.
+    g19: LintGateResult;
+    // Gate 14 (#398 1b): set by generate-with-failover only when enforced (reviews).
+    gate14?: LintGateResult;
   };
 };
 
@@ -574,7 +579,8 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
     overallPass = false;
   } else {
     const indiaSeg = body.slice(markerIdx);
-    if (!/₹[\d,]+/.test(indiaSeg)) {
+    // "Official Indian pricing hasn't been announced yet." stands in for a ₹ figure (G19 + chat, 1 Oct 2026: no US-price estimates).
+    if (!/₹[\d,]+/.test(indiaSeg) && !/official indian pricing hasn['’]?t been announced/i.test(indiaSeg)) {
       if (isCommunity) {
         indiaParagraphGate = { pass: false, severity: 'warn', reason: 'No ₹ price found in India paragraph (community content)' };
         warnings.push('[Gate 2 WARN] No INR price in India Paragraph (community content)');
@@ -583,7 +589,7 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
         overallPass = false;
       }
     } else if (!INDIA_STORE_RE.test(indiaSeg)) {
-      indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No store mention (Toycra / MyBrickHouse / Amazon / Flipkart / import-only)' };
+      indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No store mention (Toycra / LEGO.in / Amazon / Flipkart / import-only)' };
       overallPass = false;
     } else if (!INDIA_COMPARISON_RE.test(indiaSeg)) {
       if (isCommunity) {
@@ -640,6 +646,18 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
     ? { pass: false, severity: 'fail', reason: `ABHINAV12 without a commission disclosure in the same sentence: "${undisclosed[0].slice(0, 80)}"` }
     : { pass: true, severity: 'ok' };
   if (undisclosed.length) overallPass = false;
+
+  // Gate 15 (G19, 1 Oct 2026): the article must not describe how Bricks of India works.
+  // The term list is the G19_TERMS secret (src/lib/g19.ts). Without it the gate fails closed.
+  // The reason never names the matched words (logs are public).
+  const g19 = g19Hits(`${draft.title ?? ''}
+${body}`);
+  const g19Gate: LintGateResult = g19 === null
+    ? { pass: false, severity: 'fail', reason: 'G19: term list not configured (G19_TERMS secret missing)' }
+    : g19.length
+    ? { pass: false, severity: 'fail', reason: `G19: ${g19.length} sentence(s) describe how the site works (first: sentence ${g19[0].index + 1})` }
+    : { pass: true, severity: 'ok' };
+  if (g19 === null || g19.length) overallPass = false;
 
   let citationIdentityGate: LintGateResult | null = null;
 
@@ -705,6 +723,7 @@ ${body}`);
       citationIdentity: citationIdentityGate,
       openerPattern: openerPatternGate,
       affiliateDisclosure: affiliateDisclosureGate,
+      g19: g19Gate,
     },
   };
 }

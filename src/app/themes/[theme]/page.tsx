@@ -10,8 +10,12 @@ import { rawThemesFor } from '@/lib/themeMapping';
 import { getThemeCardUrl, getThemeCardOgUrl } from '@/lib/themeCard';
 import { JsonLd } from '@/components/JsonLd';
 import { buildItemListSchema } from '@/lib/schemas';
-import { PRICE_CADENCE } from '@/lib/price-freshness';
 import { getPriceSummaries } from '@/lib/price-summary';
+
+// P10 revalidate audit (29 Sep): this route had no revalidate of its own and was either built
+// once per deploy (its data froze between deploys) or refreshed only as a side effect of a shared
+// read. Its cadence is now explicit and checked in CI.
+export const revalidate = 21600; // = THEME_PAGE_REVALIDATE_SECONDS: prices and deal badges on the price cadence (route-cadence.ts)
 
 interface Props {
   params: Promise<{ theme: string }>;
@@ -31,7 +35,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     path: `/themes/${params.theme}`,
     image: getThemeCardOgUrl(theme.slug),
     ogTitle: `LEGO ${theme.name} Sets India 2026 — Bricks of India`,
-    ogDescription: `Compare all LEGO ${theme.name} prices across Indian stores. Updated ${PRICE_CADENCE}.`,
+    ogDescription: `Compare all LEGO ${theme.name} prices across Indian stores.`,
   });
 }
 

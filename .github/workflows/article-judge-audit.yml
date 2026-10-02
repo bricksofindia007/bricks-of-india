@@ -48,9 +48,9 @@ jobs:
           ARTICLE_JUDGE_TOKEN_BUDGET: ${{ inputs.token_budget }}
           OUT_DIR: article-judge-out
         run: python scripts/video/article_coherence.py
-      - uses: actions/upload-artifact@v4
+      - name: Store judge output (private boi-ops, B2)
         if: always()
-        with:
-          name: article-judge-${{ inputs.offset }}
-          path: article-judge-out/
-          retention-days: 30
+        continue-on-error: true
+        env:
+          BOI_OPS_TOKEN: ${{ secrets.BOI_OPS_TOKEN }}
+        run: bash scripts/ci/push-to-boi-ops.sh article-judge-out article-judge/${{ github.run_id }}

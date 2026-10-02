@@ -139,9 +139,9 @@ const FORBIDDEN_SUBS: [RegExp, string][] = [
 ];
 
 const JAIMAN_SUBS: [RegExp, string][] = [
-  [/MyBrickHouse,\s*Toycra,\s*and\s*Jaiman\s*Toys/gi, 'MyBrickHouse and Toycra'],
+  [/MyBrickHouse,\s*Toycra,\s*and\s*Jaiman\s*Toys/gi, 'LEGO.in and Toycra'],
   [/Toycra,\s*and\s*Jaiman\s*Toys/gi,                 'Toycra'],
-  [/MyBrickHouse\s*and\s*Jaiman\s*Toys/gi,             'MyBrickHouse and Toycra'],
+  [/MyBrickHouse\s*and\s*Jaiman\s*Toys/gi,             'LEGO.in and Toycra'],
   [/,?\s*and\s*Jaiman\s*Toys/gi,                       ''],
   [/Jaiman\s*Toys/gi,                                  'Toycra'],
 ];
@@ -183,15 +183,15 @@ export function prePublishAutoFix(body: string, draft: { source_title?: string |
   }
 
   const hasPrice = /₹[\d,]+/.test(c);
-  const hasStore = /MyBrickHouse|Toycra/i.test(c);
+  const hasStore = /MyBrickHouse|lego\.in|Toycra/i.test(c);
   if (hasPrice && !hasStore) {
-    c = c.replace(/(₹[\d,]+[^.\n]*\.)/, '$1 Available at MyBrickHouse and Toycra (use code ABHINAV12 for 12% off above ₹500; we earn a commission).');
+    c = c.replace(/(₹[\d,]+[^.\n]*\.)/, '$1 Available at LEGO.in and Toycra (use code ABHINAV12 for 12% off above ₹500; we earn a commission).');
   }
 
   const hasVerdict = /\b(BUY NOW|WAIT|IMPORT ONLY|AVOID)\b/.test(c);
   const hasSetNum = /\b\d{4,6}\b/.test(slug);
   if (hasPrice && !hasVerdict && hasSetNum) {
-    c = c.replace(/\s+$/, '') + '\n\n**Verdict: WAIT** — check prices at MyBrickHouse and Toycra before pulling the trigger.';
+    c = c.replace(/\s+$/, '') + '\n\n**Verdict: WAIT** — check prices at LEGO.in and Toycra before pulling the trigger.';
   }
 
   if (!/on that bombshell/i.test(c)) c = c.replace(/\s+$/, '') + '\n\n' + SIGNOFF_TEXT;
@@ -212,6 +212,18 @@ export function cqsHardCheck(body: string): string | null {
 }
 
 // ── Slug + target resolution ──────────────────────────────────────────────────
+
+/**
+ * #446 (P12): rows are published immediately -- there is no scheduling. A future published_at would
+ * be hidden from anon by the published-only read policy, so its page 404s and that 404 gets cached.
+ * The database trigger reject_future_published_at enforces the same limit (5 minutes of clock skew).
+ */
+export const MAX_PUBLISHED_AT_SKEW_MS = 5 * 60_000;
+export function assertPublishedAtNotFuture(publishedAt: string, nowMs = Date.now()): void {
+  const t = Date.parse(publishedAt);
+  if (!Number.isFinite(t)) throw new Error(`published_at is not a valid timestamp: ${publishedAt}`);
+  if (t > nowMs + MAX_PUBLISHED_AT_SKEW_MS) throw new Error(`published_at ${publishedAt} is in the future; publishing is immediate (#446)`);
+}
 
 export function generateSlug(title: string): string {
   return (title || 'untitled')
@@ -940,6 +952,7 @@ export async function publishOneDraft(
     ? excerptRaw
     : `${excerptRaw.slice(0, 156).replace(/\s+\S*$/, '')}…`;
   const now     = new Date().toISOString();
+  assertPublishedAtNotFuture(now);
 
   // Review-format articles carry verdict + a matched set reference for
   // Review/Product JSON-LD (buildReviewSchema()) and, as of 2026-07-05, for

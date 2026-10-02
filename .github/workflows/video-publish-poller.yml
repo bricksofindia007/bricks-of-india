@@ -16,22 +16,12 @@ on:
   workflow_dispatch:  # manual trigger for testing
 
 jobs:
-  # FP6.4 quota gate (P4 Step 2): non-essential workflow -- pauses when a
-  # Free-plan guard is closed (storage >= 800 MB / DB >= 400 MB / egress
-  # projected >= 4.0 GB) or usage is unreadable. See quota-gate.yml.
-  quota-gate:
-    uses: ./.github/workflows/quota-gate.yml
-    permissions:
-      contents: read
-      actions: write
-    with:
-      job: video-publish-poller
-      needs: 'read,write'
-    secrets: inherit
+  # P12 (29 Sep 2026): ESSENTIAL -- publishing approved content is never
+  # paused by the FP6.4 quota gate (it was misclassified non-essential in
+  # #395). The only guard left on this path is the in-code storage guard,
+  # and only on an actual Storage upload (publish.py / publish_quiet_panic.py).
 
   poll:
-    needs: [quota-gate]
-    if: needs.quota-gate.outputs.proceed == 'true'
     runs-on: ubuntu-latest
     # Issue #178 (b): one concurrency group per pipeline, shared with the
     # missing-platform retry job (video-retry-missing-platform.yml), so two

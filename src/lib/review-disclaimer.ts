@@ -10,16 +10,16 @@ export type ReviewVerdict = 'BUY NOW' | 'WAIT' | 'AVOID';
 export type SourceRetailer = 'mybrickhouse' | 'toycra' | 'both';
 
 export const STORE_DISPLAY_NAME: Record<SourceRetailer, string> = {
-  mybrickhouse: 'MyBrickHouse',
+  mybrickhouse: 'LEGO.in',
   toycra:       'Toycra',
-  both:         'MyBrickHouse and Toycra',
+  both:         'LEGO.in and Toycra',
 };
 
 export type DisclaimerVariant = 'buy' | 'wait_mybrickhouse' | 'wait_toycra' | 'avoid';
 
 export const DISCLAIMER_TEXT: Record<DisclaimerVariant, string> = {
   buy: "Standard disclaimer: if you've got the money, obviously buy it — that's what the verdict says too, for once we all agree.",
-  wait_mybrickhouse: "Standard disclaimer: rich readers can skip the verdict and just buy it. We'll be over here checking if MyBrickHouse's HDFC EMI discount makes this hurt less.",
+  wait_mybrickhouse: "Standard disclaimer: rich readers can skip the verdict and just buy it. We'll be over here checking if LEGO.in's HDFC EMI discount makes this hurt less.",
   wait_toycra: "Standard disclaimer: rich readers can skip the verdict and just buy it. Toycra's prepaid-only, so the rest of us will be here doing sums before we hit checkout.",
   avoid: 'Standard disclaimer: this one we mean literally — money doesn\'t fix bad design. Even the rich readers should sit this one out.',
 };

@@ -13,14 +13,34 @@ export const STORES = [
   {
     id:     'toycra',
     name:   'Toycra',
-    domain: 'www.toycra.com',
-    path:   '/collections/lego/products.json',
+    // B2 (P14 round 6): same rules as lego.in -- the canonical host fetched directly
+    // (www.toycra.com 301s to toycra.com; any redirect is now an error, never followed)
+    // with an explicit Accept-Language: en-IN, and a pre-write stop baseline.
+    domain:   'toycra.com',
+    path:     '/collections/lego/products.json',
+    redirect: 'error',
+    headers:  { 'Accept-Language': 'en-IN' },
   },
   {
+    // store_id stays 'mybrickhouse' (the registry key); the display name
+    // change to "lego.in" is a separate registry data fix (#455).
     id:     'mybrickhouse',
     name:   'MyBrickHouse',
-    domain: 'lego.mybrickhouse.com',
-    path:   '/products.json',
+    // ── PHASE 1 CAUSE FIX (#450, P14) ──────────────────────────────────────
+    // The old host lego.mybrickhouse.com answers a request carrying
+    // `accept-language: *` (which Node's fetch always adds) from a US runner
+    // with `content-language: en-US` and every variant available:false;
+    // without that header it answers en-IN and ~97% available. lego.in
+    // answers en-IN and 842/873 available WITH the header, through this very
+    // fetchAllProducts(), on the same runner and IP in the same job
+    // (run 36755143181, IP 57.151.86.240). So the fix is the canonical host,
+    // fetched directly: any redirect is an error, never followed.
+    // Plus an explicit Accept-Language: en-IN (P14 B.2, Abhinav) so the
+    // store's locale never depends on Node's default `accept-language: *`.
+    domain:   'lego.in',
+    path:     '/products.json',
+    redirect: 'error',
+    headers:  { 'Accept-Language': 'en-IN' },
   },
 ];
 
@@ -38,8 +58,17 @@ export async function withRetry(fn, retries = 3, baseMs = 2000) {
   }
 }
 
-/** Fetch all products from a Shopify store via paginated /products.json */
-export async function fetchAllProducts(domain, path) {
+/**
+ * Fetch all products from a Shopify store via paginated /products.json.
+ *
+ * opts.redirect: fetch redirect mode ('follow' when omitted, as before).
+ * opts.headers: extra request headers (e.g. Accept-Language), merged after
+ * the default User-Agent / Accept.
+ * opts.onPage({ url, finalUrl, status, redirected, body }): called with each
+ * page's raw body before parsing, for per-run logging (P14 4.4). Omitting
+ * opts keeps the pre-P14 behaviour exactly (Toycra, reviews-source).
+ */
+export async function fetchAllProducts(domain, path, opts = {}) {
   const products = [];
   let page = 1;
 
@@ -49,11 +78,14 @@ export async function fetchAllProducts(domain, path) {
 
     const data = await withRetry(async () => {
       const res = await fetch(url, {
-        headers: { 'User-Agent': 'BricksOfIndia/1.0 (+https://bricksofindia.com)', Accept: 'application/json' },
+        headers: { 'User-Agent': 'BricksOfIndia/1.0 (+https://bricksofindia.com)', Accept: 'application/json', ...(opts.headers ?? {}) },
         signal: AbortSignal.timeout(30_000),
+        ...(opts.redirect ? { redirect: opts.redirect } : {}),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status} from ${url}`);
-      return res.json();
+      const body = await res.text();
+      opts.onPage?.({ url, finalUrl: res.url, status: res.status, redirected: res.redirected, body });
+      return JSON.parse(body);
     });
 
     const batch = data.products ?? [];

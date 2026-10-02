@@ -26,6 +26,9 @@ import { passesAutoPublishGates } from '../src/lib/auto-publish-gate';
 import { publishOneDraft, PublishInsertError } from '../src/lib/publish-draft';
 import { buildRetailerSourcePriceContext } from '../src/lib/prompts/draft-prompt';
 import { STORE_DISPLAY_NAME } from './lib/reviews-source.mjs';
+import { loadRecentNews, cataloguedCandidates, decideSameSet, holdReason } from '../src/lib/same-set-guard';
+import { resolveGate14Facts, catalogueFactsPrompt, writeBackPieces, isUnverifiableOnly } from '../src/lib/gate14-facts';
+import { FEATURE_FLAGS } from '../src/lib/feature-flags';
 
 // ── CLI flags ─────────────────────────────────────────────────────────────────
 
@@ -116,7 +119,7 @@ const SKIP_FETCH_DOMAINS = new Set([
 const UA = 'BricksOfIndia-RadarBot/1.0 (+https://bricksofindia.com)';
 
 const INDIA_STORE_PRIORITY: Record<string, number> = { mybrickhouse: 1, toycra: 2 };
-const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: 'MyBrickHouse', toycra: 'Toycra' };
+const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: 'LEGO.in', toycra: 'Toycra' };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -170,15 +173,6 @@ function fmtInr(n: number): string {
   return rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + last3;
 }
 
-async function fetchLiveUsdInr(): Promise<number | null> {
-  try {
-    const r = await fetch('https://open.er-api.com/v6/latest/USD', { signal: AbortSignal.timeout(5000) });
-    const d = await r.json() as { rates?: { INR?: number } };
-    const rate = d?.rates?.INR;
-    return (rate && rate > 75 && rate < 130) ? Math.round(rate) : null;
-  } catch { return null; }
-}
-
 // 2026-09-26: the model must see WHICH set the prices belong to, so it can't
 // attach them to a different product (Donkey Kong "(2000)" incident).
 function setIdentityHeader(setNumber: string | null, setName?: string | null): string {
@@ -186,6 +180,18 @@ function setIdentityHeader(setNumber: string | null, setName?: string | null): s
     ? `SET IDENTIFIED: ${setNumber} "${setName}" (catalogue). Attach the prices below ONLY to this set; cite no other set numbers unless the source names them.
 `
     : '';
+}
+
+/** Brickset availability "LEGO Gift with Purchase" (one call; false on any failure -> the old path). */
+async function bricksetIsGwp(setNumber: string): Promise<boolean> {
+  const key = getSecret('BRICKSET_API_KEY');
+  if (!key) return false;
+  try {
+    const params = JSON.stringify({ setNumber: `${setNumber}-1`, pageSize: 1 });
+    const r = await fetch(`https://brickset.com/api/v3.asmx/getSets?apiKey=${encodeURIComponent(key)}&userHash=&params=${encodeURIComponent(params)}`, { signal: AbortSignal.timeout(8000) });
+    const j = r.ok ? await r.json() as { status?: string; sets?: { availability?: string }[] } : null;
+    return j?.status === 'success' && j.sets?.[0]?.availability === 'LEGO Gift with Purchase';
+  } catch { return false; }
 }
 
 export async function buildIndiaPriceContext(setNumber: string | null, setName?: string | null): Promise<string> {
@@ -211,19 +217,24 @@ export async function buildIndiaPriceContext(setNumber: string | null, setName?:
 
   const { data: setRow } = await sb
     .from('sets')
-    .select('lego_mrp_inr')
+    .select('lego_mrp_inr, is_gwp')
     .eq('set_number', setNumber)
     .maybeSingle();
+
+  // P10 item 4 (behind FEATURE_FLAGS.gwpNoPriceContext): a gift with purchase that no Indian
+  // store lists has NO price. Without this branch the "USD x 1.35" estimate below turned spend
+  // thresholds into invented import prices (40900: US$100 -> "₹12,600"; 11 articles found).
+  // Checked before the MRP branch: some GWPs carry a catalogue MRP (40697).
+  if (FEATURE_FLAGS.gwpNoPriceContext && (setRow?.is_gwp === true || await bricksetIsGwp(setNumber))) {
+    return head + `INDIA PRICE DATA: ${setNumber} is a GIFT WITH PURCHASE and no Indian store lists it on its own. It is NOT sold separately and has NO retail price. Do NOT state or estimate any price, import price or ₹/$ figure for it. Say it isn't sold separately and comes free with a qualifying LEGO order; a spend threshold may be mentioned only as the requirement to get it, never as its price. Verdict: IMPORT ONLY.`;
+  }
   if (setRow?.lego_mrp_inr) {
-    return head + `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices). Use this figure. Mention Toycra / MyBrickHouse may list it within 4–6 weeks.`;
+    return head + `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices). Use this figure.`;
   }
 
-  const rate = await fetchLiveUsdInr();
-  if (rate) {
-    return head + `INDIA PRICE DATA: no store prices or official India MRP in our database. You MUST still include a ₹ figure in the India Paragraph — use this formula: USD retail price × 1.35 × ${rate} = estimated INR (the 1.35 factor covers import duty and retailer markup). Example: $99.99 USD → ₹${Math.round(99.99 * 1.35 * rate).toLocaleString('en-IN')} estimated. Round to nearest ₹100. Label it clearly as "estimated import price — not confirmed India retail." If the source does not mention any USD price, use IMPORT ONLY verdict and state the set is not currently available at any official India retailer.`;
-  }
+  // G19 + chat (1 Oct 2026): no US-price formula. The model states that Indian pricing isn't announced.
+  return head + `INDIA PRICE DATA: no store prices or official India MRP in our database. Do NOT estimate an Indian price from a US, UK or EU price, an exchange rate or any formula, and give no ₹ figure for this set. In the India Paragraph write exactly: "Official Indian pricing hasn't been announced yet." Then name the stores to watch (Toycra and LEGO.in).`;
 
-  return head + 'INDIA PRICE DATA: no price data available. Use IMPORT ONLY verdict. State the set is not currently available at any official India retailer, and omit a specific price figure.';
 }
 
 // ── Auto-publish ──────────────────────────────────────────────────────────────
@@ -325,6 +336,30 @@ async function generateBodyWithFailover(draft: any, batchOpeners?: string[]): Pr
   // be traced from evidence rather than inferred.
   console.log(`[context] draft=${draft.id} set=${setNumber ?? 'none'} via=${resolvedSet?.via ?? '-'} name=${JSON.stringify(resolvedSet?.name ?? null)} price_context=${JSON.stringify(indiaPriceContext)}`);
 
+  // Gate 14 (#398 1b): catalogue facts for review drafts. Shadow unless
+  // FEATURE_FLAGS.gate14ReviewEnforce (step 1d). A failed lookup = no facts,
+  // and the draft proceeds exactly as before (shadow) -- see gate14-facts.ts.
+  let gate14: DraftGenerationInput['gate14'];
+  let factsBlock = '';
+  if (draft.draft_format === 'review' && setNumber) {
+    const enforce = FEATURE_FLAGS.gate14ReviewEnforce;
+    const resolved = await resolveGate14Facts(sb, setNumber, {
+      rebrickableKey: getSecret('REBRICKABLE_API_KEY'), bricksetKey: getSecret('BRICKSET_API_KEY'),
+    }).catch((e) => { console.warn(`[gate14] facts lookup failed for ${setNumber}: ${(e as Error).message}`); return null; });
+    if (resolved) {
+      if (draft.source_price_inr) resolved.facts.prices.push(Number(draft.source_price_inr));
+      gate14 = { facts: resolved.facts, enforce };
+      console.log(`[gate14] ${enforce ? 'enforce' : 'shadow'} facts set=${setNumber} pieces=${resolved.facts.pieces ?? '?'}(${resolved.piecesSource ?? '-'}) minifigs=${resolved.facts.minifigs ?? '?'}(${resolved.minifigsSource ?? '-'}) year=${resolved.facts.year ?? '?'} prices=${resolved.facts.prices.length} mrp=${resolved.facts.mrp.length}`);
+      if (enforce) {
+        factsBlock = `
+
+${catalogueFactsPrompt(resolved.facts)}`;
+        const wb = await writeBackPieces(sb, resolved);
+        if (wb !== 'not-needed') console.log(`[gate14] pieces write-back set=${setNumber}: ${wb}`);
+      }
+    }
+  }
+
   const input: DraftGenerationInput = {
     format:            draft.draft_format as string,
     sourceTitle:       draft.source_title as string | null,
@@ -333,8 +368,9 @@ async function generateBodyWithFailover(draft: any, batchOpeners?: string[]): Pr
     setNumber,
     fullBody,
     sourceExcerpt:     draft.source_excerpt as string | null,
-    indiaPriceContext,
+    indiaPriceContext: indiaPriceContext + factsBlock,
     forceOpinionTake:  draft.opinion_forced_take === true,
+    gate14,
   };
 
   return generateWithFailover(input, sb, GEMINI_KEY!, GROQ_KEY ?? undefined, CEREBRAS_KEY ?? undefined, batchOpeners);
@@ -352,7 +388,7 @@ if (IS_MAIN) (async () => {
 
   let q = sb
     .from('pending_drafts')
-    .select('id, source_url, source_title, source_excerpt, source_published_at, draft_format, draft_title, source_retailer, source_price_inr, source_stock_status, source_checked_at, opinion_forced_take, draft_category')
+    .select('id, source_url, source_title, source_excerpt, source_published_at, draft_format, draft_title, source_retailer, source_price_inr, source_stock_status, source_checked_at, opinion_forced_take, draft_category, approved_by, discard_reason')
     .eq('status', 'approved')
     .is('draft_body', null)
     .order('created_at', { ascending: true });
@@ -408,6 +444,14 @@ if (IS_MAIN) (async () => {
   // hasn't been queried for yet (both Jul-1 "Your wallet called…" articles
   // shipped in one batch precisely this way).
   const batchOpeners: string[] = [];
+  let heldGate14 = 0;  // #398
+
+  // #422 same-set repeat guard (src/lib/same-set-guard.ts): news already
+  // published about a set in the last 7 days (one query per run), plus sets
+  // published earlier in THIS run (the 40900 pair shipped 41 s apart).
+  const recentNews = await loadRecentNews(sb);
+  const batchSets = new Map<string, string>();
+  let heldSameSet = 0;
 
   for (let i = 0; i < queue.length; i++) {
     await acquireGeminiSlot();
@@ -417,7 +461,42 @@ if (IS_MAIN) (async () => {
     process.stdout.write(`[${i + 1}/${queue.length}] ${label}... `);
 
     try {
+      // #422: before drafting, so a repeat costs no model tokens.
+      const catalogued = await cataloguedCandidates(sb, draft);
+      const hit = decideSameSet(draft, catalogued, recentNews, batchSets);
+      if (hit) {
+        const { error: holdErr } = await sb.from('pending_drafts').update({
+          status: 'draft',
+          discard_reason: holdReason(hit).slice(0, 500),
+        }).eq('id', draft.id);
+        if (holdErr) {
+          console.error('[supabase-write] table=pending_drafts op=update(holdSameSet) error:', holdErr);
+          failed++;
+        } else {
+          heldSameSet++;
+        }
+        console.log(`HELD (same set ${hit.set_number}: ${hit.path}) -- back in /admin/pending`);
+        continue;
+      }
+
       const outcome = await generateBodyWithFailover(draft, batchOpeners);
+
+      // Gate 14 (#398): shadow findings are logged only. When enforced, a draft
+      // whose only findings are unverifiable claims (a fact we couldn't look
+      // up) is held for review rather than rejected -- the gap is ours, not the
+      // model's. Contradicted facts fail the lint and take the reject path below.
+      if (outcome.gate14) {
+        const g = outcome.gate14;
+        console.log(`[gate14] ${g.enforce ? 'enforce' : 'shadow'} findings=${g.findings.length}${g.findings.length ? ' ' + JSON.stringify(g.findings.map((x) => `[${x.rule}] ${x.detail}`)) : ''}`);
+        if (g.enforce && isUnverifiableOnly(g.findings)) {
+          const reason = `gate14_unverifiable: ${g.findings.map((x) => `[${x.rule}] ${x.detail}`).join('; ')}`.slice(0, 500);
+          const { error: holdErr } = await sb.from('pending_drafts').update({ status: 'draft', discard_reason: reason }).eq('id', draft.id);
+          if (holdErr) { console.error('[supabase-write] table=pending_drafts op=update(holdGate14) error:', holdErr); failed++; }
+          else heldGate14++;
+          console.log('HELD (Gate 14: unverifiable facts) -- back in /admin/pending');
+          continue;
+        }
+      }
 
       // Policy change 2026-06-28 (Abhinav, this session): "let review/opinion/
       // guide auto-publish too, IF they pass the exact same gates as news (no
@@ -434,6 +513,7 @@ if (IS_MAIN) (async () => {
       if (!outcome.requiresManualApproval && passesAutoPublishGates(outcome)) {
         const { path, slug } = await autoPublish(draft, outcome);
         batchOpeners.push(outcome.body);
+        for (const set of catalogued) batchSets.set(set, `${path}/${slug}`);
         geminiAttempted++;
         if (outcome.failoverUsed) { fallbackAttempted++; fallbackOk++; } else { geminiOk++; }
         const failoverNote = outcome.failoverUsed ? ` [${outcome.provider.toUpperCase()} FAILOVER]` : '';
@@ -598,6 +678,8 @@ if (IS_MAIN) (async () => {
       // 'cerebras'); this is just the run-level rollup.
       fallback:    { attempted: fallbackAttempted, ok: fallbackOk, lint_failed: fallbackLintFailed },
       both_failed: bothFailed,
+      held_same_set: heldSameSet,  // #422
+      held_gate14: heldGate14,  // #398
     };
     const { error: updateErr } = await sb
       .from('generator_runs')
@@ -619,7 +701,7 @@ if (IS_MAIN) (async () => {
   const total = geminiOk + fallbackOk;
   const lintFailed = geminiLintFailed + fallbackLintFailed;
   const dur   = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected+deleted (quality gates), ${bothFailed} rejected+deleted (both providers failed), ${failed} failed (retrying next run), ${publishRejected} rejected at insert (terminal), ${deferred} deferred of ${queue.length} — ${dur}s total`);
+  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected+deleted (quality gates), ${bothFailed} rejected+deleted (both providers failed), ${failed} failed (retrying next run), ${publishRejected} rejected at insert (terminal), ${deferred} deferred, ${heldSameSet} held (same set, #422), ${heldGate14} held (Gate 14 unverifiable) of ${queue.length} — ${dur}s total`);
 })().catch(err => {
   console.error('FATAL:', err);
   process.exit(1);

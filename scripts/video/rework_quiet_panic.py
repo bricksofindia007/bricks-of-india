@@ -11,7 +11,7 @@ reworked=true whether the rework succeeds or gets escalated.
 Escalation cap: if a set_number accumulates 2 rows that reach
 status='rejected' (the original + a reworked version that was ALSO
 rejected), automated rework stops for that set -- flagged to
-BOI_MASTER_TRACKER.md instead of a third automatic attempt.
+a GitHub issue instead of a third automatic attempt (C2: the tracker moved to boi-ops).
 
 Deliberately imports scripts/video/generate_quiet_panic_video.py's
 get_supabase()/process_candidate() rather than duplicating them -- operator
@@ -25,6 +25,7 @@ shared code path. Imports nothing from publish_quiet_panic.py or engine.py.
 """
 
 import argparse
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,8 +33,6 @@ from pathlib import Path
 import generate_quiet_panic_video as gqpv
 
 ESCALATION_THRESHOLD = 2  # 2 rejected rows for the same set_number -> stop automated rework
-TRACKER_PATH = Path(__file__).parent.parent.parent / 'BOI_MASTER_TRACKER.md'
-ESCALATION_SECTION_HEADER = '## VID-QP Rework — Escalated Sets (operator attention needed)'
 
 
 def send_review_email(result: dict, original: dict | None) -> bool:
@@ -148,32 +147,27 @@ def count_rejected_for_set(sb, set_number: str) -> list:
 
 
 def append_tracker_escalation(set_number: str, set_title: str, rejected_ids: list) -> None:
-    if not TRACKER_PATH.exists():
-        raise FileNotFoundError(f'BOI_MASTER_TRACKER.md not found at {TRACKER_PATH}')
-    text = TRACKER_PATH.read_text(encoding='utf-8')
+    """C2 (P14 round 6): the tracker moved to the private boi-ops repo, and this job never
+    committed its tracker edit anyway (contents: read), so escalations were lost. It now
+    files a GitHub issue instead (issue-filing is binding, CLAUDE.md)."""
+    import json as _json
+    import urllib.request as _ur
+    token = (os.environ.get('GITHUB_TOKEN') or '').lstrip('﻿').strip()
+    repo = os.environ.get('GITHUB_REPOSITORY', 'bricksofindia007/bricks-of-india')
+    if not token:
+        raise RuntimeError('GITHUB_TOKEN not set; cannot file the escalation issue')
     date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
     id_list = ', '.join(f'`{i}`' for i in rejected_ids)
-    entry = (
-        f'- **{date_str}** — set `{set_number}` ({set_title}): reached '
-        f'{len(rejected_ids)} rejected rows ({id_list}). Automated rework '
-        f'stopped after {ESCALATION_THRESHOLD} rejections per '
-        f'rework_quiet_panic.py\'s escalation cap -- needs operator\'s '
-        f'direct attention (manual rework, or abandon this set). Not '
-        f'auto-retried further.\n'
-    )
-
-    if ESCALATION_SECTION_HEADER in text:
-        idx = text.index(ESCALATION_SECTION_HEADER)
-        insert_at = text.index('\n', idx) + 1
-        new_text = text[:insert_at] + entry + text[insert_at:]
-    else:
-        marker = '\n---\n'
-        first_sep = text.index(marker)
-        insert_at = first_sep + len(marker)
-        section = f'\n{ESCALATION_SECTION_HEADER}\n\n{entry}\n---\n'
-        new_text = text[:insert_at] + section + text[insert_at:]
-
-    TRACKER_PATH.write_text(new_text, encoding='utf-8')
+    body = (f'{date_str}: set `{set_number}` ({set_title}) reached {len(rejected_ids)} rejected rows '
+            f'({id_list}). Automated rework stopped after {ESCALATION_THRESHOLD} rejections '
+            f"(rework_quiet_panic.py escalation cap). Needs operator's direct attention "
+            f'(manual rework, or abandon this set). Not auto-retried further.')
+    req = _ur.Request(f'https://api.github.com/repos/{repo}/issues', method='POST',
+                      data=_json.dumps({'title': f'VID-QP rework escalated: set {set_number}', 'body': body}).encode(),
+                      headers={'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json'})
+    with _ur.urlopen(req, timeout=20) as r:
+        if r.status >= 300:
+            raise RuntimeError(f'issue create HTTP {r.status}')
 
 
 def rework_one(sb, row: dict) -> dict:
@@ -221,11 +215,11 @@ def poll_and_rework() -> int:
         rejected_ids = count_rejected_for_set(sb, set_number)
         if len(rejected_ids) >= ESCALATION_THRESHOLD:
             print(f'ESCALATION: set {set_number} has {len(rejected_ids)} rejected row(s) '
-                  f'(>= {ESCALATION_THRESHOLD}) -- stopping automated rework, flagging to tracker.')
+                  f'(>= {ESCALATION_THRESHOLD}) -- stopping automated rework, filing an issue.')
             try:
                 append_tracker_escalation(set_number, row['set_title'], rejected_ids)
             except Exception as e:
-                print(f'WARN: failed to write tracker escalation note: {e}', file=sys.stderr)
+                print(f'WARN: failed to file the escalation issue: {e}', file=sys.stderr)
                 exit_code = 1
             sb.table('quiet_panic_posts').update({'reworked': True}).eq('id', rid).execute()
             continue

@@ -1167,7 +1167,17 @@ def _try_tier1_pre_tts_remediation(
     if fixed_raw == raw_script_text.strip():
         return None  # not quote-wrapped -- nothing for this fix to do
     new_report = gates.run_all_gates(fixed_raw, pieces, sets_lookup, recent, price_inr)
-    return new_report if new_report.all_passed else None
+    return new_report if new_report.passed_or_held else None
+
+
+def held_escalation_text(report: gates.GateReport) -> str:
+    """#378: reviewer-facing sentence for held (judge-unavailable) gates, or ''."""
+    held = [r.gate for r in report.results if not r.passed and r.held]
+    if not held:
+        return ""
+    return (f" The coherence judge could not run ({', '.join(held)} held, fail-closed since #378), "
+            "so no regeneration was tried: a person must judge whether the script reads as coherent "
+            "English, then approve with a gate override reason, or reject.")
 
 
 def build_escalation_note(report: gates.GateReport, remediation_attempted: str) -> dict:
@@ -1243,7 +1253,10 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
         # on to fail on content gates instead, a genuinely different reason.
         provider_error = None
         report = gates.run_all_gates(raw_script.text, candidate.get("pieces"), sets_lookup, recent, candidate["price_inr"])
-        if report.all_passed:
+        # #378: held-only failures (judge unavailable) are not regenerated --
+        # a new script can't fix a judge outage. The story continues to human
+        # review carrying an escalation note (see held_escalation_text()).
+        if report.passed_or_held:
             # Sanitized text, not raw -- this is what actually reaches TTS
             # and gets stored as the canonical script (see gates.sanitize_script).
             return report.sanitized_script, report, raw_script.provider, raw_script.input_tokens, raw_script.output_tokens
@@ -2455,6 +2468,9 @@ def retry_missing_platforms_all(sb) -> bool:
     slot_open, slot_reason = cadence.slot_status(cadence.VIDP4, now_utc)
     if not slot_open:
         print(f"retry_missing_platforms_all: {len(stuck_rows)} row(s) waiting, deferred -- {slot_reason}.")
+        for video_post in stuck_rows:  # P12 (c): no silent skips
+            missing = "yt" if video_post["status"] == "posted_ig" else "ig"
+            cadence.record_attempt(sb, cadence.VIDP4, video_post, "retry", "deferred", platform=missing, detail=slot_reason)
         return True
 
     print(f"retry_missing_platforms_all: {len(stuck_rows)} row(s) with a missing platform.")
@@ -2525,7 +2541,7 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
     # the pre-fix text as the audit trail; report.sanitized_script is the
     # corrected, TTS-ready canonical script.
     report = gates.run_all_gates(row["script"], pieces, sets_lookup, recent, row["price_inr"])
-    if not report.all_passed:
+    if not report.passed_or_held:
         print("ERROR: existing script no longer passes gates after re-sanitization -- aborting, not re-rendering.", file=sys.stderr)
         for r in report.results:
             status = "PASS" if r.passed else "FAIL"
@@ -2596,8 +2612,10 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
         )
         escalation_note = build_escalation_note(
             report,
-            remediation_attempted=f"Manual --rerender requested by operator; {retry_note}.",
+            remediation_attempted=f"Manual --rerender requested by operator; {retry_note}.{held_escalation_text(report)}",
         )
+    elif not report.all_passed:
+        escalation_note = build_escalation_note(report, remediation_attempted=held_escalation_text(report).strip())
 
     print(f"Applying Story #{row['story_number']} badge...")
     badged_path = output_path.with_name(output_path.stem + "_badged.mp4")
@@ -2745,21 +2763,6 @@ def main() -> None:
         # also holds this slot. Slot = VID-P4 daily from 19:30 IST.
         now_utc = datetime.now(timezone.utc)
         today = cadence.ist_date(now_utc)
-        already_posted_id = cadence.anything_posted_on(sb, cadence.VIDP4, today)
-        if already_posted_id:
-            print(f"Already published today (IST): video_posts {already_posted_id}. "
-                  f"Holding all approved rows for tomorrow's poll -- at most one publish per calendar day.")
-            return
-
-        # Fixed evening window, not a single once-a-day trigger -- the poller
-        # still ticks every 15 minutes; before 19:30 IST this is a deliberate
-        # silent no-op so a missed 19:30 tick is recovered by 19:45/20:00/etc.
-        # the same evening.
-        slot_open, slot_reason = cadence.slot_status(cadence.VIDP4, now_utc)
-        if not slot_open:
-            print(f"{slot_reason}. Nothing to do this tick.")
-            return
-
         # Explicit, tested sort key: story_number, not created_at. They
         # currently always agree (story_number is assigned by a BEFORE
         # INSERT trigger off row-creation order -- see
@@ -2769,10 +2772,35 @@ def main() -> None:
         # defines "Story #N" ordering.
         approved_res = sb.table("video_posts").select("*").eq("status", "approved").order("story_number").execute()
         approved_rows = approved_res.data
+        head = approved_rows[0] if approved_rows else None
+
+        # P12 (c): every exit below that doesn't post records why
+        # (publish_attempts kind='skipped'), so the missed-slot alert can
+        # quote it. No silent skips.
+        def skip(reason: str) -> None:
+            print(f"{reason}. Nothing to do this tick.")
+            cadence.record_skip(sb, cadence.VIDP4, head, reason)
+
+        already_posted_id = cadence.anything_posted_on(sb, cadence.VIDP4, today)
+        if already_posted_id:
+            skip(f"VID-P4: already published today (IST): video_posts {already_posted_id}; "
+                 f"{len(approved_rows)} approved row(s) held for the next slot -- at most one publish per calendar day")
+            return
 
         if not approved_rows:
-            print("No approved rows found. Nothing to publish.")
+            skip("VID-P4: no approved rows queued")
             return
+
+        # Fixed evening window, not a single once-a-day trigger -- the poller
+        # ticks every 15 minutes on paper, but GitHub fires only 4-8 of those
+        # a day (P12). If yesterday's slot was missed, today's opens at
+        # 07:00 IST instead of 19:30 so a daytime tick recovers it.
+        catchup = cadence.catchup_due(sb, cadence.VIDP4, now_utc, head)
+        slot_open, slot_reason = cadence.slot_status(cadence.VIDP4, now_utc, catchup=catchup)
+        if not slot_open:
+            skip(f"{slot_reason}; {len(approved_rows)} approved row(s) waiting, next is story #{head.get('story_number')}")
+            return
+        print(slot_reason)
 
         print(f"Found {len(approved_rows)} approved row(s) queued; publishing at most one this run (daily cap).")
         exit_code = 0
@@ -3006,8 +3034,10 @@ def main() -> None:
             )
             escalation_note = build_escalation_note(
                 report,
-                remediation_attempted=f"{retry_note}.",
+                remediation_attempted=f"{retry_note}.{held_escalation_text(report)}",
             )
+        elif not report.all_passed:
+            escalation_note = build_escalation_note(report, remediation_attempted=held_escalation_text(report).strip())
 
         insert_kwargs = dict(
             provider=script_provider, input_tokens=script_input_tokens, output_tokens=script_output_tokens,

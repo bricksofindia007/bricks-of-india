@@ -70,4 +70,21 @@ export const FEATURE_FLAGS = {
   // groq.ts, so a future model swap or rollback is a one-line config
   // change.
   articleGroqFallbackModel: 'openai/gpt-oss-120b',
+
+  // Gate 14 review fact check (#398). false = SHADOW: new review drafts get
+  // their catalogue facts resolved and Gate 14 findings logged
+  // ("[gate14] shadow"), with nothing else changing. true = step 1d
+  // (Abhinav's enable decision):
+  //   - facts are injected into the prompt;
+  //   - findings join the Gates 11-13 regeneration;
+  //   - a draft still failing is rejected, or held if every finding is
+  //     "unverifiable";
+  //   - a looked-up piece count is written back to a sets row whose pieces is 0.
+  gate14ReviewEnforce: false,
+
+  // P10 item 4: gift-with-purchase sets no Indian store lists get a "no price, not sold
+  // separately" price context in EVERY format's prompt (news too), instead of the
+  // "USD x 1.35" estimate that turned spend thresholds into invented import prices.
+  // ON 29 Sep 2026 (P11 item 2, Abhinav, Tier 2): this is the cause of invented import prices.
+  gwpNoPriceContext: true,
 } as const;

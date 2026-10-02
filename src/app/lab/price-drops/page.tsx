@@ -10,8 +10,7 @@ import { getStores, storeLabels } from '@/lib/stores';
 
 export const metadata: Metadata = buildMetadata({
   title: 'LEGO Price Drops in India — The Lab',
-  description: 'Daily LEGO price drops across Indian stores — Toycra and MyBrickHouse. ' +
-    'Sorted by biggest drop. Updated every day from live store data.',
+  description: 'LEGO price drops across Indian stores — Toycra and LEGO.in. Sorted by biggest drop.',
   path: '/lab/price-drops',
 });
 
@@ -205,7 +204,7 @@ export default async function PriceDropsPage(props: Props) {
           {hasFilters ? ' (filtered)' : ' — min ₹200 or 5%'}
         </p>
         <p style={{ color: '#CBD5E0', fontSize: '0.72rem', margin: 0 }}>
-          Toycra · MyBrickHouse · Scraped daily · Sorted by biggest ₹ drop
+          Toycra · LEGO.in · Sorted by biggest ₹ drop
         </p>
       </div>
 
@@ -254,7 +253,7 @@ export default async function PriceDropsPage(props: Props) {
               No price drops in the last 30 days
             </p>
             <p style={{ fontSize: '0.82rem', margin: 0 }}>
-              {hasFilters ? 'Try clearing your filters.' : 'Check back soon. Our scrapers run daily.'}
+              {hasFilters ? 'Try clearing your filters.' : 'Check back soon.'}
             </p>
           </div>
         ) : (

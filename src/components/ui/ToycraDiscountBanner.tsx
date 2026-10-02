@@ -4,12 +4,13 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { BRAND } from '@/lib/brand';
 
-// #212 / PR-D (2026-09-26): every placement of the ABHINAV12 code carries the
-// affiliate disclosure, which is what /legal/affiliate-disclosure promises.
+// #212 / PR-D (2026-09-26): every placement of the ABHINAV12 code links the
+// affiliate disclosure. Line text changed by Abhinav (P14 round 3, 1 Oct 2026);
+// the /legal/affiliate-disclosure link stays.
 function Disclosure({ className }: { className?: string }) {
   return (
     <span className={className}>
-      We may earn a commission — it never changes your price or our verdicts.{' '}
+      ABHINAV12 gets you 12% off at Toycra. It’s not a fortune. But neither is your bank balance. We cannot fix everything!{' '}
       <Link href="/legal/affiliate-disclosure" className="underline hover:no-underline">Disclosure</Link>
     </span>
   );

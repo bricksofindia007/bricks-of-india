@@ -13,6 +13,11 @@ catch.
 
 from __future__ import annotations
 
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))
+_sys.path.insert(0, str(_Path(__file__).resolve().parent))  # coherence_judge (#378)
+from config.g19 import g19_hits  # noqa: E402  (G19, 1 Oct 2026)
 import os
 import re
 from dataclasses import dataclass, field
@@ -210,6 +215,9 @@ class GateResult:
     gate: str
     passed: bool
     reason: str = ""
+    # #378: True when the gate could not get a real verdict (judge outage).
+    # Still a failure (passed=False), but one a regeneration can't fix.
+    held: bool = False
 
 
 @dataclass
@@ -222,8 +230,21 @@ class GateReport:
     def all_passed(self) -> bool:
         return all(r.passed for r in self.results)
 
+    @property
+    def only_held_failures(self) -> bool:
+        """#378: at least one gate failed and every failure is held (judge
+        unavailable) -- the script failed nothing it was actually checked on."""
+        failing = [r for r in self.results if not r.passed]
+        return bool(failing) and all(r.held for r in failing)
+
+    @property
+    def passed_or_held(self) -> bool:
+        """Proceed to human review: all passed, or only held failures."""
+        return self.all_passed or self.only_held_failures
+
     def as_dict(self) -> dict:
-        d = {r.gate: {"pass": r.passed, "reason": r.reason} for r in self.results}
+        d = {r.gate: ({"pass": r.passed, "reason": r.reason, "held": True} if r.held
+                      else {"pass": r.passed, "reason": r.reason}) for r in self.results}
         # Standing metric, not a gate result: how often Gemini still tries
         # markdown despite the system prompt forbidding it, even after the
         # sanitization fix. Kept here (not a separate column) so it rides
@@ -372,6 +393,18 @@ def gate_no_first_person_build(script: str) -> GateResult:
 _STORE_NAME_RE = re.compile(r"\btoycra\b|\bmy\s*brick\s*house\b|\bmybrickhouse\b", re.IGNORECASE)
 
 
+def gate_g19(script: str) -> GateResult:
+    """G19 (1 Oct 2026): the script must not describe how Bricks of India works.
+    Term list: the G19_TERMS secret (config/g19.py). Fails closed without it; the
+    detail never names the matched words (logs are public)."""
+    hits = g19_hits(script)
+    if hits is None:
+        return GateResult("g19_no_method_talk", False, "G19 term list not configured (G19_TERMS secret missing)")
+    if hits:
+        return GateResult("g19_no_method_talk", False, f"{len(hits)} sentence(s) describe how the site works (first: sentence {hits[0]['index'] + 1})")
+    return GateResult("g19_no_method_talk", True)
+
+
 def gate_no_store_names(script: str) -> GateResult:
     m = _STORE_NAME_RE.search(script)
     if m:
@@ -389,73 +422,21 @@ def gate_no_store_names(script: str) -> GateResult:
 # G1-G9 gate here would have caught a "No stranding."-style ending either.
 def gate_coherence_llm_judge(script: str) -> GateResult:
     """LLM-as-judge: does this read as complete, coherent English -- not a
-    garbled or nonsensical fragment? Model-agnostic by design: a post-hoc
-    check on the FINAL script text, independent of which provider (Gemini/
-    Groq/Cerebras) generated it. Uses Groq (cheapest currently-active
-    provider) for a small, cheap classification call.
+    garbled or nonsensical fragment? Post-hoc check on the FINAL script text,
+    independent of which provider generated it.
 
-    Fails OPEN (pass=True with a WARNING detail) if the judge call itself
-    errors -- a transient judge-API hiccup blocking ALL publishing would be
-    a worse regression than occasionally missing a coherence problem,
-    especially now that generation itself already has real retry/backoff
-    (see engine.py's _retry_backoff_sleep()).
-
-    2026-08-22: model swapped llama-3.3-70b-versatile -> qwen/qwen3.6-27b.
-    The old model was already decommissioned on Groq (confirmed live via a
-    real 404 model_not_found during the qwen rollout evidence pass) -- this
-    gate had been silently fail-open on EVERY call since that deprecation,
-    never actually judging anything. Not flag-gated: this is a bug fix
-    restoring already-intended behavior (the gate was never meant to be a
-    no-op), not new capability, and gate results here are advisory/logged
-    for human review only (VID-P4 has no auto-publish path) -- a real
-    judge verdict newly appearing can only add information, never block
-    anything by itself.
-
-    2026-09-17: same failure mode recurred -- qwen/qwen3.6-27b was itself
-    decommissioned (live 404, confirmed via model_canary.py's real run
-    three days straight), so this hardcoded call had gone back to silently
-    fail-open on every call via the except-and-pass below, exactly the bug
-    this docstring describes above. This model string was NOT covered by
-    model_canary.py's Groq check (that check validates the model name
-    referenced in feature_flags.py/config, not this separate hardcoded
-    literal) -- a real gap in the canary's coverage, not just bad luck.
-    Swapped to openai/gpt-oss-120b, same replacement used everywhere else
-    this rollout (Groq's own recommended replacement, GA not Preview).
-    reasoning_effort='low' for gpt-oss (qwen's 'none' equivalent -- absent
-    some low-reasoning setting, these models burn output budget on hidden
-    <think> reasoning and return no visible verdict, confirmed empirically
-    for qwen during the original rollout)."""
-    groq_key = os.environ.get("GROQ_API_KEY", "").strip()
-    if not groq_key:
-        return GateResult("G10_coherence", True, "SKIPPED: GROQ_API_KEY not set (fail-open, judge unavailable)")
-    judge_prompt = (
-        "You are a strict but fair editor reviewing a short video script that will be "
-        "read aloud verbatim. Reply with exactly one line: 'COHERENT' if the script "
-        "reads as complete, sensible English with no garbled, truncated, or nonsensical "
-        "fragments (for example, an ending like 'No stranding.' with no clear referent "
-        "to anything earlier in the script would NOT be coherent) -- or "
-        "'INCOHERENT: <short reason>' if it does not.\n\nSCRIPT:\n" + script
-    )
-    try:
-        resp = requests.post(
-            "https://api.groq.com/openai/v1/chat/completions",
-            headers={"Authorization": f"Bearer {groq_key}", "Content-Type": "application/json"},
-            json={
-                "model": "openai/gpt-oss-120b",
-                "messages": [{"role": "user", "content": judge_prompt}],
-                "max_tokens": 200,
-                "temperature": 0.0,
-                "reasoning_effort": "low",
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        verdict = resp.json()["choices"][0]["message"]["content"].strip()
-        if verdict.upper().startswith("COHERENT"):
-            return GateResult("G10_coherence", True, verdict)
-        return GateResult("G10_coherence", False, verdict)
-    except Exception as e:
-        return GateResult("G10_coherence", True, f"SKIPPED: judge call failed ({e}) -- fail-open, not blocking on judge availability")
+    #378 (2 Oct 2026): FAILS CLOSED. This used to return pass=True on any
+    judge error or missing GROQ_API_KEY ("fail-open"), and it went silently
+    unjudged twice when Groq retired its model (2026-08-22, 2026-09-17).
+    It now calls the shared judge in coherence_judge.py (the one VID-QP and
+    Gate 14 use since #365), so all three share one model constant and one
+    contract: no real verdict -> pass=False, held=True. A held result is not
+    regenerated (a new script can't fix a judge outage); the story goes to
+    human review with an escalation note, and publish.py refuses it unless an
+    approver records a gate_override reason, i.e. a person judged it."""
+    from coherence_judge import judge_coherence
+    r = judge_coherence(script)
+    return GateResult("G10_coherence", r["pass"], r["detail"], held=r.get("held", False))
 
 
 # Added 2026-08-21 -- real incident, story #43 (video_posts id
@@ -861,4 +842,5 @@ def run_all_gates(
     report.results.append(gate_price_math(script, price_inr))
     report.results.append(gate_coherence_llm_judge(script))
     report.results.append(gate_no_store_names(script))
+    report.results.append(gate_g19(script))
     return report

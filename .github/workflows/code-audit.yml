@@ -33,9 +33,11 @@ jobs:
         run: npx tsc --noEmit
         continue-on-error: true
 
+      # P12 4b: high/critical only, minus the X.4 accepted advisories
+      # (.github/npm-audit-accepted.json) -- fails on any NEW one.
       - name: Dependency audit
         id: audit
-        run: npm audit --audit-level=high
+        run: node scripts/ci/npm-audit-check.mjs
         continue-on-error: true
 
       - name: Secrets manifest audit
