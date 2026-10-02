@@ -9,6 +9,7 @@ import { SetCard } from '@/components/sets/SetCard';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { MASCOTS } from '@/lib/brand';
 import { TaglineWink } from '@/components/ui/Taglines';
+import { SaleBanner } from '@/components/sales/SaleBanner';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Best LEGO Deals in India Right Now',
@@ -50,6 +51,7 @@ export default async function DealsPage() {
 
   return (
     <div className="bg-white min-h-screen">
+      <SaleBanner />
       {/* Header */}
       <div className="bg-primary-dark py-12 px-4">
         <div className="max-w-site mx-auto flex items-center gap-6">
