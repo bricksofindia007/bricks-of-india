@@ -31,7 +31,7 @@ jobs:
           if [ "$MODE" = on ] || [ "$MODE" = off ]; then
             v=$([ "$MODE" = on ] && echo true || echo false)
             new=$(echo "$cur" | jq -c --argjson v "$v" '.dispatch_enabled = $v')
-            r=$(curl -s -X PUT -H "Authorization: Bearer $CF" -H 'content-type: text/plain' --data "$new" "$B/flag:v1" | jq -r '.success')
+            r=$(curl -s -X PUT -H "Authorization: Bearer $CF" -H 'content-type: text/plain' --data "$new" "$B/flag:v1" | jq -c '{success, code: (.errors[0].code // null), msg: (.errors[0].message // null)}')
             echo "write: $r"
             sleep 5
             echo "after: S=$(curl -s -H "Authorization: Bearer $CF" "$B/flag:v1" | jq -r '.dispatch_enabled // false')"
