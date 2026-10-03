@@ -27,9 +27,9 @@ export const PROD_REF = 'hqpaiarhmiocmjrzjhtw';
 //   pieces (#412 catalogue fix). None of them fires the name/theme/year index-tier trigger.
 //   A new fix that changes another sets column adds it here first (data-fixes README).
 export const TABLES = [
-  // (g) catalogue health: theme (17-unknown-themes.sql). On staging this also refreshes the index-tier
+  // (g) catalogue health: theme (17-unknown-themes.sql); MRP columns (457 fixes, 3 Oct 2026). On staging this also refreshes the index-tier
   // trigger's inputs for those rows, which only brings staging closer to production.
-  { table: 'sets', mode: 'columns', columns: ['is_gwp', 'gwp_parent_set_number', 'pieces', 'theme'], skipInFingerprint: [] },
+  { table: 'sets', mode: 'columns', columns: ['is_gwp', 'gwp_parent_set_number', 'pieces', 'theme', 'lego_mrp_inr', 'mrp_verified', 'mrp_review_reason'], skipInFingerprint: [] },
   { table: 'news_articles', mode: 'replace', skipInFingerprint: [] },
   { table: 'reviews', mode: 'replace', skipInFingerprint: [] },
   { table: 'guides', mode: 'replace', skipInFingerprint: [] },
