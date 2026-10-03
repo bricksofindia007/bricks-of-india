@@ -1,12 +1,11 @@
 name: Cloudflare metrics (read-only)
 
-# Round 11 (A4): Worker requests / errors / CPU, R2, KV and the zone's HSTS setting.
-# Manual only; aggregate numbers only; writes nothing.
+# BRANCH-ONLY COPY (not for merge): one read-only check; prints yes/no answers only.
 on:
   workflow_dispatch:
     inputs:
       days:
-        description: 'days to report (max 30)'
+        description: 'unused on this branch'
         required: false
         default: '7'
 
@@ -14,17 +13,20 @@ permissions:
   contents: read
 
 jobs:
-  report:
+  check:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22'
-      - name: Report
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
-          DAYS: ${{ inputs.days }}
-        run: node scripts/ci/cf-metrics.mjs
+      - env:
+          CF: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          ACC: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          set -u
+          for w in boi-scheduler boi-scheduler-staging; do
+            j=$(curl -s -H "Authorization: Bearer $CF" "https://api.cloudflare.com/client/v4/accounts/$ACC/workers/scripts/$w/secrets")
+            ok=$(echo "$j" | jq -r '.success')
+            a=$(echo "$j" | jq -r '[.result[]?.name] | index("BOI_SCHEDULER_DISPATCH_TOKEN") != null')
+            b=$(echo "$j" | jq -r '[.result[]?.name] | index("SNAPSHOT_HMAC_KEY") != null')
+            n=$(echo "$j" | jq -r '[.result[]?] | length')
+            echo "$w: read=$ok A=$a B=$b count=$n"
+          done
