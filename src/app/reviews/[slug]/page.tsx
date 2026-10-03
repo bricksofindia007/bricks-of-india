@@ -19,6 +19,7 @@ import { getPriceSummaries, type SetPriceSummary } from '@/lib/price-summary';
 import { waitDiscountLine } from '@/lib/verdict-notes';
 import { PriceAsOfNote } from '@/components/content/PriceAsOfNote';
 import { hasTypedStorePrice } from '@/lib/price-as-of';
+import { isKnownMissingImage } from '@/lib/missing-images';
 // Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
@@ -280,12 +281,11 @@ export default async function ReviewPage(props: Props) {
               <div className="sticky top-20">
                 <div className="bg-light-grey rounded-2xl p-4 border-2 border-border mb-6">
                   <Image
-                    src={
-                      set.image_url ??
-                      (set.rebrickable_id
-                        ? `https://cdn.rebrickable.com/media/sets/${set.rebrickable_id}.jpg`
-                        : '/mascots/blue-fig-confused.png')
-                    }
+                    src={(() => {
+                      const u = set.image_url ??
+                        (set.rebrickable_id ? `https://cdn.rebrickable.com/media/sets/${set.rebrickable_id}.jpg` : null);
+                      return !u ? '/mascots/blue-fig-confused.png' : isKnownMissingImage(u) ? '/images/lego-placeholder.svg' : u;
+                    })()}
                     alt={set.name}
                     width={300}
                     height={300}

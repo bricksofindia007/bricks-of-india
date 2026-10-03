@@ -109,7 +109,7 @@ export function buildItemListSchema(
         brand: { '@type': 'Brand', name: 'LEGO' },
       };
       if (item.image_url) product.image = item.image_url;
-      if (item.bestPrice) {
+      if (item.bestPrice && item.bestPrice.price_inr > 0) {
         product.offers = {
           '@type': 'Offer',
           price: item.bestPrice.price_inr,
@@ -274,11 +274,12 @@ export function buildAggregateOffer(
     availability,
     seller: { '@type': 'Organization', name: storeNames[sp.store_id] ?? sp.store_id },
   });
-  const buyable = activePrices.filter(
-    (sp) => sp.in_stock && sp.price_inr != null && isPriceFresh(sp.scraped_at, now),
-  );
+  // A price of 0 or no price is not a real price (3 Oct 2026): such rows are left out, and with no real price at
+  // all there is no offer in the markup.
+  const priced = activePrices.filter((sp) => sp.price_inr != null && sp.price_inr > 0);
+  const buyable = priced.filter((sp) => sp.in_stock && isPriceFresh(sp.scraped_at, now));
   if (buyable.length === 0) {
-    return activePrices.map((sp) => offer(sp, 'https://schema.org/OutOfStock'));
+    return priced.length ? priced.map((sp) => offer(sp, 'https://schema.org/OutOfStock')) : undefined;
   }
   const prices = buyable.map((sp) => sp.price_inr);
   return {
