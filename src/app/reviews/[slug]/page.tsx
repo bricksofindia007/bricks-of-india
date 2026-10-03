@@ -326,7 +326,7 @@ export default async function ReviewPage(props: Props) {
                       {/* 3 Oct 2026: a plain line when no store we compare sells the set. */}
                       {!hasPrices && (
                         <p className="text-sm text-dark">
-                          Not sold by {TRACKED_STORES.map((s) => s.name).join(' or ')} right now. Your wallet gets the day off; the price shows up here the moment either store lists it.
+                          Not sold by {TRACKED_STORES.map((s) => s.name).join(' or ')} right now. Your wallet gets the day off; the price shows up here once either store lists it.
                         </p>
                       )}
                       {TRACKED_STORES.map((store) => {
