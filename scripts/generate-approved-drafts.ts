@@ -29,6 +29,7 @@ import { STORE_DISPLAY_NAME } from './lib/reviews-source.mjs';
 import { loadRecentNews, cataloguedCandidates, decideSameSet, holdReason } from '../src/lib/same-set-guard';
 import { resolveGate14Facts, catalogueFactsPrompt, writeBackPieces, isUnverifiableOnly } from '../src/lib/gate14-facts';
 import { FEATURE_FLAGS } from '../src/lib/feature-flags';
+import { formatHardRuleFailures } from '../src/lib/hard-rules';
 
 // ── CLI flags ─────────────────────────────────────────────────────────────────
 
@@ -552,7 +553,7 @@ if (IS_MAIN) (async () => {
           .map(([name, g]) => `${name}: ${g!.reason ?? 'fail'}`);
         const failureReasons = [
           ...failedGates,
-          ...outcome.hardRules.filter(r => !r.pass).map(r => `gate7:${r.id}`),
+          ...formatHardRuleFailures(outcome.hardRules),
           ...(outcome.lintResult?.warnings ?? []),
           !outcome.lintResult ? 'lint_runner_threw' : null,
         ].filter(Boolean).join('; ').slice(0, 500);
