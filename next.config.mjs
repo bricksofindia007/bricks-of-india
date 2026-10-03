@@ -30,6 +30,18 @@ const nextConfig = {
         destination: '/news/lego-creator-40900-scary-haunted-tree-revealed-as-new-gift-w',
         permanent: true,
       },
+      // 3 Oct 2026: two removed articles about set 5986 that Google still lists
+      // as 404. No article replaces them, so they go to the set's own page.
+      {
+        source: '/news/lego-amazon-ancient-ruins-5986-nostalgia-trip-or-wallet-drai',
+        destination: '/sets/5986',
+        permanent: true,
+      },
+      {
+        source: '/news/lego-adventurers-amazon-ancient-ruins-5986-1-nostalgia-or-ov',
+        destination: '/sets/5986',
+        permanent: true,
+      },
       // Nav & Content Overhaul, 2026-08-09 -- Blog/Opinion retired as
       // standalone sections; blog_posts rows migrated into guides (non-
       // Opinion categories) and news_articles (Opinion, category='Opinion').
