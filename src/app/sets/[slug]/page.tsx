@@ -227,6 +227,12 @@ export default async function SetPage(props: Props) {
   }
 
   const relSummaries = new Map((pageData.related_summaries ?? []).map((r) => [r.set_id, r]));
+  // 'More [theme] sets' shows only sets with something to show: a price or a verified MRP
+  // (the same rule the card uses), never a 'Price TBD' card (3 Oct 2026).
+  const shownRelated = relatedSets.filter((s: any) => {
+    const sum = relSummaries.get(s.set_number);
+    return relatedPriceMap[s.set_number] != null || sum?.best_price_inr != null || sum?.anchor_mrp_inr != null || (s.lego_mrp_inr && s.mrp_verified);
+  });
 
   // Related Coverage (GEO-05b Phase 3) — the reverse of Phase 2's forward
   // linking: any published article whose body links to THIS set's own
@@ -568,11 +574,11 @@ export default async function SetPage(props: Props) {
         </div>
 
         {/* Related Sets */}
-        {relatedSets.length > 0 && (
+        {shownRelated.length > 0 && (
           <div className="mt-12">
             <h2 className="font-heading text-dark text-3xl mb-6">MORE {set.theme?.toUpperCase()} SETS</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {relatedSets.map((relSet: any) => {
+              {shownRelated.map((relSet: any) => {
                 const bestP = relatedPriceMap[relSet.set_number] ?? null;
                 return <SetCard key={relSet.id} set={relSet} bestPrice={bestP} priceCount={bestP ? 1 : 0} summary={relSummaries.get(relSet.set_number)} />;
               })}
