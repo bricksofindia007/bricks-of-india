@@ -8,6 +8,7 @@ import { getDeals } from '@/lib/price-summary';
 import { FreshOnly } from '@/components/ui/FreshOnly';
 import { PriceAge } from '@/components/ui/PriceAge';
 import { getStores, storeLabels } from '@/lib/stores';
+import { shownTheme } from '@/lib/theme-display';
 
 export const metadata: Metadata = buildMetadata({
   title: 'India Deals Today — The Lab',
@@ -182,7 +183,7 @@ function DealCard({ deal, labels }: { deal: DealRow; labels: Record<string, stri
             {deal.set.name}
           </Link>
           <div style={{ fontSize: '0.7rem', color: '#9AA5B4', marginTop: 2 }}>
-            #{deal.set.set_number}{deal.set.theme ? ` · ${deal.set.theme}` : ''}
+            #{deal.set.set_number}{shownTheme(deal.set.theme) ? ` · ${shownTheme(deal.set.theme)}` : ''}
           </div>
         </div>
 

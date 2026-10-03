@@ -8,6 +8,7 @@ import { slugify } from '@/lib/utils';
 import { baselinePrices, type HistRow } from '@/lib/price-baseline';
 import { getStores, storeLabels } from '@/lib/stores';
 import { abhinav12Price } from '@/lib/abhinav12';
+import { shownTheme } from '@/lib/theme-display';
 
 export const metadata: Metadata = buildMetadata({
   title: 'LEGO Price Drops in India — The Lab',
@@ -293,7 +294,7 @@ export default async function PriceDropsPage(props: Props) {
                         {r.name}
                       </Link>
                       <div style={{ fontSize: '0.68rem', color: '#9AA5B4', marginTop: 2 }}>
-                        #{r.set_id}{r.theme ? ` · ${r.theme}` : ''}
+                        #{r.set_id}{shownTheme(r.theme) ? ` · ${shownTheme(r.theme)}` : ''}
                       </div>
                     </div>
 

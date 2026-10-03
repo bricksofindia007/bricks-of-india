@@ -5,6 +5,7 @@ import { SetImage } from '@/components/sets/SetImage';
 import { FreshOnly } from '@/components/ui/FreshOnly';
 import type { LegoSet } from '@/lib/supabase';
 import { priceLabel, storeName, type SetPriceSummary } from '@/lib/price-summary';
+import { shownTheme } from '@/lib/theme-display';
 
 interface SetCardProps {
   set: LegoSet;
@@ -40,7 +41,7 @@ export function SetCard({ set, bestPrice, priceCount, summary }: SetCardProps) {
         />
         {/* Theme badge overlay */}
         <div className="absolute top-2 left-2">
-          <Badge variant="grey">{set.theme || 'LEGO'}</Badge>
+          <Badge variant="grey">{shownTheme(set.theme) || 'LEGO'}</Badge>
         </div>
       </div>
 

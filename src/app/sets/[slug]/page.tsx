@@ -24,6 +24,7 @@ import { buildProductSchema, buildFAQSchema } from '@/lib/schemas';
 import { getStores, storeLabels } from '@/lib/stores';
 import { setNumberCandidates, pickSetNumber, slugMatchesSet } from '@/lib/set-slug';
 import { SaleSetLine } from '@/components/sales/SaleSetLine';
+import { shownTheme } from '@/lib/theme-display';
 // Durable-cache guard (2026-07-02): a revalidate must always be set, or
 // rendered pages persist across deploys. 72 h = UNPRICED_SET_REVALIDATE_SECONDS
 // (FP1.6 §2, approved P8 item 4; segment config must be a literal). A priced
@@ -277,7 +278,7 @@ export default async function SetPage(props: Props) {
           <span>/</span>
           <Link href="/sets" className="hover:text-accent-blue">Sets</Link>
           <span>/</span>
-          {set.theme && (() => {
+          {shownTheme(set.theme) && (() => {
             // Was `/themes/${slugify(set.theme)}` unconditionally -- 404'd
             // for any raw theme (Rebrickable's full taxonomy) that isn't
             // one of the curated /themes/ pages. resolveThemeSlug() only
@@ -288,9 +289,9 @@ export default async function SetPage(props: Props) {
             return (
               <>
                 {themeSlug ? (
-                  <Link href={`/themes/${themeSlug}`} className="hover:text-accent-blue">{set.theme}</Link>
+                  <Link href={`/themes/${themeSlug}`} className="hover:text-accent-blue">{shownTheme(set.theme)}</Link>
                 ) : (
-                  <span>{set.theme}</span>
+                  <span>{shownTheme(set.theme)}</span>
                 )}
                 <span>/</span>
               </>
@@ -339,7 +340,7 @@ export default async function SetPage(props: Props) {
           <div className="lg:col-span-3">
             {/* Badges + Title */}
             <div className="flex flex-wrap gap-2 mb-3">
-              {set.theme    && <Badge variant="grey">{set.theme}</Badge>}
+              {shownTheme(set.theme) && <Badge variant="grey">{shownTheme(set.theme)}</Badge>}
               {set.year     && <Badge variant="grey">{set.year}</Badge>}
               {set.age_range && <Badge variant="grey">Ages {set.age_range}</Badge>}
               {set.pieces   && <Badge variant="grey">{set.pieces.toLocaleString()} pcs</Badge>}
@@ -576,7 +577,7 @@ export default async function SetPage(props: Props) {
         {/* Related Sets */}
         {shownRelated.length > 0 && (
           <div className="mt-12">
-            <h2 className="font-heading text-dark text-3xl mb-6">MORE {set.theme?.toUpperCase()} SETS</h2>
+            <h2 className="font-heading text-dark text-3xl mb-6">{shownTheme(set.theme) ? `MORE ${shownTheme(set.theme)!.toUpperCase()} SETS` : 'MORE SETS'}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {shownRelated.map((relSet: any) => {
                 const bestP = relatedPriceMap[relSet.set_number] ?? null;
