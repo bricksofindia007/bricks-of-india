@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
 import { cookies, type UnsafeUnwrappedCookies } from 'next/headers';
+import { ADMIN_COOKIE, isValidAdminSession } from '@/lib/admin-session';
 import { createServerClient } from '@/lib/supabase';
 import { login, logout } from '../actions';
 import { approveNewsletterDraft, dismissNewsletterDraft } from './actions';
@@ -18,8 +19,7 @@ export const metadata: Metadata = buildMetadata({
 // matching the existing convention in this admin area (see
 // src/app/admin/pending/growth/[[...path]]/route.ts's own comment).
 function isAuthed(): boolean {
-  const pw = (cookies() as unknown as UnsafeUnwrappedCookies).get('boi_admin')?.value;
-  return !!pw && pw === process.env.ADMIN_PASSWORD;
+  return isValidAdminSession((cookies() as unknown as UnsafeUnwrappedCookies).get(ADMIN_COOKIE)?.value);
 }
 
 function LoginPage() {

@@ -1,11 +1,8 @@
 import { cookies } from 'next/headers';
-import { timingSafeEqual } from 'node:crypto';
+import { ADMIN_COOKIE, isValidAdminSession } from '@/lib/admin-session';
 
 // Z3 (1 Oct 2026): every admin Server Action is a public POST endpoint. Each one must check
-// the admin cookie itself; rendering the form only after login is not protection.
+// the admin session itself; rendering the form only after login is not protection.
 export async function requireAdmin(): Promise<void> {
-  const pw = (await cookies()).get('boi_admin')?.value ?? '';
-  const correct = process.env.ADMIN_PASSWORD ?? '';
-  const a = Buffer.from(pw), b = Buffer.from(correct);
-  if (!correct || a.length !== b.length || !timingSafeEqual(a, b)) throw new Error('Unauthorized');
+  if (!isValidAdminSession((await cookies()).get(ADMIN_COOKIE)?.value)) throw new Error('Unauthorized');
 }
