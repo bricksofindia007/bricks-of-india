@@ -14,7 +14,7 @@ import { formatPrice, whatsappShareUrl, socialCardImage, setMetaDescription } fr
 import { MASCOTS } from '@/lib/brand';
 import { resolveThemeSlug } from '@/lib/themeMapping';
 import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/Badge';
-import { priceLabel, type SetPriceSummary } from '@/lib/price-summary';
+import { priceLabel, normalise, type SetPriceSummary } from '@/lib/price-summary';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { SetCard } from '@/components/sets/SetCard';
 import { SetImage } from '@/components/sets/SetImage';
@@ -84,7 +84,7 @@ const readPriceSide = (setNumber: string) =>
     ]);
     if (sp.error) throw sp.error;
     if (sum.error) throw sum.error;
-    return { store_prices: sp.data ?? [], summary: (sum.data ?? null) as SetPriceSummary | null, at: new Date().toISOString() };
+    return { store_prices: sp.data ?? [], summary: (sum.data ? normalise(sum.data) : null) as SetPriceSummary | null, at: new Date().toISOString() };
   }, ['set_price_side', setNumber], { revalidate: SET_PAGE_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
 
 // A1: which catalogue set a slug names, when its first "-" segment isn't it (set numbers that
