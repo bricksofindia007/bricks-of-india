@@ -17,6 +17,8 @@ import { getStores, storeLabels } from '@/lib/stores';
 import { computeIndiaStatus, indiaStatusLine, RETIRED_IN_INDIA_DAYS, HUNT_IT_LINE } from '@/lib/india-status';
 import { getPriceSummaries, type SetPriceSummary } from '@/lib/price-summary';
 import { waitDiscountLine } from '@/lib/verdict-notes';
+import { PriceAsOfNote } from '@/components/content/PriceAsOfNote';
+import { hasTypedStorePrice } from '@/lib/price-as-of';
 // Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
@@ -222,6 +224,9 @@ export default async function ReviewPage(props: Props) {
             )}
 
             {/* Review content */}
+            {hasTypedStorePrice(cleanContent) && (
+              <PriceAsOfNote date={formatDate(review.published_at)} href={set?.set_number ? `/sets/${set.set_number}` : '/deals'} />
+            )}
             <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8 prose-p:mb-5 prose-p:leading-relaxed prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-2xl prose-h3:text-xl">
               <ArticleMarkdown>{cleanContent}</ArticleMarkdown>
             </div>
