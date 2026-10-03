@@ -498,7 +498,7 @@ export default async function SetPage(props: Props) {
                     <h2 className="font-heading text-dark text-2xl mb-1">BRICKS OF INDIA VERDICT</h2>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-primary text-lg">{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
-                      <span className="text-sm text-gray-400">({review.rating}/5)</span>
+                      <span className="text-sm text-gray-400">{`(${review.rating}/5)`}</span>
                     </div>
                     <p className="text-gray-600 font-body mb-3">{review.verdict}</p>
                     <Link href={`/reviews/${review.slug}`} className="text-accent-blue font-bold text-sm hover:underline">

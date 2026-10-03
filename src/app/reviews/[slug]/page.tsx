@@ -193,7 +193,7 @@ export default async function ReviewPage(props: Props) {
             {stars != null && (
               <>
                 <span className="text-primary text-2xl">{stars}</span>
-                <span className="text-gray-400">({review.rating}/5)</span>
+                <span className="text-gray-400">{`(${review.rating}/5)`}</span>
               </>
             )}
             {badge && (
@@ -252,7 +252,7 @@ export default async function ReviewPage(props: Props) {
                   {stars != null && (
                     <div className="mt-2 flex items-center gap-2">
                       <span className="text-primary text-xl">{stars}</span>
-                      <span className="font-price font-bold text-dark">{review.rating}/5</span>
+                      <span className="font-price font-bold text-dark">{`${review.rating}/5`}</span>
                     </div>
                   )}
                 </div>
