@@ -21,3 +21,29 @@ export function extractCorrections(content: string | null | undefined): Correcti
 
 /** The one site-wide note repeated on hundreds of pages (the store's new name) is shown once, with a count. */
 export const STORE_RENAME_NOTE = /MyBrickHouse's online store is now LEGO\.in/i;
+
+/** A note as display parts: plain text and internal markdown links ("[label](/path)"), first letter capitalised. */
+export type NotePart = { text: string; href?: string };
+const MD_LINK = /\[([^\]]+)\]\((\/[^)\s]*)\)/g;
+export function noteParts(text: string): NotePart[] {
+  const parts: NotePart[] = [];
+  let last = 0;
+  for (const m of text.matchAll(MD_LINK)) {
+    if (m.index! > last) parts.push({ text: text.slice(last, m.index) });
+    parts.push({ text: m[1], href: m[2] });
+    last = m.index! + m[0].length;
+  }
+  if (last < text.length) parts.push({ text: text.slice(last) });
+  if (parts.length && !parts[0].href) parts[0] = { text: parts[0].text.charAt(0).toUpperCase() + parts[0].text.slice(1) };
+  return parts;
+}
+
+/** Notes that are the same apart from their set link are shown once per date, with every page still listed. */
+export const groupKey = (date: string, text: string) => `${date}|${text.replace(MD_LINK, '').replace(/\s+/g, ' ').trim().toLowerCase()}`;
+export function groupLabel(text: string, n: number): string {
+  if (/estimated price removed/i.test(text)) return `Removed unverified price estimates from ${n} articles.`;
+  if (/no longer available in India|retired and unavailable in India/i.test(text)) return `Corrected ${n} reviews that wrongly said the set couldn't be bought in India.`;
+  const plain = text.replace(MD_LINK, '$1').trim();
+  return `${plain.charAt(0).toUpperCase()}${plain.slice(1)} (${n} pages)`;
+}
+export const GROUP_MIN = 3;
