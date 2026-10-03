@@ -542,10 +542,12 @@ export default async function SetPage(props: Props) {
                     q: `What is the official MRP of ${set.name} in India?`,
                     a: anchorMrp && summary?.anchor_source
                       ? `The MRP for ${set.name} is ${formatPrice(anchorMrp)}.`
+                      : set.lego_mrp_inr && set.mrp_verified
+                      ? `The confirmed LEGO India MRP for ${set.name} is ${formatPrice(set.lego_mrp_inr)}.`
+                      : activePrices.length > 0
+                      ? `LEGO's official MRP for ${set.name} isn't confirmed. The current store price is shown on this page.`
                       : set.lego_mrp_inr
-                      ? set.mrp_verified
-                        ? `The confirmed LEGO India MRP for ${set.name} is ${formatPrice(set.lego_mrp_inr)}.`
-                        : `Official Indian pricing hasn't been announced yet.`
+                      ? `Official Indian pricing hasn't been announced yet.`
                       : `The official India MRP for ${set.name} hasn't been confirmed. Check lego.com/en-in for the latest official pricing.`,
                   },
                   {
