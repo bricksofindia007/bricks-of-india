@@ -5,6 +5,14 @@ import { BRAND } from '@/lib/brand';
 
 // Round 3 (Abhinav, 2 Oct 2026 night): no disclosure beside the code; it lives on the legal pages
 // (/legal/affiliate-disclosure, linked from the footer, and the Terms clause). "full-price sets" since 2 Oct.
+// The second line (BOI voice) is restored in every variant, without a link (3 Oct).
+function SecondLine({ className }: { className?: string }) {
+  return (
+    <span className={className}>
+      ABHINAV12 gets you 12% off full-price sets at Toycra. It’s not a fortune. But neither is your bank balance. We cannot fix everything!
+    </span>
+  );
+}
 
 interface ToycraDiscountBannerProps {
   variant?: 'full' | 'compact' | 'inline';
@@ -32,6 +40,7 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
         </button>
         <span className="text-dark">takes {BRAND.toycraDiscount} off full-price sets at Toycra, minimum order {BRAND.toycraMinOrder}.</span>
         {copied && <span className="text-deal-green text-xs font-bold">✓ Copied!</span>}
+        <SecondLine className="basis-full text-xs text-gray-500" />
       </div>
     );
   }
@@ -48,6 +57,7 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
         >
           {copied ? '✓ Copied!' : 'Copy Code'}
         </button>
+        <SecondLine className="basis-full text-xs text-dark/70" />
       </div>
     );
   }
@@ -64,6 +74,7 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
             <p className="text-dark text-sm">
               Code <strong className="font-price text-base bg-dark text-accent px-2 py-0.5 rounded mx-1">{BRAND.toycraCode}</strong> takes {BRAND.toycraDiscount} off full-price sets at Toycra, minimum order {BRAND.toycraMinOrder}. Your wallet can handle it.
             </p>
+            <SecondLine className="block text-dark/70 text-xs mt-1" />
           </div>
         </div>
         <button
