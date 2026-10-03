@@ -269,7 +269,7 @@ export default async function SetPage(props: Props) {
         <nav className="text-sm text-gray-400 flex items-center gap-2">
           <Link href="/" className="hover:text-accent-blue">Home</Link>
           <span>/</span>
-          <Link href="/compare" className="hover:text-accent-blue">Sets</Link>
+          <Link href="/sets" className="hover:text-accent-blue">Sets</Link>
           <span>/</span>
           {set.theme && (() => {
             // Was `/themes/${slugify(set.theme)}` unconditionally -- 404'd

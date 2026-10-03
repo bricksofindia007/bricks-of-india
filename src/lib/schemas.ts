@@ -6,8 +6,8 @@ export const organizationSchema = {
   '@type': 'Organization',
   name: 'Bricks of India',
   slogan: BRAND.tagline,
-  url: 'https://www.bricksofindia.com',
-  logo: 'https://www.bricksofindia.com/brand/hero-banner.png',
+  url: 'https://bricksofindia.com',
+  logo: 'https://bricksofindia.com/brand/hero-banner.png',
   contactPoint: {
     '@type': 'ContactPoint',
     contactType: 'customer support',
@@ -29,10 +29,10 @@ export const websiteSchema = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
   name: 'Bricks of India',
-  url: 'https://www.bricksofindia.com',
+  url: 'https://bricksofindia.com',
   potentialAction: {
     '@type': 'SearchAction',
-    target: 'https://www.bricksofindia.com/search?q={search_term_string}',
+    target: 'https://bricksofindia.com/search?q={search_term_string}',
     'query-input': 'required name=search_term_string',
   },
 };
@@ -48,7 +48,7 @@ export const personSchema = {
     url: 'https://bricksofindia.com/contact',
     availableLanguage: ['English', 'Hindi'],
   },
-  url: 'https://www.bricksofindia.com/about',
+  url: 'https://bricksofindia.com/about',
   description:
     '20+ years in enterprise sales, marketing, and account management. Cornell University. Founder of Bricks of India.',
   sameAs: [
@@ -65,7 +65,7 @@ export const publisherSchema = {
   name: 'Bricks of India',
   logo: {
     '@type': 'ImageObject',
-    url: 'https://www.bricksofindia.com/brand/hero-banner.png',
+    url: 'https://bricksofindia.com/brand/hero-banner.png',
   },
 } as const;
 
@@ -73,7 +73,7 @@ export const authorSchema = {
   '@type': 'Person',
   name: 'Abhinav Bhargav',
   jobTitle: 'Founder, Bricks of India',
-  url: 'https://www.bricksofindia.com/about',
+  url: 'https://bricksofindia.com/about',
   sameAs: [
     'https://www.youtube.com/@BricksofIndia',
     'https://www.instagram.com/bricksofindia/',
@@ -216,7 +216,7 @@ export function buildReviewSchema(
     publisher: {
       '@type': 'Organization',
       name: 'Bricks of India',
-      url: 'https://www.bricksofindia.com',
+      url: 'https://bricksofindia.com',
     },
     ...(review.rating != null
       ? {
