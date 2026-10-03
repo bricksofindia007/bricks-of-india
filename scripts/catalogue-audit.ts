@@ -90,7 +90,7 @@ async function audit() {
   console.log('distinct listed set_numbers (Toycra/MyBrickHouse, any status):', listedSetNumbers.length);
 
   // (g) 1 Oct 2026: the check is what the PAGE shows, not the legacy column. A listed set's page
-  // shows an MRP from the store anchor (set_price_summary.anchor_mrp_inr, R2) or a verified catalogue
+  // shows an MRP from the store anchor (set_price_summary.anchor_mrp_inr) or a verified catalogue
   // MRP. Gifts with purchase have no retail price by design (is_gwp) and are not counted.
   // Only sets a store lists now count (in stock, or seen in the last 7 days).
   const recent = new Set((await fetchAllPaginated<{ set_id: string; in_stock: boolean; scraped_at: string }>('store_prices', 'set_id, in_stock, scraped_at'))

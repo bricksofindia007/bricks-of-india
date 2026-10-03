@@ -1,5 +1,5 @@
 -- boi:issue 17
--- (g) Catalogue Health (P14 round 7b). TIER 2: needs Abhinav's approval before it is applied.
+-- Catalogue check: read access for the read-only role. Needs the owner's approval before it is applied.
 -- The staging seed may READ production store_prices, so the wrong-match purge (17-wrong-store-matches.sql)
 -- can be rehearsed on staging against a faithful copy. Same pattern as 20261001010000 (price_history).
 --
