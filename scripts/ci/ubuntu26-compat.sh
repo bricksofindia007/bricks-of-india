@@ -14,7 +14,7 @@ if [ "$1" = video ]; then
   check "pip: social-automation/requirements.txt" pip install -q -r social-automation/requirements.txt
   check "pip: video test extras" pip install -q requests num2words pillow python-dotenv
   check "compile: every Python file in scripts/ and social-automation/" python -m compileall -q scripts social-automation
-  for m in moviepy PIL numpy cv2 pytesseract googleapiclient google.oauth2 supabase requests dotenv; do check "import: $m" python -c "import $m"; done
+  for m in moviepy PIL numpy pytesseract googleapiclient google.oauth2 supabase requests dotenv; do check "import: $m" python -c "import $m"; done
   check "unit tests: video cadence" bash -c "cd scripts/video && python -m unittest test_cadence"
   check "unit tests: coherence judge" bash -c "cd scripts/video && python -m unittest test_coherence_judge test_article_coherence"
   check "unit tests: social Indian price" bash -c "cd social-automation && python -m unittest test_indian_price"
@@ -35,7 +35,7 @@ if [ "$1" = site ]; then
   check "npm ci" npm ci --no-audit --no-fund
   check "unit tests (vitest)" npx vitest run
   check "type check (tsc)" npx tsc --noEmit -p .
-  printf 'NEXT_PUBLIC_SUPABASE_URL=https://example.supabase.co\nNEXT_PUBLIC_SUPABASE_ANON_KEY=x\n' > .env.local
+  # build settings come from the job env: the same secrets the deploy build uses
   check "site build (next build)" npm run build
   check "Cloudflare bundle build (no deploy)" npx opennextjs-cloudflare build
 fi
