@@ -26,7 +26,10 @@ jobs:
           set -u
           B="https://api.cloudflare.com/client/v4/accounts/$ACC/storage/kv/namespaces/$NS/values"
           cur=$(curl -s -H "Authorization: Bearer $CF" "$B/flag:v1")
-          echo "$cur" | jq -e . > /dev/null 2>&1 || cur='{}'
+          echo "read-check: $(echo "$cur" | jq -c 'if type == "object" and has("success") then {success, code: (.errors[0].code // null)} else {value_type: type, has_flag: has("dispatch_enabled")} end' 2>/dev/null || echo 'not json')"
+          keys=$(curl -s -H "Authorization: Bearer $CF" "https://api.cloudflare.com/client/v4/accounts/$ACC/storage/kv/namespaces/$NS/keys?prefix=flag" | jq -c '{success, code: (.errors[0].code // null), n: ((.result // []) | length)}')
+          echo "keys-check: $keys"
+          echo "$cur" | jq -e 'type == "object" and (has("success") | not)' > /dev/null 2>&1 || cur='{}'
           echo "before: S=$(echo "$cur" | jq -r '.dispatch_enabled // false')"
           if [ "$MODE" = on ] || [ "$MODE" = off ]; then
             v=$([ "$MODE" = on ] && echo true || echo false)
