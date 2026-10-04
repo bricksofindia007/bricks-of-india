@@ -20,6 +20,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 export const PROD_REF = 'hqpaiarhmiocmjrzjhtw';
+export const HISTORY_TRIGGER = 'trg_price_history_on_change';
 // mode 'replace' = truncate + reload every column.
 // mode 'columns' = UPDATE only the listed columns on rows staging already has (by id); no inserts, and
 //   no other column is touched, so staging's own catalogue / price pipeline data stays as it is (P12 q3).
@@ -129,7 +130,12 @@ export function buildLoadSql(plan) {
   for (const t of plan.filter((p) => p.mode === 'columns')) lines.push(columnsUpdateSql(t.table, t.cols));
   const replace = plan.filter((p) => p.mode === 'replace');
   if (replace.length) lines.push(`truncate ${replace.map((p) => `public.${p.table}`).join(', ')};`);
+  // Loading store_prices would fire its price-history trigger and add a history row per store price, so
+  // price_history would no longer equal production (seed 37176409045, 4 Oct). Off for this transaction only.
+  const quiet = replace.some((p) => p.table === 'store_prices') ? HISTORY_TRIGGER : null;
+  if (quiet) lines.push(`alter table public.store_prices disable trigger ${quiet};`);
   for (const t of replace) lines.push(replaceSql(t.table, t.cols));
+  if (quiet) lines.push(`alter table public.store_prices enable trigger ${quiet};`);
   lines.push(`select setval(pg_get_serial_sequence('public.guides', 'id'), coalesce(max(id), 1)) from public.guides;`);
   const checks = plan.map((t) => {
     if (t.mode !== 'columns') return `  if (${fingerprintSql(t.table, t.fpCols)}) <> '${t.prodFp}' then raise exception 'seed mismatch on ${t.table}'; end if;`;
