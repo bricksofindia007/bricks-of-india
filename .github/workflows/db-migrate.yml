@@ -10,7 +10,7 @@
 #   apply each file in ONE transaction (data fixes: before/after count assertions abort on
 #   mismatch) -> parity -> evidence comment on every linked issue.
 # Credentials: environment secret MIGRATE_DB_URL in each environment (set by Abhinav only).
-# Backups are never workflow artifacts: this repo is public. Artifacts carry the evidence text only.
+# Backups are never workflow artifacts (this repo is public), and no evidence artifact is uploaded (4 Oct 2026).
 # Failure behaviour (G14): any lint/assertion/SQL error rolls that file back, stops the run,
 # fails the job; production never starts if staging failed.
 # Budget (G2): manual dispatch only; per run 2 DB connections per target, a few dozen queries.
@@ -66,12 +66,6 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUT_DIR: db-migrate-out
         run: node scripts/ci/db-migrate.mjs
-      - uses: actions/upload-artifact@v6
-        if: always()
-        with:
-          name: evidence-staging
-          path: db-migrate-out/evidence-staging.*
-          retention-days: 90
 
   production:
     if: github.ref == 'refs/heads/main'
@@ -94,17 +88,6 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUT_DIR: db-migrate-out
         run: node scripts/ci/db-migrate.mjs
-      - uses: actions/download-artifact@v7
-        if: always()
-        with:
-          name: evidence-staging
-          path: db-migrate-out
-      - uses: actions/upload-artifact@v6
-        if: always()
-        with:
-          name: evidence-production
-          path: db-migrate-out/evidence-production.*
-          retention-days: 90
       - name: Evidence to linked issues
         if: always() && inputs.mode == 'apply'
         env:
@@ -115,5 +98,5 @@ jobs:
           [ -f "$f" ] || { echo "no production evidence file (job failed before writing it)"; exit 0; }
           issues=$(node -e "const e=require('./$f'); if(!e.applied.length && !e.failed) process.exit(0); console.log(e.issues.join(' '))")
           [ -n "$issues" ] || { echo "nothing applied; no comment"; exit 0; }
-          { echo "**db-migrate evidence** ([run]($RUN_URL))"; echo; echo '### Staging'; cat db-migrate-out/evidence-staging.md 2>/dev/null || echo '(missing)'; echo; echo '### Production'; cat db-migrate-out/evidence-production.md; } > comment.md
+          { echo "**db-migrate evidence** ([run]($RUN_URL))"; echo; echo '### Staging'; echo '(staging half: see the run)'; echo; echo '### Production'; cat db-migrate-out/evidence-production.md; } > comment.md
           for n in $issues; do gh api "repos/$GITHUB_REPOSITORY/issues/$n/comments" -F body=@comment.md --silent; done  # REST works for issues AND PRs (e.g. #433)
