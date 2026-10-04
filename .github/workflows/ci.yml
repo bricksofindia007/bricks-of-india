@@ -29,9 +29,9 @@ jobs:
       NEXT_PUBLIC_GA_MEASUREMENT_ID:  ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -236,9 +236,9 @@ jobs:
     # run per push/PR in this file's 10 most recent recorded runs).
     timeout-minutes: 8
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -266,8 +266,8 @@ jobs:
       G19_TERMS: ${{ secrets.G19_TERMS }}
       G19_FORK_PR: ${{ github.event.pull_request.head.repo.fork || 'false' }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
       - name: G19 public-text check

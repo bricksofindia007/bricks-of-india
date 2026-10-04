@@ -74,9 +74,9 @@ jobs:
       NEXT_PUBLIC_SITE_URL:           https://bricksofindia.com
       NEXT_PUBLIC_GA_MEASUREMENT_ID:  ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           # 22, matching the deploy job below -- wrangler requires >=22
           # there, and there's no reason for the two jobs in one pipeline
@@ -101,7 +101,7 @@ jobs:
         run: npx opennextjs-cloudflare build
 
       - name: Upload build output
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: opennext-build
           path: .open-next/
@@ -122,9 +122,9 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           # Root cause, confirmed directly from run 34673605998's own log
           # (2026-09-12, triggered by PR #83's merge): "Wrangler requires
@@ -138,7 +138,7 @@ jobs:
       - run: npm ci
 
       - name: Download build output
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: opennext-build
           path: .open-next/
