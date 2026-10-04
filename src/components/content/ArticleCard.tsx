@@ -122,7 +122,7 @@ export function ReviewCard({ review }: ReviewCardProps) {
       <div className="p-4">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-accent text-sm">{stars}</span>
-          <span className="text-xs text-text-secondary">({review.rating}/5)</span>
+          <span className="text-xs text-text-secondary">{`(${review.rating}/5)`}</span>
         </div>
         <h3 className="font-bold text-dark text-base leading-tight line-clamp-2 group-hover:text-primary transition-colors mb-2">
           {review.title}

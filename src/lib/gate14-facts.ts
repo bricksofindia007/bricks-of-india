@@ -23,6 +23,7 @@
 
 import type { Gate14Facts, Gate14Finding } from './gate14';
 import { abhinav12Price } from './abhinav12';
+import { NO_MRP_SETS } from './price-summary';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Sb = { from: (t: string) => any };
@@ -44,7 +45,7 @@ export async function resolveGate14Facts(
 
   const [{ data: sp }, { data: summ }] = await Promise.all([
     sb.from('store_prices').select('store_id, price_inr, compare_at_price_inr').eq('set_id', setNumber),
-    sb.from('set_price_summary').select('anchor_mrp_inr').eq('set_id', setNumber).maybeSingle(),
+    NO_MRP_SETS.has(setNumber) ? Promise.resolve({ data: null }) : sb.from('set_price_summary').select('anchor_mrp_inr').eq('set_id', setNumber).maybeSingle(),
   ]);
 
   let pieces: number | null = Number(set.pieces) > 0 ? Number(set.pieces) : null;

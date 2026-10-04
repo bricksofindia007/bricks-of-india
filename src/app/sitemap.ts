@@ -59,6 +59,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/legal/affiliate-disclosure`, priority: 0.3 },
     { url: `${base}/legal/privacy`, priority: 0.3 },
     { url: `${base}/legal/terms`, priority: 0.3 },
+    { url: `${base}/corrections`, priority: 0.4 },
     ...THEMES.map((t) => ({ url: `${base}/themes/${t.slug}`, priority: 0.7 })),
   ].map((p) => ({
     url: p.url,

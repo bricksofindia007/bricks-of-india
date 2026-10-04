@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { rebrickableResized, type RebrickableSize } from '@/lib/set-image';
+import { isKnownMissingImage } from '@/lib/missing-images';
 
 const PLACEHOLDER = '/images/lego-placeholder.svg';
 
@@ -31,8 +32,8 @@ function buildSrcChain(set: {
     chain.push(`https://images.brickset.com/sets/images/${set.set_number}-1.jpg`);
   }
   chain.push(PLACEHOLDER);
-  // Deduplicate while preserving order
-  return chain.filter((v, i) => chain.indexOf(v) === i);
+  // Deduplicate while preserving order; skip outside images known not to exist (3 Oct 2026)
+  return chain.filter((v, i) => chain.indexOf(v) === i && !isKnownMissingImage(v));
 }
 
 interface SetImageProps {

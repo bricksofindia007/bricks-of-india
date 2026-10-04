@@ -44,13 +44,13 @@ export function BreadcrumbSchema() {
       '@type': 'ListItem',
       position: 1,
       name: 'Home',
-      item: 'https://www.bricksofindia.com',
+      item: 'https://bricksofindia.com',
     },
     ...segments.map((seg, i) => ({
       '@type': 'ListItem',
       position: i + 2,
       name: segmentLabel(seg),
-      item: `https://www.bricksofindia.com/${segments.slice(0, i + 1).join('/')}`,
+      item: `https://bricksofindia.com/${segments.slice(0, i + 1).join('/')}`,
     })),
   ];
 

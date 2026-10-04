@@ -16,6 +16,8 @@ import { Byline } from '@/components/content/Byline';
 import { CopyLinkButton } from '@/components/ui/CopyLinkButton';
 import { JsonLd } from '@/components/JsonLd';
 import { buildArticleSchema, buildFAQSchema, buildReviewSchema, verdictToRating } from '@/lib/schemas';
+import { PriceAsOfNote } from '@/components/content/PriceAsOfNote';
+import { hasTypedStorePrice } from '@/lib/price-as-of';
 // Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
@@ -121,6 +123,9 @@ export default async function NewsArticlePage(props: Props) {
 
         <h1 className="font-heading text-dark text-5xl md:text-6xl mb-3">{article.title}</h1>
         <Byline publishedAt={article.published_at} updatedAt={article.updated_at} />
+        {hasTypedStorePrice(cleanContent) && (
+          <PriceAsOfNote date={formatDate(article.published_at)} href={article.set_number ? `/sets/${article.set_number}` : '/deals'} />
+        )}
         <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8 prose-p:mb-5 prose-p:leading-relaxed prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-2xl prose-h3:text-xl">
           <ArticleMarkdown>{cleanContent}</ArticleMarkdown>
         </div>

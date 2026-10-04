@@ -6,8 +6,8 @@ export const organizationSchema = {
   '@type': 'Organization',
   name: 'Bricks of India',
   slogan: BRAND.tagline,
-  url: 'https://www.bricksofindia.com',
-  logo: 'https://www.bricksofindia.com/brand/hero-banner.png',
+  url: 'https://bricksofindia.com',
+  logo: 'https://bricksofindia.com/brand/hero-banner.png',
   contactPoint: {
     '@type': 'ContactPoint',
     contactType: 'customer support',
@@ -29,10 +29,10 @@ export const websiteSchema = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
   name: 'Bricks of India',
-  url: 'https://www.bricksofindia.com',
+  url: 'https://bricksofindia.com',
   potentialAction: {
     '@type': 'SearchAction',
-    target: 'https://www.bricksofindia.com/search?q={search_term_string}',
+    target: 'https://bricksofindia.com/search?q={search_term_string}',
     'query-input': 'required name=search_term_string',
   },
 };
@@ -48,7 +48,7 @@ export const personSchema = {
     url: 'https://bricksofindia.com/contact',
     availableLanguage: ['English', 'Hindi'],
   },
-  url: 'https://www.bricksofindia.com/about',
+  url: 'https://bricksofindia.com/about',
   description:
     '20+ years in enterprise sales, marketing, and account management. Cornell University. Founder of Bricks of India.',
   sameAs: [
@@ -65,7 +65,7 @@ export const publisherSchema = {
   name: 'Bricks of India',
   logo: {
     '@type': 'ImageObject',
-    url: 'https://www.bricksofindia.com/brand/hero-banner.png',
+    url: 'https://bricksofindia.com/brand/hero-banner.png',
   },
 } as const;
 
@@ -73,7 +73,7 @@ export const authorSchema = {
   '@type': 'Person',
   name: 'Abhinav Bhargav',
   jobTitle: 'Founder, Bricks of India',
-  url: 'https://www.bricksofindia.com/about',
+  url: 'https://bricksofindia.com/about',
   sameAs: [
     'https://www.youtube.com/@BricksofIndia',
     'https://www.instagram.com/bricksofindia/',
@@ -109,7 +109,7 @@ export function buildItemListSchema(
         brand: { '@type': 'Brand', name: 'LEGO' },
       };
       if (item.image_url) product.image = item.image_url;
-      if (item.bestPrice) {
+      if (item.bestPrice && item.bestPrice.price_inr > 0) {
         product.offers = {
           '@type': 'Offer',
           price: item.bestPrice.price_inr,
@@ -216,7 +216,7 @@ export function buildReviewSchema(
     publisher: {
       '@type': 'Organization',
       name: 'Bricks of India',
-      url: 'https://www.bricksofindia.com',
+      url: 'https://bricksofindia.com',
     },
     ...(review.rating != null
       ? {
@@ -274,11 +274,12 @@ export function buildAggregateOffer(
     availability,
     seller: { '@type': 'Organization', name: storeNames[sp.store_id] ?? sp.store_id },
   });
-  const buyable = activePrices.filter(
-    (sp) => sp.in_stock && sp.price_inr != null && isPriceFresh(sp.scraped_at, now),
-  );
+  // A price of 0 or no price is not a real price (3 Oct 2026): such rows are left out, and with no real price at
+  // all there is no offer in the markup.
+  const priced = activePrices.filter((sp) => sp.price_inr != null && sp.price_inr > 0);
+  const buyable = priced.filter((sp) => sp.in_stock && isPriceFresh(sp.scraped_at, now));
   if (buyable.length === 0) {
-    return activePrices.map((sp) => offer(sp, 'https://schema.org/OutOfStock'));
+    return priced.length ? priced.map((sp) => offer(sp, 'https://schema.org/OutOfStock')) : undefined;
   }
   const prices = buyable.map((sp) => sp.price_inr);
   return {

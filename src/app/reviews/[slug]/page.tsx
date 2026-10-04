@@ -17,6 +17,9 @@ import { getStores, storeLabels } from '@/lib/stores';
 import { computeIndiaStatus, indiaStatusLine, RETIRED_IN_INDIA_DAYS, HUNT_IT_LINE } from '@/lib/india-status';
 import { getPriceSummaries, type SetPriceSummary } from '@/lib/price-summary';
 import { waitDiscountLine } from '@/lib/verdict-notes';
+import { PriceAsOfNote } from '@/components/content/PriceAsOfNote';
+import { hasTypedStorePrice } from '@/lib/price-as-of';
+import { isKnownMissingImage } from '@/lib/missing-images';
 // Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
@@ -191,7 +194,7 @@ export default async function ReviewPage(props: Props) {
             {stars != null && (
               <>
                 <span className="text-primary text-2xl">{stars}</span>
-                <span className="text-gray-400">({review.rating}/5)</span>
+                <span className="text-gray-400">{`(${review.rating}/5)`}</span>
               </>
             )}
             {badge && (
@@ -222,6 +225,9 @@ export default async function ReviewPage(props: Props) {
             )}
 
             {/* Review content */}
+            {hasTypedStorePrice(cleanContent) && (
+              <PriceAsOfNote date={formatDate(review.published_at)} href={set?.set_number ? `/sets/${set.set_number}` : '/deals'} />
+            )}
             <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8 prose-p:mb-5 prose-p:leading-relaxed prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-2xl prose-h3:text-xl">
               <ArticleMarkdown>{cleanContent}</ArticleMarkdown>
             </div>
@@ -247,7 +253,7 @@ export default async function ReviewPage(props: Props) {
                   {stars != null && (
                     <div className="mt-2 flex items-center gap-2">
                       <span className="text-primary text-xl">{stars}</span>
-                      <span className="font-price font-bold text-dark">{review.rating}/5</span>
+                      <span className="font-price font-bold text-dark">{`${review.rating}/5`}</span>
                     </div>
                   )}
                 </div>
@@ -275,12 +281,11 @@ export default async function ReviewPage(props: Props) {
               <div className="sticky top-20">
                 <div className="bg-light-grey rounded-2xl p-4 border-2 border-border mb-6">
                   <Image
-                    src={
-                      set.image_url ??
-                      (set.rebrickable_id
-                        ? `https://cdn.rebrickable.com/media/sets/${set.rebrickable_id}.jpg`
-                        : '/mascots/blue-fig-confused.png')
-                    }
+                    src={(() => {
+                      const u = set.image_url ??
+                        (set.rebrickable_id ? `https://cdn.rebrickable.com/media/sets/${set.rebrickable_id}.jpg` : null);
+                      return !u ? '/mascots/blue-fig-confused.png' : isKnownMissingImage(u) ? '/images/lego-placeholder.svg' : u;
+                    })()}
                     alt={set.name}
                     width={300}
                     height={300}
@@ -318,6 +323,12 @@ export default async function ReviewPage(props: Props) {
                       </p>
                     ) : (
                     <div className="space-y-2">
+                      {/* 3 Oct 2026: a plain line when no store we compare sells the set. */}
+                      {!hasPrices && (
+                        <p className="text-sm text-dark">
+                          Not sold by {TRACKED_STORES.map((s) => s.name).join(' or ')} right now. Your wallet gets the day off; the price shows up here once either store lists it.
+                        </p>
+                      )}
                       {TRACKED_STORES.map((store) => {
                         const sp = storePriceMap.get(store.id);
                         if (!sp?.price_inr) {
@@ -406,10 +417,12 @@ export default async function ReviewPage(props: Props) {
               },
               {
                 q: `What is the price of ${set?.name || 'this set'} in India?`,
-                a: set?.lego_mrp_inr
-                  ? set.mrp_verified
-                    ? `The confirmed LEGO India MRP is ₹${set.lego_mrp_inr.toLocaleString('en-IN')}. Some stores may sell at a discount. Compare prices above.`
-                    : `Official Indian pricing hasn't been announced yet.`
+                a: set?.lego_mrp_inr && set.mrp_verified
+                  ? `The confirmed LEGO India MRP is ₹${set.lego_mrp_inr.toLocaleString('en-IN')}. Some stores may sell at a discount. Compare prices above.`
+                  : hasPrices
+                  ? `LEGO's official MRP for ${set?.name || 'this set'} isn't confirmed. The current store price is shown on this page.`
+                  : set?.lego_mrp_inr
+                  ? `Official Indian pricing hasn't been announced yet.`
                   : 'Check our price comparison tool for current prices across Indian stores.',
               },
               {

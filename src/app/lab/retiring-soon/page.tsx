@@ -5,6 +5,7 @@ import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { getStores, storeLabels } from '@/lib/stores';
 import { abhinav12Price } from '@/lib/abhinav12';
+import { shownTheme } from '@/lib/theme-display';
 
 // P10 revalidate audit (29 Sep): this route had no revalidate of its own and was either built
 // once per deploy (its data froze between deploys) or refreshed only as a side effect of a shared
@@ -188,7 +189,7 @@ export default async function RetiringSoonPage() {
                             </Link>
                             <div style={{ fontSize: '0.68rem', color: '#9AA5B4', marginTop: 2 }}>
                               #{r.set_number}
-                              {r.theme  ? ` · ${r.theme}`                             : ''}
+                              {shownTheme(r.theme) ? ` · ${shownTheme(r.theme)}` : ''}
                               {r.pieces ? ` · ${r.pieces.toLocaleString('en-IN')} pcs` : ''}
                             </div>
                           </div>
