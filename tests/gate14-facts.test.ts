@@ -108,7 +108,7 @@ describe('Gate 14 step 1b: facts, prompt, feedback, write-back (#398)', () => {
 
     const ok = fakeSb({});
     expect(await writeBackPieces(ok.sb, { ...base, piecesSource: 'rebrickable', catalogueHadPieces: false }, new Date('2026-09-28T12:00:00Z'))).toBe('written');
-    expect(ok.calls[0].update).toMatchObject({ pieces: 1212, pieces_source: 'Rebrickable (Gate 14 write-back, 2026-09-28)' });
+    expect(ok.calls[0].update).toMatchObject({ pieces: 1212, pieces_source: 'Confirmed 2026-09-28' });
     expect(ok.calls[0].filters).toEqual(['set_number=71819', 'or(pieces.is.null,pieces.eq.0)']);
 
     const noCol = fakeSb({}, { code: '42703', message: 'column "pieces_source" does not exist' });

@@ -7,7 +7,7 @@
 //                         model is told the numbers Gate 14 will check against
 //   gate14Feedback()      REVISION REQUIRED text for the shared Gates 11-14 regeneration
 //   writeBackPieces()     a looked-up count is written to a sets row whose pieces is
-//                         0/NULL (never overwrites a real count), with sets.pieces_source
+//                         0/NULL (never overwrites a real count), with sets.pieces_source = "Confirmed <date>"
 //
 // Failure behaviour (G14): a failed lookup leaves that fact unknown. Gate 14
 // then reports any claim about it as UNVERIFIABLE, and an unverifiable-only
@@ -139,11 +139,11 @@ export type WriteBackResult = 'written' | 'not-needed' | 'no-column' | 'error';
 /** Writes a looked-up piece count to a sets row whose pieces is 0/NULL. Never overwrites a real count. */
 export async function writeBackPieces(sb: Sb, r: ResolvedGate14Facts, now = new Date()): Promise<WriteBackResult> {
   if (r.catalogueHadPieces || !r.facts.pieces || (r.piecesSource !== 'rebrickable' && r.piecesSource !== 'brickset')) return 'not-needed';
-  const label = r.piecesSource === 'rebrickable' ? 'Rebrickable' : 'Brickset';
+  // Stored label is a plain confirmation date only.
   const { error } = await sb.from('sets')
     .update({
       pieces: r.facts.pieces,
-      pieces_source: `${label} (Gate 14 write-back, ${now.toISOString().slice(0, 10)})`,
+      pieces_source: `Confirmed ${now.toISOString().slice(0, 10)}`,
       pieces_source_checked_at: now.toISOString(),
     })
     .eq('set_number', r.facts.setNumber)
