@@ -102,3 +102,10 @@ held items.
 
 Revisit after a few weeks of real use. Adjust criteria explicitly if
 something slips through or everything lands in Tier 2.
+
+## Release trains (4 Oct 2026)
+
+- Site deploys start by hand only, once per release. Merging to main never starts a deploy.
+- Changes that don't touch the site (workflows, scripts, database roles) can merge at any time.
+- Site changes wait for the next release and go out together in one deploy.
+- Database changes go through the database job: staging first, backups first, production approved by the owner, then the site deploy.
