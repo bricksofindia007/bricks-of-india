@@ -41,3 +41,12 @@ describe('corrections page display (3 Oct 2026)', () => {
     expect(groupLabel('an earlier version of this review called this set retired and unavailable in India.', 23)).toBe("Corrected 23 reviews that wrongly said the set couldn't be bought in India.");
   });
 });
+
+describe('round 11: price-store note groups into one entry', () => {
+  it('labels the grouped note', async () => {
+    const { groupLabel, extractCorrections } = await import('../src/lib/corrections');
+    const n = extractCorrections('Body.\n\n*Correction (4 October 2026): we corrected which store the price below comes from.*');
+    expect(n).toEqual([{ date: '2026-10-04', text: 'we corrected which store the price below comes from.' }]);
+    expect(groupLabel(n[0].text, 87)).toBe('Corrected which store a price came from on 87 reviews.');
+  });
+});
