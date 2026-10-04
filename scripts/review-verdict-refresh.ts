@@ -228,7 +228,7 @@ function report(items: any[]): string {
 }
 
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const FULL_BLOCK_RE = /Priced at ₹[\d,]+ on [^,]+, confirmed in stock as of [^.]+\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
+const FULL_BLOCK_RE = /Priced at ₹[\d,]+ on .+?, confirmed in stock as of [^.]+\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
 
 /**
  * Operator rule (2026-09-26): every applied verdict change ends with a dated

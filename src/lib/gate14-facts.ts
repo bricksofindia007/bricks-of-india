@@ -13,7 +13,7 @@
 // then reports any claim about it as UNVERIFIABLE, and an unverifiable-only
 // result is held for review, never published. Nothing here can publish a
 // wrong figure. The write-back is best effort: if the pieces_source column
-// isn't there yet (migration 20260928110000 is applied through the db-migrate
+// isn't there yet (migration 20261004120000 is applied through the db-migrate
 // job), it's skipped and logged, and the count is not written.
 //
 // Budget (G2): per review draft, 3 Supabase reads (sets, store_prices,
@@ -130,7 +130,8 @@ export function gate14Feedback(findings: Gate14Finding[]): string {
 
 /** Every finding is about a fact we could not resolve (not a contradicted fact). */
 export function isUnverifiableOnly(findings: Gate14Finding[]): boolean {
-  return findings.length > 0 && findings.every((x) => /unverifiable/.test(x.detail));
+  const b = findings.filter((x) => !x.advisory);
+  return b.length > 0 && b.every((x) => /unverifiable/.test(x.detail));
 }
 
 export type WriteBackResult = 'written' | 'not-needed' | 'no-column' | 'error';
@@ -149,7 +150,7 @@ export async function writeBackPieces(sb: Sb, r: ResolvedGate14Facts, now = new 
     .or('pieces.is.null,pieces.eq.0');
   if (!error) return 'written';
   if (error.code === '42703' || error.code === 'PGRST204' || /pieces_source/.test(error.message ?? '')) {
-    console.warn(`[gate14] write-back skipped for ${r.facts.setNumber}: sets.pieces_source not in this database yet (migration 20260928110000)`);
+    console.warn(`[gate14] write-back skipped for ${r.facts.setNumber}: sets.pieces_source not in this database yet (migration 20261004120000)`);
     return 'no-column';
   }
   console.error(`[gate14] write-back failed for ${r.facts.setNumber}: ${error.message}`);

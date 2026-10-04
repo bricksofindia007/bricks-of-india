@@ -28,7 +28,12 @@ import { buildRetailerSourcePriceContext } from '../src/lib/prompts/draft-prompt
 import { STORE_DISPLAY_NAME } from './lib/reviews-source.mjs';
 import { loadRecentNews, cataloguedCandidates, decideSameSet, holdReason } from '../src/lib/same-set-guard';
 import { resolveGate14Facts, catalogueFactsPrompt, writeBackPieces, isUnverifiableOnly } from '../src/lib/gate14-facts';
+import { blocking } from '../src/lib/gate14';
+
+// #525: prefix of discard_reason for drafts rejected by the quality gates (kept 30 days, then purged).
+const REJECTED_BY_GATES = 'rejected_by_gates: ';
 import { FEATURE_FLAGS } from '../src/lib/feature-flags';
+import { formatHardRuleFailures } from '../src/lib/hard-rules';
 
 // ── CLI flags ─────────────────────────────────────────────────────────────────
 
@@ -341,8 +346,9 @@ async function generateBodyWithFailover(draft: any, batchOpeners?: string[]): Pr
   // and the draft proceeds exactly as before (shadow) -- see gate14-facts.ts.
   let gate14: DraftGenerationInput['gate14'];
   let factsBlock = '';
-  if (draft.draft_format === 'review' && setNumber) {
-    const enforce = FEATURE_FLAGS.gate14ReviewEnforce;
+  const g14News = draft.draft_format === 'news' && FEATURE_FLAGS.gate14News;
+  if ((draft.draft_format === 'review' || g14News) && setNumber) {
+    const enforce = draft.draft_format === 'review' ? FEATURE_FLAGS.gate14ReviewEnforce : FEATURE_FLAGS.gate14NewsEnforce;
     const resolved = await resolveGate14Facts(sb, setNumber, {
       rebrickableKey: getSecret('REBRICKABLE_API_KEY'), bricksetKey: getSecret('BRICKSET_API_KEY'),
     }).catch((e) => { console.warn(`[gate14] facts lookup failed for ${setNumber}: ${(e as Error).message}`); return null; });
@@ -358,6 +364,11 @@ ${catalogueFactsPrompt(resolved.facts)}`;
         if (wb !== 'not-needed') console.log(`[gate14] pieces write-back set=${setNumber}: ${wb}`);
       }
     }
+  } else if (g14News) {
+    // Round 11: a news draft with no catalogued set still gets the rules that need no facts
+    // (foreign / import-estimate prices, narrated source).
+    gate14 = { facts: { setNumber: '', name: '', pieces: null, minifigs: null, year: null, prices: [], mrp: [], verdict: null, noSet: true }, enforce: FEATURE_FLAGS.gate14NewsEnforce };
+    console.log(`[gate14] ${gate14.enforce ? 'enforce' : 'shadow'} news without a catalogued set: price-source and voice rules only`);
   }
 
   const input: DraftGenerationInput = {
@@ -488,13 +499,16 @@ if (IS_MAIN) (async () => {
       // approve. Drafts that also fail other gates keep those gates' policy.
       if (outcome.gate14) {
         const g = outcome.gate14;
+        const hard = blocking(g.findings);
+        const advisory = g.findings.length - hard.length;
+        if (advisory) console.log(`[gate14] advisory (logged, not held): ${g.findings.filter((x) => x.advisory).map((x) => `[${x.rule}] ${x.detail}`).join('; ')}`);
         console.log(`[gate14] ${g.enforce ? 'enforce' : 'shadow'} findings=${g.findings.length}${g.findings.length ? ' ' + JSON.stringify(g.findings.map((x) => `[${x.rule}] ${x.detail}`)) : ''}`);
         const otherLintFails = Object.entries(outcome.lintResult?.gates ?? {})
           .filter(([name, r]) => name !== 'gate14' && r && !r.pass && r.severity === 'fail').length;
         const otherHardFails = outcome.hardRules.filter((r) => !r.pass).length;
-        const gate14Only = g.findings.length > 0 && otherLintFails === 0 && otherHardFails === 0 && !!outcome.lintResult;
+        const gate14Only = hard.length > 0 && otherLintFails === 0 && otherHardFails === 0 && !!outcome.lintResult;
         if (g.enforce && (isUnverifiableOnly(g.findings) || gate14Only)) {
-          const reason = `${isUnverifiableOnly(g.findings) ? 'gate14_unverifiable' : 'gate14_hold'}: ${g.findings.map((x) => `[${x.rule}] ${x.detail}`).join('; ')}`.slice(0, 500);
+          const reason = `${isUnverifiableOnly(g.findings) ? 'gate14_unverifiable' : 'gate14_hold'}: ${hard.map((x) => `[${x.rule}] ${x.detail}`).join('; ')}`.slice(0, 500);
           const { error: holdErr } = await sb.from('pending_drafts').update({ status: 'draft', discard_reason: reason }).eq('id', draft.id);
           if (holdErr) { console.error('[supabase-write] table=pending_drafts op=update(holdGate14) error:', holdErr); failed++; }
           else heldGate14++;
@@ -552,21 +566,29 @@ if (IS_MAIN) (async () => {
           .map(([name, g]) => `${name}: ${g!.reason ?? 'fail'}`);
         const failureReasons = [
           ...failedGates,
-          ...outcome.hardRules.filter(r => !r.pass).map(r => `gate7:${r.id}`),
+          ...formatHardRuleFailures(outcome.hardRules),
           ...(outcome.lintResult?.warnings ?? []),
           !outcome.lintResult ? 'lint_runner_threw' : null,
         ].filter(Boolean).join('; ').slice(0, 500);
 
-        const { error: delErr } = await sb.from('pending_drafts').delete().eq('id', draft.id);
-        if (delErr) {
-          console.error('[supabase-write] table=pending_drafts op=delete(rejectFailed) error:', delErr);
-          throw delErr;
+        // #525 (Abhinav, 2 Oct 2026): keep the rejected draft for 30 days with its reason and text,
+        // instead of deleting it; scripts/retention-cleanup.mjs deletes it after that.
+        const { error: rejErr } = await sb.from('pending_drafts').update({
+          status: 'rejected',
+          discard_reason: `${REJECTED_BY_GATES}${failureReasons || 'gate failure'}`.slice(0, 500),
+          draft_title: outcome.title, draft_body: outcome.body, word_count: outcome.wordCount,
+          provider: outcome.provider, lint_result: outcome.lintResult ?? null,
+          updated_at: new Date().toISOString(),
+        }).eq('id', draft.id);
+        if (rejErr) {
+          console.error('[supabase-write] table=pending_drafts op=update(rejectFailed) error:', rejErr);
+          throw rejErr;
         }
 
         geminiAttempted++;
         if (outcome.failoverUsed) { fallbackAttempted++; fallbackLintFailed++; } else { geminiLintFailed++; }
         const failoverNote = outcome.failoverUsed ? ` [${outcome.provider.toUpperCase()} FAILOVER]` : '';
-        console.log(`REJECTED+DELETED (${outcome.wordCount}w, format=${outcome.format}, provider=${outcome.provider}${failoverNote}) — ${failureReasons || 'gate failure'}`);
+        console.log(`REJECTED, kept 30 days (${outcome.wordCount}w, format=${outcome.format}, provider=${outcome.provider}${failoverNote}) — ${failureReasons || 'gate failure'}`);
       }
     } catch (err: unknown) {
       // Policy locked 2026-06-28 (Abhinav, this session): "what fails through
@@ -589,21 +611,16 @@ if (IS_MAIN) (async () => {
         // status='rejected' with the failure reason recorded, not silently
         // unchanged with no trace — same rationale as the existing
         // reject+delete path below for genuine quality-gate failures.
+        // #525: kept 30 days with the reason (retention-cleanup.mjs deletes it after that).
         const { error: rejErr } = await sb.from('pending_drafts').update({
           status: 'rejected',
           discard_reason: `both_providers_failed: ${reasonForLog}`.slice(0, 500),
+          updated_at: new Date().toISOString(),
         }).eq('id', draft.id);
         if (rejErr) {
           console.error('[supabase-write] table=pending_drafts op=update(bothProvidersFailed) error:', rejErr);
-        }
-
-        const { error: delErr } = await sb.from('pending_drafts').delete().eq('id', draft.id);
-        if (delErr) {
-          console.error('[supabase-write] table=pending_drafts op=delete(bothProvidersFailed) error:', delErr);
-          // Row stays as status='rejected' with the reason above — acceptable
-          // degraded state, not silent data loss.
         } else {
-          console.log(`REJECTED+DELETED (both providers failed) — ${reasonForLog}`);
+          console.log(`REJECTED, kept 30 days (both providers failed) — ${reasonForLog}`);
         }
         continue;
       }
@@ -706,7 +723,7 @@ if (IS_MAIN) (async () => {
   const total = geminiOk + fallbackOk;
   const lintFailed = geminiLintFailed + fallbackLintFailed;
   const dur   = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected+deleted (quality gates), ${bothFailed} rejected+deleted (both providers failed), ${failed} failed (retrying next run), ${publishRejected} rejected at insert (terminal), ${deferred} deferred, ${heldSameSet} held (same set, #422), ${heldGate14} held for review (Gate 14) of ${queue.length} — ${dur}s total`);
+  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected (quality gates, kept 30 days), ${bothFailed} rejected (both providers failed, kept 30 days), ${failed} failed (retrying next run), ${publishRejected} rejected at insert (terminal), ${deferred} deferred, ${heldSameSet} held (same set, #422), ${heldGate14} held for review (Gate 14) of ${queue.length} — ${dur}s total`);
 })().catch(err => {
   console.error('FATAL:', err);
   process.exit(1);

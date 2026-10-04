@@ -114,6 +114,7 @@ export function resolveEligibleListing(entry) {
 
   return {
     sourceRetailer:    storeIds.length > 1 ? 'both' : featuredId,
+    featuredStore:     featuredId,  // round 11: the store whose price is shown (the stamp names it)
     sourcePriceInr:    clean[featuredId].priceInr,
     sourceStockStatus: clean[featuredId].inStock ? 'in_stock' : 'out_of_stock',
     sourceProductUrl:  clean[featuredId].productUrl,

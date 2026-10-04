@@ -685,18 +685,45 @@ const INDIA_MARKER_RE = /<!--\s*INDIA_PARAGRAPH\s*-->[\s\S]*?<!--\s*\/INDIAN?_PA
 // what scripts/reviews-source-refresh.mjs's weekly re-verification pass
 // matches against to update price/timestamp in place on an already-
 // published review, without disturbing the surrounding article prose).
-const PUBLISHED_PRICE_LINE_RE = /Priced at ₹[\d,]+ on [^,]+, confirmed in stock as of [^.]+\./;
+// Round 11 (4 Oct 2026): the store part may hold a bracketed second price with a comma
+// ("Toycra (₹41,199 on LEGO.in)"), so it is matched lazily up to ", confirmed in stock".
+const PUBLISHED_PRICE_LINE_RE = /Priced at ₹[\d,]+ on .+?, confirmed in stock as of [^.]+\./;
 
 export type RetailerReviewSourceFields = {
   source_retailer:     SourceRetailer;
   source_price_inr:    number;
   source_stock_status: 'in_stock' | 'out_of_stock';
   source_checked_at:   string;
+  // Round 11 (chat, 4 Oct 2026): when source_retailer is 'both', which store has the shown price
+  // and what the other store charges. Without them a 'both' line can't say which store is which.
+  featured_store?:     'mybrickhouse' | 'toycra';
+  other_price_inr?:    number;
+  other_in_stock?:     boolean;
 };
+
+/**
+ * Where the shown price is. Round 11 (chat, 4 Oct 2026): a 'both' line used to print the LOWER
+ * price "on LEGO.in and Toycra" even when the two stores differed (97 reviews). Now:
+ *   one store                 -> "Toycra"
+ *   both, same price          -> "LEGO.in and Toycra"
+ *   both, different prices    -> "Toycra (₹41,199 on LEGO.in)"   shown (cheaper) store first
+ *   both, other out of stock  -> "Toycra (₹41,199 on LEGO.in, out of stock)"
+ * A 'both' source without the other store's details never claims both stores: it names the
+ * featured store, or "the cheaper of LEGO.in and Toycra" if even that isn't known.
+ */
+export function priceLineStores(source: RetailerReviewSourceFields): string {
+  if (source.source_retailer !== 'both') return STORE_DISPLAY_NAME[source.source_retailer] ?? source.source_retailer;
+  const f = source.featured_store;
+  if (!f) return 'the cheaper of LEGO.in and Toycra';
+  const other: 'mybrickhouse' | 'toycra' = f === 'toycra' ? 'mybrickhouse' : 'toycra';
+  if (source.other_price_inr == null) return STORE_DISPLAY_NAME[f];
+  if (source.other_price_inr === source.source_price_inr && source.other_in_stock !== false) return STORE_DISPLAY_NAME.both;
+  return `${STORE_DISPLAY_NAME[f]} (₹${fmtInrLocal(source.other_price_inr)} on ${STORE_DISPLAY_NAME[other]}${source.other_in_stock === false ? ', out of stock' : ''})`;
+}
 
 function buildDeterministicBlock(verdict: string, source: RetailerReviewSourceFields): { block: string; disclaimerVariant: string } {
   const disclaimerVariant = resolveDisclaimerVariant(verdict, source.source_retailer);
-  const retailerDisplay   = STORE_DISPLAY_NAME[source.source_retailer] ?? source.source_retailer;
+  const retailerDisplay   = priceLineStores(source);
 
   const block = [
     `Priced at ₹${fmtInrLocal(source.source_price_inr)} on ${retailerDisplay}, confirmed in stock as of ${formatCheckedAtDisplay(source.source_checked_at)}.`,
@@ -737,7 +764,7 @@ export function spliceRetailerIndiaParagraph(
 // exact text before Pass 1 runs, compare after for any row flagged as a
 // verdict-flip candidate — it must be byte-identical, since a flip candidate
 // must never actually change).
-const FULL_BLOCK_RE = /Priced at ₹[\d,]+ on [^,]+, confirmed in stock as of [^.]+\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
+const FULL_BLOCK_RE = /Priced at ₹[\d,]+ on .+?, confirmed in stock as of [^.]+\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
 
 /**
  * Re-splices the deterministic block into an ALREADY-PUBLISHED review's
@@ -827,6 +854,26 @@ const DEFAULT_LINT_FRESHNESS_MS = 24 * 60 * 60 * 1000;
 // Throws LintFailedError on a genuine lint failure (caller decides what that
 // means for its own draft: failed_lint status, reject+delete, etc.) — never
 // silently skips a draft.
+/**
+ * Round 11 (4 Oct 2026): for a 'both' review, which store has the shown price (the draft's
+ * source_url is that store's product page) and the other store's price/stock, from store_prices.
+ * Lookup failure -> {} (the price line then names neither store wrongly; see priceLineStores).
+ */
+async function bothStoresDetail(supabase: SupabaseClient, productUrl: string): Promise<Partial<RetailerReviewSourceFields>> {
+  try {
+    const { data: hit } = await supabase.from('store_prices').select('set_id, store_id').eq('product_url', productUrl).limit(1);
+    const row = hit?.[0] as { set_id: string; store_id: string } | undefined;
+    if (!row || (row.store_id !== 'toycra' && row.store_id !== 'mybrickhouse')) return {};
+    const featured = row.store_id as 'toycra' | 'mybrickhouse';
+    const other = featured === 'toycra' ? 'mybrickhouse' : 'toycra';
+    const { data: o } = await supabase.from('store_prices').select('price_inr, in_stock').eq('set_id', row.set_id).eq('store_id', other).limit(1);
+    const op = o?.[0] as { price_inr: number | null; in_stock: boolean | null } | undefined;
+    return { featured_store: featured, ...(op?.price_inr ? { other_price_inr: Number(op.price_inr), other_in_stock: op.in_stock !== false } : {}) };
+  } catch {
+    return {};
+  }
+}
+
 export async function publishOneDraft(
   draft: PublishableDraft,
   supabase: SupabaseClient,
@@ -921,6 +968,7 @@ export async function publishOneDraft(
       source_price_inr:    draft.source_price_inr as number,
       source_stock_status: draft.source_stock_status as 'in_stock' | 'out_of_stock',
       source_checked_at:   draft.source_checked_at as string,
+      ...(draft.source_retailer === 'both' ? await bothStoresDetail(supabase, draft.source_url as string) : {}),
     });
     rawBody = spliced.body;
     retailerDisclaimerVariant = spliced.disclaimerVariant;

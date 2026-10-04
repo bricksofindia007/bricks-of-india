@@ -51,7 +51,7 @@ function fmtDate(iso) {
   return `${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
-const FULL_BLOCK_RE = /Priced at ₹[\d,]+ on [^,]+, confirmed in stock as of [^.]+\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
+const FULL_BLOCK_RE = /Priced at ₹[\d,]+ on .+?, confirmed in stock as of [^.]+\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
 
 async function paginate(table, cols) {
   const rows = [];

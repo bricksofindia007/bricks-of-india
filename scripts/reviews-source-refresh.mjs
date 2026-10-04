@@ -21,7 +21,7 @@ dotenv.config({ path: '.env.local' });
 
 import { createClient } from '@supabase/supabase-js';
 import { fetchLiveListings, resolveEligibleListing, STORE_DISPLAY_NAME } from './lib/reviews-source.mjs';
-import { resplicePublishedIndiaParagraph, extractIndiaParagraphBlock } from '../src/lib/publish-draft.ts';
+import { resplicePublishedIndiaParagraph, extractIndiaParagraphBlock, priceLineStores } from '../src/lib/publish-draft.ts';
 import { assertFlipFreezeGuarantee } from '../src/lib/flip-freeze-assertion.ts';
 import { getSecret } from '../src/lib/get-secret.ts';
 
@@ -238,17 +238,24 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
 
     // Non-flip price/retailer change — safe to auto-update price + content
     // (disclaimer variant recomputed mechanically; verdict itself unchanged).
-    if (newPrice !== oldPrice || resolved.sourceRetailer !== review.source_retailer) {
+    // Round 11 (4 Oct 2026): the price line also names which store has the price and the other
+    // store's price, so a change there (or an old-format line) re-splices too.
+    const stampSource = {
+      source_retailer:     resolved.sourceRetailer,
+      source_price_inr:    resolved.sourcePriceInr,
+      source_stock_status: resolved.sourceStockStatus,
+      source_checked_at:   now,
+      featured_store:      resolved.featuredStore,
+      ...(resolved.otherStore ? { other_price_inr: resolved.otherStore.priceInr, other_in_stock: resolved.otherStore.inStock } : {}),
+    };
+    const storesNow = priceLineStores(stampSource);
+    const storesChanged = !(review.content || '').includes(` on ${storesNow}, confirmed in stock as of `);
+    if (newPrice !== oldPrice || resolved.sourceRetailer !== review.source_retailer || storesChanged) {
       p1Updated++;
       console.log(`  [UPDATE] ${review.slug}: ₹${oldPrice} -> ₹${newPrice} @ ${resolved.sourceRetailer} (verdict unchanged: ${review.verdict})`);
       if (!DRY_RUN) {
         try {
-          const { content, disclaimerVariant } = resplicePublishedIndiaParagraph(review.content, review.verdict, {
-            source_retailer:     resolved.sourceRetailer,
-            source_price_inr:    resolved.sourcePriceInr,
-            source_stock_status: resolved.sourceStockStatus,
-            source_checked_at:   now,
-          });
+          const { content, disclaimerVariant } = resplicePublishedIndiaParagraph(review.content, review.verdict, stampSource);
           await sb.from('reviews').update({
             content,
             source_retailer:            resolved.sourceRetailer,

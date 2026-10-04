@@ -43,6 +43,7 @@ export const groupKey = (date: string, text: string) => `${date}|${text.replace(
 export function groupLabel(text: string, n: number): string {
   if (/estimated price removed/i.test(text)) return `Removed unverified price estimates from ${n} articles.`;
   if (/no longer available in India|retired and unavailable in India/i.test(text)) return `Corrected ${n} reviews that wrongly said the set couldn't be bought in India.`;
+  if (/which store the price below comes from/i.test(text)) return `Corrected which store a price came from on ${n} reviews.`;  // round 11 (chat, 4 Oct 2026)
   const plain = text.replace(MD_LINK, '$1').trim();
   return `${plain.charAt(0).toUpperCase()}${plain.slice(1)} (${n} pages)`;
 }
