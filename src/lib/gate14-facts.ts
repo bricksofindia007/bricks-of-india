@@ -139,8 +139,7 @@ export type WriteBackResult = 'written' | 'not-needed' | 'no-column' | 'error';
 /** Writes a looked-up piece count to a sets row whose pieces is 0/NULL. Never overwrites a real count. */
 export async function writeBackPieces(sb: Sb, r: ResolvedGate14Facts, now = new Date()): Promise<WriteBackResult> {
   if (r.catalogueHadPieces || !r.facts.pieces || (r.piecesSource !== 'rebrickable' && r.piecesSource !== 'brickset')) return 'not-needed';
-  // sets is publicly readable, so the stored label names no source, check or tool (R3, 4 Oct 2026).
-  // Where the count came from is in the generate run's "[gate14] ... facts" log line, not in the database.
+  // Stored label is a plain confirmation date only.
   const { error } = await sb.from('sets')
     .update({
       pieces: r.facts.pieces,
