@@ -6,8 +6,41 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  # A newer push to the same pull request replaces the older run.
+  group: email-guard-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
+  # Decides whether the build and snapshot jobs need to run. They are skipped (and reported as
+  # passing) when only docs or data-fix files changed, or when a push to main is the merge of a
+  # pull request that already ran these checks.
+  scope:
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    outputs:
+      code: ${{ steps.s.outputs.code }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - id: s
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE: ${{ github.event.pull_request.base.sha }}
+          SUBJECT: ${{ github.event.head_commit.message }}
+        run: |
+          if [ "$EVENT" = "push" ] && printf '%s' "$SUBJECT" | head -1 | grep -qE '\(#[0-9]+\)$'; then
+            echo "push is a merged pull request: already checked"; echo "code=false" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "$EVENT" = "pull_request" ]; then RANGE="$BASE...HEAD"; else RANGE="HEAD~1..HEAD"; fi
+          CODE=$(git diff --name-only $RANGE | grep -vE '^(docs/|supabase/data-fixes/|briefs/|audit/)|\.md$' | wc -l)
+          echo "changed code files: $CODE"
+          if [ "$CODE" -gt 0 ]; then echo "code=true" >> "$GITHUB_OUTPUT"; else echo "code=false" >> "$GITHUB_OUTPUT"; fi
+
   verify-no-email-in-client-bundle:
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
     runs-on: ubuntu-latest
     # 10 most recent runs: 1m58s-2m30s (gh run list --workflow=ci.yml --limit
     # 10, 2026-08-18). ~2.5x observed max.
@@ -231,6 +264,8 @@ jobs:
           exit $FAIL
 
   snapshot-tests:
+    needs: scope
+    if: needs.scope.outputs.code == 'true'
     runs-on: ubuntu-latest
     # Same run-history basis as verify-no-email-in-client-bundle above (both
     # run per push/PR in this file's 10 most recent recorded runs).
