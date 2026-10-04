@@ -29,25 +29,8 @@ name: Build & Deploy to Cloudflare Workers
 # everything the older runs would have deployed.
 
 on:
-  push:
-    branches:
-      - main
-    # Tracker-commit redeploy loop: BOI_MASTER_TRACKER.md, docs/**, and
-    # admin/dashboard.html (a standalone local-file admin view, confirmed
-    # not under public/ or src/app/ -- not served by the deployed app at
-    # all) are updated on essentially every session (session-start reads,
-    # sprint changelog entries, audit reports, the Dashboard sync rule)
-    # and none of it is deployable -- every one of those commits was
-    # triggering a full build + a human-approval-gated deploy run for
-    # zero site-relevant change. Found live 2026-09-20: the first version
-    # of this ignore list didn't cover admin/dashboard.html, and the very
-    # next tracker-sync commit (which also touches that file, per the
-    # Dashboard sync rule) triggered a real build anyway -- confirmed via
-    # `gh run list` and cancelled once caught.
-    paths-ignore:
-      - 'BOI_MASTER_TRACKER.md'
-      - 'docs/**'
-      - 'admin/dashboard.html'
+  # Manual only (B7, 4 Oct 2026): one bundled site deploy is started by hand after the release's
+  # database changes; merges to main no longer start deploy runs.
   workflow_dispatch:
 
 concurrency:
@@ -55,11 +38,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
-    name: Build (Next.js + OpenNext Cloudflare)
+  deploy:
+    name: Build and deploy (Next.js + OpenNext Cloudflare)
     runs-on: ubuntu-latest
     # Approval gate (see header): nothing builds until the run is approved.
     environment: production
+    # Build and deploy run in ONE job (4 Oct 2026), so the built site never becomes a downloadable artifact.
+    timeout-minutes: 25
     # No CI run history yet for this brand-new workflow -- same situation
     # CLAUDE.md's timeout-minutes rule already has a named precedent for
     # (video-feasibility-test.yml / video-script-gen-test-quiet-panic.yml
@@ -99,49 +84,6 @@ jobs:
         # scoped to the deploy job below, never exposed to this unattended
         # one.
         run: npx opennextjs-cloudflare build
-
-      - name: Upload build output
-        uses: actions/upload-artifact@v6
-        with:
-          name: opennext-build
-          path: .open-next/
-          retention-days: 1
-          # .open-next/ is a dot-prefixed (hidden) directory -- v4's default
-          # include-hidden-files: false excludes the entire tree, not just
-          # dotfiles within it, so without this the step "succeeds" (warn,
-          # not error, on zero matches) while silently uploading nothing.
-          # Caught for real: this run's own first execution
-          # (2026-09-11, run 34632500369) reported "Worker saved in
-          # `.open-next/worker.js`" immediately followed by "No files were
-          # found with the provided path: .open-next/." for exactly this
-          # reason -- confirmed via the actual job log, not guessed.
-          include-hidden-files: true
-
-  deploy:
-    name: Deploy (wrangler)
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-node@v6
-        with:
-          # Root cause, confirmed directly from run 34673605998's own log
-          # (2026-09-12, triggered by PR #83's merge): "Wrangler requires
-          # at least Node.js v22.0.0. You are using v20.20.2." wrangler
-          # itself refused to start -- failed before any Cloudflare API
-          # call, nothing was deployed, production unaffected by that
-          # attempt.
-          node-version: '22'
-          cache: 'npm'
-
-      - run: npm ci
-
-      - name: Download build output
-        uses: actions/download-artifact@v7
-        with:
-          name: opennext-build
-          path: .open-next/
 
       - name: wrangler deploy
         env:

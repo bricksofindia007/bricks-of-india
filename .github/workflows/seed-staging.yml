@@ -12,7 +12,7 @@
 #    commits only if every table's fingerprint matches production.
 # Credentials: repo secret CI_READONLY_DB_URL (production, read-only) and environment secret
 # STAGING_DB_URL in `staging-seed` (staging, postgres). The environment requires Abhinav's approval.
-# Evidence artifacts carry counts and md5 fingerprints only -- never content (this repo is public).
+# No evidence artifact is uploaded (4 Oct 2026); the run log shows counts only (this repo is public).
 # Failure behaviour (G14): any error rolls the staging transaction back; staging keeps its old rows.
 # Budget (G2): manual only. Per run ~1 read of 4 tables on production (~15-25 MB egress: sets ~26k
 # rows, plus all news/reviews/guides text) and one staging load.
@@ -56,11 +56,3 @@ jobs:
           STAGING_URL: ${{ secrets.STAGING_DB_URL }}
           OUT_DIR: seed-out
         run: node scripts/ci/seed-staging.mjs
-      - uses: actions/upload-artifact@v6
-        if: always()
-        with:
-          name: evidence-seed
-          path: |
-            seed-out/evidence-seed.*
-            seed-out/evidence-staging.*
-          retention-days: 90
