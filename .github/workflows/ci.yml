@@ -5,6 +5,7 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review]
 
 concurrency:
   # A newer push to the same pull request replaces the older run.
@@ -20,6 +21,7 @@ jobs:
     timeout-minutes: 3
     outputs:
       code: ${{ steps.s.outputs.code }}
+      merged: ${{ steps.s.outputs.merged }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -29,9 +31,14 @@ jobs:
           EVENT: ${{ github.event_name }}
           BASE: ${{ github.event.pull_request.base.sha }}
           SUBJECT: ${{ github.event.head_commit.message }}
+          DRAFT: ${{ github.event.pull_request.draft }}
         run: |
           if [ "$EVENT" = "push" ] && printf '%s' "$SUBJECT" | head -1 | grep -qE '\(#[0-9]+\)$'; then
-            echo "push is a merged pull request: already checked"; echo "code=false" >> "$GITHUB_OUTPUT"; exit 0
+            echo "push is a merged pull request: already checked"; { echo "code=false"; echo "merged=true"; } >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          echo "merged=false" >> "$GITHUB_OUTPUT"
+          if [ "$DRAFT" = "true" ]; then
+            echo "draft pull request: full checks run when it is marked ready"; echo "code=false" >> "$GITHUB_OUTPUT"; exit 0
           fi
           if [ "$EVENT" = "pull_request" ]; then RANGE="$BASE...HEAD"; else RANGE="HEAD~1..HEAD"; fi
           CODE=$(git diff --name-only $RANGE | grep -vE '^(docs/|supabase/data-fixes/|briefs/|audit/)|\.md$' | wc -l)
@@ -294,6 +301,8 @@ jobs:
   # user-visible strings in site code. The term list is the G19_TERMS secret, never in
   # the repo; the job prints file:line only.
   g19-public-text:
+    needs: scope
+    if: needs.scope.outputs.merged != 'true'
     runs-on: ubuntu-latest
     # Pure file scan, no install: well under a minute.
     timeout-minutes: 3
