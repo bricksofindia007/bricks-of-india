@@ -1,8 +1,8 @@
-name: Daily Content Quality Check
+name: Weekly Content Quality Check
 
 on:
   schedule:
-    - cron: '0 3 * * *'  # 03:00 UTC = 08:30 IST
+    - cron: '0 3 * * 0'  # Sundays 03:00 UTC = 08:30 IST
   workflow_dispatch:
 
 jobs:
