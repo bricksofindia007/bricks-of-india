@@ -22,11 +22,11 @@ jobs:
     # a hard ceiling, not a sized estimate.
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # Same Node major as scrape-prices.yml, so undici's default request
       # headers match the live scraper's.
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'

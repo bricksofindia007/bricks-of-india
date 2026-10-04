@@ -36,8 +36,8 @@ jobs:
     # No runs yet: export + load of ~26k set rows and the content tables is a few minutes. Resize after 3 runs.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
       - run: psql --version
@@ -56,7 +56,7 @@ jobs:
           STAGING_URL: ${{ secrets.STAGING_DB_URL }}
           OUT_DIR: seed-out
         run: node scripts/ci/seed-staging.mjs
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v6
         if: always()
         with:
           name: evidence-seed
