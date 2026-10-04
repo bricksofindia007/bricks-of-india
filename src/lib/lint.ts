@@ -6,7 +6,7 @@
 import { unverifiedSetCitations } from './set-identity';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
-import { bannedOpener } from './opener-pattern';
+import { reusedOpener, RECENT_OPENERS_WINDOW } from './opener-pattern';
 import { nonStandardAffiliateMentions } from './affiliate-disclosure';
 import { g19Hits } from './g19';
 export const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: [number, number] }> = {
@@ -170,6 +170,20 @@ function _normalizeOpener(body: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 55);
+}
+
+/** Gate 12 (round 11 D1): the opening sentence of the last RECENT_OPENERS_WINDOW published articles
+ * (news, reviews and guides together, newest first) plus drafts accepted earlier in this run. */
+export async function gateRecentOpener(body: string, sb: SupabaseClient, batchOpeners?: string[]): Promise<LintGateResult> {
+  const n = RECENT_OPENERS_WINDOW;
+  const res = await Promise.all(['news_articles', 'reviews', 'guides'].map((t) =>
+    sb.from(t).select('content, published_at').not('published_at', 'is', null).order('published_at', { ascending: false }).limit(n)));
+  const err = res.find((r) => r.error)?.error;
+  if (err) return { pass: true, severity: 'warn', reason: `gate 12 recent-opener query failed — check DEGRADED to batch-only: ${err.message}` };
+  const recent = res.flatMap((r) => (r.data ?? []) as { content: string | null; published_at: string }[])
+    .sort((a, b) => b.published_at.localeCompare(a.published_at)).slice(0, n).map((r) => r.content ?? '');
+  const hit = reusedOpener(body, [...(batchOpeners ?? []), ...recent]);
+  return hit ? { pass: false, severity: 'fail', reason: `opener used in a recent article: "${hit.slice(0, 80)}"` } : { pass: true, severity: 'ok' };
 }
 
 export const OPENER_SIMILARITY_THRESHOLD = 0.85;
@@ -643,12 +657,10 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
   let sourceFidelityGate: LintGateResult | null   = null;
   let openerUniquenessGate: LintGateResult | null = null;
   let duplicateContentGate: LintGateResult | null = null;
-  // Gate 12: banned opener pattern (#194) -- pure check on the opening sentence.
-  const banned = bannedOpener(body);
-  const openerPatternGate: LintGateResult = banned
-    ? { pass: false, severity: 'fail', reason: `banned opener: "${banned.slice(0, 80)}"` }
-    : { pass: true, severity: 'ok' };
-  if (banned) overallPass = false;
+  // Gate 12 (round 11 D1, 4 Oct 2026): the opening sentence must not repeat one used in any of
+  // the last RECENT_OPENERS_WINDOW published articles. BOI voice openers (wallet lines included) are
+  // allowed. Needs the database, so it runs with Gate 8 below; without a database it is skipped.
+  let openerPatternGate: LintGateResult = { pass: true, severity: 'ok' };
 
   // Gate 13 (#212; round 3): every ABHINAV12 sentence uses the exact standard code line (full-price),
   // no retired wording. The disclosure itself lives on the legal pages, not beside the code.
@@ -694,6 +706,9 @@ ${body}`);
       // recent articles (catches "Your wallet called. It wants to discuss…" family).
       openerUniquenessGate = await gateOpenerUniqueness(body, sb, options.batchOpeners);
       if (!openerUniquenessGate.pass) overallPass = false;
+
+      openerPatternGate = await gateRecentOpener(body, sb, options.batchOpeners);
+      if (!openerPatternGate.pass) overallPass = false;
 
       // Gate 9: Duplicate content by set_number/topic-stem — news format only
       // (that's the exact scope of every confirmed duplicate-article

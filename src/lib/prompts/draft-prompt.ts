@@ -95,7 +95,7 @@ FORBIDDEN WORDS AND PATTERNS:
 OPENER RULE — non-negotiable:
 First sentence must hook with either a relatable Indian situation OR the price. Never start with the set name or "LEGO has announced." Build the opener from THIS story's own facts: a striking number from the source (piece count, size, price, release date), the Indian reader's reaction to it, or the one detail that makes this set different. Short punchy fragments are fine, but the words must come from this set, never from another article. The opener-uniqueness gate rejects any opener that matches a recent article's, so a reused shape fails even with new numbers.
 - Shape that works: "LEGO announced the [set] and approximately zero Indian fans checked the price first."
-Never open with any variation of "Your wallet called / blinked / wants to discuss" -- that template has been used so often that the opener-uniqueness gate rejects it outright. Keep the wallet as a character, just not in that sentence shape.
+BOI voice openers, wallet lines included, are welcome. Never reuse an opening sentence from a recent article: an opener used in any of the last 10 published articles is rejected.
 
 EXAMPLES — study these, match this style exactly:
 
