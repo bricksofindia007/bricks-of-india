@@ -5,6 +5,7 @@ import { buildMetadata } from '@/lib/metadata';
 import { unstable_cache } from 'next/cache';
 import { supabase } from '@/lib/supabase';
 import { ArticleCard } from '@/components/content/ArticleCard';
+import { NEWS_CARD_COLS, toNewsCard } from '@/lib/article-cards';
 import { Badge } from '@/components/ui/Badge';
 import { MASCOTS } from '@/lib/brand';
 
@@ -33,9 +34,9 @@ const getAllNewsArticles = unstable_cache(
   async () => {
     const { data } = await supabase
       .from('news_articles')
-      .select('*')
+      .select(NEWS_CARD_COLS)
       .order('published_at', { ascending: false });
-    return data ?? [];
+    return (data ?? []).map(toNewsCard);
   },
   ['news-page-all-articles'],
   { revalidate: 86400 },
