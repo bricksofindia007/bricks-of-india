@@ -159,7 +159,7 @@ const getPriceDropsData = unstable_cache(
     return { allRows, allThemes };
   },
   ['lab-price-drops-data'],
-  { revalidate: 86400 }, // 24 h page cache (P7, egress)
+  { revalidate: 86400 }, // 24 h, same as the page
 );
 
 export default async function PriceDropsPage(props: Props) {
