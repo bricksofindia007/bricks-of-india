@@ -1,9 +1,12 @@
 name: Campaign post (Brick Rush)
 
 # Round 10b: posts ONE pre-approved Brick Rush piece from social-automation/campaigns/brick-rush-2026.json.
-# Manual only. The piece must be marked "approved": true in the manifest (set after Abhinav approves in chat).
+# The piece must be marked "approved": true in the manifest (set after Abhinav approves in chat).
+# Days 4-10 also post on their own; repo variable BRICK_RUSH_AUTOPOST=off stops that.
 # Runs while the regular social workflows are paused (2-11 Oct).
 on:
+  schedule:
+    - cron: '40 13 * * *'
   workflow_dispatch:
     inputs:
       day:
@@ -19,10 +22,15 @@ on:
         required: false
         default: all
 
+concurrency:
+  group: brick-rush-post
+  cancel-in-progress: false
+
 jobs:
   post:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # scheduled run waits ~20 min, then posts (~5 min per piece)
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-python@v6
@@ -32,8 +40,9 @@ jobs:
         run: pip install -r social-automation/requirements.txt
       - name: Idempotency tests (no network)
         working-directory: social-automation
-        run: python -m unittest test_post_prepared -v
+        run: python -m unittest test_post_prepared test_brick_rush_auto -v
       - name: Post
+        if: github.event_name == 'workflow_dispatch'
         working-directory: social-automation
         env:
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -42,3 +51,14 @@ jobs:
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
         run: python post_prepared.py --manifest campaigns/brick-rush-2026.json --day "${{ inputs.day }}" --piece "${{ inputs.piece }}" --platforms "${{ inputs.platforms }}"
+      - name: Post today's pieces (scheduled)
+        if: github.event_name == 'schedule'
+        working-directory: social-automation
+        env:
+          BRICK_RUSH_AUTOPOST: ${{ vars.BRICK_RUSH_AUTOPOST }}
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          IG_USER_ID: ${{ secrets.IG_USER_ID }}
+          YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
+        run: python brick_rush_auto.py --manifest campaigns/brick-rush-2026.json
