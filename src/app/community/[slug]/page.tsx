@@ -10,7 +10,7 @@ import { JsonLd } from '@/components/JsonLd';
 // Durable-cache guard (2026-07-02 convention, applied here 2026-08-29):
 // Netlify's Next runtime persists rendered pages ACROSS deploys when no
 // revalidate is set. Hourly ISR caps staleness at 60 min, permanently.
-export const revalidate = 3600;
+export const revalidate = 86400;
 // Supabase reads here expire hourly via per-read `next.revalidate`
 // (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
 // NOT fetchCache='default-cache', which cached them until the next deploy.

@@ -8,6 +8,7 @@ import { NewsletterSignup } from '@/components/ui/NewsletterSignup';
 import { YouTubeSection } from '@/components/ui/YouTubeSection';
 import { SetCard } from '@/components/sets/SetCard';
 import { ArticleCard, ReviewCard } from '@/components/content/ArticleCard';
+import { NEWS_CARD_COLS, REVIEW_CARD_COLS } from '@/lib/article-cards';
 import { YoutubeStrip } from '@/components/content/YoutubeStrip';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { TricolourStripe } from '@/components/ui/TricolourStripe';
@@ -19,7 +20,7 @@ import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { getDeals } from '@/lib/price-summary';
 import { SaleBanner } from '@/components/sales/SaleBanner';
 
-export const revalidate = 3600; // re-fetch from Supabase at most every hour
+export const revalidate = 86400; // re-fetch from Supabase at most once a day
 // Supabase reads here expire hourly via per-read `next.revalidate`
 // (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
 // NOT fetchCache='default-cache', which cached them until the next deploy.
@@ -58,12 +59,12 @@ async function getHomepageData() {
       : Promise.resolve({ data: [] }),
     supabase
       .from('reviews')
-      .select('*, set:sets(name, image_url, rebrickable_id, set_number, theme)')
+      .select(REVIEW_CARD_COLS)
       .order('published_at', { ascending: false })
       .limit(3),
     supabase
       .from('news_articles')
-      .select('*')
+      .select(NEWS_CARD_COLS)
       .order('published_at', { ascending: false })
       .limit(3),
     // Nav & Content Overhaul (2026-08-09): "GUIDES & OPINION" replaced with
@@ -85,8 +86,8 @@ async function getHomepageData() {
       .order('display_order', { ascending: true })
       .limit(3),
     supabase.from('sets').select('*', { count: 'exact', head: true }),
-    supabase.from('news_articles').select('*', { count: 'exact', head: true }),
-    supabase.from('reviews').select('*', { count: 'exact', head: true }),
+    supabase.from('news_articles').select('id', { count: 'exact', head: true }),
+    supabase.from('reviews').select('id', { count: 'exact', head: true }),
     // #379: same table /minifig-hq renders (every cmf_figures row).
     supabase.from('cmf_figures').select('*', { count: 'exact', head: true }),
   ]);

@@ -3,12 +3,13 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { supabase } from '@/lib/supabase';
 import { ReviewCard } from '@/components/content/ArticleCard';
+import { REVIEW_CARD_COLS } from '@/lib/article-cards';
 import { MASCOTS } from '@/lib/brand';
 
 // P10 revalidate audit (29 Sep): this route had no revalidate of its own and was either built
 // once per deploy (its data froze between deploys) or refreshed only as a side effect of a shared
 // read. Its cadence is now explicit and checked in CI.
-export const revalidate = 3600; // = READ_REVALIDATE_SECONDS (src/lib/route-cadence.ts; segment config must be a literal)
+export const revalidate = 86400; // = READ_REVALIDATE_SECONDS (src/lib/route-cadence.ts; segment config must be a literal)
 
 export const metadata: Metadata = buildMetadata({
   title: 'LEGO Reviews India — Honest Verdicts',
@@ -19,7 +20,7 @@ export const metadata: Metadata = buildMetadata({
 export default async function ReviewsPage() {
   const { data: reviews } = await supabase
     .from('reviews')
-    .select('*, set:sets(name, image_url, rebrickable_id, set_number, theme)')
+    .select(REVIEW_CARD_COLS)
     .order('published_at', { ascending: false });
 
   return (
