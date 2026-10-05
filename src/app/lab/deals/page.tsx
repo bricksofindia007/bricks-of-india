@@ -18,7 +18,7 @@ export const metadata: Metadata = buildMetadata({
 
 // Hourly ISR (PR-B). Without a revalidate this page was built once, fully
 // static, and changed only on deploy.
-export const revalidate = 3600; // = READ_REVALIDATE_SECONDS (segment config must be a literal)
+export const revalidate = 86400; // = READ_REVALIDATE_SECONDS (segment config must be a literal)
 
 interface DealRow {
   set_id:      string;

@@ -18,7 +18,7 @@ import { buildArticleSchema, buildFAQSchema } from '@/lib/schemas';
 // Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
-export const revalidate = 3600;
+export const revalidate = 86400;
 // Supabase reads here expire hourly via per-read `next.revalidate`
 // (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
 // NOT fetchCache='default-cache', which cached them until the next deploy.

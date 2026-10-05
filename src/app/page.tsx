@@ -19,7 +19,7 @@ import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { getDeals } from '@/lib/price-summary';
 import { SaleBanner } from '@/components/sales/SaleBanner';
 
-export const revalidate = 3600; // re-fetch from Supabase at most every hour
+export const revalidate = 86400; // re-fetch from Supabase at most once a day
 // Supabase reads here expire hourly via per-read `next.revalidate`
 // (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
 // NOT fetchCache='default-cache', which cached them until the next deploy.

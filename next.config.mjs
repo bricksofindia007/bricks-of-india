@@ -368,53 +368,53 @@ const nextConfig = {
       // Cache hints below are aligned with each route's real ISR interval
       // (2026-09-26): a hint shorter than the page's revalidate only makes
       // downstream caches re-ask for a page that cannot have changed yet.
-      // Set detail — 6h (SET_PAGE_REVALIDATE_SECONDS, src/app/sets/[slug]), 1d stale
+      // Set detail — 24h (SET_PAGE_REVALIDATE_SECONDS, src/app/sets/[slug]), 1d stale
       {
         source: '/sets/:slug',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=21600, stale-while-revalidate=86400' },
+          { key: 'Cache-Control', value: 'public, s-maxage=86400, stale-while-revalidate=86400' },
         ],
       },
-      // Set pagination — 1h (prices via unstable_cache READ_REVALIDATE_SECONDS), 1d stale
+      // Set pagination — 24h (prices via unstable_cache READ_REVALIDATE_SECONDS), 1d stale
       {
         source: '/sets/page/:path*',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' },
+          { key: 'Cache-Control', value: 'public, s-maxage=86400, stale-while-revalidate=86400' },
         ],
       },
-      // /lab index — rarely changes — 1h fresh, 1d stale
+      // /lab index — 24h fresh, 1d stale
       {
         source: '/lab',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' },
+          { key: 'Cache-Control', value: 'public, s-maxage=86400, stale-while-revalidate=86400' },
         ],
       },
-      // Lab tool pages — 30min fresh, 1d stale
+      // Lab tool pages — 24h fresh, 1d stale
       {
         source: '/lab/:path+',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=1800, stale-while-revalidate=86400' },
+          { key: 'Cache-Control', value: 'public, s-maxage=86400, stale-while-revalidate=86400' },
         ],
       },
-      // /lab/deals is hourly ISR (PR-B) — overrides the rule above (last match wins)
+      // /lab/deals — 24h ISR — overrides the rule above (last match wins)
       {
         source: '/lab/deals',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' },
+          { key: 'Cache-Control', value: 'public, s-maxage=86400, stale-while-revalidate=86400' },
         ],
       },
-      // Content listing pages — 5min fresh, 1h stale
+      // Content listing pages — 24h fresh, 1d stale
       {
         source: '/(news|blog|reviews)',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=300, stale-while-revalidate=3600' },
+          { key: 'Cache-Control', value: 'public, s-maxage=86400, stale-while-revalidate=86400' },
         ],
       },
-      // Content detail pages — 1h (their ISR revalidate), 1d stale
+      // Content detail pages — 24h (their ISR revalidate), 1d stale
       {
         source: '/(news|blog|reviews)/:path+',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' },
+          { key: 'Cache-Control', value: 'public, s-maxage=86400, stale-while-revalidate=86400' },
         ],
       },
       // Sitemap — 1d (its revalidate, operator decision 2026-09-26)

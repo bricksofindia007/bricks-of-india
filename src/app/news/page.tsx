@@ -38,7 +38,7 @@ const getAllNewsArticles = unstable_cache(
     return data ?? [];
   },
   ['news-page-all-articles'],
-  { revalidate: 300 },
+  { revalidate: 86400 },
 );
 
 export default async function NewsPage(props: { searchParams: Promise<{ category?: string }> }) {

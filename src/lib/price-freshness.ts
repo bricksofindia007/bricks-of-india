@@ -19,7 +19,7 @@ export const PRICE_STALE_HOURS = 2 * SCRAPE_INTERVAL_HOURS;
  * `next.revalidate`, see src/lib/supabase.ts). Route-segment `revalidate`
  * exports must be literals, so those say 3600 and point here.
  */
-export const READ_REVALIDATE_SECONDS = 3600;
+export const READ_REVALIDATE_SECONDS = 86400;
 
 /**
  * Set pages only (/sets/[slug]): 6h, matching the scrape cadence. Operator
@@ -28,7 +28,7 @@ export const READ_REVALIDATE_SECONDS = 3600;
  * "Updated X ago" is computed from scraped_at in the browser, so a cached page
  * never claims to be fresher than its data.
  */
-export const SET_PAGE_REVALIDATE_SECONDS = 21600;
+export const SET_PAGE_REVALIDATE_SECONDS = 86400;
 
 /**
  * Unpriced set pages (FP1.6 design §2, 72 h APPROVED by Abhinav, P8 item 4):

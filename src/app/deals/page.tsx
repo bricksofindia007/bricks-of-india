@@ -17,7 +17,7 @@ export const metadata: Metadata = buildMetadata({
   path: '/deals',
 });
 
-export const revalidate = 3600; // = READ_REVALIDATE_SECONDS (segment config must be a literal)
+export const revalidate = 86400; // = READ_REVALIDATE_SECONDS (segment config must be a literal)
 // Supabase reads here expire hourly via per-read `next.revalidate`
 // (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
 // NOT fetchCache='default-cache', which cached them until the next deploy.
