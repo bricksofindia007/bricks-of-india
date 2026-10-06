@@ -1,0 +1,32 @@
+{
+ "id": "bbd-lego-2026",
+ "note": "Each piece posts only when \"approved\" is true (set after Abhinav approves in chat).",
+ "days": {
+  "day1": {
+   "short": {
+    "approved": true,
+    "label": "BBD-1 Short/Reel (Flipkart BBD LEGO verdicts)",
+    "video": "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/bbd-lego/bbd1.mp4",
+    "ig_caption": "Flipkart says half price. We checked what the same sets cost at other Indian stores today (6 Oct). Eight big sets, a verdict on each, and two to skip. Wishlist yours before it goes live. Full list coming tomorrow on bricksofindia.com. Prices as announced by Flipkart. Confirm on sale day.\n\n#LEGO #LEGOIndia #BigBillionDays #Flipkart #LEGOdeals #LEGOTechnic #LEGOStarWars #BricksOfIndia #Reels",
+    "yt_title": "Flipkart LEGO at half price? Some is a steal, some is a magic trick #shorts",
+    "yt_description": "Flipkart says half price. We checked what the same sets cost at other Indian stores today. Eight big sets, verdicts on each, and two to skip.\n\nPrices as announced by Flipkart. Confirm on sale day.\n\nFull list coming tomorrow on bricksofindia.com",
+    "pinned_comment": "Which set are you wishlisting? Full list with verdicts coming tomorrow on bricksofindia.com. Prices as announced by Flipkart, confirm on sale day.",
+    "yt_tags": [
+     "LEGO",
+     "LEGO India",
+     "Flipkart Big Billion Days",
+     "BBD 2026",
+     "LEGO deals",
+     "LEGO Technic",
+     "LEGO Star Wars",
+     "Jango Fett",
+     "Hogwarts Castle",
+     "Avengers Tower",
+     "Bricks of India",
+     "shorts"
+    ],
+    "approved_by": "Abhinav via chat, BBD-1 publish decision, 6 Oct 2026 (UPDATED version, fix 1 + caption date applied)"
+   }
+  }
+ }
+}

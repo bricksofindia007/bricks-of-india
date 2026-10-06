@@ -60,7 +60,7 @@ def record(piece_id: str, label: str, platform: str) -> None:
     print(f'[post_prepared] recorded {platform} for {piece_id}')
 
 
-def youtube_upload(video_url: str, title: str, description: str, comment: str | None) -> str:
+def youtube_upload(video_url: str, title: str, description: str, comment: str | None, tags: list | None = None) -> str:
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload
     creds = publisher._load_youtube_credentials()
@@ -72,7 +72,7 @@ def youtube_upload(video_url: str, title: str, description: str, comment: str | 
     tmp.write(requests.get(video_url, timeout=120).content); tmp.close()
     resp = yt.videos().insert(part='snippet,status', body={
         'snippet': {'title': title[:100], 'description': description[:4900],
-                    'tags': ['LEGO', 'LEGOIndia', 'BrickRush', 'BricksofIndia', 'Shorts'], 'categoryId': '24'},
+                    'tags': tags or ['LEGO', 'LEGOIndia', 'BrickRush', 'BricksofIndia', 'Shorts'], 'categoryId': '24'},
         'status': {'privacyStatus': 'public', 'selfDeclaredMadeForKids': False},
     }, media_body=MediaFileUpload(tmp.name, mimetype='video/mp4', resumable=True)).execute()
     vid = resp['id']
@@ -133,7 +133,7 @@ def main():
         check_copy(item['ig_caption'], item['yt_title'], item['yt_description'], item.get('pinned_comment'))
         once('ig_reels', lambda: print('[post_prepared] Instagram Reel posted:',
                                         publisher.post_instagram_reels(item['video'], item['ig_caption'])))
-        once('yt_shorts', lambda: youtube_upload(item['video'], item['yt_title'], item['yt_description'], item.get('pinned_comment')))
+        once('yt_shorts', lambda: youtube_upload(item['video'], item['yt_title'], item['yt_description'], item.get('pinned_comment'), item.get('yt_tags')))
 
 if __name__ == '__main__':
     main()
