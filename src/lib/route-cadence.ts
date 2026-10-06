@@ -25,6 +25,7 @@ export const ROUTE_CADENCE: Record<string, Cadence> = {
   '/bot': STATIC,
   '/calendar': STATIC,
   '/contact': STATIC,
+  '/diwali-sale': STATIC,
   '/lab': STATIC,
   '/lab/biryani-index': STATIC,
   '/legal/affiliate-disclosure': STATIC,

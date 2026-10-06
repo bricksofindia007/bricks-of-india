@@ -11,8 +11,6 @@ export const metadata: Metadata = buildMetadata({
   path: '/diwali-sale',
 });
 
-export const revalidate = 86400;
-
 function Card({ card, note }: { card: DealCard; note: string }) {
   return (
     <Link href={`/sets/${card.set}`} className="block bg-white rounded-2xl border border-gray-200 hover:border-accent hover:shadow-md transition overflow-hidden">
@@ -37,7 +35,6 @@ export default function DiwaliSalePage() {
         <div className="max-w-site mx-auto">
           <h1 className="font-heading text-white text-5xl md:text-6xl mb-2">DIWALI LEGO SALES</h1>
           <p className="text-white/70 font-body text-lg mb-1">Brick Rush, Flipkart and Amazon, in one place. Your wallet is about to have a very busy week.</p>
-          <p className="text-white/60 font-body text-sm">Prices checked daily.</p>
           <nav className="mt-5 flex flex-wrap gap-3" aria-label="Sales">
             {DIWALI_SECTIONS.map((s) => (
               <a key={s.id} href={`#${s.id}`} className="bg-accent text-dark font-bold text-sm px-4 py-2 rounded-xl hover:opacity-90">{s.name}</a>
