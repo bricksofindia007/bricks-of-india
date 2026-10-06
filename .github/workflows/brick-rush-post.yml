@@ -9,6 +9,10 @@ on:
     - cron: '40 13 * * *'
   workflow_dispatch:
     inputs:
+      manifest:
+        description: 'campaign manifest file in social-automation/campaigns (default brick-rush-2026.json; BBD-LEGO: bbd-lego-2026.json)'
+        required: false
+        default: brick-rush-2026.json
       day:
         description: 'campaign day key, e.g. day1'
         required: true
@@ -50,7 +54,7 @@ jobs:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           IG_USER_ID: ${{ secrets.IG_USER_ID }}
           YOUTUBE_CLIENT_SECRETS: ${{ secrets.YOUTUBE_CLIENT_SECRETS }}
-        run: python post_prepared.py --manifest campaigns/brick-rush-2026.json --day "${{ inputs.day }}" --piece "${{ inputs.piece }}" --platforms "${{ inputs.platforms }}"
+        run: python post_prepared.py --manifest "campaigns/${{ inputs.manifest }}" --day "${{ inputs.day }}" --piece "${{ inputs.piece }}" --platforms "${{ inputs.platforms }}"
       - name: Post today's pieces (scheduled)
         if: github.event_name == 'schedule'
         working-directory: social-automation
