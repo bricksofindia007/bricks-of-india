@@ -27,6 +27,49 @@
     ],
     "approved_by": "Abhinav via chat, BBD-1 publish decision, 6 Oct 2026 (UPDATED version, fix 1 + caption date applied)"
    }
+  },
+  "bbd2": {
+   "short": {
+    "approved": true,
+    "label": "BBD-2 YouTube long-form (Flipkart BBD, 44 sets)",
+    "video": "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/bbd-lego/bbd2.mp4",
+    "ig_caption": "n/a (YouTube only)",
+    "yt_title": "Flipkart Big Billion Days LEGO: every deal checked (44 sets, honest verdicts)",
+    "yt_description": "Flipkart says half price on LEGO. Early access 8 Oct for Plus, BLACK and Flipkart credit card members; everyone from 9 Oct. We checked what the same sets cost at other Indian stores today (6 Oct) and gave every one of the 44 sets a verdict: HALF PRICE, GOOD, MEH or COLLECTOR.\n\nPrices as announced by Flipkart. Confirm on sale day.\n\nFull list with set pages: https://bricksofindia.com/news/flipkart-big-billion-days-lego-44-sets-checked",
+    "pinned_comment": "Which set are you wishlisting? Tell me below. Prices as announced by Flipkart, confirm on sale day. Full list: bricksofindia.com",
+    "yt_tags": [
+     "LEGO",
+     "LEGO India",
+     "Flipkart Big Billion Days",
+     "BBD 2026",
+     "LEGO deals India",
+     "LEGO Technic",
+     "LEGO Star Wars",
+     "Diwali gifts",
+     "Bricks of India"
+    ],
+    "approved_by": "Abhinav via chat, final BBD brief, 6 Oct 2026 (approved; section 1+2 fixes, article URL, dated labels only)"
+   }
+  },
+  "bbd3": {
+   "carousel": {
+    "approved": true,
+    "label": "BBD-3 Instagram carousel (Flipkart BBD, 44 sets)",
+    "images": [
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/bbd-lego/bbd3/00.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/bbd-lego/bbd3/01.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/bbd-lego/bbd3/02.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/bbd-lego/bbd3/03.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/bbd-lego/bbd3/04.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/bbd-lego/bbd3/05.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/bbd-lego/bbd3/06.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/bbd-lego/bbd3/07.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/bbd-lego/bbd3/08.jpg",
+     "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/bbd-lego/bbd3/09.jpg"
+    ],
+    "caption": "Flipkart says half price. We checked what the same sets cost at other Indian stores today (6 Oct).\n\n44 sets, grouped by theme, each with a verdict: HALF PRICE, GOOD, MEH or COLLECTOR.\n\nSave this post, then wishlist the ones you want before Big Billion Days. Early access 8 Oct for Plus, BLACK and Flipkart credit card members; everyone from 9 Oct.\n\nPrices as announced by Flipkart. Confirm on sale day. Full list: https://bricksofindia.com/news/flipkart-big-billion-days-lego-44-sets-checked\n\n#LEGO #LEGOIndia #BigBillionDays #Flipkart #LEGOdeals #LEGOcollector #BricksOfIndia #LEGOTechnic #LEGOStarWars #LEGOHarryPotter #Diwali",
+    "approved_by": "Abhinav via chat, final BBD brief, 6 Oct 2026 (approved; section 1+2 fixes, article URL, dated labels only)"
+   }
   }
  }
 }
