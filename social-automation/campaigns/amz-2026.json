@@ -1,0 +1,29 @@
+{
+ "id": "amz-2026",
+ "note": "Each piece posts only when \"approved\" is true (set after Abhinav approves in chat).",
+ "days": {
+  "amz2": {
+   "short": {
+    "approved": true,
+    "label": "AMZ-2 Short/Reel (Amazon LEGO sale heads-up)",
+    "video": "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/amz/amz2.mp4",
+    "ig_caption": "We're hearing about the deals planned for Amazon's LEGO sale: up to 50% off, and a Death Star at 52,499. Reported, unconfirmed: confirm on sale day. We'll tell you which are real steals and which are just very well-dressed price tags.\n\n#LEGO #LEGOIndia #AmazonLEGO #LEGODeals #LEGODeathStar #Diwali #BricksOfIndia #Reels",
+    "yt_title": "Amazon's LEGO sale: a Death Star at 52,499? (reported) #shorts",
+    "yt_description": "We're hearing about the deals planned for Amazon's LEGO sale: up to 50% off, and a Death Star at 52,499. Reported, unconfirmed: confirm on sale day.\n\nWe'll tell you which are real steals and which are just very well-dressed price tags.\n\nFollow Bricks of India on Instagram, YouTube and bricksofindia.com",
+    "pinned_comment": "Which Amazon LEGO deal are you waiting for? Prices are reported, unconfirmed: confirm on sale day. bricksofindia.com",
+    "yt_tags": [
+     "LEGO",
+     "LEGO India",
+     "Amazon LEGO sale",
+     "Great Indian Festival",
+     "LEGO Death Star",
+     "LEGO deals",
+     "Diwali LEGO",
+     "Bricks of India",
+     "shorts"
+    ],
+    "approved_by": "Abhinav via chat, AMZ-2 approval, 6 Oct 2026; publish 9:30 IST 7 Oct"
+   }
+  }
+ }
+}
