@@ -172,7 +172,7 @@ export default async function ReviewPage(props: Props) {
   const isLegacyRetiredVerdict = (review.verdict || '').trim().toUpperCase() === 'RETIRED';
   const discountLine = waitDiscountLine(review.verdict, priceSummary);
   const shownVerdict = isLegacyRetiredVerdict
-    ? (availabilityLine ?? 'Sold in India: see live prices below.')
+    ? (availabilityLine ?? 'Sold in India: see prices below (we check them daily).')
     : review.verdict;
   const shareUrl = `https://bricksofindia.com/reviews/${params.slug}`;
   const waText = `Just read this LEGO review on Bricks of India — use ABHINAV12 for 12% off full-price sets at Toycra!`;
@@ -402,10 +402,10 @@ export default async function ReviewPage(props: Props) {
                   review.rating != null ? `Our rating: ${review.rating}/5.` : null,
                   badge?.label === 'Recommended' ? "Yes, we think it's a solid purchase."
                     : badge?.label === 'Skip It' ? "We'd recommend waiting for a better deal or considering alternatives."
-                    : badge?.label === 'Hunt It' ? (indiaStatus.kind === 'retired' ? `${HUNT_IT_LINE} No Indian store has it in stock right now.` : 'An Indian store lists it again: compare the live prices on this page.')
+                    : badge?.label === 'Hunt It' ? (indiaStatus.kind === 'retired' ? `${HUNT_IT_LINE} No Indian store has it in stock right now.` : 'An Indian store lists it again: compare the prices on this page (we check them daily).')
                     : badge?.label === 'Import Only' ? "It's not officially sold in India yet, so factor in import costs and timelines before buying."
                     : availabilityLine ?? (isLegacyRetiredVerdict
-                      ? 'It is sold in India: compare the live prices on this page.'
+                      ? 'It is sold in India: compare the prices on this page (we check them daily).'
                       : "We'd suggest waiting for a better price before buying."),
                 ].filter(Boolean).join(' '),
               },

@@ -325,7 +325,7 @@ export default async function ComparePage(props: Props) {
             <p className="text-gray-400 font-body">
               {q || themeFilter || priceFilter
                 ? 'Try a different search or filter.'
-                : 'Set inventory is synced from Rebrickable. Check back shortly.'}
+                : 'Set inventory is updated regularly. Check back shortly.'}
             </p>
           </div>
         ) : (

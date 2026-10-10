@@ -6,7 +6,6 @@ import { slugify } from '@/lib/utils';
 import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { getDeals } from '@/lib/price-summary';
 import { FreshOnly } from '@/components/ui/FreshOnly';
-import { PriceAge } from '@/components/ui/PriceAge';
 import { getStores, storeLabels } from '@/lib/stores';
 import { shownTheme } from '@/lib/theme-display';
 
@@ -201,9 +200,6 @@ function DealCard({ deal, labels }: { deal: DealRow; labels: Record<string, stri
             ₹{deal.set.lego_mrp_inr.toLocaleString('en-IN')}
           </span>
         </div>
-
-        {/* Freshness */}
-        <div style={{ fontSize: '0.65rem', color: '#CBD5E0' }}><PriceAge scrapedAt={deal.scraped_at || null} /></div>
 
         {/* CTA */}
         <a
