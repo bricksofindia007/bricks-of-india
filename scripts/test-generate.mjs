@@ -173,12 +173,19 @@ BODY:
 --- BOI_DRAFT_END ---`;
 
 const genai  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-const result = await genai
-  .getGenerativeModel({ model: 'gemini-2.5-flash-lite', systemInstruction: systemPrompt })
-  .generateContent({
-    contents         : [{ role: 'user', parts: [{ text: userPrompt }] }],
-    generationConfig : { temperature: 0.7, maxOutputTokens: 2000 },
-  });
+const { guardedCall, runBudget, geminiUsage } = await import('./lib/ai-guard.mjs');
+const result = await guardedCall({
+  site: 'draft', model: 'gemini-2.5-flash-lite', system: systemPrompt, user: userPrompt, budget: runBudget(),
+  invoke: async () => {
+    const r = await genai
+      .getGenerativeModel({ model: 'gemini-2.5-flash-lite', systemInstruction: systemPrompt })
+      .generateContent({
+        contents         : [{ role: 'user', parts: [{ text: userPrompt }] }],
+        generationConfig : { temperature: 0.7, maxOutputTokens: 2000 },
+      });
+    return { ...r, ...geminiUsage(r) };
+  },
+});
 
 const rawText = result.response.text();
 const si = rawText.indexOf('--- BOI_DRAFT_START ---');
