@@ -4,7 +4,7 @@
  "days": {
   "amz2": {
    "short": {
-    "approved": true,
+    "approved": false,
     "label": "AMZ-2 Short/Reel (Amazon LEGO sale heads-up)",
     "video": "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/amz/amz2.mp4",
     "ig_caption": "We're hearing about the deals planned for Amazon's LEGO sale: up to 50% off, and a Death Star at 52,499. Reported, unconfirmed: confirm on sale day. We'll tell you which are real steals and which are just very well-dressed price tags.\n\n#LEGO #LEGOIndia #AmazonLEGO #LEGODeals #LEGODeathStar #Diwali #BricksOfIndia #Reels",
@@ -27,7 +27,7 @@
   },
   "amz3": {
    "short": {
-    "approved": true,
+    "approved": false,
     "label": "AMZ-3 the Death Star at 52,499",
     "video": "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/amz/amz3.mp4",
     "ig_caption": "The Death Star at 52,499 on Amazon: reported, unconfirmed. The reported MRP is 1,04,999. Depends whose MRP you believe. Confirm on sale day.\n\nhttps://bricksofindia.com/news/amazon-lego-sale-every-deal-reported-unconfirmed\n\n#LEGO #LEGOIndia #AmazonLEGO #LEGODeathStar #BricksOfIndia #Reels",
@@ -48,7 +48,7 @@
   },
   "amz4": {
    "short": {
-    "approved": true,
+    "approved": false,
     "label": "AMZ-4 the 3 first-ever discounts",
     "video": "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/amz/amz4.mp4",
     "ig_caption": "Three sets reported with a first-time discount on Amazon: the Death Star, Project Hail Mary and the Golden Retriever Puppy. Reported, unconfirmed: confirm on sale day.\n\nhttps://bricksofindia.com/news/amazon-lego-sale-every-deal-reported-unconfirmed\n\n#LEGO #LEGOIndia #AmazonLEGO #LEGODeals #BricksOfIndia #Reels",
@@ -70,7 +70,7 @@
   },
   "amz5": {
    "carousel": {
-    "approved": true,
+    "approved": false,
     "label": "Instagram carousel: collectors and Icons",
     "images": [
      "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/amz/amz5/00.jpg",
@@ -87,7 +87,7 @@
   },
   "amz6": {
    "carousel": {
-    "approved": true,
+    "approved": false,
     "label": "Instagram carousel: kids and budget",
     "images": [
      "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/amz/amz6/00.jpg",
@@ -107,7 +107,7 @@
   },
   "amz8": {
    "carousel": {
-    "approved": true,
+    "approved": false,
     "label": "Instagram carousel: same price on 20 of the 24 shared sets",
     "images": [
      "https://hqpaiarhmiocmjrzjhtw.supabase.co/storage/v1/object/public/social-assets/amz/amz8/00.jpg",
