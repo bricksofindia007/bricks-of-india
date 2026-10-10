@@ -95,7 +95,7 @@ describe('ai guard: normal run', () => {
 
   it('falls back to the estimate when the response has no usage', async () => {
     const budget = createBudget({ runName: 'generate-approved-drafts.ts', alert: vi.fn() });
-    await guardedCall({ site: 'draft', model: 'gemini-2.5-flash-lite', system: 'abc', user: 'defgh', invoke: async () => ({ text: 'x' }), budget });
+    await guardedCall({ site: 'draft', model: 'gemini-2.5-flash-lite', system: 'abc', user: 'defgh', invoke: async () => ({ text: 'x', inputTokens: undefined }), budget });
     expect(budget.inputTokens).toBe(estimateTokens('abc') + estimateTokens('defgh'));
   });
 
