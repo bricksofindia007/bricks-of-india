@@ -16,7 +16,7 @@ export default function DisclaimerPage() {
         <div className="prose prose-gray max-w-none font-body space-y-6 text-gray-600 leading-relaxed">
           <section>
             <h2 className="font-heading text-dark text-2xl mb-3">PRICE ACCURACY</h2>
-            <p>Prices shown on Bricks of India come from third-party retailer websites and may not be 100% accurate at the time of viewing. Always verify the final price on the retailer&apos;s website before completing a purchase. We cannot guarantee real-time accuracy.</p>
+            <p>Prices shown on Bricks of India come from third-party retailer websites and may not be 100% accurate at the time of viewing. Always verify the final price on the retailer&apos;s website before completing a purchase. We check prices daily, so a price can change before our next check.</p>
           </section>
           <section>
             <h2 className="font-heading text-dark text-2xl mb-3">PRODUCT AVAILABILITY</h2>

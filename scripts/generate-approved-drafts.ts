@@ -16,6 +16,7 @@
  */
 
 import { resolveSourceSet } from '../src/lib/set-identity';
+import { sendAlert } from './lib/alert.mjs';
 import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
@@ -724,6 +725,13 @@ if (IS_MAIN) (async () => {
   const lintFailed = geminiLintFailed + fallbackLintFailed;
   const dur   = ((Date.now() - t0) / 1000).toFixed(1);
   console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected (quality gates, kept 30 days), ${bothFailed} rejected (both providers failed, kept 30 days), ${failed} failed (retrying next run), ${publishRejected} rejected at insert (terminal), ${deferred} deferred, ${heldSameSet} held (same set, #422), ${heldGate14} held for review (Gate 14) of ${queue.length} — ${dur}s total`);
+  // Alert when a run had drafts queued and published none (approved bundle, 10 Oct 2026).
+  if (queue.length > 0 && total === 0) {
+    await sendAlert(
+      'Generator: 0 articles published this run',
+      `Run ${runId ?? '(no run row)'} had ${queue.length} draft(s) queued and published 0. Rejected: ${lintFailed} quality, ${bothFailed} both providers failed. Failed (retry next run): ${failed}. Held: ${heldSameSet} same set, ${heldGate14} Gate 14.`,
+    );
+  }
 })().catch(err => {
   console.error('FATAL:', err);
   process.exit(1);
