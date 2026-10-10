@@ -125,7 +125,7 @@ async function geminiRewrite(article, firstPara, feedback) {
 Below is the OPENING PARAGRAPH of a published article titled "${article.title}". Its first sentence uses an overused house template. Rewrite ONLY the opening one or two sentences so the paragraph opens differently.
 
 HARD RULES:
-- Do NOT begin with any variation of "Your wallet called/blinked/…" or address the wallet in the first sentence.
+- The wallet is BOI house voice: an opening that addresses the wallet is allowed. It must not repeat another article's opening sentence.
 - Preserve every fact, price, set number, and name exactly.
 - Keep the rest of the paragraph intact wherever possible; total length within ±20% of the original.
 - Return ONLY the full rewritten paragraph. No preamble, no markdown fences, no commentary.
@@ -165,9 +165,8 @@ for (const article of rewriteTargets) {
     const norm = normalizeOpener(rewritten);
     const clash = [...allNorms.filter(n => n !== article.norm), ...acceptedNorms]
       .some(n => n.length >= 20 && similarity(norm, n) >= THRESHOLD);
-    const stillTemplate = /^your wallet/i.test(rewritten.trim());
-    if (norm.length >= 20 && !clash && !stillTemplate) accepted = rewritten;
-    else feedback = stillTemplate ? 'still opens with the wallet template' : 'opener still >=85% similar to another article';
+    if (norm.length >= 20 && !clash) accepted = rewritten;
+    else feedback = 'opener still >=85% similar to another article';
   }
 
   console.log(`\n[${article.table}] ${article.slug}`);
