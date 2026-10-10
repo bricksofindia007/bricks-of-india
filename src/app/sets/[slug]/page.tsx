@@ -25,11 +25,11 @@ import { setNumberCandidates, pickSetNumber, slugMatchesSet } from '@/lib/set-sl
 import { SaleSetLine } from '@/components/sales/SaleSetLine';
 import { shownTheme } from '@/lib/theme-display';
 // Durable-cache guard (2026-07-02): a revalidate must always be set, or
-// rendered pages persist across deploys. 72 h = UNPRICED_SET_REVALIDATE_SECONDS
-// (FP1.6 §2, approved P8 item 4; segment config must be a literal). A priced
+// rendered pages persist across deploys. 14 days = UNPRICED_SET_REVALIDATE_SECONDS
+// (approved 10 Oct 2026; segment config must be a literal). A priced
 // page adds a 6 h read (SET_PAGE_REVALIDATE_SECONDS) and Next takes the
 // lowest revalidate in a render, so priced pages still refresh every 6 h.
-export const revalidate = 259200;
+export const revalidate = 1209600;
 // Reads are cached with unstable_cache (not fetchCache='default-cache', which
 // cached until the next deploy), so each cached value carries the time it was
 // read: that's the "as of" time the page shows, never newer than the data.
@@ -176,7 +176,7 @@ export default async function SetPage(props: Props) {
   const pageData = await getSetPageData(params.slug);
   if (!pageData?.set) notFound();
   const set = pageData.set;
-  // Same clock as the page: 6 h when priced, 72 h when not (see getStores).
+  // Same clock as the page: 6 h when priced, 14 days when not (see getStores).
   const stores = await getStores(pageData.store_prices?.length ? SET_PAGE_REVALIDATE_SECONDS : UNPRICED_SET_REVALIDATE_SECONDS);
   const TRACKED_STORES = stores.map((st) => ({ id: st.id, name: st.name, url: st.site_url }));
   const STORE_NAMES = storeLabels(stores);
