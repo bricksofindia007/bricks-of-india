@@ -34,6 +34,7 @@ import { blocking } from '../src/lib/gate14';
 const REJECTED_BY_GATES = 'rejected_by_gates: ';
 import { FEATURE_FLAGS } from '../src/lib/feature-flags';
 import { formatHardRuleFailures } from '../src/lib/hard-rules';
+import { AiLimitError } from './lib/ai-guard.mjs';
 
 // ── CLI flags ─────────────────────────────────────────────────────────────────
 
@@ -591,6 +592,8 @@ if (IS_MAIN) (async () => {
         console.log(`REJECTED, kept 30 days (${outcome.wordCount}w, format=${outcome.format}, provider=${outcome.provider}${failoverNote}) — ${failureReasons || 'gate failure'}`);
       }
     } catch (err: unknown) {
+      // A safety-limit refusal stops the whole run (fail loudly); it is not counted as one failed draft.
+      if (err instanceof AiLimitError) throw err;
       // Policy locked 2026-06-28 (Abhinav, this session): "what fails through
       // Gemini and Cerebras both should be put in a rejected category and
       // [then] deleted" (Abhinav clarified "recycled" was a slip for

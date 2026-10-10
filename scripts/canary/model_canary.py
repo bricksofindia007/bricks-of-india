@@ -63,6 +63,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'video'))
 from secrets_util import get_secret  # noqa: E402
 
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'lib'))
+from ai_guard import gemini_generate, run_budget  # noqa: E402  (safety limits on every Gemini call)
+
+
 class CanaryResult:
     def __init__(self, name: str, ok: bool, detail: str):
         self.name = name
@@ -77,9 +81,10 @@ def check_gemini(label: str, secret_name: str, model: str) -> CanaryResult:
     try:
         from google import genai
         client = genai.Client(api_key=api_key)
-        resp = client.models.generate_content(model=model, contents='Reply with exactly one word: OK')
-        if resp.text and resp.text.strip():
-            return CanaryResult(label, True, f'{model} responded: {resp.text.strip()[:50]!r}')
+        res = gemini_generate(client, site='canary', model=model, system='', user='Reply with exactly one word: OK', budget=run_budget())
+        text = res['text']
+        if text and text.strip():
+            return CanaryResult(label, True, f'{model} responded: {text.strip()[:50]!r}')
         return CanaryResult(label, False, f'{model} returned empty text (model may be degraded, not necessarily dead)')
     except Exception as e:
         return CanaryResult(label, False, f'{model} call failed: {e}')

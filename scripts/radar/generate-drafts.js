@@ -385,12 +385,19 @@ async function updateDraft(id, patch) {
     let parsed;
     try {
       const t1     = Date.now();
-      const result = await genai
-        .getGenerativeModel({ model: MODEL_NAME, systemInstruction: systemPrompt })
-        .generateContent({
-          contents         : [{ role: 'user', parts: [{ text: userPrompt }] }],
-          generationConfig : { temperature: 0.7, maxOutputTokens: 2000 },
-        });
+      const { guardedCall, runBudget, geminiUsage } = await import('../lib/ai-guard.mjs');
+      const result = await guardedCall({
+        site: 'draft', model: MODEL_NAME, system: systemPrompt, user: userPrompt, budget: runBudget(),
+        invoke: async () => {
+          const r = await genai
+            .getGenerativeModel({ model: MODEL_NAME, systemInstruction: systemPrompt })
+            .generateContent({
+              contents         : [{ role: 'user', parts: [{ text: userPrompt }] }],
+              generationConfig : { temperature: 0.7, maxOutputTokens: 2000 },
+            });
+          return { ...r, ...geminiUsage(r) };
+        },
+      });
       const elapsed = Date.now() - t1;
       const rawText = result.response.text();
 

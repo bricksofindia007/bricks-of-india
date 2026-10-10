@@ -25,6 +25,8 @@ import os
 import random
 import re
 import sys
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "lib"))
+from ai_guard import AiLimitError, gemini_generate, run_budget  # noqa: E402  (safety limits on every Gemini call)
 import time
 from pathlib import Path
 from typing import NamedTuple
@@ -932,17 +934,14 @@ def _call_gemini(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
     from google import genai
     from google.genai import types
     client = genai.Client(api_key=GEMINI_SOCIAL_API_KEY)
-    resp = client.models.generate_content(
-        model='gemini-2.5-flash',
-        contents=task_prompt,
+    res = gemini_generate(
+        client, site='video-qp', model='gemini-2.5-flash', system=system_prompt, user=task_prompt,
         config=types.GenerateContentConfig(system_instruction=system_prompt),
+        budget=run_budget(),
     )
-    if not resp.text or not resp.text.strip():
+    if not res['text'] or not res['text'].strip():
         raise RuntimeError('Gemini returned empty text.')
-    usage = getattr(resp, 'usage_metadata', None)
-    in_tok = getattr(usage, 'prompt_token_count', None) if usage else None
-    out_tok = getattr(usage, 'candidates_token_count', None) if usage else None
-    return ScriptGenCallResult(resp.text.strip(), 'gemini', in_tok, out_tok)
+    return ScriptGenCallResult(res['text'].strip(), 'gemini', res['inputTokens'], res['outputTokens'])
 
 
 def _call_groq(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
@@ -1109,6 +1108,8 @@ def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) 
         call_result = None
         try:
             call_result = _call_gemini(system_prompt, task_prompt)
+        except AiLimitError:
+            raise  # a safety-limit refusal fails the run; it is never sent to a fallback
         except Exception as e:
             print(f'WARN: Gemini script-gen failed ({e}), falling back to Groq.', file=sys.stderr)
 

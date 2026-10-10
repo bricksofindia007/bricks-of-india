@@ -7,6 +7,7 @@ import { lintDraft, type LintResult } from './lint';
 import { runHardRules, type HardRuleResult, type DraftFormat } from './hard-rules';
 import { FEATURE_FLAGS } from './feature-flags';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { AiLimitError } from '../../scripts/lib/ai-guard.mjs';
 
 import { OPENER_FEEDBACK } from './opener-pattern';
 import { AFFILIATE_FEEDBACK } from './affiliate-disclosure';
@@ -222,6 +223,8 @@ REVISION REQUIRED: ${feedback.join(' ')}`);
       ...(input.gate14 ? { gate14: { findings: gate14, enforce: input.gate14.enforce } } : {}),
     };
   } catch (err) {
+    // A safety-limit refusal is never sent to the fallback; it fails the run.
+    if (err instanceof AiLimitError) throw err;
     geminiErr = err;
   }
 
