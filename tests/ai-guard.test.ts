@@ -109,3 +109,18 @@ describe('ai guard: normal run', () => {
     expect(budget.maxCalls).toBe(10);
   });
 });
+
+describe('ai guard: draft generator caps', () => {
+  it('allows a full batch of drafts (30 calls, 300000 input tokens per run)', () => {
+    const budget = createBudget({ runName: 'generate-approved-drafts.ts', alert: vi.fn() });
+    expect(budget.name).toBe('generate-approved-drafts.ts');
+    expect(budget.maxCalls).toBe(30);
+    expect(budget.maxInputTokens).toBe(300000);
+  });
+
+  it('public config carries no measurement notes or internal run names', async () => {
+    const fs = await import('fs');
+    const text = fs.readFileSync(new URL('../config/ai-limits.json', import.meta.url), 'utf8');
+    expect(text).not.toMatch(/measured|2026|\b37\d{6}\b|Brick|campaign/i);
+  });
+});

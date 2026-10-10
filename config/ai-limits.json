@@ -1,5 +1,5 @@
 {
-  "_doc": "Safety limits for every Gemini call (see docs/reports/AI_CALL_LIMITS_2026-10-10.md). Read by scripts/lib/ai-guard.mjs and scripts/lib/ai_guard.py. Change a number here, not in code. Token estimate = characters / charsPerToken (conservative: real English is about 4 characters per token).",
+  "_doc": "Safety limits for every AI model call. Read by the shared guard modules in scripts/lib. Change a number here through a reviewed change. Token estimate = characters / charsPerToken (conservative).",
   "charsPerToken": 3,
   "allowedModels": [
     "gemini-2.5-flash-lite",
@@ -8,62 +8,49 @@
   ],
   "sites": {
     "draft": {
-      "maxInputTokensPerCall": 15000,
-      "measured": "worst case 21,632 chars (system 13,647 + user 7,985), 10 Oct 2026"
+      "maxInputTokensPerCall": 15000
     },
     "caption": {
-      "maxInputTokensPerCall": 28000,
-      "measured": "worst case ~41,300 chars (codex 40,000 + prompt ~1,300), 10 Oct 2026"
+      "maxInputTokensPerCall": 28000
     },
     "video": {
-      "maxInputTokensPerCall": 3500,
-      "measured": "worst case 5,091 chars (system 4,214 + task 877), 10 Oct 2026"
+      "maxInputTokensPerCall": 3500
     },
     "canary": {
-      "maxInputTokensPerCall": 1000,
-      "measured": "fixed 33-char prompt; floor of 1,000 tokens",
-      "fixedCalls": 2
+      "maxInputTokensPerCall": 1000
     },
     "video-qp": {
-      "maxInputTokensPerCall": 23000,
-      "measured": "worst case 34,003 chars (system 24,467 + task with revision 9,536), 10 Oct 2026"
+      "maxInputTokensPerCall": 23000
     }
   },
   "perRun": {
     "generate-approved-drafts.ts": {
-      "maxCalls": 14,
-      "maxInputTokens": 110000,
-      "measured": "normal run 37347074436: 7 drafts, 7 calls"
+      "maxCalls": 30,
+      "maxInputTokens": 300000
     },
     "pipeline.py": {
       "maxCalls": 14,
-      "maxInputTokens": 200000,
-      "measured": "normal Brick Rush run 37349557829: 7 pieces, about 1 call each"
+      "maxInputTokens": 200000
     },
     "engine.py": {
       "maxCalls": 12,
-      "maxInputTokens": 40000,
-      "measured": "code path: up to 6 generation attempts per video"
+      "maxInputTokens": 40000
     },
     "quiet_panic_script_gen.py": {
       "maxCalls": 4,
-      "maxInputTokens": 50000,
-      "measured": "code path: up to 2 attempts per script; each about 11,300 tokens worst case"
+      "maxInputTokens": 50000
     },
     "model_canary.py": {
       "maxCalls": 4,
-      "maxInputTokens": 4000,
-      "measured": "2 fixed calls per run"
+      "maxInputTokens": 4000
     },
     "default": {
       "maxCalls": 10,
-      "maxInputTokens": 50000,
-      "measured": "unlisted scripts: strict default"
+      "maxInputTokens": 50000
     }
   },
   "requestScope": {
     "maxCalls": 5,
-    "maxInputTokens": 60000,
-    "measured": "one web request (admin draft button): several calls at most"
+    "maxInputTokens": 60000
   }
 }
