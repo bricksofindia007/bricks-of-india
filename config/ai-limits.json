@@ -1,0 +1,56 @@
+{
+  "_doc": "Safety limits for every AI model call. Read by the shared guard modules in scripts/lib. Change a number here through a reviewed change. Token estimate = characters / charsPerToken (conservative).",
+  "charsPerToken": 3,
+  "allowedModels": [
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
+    "gemini-3.1-flash-lite"
+  ],
+  "sites": {
+    "draft": {
+      "maxInputTokensPerCall": 15000
+    },
+    "caption": {
+      "maxInputTokensPerCall": 28000
+    },
+    "video": {
+      "maxInputTokensPerCall": 3500
+    },
+    "canary": {
+      "maxInputTokensPerCall": 1000
+    },
+    "video-qp": {
+      "maxInputTokensPerCall": 23000
+    }
+  },
+  "perRun": {
+    "generate-approved-drafts.ts": {
+      "maxCalls": 30,
+      "maxInputTokens": 300000
+    },
+    "pipeline.py": {
+      "maxCalls": 14,
+      "maxInputTokens": 200000
+    },
+    "engine.py": {
+      "maxCalls": 12,
+      "maxInputTokens": 40000
+    },
+    "quiet_panic_script_gen.py": {
+      "maxCalls": 4,
+      "maxInputTokens": 50000
+    },
+    "model_canary.py": {
+      "maxCalls": 4,
+      "maxInputTokens": 4000
+    },
+    "default": {
+      "maxCalls": 10,
+      "maxInputTokens": 50000
+    }
+  },
+  "requestScope": {
+    "maxCalls": 5,
+    "maxInputTokens": 60000
+  }
+}

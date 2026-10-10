@@ -7,6 +7,8 @@ import sys as _sys
 from pathlib import Path as _Path
 _sys.path.insert(0, str(_Path(__file__).resolve().parents[1]))
 from config.g19 import PROMPT_RULE as G19_RULE, g19_hits  # noqa: E402  (G19, 1 Oct 2026)
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[1] / "scripts" / "lib"))
+from ai_guard import AiLimitError, gemini_generate, run_budget  # noqa: E402  (safety limits on every Gemini call)
 import os
 import re
 import sys
@@ -179,20 +181,21 @@ End the caption with exactly this text, no modifications:
     last_exc = None
     for attempt in range(3):
         try:
-            response = client.models.generate_content(
-                model=MODEL_NAME,
-                contents=user_prompt,
-                config=types.GenerateContentConfig(
-                    # Codex prepended ahead of the existing SYSTEM_PROMPT, not
-                    # merged into or replacing it -- SYSTEM_PROMPT itself is
-                    # untouched by this change. CAPTION_SCOPE_NOTE appended
-                    # last (Phase 4d) so its "don't do X" constraint has
-                    # recency over the codex's own verdict-system material.
-                    system_instruction=_load_codex() + '\n\n---\n\n' + SYSTEM_PROMPT + '\n\n' + CAPTION_SCOPE_NOTE + '\n\nG19: ' + G19_RULE,
-                ),
+            # Codex prepended ahead of the existing SYSTEM_PROMPT, not
+            # merged into or replacing it -- SYSTEM_PROMPT itself is
+            # untouched by this change. CAPTION_SCOPE_NOTE appended
+            # last (Phase 4d) so its "don't do X" constraint has
+            # recency over the codex's own verdict-system material.
+            system_text = _load_codex() + '\n\n---\n\n' + SYSTEM_PROMPT + '\n\n' + CAPTION_SCOPE_NOTE + '\n\nG19: ' + G19_RULE
+            res = gemini_generate(
+                client, site='caption', model=MODEL_NAME, system=system_text, user=user_prompt,
+                config=types.GenerateContentConfig(system_instruction=system_text),
+                budget=run_budget(),
             )
-            caption = response.text.strip()
+            caption = res['text'].strip()
             break
+        except AiLimitError:
+            raise  # a safety-limit refusal fails the run; it is never retried
         except Exception as exc:
             last_exc = exc
             msg = str(exc)
