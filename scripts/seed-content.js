@@ -769,12 +769,12 @@ Hogwarts-related sets continue to expand. The castle in particular grows more el
 **India Availability Note**
 Not every LEGO® set launches in India simultaneously with global release. Major sets typically arrive 1-3 months after global launch. Smaller sets sometimes arrive later or not at all.
 
-We track India availability in real-time. Check the Deals and Compare pages for current stock information.
+We check India prices and availability daily. Check the Deals and Compare pages for current stock information.
 
 **FAQ**
 
 Q: When will LEGO® 2026 sets be available in India?
-A: Major sets typically launch in India 1-3 months after global release. Check our Deals page for real-time India availability.
+A: Major sets typically launch in India 1-3 months after global release. Check our Deals page for India availability; we check prices daily.
 
 Q: Which LEGO® 2026 sets are most anticipated in India?
 A: The new Technic flagships, Star Wars UCS releases, and Icons large-scale sets are the most anticipated for 2026 in the Indian LEGO® community.
@@ -961,7 +961,7 @@ India availability varies by retailer. Toycra and MyBrickHouse are generally the
 **FAQ**
 
 Q: When are LEGO® 2026 sets available in India?
-A: The first wave was released in January-February 2026. Subsequent waves arrive in April-June and August-October. Check our deals page for real-time availability.
+A: The first wave was released in January-February 2026. Subsequent waves arrive in April-June and August-October. Check our deals page for availability; we check prices daily.
 
 Q: What LEGO® sets are releasing in India in April 2026?
 A: New Star Wars additions, Speed Champions 2026 cars, and Botanical Collection expansions are all expected in April 2026.
@@ -1399,7 +1399,7 @@ Check the compare page for current prices and availability.
 **FAQ**
 
 Q: What LEGO® sets are available at Toycra in April 2026?
-A: Check our compare page for real-time Toycra stock and prices.
+A: Check our compare page for Toycra stock and prices; we check prices daily.
 
 Q: Does Toycra deliver across India?
 A: Yes — Toycra ships pan-India. Delivery times vary by location.

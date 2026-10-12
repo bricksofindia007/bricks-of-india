@@ -69,7 +69,7 @@ function deterministicBlock(verdict: Verdict, live: Live) {
   return {
     variant,
     block: [
-      `Priced at ₹${fmtInr(live.price)} on ${STORE_DISPLAY_NAME[live.retailer]}, confirmed in stock as of ${displayDate(live.scrapedAt)}.`,
+      `At review, it was priced at ₹${fmtInr(live.price)} on ${STORE_DISPLAY_NAME[live.retailer]}.`,
       `Verdict: ${verdict}.`,
       '',
       disclaimerTextFor(variant),

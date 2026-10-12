@@ -114,7 +114,7 @@ async function paginate(table, cols) {
       continue;
     }
     const retailerDisplay = STORE_DISPLAY_NAME[sourceRetailer] ?? sourceRetailer;
-    const priceLine = `Priced at ₹${fmtInr(sourcePriceInr)} on ${retailerDisplay}, confirmed in stock as of ${fmtDate(now)}.`;
+    const priceLine = `At review, it was priced at ₹${fmtInr(sourcePriceInr)} on ${retailerDisplay}.`;
     const verdictLine = `Verdict: ${review.verdict}.`;
     const disclaimerLine = disclaimerTextFor(disclaimerVariant);
 
