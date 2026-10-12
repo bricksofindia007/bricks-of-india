@@ -7,7 +7,7 @@ import Image from 'next/image';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Browse LEGO Themes in India 2026',
-  description: 'Browse all LEGO themes available in India. Technic, City, Star Wars, Harry Potter, Speed Champions and more — with live price comparison across Indian stores.',
+  description: 'Browse all LEGO themes available in India. Technic, City, Star Wars, Harry Potter, Speed Champions and more — with price comparison across Indian stores, checked daily.',
   path: '/themes',
 });
 

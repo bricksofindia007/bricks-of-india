@@ -672,12 +672,6 @@ function fmtInrLocal(n: number): string {
   return rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + last3;
 }
 
-function formatCheckedAtDisplay(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return `${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-}
-
 const INDIA_MARKER_RE = /<!--\s*INDIA_PARAGRAPH\s*-->[\s\S]*?<!--\s*\/INDIAN?_PARAGRAPH\s*-->/;
 
 // Matches the deterministic block's own first line once it's live in a
@@ -687,7 +681,7 @@ const INDIA_MARKER_RE = /<!--\s*INDIA_PARAGRAPH\s*-->[\s\S]*?<!--\s*\/INDIAN?_PA
 // published review, without disturbing the surrounding article prose).
 // Round 11 (4 Oct 2026): the store part may hold a bracketed second price with a comma
 // ("Toycra (₹41,199 on LEGO.in)"), so it is matched lazily up to ", confirmed in stock".
-const PUBLISHED_PRICE_LINE_RE = /Priced at ₹[\d,]+ on .+?, confirmed in stock as of [^.]+\./;
+const PUBLISHED_PRICE_LINE_RE = /(?:Priced at ₹[\d,]+ on .+?, confirmed in stock as of [^.]+|At review, it was priced at ₹[\d,]+ on .+?)\./;
 
 export type RetailerReviewSourceFields = {
   source_retailer:     SourceRetailer;
@@ -726,7 +720,7 @@ function buildDeterministicBlock(verdict: string, source: RetailerReviewSourceFi
   const retailerDisplay   = priceLineStores(source);
 
   const block = [
-    `Priced at ₹${fmtInrLocal(source.source_price_inr)} on ${retailerDisplay}, confirmed in stock as of ${formatCheckedAtDisplay(source.source_checked_at)}.`,
+    `At review, it was priced at ₹${fmtInrLocal(source.source_price_inr)} on ${retailerDisplay}.`,
     `Verdict: ${verdict}.`,
     '',
     disclaimerTextFor(disclaimerVariant as Parameters<typeof disclaimerTextFor>[0]),
@@ -764,7 +758,7 @@ export function spliceRetailerIndiaParagraph(
 // exact text before Pass 1 runs, compare after for any row flagged as a
 // verdict-flip candidate — it must be byte-identical, since a flip candidate
 // must never actually change).
-const FULL_BLOCK_RE = /Priced at ₹[\d,]+ on .+?, confirmed in stock as of [^.]+\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
+const FULL_BLOCK_RE = /(?:Priced at ₹[\d,]+ on .+?, confirmed in stock as of [^.]+|At review, it was priced at ₹[\d,]+ on .+?)\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
 
 /**
  * Re-splices the deterministic block into an ALREADY-PUBLISHED review's

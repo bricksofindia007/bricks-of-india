@@ -26,8 +26,8 @@ describe('review price line names the store that has the price (round 11, 4 Oct 
     const old = 'Body.\n\nPriced at ₹29,399 on LEGO.in and Toycra, confirmed in stock as of 21 Sep 2026.\nVerdict: BUY NOW.\n\nStandard disclaimer: if you\'ve got the money, obviously buy it — that\'s what the verdict says too, for once we all agree.';
     const s = src({ featured_store: 'toycra', other_price_inr: 41199, other_in_stock: true });
     const { content } = resplicePublishedIndiaParagraph(old, 'BUY NOW', s);
-    expect(content).toContain('Priced at ₹29,399 on Toycra (₹41,199 on LEGO.in), confirmed in stock as of 4 Oct 2026.\nVerdict: BUY NOW.');
-    expect(extractIndiaParagraphBlock(content)).toMatch(/^Priced at ₹29,399 on Toycra \(₹41,199 on LEGO\.in\), confirmed/);
+    expect(content).toContain('At review, it was priced at ₹29,399 on Toycra (₹41,199 on LEGO.in).\nVerdict: BUY NOW.');
+    expect(extractIndiaParagraphBlock(content)).toMatch(/^At review, it was priced at ₹29,399 on Toycra \(₹41,199 on LEGO\.in\)\./);
     expect(resplicePublishedIndiaParagraph(content, 'BUY NOW', s).content).toBe(content);
   });
   it('the weekly resolver reports which store it featured', () => {

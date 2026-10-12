@@ -111,7 +111,7 @@ export default async function BlogPostPage(props: Props) {
           <h2 className="font-heading text-dark text-3xl mb-4">FREQUENTLY ASKED QUESTIONS</h2>
           <div className="space-y-3">
             {(() => { const faqs = [
-              { q: 'Where is the cheapest place to buy LEGO in India?', a: `It depends on the set — each set page compares live prices at Toycra and LEGO.in. ${AFFILIATE_NOTE} Amazon India and Flipkart also sell LEGO.` },
+              { q: 'Where is the cheapest place to buy LEGO in India?', a: `It depends on the set — each set page compares prices at Toycra and LEGO.in (we check prices daily). ${AFFILIATE_NOTE} Amazon India and Flipkart also sell LEGO.` },
               { q: 'Are LEGO sets worth buying in India in 2026?', a: 'Absolutely — if you buy from the right stores at the right price. Use our price comparison tool to ensure you\'re not overpaying. The sets are genuine and the builds are genuinely enjoyable.' },
               { q: 'Is there a LEGO discount code for India?', a: `Yes. ${AFFILIATE_NOTE} This is an exclusive Bricks of India deal.` },
               { q: 'Can I trust the prices on Bricks of India?', a: 'Prices shown are what each store lists. We always recommend verifying on the store website before purchase, as prices can change. We\'re accurate, not psychic.' },

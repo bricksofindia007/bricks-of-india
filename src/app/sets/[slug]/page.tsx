@@ -8,7 +8,6 @@ import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
 import { SET_PAGE_REVALIDATE_SECONDS, UNPRICED_SET_REVALIDATE_SECONDS, bestInStock, isPriceFresh, formatIst } from '@/lib/price-freshness';
 import { unstable_cache } from 'next/cache';
-import { PriceAge } from '@/components/ui/PriceAge';
 import { getSet } from '@/lib/rebrickable';
 import { formatPrice, whatsappShareUrl, socialCardImage, setMetaDescription } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
@@ -26,11 +25,11 @@ import { setNumberCandidates, pickSetNumber, slugMatchesSet } from '@/lib/set-sl
 import { SaleSetLine } from '@/components/sales/SaleSetLine';
 import { shownTheme } from '@/lib/theme-display';
 // Durable-cache guard (2026-07-02): a revalidate must always be set, or
-// rendered pages persist across deploys. 72 h = UNPRICED_SET_REVALIDATE_SECONDS
-// (FP1.6 §2, approved P8 item 4; segment config must be a literal). A priced
+// rendered pages persist across deploys. 14 days = UNPRICED_SET_REVALIDATE_SECONDS
+// (approved 10 Oct 2026; segment config must be a literal). A priced
 // page adds a 6 h read (SET_PAGE_REVALIDATE_SECONDS) and Next takes the
 // lowest revalidate in a render, so priced pages still refresh every 6 h.
-export const revalidate = 259200;
+export const revalidate = 1209600;
 // Reads are cached with unstable_cache (not fetchCache='default-cache', which
 // cached until the next deploy), so each cached value carries the time it was
 // read: that's the "as of" time the page shows, never newer than the data.
@@ -177,7 +176,7 @@ export default async function SetPage(props: Props) {
   const pageData = await getSetPageData(params.slug);
   if (!pageData?.set) notFound();
   const set = pageData.set;
-  // Same clock as the page: 6 h when priced, 72 h when not (see getStores).
+  // Same clock as the page: 6 h when priced, 14 days when not (see getStores).
   const stores = await getStores(pageData.store_prices?.length ? SET_PAGE_REVALIDATE_SECONDS : UNPRICED_SET_REVALIDATE_SECONDS);
   const TRACKED_STORES = stores.map((st) => ({ id: st.id, name: st.name, url: st.site_url }));
   const STORE_NAMES = storeLabels(stores);
@@ -390,7 +389,7 @@ export default async function SetPage(props: Props) {
                     return (
                       <div key={store.id} className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
                         <span className="font-bold text-dark">{store.name}</span>
-                        <span className="text-gray-400 text-sm">No listing found at {store.name} as of {formatIst(pageData.as_of)}</span>
+                        <span className="text-gray-400 text-sm">No listing found at {store.name}.</span>
                       </div>
                     );
                   }
@@ -407,18 +406,19 @@ export default async function SetPage(props: Props) {
                           {!sp.in_stock && (
                             <span className="text-sm text-gray-500 font-bold">Out of stock at {store.name}</span>
                           )}
-                          {sp.price_inr && !isPriceFresh(sp.scraped_at) && (
-                            <PriceAge scrapedAt={sp.scraped_at} prefix="Price from" className="text-xs text-gray-500" />
-                          )}
                         </div>
                         <div className="flex items-center gap-3">
-                          {sp.price_inr ? (
+                          {sp.price_inr && isPriceFresh(sp.scraped_at) ? (
                             <span
                               className={`font-price font-bold text-lg ${atBest ? 'text-deal-green' : sp.in_stock ? 'text-dark' : 'text-gray-400'}`}
                               data-best-price={atBest ? sp.price_inr : undefined}
                             >
                               {formatPrice(sp.price_inr)}
                             </span>
+                          ) : sp.price_inr ? (
+                            <a href={sp.product_url ?? undefined} target="_blank" rel="noopener noreferrer sponsored" className="text-sm font-bold text-dark underline">
+                              See the price at {store.name} →
+                            </a>
                           ) : (
                             <span className="text-gray-400 text-sm">Price unavailable</span>
                           )}
@@ -470,7 +470,7 @@ export default async function SetPage(props: Props) {
             </div>
 
             {/* Staleness indicator */}
-            <p className="text-xs mb-4 text-gray-400">{lastUpdated ? <PriceAge scrapedAt={lastUpdated} /> : `No retailer listing found as of ${formatIst(pageData.as_of)}`}</p>
+            {!lastUpdated && <p className="text-xs mb-4 text-gray-400">No retailer listing found.</p>}
 
             {/* Price disclaimer */}
             <p className="text-xs text-gray-400 mb-6">
@@ -532,7 +532,7 @@ export default async function SetPage(props: Props) {
                       ? `Based on our latest comparison, ${summary.best_store_ids.map((id) => STORE_NAMES[id] ?? id).join(' and ')} ${summary.best_store_ids.length > 1 ? 'share' : 'has'} the lowest in-stock price at ${formatPrice(summary.best_price_inr)}.`
                       : hasPrices
                       ? `The lowest in-stock price we last saw was ${formatPrice(bestStorePrice!.price_inr)} at ${STORE_NAMES[bestStorePrice!.store_id] ?? bestStorePrice!.store_id}, but that price is more than 12 hours old — check the store for today's price.`
-                      : `We're currently setting up price tracking for ${set.name}. Check Toycra, LEGO.in, and Amazon India for live prices.`,
+                      : `We're currently setting up price tracking for ${set.name}. Check Toycra, LEGO.in, and Amazon India for current prices.`,
                   },
                   {
                     q: `Is ${set.name} available in India?`,

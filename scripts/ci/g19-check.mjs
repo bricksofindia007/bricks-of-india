@@ -20,10 +20,14 @@ if (!RAW) {
   process.exit(1);
 }
 const cfg = JSON.parse(RAW);
+// Exact public sentences approved by Abhinav (see g19-approved-public-sentences.json). A whole string that
+// equals an approved entry is skipped; nothing else is. Fails closed if the file is missing.
+const APPROVED = new Set(JSON.parse(fs.readFileSync(path.join(ROOT, 'scripts/ci/g19-approved-public-sentences.json'), 'utf8')).map((e) => e.text));
 const TERMS = Object.entries(cfg.terms).flatMap(([cat, pats]) => pats.map((p) => [cat, new RegExp(p, 'i')]));
 const ALLOW = cfg.allow.map((p) => new RegExp(p, 'gi'));
 
 export function hits(text) {
+  if (APPROVED.has(text.replace(/\s+/g, " ").trim())) return [];
   const out = [];
   for (const raw of text.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter(Boolean)) {
     const s = ALLOW.reduce((acc, re) => acc.replace(re, ' '), raw);
