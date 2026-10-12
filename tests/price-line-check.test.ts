@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { priceLineNamesStores, rewriteNeeded } from '../scripts/lib/price-line-check.mjs';
+import { priceLineNamesStores, planPriceUpdate } from '../scripts/lib/price-line-check.mjs';
 
 const OLD_TOYCRA = 'Body.\n\nPriced at ₹29,399 on Toycra, confirmed in stock as of 4 Oct 2026.\nVerdict: BUY NOW.';
 const NEW_TOYCRA = 'Body.\n\nAt review, it was priced at ₹29,399 on Toycra.\nVerdict: BUY NOW.';
@@ -30,34 +30,40 @@ describe('priceLineNamesStores', () => {
   });
 });
 
-describe('rewriteNeeded', () => {
+describe('planPriceUpdate (weekly refresh, option a: the printed price line is never written)', () => {
   const base = { storesNow: 'Toycra', oldPrice: 29399, newPrice: 29399, retailerChanged: false };
 
-  it('does not rewrite an unchanged old-form row', () => {
-    expect(rewriteNeeded({ ...base, content: OLD_TOYCRA })).toBe(false);
+  it('a changed price in the old form updates the stored columns and has no content field', () => {
+    const plan = planPriceUpdate({ ...base, newPrice: 27999, content: OLD_TOYCRA });
+    expect(plan.updateStoredColumns).toBe(true);
+    expect(Object.keys(plan).sort()).toEqual(['storesMismatch', 'updateStoredColumns']);
   });
-  it('does not rewrite an unchanged new-form row', () => {
-    expect(rewriteNeeded({ ...base, content: NEW_TOYCRA })).toBe(false);
+  it('a changed price in the new form updates the stored columns and has no content field', () => {
+    const plan = planPriceUpdate({ ...base, newPrice: 27999, content: NEW_TOYCRA });
+    expect(plan.updateStoredColumns).toBe(true);
+    expect(Object.keys(plan).sort()).toEqual(['storesMismatch', 'updateStoredColumns']);
   });
-  it('rewrites when the price changed, in either form', () => {
-    expect(rewriteNeeded({ ...base, newPrice: 27999, content: OLD_TOYCRA })).toBe(true);
-    expect(rewriteNeeded({ ...base, newPrice: 27999, content: NEW_TOYCRA })).toBe(true);
+  it('a changed source retailer updates the stored columns, in either form', () => {
+    expect(planPriceUpdate({ ...base, retailerChanged: true, content: OLD_TOYCRA }).updateStoredColumns).toBe(true);
+    expect(planPriceUpdate({ ...base, retailerChanged: true, content: NEW_TOYCRA }).updateStoredColumns).toBe(true);
   });
-  it('rewrites when the source retailer changed, in either form', () => {
-    expect(rewriteNeeded({ ...base, retailerChanged: true, content: OLD_TOYCRA })).toBe(true);
-    expect(rewriteNeeded({ ...base, retailerChanged: true, content: NEW_TOYCRA })).toBe(true);
+  it('an unchanged old-form row produces no stored-column write and no mismatch', () => {
+    expect(planPriceUpdate({ ...base, content: OLD_TOYCRA })).toEqual({ updateStoredColumns: false, storesMismatch: false });
   });
-  it('rewrites when the stores changed, in either form', () => {
-    expect(rewriteNeeded({ ...base, storesNow: 'LEGO.in', content: OLD_TOYCRA })).toBe(true);
-    expect(rewriteNeeded({ ...base, storesNow: 'LEGO.in', content: NEW_TOYCRA })).toBe(true);
+  it('an unchanged new-form row produces no stored-column write and no mismatch', () => {
+    expect(planPriceUpdate({ ...base, content: NEW_TOYCRA })).toEqual({ updateStoredColumns: false, storesMismatch: false });
   });
-  it('produces zero writes over a set of unchanged rows', () => {
+  it('a stores change is reported only: no stored-column write, mismatch flagged, in either form', () => {
+    expect(planPriceUpdate({ ...base, storesNow: 'LEGO.in', content: OLD_TOYCRA })).toEqual({ updateStoredColumns: false, storesMismatch: true });
+    expect(planPriceUpdate({ ...base, storesNow: 'LEGO.in', content: NEW_TOYCRA })).toEqual({ updateStoredColumns: false, storesMismatch: true });
+  });
+  it('unchanged rows produce zero stored-column writes', () => {
     const unchanged = [
       { ...base, content: OLD_TOYCRA },
       { ...base, content: NEW_TOYCRA },
       { ...base, storesNow: 'Toycra (₹41,199 on LEGO.in)', content: NEW_BOTH },
       { ...base, storesNow: 'Toycra (₹41,199 on LEGO.in)', content: OLD_BOTH },
     ];
-    expect(unchanged.filter((row) => rewriteNeeded(row)).length).toBe(0);
+    expect(unchanged.filter((row) => planPriceUpdate(row).updateStoredColumns).length).toBe(0);
   });
 });
