@@ -21,6 +21,7 @@ dotenv.config({ path: '.env.local' });
 
 import { createClient } from '@supabase/supabase-js';
 import { fetchLiveListings, resolveEligibleListing, STORE_DISPLAY_NAME } from './lib/reviews-source.mjs';
+import { rewriteNeeded } from './lib/price-line-check.mjs';
 import { resplicePublishedIndiaParagraph, extractIndiaParagraphBlock, priceLineStores } from '../src/lib/publish-draft.ts';
 import { assertFlipFreezeGuarantee } from '../src/lib/flip-freeze-assertion.ts';
 import { getSecret } from '../src/lib/get-secret.ts';
@@ -249,8 +250,8 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
       ...(resolved.otherStore ? { other_price_inr: resolved.otherStore.priceInr, other_in_stock: resolved.otherStore.inStock } : {}),
     };
     const storesNow = priceLineStores(stampSource);
-    const storesChanged = !(review.content || '').includes(` on ${storesNow}, confirmed in stock as of `);
-    if (newPrice !== oldPrice || resolved.sourceRetailer !== review.source_retailer || storesChanged) {
+    const rewrite = rewriteNeeded({ content: review.content, storesNow, oldPrice, newPrice, retailerChanged: resolved.sourceRetailer !== review.source_retailer });
+    if (rewrite) {
       p1Updated++;
       console.log(`  [UPDATE] ${review.slug}: ₹${oldPrice} -> ₹${newPrice} @ ${resolved.sourceRetailer} (verdict unchanged: ${review.verdict})`);
       if (!DRY_RUN) {
