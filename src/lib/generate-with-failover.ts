@@ -74,12 +74,13 @@ export class BothProvidersFailedError extends Error {
 }
 
 // Determines whether a Gemini error should trigger Cerebras failover.
-// Only 429 and 5xx are retryable — parse errors and bad requests are not.
+// Only 402 (payment required / out of credit), 429 and 5xx are retryable — parse errors and bad requests are not.
+// 402 added 10 Oct 2026 (approved bundle): a Gemini credit wall now routes to Groq like a rate limit does.
 // SMOKE_TEST=1 widens to include 400 so a bad API key can simulate failover.
 function isRetryableGeminiError(err: unknown): boolean {
   const msg = (err instanceof Error ? err.message : String(err));
   if (process.env.SMOKE_TEST === '1') return /\[4\d\d/.test(msg) || /\[5\d\d/.test(msg);
-  return /\[429/.test(msg) || /\[5\d\d/.test(msg);
+  return /\[402/.test(msg) || /\[429/.test(msg) || /\[5\d\d/.test(msg);
 }
 
 const vlog = (...args: unknown[]) => {

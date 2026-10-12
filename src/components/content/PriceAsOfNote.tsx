@@ -4,7 +4,7 @@ import Link from 'next/link';
 export function PriceAsOfNote({ date, href }: { date: string; href: string }) {
   return (
     <p className="text-sm text-gray-500 font-body border-l-4 border-accent pl-3 mb-6">
-      Prices in this article are as of {date}.{' '}
+      Prices in this article may have changed.{' '}
       <Link href={href} className="font-bold text-primary hover:underline">Today&apos;s prices →</Link>
     </p>
   );

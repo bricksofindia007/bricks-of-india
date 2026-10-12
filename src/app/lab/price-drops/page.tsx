@@ -20,10 +20,6 @@ export const metadata: Metadata = buildMetadata({
 function fmtInr(n: number) {
   return `₹${Math.round(n).toLocaleString('en-IN')}`;
 }
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 interface DropRow {
   set_id:    string;
   store_id:  string;
@@ -321,11 +317,6 @@ export default async function PriceDropsPage(props: Props) {
                           {fmtInr(discounted)} with ABHINAV12
                         </div>
                       )}
-                    </div>
-
-                    {/* Date */}
-                    <div style={{ fontSize: '0.65rem', color: '#CBD5E0', marginTop: 2 }}>
-                      Updated {fmtDate(r.scraped_at)}
                     </div>
 
                     <Link

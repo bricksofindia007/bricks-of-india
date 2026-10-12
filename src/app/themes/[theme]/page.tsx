@@ -161,8 +161,8 @@ export default async function ThemePage(props: Props) {
               </h1>
               <p className="text-white/60 text-sm mt-1 font-body">
                 {setCount > 0
-                  ? `${setCount} sets found — live price comparison across all Indian stores.`
-                  : `All LEGO ${theme.name} sets in India with live price comparison.`}
+                  ? `${setCount} sets found — price comparison across Indian stores; we check prices daily.`
+                  : `All LEGO ${theme.name} sets in India with price comparison. We check prices daily.`}
               </p>
             </div>
           </div>
