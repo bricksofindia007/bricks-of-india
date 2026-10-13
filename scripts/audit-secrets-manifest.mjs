@@ -43,7 +43,7 @@ const wfFiles = readdirSync(WF_DIR)
 
 function workflowSecrets(filename) {
   const text = readFileSync(join(WF_DIR, filename), 'utf-8');
-  return new Set([...text.matchAll(/secrets\.([A-Z_]+)/g)].map(m => m[1]));
+  return new Set([...text.matchAll(/secrets\.([A-Z0-9_]+)/g)].map(m => m[1]));
 }
 
 const wfSecretMap = Object.fromEntries(
