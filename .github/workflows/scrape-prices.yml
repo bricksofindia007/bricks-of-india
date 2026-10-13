@@ -107,6 +107,7 @@ jobs:
       # failed scrape, or a run where every guarded store was held and
       # nothing was upserted. Toycra writes still count as a write.
       - name: Sync new/changed sets to IndexNow
+        id: indexnow
         if: steps.scrape.outcome == 'success' && steps.scrape.outputs.wrote == 'true' && github.event.inputs.dry_run != 'true'
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
@@ -134,13 +135,13 @@ jobs:
 
       # Same alert path as retention-cleanup.yml (#192).
       - name: Send failure alert
-        if: steps.scrape.outcome == 'failure' || steps.freshness.outcome == 'failure'
+        if: steps.scrape.outcome == 'failure' || steps.freshness.outcome == 'failure' || steps.indexnow.outcome == 'failure'
         continue-on-error: true
         env:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           BRIEF_EMAIL:    ${{ secrets.BRIEF_EMAIL }}
           WORKFLOW_NAME:  scrape-prices
-          STEP_OUTCOMES:  '{"Run Shopify scraper": "${{ steps.scrape.outcome }}", "Check price freshness": "${{ steps.freshness.outcome }}"}'
+          STEP_OUTCOMES:  '{"Run Shopify scraper": "${{ steps.scrape.outcome }}", "Check price freshness": "${{ steps.freshness.outcome }}", "Sync new/changed sets to IndexNow": "${{ steps.indexnow.outcome }}"}'
         run: node scripts/workflow-failure-notify.mjs
 
       # continue-on-error above would otherwise leave the job green on a real

@@ -19,6 +19,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getSecret } from '../src/lib/get-secret';
 import { submitToIndexNow } from '../src/lib/indexnow';
 import { slugify } from '../src/lib/utils';
+import { isPending, selectForRun, chunk, MAX_URLS_PER_REQUEST, MAX_URLS_PER_RUN, UPDATE_BATCH } from './lib/indexnow-pending';
 
 dotenv.config({ path: '.env.local' });
 
@@ -32,46 +33,73 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
+type SetRow = {
+  set_number: string;
+  name: string;
+  updated_at: string | null;
+  indexnow_submitted_at: string | null;
+};
+
 async function main() {
+  // Only the four columns the job needs. Ordered so pages are stable.
   const PAGE = 1000;
-  const pending: { set_number: string; name: string }[] = [];
+  const rows: SetRow[] = [];
   for (let offset = 0; ; offset += PAGE) {
     const { data, error } = await sb
       .from('sets')
       .select('set_number, name, updated_at, indexnow_submitted_at')
       .in('index_tier', ['tier1', 'tier2'])
-      .or('indexnow_submitted_at.is.null,updated_at.gt.indexnow_submitted_at')
+      .order('set_number', { ascending: true })
       .range(offset, offset + PAGE - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
-    pending.push(...data);
+    rows.push(...data);
     if (data.length < PAGE) break;
   }
 
-  if (pending.length === 0) {
+  const pending = rows.filter(isPending);
+  const forRun = selectForRun(pending, MAX_URLS_PER_RUN);
+  const deferred = pending.length - forRun.length;
+  console.log(`[IndexNow] tier1/tier2 sets read: ${rows.length}; pending: ${pending.length}; this run: ${forRun.length}` +
+    (deferred > 0 ? `; deferred to later runs: ${deferred}.` : '.'));
+  if (forRun.length === 0) {
     console.log('[IndexNow] no new/changed tier1/tier2 sets since last sync.');
     return;
   }
 
-  const urls = pending.map((s) => `https://bricksofindia.com/sets/${s.set_number}-${slugify(s.name)}`);
-  console.log(`[IndexNow] submitting ${urls.length} new/changed set URL(s)...`);
-  const results = await submitToIndexNow(urls);
-  const allOk = results.every((r) => r.ok);
-
-  if (allOk) {
-    const now = new Date().toISOString();
-    const setNumbers = pending.map((s) => s.set_number);
-    const { error: updateErr } = await sb.from('sets').update({ indexnow_submitted_at: now }).in('set_number', setNumbers);
-    if (updateErr) throw updateErr;
-    console.log(`[IndexNow] marked ${setNumbers.length} set(s) as submitted at ${now}.`);
-  } else {
-    console.log('[IndexNow] submission had at least one non-ok chunk -- not marking sets as submitted, will retry next run.');
+  let submitted = 0;
+  let marked = 0;
+  let notSubmitted = 0;
+  for (const part of chunk(forRun, MAX_URLS_PER_REQUEST)) {
+    const urls = part.map((s) => `https://bricksofindia.com/sets/${s.set_number}-${slugify(s.name)}`);
+    console.log(`[IndexNow] submitting ${urls.length} set URL(s)...`);
+    const results = await submitToIndexNow(urls);
+    if (!results.every((r) => r.ok)) {
+      // Not marked, so the next run retries these sets.
+      notSubmitted += urls.length;
+      console.log(`[IndexNow] ${urls.length} URL(s) NOT submitted (non-ok response); will retry next run.`);
+      continue;
+    }
+    submitted += urls.length;
+    for (const batch of chunk(part, UPDATE_BATCH)) {
+      // Stamp taken just before each write, so the trigger's updated_at
+      // (set by the same write) lands within CHANGE_MARGIN_MS of it.
+      const stamp = new Date().toISOString();
+      const { error: updateErr } = await sb
+        .from('sets')
+        .update({ indexnow_submitted_at: stamp })
+        .in('set_number', batch.map((s) => s.set_number));
+      if (updateErr) throw updateErr;
+      marked += batch.length;
+    }
   }
+  console.log(`[IndexNow] done: submitted ${submitted}, marked ${marked}, not submitted ${notSubmitted}.`);
 }
 
 main().catch((err) => {
-  // Never fail the workflow over this -- matches the old ping's
-  // continue-on-error intent, just enforced in the script itself since
-  // this runs as one step among several in scrape-prices.yml.
-  console.error('[IndexNow] sync-sets crashed (non-fatal):', err);
+  // Exit non-zero so the run log shows a failed step. The scrape job still
+  // reaches its later steps (they are if: always()), and the price write
+  // before this step is already done.
+  console.error('[IndexNow] sync-sets FAILED, NO set URLs submitted this run:', err);
+  process.exitCode = 1;
 });
