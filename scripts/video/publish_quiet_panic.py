@@ -566,11 +566,13 @@ def retry_missing_platforms_all(sb) -> bool:
     now_utc = datetime.now(timezone.utc)
     today = cadence.ist_date(now_utc)
 
+    # Only the columns the retry reads, capped at 50 rows per run.
     stuck_res = (
         sb.table('quiet_panic_posts')
-        .select('*')
+        .select('id, sequence_number, set_number, set_title, status, script, video_path, storage_url, gate_results, gate_override, gate_override_reason')
         .in_('status', ['posted_ig', 'posted_yt'])
         .order('sequence_number')
+        .limit(50)
         .execute()
     )
     stuck_rows = stuck_res.data

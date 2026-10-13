@@ -67,6 +67,7 @@ from supabase import create_client  # noqa: E402
 import gates  # noqa: E402
 import prompts  # noqa: E402
 from price_baseline import pick_baselines  # noqa: E402  (#383)
+import price_check  # noqa: E402
 
 BASE_DIR = Path(__file__).parent
 MASTER_ASSETS = BASE_DIR / "master_assets"
@@ -2452,11 +2453,14 @@ def retry_missing_platforms_all(sb) -> bool:
     now_utc = datetime.now(timezone.utc)
     today = cadence.ist_date(now_utc)
 
+    # Only the columns the retry reads (publish.retry_missing_platform and
+    # _resolve_local_video_path), capped at 50 rows per run.
     stuck_res = (
         sb.table("video_posts")
-        .select("*")
+        .select("id, story_number, set_number, set_title, status, script, video_path, storage_url")
         .in_("status", ["posted_ig", "posted_yt"])
         .order("story_number")
+        .limit(50)
         .execute()
     )
     stuck_rows = stuck_res.data
@@ -2808,6 +2812,19 @@ def main() -> None:
         for i, video_post in enumerate(approved_rows):
             vid = video_post["id"]
             print(f"\n--- Publishing {vid} (story #{video_post.get('story_number')}, {video_post['set_title']}) ---")
+
+            # Pre-publish price check: hold the row (no post, nothing edited)
+            # when the store's current price differs or the item is out of stock.
+            price_block = price_check.blocked_reason(sb, video_post)
+            if price_block:
+                print(f"HELD {vid}: {price_block}", file=sys.stderr)
+                sb.table("video_posts").update({"status": "publish_blocked"}).eq("id", vid).execute()
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "blocked", detail=price_block)
+                notifier_mod.send_skip_notification(
+                    reason=f"Approved video (story #{video_post.get('story_number')}) was moved to publish_blocked: {price_block}. The next queued row is tried this same run.",
+                    candidate_title=video_post.get("set_title"),
+                )
+                continue  # not today's publish -- try the next queued row this same run
 
             try:
                 results = publish_mod.publish_video_post(sb, video_post)
