@@ -33,8 +33,8 @@ describe('baseline file', () => {
     expect(baseline.approved_products).toBe(873);
     expect(baseline.approved_available).toBe(842);
     expect(baseline.policy.map((p: any) => p.sha256)).toEqual([
-      '561482b3f26e7088b0f4b48862ee2461ba2bf3ef580bf857aa85e238339e2628',
-      '7689709f07a430d2b68b521c08c0e3dd5b632d419945de8d8ad566e3e4072ecd',
+      '0be736de585b832b6e0d12b007977767427b69fba281e56c71adee06ed1657c8',
+      'd6ebec3fd0e933c93ae66c57de0470290e7630cd08a1bffabfcd28d831286a0d',
     ]);
     expect(feedStats(good).available_products).toBe(842);
   });
