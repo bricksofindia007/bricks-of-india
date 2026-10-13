@@ -28,6 +28,6 @@ jobs:
           KEY=$(printf '%s' "$STAGING_KEY" | tr -d '\r\n')
           STATUS=$(curl -s -o /tmp/r.json -w '%{http_code}' --max-time 20 \
             -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
-            "$STAGING_URL/rest/v1/stores?select=id&limit=1")
+            "$STAGING_URL/rest/v1/blog_posts?select=id&limit=1")
           echo "staging keep-alive -> HTTP $STATUS $(head -c 80 /tmp/r.json)"
           test "$STATUS" = "200"
