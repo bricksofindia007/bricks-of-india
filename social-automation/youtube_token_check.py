@@ -10,10 +10,7 @@ import sys
 import requests
 
 import publisher
-
-REQUIRED = ['https://www.googleapis.com/auth/youtube.upload',
-            'https://www.googleapis.com/auth/youtube.force-ssl',
-            'https://www.googleapis.com/auth/yt-analytics.readonly']
+from token_scopes import evaluate
 
 
 def main():
@@ -42,9 +39,10 @@ def main():
     # Short names: Actions masks each line of the multi-line token secret, which can hide a full scope URL.
     short = [s.replace('https://www.googleapis.com/auth/', '') for s in granted]
     print('scopes granted:', *(short or ['(none)']), sep='\n  ')
-    missing = [s for s in REQUIRED if s not in granted]
-    ok = r.ok and title == 'Bricks of India' and not missing
+    ok, missing, warnings = evaluate(granted, title, r.ok)
     print('missing:', missing or 'none')
+    for s in warnings:
+        print('WARN (not required):', s.replace('https://www.googleapis.com/auth/', ''), 'not granted')
     print('RESULT:', 'PASS' if ok else 'FAIL')
     sys.exit(0 if ok else 1)
 
