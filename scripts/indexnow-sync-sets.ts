@@ -19,7 +19,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getSecret } from '../src/lib/get-secret';
 import { submitToIndexNow } from '../src/lib/indexnow';
 import { slugify } from '../src/lib/utils';
-import { isPending, chunk, MAX_URLS_PER_REQUEST, UPDATE_BATCH } from './lib/indexnow-pending';
+import { isPending, selectForRun, chunk, MAX_URLS_PER_REQUEST, MAX_URLS_PER_RUN, UPDATE_BATCH } from './lib/indexnow-pending';
 
 dotenv.config({ path: '.env.local' });
 
@@ -58,8 +58,11 @@ async function main() {
   }
 
   const pending = rows.filter(isPending);
-  console.log(`[IndexNow] tier1/tier2 sets read: ${rows.length}; pending: ${pending.length}.`);
-  if (pending.length === 0) {
+  const forRun = selectForRun(pending, MAX_URLS_PER_RUN);
+  const deferred = pending.length - forRun.length;
+  console.log(`[IndexNow] tier1/tier2 sets read: ${rows.length}; pending: ${pending.length}; this run: ${forRun.length}` +
+    (deferred > 0 ? `; deferred to later runs: ${deferred}.` : '.'));
+  if (forRun.length === 0) {
     console.log('[IndexNow] no new/changed tier1/tier2 sets since last sync.');
     return;
   }
@@ -67,7 +70,7 @@ async function main() {
   let submitted = 0;
   let marked = 0;
   let notSubmitted = 0;
-  for (const part of chunk(pending, MAX_URLS_PER_REQUEST)) {
+  for (const part of chunk(forRun, MAX_URLS_PER_REQUEST)) {
     const urls = part.map((s) => `https://bricksofindia.com/sets/${s.set_number}-${slugify(s.name)}`);
     console.log(`[IndexNow] submitting ${urls.length} set URL(s)...`);
     const results = await submitToIndexNow(urls);
@@ -78,11 +81,13 @@ async function main() {
       continue;
     }
     submitted += urls.length;
-    const now = new Date().toISOString();
     for (const batch of chunk(part, UPDATE_BATCH)) {
+      // Stamp taken just before each write, so the trigger's updated_at
+      // (set by the same write) lands within CHANGE_MARGIN_MS of it.
+      const stamp = new Date().toISOString();
       const { error: updateErr } = await sb
         .from('sets')
-        .update({ indexnow_submitted_at: now })
+        .update({ indexnow_submitted_at: stamp })
         .in('set_number', batch.map((s) => s.set_number));
       if (updateErr) throw updateErr;
       marked += batch.length;
@@ -92,7 +97,9 @@ async function main() {
 }
 
 main().catch((err) => {
-  // Still non-fatal to the scrape job (it runs after the price write).
-  // The line below names the failure so it is visible in the run log.
-  console.error('[IndexNow] sync-sets FAILED, NO set URLs submitted this run (non-fatal to the job):', err);
+  // Exit non-zero so the run log shows a failed step. The scrape job still
+  // reaches its later steps (they are if: always()), and the price write
+  // before this step is already done.
+  console.error('[IndexNow] sync-sets FAILED, NO set URLs submitted this run:', err);
+  process.exitCode = 1;
 });
