@@ -10,6 +10,9 @@ on:
     paths:
       - 'scripts/video/cadence.py'
       - 'scripts/video/test_cadence.py'
+      - 'scripts/video/test_cadence_mwf.py'
+      - 'scripts/video/generation_bank.py'
+      - 'scripts/video/engine.py'
       - 'scripts/video/publish_quiet_panic.py'
       - 'scripts/video/publish.py'
       - 'scripts/video/engine.py'
@@ -44,7 +47,7 @@ jobs:
 
       - name: Run cadence unit tests
         working-directory: scripts/video
-        run: python -m unittest test_cadence -v
+        run: python -m unittest test_cadence test_cadence_mwf -v
 
       - name: Run coherence judge unit tests (#365, fail-closed)
         working-directory: scripts/video
