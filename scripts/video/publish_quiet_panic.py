@@ -566,11 +566,13 @@ def retry_missing_platforms_all(sb) -> bool:
     now_utc = datetime.now(timezone.utc)
     today = cadence.ist_date(now_utc)
 
+    # Only the fields the retry reads, capped per run (P23). Same cap as VID-P4.
     stuck_res = (
         sb.table('quiet_panic_posts')
-        .select('*')
+        .select('id, sequence_number, set_title, set_number, status, script, video_path, storage_url')
         .in_('status', ['posted_ig', 'posted_yt'])
         .order('sequence_number')
+        .limit(50)
         .execute()
     )
     stuck_rows = stuck_res.data
