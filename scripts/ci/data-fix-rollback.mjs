@@ -87,7 +87,8 @@ DECLARE
   n integer;
   already boolean;
 BEGIN
-  IF NOT EXISTS (SELECT 1 FROM information_schema.tables WHERE table_schema = 'boi_backups' AND table_name = ${sqlLit(backupTable)}) THEN
+  IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace ns ON ns.oid = c.relnamespace
+                 WHERE ns.nspname = 'boi_backups' AND c.relname = ${sqlLit(backupTable)}) THEN
     RAISE EXCEPTION 'backup table not found; nothing changed';
   END IF;
 
@@ -134,15 +135,71 @@ $rollback$;
 `;
 }
 
+// The table is looked up in the database's own catalogue (pg_class joined to pg_namespace), not in
+// information_schema, which hides tables a role has no privilege on.
+export function lookupBackupSql(backupTable) {
+  if (!isValidBackupTable(backupTable)) throw new Error('backup table name is not in the expected form; refusing');
+  return `select count(*) from pg_class c join pg_namespace ns on ns.oid = c.relnamespace where ns.nspname = 'boi_backups' and c.relname = ${sqlLit(backupTable)};`;
+}
+
+// Names only, plus whether this role can use the schema. No table content is read.
+export function diagnosticSql() {
+  return `select 'table', c.relname from pg_class c join pg_namespace ns on ns.oid = c.relnamespace
+  where ns.nspname = 'boi_backups' and left(c.relname, 17) = 'public__reviews__'
+  union all
+  select 'can_read', case when has_schema_privilege('boi_backups', 'USAGE') then 'yes' else 'no' end
+  order by 1, 2;`;
+}
+
+export function parseCount(out) {
+  return Number(String(out ?? '').trim().split('\n').pop());
+}
+
+export function parseDiagnostic(out) {
+  const names = [];
+  let canRead = null;
+  for (const line of String(out ?? '').split('\n')) {
+    const [kind, value] = line.split('|');
+    // Only names with the reviews backup prefix are reported, even if the query returned more.
+    if (kind === 'table' && value && value.trim().startsWith('public__reviews__')) names.push(value.trim());
+    if (kind === 'can_read') canRead = value.trim() === 'yes';
+  }
+  return { names, canRead };
+}
+
+export function notFoundMessage(backupTable, diag) {
+  const names = diag.names.length ? diag.names.join(', ') : 'none';
+  return `backup table ${backupTable} not found in boi_backups. Tables there starting with public__reviews__: ${names}. `
+    + `Current role can read the boi_backups schema: ${diag.canRead === null ? 'unknown' : diag.canRead ? 'yes' : 'no'}. Nothing was changed.`;
+}
+
+/**
+ * Checks that the backup table exists. `run(sql)` returns psql's output (injected, so both paths are testable).
+ * Returns { found: true } or { found: false, message } where the message names tables and the role's read access only.
+ */
+export function checkBackupPresent(backupTable, run) {
+  if (parseCount(run(lookupBackupSql(backupTable))) === 1) return { found: true };
+  const diag = parseDiagnostic(run(diagnosticSql()));
+  return { found: false, message: notFoundMessage(backupTable, diag) };
+}
+
 async function main() {
   const TARGET = process.env.TARGET, URL = process.env.DATABASE_URL, BT = process.env.BACKUP_TABLE ?? '';
   const guard = checkRollbackTarget(TARGET, URL);
   if (!guard.ok) throw new Error(guard.reason);
   console.log('staging target check passed');
+  const redact = (s) => String(s ?? '').split(URL).join('[redacted]');
+  const runQuery = (sql) => {
+    const r = spawnSync('psql', [URL, '-X', '-A', '-t', '-q', '-v', 'ON_ERROR_STOP=1', '-f', '-'],
+      { input: sql, encoding: 'utf8', env: { ...process.env, PGCONNECT_TIMEOUT: '15' } });
+    if (r.status !== 0) throw new Error(`lookup failed: ${redact(r.stderr).trim().slice(0, 300)}`);
+    return String(r.stdout ?? '').replace(/\r/g, '');
+  };
+  const present = checkBackupPresent(BT, runQuery);
+  if (!present.found) throw new Error(present.message);
   const sql = buildRollbackSql(BT);
   const r = spawnSync('psql', [URL, '-X', '-q', '-1', '-v', 'ON_ERROR_STOP=1', '-f', '-'],
     { input: sql, encoding: 'utf8', env: { ...process.env, PGCONNECT_TIMEOUT: '15' } });
-  const redact = (s) => String(s ?? '').split(URL).join('[redacted]');
   if (r.status !== 0) throw new Error(`rollback failed and was rolled back: ${redact(r.stderr).trim().slice(0, 400)}`);
   for (const line of redact(r.stderr).split('\n').filter((l) => /NOTICE|ERROR/.test(l))) console.log(line.trim());
   console.log('rollback finished; the transaction was committed');

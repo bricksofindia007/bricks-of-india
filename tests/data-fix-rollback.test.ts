@@ -127,3 +127,67 @@ describe('workflow', () => {
     expect(wf).toMatch(/node scripts\/ci\/data-fix-rollback\.mjs/);
   });
 });
+
+// Backup lookup (fix): catalogue-based check, and the not-found message names tables and read access only.
+import { lookupBackupSql, diagnosticSql, checkBackupPresent, parseDiagnostic, notFoundMessage } from '../scripts/ci/data-fix-rollback.mjs';
+
+describe('backup lookup uses the database catalogue', () => {
+  it('looks the table up in pg_class joined to pg_namespace, not information_schema', () => {
+    const lookup = lookupBackupSql(BT);
+    expect(lookup).toMatch(/pg_class/);
+    expect(lookup).toMatch(/pg_namespace/);
+    expect(lookup).not.toMatch(/information_schema/);
+    expect(buildRollbackSql(BT)).not.toMatch(/information_schema/);
+    expect(buildRollbackSql(BT)).toMatch(/JOIN pg_namespace ns/);
+  });
+
+  it('the diagnostic reads names and a yes/no for the schema only, never table content', () => {
+    const diag = diagnosticSql();
+    expect(diag).toMatch(/relname/);
+    expect(diag).toMatch(/has_schema_privilege\('boi_backups', 'USAGE'\)/);
+    expect(diag).not.toMatch(/content/);
+  });
+});
+
+describe('backup lookup: found path', () => {
+  it('proceeds when the catalogue has the table', () => {
+    const seen: string[] = [];
+    const run = (sql: string) => { seen.push(sql); return '1\n'; };
+    expect(checkBackupPresent(BT, run)).toEqual({ found: true });
+    expect(seen).toHaveLength(1);
+  });
+});
+
+describe('backup lookup: not-found path', () => {
+  it('reports the matching table names and the role read access, and nothing else', () => {
+    const run = (sql: string) => (sql.includes('count(*)')
+      ? '0\n'
+      : 'table|public__reviews__20261013T090000\ntable|public__reviews__20261014T123456\ntable|other__thing\ncan_read|yes\n');
+    const r = checkBackupPresent(BT, run);
+    expect(r.found).toBe(false);
+    expect(r.message).toContain(`backup table ${BT} not found`);
+    expect(r.message).toContain('public__reviews__20261013T090000, public__reviews__20261014T123456');
+    expect(r.message).not.toContain('other__thing');
+    expect(r.message).toContain('can read the boi_backups schema: yes');
+    expect(r.message).toContain('Nothing was changed.');
+  });
+
+  it('says none and no when the schema has no matching tables and the role cannot read it', () => {
+    const run = (sql: string) => (sql.includes('count(*)') ? '0\n' : 'can_read|no\n');
+    const r = checkBackupPresent(BT, run);
+    expect(r.found).toBe(false);
+    expect(r.message).toContain('starting with public__reviews__: none');
+    expect(r.message).toContain('can read the boi_backups schema: no');
+  });
+
+  it('parses the diagnostic output and keeps names apart from access', () => {
+    expect(parseDiagnostic('table|public__reviews__20261014T123456\ncan_read|yes\n')).toEqual({
+      names: ['public__reviews__20261014T123456'], canRead: true,
+    });
+    expect(notFoundMessage(BT, { names: [], canRead: null })).toContain('can read the boi_backups schema: unknown');
+  });
+
+  it('a backup name in the wrong form is refused before any query runs', () => {
+    expect(() => lookupBackupSql('reviews; drop table x')).toThrow(/not in the expected form/);
+  });
+});
