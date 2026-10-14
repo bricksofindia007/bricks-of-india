@@ -6,6 +6,7 @@
 DO $$
 DECLARE
   bt text;
+  n integer;
   wait_line text := 'Standard disclaimer: if you''re rich, you can skip the verdict and just buy it. The rest of us will be here doing math before we hit checkout.';
   buy_line text := 'Standard disclaimer: if you''ve got the money, obviously buy it — that''s what the verdict says too, for once we all agree.';
 BEGIN
@@ -18,6 +19,7 @@ BEGIN
     RAISE EXCEPTION 'no public.reviews backup found in boi_backups; nothing rolled back';
   END IF;
 
+  -- Each block must touch exactly the rows the fix added (49 WAIT, 5 BUY NOW); anything else stops the rollback.
   EXECUTE format($f$
     UPDATE public.reviews r
     SET content = replace(r.content, E'\n\n' || %L, '')
@@ -26,6 +28,10 @@ BEGIN
       AND position('Standard disclaimer:' in b.content) = 0
       AND position(%L in r.content) > 0
   $f$, wait_line, bt, wait_line);
+  GET DIAGNOSTICS n = ROW_COUNT;
+  IF n <> 49 THEN
+    RAISE EXCEPTION 'rollback touched % WAIT rows, expected 49; rolled back', n;
+  END IF;
 
   EXECUTE format($f$
     UPDATE public.reviews r
@@ -35,5 +41,9 @@ BEGIN
       AND position('Standard disclaimer:' in b.content) = 0
       AND position(%L in r.content) > 0
   $f$, buy_line, bt, buy_line);
+  GET DIAGNOSTICS n = ROW_COUNT;
+  IF n <> 5 THEN
+    RAISE EXCEPTION 'rollback touched % BUY NOW rows, expected 5; rolled back', n;
+  END IF;
 END
 $$;
