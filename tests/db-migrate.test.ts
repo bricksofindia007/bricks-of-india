@@ -1,5 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import { parseHeader, lintFile, plan, stripDollarQuoted, backupName, selectFixes } from '../scripts/ci/db-migrate.mjs';
+import { parseHeader, lintFile, plan, stripDollarQuoted, backupName, selectFixes, checkStagingTarget } from '../scripts/ci/db-migrate.mjs';
+import { PROD_REF } from '../scripts/ci/prod-reference.mjs';
+import { PROD_REF as SEED_PROD_REF } from '../scripts/ci/seed-staging.mjs';
 
 const FIX = `-- boi:issue 246
 -- boi:backup-tables public.reviews
@@ -75,5 +77,52 @@ describe('selectFixes: only fixes named in the run input are applied', () => {
   });
   it('a listed name with no file refuses', () => {
     expect(selectFixes({ pendingFixes: [], allFixes, requested: '499-typo', mode: 'apply' }).error).toMatch(/don't exist/);
+  });
+});
+
+// P44: staging safety check. Addresses below are built from placeholders; no real address is used.
+describe('staging target check', () => {
+  const STG_REF = 'abcdefghijklmnopqrst'; // placeholder staging reference (20 characters)
+  const direct = (ref: string) => `postgresql://postgres:placeholder@db.${ref}.supabase.co:5432/postgres`;
+  const pooler = (ref: string) => `postgresql://postgres.${ref}:placeholder@aws-0-region.pooler.example.com:6543/postgres`;
+
+  it('the shared reference is the one the seed script exports', () => {
+    expect(SEED_PROD_REF).toBe(PROD_REF);
+    expect(PROD_REF).toMatch(/^[a-z0-9]{20}$/);
+  });
+
+  it('refuses a direct staging address that contains the production reference', () => {
+    const r = checkStagingTarget('staging', direct(PROD_REF));
+    expect(r.ok).toBe(false);
+    expect(r.reason).toMatch(/production project/);
+  });
+
+  it('refuses a pooler staging address that contains the production reference in the user name', () => {
+    const r = checkStagingTarget('staging', pooler(PROD_REF));
+    expect(r.ok).toBe(false);
+  });
+
+  it('passes a clean staging address in either form', () => {
+    expect(checkStagingTarget('staging', direct(STG_REF))).toEqual({ ok: true, skipped: false });
+    expect(checkStagingTarget('staging', pooler(STG_REF))).toEqual({ ok: true, skipped: false });
+  });
+
+  it('refuses when the production reference cannot be found (missing or malformed)', () => {
+    expect(checkStagingTarget('staging', direct(STG_REF), '').ok).toBe(false);
+    expect(checkStagingTarget('staging', direct(STG_REF), 'too-short').ok).toBe(false);
+  });
+
+  it('the refusal never repeats the address, the host or the reference', () => {
+    for (const url of [direct(PROD_REF), pooler(PROD_REF)]) {
+      const r = checkStagingTarget('staging', url);
+      expect(r.reason).not.toContain(PROD_REF);
+      expect(r.reason).not.toContain('supabase');
+      expect(r.reason).not.toContain('postgres');
+    }
+  });
+
+  it('does not apply to production, and refuses an empty staging address', () => {
+    expect(checkStagingTarget('production', direct(PROD_REF))).toEqual({ ok: true, skipped: true });
+    expect(checkStagingTarget('staging', '').ok).toBe(false);
   });
 });
