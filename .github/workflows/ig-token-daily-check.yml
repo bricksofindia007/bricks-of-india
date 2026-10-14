@@ -1,0 +1,39 @@
+# Daily check of this repo's own Instagram token (IG_ACCESS_TOKEN).
+# Reads days left from Meta's debug_token. Emails only when the token is
+# rejected or under 10 days from expiry. Makes no refresh (ig-token-refresh.yml
+# still rotates). No token values are printed or emailed.
+#
+# Uses existing secrets only: IG_ACCESS_TOKEN, FB_APP_ID, FB_APP_SECRET,
+# RESEND_API_KEY. No new secret is needed.
+
+name: ig-token-daily-check
+
+on:
+  schedule:
+    - cron: '45 5 * * *'   # daily 05:45 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install resend
+        run: pip install -q resend
+
+      - name: Check the token
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          FB_APP_ID: ${{ secrets.FB_APP_ID }}
+          FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+        run: python scripts/ci/ig_token_check.py
