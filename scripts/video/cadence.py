@@ -51,9 +51,13 @@ class Pipeline:
 # After a missed day the slot opens at 07:00 IST instead, so any daytime tick
 # recovers it. Still one post per IST day, in queue order -- the catch-up post
 # IS that day's post, never an extra one.
+# P23b (13 Oct 2026): VID-P4 posts on Monday, Wednesday and Friday only (IST),
+# one per slot. The 19:30 slot and the 07:00 catch-up are unchanged; a catch-up
+# is now keyed to the previous SLOT day (see previous_slot_day), not to
+# yesterday, because on Mon/Wed/Fri yesterday is never a slot day.
 VIDP4 = Pipeline(
     key='vidp4', label='VID-P4', table='video_posts', order_column='story_number',
-    slot_weekdays=frozenset(range(7)), slot_start_ist=(19, 30),
+    slot_weekdays=frozenset({0, 2, 4}), slot_start_ist=(19, 30),
     catchup_start_ist=(7, 0),
 )
 
@@ -185,19 +189,30 @@ def anything_posted_on(sb, p: Pipeline, day: date) -> str | None:
     return None
 
 
+def previous_slot_day(p: Pipeline, day: date) -> date | None:
+    """The most recent slot day strictly before `day` (IST), or None if the
+    pipeline has no slot days. Looks back at most one week."""
+    for back in range(1, 8):
+        candidate = day - timedelta(days=back)
+        if is_slot_day(p, candidate):
+            return candidate
+    return None
+
+
 def catchup_due(sb, p: Pipeline, now_utc: datetime, head_row: dict | None) -> bool:
     """True when today's slot should open at catchup_start_ist: the previous
-    IST day was a slot day, nothing went live on it, and head_row (the next
+    SLOT day (not necessarily yesterday) had no post, and head_row (the next
     approved row) was already waiting before that slot opened -- the same
-    test the missed-slot watchdog uses to call a slot missed."""
+    test the missed-slot watchdog uses to call a slot missed. Only slot days
+    are judged, so a Mon/Wed/Fri pipeline catches up on the next Wed/Fri/Mon."""
     if p.catchup_start_ist is None or not head_row:
         return False
-    yesterday = ist_date(now_utc) - timedelta(days=1)
-    if not is_slot_day(p, yesterday):
+    prev = previous_slot_day(p, ist_date(now_utc))
+    if prev is None:
         return False
-    if not row_was_waiting_before(head_row, slot_start_utc(p, yesterday)):
+    if not row_was_waiting_before(head_row, slot_start_utc(p, prev)):
         return False
-    return anything_posted_on(sb, p, yesterday) is None
+    return anything_posted_on(sb, p, prev) is None
 
 
 def record_skip(sb, p: Pipeline, row: dict | None, reason: str) -> None:

@@ -102,8 +102,8 @@ class SlotLogic(unittest.TestCase):
         self.assertEqual(cadence.ist_date(utc('2026-09-24T18:30:00')), date(2026, 9, 25))
 
     def test_vidp4_window(self):
-        self.assertFalse(cadence.slot_status(VIDP4, utc('2026-09-24T13:59:00'))[0])  # 19:29 IST
-        self.assertTrue(cadence.slot_status(VIDP4, utc('2026-09-24T14:00:00'))[0])   # 19:30 IST
+        self.assertFalse(cadence.slot_status(VIDP4, utc('2026-09-25T13:59:00'))[0])  # Fri 19:29 IST
+        self.assertTrue(cadence.slot_status(VIDP4, utc('2026-09-25T14:00:00'))[0])   # Fri 19:30 IST
 
     def test_vidqp_mon_wed_fri_only(self):
         # IST dates: 2026-09-21 Mon ... 2026-09-27 Sun. 06:00 UTC = 11:30 IST.
@@ -196,11 +196,11 @@ class PlatformCap(unittest.TestCase):
 # ── missed-slot watchdog ────────────────────────────────────────────────────
 
 class MissedSlot(unittest.TestCase):
-    RUN = utc('2026-09-25T00:15:00')  # judges Thu 2026-09-24
+    RUN = utc('2026-09-26T00:15:00')  # judges Fri 2026-09-25
 
-    def _run(self, sb, pipeline=VIDP4):
+    def _run(self, sb, pipeline=VIDP4, run=None):
         sent = []
-        summary = cadence.check_missed_slot(sb, pipeline, self.RUN, lambda p, d, rows: sent.append((p.key, d, rows)))
+        summary = cadence.check_missed_slot(sb, pipeline, run or self.RUN, lambda p, d, rows: sent.append((p.key, d, rows)))
         return summary, sent
 
     def test_alerts_when_approved_waiting_and_nothing_posted(self):
@@ -208,7 +208,7 @@ class MissedSlot(unittest.TestCase):
             {'id': 'r62', 'story_number': 62, 'set_title': 'Ferrari F2004', 'status': 'approved', 'approved_at': None},
         ], publish_attempts=[
             {'pipeline': 'vidp4', 'row_id': 'r62', 'kind': 'publish', 'outcome': 'failed', 'platform': None,
-             'detail': 'RuntimeError: download failed', 'attempted_at': '2026-09-24T14:05:00+00:00'},
+             'detail': 'RuntimeError: download failed', 'attempted_at': '2026-09-25T14:05:00+00:00'},
         ])
         summary, sent = self._run(sb)
         self.assertEqual(summary['action'], 'alerted')
@@ -232,7 +232,7 @@ class MissedSlot(unittest.TestCase):
             {'id': 'r40', 'story_number': 40, 'set_title': 'Bugatti', 'status': 'publish_blocked', 'approved_at': None},
         ], publish_attempts=[
             {'pipeline': 'vidp4', 'row_id': 'r40', 'kind': 'publish', 'outcome': 'blocked', 'platform': None,
-             'detail': 'StoryBadgeMissingError: no badge', 'attempted_at': '2026-09-24T14:01:00+00:00'},
+             'detail': 'StoryBadgeMissingError: no badge', 'attempted_at': '2026-09-25T14:01:00+00:00'},
         ])
         _, sent = self._run(sb)
         self.assertEqual(sent[0][2][0]['status'], 'publish_blocked')
@@ -240,8 +240,8 @@ class MissedSlot(unittest.TestCase):
 
     def test_posted_day_is_quiet(self):
         sb = FakeSB(self.RUN, video_posts=[
-            {'id': 'p', 'status': 'posted_both', 'posted_at': '2026-09-24T14:20:00+00:00',
-             'ig_posted_at': '2026-09-24T14:20:00+00:00', 'yt_posted_at': '2026-09-24T14:21:00+00:00'},
+            {'id': 'p', 'status': 'posted_both', 'posted_at': '2026-09-25T14:20:00+00:00',
+             'ig_posted_at': '2026-09-25T14:20:00+00:00', 'yt_posted_at': '2026-09-25T14:21:00+00:00'},
             {'id': 'q', 'story_number': 64, 'status': 'approved', 'approved_at': None},
         ])
         summary, sent = self._run(sb)
@@ -250,17 +250,18 @@ class MissedSlot(unittest.TestCase):
 
     def test_row_approved_after_slot_does_not_alert(self):
         sb = FakeSB(self.RUN, video_posts=[
-            {'id': 'late', 'story_number': 73, 'status': 'approved', 'approved_at': '2026-09-24T16:00:00+00:00'},
+            {'id': 'late', 'story_number': 73, 'status': 'approved', 'approved_at': '2026-09-25T16:00:00+00:00'},
         ])
         summary, sent = self._run(sb)
         self.assertEqual(summary['action'], 'queue_empty')
         self.assertEqual(sent, [])
 
     def test_qp_non_slot_day_is_quiet(self):
-        sb = FakeSB(self.RUN, quiet_panic_posts=[
+        thu_run = utc('2026-09-25T00:15:00')  # judges Thu 2026-09-24
+        sb = FakeSB(thu_run, quiet_panic_posts=[
             {'id': 'qp34', 'sequence_number': 34, 'status': 'approved', 'approved_at': None},
         ])
-        summary, sent = self._run(sb, VIDQP)  # Thu -- not a QP slot day
+        summary, sent = self._run(sb, VIDQP, run=thu_run)  # Thu -- not a QP slot day
         self.assertEqual(summary['action'], 'not_a_slot_day')
         self.assertEqual(sent, [])
 
@@ -308,28 +309,28 @@ class CatchUpSlot(unittest.TestCase):
     """P12: 28 Sep had no poller tick in 19:30-23:59 IST, so #67 never went out."""
     HEAD = {'id': 'r67', 'story_number': 67, 'status': 'approved', 'approved_at': '2026-09-27T10:00:00+00:00'}
 
-    def test_missed_yesterday_opens_today_at_0700_ist(self):
-        now = utc('2026-09-29T02:46:00')  # 08:16 IST -- the real #1180 tick
+    def test_missed_slot_opens_next_slot_day_at_0700_ist(self):
+        now = utc('2026-09-30T02:46:00')  # 08:16 IST -- the real #1180 tick
         sb = FakeSB(now, video_posts=[self.HEAD])
         self.assertTrue(cadence.catchup_due(sb, VIDP4, now, self.HEAD))
         self.assertTrue(cadence.slot_status(VIDP4, now, catchup=True)[0])
         self.assertFalse(cadence.slot_status(VIDP4, now)[0])  # old behaviour: waits for 19:30
-        self.assertFalse(cadence.slot_status(VIDP4, utc('2026-09-29T01:29:00'), catchup=True)[0])  # 06:59 IST
+        self.assertFalse(cadence.slot_status(VIDP4, utc('2026-09-30T01:29:00'), catchup=True)[0])  # 06:59 IST
 
-    def test_no_catchup_when_yesterday_posted(self):
-        now = utc('2026-09-29T02:46:00')
+    def test_no_catchup_when_previous_slot_posted(self):
+        now = utc('2026-09-30T02:46:00')
         sb = FakeSB(now, video_posts=[self.HEAD, {
             'id': 'r66', 'status': 'posted_both', 'posted_at': '2026-09-28T14:10:00+00:00',
             'ig_posted_at': '2026-09-28T14:10:00+00:00', 'yt_posted_at': '2026-09-28T14:11:00+00:00'}])
         self.assertFalse(cadence.catchup_due(sb, VIDP4, now, self.HEAD))
 
-    def test_no_catchup_when_head_approved_after_yesterdays_slot(self):
-        now = utc('2026-09-29T02:46:00')
+    def test_no_catchup_when_head_approved_after_previous_slot(self):
+        now = utc('2026-09-30T02:46:00')
         late = dict(self.HEAD, approved_at='2026-09-28T15:00:00+00:00')  # 20:30 IST, after the slot opened
         self.assertFalse(cadence.catchup_due(FakeSB(now, video_posts=[late]), VIDP4, now, late))
 
     def test_no_catchup_for_qp(self):
-        now = utc('2026-09-29T02:46:00')
+        now = utc('2026-09-30T02:46:00')
         self.assertFalse(cadence.catchup_due(FakeSB(now), VIDQP, now, {'id': 'q', 'approved_at': None}))
 
 

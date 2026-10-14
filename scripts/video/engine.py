@@ -2960,6 +2960,12 @@ def main() -> None:
             # TTS spend or story-number reservation.
             from quota import preflight_or_exit
             preflight_or_exit(sb, 'VID-P4')
+            # P23b: the bank of approved, unposted videos is full -> skip generation.
+            import generation_bank
+            generate_ok, bank_line = generation_bank.bank_decision(sb, datetime.now(timezone.utc))
+            print(bank_line)
+            if not generate_ok:
+                return
         if args.cloud_generate and not args.pick:
             args.pick = 1  # cloud generation always takes the top-ranked candidate
 
