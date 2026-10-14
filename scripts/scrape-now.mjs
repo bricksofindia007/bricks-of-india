@@ -27,6 +27,7 @@ import { mkdirSync, writeFileSync, appendFileSync } from 'fs';
 import { createHash } from 'crypto';
 import { loadBaselines, checkPolicy, feedStats, planStoreWrite, planReconcile, approvalFromEnv } from './lib/pre-write-stop.mjs';
 import { sendAlert } from './lib/alert.mjs';
+import { heldNotice } from './lib/alert-group.mjs';
 import { createWriteStream } from 'fs';
 
 // B3 (P14 round 7): the public Actions log carries pass/fail and counts only. With
@@ -191,6 +192,7 @@ async function main() {
   const now = new Date().toISOString();
   const summary = [];
   const heldStores = [];
+  const heldNotices = [];
   const baselines = loadBaselines();
   const approval = approvalFromEnv();
   if (approval) console.log(`Approval inputs present: store=${approval.store} available=${approval.available} (this run only)\n`);
@@ -317,12 +319,8 @@ async function main() {
 
       if (plan.held) {
         heldStores.push(store.id);
-        if (!DRY_RUN) {
-          await sendAlert(`[BOI] Pre-write stop: ${store.name} held (${store.domain}), nothing written`,
-            [`Store: ${store.name} (${store.id}), feed ${store.domain}${store.path}`, `Run: ${process.env.GITHUB_SERVER_URL ?? ''}/${process.env.GITHUB_REPOSITORY ?? ''}/actions/runs/${process.env.GITHUB_RUN_ID ?? 'local'}`,
-              '', 'Reasons:', ...plan.reasons.map((r) => `  - ${r}`), '', `Metrics: ${JSON.stringify(plan.metrics)}`,
-              '', 'To approve one run: dispatch scrape-prices.yml with approve_store=' + baseline.approve_key + ' and approve_available=<expected available count>.'].join('\n'));
-        }
+        // One notice per run covers every held store (see heldNotices below).
+        heldNotices.push({ name: store.name, id: store.id, domain: store.domain, path: store.path, reasons: plan.reasons, metrics: plan.metrics, approveKey: baseline.approve_key });
         summary.push({ store: store.name, fetched: allProducts.length, parsed: parsed.length, matched: allMatched.length, dupes: dupesRemoved, upserted: 0, history: 0, unmatched: unmatched.length, held: plan.reasons });
         console.log('');
         continue;
@@ -449,6 +447,11 @@ async function main() {
   }
   const totalUpserted = summary.reduce((n, s) => n + (s.upserted ?? 0), 0);
   say(`\n  Total upserted: ${totalUpserted}`);
+  if (heldNotices.length > 0 && !DRY_RUN) {
+    const run = `${process.env.GITHUB_SERVER_URL ?? ""}/${process.env.GITHUB_REPOSITORY ?? ""}/actions/runs/${process.env.GITHUB_RUN_ID ?? "local"}`;
+    const msg = heldNotice(heldNotices, run);
+    await sendAlert(msg.subject, msg.body);
+  }
   say(`  Started:  ${startedAt}`);
   say(`  Finished: ${new Date().toISOString()}`);
   say('═══════════════════════════════\n');
