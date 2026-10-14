@@ -1,0 +1,42 @@
+# Staging-only rollback of data fix 586 (see scripts/ci/data-fix-rollback.mjs). Manual dispatch only.
+# Pinned to the staging environment: there is no production job here, and the script refuses any target
+# other than staging and any staging address that carries the production reference.
+# Restores public.reviews from the named backup table, in one transaction, and proves the restore by the
+# guard values and row counts. Run only with approval.
+# Budget (G2): manual dispatch only; one database connection, a few queries.
+
+name: Data fix rollback (staging only)
+
+on:
+  workflow_dispatch:
+    inputs:
+      backup_table:
+        description: 'Backup table written by the fix run, for example public__reviews__20261014T123456 (in the boi_backups schema)'
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: data-fix-rollback-staging
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment: staging-migrations
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - run: psql --version
+      - name: Roll back on staging
+        env:
+          TARGET: staging
+          BACKUP_TABLE: ${{ inputs.backup_table }}
+          DATABASE_URL: ${{ secrets.MIGRATE_DB_URL }}
+        run: node scripts/ci/data-fix-rollback.mjs
