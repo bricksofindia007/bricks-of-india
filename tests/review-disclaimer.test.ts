@@ -64,11 +64,56 @@ describe('addUnlistedDisclaimerLine (P38: the missing line for reviews with no s
     expect(addUnlistedDisclaimerLine(body, 'WAIT')).toEqual({ status: 'present', content: body });
   });
 
-  it('changes nothing when there is no verdict line, or more than one', () => {
+  it('changes nothing when there is no verdict line at all', () => {
     const none = 'Body with no verdict line.';
     expect(addUnlistedDisclaimerLine(none, 'WAIT')).toEqual({ status: 'no_verdict_line', content: none });
-    const two = 'Verdict: WAIT. One.\n\nVerdict: WAIT. Two.';
-    expect(addUnlistedDisclaimerLine(two, 'WAIT')).toEqual({ status: 'no_verdict_line', content: two });
+  });
+
+  it('a verdict line for a different verdict does not count', () => {
+    const body = 'Body.\n\nVerdict: BUY NOW. Only this one.';
+    expect(addUnlistedDisclaimerLine(body, 'WAIT')).toEqual({ status: 'no_verdict_line', content: body });
+  });
+
+  describe('two verdict lines (mid-article and closing)', () => {
+    const MID = 'Verdict: WAIT. Good set, but the price will drop.';
+    const mid = `Opening.\n\nAt review, it was priced at ₹11,999 on LEGO.in and Toycra.\n${MID}\n\nMore body text.`;
+
+    it('puts the line after the closing verdict and leaves the mid-article line alone', () => {
+      const body = `${mid}\n\nOn that bombshell, it's time to say goodbye. Bubyee.\n\nVerdict: WAIT. Good set, but the price will drop.`;
+      const r = addUnlistedDisclaimerLine(body, 'WAIT');
+      expect(r.status).toBe('added');
+      expect(r.content).toBe(`${body}\n\n${WAIT_LINE}`);
+      expect(r.content.split(MID).length - 1).toBe(2); // both verdict lines still there, unchanged
+      expect(r.content.indexOf(MID)).toBe(body.indexOf(MID));
+    });
+
+    it('keeps the existing blank line after the closing verdict and before a trailing note', () => {
+      const body = `${mid}\n\nBubyee.\n\nVerdict: WAIT. Good set, but the price will drop.\n\nUpdated 12 October 2026: price now confirmed.`;
+      const r = addUnlistedDisclaimerLine(body, 'WAIT');
+      expect(r.content).toBe(
+        `${mid}\n\nBubyee.\n\nVerdict: WAIT. Good set, but the price will drop.\n\n${WAIT_LINE}\n\nUpdated 12 October 2026: price now confirmed.`,
+      );
+    });
+
+    it('handles a closing verdict followed by a correction note', () => {
+      const body = `${mid}\n\nBubyee.\n\nVerdict: WAIT. Good set, but the price will drop.\n\n*Correction (14 October 2026): piece count corrected to 747.*\n`;
+      const r = addUnlistedDisclaimerLine(body, 'WAIT');
+      expect(r.content).toBe(
+        `${mid}\n\nBubyee.\n\nVerdict: WAIT. Good set, but the price will drop.\n\n${WAIT_LINE}\n\n*Correction (14 October 2026): piece count corrected to 747.*\n`,
+      );
+    });
+
+    it('works for BUY NOW with two lines', () => {
+      const body = 'Opening.\n\nVerdict: BUY NOW. Already below MRP.\n\nMiddle.\n\nBubyee.\n\nVerdict: BUY NOW. Already below MRP.';
+      const r = addUnlistedDisclaimerLine(body, 'BUY NOW');
+      expect(r.status).toBe('added');
+      expect(r.content).toBe(`${body}\n\n${BUY_LINE}`);
+    });
+
+    it('still leaves a body that already has the line unchanged', () => {
+      const body = `${mid}\n\nVerdict: WAIT. Good.\n\nStandard disclaimer: something else.`;
+      expect(addUnlistedDisclaimerLine(body, 'WAIT')).toEqual({ status: 'present', content: body });
+    });
   });
 
   it('throws for IMPORT ONLY and HUNT IT', () => {

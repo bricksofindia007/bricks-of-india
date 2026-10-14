@@ -19,7 +19,7 @@ BEGIN
     RAISE EXCEPTION 'no public.reviews backup found in boi_backups; nothing rolled back';
   END IF;
 
-  -- Each block must touch exactly the rows the fix added (49 WAIT, 5 BUY NOW); anything else stops the rollback.
+  -- Each block must touch exactly the rows the fix added (52 WAIT, 6 BUY NOW); anything else stops the rollback.
   EXECUTE format($f$
     UPDATE public.reviews r
     SET content = replace(r.content, E'\n\n' || %L, '')
@@ -29,8 +29,8 @@ BEGIN
       AND position(%L in r.content) > 0
   $f$, wait_line, bt, wait_line);
   GET DIAGNOSTICS n = ROW_COUNT;
-  IF n <> 49 THEN
-    RAISE EXCEPTION 'rollback touched % WAIT rows, expected 49; rolled back', n;
+  IF n <> 52 THEN
+    RAISE EXCEPTION 'rollback touched % WAIT rows, expected 52; rolled back', n;
   END IF;
 
   EXECUTE format($f$
@@ -42,8 +42,8 @@ BEGIN
       AND position(%L in r.content) > 0
   $f$, buy_line, bt, buy_line);
   GET DIAGNOSTICS n = ROW_COUNT;
-  IF n <> 5 THEN
-    RAISE EXCEPTION 'rollback touched % BUY NOW rows, expected 5; rolled back', n;
+  IF n <> 6 THEN
+    RAISE EXCEPTION 'rollback touched % BUY NOW rows, expected 6; rolled back', n;
   END IF;
 END
 $$;

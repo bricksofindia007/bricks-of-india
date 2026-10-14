@@ -92,19 +92,21 @@ export type UnlistedLineResult =
 
 /**
  * Adds the standard closing line to a review that has none, for a review with
- * no store recorded (P38). The line goes in the paragraph after the single
+ * no store recorded (P38). The line goes in the paragraph after the LAST
  * "Verdict: X." line, with a blank line between, which is where the retailer
- * reviews put theirs. Content that already has a "Standard disclaimer:" line
- * is returned unchanged. If there is not exactly one "Verdict: X." line, the
- * content is returned unchanged and the status says so: nothing is guessed.
+ * reviews put theirs. A review can have an earlier verdict line mid-article
+ * too; that one is left untouched. Content that already has a
+ * "Standard disclaimer:" line is returned unchanged. If there is no
+ * "Verdict: X." line at all, the content is returned unchanged and the status
+ * says so: nothing is guessed.
  * Throws for a verdict outside BUY NOW / WAIT / AVOID, like the resolvers.
  */
 export function addUnlistedDisclaimerLine(content: string, verdict: string): UnlistedLineResult {
   if (content.includes('Standard disclaimer:')) return { status: 'present', content };
   const variant = resolveUnlistedDisclaimerVariant(verdict);
   const verdictLine = `Verdict: ${verdict}.`;
-  if (content.split(verdictLine).length - 1 !== 1) return { status: 'no_verdict_line', content };
-  const start = content.indexOf(verdictLine);
+  if (!content.includes(verdictLine)) return { status: 'no_verdict_line', content };
+  const start = content.lastIndexOf(verdictLine);
   const lineEnd = content.indexOf('\n', start);
   const cut = lineEnd === -1 ? content.length : lineEnd;
   const updated = `${content.slice(0, cut)}\n\n${DISCLAIMER_TEXT[variant]}${content.slice(cut)}`;
