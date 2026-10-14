@@ -2300,7 +2300,7 @@ IST_OFFSET = timedelta(hours=5, minutes=30)
 
 
 # Daily cap + 19:30 IST publish window: moved to cadence.py (issue #178,
-# 2026-09-24) -- now per platform, shared with VID-QP's Mon/Wed/Fri slots and
+# 2026-09-24) -- now per platform, shared with VID-QP's posting-day slots and
 # the missed-slot watchdog. History: the day cap was root-caused 2026-07-07
 # (two posts on 2026-07-06; nothing had ever checked it), and the fixed
 # evening window was added the same day so a publish lands at a predictable

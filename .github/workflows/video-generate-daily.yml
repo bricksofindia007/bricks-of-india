@@ -13,7 +13,7 @@ name: VID-P4 Daily Cloud Generation
 
 on:
   schedule:
-    - cron: '30 0 * * 1,3,5'
+    - cron: '30 0 * * 0,3,5'   # VID-P4 posting days: Wed/Fri/Sun, 06:00 IST
   workflow_dispatch:  # manual trigger for testing
     inputs:
       rerender_id:

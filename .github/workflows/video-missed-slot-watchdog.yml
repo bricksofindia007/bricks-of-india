@@ -1,7 +1,7 @@
 name: VID Missed-Slot Watchdog
 
 # Issue #178, 2026-09-24. Rule (Abhinav): exactly 1 post per slot per
-# pipeline -- VID-P4 daily from 19:30 IST, VID-QP Mon/Wed/Fri -- and no
+# pipeline -- VID-P4 from 19:30 IST on its posting days, VID-QP on its posting days -- and no
 # silent skips. Runs the morning AFTER each slot and judges the previous
 # IST day for both pipelines: if an approved row was waiting before the slot
 # opened and nothing went live, emails an alert naming the blocked row(s)

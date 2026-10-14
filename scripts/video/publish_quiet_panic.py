@@ -296,7 +296,7 @@ def post_youtube_short(video_path: str, title: str, description: str) -> dict:
 
 
 # ---------------------------------------------------------------------------
-# Cadence (issue #178, 2026-09-24): the daily cap, the Mon/Wed/Fri slot rule
+# Cadence (issue #178, 2026-09-24): the daily cap, the VID-QP posting-day slot rule (Tue/Thu/Sat since 2026-10-14)
 # and publish_attempts recording live in cadence.py -- a neutral module both
 # pipelines import. This file still imports nothing from engine.py/publish.py
 # (isolation precedent unchanged). Before #178 this file had no slot-day
@@ -556,7 +556,7 @@ def retry_missing_platforms_all(sb) -> bool:
     """
     Mirrors engine.py's retry_missing_platforms_all() for quiet_panic_posts
     (issue #137). Issue #178: a retry counts toward that platform's daily
-    cap -- it only runs inside an open VID-QP slot (Mon/Wed/Fri) and is
+    cap -- it only runs inside an open VID-QP slot (a VID-QP posting day) and is
     deferred to the next slot if the missing platform already posted today.
 
     Returns False if any attempted retry is still failing (deferrals are not
@@ -616,7 +616,7 @@ def retry_missing_platforms_all(sb) -> bool:
 def main():
     parser = argparse.ArgumentParser(description='Quiet Panic standalone poll-and-publish (no engine.py/publish.py imports).')
     parser.add_argument('--poll-and-publish', action='store_true', help='Poll quiet_panic_posts for approved rows and publish up to the daily cap.')
-    parser.add_argument('--retry-missing-platform', action='store_true', help="Find every status='posted_ig'/'posted_yt' row and retry the missing platform. Counts toward that platform's daily cap (issue #178): only in an open Mon/Wed/Fri slot, deferred if the platform already posted today.")
+    parser.add_argument('--retry-missing-platform', action='store_true', help="Find every status='posted_ig'/'posted_yt' row and retry the missing platform. Counts toward that platform's daily cap (issue #178): only in an open VID-QP slot, deferred if the platform already posted today.")
     args = parser.parse_args()
 
     if args.poll_and_publish:
