@@ -1,7 +1,7 @@
 import { lintDraft, extractSetNumberCandidates, type LintResult } from './lint';
 import { linkFirstSetMentions } from './link-set-mentions';
 import { submitToIndexNow } from './indexnow';
-import { resolveDisclaimerVariant, disclaimerTextFor, STORE_DISPLAY_NAME, type SourceRetailer } from './review-disclaimer';
+import { resolveDisclaimerVariant, disclaimerTextFor, addUnlistedDisclaimerLine, STORE_DISPLAY_NAME, type SourceRetailer } from './review-disclaimer';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AFFILIATE_NOTE } from './affiliate-disclosure';
 
@@ -970,6 +970,16 @@ export async function publishOneDraft(
     rawBody = draft.draft_body
       .replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '')
       .replace(/<!--\s*\/INDIAN?_PARAGRAPH\s*-->\n?/g, '');  // /INDIAN_PARAGRAPH is a known model typo
+    // P38: a review with no store recorded skips the splice above, so nothing
+    // ever added its standard closing line. Add it here for BUY NOW, WAIT and
+    // AVOID. A body that already has the line is left alone. If its verdict
+    // line can't be found exactly once, the review still publishes as before,
+    // and the warning says so.
+    if (format === 'review' && (verdictUpper === 'BUY NOW' || verdictUpper === 'WAIT' || verdictUpper === 'AVOID')) {
+      const withLine = addUnlistedDisclaimerLine(rawBody, verdictUpper);
+      if (withLine.status === 'added') rawBody = withLine.content;
+      else if (withLine.status === 'no_verdict_line') console.warn(`[reviews] draft ${draft.id}: no single "Verdict: ${verdictUpper}." line, published without the standard line`);
+    }
   }
   const cleanBody = prePublishAutoFix(rawBody, draft, slug);
 

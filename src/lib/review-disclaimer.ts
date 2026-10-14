@@ -21,7 +21,7 @@ export const DISCLAIMER_TEXT: Record<DisclaimerVariant, string> = {
   buy: "Standard disclaimer: if you've got the money, obviously buy it — that's what the verdict says too, for once we all agree.",
   wait_mybrickhouse: "Standard disclaimer: rich readers can skip the verdict and just buy it. We'll be over here checking if LEGO.in's HDFC EMI discount makes this hurt less.",
   wait_toycra: "Standard disclaimer: rich readers can skip the verdict and just buy it. Toycra's prepaid-only, so the rest of us will be here doing sums before we hit checkout.",
-  wait_unlisted: 'Standard disclaimer: rich readers can skip the verdict and just buy it. The rest of us will be here doing sums before we hit checkout.',
+  wait_unlisted: "Standard disclaimer: if you're rich, you can skip the verdict and just buy it. The rest of us will be here doing math before we hit checkout.",
   avoid: 'Standard disclaimer: this one we mean literally — money doesn\'t fix bad design. Even the rich readers should sit this one out.',
 };
 
@@ -83,4 +83,32 @@ export function resolveUnlistedDisclaimerVariant(verdict: string): DisclaimerVar
 
 export function disclaimerTextFor(variant: DisclaimerVariant): string {
   return DISCLAIMER_TEXT[variant];
+}
+
+export type UnlistedLineResult =
+  | { status: 'present'; content: string }
+  | { status: 'added'; content: string; variant: DisclaimerVariant }
+  | { status: 'no_verdict_line'; content: string };
+
+/**
+ * Adds the standard closing line to a review that has none, for a review with
+ * no store recorded (P38). The line goes in the paragraph after the LAST
+ * "Verdict: X." line, with a blank line between, which is where the retailer
+ * reviews put theirs. A review can have an earlier verdict line mid-article
+ * too; that one is left untouched. Content that already has a
+ * "Standard disclaimer:" line is returned unchanged. If there is no
+ * "Verdict: X." line at all, the content is returned unchanged and the status
+ * says so: nothing is guessed.
+ * Throws for a verdict outside BUY NOW / WAIT / AVOID, like the resolvers.
+ */
+export function addUnlistedDisclaimerLine(content: string, verdict: string): UnlistedLineResult {
+  if (content.includes('Standard disclaimer:')) return { status: 'present', content };
+  const variant = resolveUnlistedDisclaimerVariant(verdict);
+  const verdictLine = `Verdict: ${verdict}.`;
+  if (!content.includes(verdictLine)) return { status: 'no_verdict_line', content };
+  const start = content.lastIndexOf(verdictLine);
+  const lineEnd = content.indexOf('\n', start);
+  const cut = lineEnd === -1 ? content.length : lineEnd;
+  const updated = `${content.slice(0, cut)}\n\n${DISCLAIMER_TEXT[variant]}${content.slice(cut)}`;
+  return { status: 'added', content: updated, variant };
 }
