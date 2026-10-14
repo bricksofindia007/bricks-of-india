@@ -50,9 +50,16 @@ describe('Gate 14 in the shared regeneration (#398 1b)', () => {
     expect(o.lintResult!.gates.gate14!.reason).toContain('[pieces]');
   });
 
-  it('non-review formats never run Gate 14', async () => {
-    replies = [draft('6,000').replace('FORMAT: review', 'FORMAT: news')];
+  it('news runs Gate 14 too since round 11 (4 Oct 2026)', async () => {
+    replies = [draft('6,000').replace('FORMAT: review', 'FORMAT: news'), draft('7,000').replace('FORMAT: review', 'FORMAT: news')];
     const o = await generateWithFailover({ ...input(true), format: 'news' } as any, {} as any, 'k', undefined, undefined);
+    expect(calls.length).toBe(2);
+    expect(o.gate14!.findings.map((x) => x.rule)).toContain('pieces');
+  });
+
+  it('opinion and guide formats never run Gate 14', async () => {
+    replies = [draft('6,000').replace('FORMAT: review', 'FORMAT: opinion')];
+    const o = await generateWithFailover({ ...input(true), format: 'opinion' } as any, {} as any, 'k', undefined, undefined);
     expect(calls.length).toBe(1);
     expect(o.gate14!.findings).toEqual([]);
   });

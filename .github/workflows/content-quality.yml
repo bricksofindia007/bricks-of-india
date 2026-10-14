@@ -1,8 +1,8 @@
-name: Daily Content Quality Check
+name: Weekly Content Quality Check
 
 on:
   schedule:
-    - cron: '0 3 * * *'  # 03:00 UTC = 08:30 IST
+    - cron: '0 3 * * 0'  # Sundays 03:00 UTC = 08:30 IST
   workflow_dispatch:
 
 jobs:
@@ -30,10 +30,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node 20
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'

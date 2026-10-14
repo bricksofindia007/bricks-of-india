@@ -1,24 +1,22 @@
 import { describe, it, expect } from 'vitest';
-import { bannedOpener, openingSentence } from '../src/lib/opener-pattern';
+import { reusedOpener, openingSentence, normalizeOpening, RECENT_OPENERS_WINDOW } from '../src/lib/opener-pattern';
 
-describe('Gate 12 opener pattern (#194)', () => {
-  it('flags the banned openers', () => {
-    expect(bannedOpener('Your wallet called. It wants a calm, rational discussion about ₹10,000.')).not.toBeNull();
-    expect(bannedOpener('Your wallet just blinked. LEGO announced…')).not.toBeNull();
-    expect(bannedOpener('  <!-- note -->\nYour wallet wants a word with you about this one.')).not.toBeNull();
+describe('Gate 12, round 11 D1: no opener from the last 10 published articles; wallet openers allowed', () => {
+  it('window is 10', () => expect(RECENT_OPENERS_WINDOW).toBe(10));
+  it('BOI wallet openers are allowed when they are new', () => {
+    expect(reusedOpener('Your wallet called. It wants a calm, rational discussion about ₹10,000.', ['LEGO just revealed a castle.'])).toBeNull();
+    expect(reusedOpener('The wallet is already bracing itself.', [])).toBeNull();
   });
-  it('flags any opening sentence starting with "Your wallet" (widened 2026-09-27)', () => {
-    expect(bannedOpener('Your wallet is about to have a very complicated day.')).not.toBeNull();
-    expect(bannedOpener('Your wallet can breathe easy for now.')).not.toBeNull();
-    expect(bannedOpener("Your wallet's worst nightmare just landed.")).not.toBeNull();
-    expect(bannedOpener('The wallet is already bracing itself.')).not.toBeNull();
+  it('the same opening sentence as a recent article is blocked, even with another set number or price', () => {
+    const recent = ['Your wallet called. It wants to discuss the LEGO 10332 Medieval Town Square.'];
+    expect(reusedOpener('Your wallet called. It wants to discuss the LEGO 10333.', recent)).toBe('Your wallet called.');
+    expect(reusedOpener('Ten thousand pieces! Rest of article.', ['Ten thousand pieces. Something else.'])).toBe('Ten thousand pieces!');
   });
-  it('allows the wallet later in the piece and other openers', () => {
-    expect(bannedOpener('LEGO just revealed the 10332 Medieval Town Square. Your wallet called.')).toBeNull();
-    expect(bannedOpener('Wallets everywhere called in sick.')).toBeNull();
-    expect(bannedOpener('Yours truly, the wallet, has left the chat.')).toBeNull();
+  it('a different opening sentence passes', () => {
+    expect(reusedOpener('Your wallet just blinked. LEGO announced…', ['Your wallet called. It wants a word.'])).toBeNull();
   });
   it('opening sentence ignores comments and markdown markers', () => {
-    expect(openingSentence('<!-- x -->\n## Hello there. Next.')).toBe('Hello there.');
+    expect(openingSentence('  <!-- note -->\n## Your wallet wants a word with you. More.')).toBe('Your wallet wants a word with you.');
+    expect(normalizeOpening('LEGO 10332: ₹12,999!')).toBe('lego');
   });
 });

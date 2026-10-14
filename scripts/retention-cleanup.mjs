@@ -21,6 +21,7 @@
 //    eligible rows will therefore stay in the live table indefinitely if
 //    content_fix_log keeps referencing them -- that's correct, not a bug.
 import { createClient } from '@supabase/supabase-js';
+import { rejectedDraftsFilter } from './lib/rejected-drafts.mjs';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -134,9 +135,25 @@ async function archiveContentQualityIssues() {
   console.log(`[content_quality_issues] Deleted ${deletedCount} row(s) from the live table.`);
 }
 
+// #525 (Abhinav, 2 Oct 2026): drafts rejected by the quality gates are kept 30 days with their reason
+// (scripts/generate-approved-drafts.ts), then deleted here. Only rows that path wrote are eligible:
+// discard_reason starts with one of its two prefixes AND updated_at is on/after KEEP_FROM (the day the
+// rule shipped). Older rejected rows (294 on 4 Oct) are never touched by this rule: deleting them is a
+// separate decision, after the restore drill has passed.
+async function purgeRejectedDrafts() {
+  const counted = await rejectedDraftsFilter(supabase.from('pending_drafts').select('id', { count: 'exact', head: true }), CUTOFF_ISO);
+  if (counted.error) throw new Error(`rejected drafts count failed: ${counted.error.message}`);
+  console.log(`[rejected_drafts] ${counted.count ?? 0} older than ${CUTOFF_DAYS} days${DRY_RUN ? ' (dry run: none deleted)' : ''}`);
+  if (DRY_RUN || !counted.count) return;
+  const del = await rejectedDraftsFilter(supabase.from('pending_drafts').delete({ count: 'exact' }), CUTOFF_ISO);
+  if (del.error) throw new Error(`rejected drafts delete failed: ${del.error.message}`);
+  console.log(`[rejected_drafts] deleted ${del.count ?? 0}`);
+}
+
 async function main() {
   console.log(DRY_RUN ? '=== DRY RUN ===' : '=== LIVE RUN ===');
   await runRetention();
+  await purgeRejectedDrafts();
   await archiveContentQualityIssues();
 }
 

@@ -37,4 +37,8 @@ export default defineCloudflareConfig({
   queue: doQueue,
   tagCache: doShardedTagCache({ baseShardSize: 12 }),
   cachePurge: purgeCache({ type: "direct" }),
+  // Serve cached pages straight from the cache with the refresh time stored alongside each
+  // page (3 Oct 2026). Without this, pages made on demand were marked stale almost at once
+  // and rebuilt on nearly every visit.
+  enableCacheInterception: true,
 });

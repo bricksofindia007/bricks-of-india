@@ -61,7 +61,7 @@ jobs:
     # for normal API-latency jitter to false-positive.
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Check if rotation is due (45-day proactive timer)
         id: due_check

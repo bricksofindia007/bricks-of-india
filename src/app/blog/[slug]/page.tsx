@@ -1,5 +1,7 @@
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import Link from 'next/link';
+import { rebrickableResized } from '@/lib/set-image';
+import { AFFILIATE_NOTE } from '@/lib/affiliate-disclosure';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
@@ -16,7 +18,7 @@ import { buildArticleSchema, buildFAQSchema } from '@/lib/schemas';
 // Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
-export const revalidate = 3600;
+export const revalidate = 86400;
 // Supabase reads here expire hourly via per-read `next.revalidate`
 // (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
 // NOT fetchCache='default-cache', which cached them until the next deploy.
@@ -70,7 +72,10 @@ export default async function BlogPostPage(props: Props) {
       <div className="max-w-3xl mx-auto px-4 pb-12">
         <div className="relative h-64 md:h-96 rounded-2xl overflow-hidden mb-6">
           <ImageWithFallback
-            srcs={[post.hero_image, '/fallback-hero.png'].filter(Boolean) as string[]}
+            // LCP (round 2, 2 Oct): Rebrickable's 1000x800 resize first (the Brick Rush hero original is 3.8 MB,
+            // 24 s LCP on mobile); the original, then the local fallback, if the resize 404s. Eager + high priority.
+            srcs={[post.hero_image && rebrickableResized(post.hero_image, '1000x800'), post.hero_image, '/fallback-hero.png'].filter(Boolean) as string[]}
+            priority
             alt={post.title}
             fill
             className="object-cover"
@@ -106,9 +111,9 @@ export default async function BlogPostPage(props: Props) {
           <h2 className="font-heading text-dark text-3xl mb-4">FREQUENTLY ASKED QUESTIONS</h2>
           <div className="space-y-3">
             {(() => { const faqs = [
-              { q: 'Where is the cheapest place to buy LEGO in India?', a: 'It depends on the set — each set page compares live prices at Toycra and LEGO.in. Code ABHINAV12 takes 12% off at Toycra (min. ₹500; we may earn a commission). Amazon India and Flipkart also sell LEGO.' },
+              { q: 'Where is the cheapest place to buy LEGO in India?', a: `It depends on the set — each set page compares prices at Toycra and LEGO.in (we check prices daily). ${AFFILIATE_NOTE} Amazon India and Flipkart also sell LEGO.` },
               { q: 'Are LEGO sets worth buying in India in 2026?', a: 'Absolutely — if you buy from the right stores at the right price. Use our price comparison tool to ensure you\'re not overpaying. The sets are genuine and the builds are genuinely enjoyable.' },
-              { q: 'Is there a LEGO discount code for India?', a: 'Yes! Use code ABHINAV12 at Toycra for 12% off full-price LEGO sets. Minimum purchase ₹500. No usage limits. This is an exclusive Bricks of India deal.' },
+              { q: 'Is there a LEGO discount code for India?', a: `Yes. ${AFFILIATE_NOTE} This is an exclusive Bricks of India deal.` },
               { q: 'Can I trust the prices on Bricks of India?', a: 'Prices shown are what each store lists. We always recommend verifying on the store website before purchase, as prices can change. We\'re accurate, not psychic.' },
               { q: 'How do I know if a LEGO set is genuine in India?', a: 'Buy from authorised retailers: Toycra, LEGO.in, Amazon India, and Flipkart. If a price looks too good to be true, it probably is.' },
             ]; return (<><JsonLd data={buildFAQSchema(faqs)} />{faqs.map((faq, i) => (

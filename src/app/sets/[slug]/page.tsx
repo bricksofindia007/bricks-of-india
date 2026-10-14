@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { AFFILIATE_NOTE } from '@/lib/affiliate-disclosure';
 import type { Metadata } from 'next';
 import { cache } from 'react';
 import { buildMetadata } from '@/lib/metadata';
@@ -7,13 +8,12 @@ import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
 import { SET_PAGE_REVALIDATE_SECONDS, UNPRICED_SET_REVALIDATE_SECONDS, bestInStock, isPriceFresh, formatIst } from '@/lib/price-freshness';
 import { unstable_cache } from 'next/cache';
-import { PriceAge } from '@/components/ui/PriceAge';
 import { getSet } from '@/lib/rebrickable';
 import { formatPrice, whatsappShareUrl, socialCardImage, setMetaDescription } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
 import { resolveThemeSlug } from '@/lib/themeMapping';
 import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/Badge';
-import { priceLabel, type SetPriceSummary } from '@/lib/price-summary';
+import { priceLabel, normalise, type SetPriceSummary } from '@/lib/price-summary';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { SetCard } from '@/components/sets/SetCard';
 import { SetImage } from '@/components/sets/SetImage';
@@ -23,12 +23,13 @@ import { buildProductSchema, buildFAQSchema } from '@/lib/schemas';
 import { getStores, storeLabels } from '@/lib/stores';
 import { setNumberCandidates, pickSetNumber, slugMatchesSet } from '@/lib/set-slug';
 import { SaleSetLine } from '@/components/sales/SaleSetLine';
+import { shownTheme } from '@/lib/theme-display';
 // Durable-cache guard (2026-07-02): a revalidate must always be set, or
-// rendered pages persist across deploys. 72 h = UNPRICED_SET_REVALIDATE_SECONDS
-// (FP1.6 §2, approved P8 item 4; segment config must be a literal). A priced
+// rendered pages persist across deploys. 14 days = UNPRICED_SET_REVALIDATE_SECONDS
+// (approved 10 Oct 2026; segment config must be a literal). A priced
 // page adds a 6 h read (SET_PAGE_REVALIDATE_SECONDS) and Next takes the
 // lowest revalidate in a render, so priced pages still refresh every 6 h.
-export const revalidate = 259200;
+export const revalidate = 1209600;
 // Reads are cached with unstable_cache (not fetchCache='default-cache', which
 // cached until the next deploy), so each cached value carries the time it was
 // read: that's the "as of" time the page shows, never newer than the data.
@@ -82,7 +83,7 @@ const readPriceSide = (setNumber: string) =>
     ]);
     if (sp.error) throw sp.error;
     if (sum.error) throw sum.error;
-    return { store_prices: sp.data ?? [], summary: (sum.data ?? null) as SetPriceSummary | null, at: new Date().toISOString() };
+    return { store_prices: sp.data ?? [], summary: (sum.data ? normalise(sum.data) : null) as SetPriceSummary | null, at: new Date().toISOString() };
   }, ['set_price_side', setNumber], { revalidate: SET_PAGE_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
 
 // A1: which catalogue set a slug names, when its first "-" segment isn't it (set numbers that
@@ -175,7 +176,7 @@ export default async function SetPage(props: Props) {
   const pageData = await getSetPageData(params.slug);
   if (!pageData?.set) notFound();
   const set = pageData.set;
-  // Same clock as the page: 6 h when priced, 72 h when not (see getStores).
+  // Same clock as the page: 6 h when priced, 14 days when not (see getStores).
   const stores = await getStores(pageData.store_prices?.length ? SET_PAGE_REVALIDATE_SECONDS : UNPRICED_SET_REVALIDATE_SECONDS);
   const TRACKED_STORES = stores.map((st) => ({ id: st.id, name: st.name, url: st.site_url }));
   const STORE_NAMES = storeLabels(stores);
@@ -226,6 +227,12 @@ export default async function SetPage(props: Props) {
   }
 
   const relSummaries = new Map((pageData.related_summaries ?? []).map((r) => [r.set_id, r]));
+  // 'More [theme] sets' shows only sets with something to show: a price or a verified MRP
+  // (the same rule the card uses), never a 'Price TBD' card (3 Oct 2026).
+  const shownRelated = relatedSets.filter((s: any) => {
+    const sum = relSummaries.get(s.set_number);
+    return relatedPriceMap[s.set_number] != null || sum?.best_price_inr != null || sum?.anchor_mrp_inr != null || (s.lego_mrp_inr && s.mrp_verified);
+  });
 
   // Related Coverage (GEO-05b Phase 3) — the reverse of Phase 2's forward
   // linking: any published article whose body links to THIS set's own
@@ -268,9 +275,9 @@ export default async function SetPage(props: Props) {
         <nav className="text-sm text-gray-400 flex items-center gap-2">
           <Link href="/" className="hover:text-accent-blue">Home</Link>
           <span>/</span>
-          <Link href="/compare" className="hover:text-accent-blue">Sets</Link>
+          <Link href="/sets" className="hover:text-accent-blue">Sets</Link>
           <span>/</span>
-          {set.theme && (() => {
+          {shownTheme(set.theme) && (() => {
             // Was `/themes/${slugify(set.theme)}` unconditionally -- 404'd
             // for any raw theme (Rebrickable's full taxonomy) that isn't
             // one of the curated /themes/ pages. resolveThemeSlug() only
@@ -281,9 +288,9 @@ export default async function SetPage(props: Props) {
             return (
               <>
                 {themeSlug ? (
-                  <Link href={`/themes/${themeSlug}`} className="hover:text-accent-blue">{set.theme}</Link>
+                  <Link href={`/themes/${themeSlug}`} className="hover:text-accent-blue">{shownTheme(set.theme)}</Link>
                 ) : (
-                  <span>{set.theme}</span>
+                  <span>{shownTheme(set.theme)}</span>
                 )}
                 <span>/</span>
               </>
@@ -332,7 +339,7 @@ export default async function SetPage(props: Props) {
           <div className="lg:col-span-3">
             {/* Badges + Title */}
             <div className="flex flex-wrap gap-2 mb-3">
-              {set.theme    && <Badge variant="grey">{set.theme}</Badge>}
+              {shownTheme(set.theme) && <Badge variant="grey">{shownTheme(set.theme)}</Badge>}
               {set.year     && <Badge variant="grey">{set.year}</Badge>}
               {set.age_range && <Badge variant="grey">Ages {set.age_range}</Badge>}
               {set.pieces   && <Badge variant="grey">{set.pieces.toLocaleString()} pcs</Badge>}
@@ -382,7 +389,7 @@ export default async function SetPage(props: Props) {
                     return (
                       <div key={store.id} className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
                         <span className="font-bold text-dark">{store.name}</span>
-                        <span className="text-gray-400 text-sm">No listing found at {store.name} as of {formatIst(pageData.as_of)}</span>
+                        <span className="text-gray-400 text-sm">No listing found at {store.name}.</span>
                       </div>
                     );
                   }
@@ -399,18 +406,19 @@ export default async function SetPage(props: Props) {
                           {!sp.in_stock && (
                             <span className="text-sm text-gray-500 font-bold">Out of stock at {store.name}</span>
                           )}
-                          {sp.price_inr && !isPriceFresh(sp.scraped_at) && (
-                            <PriceAge scrapedAt={sp.scraped_at} prefix="Price from" className="text-xs text-gray-500" />
-                          )}
                         </div>
                         <div className="flex items-center gap-3">
-                          {sp.price_inr ? (
+                          {sp.price_inr && isPriceFresh(sp.scraped_at) ? (
                             <span
                               className={`font-price font-bold text-lg ${atBest ? 'text-deal-green' : sp.in_stock ? 'text-dark' : 'text-gray-400'}`}
                               data-best-price={atBest ? sp.price_inr : undefined}
                             >
                               {formatPrice(sp.price_inr)}
                             </span>
+                          ) : sp.price_inr ? (
+                            <a href={sp.product_url ?? undefined} target="_blank" rel="noopener noreferrer sponsored" className="text-sm font-bold text-dark underline">
+                              See the price at {store.name} →
+                            </a>
                           ) : (
                             <span className="text-gray-400 text-sm">Price unavailable</span>
                           )}
@@ -462,7 +470,7 @@ export default async function SetPage(props: Props) {
             </div>
 
             {/* Staleness indicator */}
-            <p className="text-xs mb-4 text-gray-400">{lastUpdated ? <PriceAge scrapedAt={lastUpdated} /> : `No retailer listing found as of ${formatIst(pageData.as_of)}`}</p>
+            {!lastUpdated && <p className="text-xs mb-4 text-gray-400">No retailer listing found.</p>}
 
             {/* Price disclaimer */}
             <p className="text-xs text-gray-400 mb-6">
@@ -490,7 +498,7 @@ export default async function SetPage(props: Props) {
                     <h2 className="font-heading text-dark text-2xl mb-1">BRICKS OF INDIA VERDICT</h2>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-primary text-lg">{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
-                      <span className="text-sm text-gray-400">({review.rating}/5)</span>
+                      <span className="text-sm text-gray-400">{`(${review.rating}/5)`}</span>
                     </div>
                     <p className="text-gray-600 font-body mb-3">{review.verdict}</p>
                     <Link href={`/reviews/${review.slug}`} className="text-accent-blue font-bold text-sm hover:underline">
@@ -524,7 +532,7 @@ export default async function SetPage(props: Props) {
                       ? `Based on our latest comparison, ${summary.best_store_ids.map((id) => STORE_NAMES[id] ?? id).join(' and ')} ${summary.best_store_ids.length > 1 ? 'share' : 'has'} the lowest in-stock price at ${formatPrice(summary.best_price_inr)}.`
                       : hasPrices
                       ? `The lowest in-stock price we last saw was ${formatPrice(bestStorePrice!.price_inr)} at ${STORE_NAMES[bestStorePrice!.store_id] ?? bestStorePrice!.store_id}, but that price is more than 12 hours old — check the store for today's price.`
-                      : `We're currently setting up price tracking for ${set.name}. Check Toycra, LEGO.in, and Amazon India for live prices.`,
+                      : `We're currently setting up price tracking for ${set.name}. Check Toycra, LEGO.in, and Amazon India for current prices.`,
                   },
                   {
                     q: `Is ${set.name} available in India?`,
@@ -534,10 +542,12 @@ export default async function SetPage(props: Props) {
                     q: `What is the official MRP of ${set.name} in India?`,
                     a: anchorMrp && summary?.anchor_source
                       ? `The MRP for ${set.name} is ${formatPrice(anchorMrp)}.`
+                      : set.lego_mrp_inr && set.mrp_verified
+                      ? `The confirmed LEGO India MRP for ${set.name} is ${formatPrice(set.lego_mrp_inr)}.`
+                      : activePrices.length > 0
+                      ? `LEGO's official MRP for ${set.name} isn't confirmed. The current store price is shown on this page.`
                       : set.lego_mrp_inr
-                      ? set.mrp_verified
-                        ? `The confirmed LEGO India MRP for ${set.name} is ${formatPrice(set.lego_mrp_inr)}.`
-                        : `Official Indian pricing hasn't been announced yet.`
+                      ? `Official Indian pricing hasn't been announced yet.`
                       : `The official India MRP for ${set.name} hasn't been confirmed. Check lego.com/en-in for the latest official pricing.`,
                   },
                   {
@@ -548,7 +558,7 @@ export default async function SetPage(props: Props) {
                   },
                   {
                     q: `Where can I buy ${set.name} with a discount?`,
-                    a: `Use code ABHINAV12 at Toycra for 12% off full-price sets (min. ₹500 purchase). This is an exclusive Bricks of India deal with no usage limits.`,
+                    a: `${AFFILIATE_NOTE} This is an exclusive Bricks of India deal.`,
                   },
                 ]; return (<><JsonLd data={buildFAQSchema(faqs)} />{faqs.map((faq, i) => (
                   <details key={i} className="border-2 border-border rounded-xl overflow-hidden group">
@@ -567,11 +577,11 @@ export default async function SetPage(props: Props) {
         </div>
 
         {/* Related Sets */}
-        {relatedSets.length > 0 && (
+        {shownRelated.length > 0 && (
           <div className="mt-12">
-            <h2 className="font-heading text-dark text-3xl mb-6">MORE {set.theme?.toUpperCase()} SETS</h2>
+            <h2 className="font-heading text-dark text-3xl mb-6">{shownTheme(set.theme) ? `MORE ${shownTheme(set.theme)!.toUpperCase()} SETS` : 'MORE SETS'}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {relatedSets.map((relSet: any) => {
+              {shownRelated.map((relSet: any) => {
                 const bestP = relatedPriceMap[relSet.set_number] ?? null;
                 return <SetCard key={relSet.id} set={relSet} bestPrice={bestP} priceCount={bestP ? 1 : 0} summary={relSummaries.get(relSet.set_number)} />;
               })}

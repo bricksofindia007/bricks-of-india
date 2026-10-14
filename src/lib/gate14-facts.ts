@@ -7,13 +7,13 @@
 //                         model is told the numbers Gate 14 will check against
 //   gate14Feedback()      REVISION REQUIRED text for the shared Gates 11-14 regeneration
 //   writeBackPieces()     a looked-up count is written to a sets row whose pieces is
-//                         0/NULL (never overwrites a real count), with sets.pieces_source
+//                         0/NULL (never overwrites a real count), with sets.pieces_source = "Confirmed <date>"
 //
 // Failure behaviour (G14): a failed lookup leaves that fact unknown. Gate 14
 // then reports any claim about it as UNVERIFIABLE, and an unverifiable-only
 // result is held for review, never published. Nothing here can publish a
 // wrong figure. The write-back is best effort: if the pieces_source column
-// isn't there yet (migration 20260928110000 is applied through the db-migrate
+// isn't there yet (migration 20261004120000 is applied through the db-migrate
 // job), it's skipped and logged, and the count is not written.
 //
 // Budget (G2): per review draft, 3 Supabase reads (sets, store_prices,
@@ -23,6 +23,7 @@
 
 import type { Gate14Facts, Gate14Finding } from './gate14';
 import { abhinav12Price } from './abhinav12';
+import { NO_MRP_SETS } from './price-summary';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type Sb = { from: (t: string) => any };
@@ -44,7 +45,7 @@ export async function resolveGate14Facts(
 
   const [{ data: sp }, { data: summ }] = await Promise.all([
     sb.from('store_prices').select('store_id, price_inr, compare_at_price_inr').eq('set_id', setNumber),
-    sb.from('set_price_summary').select('anchor_mrp_inr').eq('set_id', setNumber).maybeSingle(),
+    NO_MRP_SETS.has(setNumber) ? Promise.resolve({ data: null }) : sb.from('set_price_summary').select('anchor_mrp_inr').eq('set_id', setNumber).maybeSingle(),
   ]);
 
   let pieces: number | null = Number(set.pieces) > 0 ? Number(set.pieces) : null;
@@ -129,7 +130,8 @@ export function gate14Feedback(findings: Gate14Finding[]): string {
 
 /** Every finding is about a fact we could not resolve (not a contradicted fact). */
 export function isUnverifiableOnly(findings: Gate14Finding[]): boolean {
-  return findings.length > 0 && findings.every((x) => /unverifiable/.test(x.detail));
+  const b = findings.filter((x) => !x.advisory);
+  return b.length > 0 && b.every((x) => /unverifiable/.test(x.detail));
 }
 
 export type WriteBackResult = 'written' | 'not-needed' | 'no-column' | 'error';
@@ -137,18 +139,18 @@ export type WriteBackResult = 'written' | 'not-needed' | 'no-column' | 'error';
 /** Writes a looked-up piece count to a sets row whose pieces is 0/NULL. Never overwrites a real count. */
 export async function writeBackPieces(sb: Sb, r: ResolvedGate14Facts, now = new Date()): Promise<WriteBackResult> {
   if (r.catalogueHadPieces || !r.facts.pieces || (r.piecesSource !== 'rebrickable' && r.piecesSource !== 'brickset')) return 'not-needed';
-  const label = r.piecesSource === 'rebrickable' ? 'Rebrickable' : 'Brickset';
+  // Stored label is a plain confirmation date only.
   const { error } = await sb.from('sets')
     .update({
       pieces: r.facts.pieces,
-      pieces_source: `${label} (Gate 14 write-back, ${now.toISOString().slice(0, 10)})`,
+      pieces_source: `Confirmed ${now.toISOString().slice(0, 10)}`,
       pieces_source_checked_at: now.toISOString(),
     })
     .eq('set_number', r.facts.setNumber)
     .or('pieces.is.null,pieces.eq.0');
   if (!error) return 'written';
   if (error.code === '42703' || error.code === 'PGRST204' || /pieces_source/.test(error.message ?? '')) {
-    console.warn(`[gate14] write-back skipped for ${r.facts.setNumber}: sets.pieces_source not in this database yet (migration 20260928110000)`);
+    console.warn(`[gate14] write-back skipped for ${r.facts.setNumber}: sets.pieces_source not in this database yet (migration 20261004120000)`);
     return 'no-column';
   }
   console.error(`[gate14] write-back failed for ${r.facts.setNumber}: ${error.message}`);

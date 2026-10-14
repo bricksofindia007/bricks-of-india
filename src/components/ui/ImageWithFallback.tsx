@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
+import { isKnownMissingImage } from '@/lib/missing-images';
 
 interface ImageWithFallbackProps {
   srcs: string[];           // ordered list of URLs to try; last should be a reliable local path
@@ -31,7 +32,7 @@ export function ImageWithFallback({
   priority,
   style,
 }: ImageWithFallbackProps) {
-  const validSrcs = srcs.filter(Boolean);
+  const validSrcs = srcs.filter((s) => Boolean(s) && !isKnownMissingImage(s)); // outside images known not to exist are skipped (3 Oct 2026)
   const [idx, setIdx] = useState(0);
   const src = validSrcs[idx] ?? '/fallback-hero.png';
   const isExternal = src.startsWith('http');

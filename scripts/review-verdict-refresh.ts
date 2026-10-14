@@ -69,7 +69,7 @@ function deterministicBlock(verdict: Verdict, live: Live) {
   return {
     variant,
     block: [
-      `Priced at ₹${fmtInr(live.price)} on ${STORE_DISPLAY_NAME[live.retailer]}, confirmed in stock as of ${displayDate(live.scrapedAt)}.`,
+      `At review, it was priced at ₹${fmtInr(live.price)} on ${STORE_DISPLAY_NAME[live.retailer]}.`,
       `Verdict: ${verdict}.`,
       '',
       disclaimerTextFor(variant),
@@ -228,7 +228,7 @@ function report(items: any[]): string {
 }
 
 const SHORT_MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const FULL_BLOCK_RE = /Priced at ₹[\d,]+ on [^,]+, confirmed in stock as of [^.]+\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
+const FULL_BLOCK_RE = /(?:Priced at ₹[\d,]+ on .+?, confirmed in stock as of [^.]+|At review, it was priced at ₹[\d,]+ on .+?)\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
 
 /**
  * Operator rule (2026-09-26): every applied verdict change ends with a dated

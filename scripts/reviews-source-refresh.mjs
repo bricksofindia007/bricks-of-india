@@ -21,7 +21,8 @@ dotenv.config({ path: '.env.local' });
 
 import { createClient } from '@supabase/supabase-js';
 import { fetchLiveListings, resolveEligibleListing, STORE_DISPLAY_NAME } from './lib/reviews-source.mjs';
-import { resplicePublishedIndiaParagraph, extractIndiaParagraphBlock } from '../src/lib/publish-draft.ts';
+import { planPriceUpdate } from './lib/price-line-check.mjs';
+import { extractIndiaParagraphBlock, priceLineStores } from '../src/lib/publish-draft.ts';
 import { assertFlipFreezeGuarantee } from '../src/lib/flip-freeze-assertion.ts';
 import { getSecret } from '../src/lib/get-secret.ts';
 
@@ -236,35 +237,35 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
       continue;
     }
 
-    // Non-flip price/retailer change — safe to auto-update price + content
-    // (disclaimer variant recomputed mechanically; verdict itself unchanged).
-    if (newPrice !== oldPrice || resolved.sourceRetailer !== review.source_retailer) {
+    // Non-flip price/retailer change (approved option a): the stored source columns update.
+    // The price line printed in the review is never rewritten by this job, so the published text
+    // stays as it was. A stores mismatch is reported only.
+    const stampSource = {
+      source_retailer:     resolved.sourceRetailer,
+      source_price_inr:    resolved.sourcePriceInr,
+      source_stock_status: resolved.sourceStockStatus,
+      source_checked_at:   now,
+      featured_store:      resolved.featuredStore,
+      ...(resolved.otherStore ? { other_price_inr: resolved.otherStore.priceInr, other_in_stock: resolved.otherStore.inStock } : {}),
+    };
+    const storesNow = priceLineStores(stampSource);
+    const plan = planPriceUpdate({ content: review.content, storesNow, oldPrice, newPrice, retailerChanged: resolved.sourceRetailer !== review.source_retailer });
+    if (plan.storesMismatch) console.log(`  [NOTE] ${review.slug}: printed price line does not name ${storesNow}; text left unchanged`);
+    if (plan.updateStoredColumns) {
       p1Updated++;
-      console.log(`  [UPDATE] ${review.slug}: ₹${oldPrice} -> ₹${newPrice} @ ${resolved.sourceRetailer} (verdict unchanged: ${review.verdict})`);
+      console.log(`  [UPDATE] ${review.slug}: ₹${oldPrice} -> ₹${newPrice} @ ${resolved.sourceRetailer} (stored columns only; verdict unchanged: ${review.verdict})`);
       if (!DRY_RUN) {
-        try {
-          const { content, disclaimerVariant } = resplicePublishedIndiaParagraph(review.content, review.verdict, {
-            source_retailer:     resolved.sourceRetailer,
-            source_price_inr:    resolved.sourcePriceInr,
-            source_stock_status: resolved.sourceStockStatus,
-            source_checked_at:   now,
-          });
-          await sb.from('reviews').update({
-            content,
-            source_retailer:            resolved.sourceRetailer,
-            source_price_inr:           resolved.sourcePriceInr,
-            source_stock_status:        resolved.sourceStockStatus,
-            source_checked_at:          now,
-            verdict_disclaimer_variant: disclaimerVariant,
-          }).eq('id', review.id);
-        } catch (err) {
-          await flagIssue(review.slug, 'review_resplice_failed', 'critical', `Re-splice failed: ${err.message} — source_checked_at updated only, content untouched`);
-          checkedIds.push(review.id);
-        }
+        const { error } = await sb.from('reviews').update({
+          source_retailer:     resolved.sourceRetailer,
+          source_price_inr:    resolved.sourcePriceInr,
+          source_stock_status: resolved.sourceStockStatus,
+          source_checked_at:   now,
+        }).eq('id', review.id);
+        if (error) await flagIssue(review.slug, 'stored_columns_update_failed', 'critical', `Stored price columns not updated: ${error.message}`);
       }
-    } else {
-      // No change at all — still record that we checked.
-      if (!DRY_RUN) checkedIds.push(review.id);
+    } else if (!DRY_RUN) {
+      // No change at all: still record that we checked.
+      checkedIds.push(review.id);
     }
   }
 

@@ -153,6 +153,7 @@ export function Footer() {
                 { href: '/legal/privacy', label: 'Privacy' },
                 { href: '/legal/terms',   label: 'Terms'   },
                 { href: '/legal/affiliate-disclosure', label: 'Affiliate disclosure' },
+                { href: '/corrections',   label: 'Corrections' },
               ].map(({ href, label }) => (
                 <li key={href}>
                   <Link

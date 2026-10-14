@@ -25,7 +25,12 @@ export type SetPriceSummary = {
 
 const COLS = 'set_id, anchor_mrp_inr, anchor_source, best_price_inr, best_store_ids, best_scraped_at, in_stock_store_count, discount_pct, deal_tier';
 
-function normalise(r: any): SetPriceSummary {
+// Sets whose MRP we can't confirm from the store that sets it, so no MRP (and no discount from one) is shown,
+// even if another store lists a compare-at price (3 Oct 2026: 42670 is no longer on LEGO.in).
+export const NO_MRP_SETS = new Set(['42670']);
+
+export function normalise(r: any): SetPriceSummary {
+  if (NO_MRP_SETS.has(r.set_id)) r = { ...r, anchor_mrp_inr: null, anchor_source: null, discount_pct: null, deal_tier: null };
   return {
     ...r,
     anchor_mrp_inr: r.anchor_mrp_inr == null ? null : Number(r.anchor_mrp_inr),
@@ -58,7 +63,7 @@ export async function getDeals(sb: SupabaseClient): Promise<SetPriceSummary[]> {
       .order('set_id', { ascending: true })
       .range(off, off + 999);
     if (error) throw error;
-    out.push(...(data ?? []).map(normalise));
+    out.push(...(data ?? []).filter((r: any) => !NO_MRP_SETS.has(r.set_id)).map(normalise));
     if (!data || data.length < 1000) break;
   }
   return out;

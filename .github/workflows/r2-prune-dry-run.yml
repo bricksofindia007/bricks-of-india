@@ -19,8 +19,8 @@ jobs:
     # No runs yet: ~45 paginated list calls, well under a minute. Resize after 3 runs.
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
       - env:

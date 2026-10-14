@@ -10,7 +10,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { OPENER_FEEDBACK } from './opener-pattern';
 import { AFFILIATE_FEEDBACK } from './affiliate-disclosure';
-import { gate14Check, type Gate14Facts, type Gate14Finding } from './gate14';
+import { gate14Check, blocking, type Gate14Facts, type Gate14Finding } from './gate14';
 import { gate14Feedback } from './gate14-facts';
 export type DraftGenerationInput = {
   format: string;
@@ -74,12 +74,13 @@ export class BothProvidersFailedError extends Error {
 }
 
 // Determines whether a Gemini error should trigger Cerebras failover.
-// Only 429 and 5xx are retryable — parse errors and bad requests are not.
+// Only 402 (payment required / out of credit), 429 and 5xx are retryable — parse errors and bad requests are not.
+// 402 added 10 Oct 2026 (approved bundle): a Gemini credit wall now routes to Groq like a rate limit does.
 // SMOKE_TEST=1 widens to include 400 so a bad API key can simulate failover.
 function isRetryableGeminiError(err: unknown): boolean {
   const msg = (err instanceof Error ? err.message : String(err));
   if (process.env.SMOKE_TEST === '1') return /\[4\d\d/.test(msg) || /\[5\d\d/.test(msg);
-  return /\[429/.test(msg) || /\[5\d\d/.test(msg);
+  return /\[402/.test(msg) || /\[429/.test(msg) || /\[5\d\d/.test(msg);
 }
 
 const vlog = (...args: unknown[]) => {
@@ -147,14 +148,14 @@ export async function generateWithFailover(
     const openerFailed = !!lint?.gates.openerPattern && !lint.gates.openerPattern.pass;
     const affiliateFailed = !!lint?.gates.affiliateDisclosure && !lint.gates.affiliateDisclosure.pass;
     const g14First = gate14For(first);
-    const gate14Failed = !!input.gate14?.enforce && g14First.length > 0;
+    const gate14Failed = !!input.gate14?.enforce && blocking(g14First).length > 0;
     if (!citationFailed && !openerFailed && !affiliateFailed && !gate14Failed) return { parsed: first, lint: withGate14(lint, g14First), retried: false, gate14: g14First };
     const feedback: string[] = [];
     if (citationFailed) feedback.push(citationFeedback(await unverifiedSetCitations(sb, `${first.title}
 ${first.body}`)));
     if (openerFailed) feedback.push(OPENER_FEEDBACK);
     if (affiliateFailed) feedback.push(AFFILIATE_FEEDBACK);
-    if (gate14Failed) feedback.push(gate14Feedback(g14First));
+    if (gate14Failed) feedback.push(gate14Feedback(blocking(g14First)));
     vlog(`Feedback gates failed (${[citationFailed && 'Gate 11', openerFailed && 'Gate 12', affiliateFailed && 'Gate 13', gate14Failed && 'Gate 14'].filter(Boolean).join(', ')}) -- regenerating once with feedback`);
     try {
       const text = await call(`${userPrompt}
@@ -171,15 +172,16 @@ REVISION REQUIRED: ${feedback.join(' ')}`);
     }
   }
 
-  // Gate 14 (#398 1b): reviews only; the draft's own verdict is the one the
-  // body must carry exactly once.
+  // Gate 14 (#398 1b): reviews, and news since round 11 (4 Oct 2026); the draft's own
+  // verdict is the one a review body must carry exactly once.
   function gate14For(p: ReturnType<typeof parseDraftResponse>): Gate14Finding[] {
-    if (!input.gate14 || input.format !== 'review') return [];
+    if (!input.gate14 || (input.format !== 'review' && input.format !== 'news')) return [];
     return gate14Check(p.body, { ...input.gate14.facts, verdict: p.verdict });
   }
   // Enforced findings fail the lint by name, so the existing reject path
   // reports "gate14: ..." like any other failing gate. Shadow mode: untouched.
   function withGate14(lint: LintResult | null, findings: Gate14Finding[]): LintResult | null {
+    findings = blocking(findings);
     if (!lint || !input.gate14?.enforce || findings.length === 0) return lint;
     return {
       ...lint,

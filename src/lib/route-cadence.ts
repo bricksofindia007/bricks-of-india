@@ -38,6 +38,7 @@ export const ROUTE_CADENCE: Record<string, Cadence> = {
 
   // listings and tools that read the database: hourly
   '/deals': READ_REVALIDATE_SECONDS,
+  '/corrections': READ_REVALIDATE_SECONDS,
   '/lab/deals': READ_REVALIDATE_SECONDS,
   '/lab/cmf-tracker': READ_REVALIDATE_SECONDS,
   '/lab/retiring-soon': READ_REVALIDATE_SECONDS,

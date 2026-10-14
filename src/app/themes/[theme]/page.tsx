@@ -15,7 +15,7 @@ import { getPriceSummaries } from '@/lib/price-summary';
 // P10 revalidate audit (29 Sep): this route had no revalidate of its own and was either built
 // once per deploy (its data froze between deploys) or refreshed only as a side effect of a shared
 // read. Its cadence is now explicit and checked in CI.
-export const revalidate = 21600; // = THEME_PAGE_REVALIDATE_SECONDS: prices and deal badges on the price cadence (route-cadence.ts)
+export const revalidate = 86400; // = THEME_PAGE_REVALIDATE_SECONDS: prices and deal badges on the price cadence (route-cadence.ts)
 
 interface Props {
   params: Promise<{ theme: string }>;
@@ -161,8 +161,8 @@ export default async function ThemePage(props: Props) {
               </h1>
               <p className="text-white/60 text-sm mt-1 font-body">
                 {setCount > 0
-                  ? `${setCount} sets found — live price comparison across all Indian stores.`
-                  : `All LEGO ${theme.name} sets in India with live price comparison.`}
+                  ? `${setCount} sets found — price comparison across Indian stores; we check prices daily.`
+                  : `All LEGO ${theme.name} sets in India with price comparison. We check prices daily.`}
               </p>
             </div>
           </div>

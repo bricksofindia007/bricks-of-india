@@ -60,7 +60,7 @@ def record(piece_id: str, label: str, platform: str) -> None:
     print(f'[post_prepared] recorded {platform} for {piece_id}')
 
 
-def youtube_upload(video_url: str, title: str, description: str, comment: str | None) -> str:
+def youtube_upload(video_url: str, title: str, description: str, comment: str | None, tags: list | None = None) -> str:
     from googleapiclient.discovery import build
     from googleapiclient.http import MediaFileUpload
     creds = publisher._load_youtube_credentials()
@@ -72,7 +72,7 @@ def youtube_upload(video_url: str, title: str, description: str, comment: str | 
     tmp.write(requests.get(video_url, timeout=120).content); tmp.close()
     resp = yt.videos().insert(part='snippet,status', body={
         'snippet': {'title': title[:100], 'description': description[:4900],
-                    'tags': ['LEGO', 'LEGOIndia', 'BrickRush', 'BricksofIndia', 'Shorts'], 'categoryId': '24'},
+                    'tags': tags or ['LEGO', 'LEGOIndia', 'BrickRush', 'BricksofIndia', 'Shorts'], 'categoryId': '24'},
         'status': {'privacyStatus': 'public', 'selfDeclaredMadeForKids': False},
     }, media_body=MediaFileUpload(tmp.name, mimetype='video/mp4', resumable=True)).execute()
     vid = resp['id']
@@ -99,6 +99,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--manifest', required=True); ap.add_argument('--day', required=True)
     ap.add_argument('--piece', choices=['carousel', 'short'], required=True)
+    ap.add_argument('--platforms', default='all',
+                    help="comma list of ig_feed, ig_reels, yt_shorts, or 'all' (2 Oct: Instagram only while YouTube is blocked)")
     a = ap.parse_args()
     m = json.loads((Path(__file__).parent / a.manifest).read_text(encoding='utf-8'))
     item = m['days'][a.day][a.piece]
@@ -107,7 +109,14 @@ def main():
     cid = f"{m['id']}:{a.day}:{a.piece}"
     label = item.get('label', cid)
 
+    wanted = None if a.platforms == 'all' else {p.strip() for p in a.platforms.split(',') if p.strip()}
+    if wanted is not None and not wanted <= set(PLATFORM_FLAG):
+        raise SystemExit(f'Refusing: unknown platform in --platforms {sorted(wanted - set(PLATFORM_FLAG))}')
+
     def once(platform, post):
+        if wanted is not None and platform not in wanted:
+            print(f'[post_prepared] {platform}: not in --platforms, skipped (not recorded; a later run can post it)')
+            return
         if already_posted(cid, platform):
             print(f'[post_prepared] {platform}: already posted for {cid}, skipping')
             return
@@ -124,7 +133,7 @@ def main():
         check_copy(item['ig_caption'], item['yt_title'], item['yt_description'], item.get('pinned_comment'))
         once('ig_reels', lambda: print('[post_prepared] Instagram Reel posted:',
                                         publisher.post_instagram_reels(item['video'], item['ig_caption'])))
-        once('yt_shorts', lambda: youtube_upload(item['video'], item['yt_title'], item['yt_description'], item.get('pinned_comment')))
+        once('yt_shorts', lambda: youtube_upload(item['video'], item['yt_title'], item['yt_description'], item.get('pinned_comment'), item.get('yt_tags')))
 
 if __name__ == '__main__':
     main()

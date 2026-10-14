@@ -1,4 +1,5 @@
-// Gate 14: pre-publish fact check for reviews (P4 Step 5; #246, #388, #390).
+// Gate 14: pre-publish fact check for reviews and news (P4 Step 5; #246, #388, #390;
+// news added in round 11, 4 Oct 2026).
 // Pure and deterministic: every check runs against catalogue FACTS supplied
 // by the caller, which resolves them in this order (P4): sets.pieces ->
 // Rebrickable num_parts -> Brickset (one batched, cached call). A claim
@@ -41,8 +42,16 @@ export type Gate14Facts = {
   // P10 item 4: sets.is_gwp, Brickset availability "LEGO Gift with Purchase",
   // or no retail price anywhere (no store row, no MRP, no LEGO.com price).
   promotional?: boolean;
+  // Round 11 (4 Oct): a news draft that names no catalogued set. Only the rules that need no
+  // set facts run (foreign / import-estimate prices, narrated source); pieces, minifigs, year,
+  // ₹ and gwp are skipped because there is nothing to check them against.
+  noSet?: boolean;
 };
-export type Gate14Finding = { rule: 'pieces' | 'minifigs' | 'year' | 'inr' | 'foreign' | 'verdict' | 'leak' | 'gwp'; detail: string; sentence: string };
+// advisory = logged, never held or fed back (round 11: minifigure counts the catalogue doesn't
+// have yet; a count that CONTRADICTS a known one is still a normal finding).
+export type Gate14Finding = { rule: 'pieces' | 'minifigs' | 'year' | 'inr' | 'foreign' | 'verdict' | 'leak' | 'gwp'; detail: string; sentence: string; advisory?: true };
+/** Findings that count: everything except advisory ones. */
+export const blocking = (findings: Gate14Finding[]): Gate14Finding[] => findings.filter((x) => !x.advisory);
 
 const sentences = (t: string) => t.split(/(?<=[.!?])\s+|\n+/).map((s) => s.trim()).filter(Boolean);
 const num = (s: string) => Number(s.replace(/,/g, ''));
@@ -108,13 +117,20 @@ export function gwpPriceClaims(body: string, setNumber?: string, about: string[]
 
 export function gate14Check(body: string, f: Gate14Facts): Gate14Finding[] {
   const out: Gate14Finding[] = [];
-  const gwpClaims = f.promotional ? new Set(gwpPriceClaims(body, undefined, [f.setNumber])) : new Set<string>();
+  const gwpClaims = f.promotional && !f.noSet ? new Set(gwpPriceClaims(body, undefined, [f.setNumber])) : new Set<string>();
   for (const s of gwpClaims) out.push({ rule: 'gwp', detail: `${f.setNumber} is a gift with purchase / has no retail price: no price claim; say it isn't sold separately`, sentence: s });
   const others = f.otherSetNumbers ?? new Set<string>();
   for (const s of sentences(body)) {
     const mentionsOther = [...s.matchAll(/\b\d{4,6}\b/g)].some((x) => x[0] !== f.setNumber && others.has(x[0]));
     const comparison = COMPARISON.test(s) || mentionsOther;
 
+    if (f.noSet) {
+      const named = NAMED_SOURCE.test(s);
+      if (FOREIGN_RE.test(s) && !named) out.push({ rule: 'foreign', detail: 'foreign-currency price without a named source', sentence: s });
+      if (/\b(import|estimat)/i.test(s) && /₹/.test(s) && !named) out.push({ rule: 'foreign', detail: '"import/estimated" ₹ price without a named source', sentence: s });
+      if (LEAK_RE.test(s)) out.push({ rule: 'leak', detail: `narrated source: "${s.match(LEAK_RE)![0]}"`, sentence: s });
+      continue;
+    }
     for (const m of s.matchAll(PIECES_RE)) {
       if (NEGATED.test(s.slice(0, m.index ?? 0)) || comparison) continue;
       const q = (m[1] ?? '').toLowerCase(); const n = num(m[2]); const p = f.pieces;
@@ -129,7 +145,7 @@ export function gate14Check(body: string, f: Gate14Facts): Gate14Finding[] {
     for (const m of s.matchAll(MINIFIG_RE)) {
       if (NEGATED.test(s.slice(0, m.index ?? 0)) || CAPACITY.test(s.slice(0, m.index ?? 0)) || comparison) continue;
       const n = /^\d+$/.test(m[1]) ? Number(m[1]) : WORDNUM[m[1].toLowerCase()];
-      if (f.minifigs == null) { out.push({ rule: 'minifigs', detail: `"${m[0]}" is unverifiable: no catalogue minifigure count`, sentence: s }); continue; }
+      if (f.minifigs == null) { out.push({ rule: 'minifigs', detail: `"${m[0]}" is unverifiable: no catalogue minifigure count`, sentence: s, advisory: true }); continue; }
       if (n !== f.minifigs) out.push({ rule: 'minifigs', detail: `"${m[0]}"; catalogue ${f.minifigs}`, sentence: s });
     }
     if (f.year && RELEASE_RE.test(s) && !comparison && !/\b(original|first|since|back in|anniversary|retir)/i.test(s)) {

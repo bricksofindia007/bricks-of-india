@@ -26,11 +26,11 @@ jobs:
     # git diff + one psql query + two node runs: ~30s. Sized like lint-migration-grants.yml.
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v6
         with:
           node-version: '20'
 

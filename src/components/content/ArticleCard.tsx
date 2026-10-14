@@ -21,6 +21,7 @@ interface CardArticle {
   category: string;
   excerpt: string;
   content?: string | null; // optional: callers that don't fetch it get no reading time
+  reading_time?: string | null; // precomputed by cached lists that drop the text
   hero_image: string | null;
   published_at: string;
 }
@@ -67,7 +68,9 @@ export function ArticleCard({ article, type }: ArticleCardProps) {
         <p className="text-text-secondary text-sm line-clamp-2 mb-3 font-body">{stripMarkdown(article.excerpt)}</p>
         <div className="flex items-center justify-between text-xs text-text-secondary">
           <span>{formatDate(article.published_at)}</span>
-          {article.content ? <span>{readingTime(article.content)}</span> : null}
+          {(article as CardArticle).reading_time
+            ? <span>{(article as CardArticle).reading_time}</span>
+            : article.content ? <span>{readingTime(article.content)}</span> : null}
         </div>
       </div>
     </Link>
@@ -122,7 +125,7 @@ export function ReviewCard({ review }: ReviewCardProps) {
       <div className="p-4">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-accent text-sm">{stars}</span>
-          <span className="text-xs text-text-secondary">({review.rating}/5)</span>
+          <span className="text-xs text-text-secondary">{`(${review.rating}/5)`}</span>
         </div>
         <h3 className="font-bold text-dark text-base leading-tight line-clamp-2 group-hover:text-primary transition-colors mb-2">
           {review.title}

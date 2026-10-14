@@ -8,6 +8,7 @@ import { slugify } from '@/lib/utils';
 import { baselinePrices, type HistRow } from '@/lib/price-baseline';
 import { getStores, storeLabels } from '@/lib/stores';
 import { abhinav12Price } from '@/lib/abhinav12';
+import { shownTheme } from '@/lib/theme-display';
 
 export const metadata: Metadata = buildMetadata({
   title: 'LEGO Price Drops in India — The Lab',
@@ -19,10 +20,6 @@ export const metadata: Metadata = buildMetadata({
 function fmtInr(n: number) {
   return `₹${Math.round(n).toLocaleString('en-IN')}`;
 }
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 interface DropRow {
   set_id:    string;
   store_id:  string;
@@ -158,7 +155,7 @@ const getPriceDropsData = unstable_cache(
     return { allRows, allThemes };
   },
   ['lab-price-drops-data'],
-  { revalidate: 21600 }, // 6h — matches scrape-prices.yml's real cron, see comment above
+  { revalidate: 86400 }, // 24 h, same as the page
 );
 
 export default async function PriceDropsPage(props: Props) {
@@ -293,7 +290,7 @@ export default async function PriceDropsPage(props: Props) {
                         {r.name}
                       </Link>
                       <div style={{ fontSize: '0.68rem', color: '#9AA5B4', marginTop: 2 }}>
-                        #{r.set_id}{r.theme ? ` · ${r.theme}` : ''}
+                        #{r.set_id}{shownTheme(r.theme) ? ` · ${shownTheme(r.theme)}` : ''}
                       </div>
                     </div>
 
@@ -320,11 +317,6 @@ export default async function PriceDropsPage(props: Props) {
                           {fmtInr(discounted)} with ABHINAV12
                         </div>
                       )}
-                    </div>
-
-                    {/* Date */}
-                    <div style={{ fontSize: '0.65rem', color: '#CBD5E0', marginTop: 2 }}>
-                      Updated {fmtDate(r.scraped_at)}
                     </div>
 
                     <Link

@@ -1,0 +1,6 @@
+-- boi:issue 471
+-- boi:backup-tables public.news_articles, public.reviews, public.guides
+-- boi:expect-before select (select count(*) from public.reviews where slug = 'lego-ninjago-destinys-bounty-adventures-board-game-a-coopera' and position('Jay’s Brick Blog gives it a decent, if not glowing, review.' in content) > 0) = 1
+-- boi:expect-after select (select count(*) from public.reviews where slug = 'lego-ninjago-destinys-bounty-adventures-board-game-a-coopera' and position('Jay’s Brick Blog gives it a decent, if not glowing, review.' in content) > 0) = 0
+-- Article text corrections approved by the owner (3 Oct 2026): 1 pages.
+UPDATE public.reviews SET content = replace(replace(content, 'Jay’s Brick Blog gives it a decent, if not glowing, review.', ''), 'They praise the cooperative nature, noting how it encourages teamwork and communication.', 'The cooperative nature is the highlight: it encourages teamwork and communication.') WHERE slug = 'lego-ninjago-destinys-bounty-adventures-board-game-a-coopera' AND position('Jay’s Brick Blog gives it a decent, if not glowing, review.' in content) > 0 AND position('They praise the cooperative nature, noting how it encourages teamwork and communication.' in content) > 0;

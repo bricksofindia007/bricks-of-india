@@ -51,7 +51,7 @@ function fmtDate(iso) {
   return `${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
 }
 
-const FULL_BLOCK_RE = /Priced at ₹[\d,]+ on [^,]+, confirmed in stock as of [^.]+\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
+const FULL_BLOCK_RE = /(?:Priced at ₹[\d,]+ on .+?, confirmed in stock as of [^.]+|At review, it was priced at ₹[\d,]+ on .+?)\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
 
 async function paginate(table, cols) {
   const rows = [];
@@ -114,7 +114,7 @@ async function paginate(table, cols) {
       continue;
     }
     const retailerDisplay = STORE_DISPLAY_NAME[sourceRetailer] ?? sourceRetailer;
-    const priceLine = `Priced at ₹${fmtInr(sourcePriceInr)} on ${retailerDisplay}, confirmed in stock as of ${fmtDate(now)}.`;
+    const priceLine = `At review, it was priced at ₹${fmtInr(sourcePriceInr)} on ${retailerDisplay}.`;
     const verdictLine = `Verdict: ${review.verdict}.`;
     const disclaimerLine = disclaimerTextFor(disclaimerVariant);
 

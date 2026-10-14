@@ -19,7 +19,7 @@ export const PRICE_STALE_HOURS = 2 * SCRAPE_INTERVAL_HOURS;
  * `next.revalidate`, see src/lib/supabase.ts). Route-segment `revalidate`
  * exports must be literals, so those say 3600 and point here.
  */
-export const READ_REVALIDATE_SECONDS = 3600;
+export const READ_REVALIDATE_SECONDS = 86400;
 
 /**
  * Set pages only (/sets/[slug]): 6h, matching the scrape cadence. Operator
@@ -28,15 +28,15 @@ export const READ_REVALIDATE_SECONDS = 3600;
  * "Updated X ago" is computed from scraped_at in the browser, so a cached page
  * never claims to be fresher than its data.
  */
-export const SET_PAGE_REVALIDATE_SECONDS = 21600;
+export const SET_PAGE_REVALIDATE_SECONDS = 86400;
 
 /**
- * Unpriced set pages (FP1.6 design §2, 72 h APPROVED by Abhinav, P8 item 4):
- * the set_page_data read and the route segment live 72 h. A priced page makes
+ * Unpriced set pages (14 days, approved by Abhinav 10 Oct 2026; was 72 h under
+ * FP1.6 design §2, P8 item 4): the set_page_data read and the route segment live 14 days. A priced page makes
  * a second small read of its offers on the 6 h clock above, and Next takes the
  * lowest revalidate in a render, so priced pages still refresh every 6 h.
  */
-export const UNPRICED_SET_REVALIDATE_SECONDS = 259200;
+export const UNPRICED_SET_REVALIDATE_SECONDS = 1209600;
 
 /** "28 Sep, 22:30 IST": the data time shown in "No listing found at {store} as of {time}". */
 export function formatIst(iso: string): string {

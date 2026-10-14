@@ -1,11 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { TABLES, PROD_REF, fingerprintSql, columnsUpdateSql, replaceSql, buildLoadSql } from '../scripts/ci/seed-staging.mjs';
+import { TABLES, PROD_REF, fingerprintSql, columnsUpdateSql, replaceSql, buildLoadSql, HISTORY_TRIGGER } from '../scripts/ci/seed-staging.mjs';
 import { strayFixFiles } from '../scripts/ci/db-migrate.mjs';
 
 describe('seed-staging (P12, #443)', () => {
   it('allowlist is exactly the four public-content tables; sets syncs only the columns fixes change', () => {
-    expect(TABLES.map((t) => [t.table, t.mode])).toEqual([['sets', 'columns'], ['news_articles', 'replace'], ['reviews', 'replace'], ['guides', 'replace'], ['price_history', 'replace']]);
-    expect(TABLES[0].columns).toEqual(['is_gwp', 'gwp_parent_set_number', 'pieces']);
+    expect(TABLES.map((t) => [t.table, t.mode])).toEqual([['sets', 'columns'], ['news_articles', 'replace'], ['reviews', 'replace'], ['guides', 'replace'], ['price_history', 'replace'], ['store_prices', 'replace']]);
+    expect(TABLES[0].columns).toEqual(['is_gwp', 'gwp_parent_set_number', 'pieces', 'theme', 'lego_mrp_inr', 'mrp_verified', 'mrp_review_reason']);
   });
   it('knows the production ref it must refuse to write to', () => {
     expect(PROD_REF).toBe('hqpaiarhmiocmjrzjhtw');
@@ -19,6 +19,18 @@ describe('seed-staging (P12, #443)', () => {
   });
   it('replace keeps identity ids (guides.id is GENERATED ALWAYS)', () => {
     expect(replaceSql('guides', ['id', 'slug'])).toBe('insert into public.guides ("id", "slug") overriding system value select "id", "slug" from seed_guides;');
+  });
+  it('store_prices loads with its price-history trigger off, inside the transaction, so price_history equals production', () => {
+    const t = (table: string) => ({ table, mode: 'replace', cols: ['id'], fpCols: ['id'], file: 'x.csv', prodFp: '1 abc' });
+    const sql = buildLoadSql([t('price_history'), t('store_prices')]);
+    const off = sql.indexOf(`alter table public.store_prices disable trigger ${HISTORY_TRIGGER};`);
+    const load = sql.indexOf('insert into public.store_prices');
+    const on = sql.indexOf(`alter table public.store_prices enable trigger ${HISTORY_TRIGGER};`);
+    expect(off).toBeGreaterThan(sql.indexOf('begin;'));
+    expect(off).toBeLessThan(load);
+    expect(on).toBeGreaterThan(load);
+    expect(on).toBeLessThan(sql.indexOf('raise exception'));
+    expect(buildLoadSql([t('guides')])).not.toContain('disable trigger');
   });
   it('fingerprint covers every listed column, null-safe, in id order', () => {
     const f = fingerprintSql('news_articles', ['id', 'content']);

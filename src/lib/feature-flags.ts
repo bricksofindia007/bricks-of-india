@@ -84,6 +84,13 @@ export const FEATURE_FLAGS = {
   // (scripts/generate-approved-drafts.ts holds a Gate-14-only failure).
   gate14ReviewEnforce: true,
 
+  // Round 11 (4 Oct 2026, chat): Gate 14 also checks NEWS drafts. gate14News = resolve facts and
+  // log findings; gate14NewsEnforce = same hold-for-review mode as reviews (a draft whose only
+  // failing gate is Gate 14 goes back to /admin/pending; never discarded). A news draft without a
+  // catalogued set runs only the rules that need no facts (foreign/estimate prices, narrated source).
+  gate14News: true,
+  gate14NewsEnforce: true,
+
   // P10 item 4: gift-with-purchase sets no Indian store lists get a "no price, not sold
   // separately" price context in EVERY format's prompt (news too), instead of the
   // "USD x 1.35" estimate that turned spend thresholds into invented import prices.

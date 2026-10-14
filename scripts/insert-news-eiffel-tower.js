@@ -38,7 +38,7 @@ This is not a set that goes on surprise sale before retirement. LEGO flagship Ic
 
 If the Eiffel Tower has been on your list — and for Indian LEGO collectors it absolutely should have been — the time is now. Not next month. Now.
 
-Check live prices at bricksofindia.com. MyBrickHouse has stock. Use code ABHINAV12 at Toycra for 12% off above ₹500 if they have it listed.
+Check prices at bricksofindia.com; we check them daily. MyBrickHouse has stock. Use code ABHINAV12 at Toycra for 12% off above ₹500 if they have it listed.
 
 On that bombshell — 64 days. Your move.`;
 

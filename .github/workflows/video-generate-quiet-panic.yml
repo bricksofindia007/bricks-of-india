@@ -73,9 +73,9 @@ jobs:
     # rejection, not a hang signal. ~2x observed max successful runtime.
     timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -241,7 +241,7 @@ jobs:
       # same BRIEF_EMAIL secret.
       - name: Setup Node (for notification steps)
         if: steps.render.outputs.status == 'pending_approval' || steps.render.outputs.status == 'script_gen_exhausted' || steps.render.outputs.status == 'held_for_review'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'

@@ -6,8 +6,8 @@ import { slugify } from '@/lib/utils';
 import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { getDeals } from '@/lib/price-summary';
 import { FreshOnly } from '@/components/ui/FreshOnly';
-import { PriceAge } from '@/components/ui/PriceAge';
 import { getStores, storeLabels } from '@/lib/stores';
+import { shownTheme } from '@/lib/theme-display';
 
 export const metadata: Metadata = buildMetadata({
   title: 'India Deals Today — The Lab',
@@ -17,7 +17,7 @@ export const metadata: Metadata = buildMetadata({
 
 // Hourly ISR (PR-B). Without a revalidate this page was built once, fully
 // static, and changed only on deploy.
-export const revalidate = 3600; // = READ_REVALIDATE_SECONDS (segment config must be a literal)
+export const revalidate = 86400; // = READ_REVALIDATE_SECONDS (segment config must be a literal)
 
 interface DealRow {
   set_id:      string;
@@ -182,7 +182,7 @@ function DealCard({ deal, labels }: { deal: DealRow; labels: Record<string, stri
             {deal.set.name}
           </Link>
           <div style={{ fontSize: '0.7rem', color: '#9AA5B4', marginTop: 2 }}>
-            #{deal.set.set_number}{deal.set.theme ? ` · ${deal.set.theme}` : ''}
+            #{deal.set.set_number}{shownTheme(deal.set.theme) ? ` · ${shownTheme(deal.set.theme)}` : ''}
           </div>
         </div>
 
@@ -200,9 +200,6 @@ function DealCard({ deal, labels }: { deal: DealRow; labels: Record<string, stri
             ₹{deal.set.lego_mrp_inr.toLocaleString('en-IN')}
           </span>
         </div>
-
-        {/* Freshness */}
-        <div style={{ fontSize: '0.65rem', color: '#CBD5E0' }}><PriceAge scrapedAt={deal.scraped_at || null} /></div>
 
         {/* CTA */}
         <a

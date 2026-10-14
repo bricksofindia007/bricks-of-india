@@ -1,0 +1,25 @@
+name: Public key access check
+
+on:
+  # Runs against staging, so it is started after each migration's staging half (and weekly).
+  schedule:
+    - cron: '30 4 * * 1'   # Mondays 04:30 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - name: Check staging with the public key
+        env:
+          SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          SUPABASE_PUBLIC_KEY: ${{ secrets.STAGING_SUPABASE_PUBLISHABLE_KEY }}
+        run: node scripts/ci/public-key-check.mjs

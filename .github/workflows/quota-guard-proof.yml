@@ -42,8 +42,8 @@ jobs:
     # pip install of 4 small packages + one RPC pair + one email.
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
       - run: pip install supabase==2.31.0 resend==0.7.0 python-dotenv requests
