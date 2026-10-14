@@ -148,10 +148,10 @@ jobs:
             # comment+email too, not just the 100% escalation.
             if [ "$TIER" = "100" ]; then
               MARKER="EXCEEDED"
-              COMMENT_BODY="🚨 **EXCEEDED** — cycle starting $CYCLE_START now at $CREDITS_USED / $TIER2_BUDGET_CREDITS credits ($COMMIT_COUNT commits). Consider re-adding netlify.toml's \`ignore = \"exit 0\"\` guard until the next cycle if deploys aren't essential."
+              COMMENT_BODY="🚨 **EXCEEDED** — usage for the cycle starting $CYCLE_START is above the included amount."
             else
               MARKER="80% of Tier 2"
-              COMMENT_BODY="⚠️ **80% of Tier 2 deploy budget reached** — cycle starting $CYCLE_START now at $CREDITS_USED / $TIER2_BUDGET_CREDITS credits ($COMMIT_COUNT commits)."
+              COMMENT_BODY="⚠️ **80% of Tier 2 deploy budget reached** — usage for the cycle starting $CYCLE_START is at the warning level."
             fi
 
             ALREADY_NOTIFIED=$(gh issue view "$EXISTING" --json comments \
