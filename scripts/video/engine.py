@@ -2428,6 +2428,11 @@ def check_and_send_pending_approval_digest(sb) -> None:
     notifier_mod.send_pending_approval_digest(rows)
 
 
+# Most rows one retry run will look at (P23). The queue of rows waiting for a
+# retry is normally empty; the cap only bounds a backlog.
+RETRY_ROW_LIMIT = 50
+
+
 def retry_missing_platforms_all(sb) -> bool:
     """
     --retry-missing-platform entry point (issue #137, 2026-09-19). Finds every
@@ -2452,11 +2457,14 @@ def retry_missing_platforms_all(sb) -> bool:
     now_utc = datetime.now(timezone.utc)
     today = cadence.ist_date(now_utc)
 
+    # Only the fields the retry reads (retry_missing_platform, cadence.record_attempt,
+    # the log lines below), capped per run so a large backlog cannot grow each read.
     stuck_res = (
         sb.table("video_posts")
-        .select("*")
+        .select("id, story_number, set_title, set_number, status, script, video_path, storage_url")
         .in_("status", ["posted_ig", "posted_yt"])
         .order("story_number")
+        .limit(RETRY_ROW_LIMIT)
         .execute()
     )
     stuck_rows = stuck_res.data
@@ -2756,6 +2764,7 @@ def main() -> None:
         # actually goes live on at least one platform -- a backlog of
         # multiple approved rows must drain one per day, not all at once.
         import cadence
+        import price_check
 
         # Issue #178 (2026-09-24): cadence rules moved to cadence.py. The day
         # cap is now per platform (ig_posted_at / yt_posted_at, plus legacy
@@ -2808,6 +2817,17 @@ def main() -> None:
         for i, video_post in enumerate(approved_rows):
             vid = video_post["id"]
             print(f"\n--- Publishing {vid} (story #{video_post.get('story_number')}, {video_post['set_title']}) ---")
+
+            # P23: the stored price must match the current in-stock price for
+            # this store. A mismatch, an out-of-stock item or no listing holds
+            # the row (publish_blocked + a plain note giving both prices).
+            # Nothing else is changed, and nothing is posted.
+            verdict = price_check.check_row(sb, video_post)
+            if verdict["decision"] == "block":
+                print(f"PRICE CHECK: {vid} not posted: {verdict['note']}")
+                price_check.hold(sb, video_post, verdict)
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "blocked", detail=f"price_check: {verdict['reason']}")
+                continue
 
             try:
                 results = publish_mod.publish_video_post(sb, video_post)
