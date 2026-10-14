@@ -62,7 +62,7 @@ WHAT NEVER APPEARS IN BOI ARTICLES:
 
 INDIA PARAGRAPH — non-negotiable, every article, no exceptions:
 - Use exact store prices from INDIA PRICE DATA provided. Do not calculate.
-- Always mention both stores: MyBrickHouse and Toycra — even if only one has a live price. For stores without a listed price, say "check [store] for availability."
+- Always mention both stores: MyBrickHouse and Toycra — even if only one has a current price. For stores without a listed price, say "check [store] for availability."
 - Always include the Toycra affiliate note exactly: "Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra."
 - If set is not yet in any Indian store: mention 4–6 week India lag from global launch and both stores to watch.
 - MANDATORY COMPARISON — this line is required in every single article, no exceptions, even if there is no price data:

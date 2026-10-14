@@ -10,17 +10,18 @@ export type ReviewVerdict = 'BUY NOW' | 'WAIT' | 'AVOID';
 export type SourceRetailer = 'mybrickhouse' | 'toycra' | 'both';
 
 export const STORE_DISPLAY_NAME: Record<SourceRetailer, string> = {
-  mybrickhouse: 'MyBrickHouse',
+  mybrickhouse: 'LEGO.in',
   toycra:       'Toycra',
-  both:         'MyBrickHouse and Toycra',
+  both:         'LEGO.in and Toycra',
 };
 
-export type DisclaimerVariant = 'buy' | 'wait_mybrickhouse' | 'wait_toycra' | 'avoid';
+export type DisclaimerVariant = 'buy' | 'wait_mybrickhouse' | 'wait_toycra' | 'wait_unlisted' | 'avoid';
 
 export const DISCLAIMER_TEXT: Record<DisclaimerVariant, string> = {
   buy: "Standard disclaimer: if you've got the money, obviously buy it — that's what the verdict says too, for once we all agree.",
-  wait_mybrickhouse: "Standard disclaimer: rich readers can skip the verdict and just buy it. We'll be over here checking if MyBrickHouse's HDFC EMI discount makes this hurt less.",
+  wait_mybrickhouse: "Standard disclaimer: rich readers can skip the verdict and just buy it. We'll be over here checking if LEGO.in's HDFC EMI discount makes this hurt less.",
   wait_toycra: "Standard disclaimer: rich readers can skip the verdict and just buy it. Toycra's prepaid-only, so the rest of us will be here doing sums before we hit checkout.",
+  wait_unlisted: 'Standard disclaimer: rich readers can skip the verdict and just buy it. The rest of us will be here doing sums before we hit checkout.',
   avoid: 'Standard disclaimer: this one we mean literally — money doesn\'t fix bad design. Even the rich readers should sit this one out.',
 };
 
@@ -56,6 +57,25 @@ export function resolveDisclaimerVariant(
       return 'avoid';
     case 'WAIT':
       return sourceRetailer === 'toycra' ? 'wait_toycra' : 'wait_mybrickhouse';
+    default:
+      throw new InvalidReviewVerdictError(verdict);
+  }
+}
+
+/**
+ * Resolves the variant for a review with no retailer link (legacy reviews).
+ * No store is named, so WAIT gets the neutral line. Throws for any verdict
+ * outside BUY NOW / WAIT / AVOID, the same as resolveDisclaimerVariant.
+ * The retailer-sourced resolver above is unchanged.
+ */
+export function resolveUnlistedDisclaimerVariant(verdict: string): DisclaimerVariant {
+  switch (verdict) {
+    case 'BUY NOW':
+      return 'buy';
+    case 'AVOID':
+      return 'avoid';
+    case 'WAIT':
+      return 'wait_unlisted';
     default:
       throw new InvalidReviewVerdictError(verdict);
   }

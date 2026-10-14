@@ -73,15 +73,15 @@ async function getThemeName(themeId) {
       `${BASE_URL}/themes/${themeId}/`,
       { headers: { Authorization: `key ${REBRICKABLE_API_KEY}` } },
     );
-    if (!res.ok) {
-      themeCache[themeId] = 'Unknown';
-      return 'Unknown';
-    }
+    // (g) 1 Oct 2026: a failed lookup used to be cached and written as theme "Unknown" (48 live set
+    // pages showed it). Now it's not cached (retried next page/run) and the theme column is left alone.
+    if (!res.ok) return null;
     const data = await res.json();
-    themeCache[themeId] = data.name ?? 'Unknown';
+    if (!data.name) return null;
+    themeCache[themeId] = data.name;
   } catch (err) {
     console.warn(`[RB] Theme ${themeId} lookup failed: ${err.message}`);
-    themeCache[themeId] = 'Unknown';
+    return null;
   }
   return themeCache[themeId];
 }
@@ -110,7 +110,7 @@ async function upsertPage(results) {
     rows.push({
       set_number:     setNumber,
       name:           set.name,
-      theme:          themeCache[set.theme_id] ?? 'Unknown',
+      theme:          themeCache[set.theme_id] ?? null,
       year:           set.year,
       pieces:         set.num_parts,
       image_url:      set.set_img_url,
@@ -119,10 +119,15 @@ async function upsertPage(results) {
     });
   }
 
-  // One Supabase call for the whole page (replaces N individual upserts)
-  const { error } = await supabase
-    .from('sets')
-    .upsert(rows, { onConflict: 'set_number' });
+  // One Supabase call per group: rows whose theme lookup failed are upserted WITHOUT the theme
+  // column, so an existing theme is never overwritten (a new row gets NULL, never "Unknown").
+  const known = rows.filter((r) => r.theme), unknown = rows.filter((r) => !r.theme).map(({ theme, ...r }) => r);
+  let error = null;
+  for (const group of [known, unknown]) {
+    if (!group.length) continue;
+    const res = await supabase.from('sets').upsert(group, { onConflict: 'set_number', defaultToNull: false });
+    if (res.error) { error = res.error; break; }
+  }
 
   if (error) {
     console.error(`  ✗ Batch upsert failed: ${error.message}`);

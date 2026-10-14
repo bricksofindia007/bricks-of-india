@@ -1,13 +1,19 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
-import ReactMarkdown from 'react-markdown';
+import { ArticleMarkdown } from '@/components/content/ArticleMarkdown';
 import { supabase } from '@/lib/supabase';
 import { formatDate } from '@/lib/utils';
 import { JsonLd } from '@/components/JsonLd';
 import { buildArticleSchema } from '@/lib/schemas';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
+
+// P10 revalidate audit (29 Sep): this route had no revalidate of its own and was either built
+// once per deploy (its data froze between deploys) or refreshed only as a side effect of a shared
+// read. Its cadence is now explicit and checked in CI.
+export const revalidate = 86400; // = READ_REVALIDATE_SECONDS (src/lib/route-cadence.ts; segment config must be a literal)
 
 interface Props { params: Promise<{ slug: string }> }
 
@@ -20,16 +26,14 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   const params = await props.params;
   const { data: guide } = await supabase.from('guides').select('title, excerpt, featured_image_url').eq('slug', params.slug).single();
   if (!guide) return { title: 'Guide Not Found' };
-  return {
-    title: `${guide.title} | Bricks of India`,
-    description: guide.excerpt || undefined,
-    alternates: { canonical: `https://bricksofindia.com/guides/${params.slug}` },
-    openGraph: {
-      title: guide.title,
-      description: guide.excerpt || undefined,
-      images: guide.featured_image_url ? [{ url: guide.featured_image_url }] : [],
-    },
-  };
+  return buildMetadata({
+    title: guide.title,
+    description: guide.excerpt || `${guide.title}: a LEGO buying guide for India from Bricks of India.`,
+    path: `/guides/${params.slug}`,
+    image: guide.featured_image_url,
+    ogTitle: guide.title,
+    ogType: 'article',
+  });
 }
 
 export default async function GuideArticlePage(props: Props) {
@@ -55,7 +59,7 @@ export default async function GuideArticlePage(props: Props) {
           <span>/</span>
           <Link href="/guides" className="hover:text-accent-blue">Guides</Link>
           <span>/</span>
-          <span className="text-dark font-bold truncate">{guide.title}</span>
+          <span className="text-dark font-bold truncate min-w-0 flex-1">{guide.title}</span>
         </nav>
       </div>
 
@@ -81,7 +85,7 @@ export default async function GuideArticlePage(props: Props) {
         <h1 className="font-heading text-dark text-5xl md:text-6xl mb-6">{guide.title}</h1>
 
         <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8 prose-p:mb-5 prose-p:leading-relaxed prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-2xl prose-h3:text-xl">
-          <ReactMarkdown>{guide.content}</ReactMarkdown>
+          <ArticleMarkdown>{guide.content}</ArticleMarkdown>
         </div>
 
         <ToycraDiscountBanner variant="compact" />

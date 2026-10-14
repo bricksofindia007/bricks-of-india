@@ -1,6 +1,8 @@
 'use server';
 
+import { requireAdmin } from '@/app/admin/require-admin';
 import { cookies } from 'next/headers';
+import { ADMIN_COOKIE, ADMIN_SESSION_SECONDS, adminPasswordMatches, createAdminSession, isValidAdminSession } from '@/lib/admin-session';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase';
@@ -9,13 +11,13 @@ import { publishOneDraft } from '@/lib/publish-draft';
 
 export async function login(formData: FormData) {
   const pw = (formData.get('password') as string) ?? '';
-  const correct = process.env.ADMIN_PASSWORD;
-  if (!correct) throw new Error('ADMIN_PASSWORD env var not set');
-  if (pw === correct) {
-    (await cookies()).set('boi_admin', pw, {
+  if (!process.env.ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD env var not set');
+  if (adminPasswordMatches(pw)) {
+    // The cookie carries a signed, expiring token, never the password itself.
+    (await cookies()).set(ADMIN_COOKIE, createAdminSession(), {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
-      maxAge: 60 * 60 * 8,
+      maxAge: ADMIN_SESSION_SECONDS,
       path: '/admin',
       sameSite: 'strict',
     });
@@ -24,11 +26,12 @@ export async function login(formData: FormData) {
 }
 
 export async function logout() {
-  (await cookies()).delete('boi_admin');
+  (await cookies()).delete(ADMIN_COOKIE);
   redirect('/admin/pending');
 }
 
 export async function approveDraft(formData: FormData) {
+  await requireAdmin();
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending';
   const supabase   = createServerClient();
@@ -44,6 +47,7 @@ export async function approveDraft(formData: FormData) {
 }
 
 export async function rejectDraft(formData: FormData) {
+  await requireAdmin();
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending';
   const supabase   = createServerClient();
@@ -59,6 +63,7 @@ export async function rejectDraft(formData: FormData) {
 }
 
 export async function approveAll(formData: FormData) {
+  await requireAdmin();
   const format     = (formData.get('format') as string) || null;
   const domain     = (formData.get('domain') as string) || null;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending';
@@ -95,6 +100,7 @@ export async function approveAll(formData: FormData) {
 // ── Generate Article (on-demand, single draft) ────────────────────────────────
 
 export async function generateArticle(formData: FormData) {
+  await requireAdmin();
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
   try {
@@ -133,8 +139,7 @@ export async function generateArticle(formData: FormData) {
 // ── Trigger batch generation via GitHub Actions ───────────────────────────────
 
 export async function triggerBatchGeneration(): Promise<{ ok: boolean; error?: string }> {
-  const pw = (await cookies()).get('boi_admin')?.value;
-  if (!pw || pw !== process.env.ADMIN_PASSWORD) return { ok: false, error: 'Unauthorized' };
+  if (!isValidAdminSession((await cookies()).get(ADMIN_COOKIE)?.value)) return { ok: false, error: 'Unauthorized' };
   const token = process.env.GH_DISPATCH_TOKEN;
   if (!token) return { ok: false, error: 'GH_DISPATCH_TOKEN not set — add to Netlify environment variables' };
   try {
@@ -199,6 +204,7 @@ async function sendLintAlert(draftTitle: string, gateMessage: string): Promise<v
 // ── publishDraft — single draft via Publish button ────────────────────────────
 
 export async function publishDraft(formData: FormData) {
+  await requireAdmin();
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
   const supabase   = createServerClient();

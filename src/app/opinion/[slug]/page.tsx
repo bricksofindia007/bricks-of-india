@@ -1,9 +1,10 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
-import ReactMarkdown from 'react-markdown';
+import { ArticleMarkdown } from '@/components/content/ArticleMarkdown';
 import { formatDate, readingTime, whatsappShareUrl, twitterShareUrl } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
@@ -23,16 +24,15 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     .eq('category', 'Opinion')
     .single();
   if (!post) return { title: 'Post Not Found' };
-  return {
-    title: post.seo_title || `${post.title} | Bricks of India`,
+  return buildMetadata({
+    title: post.seo_title || post.title,
     description: post.seo_description || post.excerpt,
-    alternates: { canonical: `https://bricksofindia.com/opinion/${params.slug}` },
-    openGraph: {
-      title: post.title,
-      description: post.excerpt,
-      images: post.hero_image ? [{ url: post.hero_image }] : [],
-    },
-  };
+    path: `/opinion/${params.slug}`,
+    image: post.hero_image,
+    ogTitle: post.title,
+    ogDescription: post.excerpt,
+    ogType: 'article',
+  });
 }
 
 export default async function OpinionPostPage(props: Props) {
@@ -58,7 +58,7 @@ export default async function OpinionPostPage(props: Props) {
     .limit(3);
 
   const shareUrl = `https://bricksofindia.com/opinion/${params.slug}`;
-  const waText = `${post.title} — via Bricks of India. Use code ABHINAV12 for 12% off at Toycra!`;
+  const waText = `${post.title} — via Bricks of India. Use code ABHINAV12 for 12% off full-price sets at Toycra!`;
 
   return (
     <div className="bg-white min-h-screen">
@@ -70,7 +70,7 @@ export default async function OpinionPostPage(props: Props) {
           <span>/</span>
           <Link href="/opinion" className="hover:text-accent-blue">Opinion</Link>
           <span>/</span>
-          <span className="text-dark font-bold truncate">{post.title}</span>
+          <span className="text-dark font-bold truncate min-w-0 flex-1">{post.title}</span>
         </nav>
       </div>
 
@@ -92,7 +92,7 @@ export default async function OpinionPostPage(props: Props) {
         <Byline publishedAt={post.published_at} updatedAt={post.updated_at} />
 
         <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8 prose-p:mb-5 prose-p:leading-relaxed prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-2xl prose-h3:text-xl">
-          <ReactMarkdown>{cleanContent}</ReactMarkdown>
+          <ArticleMarkdown>{cleanContent}</ArticleMarkdown>
         </div>
 
         {/* Share */}

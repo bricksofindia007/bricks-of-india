@@ -42,10 +42,13 @@ export const CHECK_NAME_OWNERS = {
   ],
   'reviews-source-refresh.mjs': [
     'review_out_of_stock', 'verdict_flip_candidate', 'review_set_unmatched',
-    'review_source_fetch_incomplete', 'review_resplice_failed',
+    'review_source_fetch_incomplete', 'stored_columns_update_failed',
   ],
   'guide-staleness-guard.js': [
-    'guide_staleness',
+    'guide_staleness', 'guide_set_retired',
+  ],
+  'retirement-check.mjs': [
+    'set_retired_auto_corrected',
   ],
 };
 

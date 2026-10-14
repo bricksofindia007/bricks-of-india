@@ -1,31 +1,25 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import type { CSSProperties } from 'react';
 import { unstable_cache } from 'next/cache';
 import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
+import { baselinePrices, type HistRow } from '@/lib/price-baseline';
+import { getStores, storeLabels } from '@/lib/stores';
+import { abhinav12Price } from '@/lib/abhinav12';
+import { shownTheme } from '@/lib/theme-display';
 
-export const metadata: Metadata = {
-  title: 'LEGO Price Drops in India — Bricks of India',
-  description:
-    'Daily LEGO price drops across Indian stores — Toycra and MyBrickHouse. ' +
-    'Sorted by biggest drop. Updated every day from live store data.',
-  alternates: { canonical: 'https://bricksofindia.com/lab/price-drops' },
-};
+export const metadata: Metadata = buildMetadata({
+  title: 'LEGO Price Drops in India — The Lab',
+  description: 'LEGO price drops across Indian stores — Toycra and LEGO.in. Sorted by biggest drop.',
+  path: '/lab/price-drops',
+});
 
-const STORE_LABELS: Record<string, string> = {
-  toycra:       'Toycra',
-  mybrickhouse: 'MyBrickHouse',
-};
-const STORE_IDS = ['toycra', 'mybrickhouse'];
 
 function fmtInr(n: number) {
   return `₹${Math.round(n).toLocaleString('en-IN')}`;
 }
-function fmtDate(iso: string) {
-  return new Date(iso).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
-}
-
 interface DropRow {
   set_id:    string;
   store_id:  string;
@@ -34,6 +28,7 @@ interface DropRow {
   drop_inr:  number;
   drop_pct:  number;
   scraped_at: string;
+  compare_at: number | null;
   name:      string;
   theme:     string | null;
   image_url: string | null;
@@ -70,40 +65,55 @@ const getPriceDropsData = unstable_cache(
     const PAGE  = 1000;
 
     // ── 1. Current prices from store_prices ──────────────────────────────────────
-    const currentMap = new Map<string, { price: number; scraped_at: string }>();
+    const currentMap = new Map<string, { price: number; scraped_at: string; compare_at: number | null }>();
     for (let offset = 0; ; offset += PAGE) {
       const { data } = await supabase
         .from('store_prices')
-        .select('set_id, store_id, price_inr, scraped_at')
+        .select('set_id, store_id, price_inr, scraped_at, compare_at_price_inr')
         .not('price_inr', 'is', null)
         .range(offset, offset + PAGE - 1);
       if (!data || data.length === 0) break;
-      for (const r of data as { set_id: string; store_id: string; price_inr: number; scraped_at: string }[]) {
-        currentMap.set(`${r.set_id}:${r.store_id}`, { price: r.price_inr, scraped_at: r.scraped_at });
+      for (const r of data as { set_id: string; store_id: string; price_inr: number; scraped_at: string; compare_at_price_inr: number | null }[]) {
+        currentMap.set(`${r.set_id}:${r.store_id}`, { price: r.price_inr, scraped_at: r.scraped_at, compare_at: r.compare_at_price_inr });
       }
       if (data.length < PAGE) break;
     }
 
-    // ── 2. Baseline prices: oldest 5 pages of price_history in the 30-day window ─
-    // Order ASC → first occurrence per (set_id, store_id) = oldest available price.
-    const baselineMap = new Map<string, number>();
-    for (let page = 0; page < 5; page++) {
+    // ── 2. Baseline = price at the window start (#383) ─────────────────────────
+    // price_history is change-only since FP5.7, so the price 30 days ago is
+    // the LATEST row at or before `since`; the oldest row inside the window
+    // would be the first change (e.g. the already-dropped price). See
+    // src/lib/price-baseline.ts. Pre-window rows are compacted change points
+    // (~3.6k on 27 Sep), newest first; in-window rows oldest first as the
+    // fallback for listings first seen inside the window.
+    const preWindow: HistRow[] = [];
+    for (let page = 0; page < 20; page++) {
       const { data } = await supabase
         .from('price_history')
-        .select('set_id, store_id, price_inr')
-        .gte('recorded_at', since)
+        .select('set_id, store_id, price_inr, recorded_at')
+        .lte('recorded_at', since)
+        .order('recorded_at', { ascending: false })
+        .range(page * PAGE, page * PAGE + PAGE - 1);
+      if (!data || data.length === 0) break;
+      preWindow.push(...(data as HistRow[]));
+      if (data.length < PAGE) break;
+    }
+    const inWindow: HistRow[] = [];
+    for (let page = 0; page < 20; page++) {
+      const { data } = await supabase
+        .from('price_history')
+        .select('set_id, store_id, price_inr, recorded_at')
+        .gt('recorded_at', since)
         .order('recorded_at', { ascending: true })
         .range(page * PAGE, page * PAGE + PAGE - 1);
       if (!data || data.length === 0) break;
-      for (const r of data as { set_id: string; store_id: string; price_inr: number }[]) {
-        const key = `${r.set_id}:${r.store_id}`;
-        if (!baselineMap.has(key)) baselineMap.set(key, r.price_inr);
-      }
+      inWindow.push(...(data as HistRow[]));
       if (data.length < PAGE) break;
     }
+    const baselineMap = baselinePrices(preWindow, inWindow);
 
     // ── 3. Compute drops ──────────────────────────────────────────────────────────
-    type RawDrop = { set_id: string; store_id: string; old_price: number; new_price: number; drop_inr: number; drop_pct: number; scraped_at: string };
+    type RawDrop = { set_id: string; store_id: string; old_price: number; new_price: number; drop_inr: number; drop_pct: number; scraped_at: string; compare_at: number | null };
     const rawDrops: RawDrop[] = [];
 
     for (const [key, cur] of Array.from(currentMap.entries())) {
@@ -114,7 +124,7 @@ const getPriceDropsData = unstable_cache(
       const drop_pct = (drop_inr / baseline) * 100;
       if (drop_inr < 200 && drop_pct < 5) continue;
       const [set_id, store_id] = key.split(':');
-      rawDrops.push({ set_id, store_id, old_price: baseline, new_price: cur.price, drop_inr, drop_pct, scraped_at: cur.scraped_at });
+      rawDrops.push({ set_id, store_id, old_price: baseline, new_price: cur.price, drop_inr, drop_pct, scraped_at: cur.scraped_at, compare_at: cur.compare_at });
     }
 
     // ── 4. Fetch set metadata for matched set_ids ─────────────────────────────────
@@ -145,10 +155,14 @@ const getPriceDropsData = unstable_cache(
     return { allRows, allThemes };
   },
   ['lab-price-drops-data'],
-  { revalidate: 21600 }, // 6h — matches scrape-prices.yml's real cron, see comment above
+  { revalidate: 86400 }, // 24 h, same as the page
 );
 
 export default async function PriceDropsPage(props: Props) {
+  // FP5.1: store names come from the retailer registry (src/lib/stores.ts).
+  const stores = await getStores();
+  const STORE_LABELS = storeLabels(stores);
+  const STORE_IDS = stores.map((s) => s.id);
   const searchParams = await props.searchParams;
   const storeFilter  = searchParams.store  || '';
   const themeFilter  = searchParams.theme  || '';
@@ -189,7 +203,7 @@ export default async function PriceDropsPage(props: Props) {
           {hasFilters ? ' (filtered)' : ' — min ₹200 or 5%'}
         </p>
         <p style={{ color: '#CBD5E0', fontSize: '0.72rem', margin: 0 }}>
-          Toycra · MyBrickHouse · Scraped daily · Sorted by biggest ₹ drop
+          Toycra · LEGO.in · Sorted by biggest ₹ drop
         </p>
       </div>
 
@@ -238,7 +252,7 @@ export default async function PriceDropsPage(props: Props) {
               No price drops in the last 30 days
             </p>
             <p style={{ fontSize: '0.82rem', margin: 0 }}>
-              {hasFilters ? 'Try clearing your filters.' : 'Check back soon. Our scrapers run daily.'}
+              {hasFilters ? 'Try clearing your filters.' : 'Check back soon.'}
             </p>
           </div>
         ) : (
@@ -246,8 +260,8 @@ export default async function PriceDropsPage(props: Props) {
             {allRows.map(r => {
               const slug      = `${r.set_id}-${slugify(r.name)}`;
               const storeName = STORE_LABELS[r.store_id] ?? r.store_id;
-              const isToycra  = r.store_id === 'toycra';
-              const discounted = isToycra && r.new_price >= 500 ? Math.round(r.new_price * 0.88) : null;
+              // ABHINAV12 only on full-price Toycra listings (src/lib/abhinav12.ts).
+              const discounted = abhinav12Price({ store_id: r.store_id, price_inr: r.new_price, compare_at_price_inr: r.compare_at });
 
               return (
                 <div key={`${r.set_id}:${r.store_id}`} style={{
@@ -276,7 +290,7 @@ export default async function PriceDropsPage(props: Props) {
                         {r.name}
                       </Link>
                       <div style={{ fontSize: '0.68rem', color: '#9AA5B4', marginTop: 2 }}>
-                        #{r.set_id}{r.theme ? ` · ${r.theme}` : ''}
+                        #{r.set_id}{shownTheme(r.theme) ? ` · ${shownTheme(r.theme)}` : ''}
                       </div>
                     </div>
 
@@ -303,11 +317,6 @@ export default async function PriceDropsPage(props: Props) {
                           {fmtInr(discounted)} with ABHINAV12
                         </div>
                       )}
-                    </div>
-
-                    {/* Date */}
-                    <div style={{ fontSize: '0.65rem', color: '#CBD5E0', marginTop: 2 }}>
-                      Updated {fmtDate(r.scraped_at)}
                     </div>
 
                     <Link

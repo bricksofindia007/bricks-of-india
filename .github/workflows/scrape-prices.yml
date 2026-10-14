@@ -1,9 +1,6 @@
 name: Scrape Store Prices
 
 on:
-  schedule:
-    # Every 6 hours: 00:00, 06:00, 12:00, 18:00 UTC
-    - cron: '0 */6 * * *'
   workflow_dispatch:
     inputs:
       dry_run:
@@ -11,6 +8,25 @@ on:
         required: false
         default: 'false'
         type: boolean
+      # P14 pre-write stop (#450): approve ONE run for a held store. The run
+      # writes that store only if its own available count is within 2% of
+      # approve_available. Nothing persists; leave both empty on normal runs.
+      # FP5.9 (#460): the boi-scheduler Worker sends {"store": "<id>"} (one retailer per run).
+      store:
+        description: 'Scrape only this store id (mybrickhouse | toycra); empty = all stores'
+        required: false
+        default: ''
+        type: string
+      approve_store:
+        description: 'Approve one run for this held store (e.g. lego.in); empty = no approval'
+        required: false
+        default: ''
+        type: string
+      approve_available:
+        description: 'Expected available product count for approve_store (this run writes only within 2%)'
+        required: false
+        default: ''
+        type: string
 
 jobs:
   scrape:
@@ -23,10 +39,10 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'
@@ -35,6 +51,8 @@ jobs:
         run: npm ci
 
       - name: Run Shopify scraper
+        id: scrape
+        continue-on-error: true
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -44,10 +62,52 @@ jobs:
           # fetch sets not yet in Supabase. Not required for price-only scraping.
           REBRICKABLE_API_KEY: ${{ secrets.REBRICKABLE_API_KEY }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          # FP5 contract comparison input (P4 Step 4g): scrape-now keeps a copy of the
+          # catalogue + feeds it already fetched; the comparison step below reads them.
+          CONTRACT_CACHE_DIR: ${{ runner.temp }}/contract-cache
+          # P14 4.4: per-run feed facts for guarded stores (artifact only).
+          SCRAPE_RUN_OUT: out/scrape-run
+          SCRAPE_STORE: ${{ github.event.inputs.store || '' }}
+          # B3: the public log shows pass/fail + counts; details go to boi-ops via out/scrape-run.
+          QUIET_LOGS: '1'
+          APPROVE_STORE: ${{ github.event.inputs.approve_store || '' }}
+          APPROVE_AVAILABLE: ${{ github.event.inputs.approve_available || '' }}
         run: npx tsx scripts/scrape-now.mjs
 
-      - name: Sync new/changed sets to IndexNow
+      - name: Store per-run feed facts (private boi-ops, B2)
         if: always()
+        env:
+          BOI_OPS_TOKEN: ${{ secrets.BOI_OPS_TOKEN }}
+        continue-on-error: true
+        run: bash scripts/ci/push-to-boi-ops.sh out/scrape-run scrape-run/${{ github.run_id }}
+
+      # FP5.2-5.6 contract comparison -- NON-WRITING (P4 Step 4g, Tier 2 first live
+      # run). Runs the new contract (identity ladder, parse validation, breaker,
+      # policy hashes) over the feeds this run already fetched and diffs it against
+      # the legacy parser + store_prices. Writes NOTHING to the database; never
+      # affects this job's result (continue-on-error). Starts the FP5.8 >=12-cycle
+      # clock. G2: 0 retailer re-fetches; ~4 policy-file GETs and ~12 small
+      # Supabase reads per cycle.
+      - name: FP5 contract comparison (non-writing)
+        if: always() && steps.scrape.outcome == 'success'
+        continue-on-error: true
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/scraper-contract-dryrun.mjs --from-cache "${{ runner.temp }}/contract-cache" --out out/match-audit
+
+      - name: Store FP5.6 match audit (private boi-ops, B2)
+        if: always() && steps.scrape.outcome == 'success'
+        env:
+          BOI_OPS_TOKEN: ${{ secrets.BOI_OPS_TOKEN }}
+        continue-on-error: true
+        run: bash scripts/ci/push-to-boi-ops.sh out/match-audit match-audit/${{ github.run_id }}
+
+      # P14 4.5 (#454): only after a real write -- never on a dry run, a
+      # failed scrape, or a run where every guarded store was held and
+      # nothing was upserted. Toycra writes still count as a write.
+      - name: Sync new/changed sets to IndexNow
+        if: steps.scrape.outcome == 'success' && steps.scrape.outputs.wrote == 'true' && github.event.inputs.dry_run != 'true'
         env:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
@@ -59,3 +119,41 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: npx tsx scripts/report-store-prices.ts
+
+      # PR-A (2026-09-26): staleness alert. Fails when a store's newest price
+      # (or 20%+ of its in-stock rows) is older than PRICE_STALE_HOURS -- the
+      # age at which the site stops badging prices. Skipped on dry runs.
+      - name: Check price freshness
+        id: freshness
+        if: always() && github.event.inputs.dry_run != 'true'
+        continue-on-error: true
+        env:
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: npx tsx scripts/check-price-freshness.ts
+
+      # Same alert path as retention-cleanup.yml (#192).
+      - name: Send failure alert
+        if: steps.scrape.outcome == 'failure' || steps.freshness.outcome == 'failure'
+        continue-on-error: true
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL:    ${{ secrets.BRIEF_EMAIL }}
+          WORKFLOW_NAME:  scrape-prices
+          STEP_OUTCOMES:  '{"Run Shopify scraper": "${{ steps.scrape.outcome }}", "Check price freshness": "${{ steps.freshness.outcome }}"}'
+        run: node scripts/workflow-failure-notify.mjs
+
+      # continue-on-error above would otherwise leave the job green on a real
+      # failure; this step is the sole authority on pass/fail.
+      - name: Fail job if scrape or freshness failed, or a store was held
+        if: always()
+        run: |
+          if [ "${{ steps.scrape.outcome }}" = "failure" ] || [ "${{ steps.freshness.outcome }}" = "failure" ]; then
+            echo "::error::scrape or freshness check failed -- see step logs above; alert email already sent"
+            exit 1
+          fi
+          if [ -n "${{ steps.scrape.outputs.held_stores }}" ]; then
+            echo "::error::pre-write stop held: ${{ steps.scrape.outputs.held_stores }} (nothing written for it; alert email already sent)"
+            exit 1
+          fi
+          echo "Scrape and freshness check passed."

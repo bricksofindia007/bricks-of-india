@@ -5,7 +5,7 @@ export default function Loading() {
         <div className="h-8 w-40 bg-gray-200 rounded-lg mb-6" />
 
         {/* Lab tool card grid skeleton -- also covers data-heavy sub-tools
-            (price-drops, retiring-soon, heat-map, etc.) since this
+            (price-drops, retiring-soon, etc.) since this
             loading.tsx cascades to the whole /lab/* subtree. Minifig HQ
             (formerly cmf-tracker) moved out to a top-level route,
             2026-08-11 -- no longer part of this subtree. */}

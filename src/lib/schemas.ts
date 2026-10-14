@@ -1,12 +1,13 @@
 import { BRAND } from './brand';
+import { isPriceFresh } from './price-freshness';
 
 export const organizationSchema = {
   '@context': 'https://schema.org',
   '@type': 'Organization',
   name: 'Bricks of India',
   slogan: BRAND.tagline,
-  url: 'https://www.bricksofindia.com',
-  logo: 'https://www.bricksofindia.com/brand/hero-banner.png',
+  url: 'https://bricksofindia.com',
+  logo: 'https://bricksofindia.com/brand/hero-banner.png',
   contactPoint: {
     '@type': 'ContactPoint',
     contactType: 'customer support',
@@ -28,10 +29,10 @@ export const websiteSchema = {
   '@context': 'https://schema.org',
   '@type': 'WebSite',
   name: 'Bricks of India',
-  url: 'https://www.bricksofindia.com',
+  url: 'https://bricksofindia.com',
   potentialAction: {
     '@type': 'SearchAction',
-    target: 'https://www.bricksofindia.com/search?q={search_term_string}',
+    target: 'https://bricksofindia.com/search?q={search_term_string}',
     'query-input': 'required name=search_term_string',
   },
 };
@@ -47,7 +48,7 @@ export const personSchema = {
     url: 'https://bricksofindia.com/contact',
     availableLanguage: ['English', 'Hindi'],
   },
-  url: 'https://www.bricksofindia.com/about',
+  url: 'https://bricksofindia.com/about',
   description:
     '20+ years in enterprise sales, marketing, and account management. Cornell University. Founder of Bricks of India.',
   sameAs: [
@@ -64,7 +65,7 @@ export const publisherSchema = {
   name: 'Bricks of India',
   logo: {
     '@type': 'ImageObject',
-    url: 'https://www.bricksofindia.com/brand/hero-banner.png',
+    url: 'https://bricksofindia.com/brand/hero-banner.png',
   },
 } as const;
 
@@ -72,7 +73,7 @@ export const authorSchema = {
   '@type': 'Person',
   name: 'Abhinav Bhargav',
   jobTitle: 'Founder, Bricks of India',
-  url: 'https://www.bricksofindia.com/about',
+  url: 'https://bricksofindia.com/about',
   sameAs: [
     'https://www.youtube.com/@BricksofIndia',
     'https://www.instagram.com/bricksofindia/',
@@ -108,7 +109,7 @@ export function buildItemListSchema(
         brand: { '@type': 'Brand', name: 'LEGO' },
       };
       if (item.image_url) product.image = item.image_url;
-      if (item.bestPrice) {
+      if (item.bestPrice && item.bestPrice.price_inr > 0) {
         product.offers = {
           '@type': 'Offer',
           price: item.bestPrice.price_inr,
@@ -127,6 +128,7 @@ type StorePrice = {
   product_url?: string | null;
   store_id: string;
   in_stock: boolean;
+  scraped_at?: string | null;
 };
 
 type SetData = {
@@ -214,7 +216,7 @@ export function buildReviewSchema(
     publisher: {
       '@type': 'Organization',
       name: 'Bricks of India',
-      url: 'https://www.bricksofindia.com',
+      url: 'https://bricksofindia.com',
     },
     ...(review.rating != null
       ? {
@@ -250,34 +252,44 @@ export function verdictToRating(verdict: string | null): number | null {
 // activePrices/storeNames shape from store_prices already, on-page, for
 // their own price display; this is just the one JSON-LD rendering of that
 // same data, factored out so the two call sites can't drift.
-function buildAggregateOffer(
+//
+// #220: only rows that are in stock AND fresh (scraped <= PRICE_STALE_HOURS,
+// 12h) are offers anyone can act on, so lowPrice/highPrice/offerCount come
+// from those alone -- the same rows the page's best in-stock price uses. A
+// sold-out store's cheaper price used to become lowPrice (/sets/71043 said
+// 37799 while the only buyable price was 50399). When no row qualifies there
+// is no AggregateOffer at all: each store is listed as a plain Offer marked
+// OutOfStock, so the markup never advertises a price that can't be paid (G14).
+export function buildAggregateOffer(
   activePrices: StorePrice[],
   storeNames: Record<string, string>,
   fallbackUrl: string,
+  now: number = Date.now(),
 ) {
+  const offer = (sp: StorePrice, availability: string) => ({
+    '@type': 'Offer',
+    price: sp.price_inr,
+    priceCurrency: 'INR',
+    url: sp.product_url || fallbackUrl,
+    availability,
+    seller: { '@type': 'Organization', name: storeNames[sp.store_id] ?? sp.store_id },
+  });
+  // A price of 0 or no price is not a real price (3 Oct 2026): such rows are left out, and with no real price at
+  // all there is no offer in the markup.
+  const priced = activePrices.filter((sp) => sp.price_inr != null && sp.price_inr > 0);
+  const buyable = priced.filter((sp) => sp.in_stock && isPriceFresh(sp.scraped_at, now));
+  if (buyable.length === 0) {
+    return priced.length ? priced.map((sp) => offer(sp, 'https://schema.org/OutOfStock')) : undefined;
+  }
+  const prices = buyable.map((sp) => sp.price_inr);
   return {
     '@type': 'AggregateOffer',
     priceCurrency: 'INR',
-    lowPrice: activePrices.reduce(
-      (min, sp) => (sp.price_inr < min ? sp.price_inr : min),
-      activePrices[0].price_inr,
-    ),
-    highPrice: activePrices.reduce(
-      (max, sp) => (sp.price_inr > max ? sp.price_inr : max),
-      activePrices[0].price_inr,
-    ),
-    offerCount: activePrices.length,
+    lowPrice: Math.min(...prices),
+    highPrice: Math.max(...prices),
+    offerCount: buyable.length,
     availability: 'https://schema.org/InStock',
-    offers: activePrices.map((sp) => ({
-      '@type': 'Offer',
-      price: sp.price_inr,
-      priceCurrency: 'INR',
-      url: sp.product_url || fallbackUrl,
-      availability: sp.in_stock
-        ? 'https://schema.org/InStock'
-        : 'https://schema.org/OutOfStock',
-      seller: { '@type': 'Organization', name: storeNames[sp.store_id] ?? sp.store_id },
-    })),
+    offers: buyable.map((sp) => offer(sp, 'https://schema.org/InStock')),
   };
 }
 

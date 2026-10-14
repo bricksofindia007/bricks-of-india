@@ -1,16 +1,22 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { supabase } from '@/lib/supabase';
 import { formatDate } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
 import { TaglineWink } from '@/components/ui/Taglines';
 
-export const metadata: Metadata = {
-  title: 'LEGO Opinion & Hot Takes India 2026 | Bricks of India',
+// P10 revalidate audit (29 Sep): this route had no revalidate of its own and was either built
+// once per deploy (its data froze between deploys) or refreshed only as a side effect of a shared
+// read. Its cadence is now explicit and checked in CI.
+export const revalidate = 86400; // = READ_REVALIDATE_SECONDS (src/lib/route-cadence.ts; segment config must be a literal)
+
+export const metadata: Metadata = buildMetadata({
+  title: 'LEGO Opinion & Hot Takes India 2026',
   description: 'Honest opinions on LEGO sets, pricing, and collecting in India. No PR fluff — just straight talk about what\'s worth your money and what isn\'t.',
-  alternates: { canonical: 'https://bricksofindia.com/opinion' },
-};
+  path: '/opinion',
+});
 
 interface OpinionPost {
   id: number;

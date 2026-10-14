@@ -1,0 +1,92 @@
+name: retirement-check
+
+# Universal retirement check (content-freshness mechanism, 2026-09-21) —
+# corrects any review or Review-category news_article whose linked set
+# has been marked sets.retired = true, but still carries a live purchase
+# verdict. Auto-correct is safe here (unlike a price-driven verdict
+# flip, which stays manual) — "retired" is a catalogue fact, not a
+# judgment call. See scripts/retirement-check.mjs header for full
+# reasoning; this is the exact pattern manually verified on 25 real
+# rows this session (PR #163), turned into a recurring, idempotent job.
+#
+# Shipped workflow_dispatch-only at first (2026-09-21), per DEPLOY_POLICY.md
+# Tier 2 ("a new automation's first live run(s) — stays Tier 2 until it has
+# an actual live track record"). Proven live via manual dispatch (run
+# 35631455251, real production data, real GitHub Actions environment,
+# correctly found 0 corrections needed). Schedule enabled 2026-09-21 —
+# explicit operator approval — Sunday 02:45 UTC, after retiring-soon.yml
+# (02:00 UTC, the job that actually computes sets.retired) and
+# sync-catalogue.yml (02:15 UTC), so this always reads a freshly-updated
+# retired flag.
+
+on:
+  schedule:
+    - cron: '45 2 * * 0'
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'Dry run (print what would be corrected, skip writes)'
+        required: false
+        default: 'false'
+        type: boolean
+
+jobs:
+  # FP6.4 quota gate (P4 Step 2): non-essential workflow -- pauses when a
+  # Free-plan guard is closed (storage >= 800 MB / DB >= 400 MB / egress
+  # projected >= 4.0 GB) or usage is unreadable. See quota-gate.yml.
+  quota-gate:
+    uses: ./.github/workflows/quota-gate.yml
+    permissions:
+      contents: read
+      actions: write
+    with:
+      job: retirement-check
+      needs: 'read,write'
+    secrets: inherit
+
+  check:
+    needs: [quota-gate]
+    if: needs.quota-gate.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+      NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Setup Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Check + correct retired-set live verdicts
+        id: check
+        continue-on-error: true
+        run: npx tsx scripts/retirement-check.mjs ${{ inputs.dry_run == true && '--dry-run' || '' }}
+
+      - name: Send failure alert
+        if: steps.check.outcome == 'failure'
+        continue-on-error: true
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL:    ${{ secrets.BRIEF_EMAIL }}
+          WORKFLOW_NAME:  retirement-check
+          STEP_OUTCOMES:  '{"Check + correct retired-set live verdicts": "${{ steps.check.outcome }}"}'
+        run: node scripts/workflow-failure-notify.mjs
+
+      - name: Fail job if check step failed
+        if: always()
+        run: |
+          if [ "${{ steps.check.outcome }}" = "failure" ]; then
+            echo "::error::retirement-check.mjs failed — see step log above; alert email already sent"
+            exit 1
+          fi
+          echo "retirement-check.mjs completed successfully."

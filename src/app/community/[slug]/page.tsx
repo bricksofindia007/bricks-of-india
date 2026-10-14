@@ -1,18 +1,19 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { supabaseRead as supabase } from '@/lib/supabase';
+import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { formatDate } from '@/lib/utils';
 import { JsonLd } from '@/components/JsonLd';
 
 // Durable-cache guard (2026-07-02 convention, applied here 2026-08-29):
 // Netlify's Next runtime persists rendered pages ACROSS deploys when no
 // revalidate is set. Hourly ISR caps staleness at 60 min, permanently.
-export const revalidate = 3600;
-// Next 15: fetch() is uncached by default, independent of revalidate above --
-// without this, the Supabase reads below become per-request and the route
-// drops from ISR to full SSR. Scoped per-route, not the root layout.
-export const fetchCache = 'default-cache';
+export const revalidate = 86400;
+// Supabase reads here expire hourly via per-read `next.revalidate`
+// (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
+// NOT fetchCache='default-cache', which cached them until the next deploy.
 
 // Netlify credit audit (2026-08-29): this route had neither revalidate
 // nor generateStaticParams — confirmed via a real production build as
@@ -36,13 +37,13 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     .eq('published', true)
     .single();
   if (!spotlight) return { title: 'Builder Not Found' };
-  return {
-    title: `${spotlight.builder_name} — Indian LEGO Builder Spotlight | Bricks of India`,
+  return buildMetadata({
+    title: `${spotlight.builder_name} — Indian LEGO Builder Spotlight`,
     description:
       spotlight.bio?.slice(0, 155) ||
       `Meet ${spotlight.builder_name}, an Indian LEGO builder featured on Bricks of India.`,
-    alternates: { canonical: `https://bricksofindia.com/community/${params.slug}` },
-  };
+    path: `/community/${params.slug}`,
+  });
 }
 
 export default async function SpotlightPage(props: Props) {
@@ -83,7 +84,7 @@ export default async function SpotlightPage(props: Props) {
           <span>/</span>
           <Link href="/community" className="hover:text-primary">Community</Link>
           <span>/</span>
-          <span className="text-dark font-bold truncate">{spotlight.builder_name}</span>
+          <span className="text-dark font-bold truncate min-w-0 flex-1">{spotlight.builder_name}</span>
         </nav>
       </div>
 

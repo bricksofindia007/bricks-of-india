@@ -1,0 +1,33 @@
+name: Staging keep-alive (FP2.1)
+
+# P4 Step 9c: the staging Supabase project (its own organisation) pauses after
+# 7 days without activity on the Free plan. One tiny REST read twice a week
+# keeps it awake. Mon + Thu rather than weekly: GitHub's scheduler has started
+# runs up to ~5.5h late (27 Sep measurement), which a strict 7-day cadence
+# can't absorb. Staging only -- never touches production. G2: 2 requests/week
+# to STAGING.
+on:
+  schedule:
+    - cron: '17 6 * * 1,4'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    # One curl with a 20s cap.
+    timeout-minutes: 3
+    steps:
+      - name: Read one registry row from staging
+        env:
+          STAGING_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+          STAGING_KEY: ${{ secrets.STAGING_SUPABASE_PUBLISHABLE_KEY }}
+        run: |
+          KEY=$(printf '%s' "$STAGING_KEY" | tr -d '\r\n')
+          STATUS=$(curl -s -o /tmp/r.json -w '%{http_code}' --max-time 20 \
+            -H "apikey: $KEY" -H "Authorization: Bearer $KEY" \
+            "$STAGING_URL/rest/v1/stores?select=id&limit=1")
+          echo "staging keep-alive -> HTTP $STATUS $(head -c 80 /tmp/r.json)"
+          test "$STATUS" = "200"

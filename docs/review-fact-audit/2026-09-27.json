@@ -1,0 +1,793 @@
+[
+ {
+  "severity": "HIGH",
+  "check": "import price",
+  "slug": "lego-40912-sea-serpent-gwp-2026-worth-the-23300-price-tag",
+  "set": "40912",
+  "detail": "set IS sold in India (store row exists): \"At an estimated import price of ₹23,300 — not confirmed India retail — you’ll be paying roughly 14 months of Netflix Premium.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "import price",
+  "slug": "lego-42232-koenigsegg-sadairs-spear-megacar-worth-49999",
+  "set": "42232",
+  "detail": "set IS sold in India (store row exists): \"At ₹49,999 (estimated), that's 14 months of Netflix Premium.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "import price",
+  "slug": "lego-43014-scuderia-ferrari-hp-charles-leclerc-helmet-worth-",
+  "set": "43014",
+  "detail": "set IS sold in India (store row exists): \"At ₹9,999 (estimated)\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "import price",
+  "slug": "lego-et-the-extra-terrestrial-21370-worth-12100",
+  "set": "21370",
+  "detail": "set IS sold in India (store row exists): \"Based on the US retail price of $119.99 USD, this set's estimated import price in India is ₹12,100.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "import price",
+  "slug": "lego-fortnite-rave-cave-77082-worth-21999",
+  "set": "77082",
+  "detail": "set IS sold in India (store row exists): \"At ₹21,999 (estimated)\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "import price",
+  "slug": "lego-gremlins-gizmo-and-stripe-40919-worth-3300",
+  "set": "21361",
+  "detail": "set IS sold in India (store row exists): \"The estimated import price for 40919 Gremlins: Gizmo and Stripe is ₹3,300.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "import price",
+  "slug": "lego-heartlake-city-grand-hotel-42704-worth-15999-2",
+  "set": "42704",
+  "detail": "set IS sold in India (store row exists): \"At ₹15,999 (estimated), that's 13 months of Netflix Premium.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "import price",
+  "slug": "lego-jaguar-e-type-11381-worth-21400",
+  "set": "11381",
+  "detail": "set IS sold in India (store row exists): \"Based on the US retail price of $159.99, we estimate the LEGO Jaguar E-Type (11381) will land in India with an estimated import price of ₹21,400.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "import price",
+  "slug": "lego-olivia-rodrigos-flower-bouquet-11507-worth-8400",
+  "set": "11507",
+  "detail": "set IS sold in India (store row exists): \"Based on the US retail price of $49.99, the estimated import price for 11507 Olivia Rodrigo's Flower Bouquet is ₹6,400.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "import price",
+  "slug": "lego-tower-bridge-21067-worth-10300",
+  "set": "21067",
+  "detail": "set IS sold in India (store row exists): \"At an estimated import price of ₹10,300 — not confirmed India retail — that is about 8 months of Netflix Premium.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "import price",
+  "slug": "lego-tribute-to-leonardo-da-vinci-40902-worth-19600",
+  "set": "40902",
+  "detail": "set IS sold in India (store row exists): \"At an estimated import price of ₹19,600 — not confirmed India retail — that's about 13 months of Netflix Premium.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "import price",
+  "slug": "lego-vintage-steam-train-60511-worth-9999",
+  "set": "60511",
+  "detail": "set IS sold in India (store row exists): \"At ₹9,999 (estimated), that's 10 months of Netflix Premium.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "link",
+  "slug": "lego-build-a-minifigure-2026-halloween-haul-or-heartbreak",
+  "set": null,
+  "detail": "set_id NULL matches no sets row"
+ },
+ {
+  "severity": "HIGH",
+  "check": "link",
+  "slug": "lego-don-donkey-kong-arcade-72051-worth-25700",
+  "set": null,
+  "detail": "set_id NULL matches no sets row"
+ },
+ {
+  "severity": "HIGH",
+  "check": "link",
+  "slug": "lego-john-deere-948l-ii-skidder-42157-worth-19999",
+  "set": null,
+  "detail": "set_id NULL matches no sets row"
+ },
+ {
+  "severity": "HIGH",
+  "check": "link",
+  "slug": "lego-mini-hogwarts-castle-review-is-it-worth-your-wallets-sc",
+  "set": null,
+  "detail": "set_id NULL matches no sets row"
+ },
+ {
+  "severity": "HIGH",
+  "check": "link",
+  "slug": "lego-ninjago-destinys-bounty-adventures-board-game-a-coopera",
+  "set": null,
+  "detail": "set_id NULL matches no sets row"
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-101-dalmatians-puppy-43269-worth-12399",
+  "set": "43269",
+  "detail": "says \"1,153 pieces\"; catalogue 1722 pieces: \"While it boasts 1,153 pieces, a significant chunk of those are small, white bricks that don't add a lot of visual interest.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-42232-koenigsegg-sadairs-spear-megacar-worth-49999",
+  "set": "42232",
+  "detail": "says \"over 10,000 pieces\"; catalogue 4104 pieces: \"Inside, the bag count is impressive: over 10,000 pieces, many of them new Technic elements that debuted with this series.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-acclamator-class-assault-ship-75404-worth-5449",
+  "set": "75404",
+  "detail": "says \"1,660 pieces\"; catalogue 450 pieces: \"At ₹5,449 for 1,660 pieces, it’s not the worst value proposition we’ve seen from LEGO.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-arcade-machine-40805-worth-4549",
+  "set": "40805",
+  "detail": "says \"1,190 pieces\"; catalogue 468 pieces: \"You're getting 1,190 pieces, which sounds like a lot, but many of them are small plates and tiles to create the detailed exterior and the internal mechanism.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-arctic-polar-express-train-60470-worth-23900",
+  "set": "60470",
+  "detail": "says \"1,174 pieces\"; catalogue 1525 pieces: \"It's a surprisingly involved affair for a City set, clocking in at 1,174 pieces.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-autumn-cottage-garden-11372-worth-8999",
+  "set": "11372",
+  "detail": "says \"around 1,500 pieces\"; catalogue 1102 pieces: \"The build itself is straightforward, clocking in at around 1,500 pieces.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-beauty-and-the-beast-castle-43263-worth-31199",
+  "set": "43263",
+  "detail": "says \"474 pieces\"; catalogue 2916 pieces: \"At 474 pieces, you’re looking at over ₹65 per brick.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-big-interactive-community-train-10428-worth-13749",
+  "set": "10428",
+  "detail": "says \"1,277 pieces\"; catalogue 103 pieces: \"LEGO has gone big with the 10428, packing in 1,277 pieces.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-bmw-m3-e30-77263-worth-2999",
+  "set": "77263",
+  "detail": "says \"300 pieces\"; catalogue 358 pieces: \"You’re looking at around 250-300 pieces, a manageable number that means you can get this built in under an hour, probably while your tea is brewing.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-chevrolet-corvette-stingray-42205-worth-6399",
+  "set": "42205",
+  "detail": "says \"1,210-piece\"; catalogue 732 pieces: \"This is a 1,210-piece replica of a car that screams classic American muscle, and LEGO has certainly charged accordingly.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-chevrolet-corvette-stingray-42205-worth-6399",
+  "set": "42205",
+  "detail": "says \"over 1,200 pieces\"; catalogue 732 pieces: \"For others, it might feel like a bit of a grind, especially when you’re staring down over 1,200 pieces.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-chopper-c1-10p-astromech-droid-75416-worth-12299",
+  "set": "75416",
+  "detail": "says \"512 pieces\"; catalogue 1039 pieces: \"At 512 pieces, the cost per piece is quite high, pushing it into territory usually reserved for more complex vehicles or larger characters.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-custom-police-car-garage-60457-worth-5449",
+  "set": "60457",
+  "detail": "says \"500-piece\"; catalogue 489 pieces: \"This is a 500-piece set, which puts it squarely in the \"afternoon project\" category.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-deluxe-brick-box-10914-worth-5449",
+  "set": "10914",
+  "detail": "says \"790 pieces\"; catalogue 85 pieces: \"The LEGO Deluxe Brick Box ([10914](/sets/10914-deluxe-brick-box)) is 790 pieces of pure DUPLO — no minifigures, no mechanisms, just a storage tub of basic brick\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-douglas-dc-3-pan-am-airliner-11378-worth-21999",
+  "set": "11378",
+  "detail": "says \"2,363 pieces\"; catalogue 1903 pieces: \"At 2,363 pieces, it’s a substantial set, promising a good few hours of construction.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-ferrari-sf-24-f1-car-42207-worth-18319",
+  "set": "42207",
+  "detail": "says \"4,158 pieces\"; catalogue 1361 pieces: \"At 4,158 pieces, it’s a serious undertaking, designed for the dedicated fan who appreciates both the engineering of a real F1 car and the intricate building pro\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-heartlake-city-grand-hotel-42704-worth-15999",
+  "set": "42704",
+  "detail": "says \"1,311 pieces\"; catalogue 1411 pieces: \"For ₹15,999, you get 1,311 pieces of Friends-themed architecture.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-heartlake-city-grand-hotel-42704-worth-15999",
+  "set": "42704",
+  "detail": "says \"1,311 pieces\"; catalogue 1411 pieces: \"At 1,311 pieces, this is a significant undertaking, and while the Friends theme is usually associated with simpler builds, this one demands a good chunk of time\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-holiday-express-train-10361-worth-12799",
+  "set": "10361",
+  "detail": "says \"1,378-piece\"; catalogue 956 pieces: \"This 1,378-piece set aims to capture the magic of a classic Christmas train.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-holiday-express-train-10361-worth-12799",
+  "set": "10361",
+  "detail": "says \"1,378 pieces\"; catalogue 956 pieces: \"₹12,799 for 1,378 pieces means you're paying around ₹9.28 per piece.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-kakamora-barge-43258-worth-10999",
+  "set": "43258",
+  "detail": "says \"over 1,000 pieces\"; catalogue 579 pieces: \"It’s got over 1,000 pieces, which usually means something substantial.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-keith-haring-dancing-figures-31216-worth-12799",
+  "set": "31216",
+  "detail": "says \"1,270 pieces\"; catalogue 1773 pieces: \"For that price, you’re getting 1,270 pieces.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-land-bounty-71869-worth-13999",
+  "set": "71869",
+  "detail": "says \"1,272 pieces\"; catalogue 1215 pieces: \"It’s a big build, clocking in at 1,272 pieces.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-land-bounty-71869-worth-13999",
+  "set": "71869",
+  "detail": "says \"1,272 pieces\"; catalogue 1215 pieces: \"While 1,272 pieces sounds substantial, the actual size of the finished model, combined with the reviewer’s observations about structural integrity and interior \""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-mario-kart-mario-standard-kart-72037-worth-14499",
+  "set": "72037",
+  "detail": "says \"205-piece\"; catalogue 1972 pieces: \"It’s a 205-piece set, which immediately tells you this isn't going to be a sprawling Bowser's Castle or a detailed recreation of Rainbow Road.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-mario-kart-mario-standard-kart-72037-worth-14499",
+  "set": "72037",
+  "detail": "says \"205 pieces\"; catalogue 1972 pieces: \"For 205 pieces, that's a lot of rupees.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-mclaren-mcl39-f1-car-42228-worth-24999",
+  "set": "42228",
+  "detail": "says \"1,432 pieces\"; catalogue 1675 pieces: \"At 1,432 pieces, this isn't a small build, but it’s also not exactly a UCS Millennium Falcon either.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-mecha-team-leader-77078-worth-19999",
+  "set": "77078",
+  "detail": "says \"2,800 pieces\"; catalogue 2503 pieces: \"We’re talking 2,800 pieces of mecha action, promising a build experience that’s supposed to be as intricate as the final model is imposing.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-mecha-team-leader-77078-worth-19999",
+  "set": "77078",
+  "detail": "says \"nearly 3,000 pieces\"; catalogue 2503 pieces: \"However, with nearly 3,000 pieces, it’s also a commitment.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-mercedes-benz-g-500-professional-line-42177-worth-17599",
+  "set": "42177",
+  "detail": "says \"2,085 pieces\"; catalogue 2891 pieces: \"At 2,085 pieces, it's a substantial set.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-nasa-apollo-lunar-roving-vehicle-42182-worth-19199",
+  "set": "42182",
+  "detail": "says \"1,090 pieces\"; catalogue 1913 pieces: \"This set, number 42182, boasts 1,090 pieces.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-ninjago-mini-sets-review-71862-worth-999",
+  "set": "71862",
+  "detail": "says \"roughly 150 pieces\"; catalogue 81 pieces: \"At roughly 150 pieces, it’s a quick build that feels like a warm‑up.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-olaf-and-brunis-picnic-fun-43287-worth-4999",
+  "set": "43287",
+  "detail": "says \"170 pieces\"; catalogue 478 pieces: \"That's the entire premise of the LEGO Olaf and Bruni's Picnic Fun set — 170 pieces built almost entirely around two Frozen II characters and the licence fee tha\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-olaf-and-brunis-picnic-fun-43287-worth-4999",
+  "set": "43287",
+  "detail": "says \"170 pieces\"; catalogue 478 pieces: \"For 170 pieces, that price point feels steep.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-plant-caf-flower-shop-42671-worth-9999",
+  "set": "42671",
+  "detail": "says \"1,000 pieces\"; catalogue 1138 pieces: \"For ₹9,999, you're getting 1,000 pieces.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-porsche-911-gt3-r-rexy-ao-racing-car-42224-worth-11999",
+  "set": "42224",
+  "detail": "says \"around 1,680 pieces\"; catalogue 1313 pieces: \"The piece count is decent for the size, hovering around 1,680 pieces.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-rontu-the-master-dragon-71842-worth-4999",
+  "set": "71842",
+  "detail": "says \"672 pieces\"; catalogue 381 pieces: \"Ninjago has built entire dragons the size of coffee tables before, so Rontu the Master Dragon ([71842](/sets/71842-rontu-the-master-dragon)) landing at a modest\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-rontu-the-master-dragon-71842-worth-4999",
+  "set": "71842",
+  "detail": "says \"672 pieces\"; catalogue 381 pieces: \"At 672 pieces, it’s not going to take you all weekend, which is a plus if you’re impatient or just want to get to the dragon-slaying action.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-sherlock-holmes-book-nook-10351-worth-8959",
+  "set": "10351",
+  "detail": "says \"1,160 pieces\"; catalogue 1359 pieces: \"This set gives you 1,160 pieces to construct a detailed diorama of Sherlock Holmes's iconic study.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-super-mario-world-mario-yoshi-71438-worth-13699",
+  "set": "71438",
+  "detail": "says \"250 pieces\"; catalogue 1215 pieces: \"It’s not a massive undertaking, clocking in at 250 pieces.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-the-baratie-floating-restaurant-75640-worth-32999",
+  "set": "75640",
+  "detail": "says \"2,187 pieces\"; catalogue 3398 pieces: \"For ₹32,999, you’re getting 2,187 pieces.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-the-enderman-tower-21279-worth-10999",
+  "set": "21279",
+  "detail": "says \"1,130 pieces\"; catalogue 867 pieces: \"This isn't a small set, clocking in at 1,130 pieces, but that number alone doesn't justify the cost when you see the final build.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-the-guardian-dragon-71847-worth-16499",
+  "set": "71847",
+  "detail": "says \"2,574 pieces\"; catalogue 1650 pieces: \"The Guardian Dragon comes with 2,574 pieces, which isn't exactly sparse.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-the-guardian-dragon-71847-worth-16499",
+  "set": "71847",
+  "detail": "says \"2,574 pieces\"; catalogue 1650 pieces: \"2,574 pieces is a good number, but when you break it down per piece, the cost per brick is still on the higher side.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-the-lord-of-the-rings-the-shire-10354-worth-27499",
+  "set": "10354",
+  "detail": "says \"6,167 pieces\"; catalogue 2017 pieces: \"It’s a big one, packing 6,167 pieces and a hefty price tag that screams “save up for a while.” This isn’t the kind of set you impulse-buy after a long week; thi\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-the-lord-of-the-rings-the-shire-10354-worth-27499",
+  "set": "10354",
+  "detail": "says \"6,167 pieces\"; catalogue 2017 pieces: \"The 6,167 pieces require significant display space and a considerable investment of time and money.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-the-temple-bounty-71848-worth-13739",
+  "set": "71848",
+  "detail": "says \"over 1,700 pieces\"; catalogue 2388 pieces: \"You get over 1,700 pieces here, which sounds impressive on paper, but when you break it down by the cost, it starts to feel a little thin.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-the-x-mansion-76294-worth-25999",
+  "set": "76294",
+  "detail": "says \"10,000 pieces\"; catalogue 3093 pieces: \"With 10,000 pieces, you’re looking at dozens of hours of construction.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-tower-bridge-21067-worth-10300",
+  "set": "21067",
+  "detail": "says \"roughly 1,200 pieces\"; catalogue 3745 pieces: \"At roughly 1,200 pieces for ₹10,300, you’re looking at about ₹8.5 per piece.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-tribute-to-leonardo-da-vinci-40902-worth-19600",
+  "set": "40902",
+  "detail": "says \"1,200 pieces\"; catalogue 251 pieces: \"The set itself is modest: 1,200 pieces, a small bust of the master, a tiny easel, and a few iconic inventions like the flying machine and the Vitruvian Man.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-tribute-to-leonardo-da-vinci-40902-worth-19600",
+  "set": "40902",
+  "detail": "says \"1,200 pieces\"; catalogue 251 pieces: \"At 1,200 pieces, you’re paying roughly $0.125 per piece.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-unicorn-castle-31175-worth-4549",
+  "set": "31175",
+  "detail": "says \"494 pieces\"; catalogue 390 pieces: \"The three-in-one format is usually great value; the question here is whether 494 pieces is enough to spread across all three.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "piece count",
+  "slug": "lego-vincent-van-gogh-sunflowers-31215-worth-12809",
+  "set": "31215",
+  "detail": "says \"1,169 pieces\"; catalogue 2615 pieces: \"The set contains 1,169 pieces.\""
+ },
+ {
+  "severity": "HIGH",
+  "check": "set number",
+  "slug": "lego-miles-morales-mech-vs-spider-man-2099-76337-worth-1499",
+  "set": "76337",
+  "detail": "title cites 2099 (\"Fun Shape Sorter\") but the review is linked to 76337"
+ },
+ {
+  "severity": "MEDIUM",
+  "check": "import price",
+  "slug": "lego-ministry-munchies-the-daily-prophet-stands-40901-compan",
+  "set": "40901",
+  "detail": "no store row: \"Using our estimation formula (130 1.35 96), this comes to an estimated import price of ₹16,850.\""
+ },
+ {
+  "severity": "MEDIUM",
+  "check": "import price",
+  "slug": "lego-olivia-rodrigos-concert-moon-43029-worth-7150",
+  "set": "43029",
+  "detail": "no store row: \"Based on the US retail price of $49.99, expect an estimated import price of ₹7,150.\""
+ },
+ {
+  "severity": "MEDIUM",
+  "check": "import price",
+  "slug": "lego-olivia-rodrigos-dual-guitar-43031-worth-15400",
+  "set": "43031",
+  "detail": "no store row: \"At an estimated ₹15,400 (estimated import price — not confirmed India retail), that’s roughly 12.5 ₹ per brick, a price point that feels fair for a set of this \""
+ },
+ {
+  "severity": "MEDIUM",
+  "check": "import price",
+  "slug": "lego-olivia-rodrigos-dual-guitar-43031-worth-15400",
+  "set": "43031",
+  "detail": "no store row: \"At an estimated ₹15,400 (estimated import price — not confirmed India retail), that's roughly 9 months of Netflix Premium.\""
+ },
+ {
+  "severity": "MEDIUM",
+  "check": "import price",
+  "slug": "lego-olivia-rodrigos-secret-storage-43030-worth-the-hype",
+  "set": "43030",
+  "detail": "no store row: \"Based on the USD retail price of $79.99, the estimated import price for 43030 Olivia Rodrigo's Secret Storage in India is around ₹10,800.\""
+ },
+ {
+  "severity": "MEDIUM",
+  "check": "import price",
+  "slug": "lego-olivia-rodrigos-vinyl-43028-worth-4400",
+  "set": "43028",
+  "detail": "no store row: \"In India, the estimated import price for 43028 Olivia Rodrigo's Vinyl is ₹4,400.\""
+ },
+ {
+  "severity": "MEDIUM",
+  "check": "import price",
+  "slug": "lego-restaurants-of-the-world-greece-40908-a-charming-gwp-wo",
+  "set": "40908",
+  "detail": "no store row: \"Based on the US$180 spend threshold and current exchange rates, you're looking at an estimated import price of ₹17,300.\""
+ },
+ {
+  "severity": "MEDIUM",
+  "check": "import price",
+  "slug": "lego-shrek-collectable-minifigures-71053-a-fairy-tale-worth-",
+  "set": "71053",
+  "detail": "no store row: \"Based on the US retail price of $4.99 per blind bag and assuming a pack of 12 figures, the estimated import price for a complete set would be around ₹7,100.\""
+ },
+ {
+  "severity": "MEDIUM",
+  "check": "import price",
+  "slug": "lego-trainer-supplies-30730-worth-1300",
+  "set": "30730",
+  "detail": "no store row: \"Based on the US retail price of $19.99, this set is estimated to cost ₹2,500 in India.\""
+ },
+ {
+  "severity": "MEDIUM",
+  "check": "import price",
+  "slug": "lego-up-scaled-red-minifigure-40868-worth-10500",
+  "set": "40868",
+  "detail": "no store row: \"Based on the US retail price of $79.99 and current exchange rates, the estimated import price in India lands around ₹10,500.\""
+ },
+ {
+  "severity": "MEDIUM",
+  "check": "name",
+  "slug": "lego-mighty-machines-series-1-42233-worth-400",
+  "set": "42233",
+  "detail": "catalogue name \"Cement Truck\" not recognisable in the title/opening; title: \"LEGO Mighty Machines Series 1 (42233): Worth ₹400?\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-77264-jaguar-f-type-project-7-land-rover-defender-class",
+  "set": "77264",
+  "detail": "says \"740 pieces\"; catalogue 747 pieces (within 2%: box vs catalogue count): \"This set, number 77264, packs in 740 pieces, which is quite substantial for a Speed Champions release, especially considering it’s a dual build.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-arcade-pinball-machine-11374-worth-30000",
+  "set": "11374",
+  "detail": "says \"2,500‑piece\"; catalogue 2274 pieces (comparison sentence, may refer to another set): \"Compared to other large Icons sets that hover around the 2,500‑piece mark, the Arcade Pinball Machine holds its own, especially given the functional components \""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-architecture-tower-bridge-21067-worth-29999",
+  "set": "21067",
+  "detail": "says \"2,937 pieces\"; catalogue 3745 pieces (comparison sentence, may refer to another set): \"This 21067 version, with its 2,937 pieces, promises a more detailed and substantial build than its predecessors.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-avengers-tower-76269-worth-39199",
+  "set": "76269",
+  "detail": "says \"5,201 pieces\"; catalogue 5202 pieces (within 2%: box vs catalogue count): \"At 5,201 pieces and standing over 35 inches tall, this isn't just a set; it's a commitment.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-creative-build-and-play-box-11044-worth-5449",
+  "set": "11044",
+  "detail": "says \"1200 pieces\"; catalogue 750 pieces (comparison sentence, may refer to another set): \"Inside, you’ll find 1200 pieces.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-creative-build-and-play-box-11044-worth-5449",
+  "set": "11044",
+  "detail": "says \"1200 pieces\"; catalogue 750 pieces (comparison sentence, may refer to another set): \"1200 pieces for around ₹5,500 is not a bad deal at all, especially when you consider the quality and the fact that it’s a current set.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-creative-dollhouse-suitcase-42697-worth-5499",
+  "set": "42697",
+  "detail": "says \"355-piece\"; catalogue 357 pieces (within 2%: box vs catalogue count): \"This 355-piece set, number 42697, takes the concept of portable LEGO play and plasters it in a shade of pink that could rival a flamingo’s blush.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-creative-dollhouse-suitcase-42697-worth-5499",
+  "set": "42697",
+  "detail": "says \"355 pieces\"; catalogue 357 pieces (within 2%: box vs catalogue count): \"Inside, you get eight numbered bags, four instruction books (a bit much for 355 pieces, but standard for Friends sets aimed at younger builders), and two sticke\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-daily-bugle-76178-worth-39999",
+  "set": "76178",
+  "detail": "says \"3,772-piece\"; catalogue 3803 pieces (within 2%: box vs catalogue count): \"This isn't just a building; it’s a sprawling 3,772-piece recreation of the iconic newspaper office.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-death-star-75419-worth-104999",
+  "set": "75419",
+  "detail": "says \"9,023 pieces\"; catalogue 9031 pieces (within 2%: box vs catalogue count): \"This colossal model, boasting a staggering 9,023 pieces, is the ultimate display piece for any serious Star Wars fan.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-douglas-dc-3-pan-am-airliner-11378-worth-21999",
+  "set": "11378",
+  "detail": "says \"2,363 pieces\"; catalogue 1903 pieces (comparison sentence, may refer to another set): \"₹21,999 for 2,363 pieces puts this set firmly in the premium category, and when you compare it to other large-scale LEGO models, it feels a bit steep.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-fountain-garden-10359-worth-5499",
+  "set": "10359",
+  "detail": "says \"1090 pieces\"; catalogue 1302 pieces (comparison sentence, may refer to another set): \"At 1090 pieces, you're paying over ₹5,000 for what feels like a relatively small final model.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-garps-marine-battleship-75646-worth-17999",
+  "set": "75646",
+  "detail": "says \"1,705 pieces\"; catalogue 1698 pieces (within 2%: box vs catalogue count): \"It’s a substantial build, clocking in at 1,705 pieces and measuring over 15 inches tall and 17 inches long.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-heartlake-city-grand-hotel-42704-worth-15999-2",
+  "set": "42704",
+  "detail": "says \"1,406‑piece\"; catalogue 1411 pieces (within 2%: box vs catalogue count): \"The set is a 1,406‑piece love story built around the first official LEGO wedding venue.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-heartlake-city-grand-hotel-42704-worth-15999-2",
+  "set": "42704",
+  "detail": "says \"1,406 pieces\"; catalogue 1411 pieces (within 2%: box vs catalogue count): \"At ₹15,999 for 1,406 pieces, you’re paying roughly ₹11 per piece, which is competitive compared to other Friends‑themed releases.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-hogwarts-castle-the-main-tower-76454-worth-27499",
+  "set": "76454",
+  "detail": "says \"2135 pieces\"; catalogue 2131 pieces (within 2%: box vs catalogue count): \"It’s the LEGO Hogwarts Castle: The Main Tower ([76454](/sets/76454-hogwarts-castle-the-main-tower)), and while it has 2135 pieces, its current availability stat\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-hogwarts-castle-the-main-tower-76454-worth-27499",
+  "set": "76454",
+  "detail": "says \"2135 pieces\"; catalogue 2131 pieces (within 2%: box vs catalogue count): \"With 2135 pieces, it’s substantial.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-home-alone-21330-worth-34999",
+  "set": "21330",
+  "detail": "says \"3,957 pieces\"; catalogue 3955 pieces (within 2%: box vs catalogue count): \"We’re talking 3,957 pieces, and when you’re done, it stands nearly two feet tall.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-italian-riviera-21359-worth-28999",
+  "set": "21359",
+  "detail": "says \"3251 pieces\"; catalogue 3252 pieces (within 2%: box vs catalogue count): \"LEGO Ideas sets often have unique building techniques, and given the 3251 pieces, this one probably delivers on that front.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-jabbas-sail-barge-75397-worth-36399",
+  "set": "75397",
+  "detail": "says \"3,942 pieces\"; catalogue 3943 pieces (within 2%: box vs catalogue count): \"At 3,942 pieces, it’s a marathon, not a sprint.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-land-rover-classic-defender-90-10317-worth-23999",
+  "set": "10317",
+  "detail": "says \"2336 pieces\"; catalogue 2344 pieces (within 2%: box vs catalogue count): \"While the build quality, detail, and customisation options are excellent, you have to ask yourself if the 2336 pieces justify the cost.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-lion-knights-castle-10305-worth-39399",
+  "set": "10305",
+  "detail": "says \"4,514 pieces\"; catalogue 4515 pieces (within 2%: box vs catalogue count): \"With 4,514 pieces, you’re looking at a significant time investment, which is exactly what you want with a set this size and price.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-ministry-munchies-the-daily-prophet-stands-40901-compan",
+  "set": "40901",
+  "detail": "says \"152 pieces\"; catalogue 150 pieces (within 2%: box vs catalogue count): \"This set includes 152 pieces and two minifigures: Cornelius Fudge and a Daily Prophet Vendor.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-notre-dame-de-paris-21061-worth-18319",
+  "set": "21061",
+  "detail": "says \"4,363 pieces\"; catalogue 4382 pieces (within 2%: box vs catalogue count): \"For that kind of money, you’re getting 4,363 pieces, which is a respectable count, but the per-piece cost is still quite high.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-the-going-merry-pirate-ship-75639-worth-14499",
+  "set": "75639",
+  "detail": "says \"5,500-piece\"; catalogue 1374 pieces (comparison sentence, may refer to another set): \"It’s a 5,500-piece set, which sounds impressive, but the final build is a bit smaller than you might expect for that piece count.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-tower-bridge-21067-worth-10300",
+  "set": "21067",
+  "detail": "says \"1,300‑piece\"; catalogue 3745 pieces (comparison sentence, may refer to another set): \"The 21067 version is a step down from the retired [10214](/sets/10214-tower-bridge) Tower Bridge, which was a hefty 1,300‑piece monster that sat on a shelf for \""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-tribute-to-leonardo-da-vinci-40902-worth-19600",
+  "set": "40902",
+  "detail": "says \"1,200‑piece\"; catalogue 251 pieces (comparison sentence, may refer to another set): \"Compare that to a typical 1,200‑piece set from the LEGO City line, which might cost $100 and include more play‑oriented features.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-venator-class-republic-attack-cruiser-75367-worth-48999",
+  "set": "75367",
+  "detail": "says \"5,374 pieces\"; catalogue 5381 pieces (within 2%: box vs catalogue count): \"We're talking 5,374 pieces spread across a complex structure.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-vintage-steam-train-60511-worth-9999",
+  "set": "60511",
+  "detail": "says \"575 pieces\"; catalogue 579 pieces (within 2%: box vs catalogue count): \"At 575 pieces for ₹9,999, you’re paying roughly ₹17 per piece, which sits comfortably in the mid‑range for LEGO City sets.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "piece count",
+  "slug": "lego-willy-wonka-the-chocolate-factory-21360-worth-22899",
+  "set": "21360",
+  "detail": "says \"2,334 pieces\"; catalogue 2025 pieces (comparison sentence, may refer to another set): \"This Ideas set, based on the classic 1971 film, brings to life iconic scenes and characters with 2,334 pieces.\""
+ },
+ {
+  "severity": "LOW",
+  "check": "year",
+  "slug": "lego-40912-sea-serpent-gwp-2026-worth-the-23300-price-tag",
+  "set": "40912",
+  "detail": "mentions 1992; catalogue year 2026: \"LEGO Ideas has resurrected the 1992 castle classic, but this time it arrives as a Gift with Purchase, not a stand‑alone box you can just cli\""
+ }
+]

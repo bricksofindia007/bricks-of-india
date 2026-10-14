@@ -1,0 +1,38 @@
+-- FP3.0 (#361) / I18 (#360): move the `http` extension out of the Data-API-exposed `public` schema.
+--
+-- Reason: SSRF exposure via PostgREST rpc. `http` 1.6 was created in `public`
+-- (20260709112515 enable_http_and_verify_images). Its 19 functions (http, http_get x2,
+-- http_post x2, http_put, http_patch, http_delete x2, http_head, http_header,
+-- http_set_curlopt, http_reset_curlopt, http_list_curlopt, urlencode x3, text_to_bytea,
+-- bytea_to_text) are owned by supabase_admin and grant EXECUTE to PUBLIC, anon and
+-- authenticated. `public` is exposed by the Data API, so anyone holding the publishable key
+-- could POST /rest/v1/rpc/http_get and make the database fetch arbitrary URLs.
+--
+-- Evidence (Stage 1a inventory, 27 Sep 2026; backup in boi-db-backups\2026-09-27-fp3.0\):
+--   - pg_depend: 19 extension-owned functions, all in public, all proacl
+--     {=X/supabase_admin,...,anon=X/supabase_admin,authenticated=X/supabase_admin,...}.
+--   - Callers: pg_stat_statements shows only 2 calls ever, both by postgres on 9 Jul 2026
+--     (the one-off image_repair_queue job). No function body (only Supabase's own
+--     grant_pg_net_access(), which references pg_net), view, trigger or cron.job
+--     (1 job: reconcile_page_load_errors) calls it. No caller in bricks-of-india or
+--     boi-growth-engine code, workflows or edge functions.
+--   - REVOKE ... FROM PUBLIC, anon, authenticated run as postgres is a no-op
+--     ("WARNING: no privileges could be revoked"): the grants belong to supabase_admin.
+--     ALTER EXTENSION http SET SCHEMA is unsupported. Hence drop + recreate, Supabase's
+--     documented fix for the extension_in_public lint (decision: Abhinav, 27 Sep 2026).
+--   - The `extensions` schema is not exposed by the Data API (PostgREST: "Only the following
+--     schemas are exposed: public, graphql_public, growth"). Functions there still carry
+--     EXECUTE for PUBLIC (supabase_admin's grant, not revocable by postgres), but anon and
+--     authenticated can no longer reach them over REST.
+--   - Admin one-offs keep working as postgres, schema-qualified: extensions.http_get(...).
+--
+-- Applied to production with psql, one transaction with assertions before COMMIT, then
+-- recorded in supabase_migrations.schema_migrations. This is a one-off exception to G7
+-- tooling because of #197; the repo file was written first.
+--
+-- Rollback:
+--   DROP EXTENSION http;
+--   CREATE EXTENSION http WITH SCHEMA public;
+
+DROP EXTENSION IF EXISTS http;
+CREATE EXTENSION http WITH SCHEMA extensions;

@@ -2,20 +2,38 @@ name: BOI Social Automation
 
 on:
   schedule:
-    - cron: '30 6 * * *'   # 12:00 IST daily
+    - cron: '30 6 * * 1,3,5'   # 12:00 IST Mon/Wed/Fri
   workflow_dispatch:         # Manual trigger for testing
 
 jobs:
+  # FP6.4 quota gate, narrowed P12 (29 Sep 2026, Abhinav): publishing is
+  # essential, so only the storage-upload guard (>= 800 MB) can pause this
+  # job -- it uploads the image to Storage before posting (IG needs a public
+  # URL). DB size and egress never pause it. See quota-gate.yml.
+  quota-gate:
+    uses: ./.github/workflows/quota-gate.yml
+    permissions:
+      contents: read
+      actions: write
+    with:
+      job: social-automation
+      needs: 'upload'
+    secrets: inherit
+
   post:
+    needs: [quota-gate]
+    if: needs.quota-gate.outputs.proceed == 'true'
     runs-on: ubuntu-latest
+    env:
+      G19_TERMS: ${{ secrets.G19_TERMS }}  # G19 term list (never in the repo); gates fail closed without it
     # 10 most recent runs: 6m52s-8m57s (gh run list
     # --workflow=social-automation.yml --limit 10, 2026-08-18). ~2x observed
     # max.
     timeout-minutes: 18
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 
@@ -26,6 +44,12 @@ jobs:
 
       - name: Install Python dependencies
         run: pip install -r social-automation/requirements.txt
+
+      # G6 (2 Oct 2026): posts state only our live Indian price, or none. These
+      # tests (no network) must pass before anything can post.
+      - name: Indian-price rule tests
+        working-directory: social-automation
+        run: python -m unittest test_indian_price -v
 
       - name: Run pipeline
         working-directory: social-automation

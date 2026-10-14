@@ -2,14 +2,9 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { BUDGET_QUICK_RANGES } from '@/lib/price-bands';
 
-const QUICK_RANGES = [
-  { label: 'Under ₹2,000',    min: 0,     max: 2000   },
-  { label: '₹2,000–5,000',    min: 2000,  max: 5000   },
-  { label: '₹5,000–10,000',   min: 5000,  max: 10000  },
-  { label: '₹10,000–20,000',  min: 10000, max: 20000  },
-  { label: '₹20,000+',        min: 20000, max: 999999 },
-];
+const QUICK_RANGES = BUDGET_QUICK_RANGES; // #381: defined in src/lib/price-bands.ts (label/bound test)
 
 export function BudgetForm({ defaultMin, defaultMax }: { defaultMin: number; defaultMax: number }) {
   const [min, setMin] = useState(defaultMin);

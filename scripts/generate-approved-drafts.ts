@@ -15,6 +15,8 @@
  * like a burst/QPS spike server-side. Pacing applies at any billing tier.
  */
 
+import { resolveSourceSet } from '../src/lib/set-identity';
+import { sendAlert } from './lib/alert.mjs';
 import dotenv from 'dotenv';
 dotenv.config({ path: '.env.local' });
 
@@ -22,9 +24,17 @@ import { createClient } from '@supabase/supabase-js';
 import { generateWithFailover, BothProvidersFailedError, type DraftGenerationInput, type GenerationOutcome } from '../src/lib/generate-with-failover';
 import { getSecret } from '../src/lib/get-secret';
 import { passesAutoPublishGates } from '../src/lib/auto-publish-gate';
-import { publishOneDraft } from '../src/lib/publish-draft';
+import { publishOneDraft, PublishInsertError } from '../src/lib/publish-draft';
 import { buildRetailerSourcePriceContext } from '../src/lib/prompts/draft-prompt';
 import { STORE_DISPLAY_NAME } from './lib/reviews-source.mjs';
+import { loadRecentNews, cataloguedCandidates, decideSameSet, holdReason } from '../src/lib/same-set-guard';
+import { resolveGate14Facts, catalogueFactsPrompt, writeBackPieces, isUnverifiableOnly } from '../src/lib/gate14-facts';
+import { blocking } from '../src/lib/gate14';
+
+// #525: prefix of discard_reason for drafts rejected by the quality gates (kept 30 days, then purged).
+const REJECTED_BY_GATES = 'rejected_by_gates: ';
+import { FEATURE_FLAGS } from '../src/lib/feature-flags';
+import { formatHardRuleFailures } from '../src/lib/hard-rules';
 
 // ── CLI flags ─────────────────────────────────────────────────────────────────
 
@@ -115,7 +125,7 @@ const SKIP_FETCH_DOMAINS = new Set([
 const UA = 'BricksOfIndia-RadarBot/1.0 (+https://bricksofindia.com)';
 
 const INDIA_STORE_PRIORITY: Record<string, number> = { mybrickhouse: 1, toycra: 2 };
-const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: 'MyBrickHouse', toycra: 'Toycra' };
+const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: 'LEGO.in', toycra: 'Toycra' };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -169,16 +179,29 @@ function fmtInr(n: number): string {
   return rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + last3;
 }
 
-async function fetchLiveUsdInr(): Promise<number | null> {
-  try {
-    const r = await fetch('https://open.er-api.com/v6/latest/USD', { signal: AbortSignal.timeout(5000) });
-    const d = await r.json() as { rates?: { INR?: number } };
-    const rate = d?.rates?.INR;
-    return (rate && rate > 75 && rate < 130) ? Math.round(rate) : null;
-  } catch { return null; }
+// 2026-09-26: the model must see WHICH set the prices belong to, so it can't
+// attach them to a different product (Donkey Kong "(2000)" incident).
+function setIdentityHeader(setNumber: string | null, setName?: string | null): string {
+  return setNumber && setName
+    ? `SET IDENTIFIED: ${setNumber} "${setName}" (catalogue). Attach the prices below ONLY to this set; cite no other set numbers unless the source names them.
+`
+    : '';
 }
 
-export async function buildIndiaPriceContext(setNumber: string | null): Promise<string> {
+/** Brickset availability "LEGO Gift with Purchase" (one call; false on any failure -> the old path). */
+async function bricksetIsGwp(setNumber: string): Promise<boolean> {
+  const key = getSecret('BRICKSET_API_KEY');
+  if (!key) return false;
+  try {
+    const params = JSON.stringify({ setNumber: `${setNumber}-1`, pageSize: 1 });
+    const r = await fetch(`https://brickset.com/api/v3.asmx/getSets?apiKey=${encodeURIComponent(key)}&userHash=&params=${encodeURIComponent(params)}`, { signal: AbortSignal.timeout(8000) });
+    const j = r.ok ? await r.json() as { status?: string; sets?: { availability?: string }[] } : null;
+    return j?.status === 'success' && j.sets?.[0]?.availability === 'LEGO Gift with Purchase';
+  } catch { return false; }
+}
+
+export async function buildIndiaPriceContext(setNumber: string | null, setName?: string | null): Promise<string> {
+  const head = setIdentityHeader(setNumber, setName);
   if (!setNumber) return 'INDIA PRICE DATA: set number could not be identified. Acknowledge price uncertainty; do not state a specific figure.';
 
   const { data: sp } = await sb
@@ -195,24 +218,29 @@ export async function buildIndiaPriceContext(setNumber: string | null): Promise<
       const stock = p.in_stock ? '' : ' (may be out of stock)';
       return `  ${label}: ₹${fmtInr(Number(p.price_inr))}${stock}`;
     });
-    return `INDIA PRICE DATA — use these exact figures, do not calculate:\n${lines.join('\n')}`;
+    return head + `INDIA PRICE DATA — use these exact figures, do not calculate:\n${lines.join('\n')}`;
   }
 
   const { data: setRow } = await sb
     .from('sets')
-    .select('lego_mrp_inr')
+    .select('lego_mrp_inr, is_gwp')
     .eq('set_number', setNumber)
     .maybeSingle();
+
+  // P10 item 4 (behind FEATURE_FLAGS.gwpNoPriceContext): a gift with purchase that no Indian
+  // store lists has NO price. Without this branch the "USD x 1.35" estimate below turned spend
+  // thresholds into invented import prices (40900: US$100 -> "₹12,600"; 11 articles found).
+  // Checked before the MRP branch: some GWPs carry a catalogue MRP (40697).
+  if (FEATURE_FLAGS.gwpNoPriceContext && (setRow?.is_gwp === true || await bricksetIsGwp(setNumber))) {
+    return head + `INDIA PRICE DATA: ${setNumber} is a GIFT WITH PURCHASE and no Indian store lists it on its own. It is NOT sold separately and has NO retail price. Do NOT state or estimate any price, import price or ₹/$ figure for it. Say it isn't sold separately and comes free with a qualifying LEGO order; a spend threshold may be mentioned only as the requirement to get it, never as its price. Verdict: IMPORT ONLY.`;
+  }
   if (setRow?.lego_mrp_inr) {
-    return `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices). Use this figure. Mention Toycra / MyBrickHouse may list it within 4–6 weeks.`;
+    return head + `INDIA PRICE DATA: Official LEGO India MRP ₹${fmtInr(Number(setRow.lego_mrp_inr))} (no live store prices). Use this figure.`;
   }
 
-  const rate = await fetchLiveUsdInr();
-  if (rate) {
-    return `INDIA PRICE DATA: no store prices or official India MRP in our database. You MUST still include a ₹ figure in the India Paragraph — use this formula: USD retail price × 1.35 × ${rate} = estimated INR (the 1.35 factor covers import duty and retailer markup). Example: $99.99 USD → ₹${Math.round(99.99 * 1.35 * rate).toLocaleString('en-IN')} estimated. Round to nearest ₹100. Label it clearly as "estimated import price — not confirmed India retail." If the source does not mention any USD price, use IMPORT ONLY verdict and state the set is not currently available at any official India retailer.`;
-  }
+  // G19 + chat (1 Oct 2026): no US-price formula. The model states that Indian pricing isn't announced.
+  return head + `INDIA PRICE DATA: no store prices or official India MRP in our database. Do NOT estimate an Indian price from a US, UK or EU price, an exchange rate or any formula, and give no ₹ figure for this set. In the India Paragraph write exactly: "Official Indian pricing hasn't been announced yet." Then name the stores to watch (Toycra and LEGO.in).`;
 
-  return 'INDIA PRICE DATA: no price data available. Use IMPORT ONLY verdict. State the set is not currently available at any official India retailer, and omit a specific price figure.';
 }
 
 // ── Auto-publish ──────────────────────────────────────────────────────────────
@@ -284,7 +312,10 @@ async function autoPublish(draft: any, outcome: GenerationOutcome): Promise<{ pa
 async function generateBodyWithFailover(draft: any, batchOpeners?: string[]): Promise<GenerationOutcome> {
   if (!draft.draft_format) throw new Error('Draft has no format — re-run RADAR-03');
 
-  const setNumber = extractSetNumber(draft.source_url, draft.source_title ?? null);
+  // Set identity (2026-09-26): catalogue number AND matching catalogue name,
+  // never "the first number in the title" -- see src/lib/set-identity.ts.
+  const resolvedSet = await resolveSourceSet(sb, draft.source_url, draft.source_title ?? null, draft.source_excerpt ?? null);
+  const setNumber = resolvedSet?.setNumber ?? null;
 
   // Reviews sourced from the MyBrickHouse/Toycra retailer pipeline (2026-07-30)
   // carry their own confirmed price/stock, fetched moments before this draft
@@ -302,9 +333,44 @@ async function generateBodyWithFailover(draft: any, batchOpeners?: string[]): Pr
           stockStatus:         draft.source_stock_status,
           checkedAt:           draft.source_checked_at,
         }))
-      : buildIndiaPriceContext(setNumber)
+      : buildIndiaPriceContext(setNumber, resolvedSet?.name)
           .catch(() => 'INDIA PRICE DATA: price lookup failed. Acknowledge price uncertainty; do not state a specific figure.'),
   ]);
+
+  // Evidence trail (2026-09-26): the exact set/price context the model was
+  // given, per draft, in the run log -- so a wrong price or set citation can
+  // be traced from evidence rather than inferred.
+  console.log(`[context] draft=${draft.id} set=${setNumber ?? 'none'} via=${resolvedSet?.via ?? '-'} name=${JSON.stringify(resolvedSet?.name ?? null)} price_context=${JSON.stringify(indiaPriceContext)}`);
+
+  // Gate 14 (#398 1b): catalogue facts for review drafts. Shadow unless
+  // FEATURE_FLAGS.gate14ReviewEnforce (step 1d). A failed lookup = no facts,
+  // and the draft proceeds exactly as before (shadow) -- see gate14-facts.ts.
+  let gate14: DraftGenerationInput['gate14'];
+  let factsBlock = '';
+  const g14News = draft.draft_format === 'news' && FEATURE_FLAGS.gate14News;
+  if ((draft.draft_format === 'review' || g14News) && setNumber) {
+    const enforce = draft.draft_format === 'review' ? FEATURE_FLAGS.gate14ReviewEnforce : FEATURE_FLAGS.gate14NewsEnforce;
+    const resolved = await resolveGate14Facts(sb, setNumber, {
+      rebrickableKey: getSecret('REBRICKABLE_API_KEY'), bricksetKey: getSecret('BRICKSET_API_KEY'),
+    }).catch((e) => { console.warn(`[gate14] facts lookup failed for ${setNumber}: ${(e as Error).message}`); return null; });
+    if (resolved) {
+      if (draft.source_price_inr) resolved.facts.prices.push(Number(draft.source_price_inr));
+      gate14 = { facts: resolved.facts, enforce };
+      console.log(`[gate14] ${enforce ? 'enforce' : 'shadow'} facts set=${setNumber} pieces=${resolved.facts.pieces ?? '?'}(${resolved.piecesSource ?? '-'}) minifigs=${resolved.facts.minifigs ?? '?'}(${resolved.minifigsSource ?? '-'}) year=${resolved.facts.year ?? '?'} prices=${resolved.facts.prices.length} mrp=${resolved.facts.mrp.length}`);
+      if (enforce) {
+        factsBlock = `
+
+${catalogueFactsPrompt(resolved.facts)}`;
+        const wb = await writeBackPieces(sb, resolved);
+        if (wb !== 'not-needed') console.log(`[gate14] pieces write-back set=${setNumber}: ${wb}`);
+      }
+    }
+  } else if (g14News) {
+    // Round 11: a news draft with no catalogued set still gets the rules that need no facts
+    // (foreign / import-estimate prices, narrated source).
+    gate14 = { facts: { setNumber: '', name: '', pieces: null, minifigs: null, year: null, prices: [], mrp: [], verdict: null, noSet: true }, enforce: FEATURE_FLAGS.gate14NewsEnforce };
+    console.log(`[gate14] ${gate14.enforce ? 'enforce' : 'shadow'} news without a catalogued set: price-source and voice rules only`);
+  }
 
   const input: DraftGenerationInput = {
     format:            draft.draft_format as string,
@@ -314,8 +380,9 @@ async function generateBodyWithFailover(draft: any, batchOpeners?: string[]): Pr
     setNumber,
     fullBody,
     sourceExcerpt:     draft.source_excerpt as string | null,
-    indiaPriceContext,
+    indiaPriceContext: indiaPriceContext + factsBlock,
     forceOpinionTake:  draft.opinion_forced_take === true,
+    gate14,
   };
 
   return generateWithFailover(input, sb, GEMINI_KEY!, GROQ_KEY ?? undefined, CEREBRAS_KEY ?? undefined, batchOpeners);
@@ -333,7 +400,7 @@ if (IS_MAIN) (async () => {
 
   let q = sb
     .from('pending_drafts')
-    .select('id, source_url, source_title, source_excerpt, source_published_at, draft_format, draft_title, source_retailer, source_price_inr, source_stock_status, source_checked_at, opinion_forced_take, draft_category')
+    .select('id, source_url, source_title, source_excerpt, source_published_at, draft_format, draft_title, source_retailer, source_price_inr, source_stock_status, source_checked_at, opinion_forced_take, draft_category, approved_by, discard_reason')
     .eq('status', 'approved')
     .is('draft_body', null)
     .order('created_at', { ascending: true });
@@ -382,13 +449,21 @@ if (IS_MAIN) (async () => {
   // outcome.provider distinguishes which one per-draft; these counters
   // track "any fallback", not Cerebras specifically anymore.
   let fallbackAttempted = 0, fallbackOk = 0, fallbackLintFailed = 0;
-  let deferred = 0, failed = 0, bothFailed = 0;
+  let deferred = 0, failed = 0, bothFailed = 0, publishRejected = 0;
 
   // Gate 8 same-batch race fix (2026-07-02): bodies published earlier in THIS
   // run, so a later draft in the same batch can't reuse an opener the DB
   // hasn't been queried for yet (both Jul-1 "Your wallet called…" articles
   // shipped in one batch precisely this way).
   const batchOpeners: string[] = [];
+  let heldGate14 = 0;  // #398
+
+  // #422 same-set repeat guard (src/lib/same-set-guard.ts): news already
+  // published about a set in the last 7 days (one query per run), plus sets
+  // published earlier in THIS run (the 40900 pair shipped 41 s apart).
+  const recentNews = await loadRecentNews(sb);
+  const batchSets = new Map<string, string>();
+  let heldSameSet = 0;
 
   for (let i = 0; i < queue.length; i++) {
     await acquireGeminiSlot();
@@ -398,7 +473,50 @@ if (IS_MAIN) (async () => {
     process.stdout.write(`[${i + 1}/${queue.length}] ${label}... `);
 
     try {
+      // #422: before drafting, so a repeat costs no model tokens.
+      const catalogued = await cataloguedCandidates(sb, draft);
+      const hit = decideSameSet(draft, catalogued, recentNews, batchSets);
+      if (hit) {
+        const { error: holdErr } = await sb.from('pending_drafts').update({
+          status: 'draft',
+          discard_reason: holdReason(hit).slice(0, 500),
+        }).eq('id', draft.id);
+        if (holdErr) {
+          console.error('[supabase-write] table=pending_drafts op=update(holdSameSet) error:', holdErr);
+          failed++;
+        } else {
+          heldSameSet++;
+        }
+        console.log(`HELD (same set ${hit.set_number}: ${hit.path}) -- back in /admin/pending`);
+        continue;
+      }
+
       const outcome = await generateBodyWithFailover(draft, batchOpeners);
+
+      // Gate 14 (#398): shadow findings are logged only. Enforced (chat, 2 Oct
+      // 2026): HOLD-FOR-REVIEW mode, never discard. A draft whose only failing
+      // gate is Gate 14 (after the one shared regeneration) goes back to
+      // /admin/pending with the findings as its reason, for a person to fix or
+      // approve. Drafts that also fail other gates keep those gates' policy.
+      if (outcome.gate14) {
+        const g = outcome.gate14;
+        const hard = blocking(g.findings);
+        const advisory = g.findings.length - hard.length;
+        if (advisory) console.log(`[gate14] advisory (logged, not held): ${g.findings.filter((x) => x.advisory).map((x) => `[${x.rule}] ${x.detail}`).join('; ')}`);
+        console.log(`[gate14] ${g.enforce ? 'enforce' : 'shadow'} findings=${g.findings.length}${g.findings.length ? ' ' + JSON.stringify(g.findings.map((x) => `[${x.rule}] ${x.detail}`)) : ''}`);
+        const otherLintFails = Object.entries(outcome.lintResult?.gates ?? {})
+          .filter(([name, r]) => name !== 'gate14' && r && !r.pass && r.severity === 'fail').length;
+        const otherHardFails = outcome.hardRules.filter((r) => !r.pass).length;
+        const gate14Only = hard.length > 0 && otherLintFails === 0 && otherHardFails === 0 && !!outcome.lintResult;
+        if (g.enforce && (isUnverifiableOnly(g.findings) || gate14Only)) {
+          const reason = `${isUnverifiableOnly(g.findings) ? 'gate14_unverifiable' : 'gate14_hold'}: ${hard.map((x) => `[${x.rule}] ${x.detail}`).join('; ')}`.slice(0, 500);
+          const { error: holdErr } = await sb.from('pending_drafts').update({ status: 'draft', discard_reason: reason }).eq('id', draft.id);
+          if (holdErr) { console.error('[supabase-write] table=pending_drafts op=update(holdGate14) error:', holdErr); failed++; }
+          else heldGate14++;
+          console.log(`HELD (Gate 14, ${reason.split(':')[0]}) -- back in /admin/pending`);
+          continue;
+        }
+      }
 
       // Policy change 2026-06-28 (Abhinav, this session): "let review/opinion/
       // guide auto-publish too, IF they pass the exact same gates as news (no
@@ -415,6 +533,7 @@ if (IS_MAIN) (async () => {
       if (!outcome.requiresManualApproval && passesAutoPublishGates(outcome)) {
         const { path, slug } = await autoPublish(draft, outcome);
         batchOpeners.push(outcome.body);
+        for (const set of catalogued) batchSets.set(set, `${path}/${slug}`);
         geminiAttempted++;
         if (outcome.failoverUsed) { fallbackAttempted++; fallbackOk++; } else { geminiOk++; }
         const failoverNote = outcome.failoverUsed ? ` [${outcome.provider.toUpperCase()} FAILOVER]` : '';
@@ -439,22 +558,38 @@ if (IS_MAIN) (async () => {
         // Rationale: a row sitting in failed_lint/draft forever provides no
         // value and was the dominant contributor to the unbounded backlog
         // growth — see HIGH-52.
+        // #187 (2026-09-25): hard-failing lint gates are listed FIRST, by
+        // name and reason. Before this, only Gate 7 ids and lint *warnings*
+        // were logged -- a guide rejected by a failing gate showed only a
+        // Gate 3 WARN, hiding the real cause for three consecutive weeks.
+        const failedGates = Object.entries(outcome.lintResult?.gates ?? {})
+          .filter(([, g]) => g && !g.pass && g.severity === 'fail')
+          .map(([name, g]) => `${name}: ${g!.reason ?? 'fail'}`);
         const failureReasons = [
-          ...outcome.hardRules.filter(r => !r.pass).map(r => `gate7:${r.id}`),
+          ...failedGates,
+          ...formatHardRuleFailures(outcome.hardRules),
           ...(outcome.lintResult?.warnings ?? []),
           !outcome.lintResult ? 'lint_runner_threw' : null,
         ].filter(Boolean).join('; ').slice(0, 500);
 
-        const { error: delErr } = await sb.from('pending_drafts').delete().eq('id', draft.id);
-        if (delErr) {
-          console.error('[supabase-write] table=pending_drafts op=delete(rejectFailed) error:', delErr);
-          throw delErr;
+        // #525 (Abhinav, 2 Oct 2026): keep the rejected draft for 30 days with its reason and text,
+        // instead of deleting it; scripts/retention-cleanup.mjs deletes it after that.
+        const { error: rejErr } = await sb.from('pending_drafts').update({
+          status: 'rejected',
+          discard_reason: `${REJECTED_BY_GATES}${failureReasons || 'gate failure'}`.slice(0, 500),
+          draft_title: outcome.title, draft_body: outcome.body, word_count: outcome.wordCount,
+          provider: outcome.provider, lint_result: outcome.lintResult ?? null,
+          updated_at: new Date().toISOString(),
+        }).eq('id', draft.id);
+        if (rejErr) {
+          console.error('[supabase-write] table=pending_drafts op=update(rejectFailed) error:', rejErr);
+          throw rejErr;
         }
 
         geminiAttempted++;
         if (outcome.failoverUsed) { fallbackAttempted++; fallbackLintFailed++; } else { geminiLintFailed++; }
         const failoverNote = outcome.failoverUsed ? ` [${outcome.provider.toUpperCase()} FAILOVER]` : '';
-        console.log(`REJECTED+DELETED (${outcome.wordCount}w, format=${outcome.format}, provider=${outcome.provider}${failoverNote}) — ${failureReasons || 'gate failure'}`);
+        console.log(`REJECTED, kept 30 days (${outcome.wordCount}w, format=${outcome.format}, provider=${outcome.provider}${failoverNote}) — ${failureReasons || 'gate failure'}`);
       }
     } catch (err: unknown) {
       // Policy locked 2026-06-28 (Abhinav, this session): "what fails through
@@ -477,21 +612,16 @@ if (IS_MAIN) (async () => {
         // status='rejected' with the failure reason recorded, not silently
         // unchanged with no trace — same rationale as the existing
         // reject+delete path below for genuine quality-gate failures.
+        // #525: kept 30 days with the reason (retention-cleanup.mjs deletes it after that).
         const { error: rejErr } = await sb.from('pending_drafts').update({
           status: 'rejected',
           discard_reason: `both_providers_failed: ${reasonForLog}`.slice(0, 500),
+          updated_at: new Date().toISOString(),
         }).eq('id', draft.id);
         if (rejErr) {
           console.error('[supabase-write] table=pending_drafts op=update(bothProvidersFailed) error:', rejErr);
-        }
-
-        const { error: delErr } = await sb.from('pending_drafts').delete().eq('id', draft.id);
-        if (delErr) {
-          console.error('[supabase-write] table=pending_drafts op=delete(bothProvidersFailed) error:', delErr);
-          // Row stays as status='rejected' with the reason above — acceptable
-          // degraded state, not silent data loss.
         } else {
-          console.log(`REJECTED+DELETED (both providers failed) — ${reasonForLog}`);
+          console.log(`REJECTED, kept 30 days (both providers failed) — ${reasonForLog}`);
         }
         continue;
       }
@@ -512,6 +642,28 @@ if (IS_MAIN) (async () => {
         geminiAttempted++;  // Gemini was tried (retryable fail); fallback ineligible
         deferred++;
         console.log(`DEFERRED (status=${status}): ${msg}`);
+        continue;
+      }
+
+      // #387 (2026-09-27): an insert rejected by a data-integrity constraint
+      // (Postgres class 23, e.g. reviews.verdict NOT NULL) can never succeed
+      // on retry. Give the draft a real terminal state instead of leaving it
+      // 'approved' to burn a slot and fail again every run: status='rejected'
+      // (the generator only picks up 'approved'), cause in discard_reason.
+      // Kept, not deleted -- unlike a quality-gate reject this is our bug,
+      // so the row stays for diagnosis.
+      if (err instanceof PublishInsertError && err.permanent) {
+        geminiAttempted++;
+        publishRejected++;
+        const { error: rejErr } = await sb.from('pending_drafts').update({
+          status: 'rejected',
+          discard_reason: `publish_insert_failed: ${err.message}`.slice(0, 500),
+        }).eq('id', draft.id);
+        if (rejErr) {
+          console.error('[supabase-write] table=pending_drafts op=update(publishInsertFailed) error:', rejErr);
+          failed++;  // could not mark it terminal -- it will retry, visibly
+        }
+        console.log(`REJECTED (terminal, kept for diagnosis) -- ${err.message}`);
         continue;
       }
 
@@ -549,6 +701,8 @@ if (IS_MAIN) (async () => {
       // 'cerebras'); this is just the run-level rollup.
       fallback:    { attempted: fallbackAttempted, ok: fallbackOk, lint_failed: fallbackLintFailed },
       both_failed: bothFailed,
+      held_same_set: heldSameSet,  // #422
+      held_gate14: heldGate14,  // #398
     };
     const { error: updateErr } = await sb
       .from('generator_runs')
@@ -570,7 +724,14 @@ if (IS_MAIN) (async () => {
   const total = geminiOk + fallbackOk;
   const lintFailed = geminiLintFailed + fallbackLintFailed;
   const dur   = ((Date.now() - t0) / 1000).toFixed(1);
-  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected+deleted (quality gates), ${bothFailed} rejected+deleted (both providers failed), ${failed} failed (retrying next run), ${deferred} deferred of ${queue.length} — ${dur}s total`);
+  console.log(`\nSUMMARY: ${total} auto-published (${geminiOk} gemini, ${fallbackOk} fallback), ${lintFailed} rejected (quality gates, kept 30 days), ${bothFailed} rejected (both providers failed, kept 30 days), ${failed} failed (retrying next run), ${publishRejected} rejected at insert (terminal), ${deferred} deferred, ${heldSameSet} held (same set, #422), ${heldGate14} held for review (Gate 14) of ${queue.length} — ${dur}s total`);
+  // Alert when a run had drafts queued and published none (approved bundle, 10 Oct 2026).
+  if (queue.length > 0 && total === 0) {
+    await sendAlert(
+      'Generator: 0 articles published this run',
+      `Run ${runId ?? '(no run row)'} had ${queue.length} draft(s) queued and published 0. Rejected: ${lintFailed} quality, ${bothFailed} both providers failed. Failed (retry next run): ${failed}. Held: ${heldSameSet} same set, ${heldGate14} Gate 14.`,
+    );
+  }
 })().catch(err => {
   console.error('FATAL:', err);
   process.exit(1);

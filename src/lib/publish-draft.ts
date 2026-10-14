@@ -3,6 +3,24 @@ import { linkFirstSetMentions } from './link-set-mentions';
 import { submitToIndexNow } from './indexnow';
 import { resolveDisclaimerVariant, disclaimerTextFor, STORE_DISPLAY_NAME, type SourceRetailer } from './review-disclaimer';
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { AFFILIATE_NOTE } from './affiliate-disclosure';
+
+/**
+ * #387 (2026-09-27): the article-table insert failed. `code` is the Postgres
+ * SQLSTATE from PostgREST. Class 23 (integrity constraint violation: not-null,
+ * check, unique, foreign key) is PERMANENT for this draft -- retrying the same
+ * row can never succeed -- so callers give the draft a terminal state instead
+ * of leaving it 'approved' to fail again every run.
+ */
+export class PublishInsertError extends Error {
+  constructor(public table: string, public dbMessage: string, public code?: string) {
+    super(`Insert failed (${table}): ${dbMessage}${code ? ` [sqlstate ${code}]` : ''}`);
+    this.name = 'PublishInsertError';
+  }
+  get permanent(): boolean {
+    return typeof this.code === 'string' && this.code.startsWith('23');
+  }
+}
 
 // ── Unified publish-a-draft logic (2026-06-28) ────────────────────────────────
 //
@@ -79,6 +97,18 @@ const EDITORIAL_CDN_BLOCKLIST = new Set([
   'i.imgur.com',                   // Imgur
   'external-preview.redd.it',      // Reddit preview
   'preview.redd.it',               // Reddit preview
+  'blogger.googleusercontent.com', // Blogspot/Blogger-hosted images -- confirmed
+                                    // real 2026-09-20: a Blogspot-sourced News
+                                    // article's hero_image (this exact host)
+                                    // was flagged image_render_broken
+                                    // (naturalWidth=0) by the live visual
+                                    // renderer; re-tested directly against a
+                                    // real headless browser afterward and the
+                                    // URL loaded fine, so the CDN itself is
+                                    // intermittently unreliable rather than
+                                    // permanently dead -- exactly the failure
+                                    // mode this blocklist exists to route
+                                    // around rather than gamble on again.
 ]);
 
 const LEGO_THEME_KEYWORDS = [
@@ -109,9 +139,9 @@ const FORBIDDEN_SUBS: [RegExp, string][] = [
 ];
 
 const JAIMAN_SUBS: [RegExp, string][] = [
-  [/MyBrickHouse,\s*Toycra,\s*and\s*Jaiman\s*Toys/gi, 'MyBrickHouse and Toycra'],
+  [/MyBrickHouse,\s*Toycra,\s*and\s*Jaiman\s*Toys/gi, 'LEGO.in and Toycra'],
   [/Toycra,\s*and\s*Jaiman\s*Toys/gi,                 'Toycra'],
-  [/MyBrickHouse\s*and\s*Jaiman\s*Toys/gi,             'MyBrickHouse and Toycra'],
+  [/MyBrickHouse\s*and\s*Jaiman\s*Toys/gi,             'LEGO.in and Toycra'],
   [/,?\s*and\s*Jaiman\s*Toys/gi,                       ''],
   [/Jaiman\s*Toys/gi,                                  'Toycra'],
 ];
@@ -149,19 +179,19 @@ export function prePublishAutoFix(body: string, draft: { source_title?: string |
   }
 
   if (/Toycra/i.test(c) && !/ABHINAV12/i.test(c)) {
-    c = c.replace(/(Toycra\b[^.\n]*\.)/, '$1 Use code ABHINAV12 for 12% off on orders above ₹500 at Toycra.');
+    c = c.replace(/(Toycra\b[^.\n]*\.)/, `$1 ${AFFILIATE_NOTE}`);
   }
 
   const hasPrice = /₹[\d,]+/.test(c);
-  const hasStore = /MyBrickHouse|Toycra/i.test(c);
+  const hasStore = /MyBrickHouse|lego\.in|Toycra/i.test(c);
   if (hasPrice && !hasStore) {
-    c = c.replace(/(₹[\d,]+[^.\n]*\.)/, '$1 Available at MyBrickHouse and Toycra (use code ABHINAV12 for 12% off above ₹500).');
+    c = c.replace(/(₹[\d,]+[^.\n]*\.)/, '$1 Available at LEGO.in and Toycra (code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500).');
   }
 
   const hasVerdict = /\b(BUY NOW|WAIT|IMPORT ONLY|AVOID)\b/.test(c);
   const hasSetNum = /\b\d{4,6}\b/.test(slug);
   if (hasPrice && !hasVerdict && hasSetNum) {
-    c = c.replace(/\s+$/, '') + '\n\n**Verdict: WAIT** — check prices at MyBrickHouse and Toycra before pulling the trigger.';
+    c = c.replace(/\s+$/, '') + '\n\n**Verdict: WAIT** — check prices at LEGO.in and Toycra before pulling the trigger.';
   }
 
   if (!/on that bombshell/i.test(c)) c = c.replace(/\s+$/, '') + '\n\n' + SIGNOFF_TEXT;
@@ -182,6 +212,18 @@ export function cqsHardCheck(body: string): string | null {
 }
 
 // ── Slug + target resolution ──────────────────────────────────────────────────
+
+/**
+ * #446 (P12): rows are published immediately -- there is no scheduling. A future published_at would
+ * be hidden from anon by the published-only read policy, so its page 404s and that 404 gets cached.
+ * The database trigger reject_future_published_at enforces the same limit (5 minutes of clock skew).
+ */
+export const MAX_PUBLISHED_AT_SKEW_MS = 5 * 60_000;
+export function assertPublishedAtNotFuture(publishedAt: string, nowMs = Date.now()): void {
+  const t = Date.parse(publishedAt);
+  if (!Number.isFinite(t)) throw new Error(`published_at is not a valid timestamp: ${publishedAt}`);
+  if (t > nowMs + MAX_PUBLISHED_AT_SKEW_MS) throw new Error(`published_at ${publishedAt} is in the future; publishing is immediate (#446)`);
+}
 
 export function generateSlug(title: string): string {
   return (title || 'untitled')
@@ -630,12 +672,6 @@ function fmtInrLocal(n: number): string {
   return rest.replace(/\B(?=(\d{2})+(?!\d))/g, ',') + ',' + last3;
 }
 
-function formatCheckedAtDisplay(iso: string): string {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return iso;
-  return `${d.getUTCDate()} ${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}`;
-}
-
 const INDIA_MARKER_RE = /<!--\s*INDIA_PARAGRAPH\s*-->[\s\S]*?<!--\s*\/INDIAN?_PARAGRAPH\s*-->/;
 
 // Matches the deterministic block's own first line once it's live in a
@@ -643,21 +679,48 @@ const INDIA_MARKER_RE = /<!--\s*INDIA_PARAGRAPH\s*-->[\s\S]*?<!--\s*\/INDIAN?_PA
 // what scripts/reviews-source-refresh.mjs's weekly re-verification pass
 // matches against to update price/timestamp in place on an already-
 // published review, without disturbing the surrounding article prose).
-const PUBLISHED_PRICE_LINE_RE = /Priced at ₹[\d,]+ on [^,]+, confirmed in stock as of [^.]+\./;
+// Round 11 (4 Oct 2026): the store part may hold a bracketed second price with a comma
+// ("Toycra (₹41,199 on LEGO.in)"), so it is matched lazily up to ", confirmed in stock".
+const PUBLISHED_PRICE_LINE_RE = /(?:Priced at ₹[\d,]+ on .+?, confirmed in stock as of [^.]+|At review, it was priced at ₹[\d,]+ on .+?)\./;
 
 export type RetailerReviewSourceFields = {
   source_retailer:     SourceRetailer;
   source_price_inr:    number;
   source_stock_status: 'in_stock' | 'out_of_stock';
   source_checked_at:   string;
+  // Round 11 (chat, 4 Oct 2026): when source_retailer is 'both', which store has the shown price
+  // and what the other store charges. Without them a 'both' line can't say which store is which.
+  featured_store?:     'mybrickhouse' | 'toycra';
+  other_price_inr?:    number;
+  other_in_stock?:     boolean;
 };
+
+/**
+ * Where the shown price is. Round 11 (chat, 4 Oct 2026): a 'both' line used to print the LOWER
+ * price "on LEGO.in and Toycra" even when the two stores differed (97 reviews). Now:
+ *   one store                 -> "Toycra"
+ *   both, same price          -> "LEGO.in and Toycra"
+ *   both, different prices    -> "Toycra (₹41,199 on LEGO.in)"   shown (cheaper) store first
+ *   both, other out of stock  -> "Toycra (₹41,199 on LEGO.in, out of stock)"
+ * A 'both' source without the other store's details never claims both stores: it names the
+ * featured store, or "the cheaper of LEGO.in and Toycra" if even that isn't known.
+ */
+export function priceLineStores(source: RetailerReviewSourceFields): string {
+  if (source.source_retailer !== 'both') return STORE_DISPLAY_NAME[source.source_retailer] ?? source.source_retailer;
+  const f = source.featured_store;
+  if (!f) return 'the cheaper of LEGO.in and Toycra';
+  const other: 'mybrickhouse' | 'toycra' = f === 'toycra' ? 'mybrickhouse' : 'toycra';
+  if (source.other_price_inr == null) return STORE_DISPLAY_NAME[f];
+  if (source.other_price_inr === source.source_price_inr && source.other_in_stock !== false) return STORE_DISPLAY_NAME.both;
+  return `${STORE_DISPLAY_NAME[f]} (₹${fmtInrLocal(source.other_price_inr)} on ${STORE_DISPLAY_NAME[other]}${source.other_in_stock === false ? ', out of stock' : ''})`;
+}
 
 function buildDeterministicBlock(verdict: string, source: RetailerReviewSourceFields): { block: string; disclaimerVariant: string } {
   const disclaimerVariant = resolveDisclaimerVariant(verdict, source.source_retailer);
-  const retailerDisplay   = STORE_DISPLAY_NAME[source.source_retailer] ?? source.source_retailer;
+  const retailerDisplay   = priceLineStores(source);
 
   const block = [
-    `Priced at ₹${fmtInrLocal(source.source_price_inr)} on ${retailerDisplay}, confirmed in stock as of ${formatCheckedAtDisplay(source.source_checked_at)}.`,
+    `At review, it was priced at ₹${fmtInrLocal(source.source_price_inr)} on ${retailerDisplay}.`,
     `Verdict: ${verdict}.`,
     '',
     disclaimerTextFor(disclaimerVariant as Parameters<typeof disclaimerTextFor>[0]),
@@ -695,7 +758,7 @@ export function spliceRetailerIndiaParagraph(
 // exact text before Pass 1 runs, compare after for any row flagged as a
 // verdict-flip candidate — it must be byte-identical, since a flip candidate
 // must never actually change).
-const FULL_BLOCK_RE = /Priced at ₹[\d,]+ on [^,]+, confirmed in stock as of [^.]+\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
+const FULL_BLOCK_RE = /(?:Priced at ₹[\d,]+ on .+?, confirmed in stock as of [^.]+|At review, it was priced at ₹[\d,]+ on .+?)\.\nVerdict: [^.]+\.\n\nStandard disclaimer:[^\n]+/;
 
 /**
  * Re-splices the deterministic block into an ALREADY-PUBLISHED review's
@@ -785,6 +848,26 @@ const DEFAULT_LINT_FRESHNESS_MS = 24 * 60 * 60 * 1000;
 // Throws LintFailedError on a genuine lint failure (caller decides what that
 // means for its own draft: failed_lint status, reject+delete, etc.) — never
 // silently skips a draft.
+/**
+ * Round 11 (4 Oct 2026): for a 'both' review, which store has the shown price (the draft's
+ * source_url is that store's product page) and the other store's price/stock, from store_prices.
+ * Lookup failure -> {} (the price line then names neither store wrongly; see priceLineStores).
+ */
+async function bothStoresDetail(supabase: SupabaseClient, productUrl: string): Promise<Partial<RetailerReviewSourceFields>> {
+  try {
+    const { data: hit } = await supabase.from('store_prices').select('set_id, store_id').eq('product_url', productUrl).limit(1);
+    const row = hit?.[0] as { set_id: string; store_id: string } | undefined;
+    if (!row || (row.store_id !== 'toycra' && row.store_id !== 'mybrickhouse')) return {};
+    const featured = row.store_id as 'toycra' | 'mybrickhouse';
+    const other = featured === 'toycra' ? 'mybrickhouse' : 'toycra';
+    const { data: o } = await supabase.from('store_prices').select('price_inr, in_stock').eq('set_id', row.set_id).eq('store_id', other).limit(1);
+    const op = o?.[0] as { price_inr: number | null; in_stock: boolean | null } | undefined;
+    return { featured_store: featured, ...(op?.price_inr ? { other_price_inr: Number(op.price_inr), other_in_stock: op.in_stock !== false } : {}) };
+  } catch {
+    return {};
+  }
+}
+
 export async function publishOneDraft(
   draft: PublishableDraft,
   supabase: SupabaseClient,
@@ -879,6 +962,7 @@ export async function publishOneDraft(
       source_price_inr:    draft.source_price_inr as number,
       source_stock_status: draft.source_stock_status as 'in_stock' | 'out_of_stock',
       source_checked_at:   draft.source_checked_at as string,
+      ...(draft.source_retailer === 'both' ? await bothStoresDetail(supabase, draft.source_url as string) : {}),
     });
     rawBody = spliced.body;
     retailerDisclaimerVariant = spliced.disclaimerVariant;
@@ -910,6 +994,7 @@ export async function publishOneDraft(
     ? excerptRaw
     : `${excerptRaw.slice(0, 156).replace(/\s+\S*$/, '')}…`;
   const now     = new Date().toISOString();
+  assertPublishedAtNotFuture(now);
 
   // Review-format articles carry verdict + a matched set reference for
   // Review/Product JSON-LD (buildReviewSchema()) and, as of 2026-07-05, for
@@ -963,7 +1048,7 @@ export async function publishOneDraft(
 
   const { error: insertErr } = await supabase.from(table).insert(row);
   if (insertErr) {
-    throw new Error(`Insert failed (${table}): ${insertErr.message}`);
+    throw new PublishInsertError(table, insertErr.message, insertErr.code);
   }
 
   // Recrawl acceleration (replaces the dead Google sitemap ping): submit

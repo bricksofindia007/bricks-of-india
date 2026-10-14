@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import Image from 'next/image';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
@@ -7,12 +8,13 @@ import { SetCard } from '@/components/sets/SetCard';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { MASCOTS, THEMES, PRICE_RANGES } from '@/lib/brand';
+import { getPriceSummaries } from '@/lib/price-summary';
 
-export const metadata: Metadata = {
-  title: 'Compare LEGO Prices in India | Bricks of India',
-  description: 'Compare LEGO set prices across Toycra and MyBrickHouse. Updated every 6 hours. Find the best deal in India.',
-  alternates: { canonical: 'https://bricksofindia.com/compare' },
-};
+export const metadata: Metadata = buildMetadata({
+  title: 'Compare LEGO Prices in India',
+  description: 'Compare LEGO set prices across Toycra and LEGO.in. Find the best deal in India.',
+  path: '/compare',
+});
 
 const PAGE_SIZE = 24;
 
@@ -101,7 +103,7 @@ export default async function ComparePage(props: Props) {
   }
 
   // priceMap hoisted so price-filter path can seed it before the secondary query
-  const priceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
+  const priceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null; in_stock: boolean; scraped_at: string }> = {};
 
   // ── Supabase path ────────────────────────────────────────────────────────────
   if (!usedRebrickable) {
@@ -111,14 +113,15 @@ export default async function ComparePage(props: Props) {
       if (range) {
         let spQuery = supabase
           .from('store_prices')
-          .select('set_id, store_id, price_inr, in_stock, product_url')
+          .select('set_id, store_id, price_inr, in_stock, product_url, scraped_at')
+          .eq('in_stock', true) // PR-A: best price = in-stock rows only
           .gte('price_inr', range.min);
         if (range.max !== Infinity) spQuery = spQuery.lte('price_inr', range.max);
 
         const { data: matchingPrices } = await spQuery;
 
         // Build tempMap from in-range results
-        const tempMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
+        const tempMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null; in_stock: boolean; scraped_at: string }> = {};
         for (const row of matchingPrices ?? []) {
           const existing = tempMap[row.set_id];
           if (!existing || row.price_inr < existing.price_inr) {
@@ -126,6 +129,8 @@ export default async function ComparePage(props: Props) {
               price_inr: row.price_inr,
               store_name: row.store_id,
               buy_url: row.product_url ?? null,
+              in_stock: row.in_stock,
+              scraped_at: row.scraped_at,
             };
           }
         }
@@ -175,21 +180,26 @@ export default async function ComparePage(props: Props) {
   const { data: storePrices } = setNumbers.length
     ? await supabase
         .from('store_prices')
-        .select('set_id, store_id, price_inr, in_stock, product_url')
+        .select('set_id, store_id, price_inr, in_stock, product_url, scraped_at')
         .in('set_id', setNumbers)
     : { data: [] };
 
-  // Merge secondary query into priceMap (cheapest price wins across all stores)
+  // Merge secondary query into priceMap (cheapest IN-STOCK price wins across all stores)
   for (const row of storePrices ?? []) {
+    if (!row.in_stock) continue;
     const existing = priceMap[row.set_id];
     if (!existing || row.price_inr < existing.price_inr) {
       priceMap[row.set_id] = {
         price_inr: row.price_inr,
         store_name: row.store_id,
         buy_url: row.product_url ?? null,
+        in_stock: row.in_stock,
+        scraped_at: row.scraped_at,
       };
     }
   }
+
+  const summaries = await getPriceSummaries(supabase, setNumbers);
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -205,8 +215,8 @@ export default async function ComparePage(props: Props) {
               </h1>
               <p className="text-gray-300 font-body">
                 {total > 0
-                  ? `${total.toLocaleString()} sets. Updated every 6 hours. Cheapest first.`
-                  : 'Search LEGO sets across Toycra and MyBrickHouse.'}
+                  ? `${total.toLocaleString()} sets. Cheapest first.`
+                  : 'Search LEGO sets across Toycra and LEGO.in.'}
               </p>
             </div>
             <Image
@@ -315,7 +325,7 @@ export default async function ComparePage(props: Props) {
             <p className="text-gray-400 font-body">
               {q || themeFilter || priceFilter
                 ? 'Try a different search or filter.'
-                : 'Set inventory is synced from Rebrickable. Check back shortly.'}
+                : 'Set inventory is updated regularly. Check back shortly.'}
             </p>
           </div>
         ) : (
@@ -329,7 +339,7 @@ export default async function ComparePage(props: Props) {
               {sets.map((set: any) => {
                 const bestPrice = priceMap[set.set_number] ?? null;
                 return (
-                  <SetCard key={set.id} set={set} bestPrice={bestPrice} priceCount={bestPrice ? 1 : 0} />
+                  <SetCard key={set.id} set={set} bestPrice={bestPrice} priceCount={bestPrice ? 1 : 0} summary={summaries.get(set.set_number)} />
                 );
               })}
             </div>
@@ -363,7 +373,7 @@ export default async function ComparePage(props: Props) {
 
       <div className="max-w-site mx-auto px-4 pb-8">
         <p className="text-xs text-gray-400 text-center border-t border-border pt-4">
-          Prices updated every 6 hours. Always verify the final price on the retailer&apos;s website before purchase.
+          Always check the final price on the store&apos;s website before you buy.
           LEGO® is a trademark of The LEGO Group which does not sponsor or endorse this site.
         </p>
       </div>

@@ -1,0 +1,65 @@
+name: Video Cadence Tests
+
+# Issue #178. Runs scripts/video/test_cadence.py (stdlib unittest, in-memory
+# fake Supabase -- no network, no secrets) on any PR touching the posting
+# cadence rules or the publishers that use them, so the per-platform cap,
+# QP Mon/Wed/Fri slot, merge-day posted_at fallback and end-of-day watchdog
+# rules can't regress unseen. cadence.py imports only the stdlib.
+on:
+  pull_request:
+    paths:
+      - 'scripts/video/cadence.py'
+      - 'scripts/video/test_cadence.py'
+      - 'scripts/video/publish_quiet_panic.py'
+      - 'scripts/video/publish.py'
+      - 'scripts/video/engine.py'
+      - 'scripts/video/missed_slot_watchdog.py'
+      - '.github/workflows/video-cadence-tests.yml'
+      - 'scripts/video/coherence_judge.py'
+      - 'scripts/video/test_coherence_judge.py'
+      - 'scripts/video/article_coherence.py'
+      - 'scripts/video/test_article_coherence.py'
+      - 'scripts/video/price_baseline.py'
+      - 'config/quota_guard.py'
+      - 'config/test_quota_guard.py'
+      - 'scripts/video/quota.py'
+      - 'scripts/video/test_price_baseline.py'
+      - 'scripts/video/generate_quiet_panic_video.py'
+      - 'scripts/video/gates.py'
+      - 'scripts/video/test_gates_g10.py'
+  workflow_dispatch:
+
+jobs:
+  cadence-tests:
+    runs-on: ubuntu-latest
+    # 19 pure-Python tests, ~0.01s locally; the ceiling only covers
+    # checkout + setup-python.
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.11'
+
+      - name: Run cadence unit tests
+        working-directory: scripts/video
+        run: python -m unittest test_cadence -v
+
+      - name: Run coherence judge unit tests (#365, fail-closed)
+        working-directory: scripts/video
+        run: python -m unittest test_coherence_judge test_article_coherence -v
+
+      # gates.py and publish.py import a few third-party modules; no network, no secrets.
+      - name: Run VID-P4 G10 fail-closed tests (#378)
+        working-directory: scripts/video
+        run: |
+          pip install --quiet requests num2words pillow python-dotenv
+          python -m unittest test_gates_g10 -v
+
+      - name: Run price baseline unit tests (#383)
+        working-directory: scripts/video
+        run: python -m unittest test_price_baseline -v
+
+      - name: Run quota guard unit tests (FP6.4)
+        run: python -m unittest config.test_quota_guard -v

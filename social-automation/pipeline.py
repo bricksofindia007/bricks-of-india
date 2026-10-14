@@ -22,6 +22,10 @@ import db
 import notifier
 
 
+# Issue #181: max regenerations when a caption hits a Voice Codex PAGE 17 ban.
+CAPTION_BAN_RETRIES = 2
+
+
 def _cleanup(paths: list) -> None:
     """Delete local tmp files. Errors are logged but not fatal."""
     for p in paths:
@@ -60,6 +64,19 @@ def _find_candidate_tiered() -> tuple[dict | None, str | None]:
 
 
 def main() -> None:
+    # ── Step 0: 1 post per IST day ────────────────────────────────────────────
+    # Checked before any scraping/rendering, so a second run the same day
+    # (manual dispatch + schedule) costs nothing and posts nothing.
+    already = db.posted_today_ist()
+    if already:
+        print(f'[pipeline] Already posted today (IST): {already["set_num"]} '
+              f'({already.get("set_name")}) at {already["posted_at"]}. 1 post/day rule -- exiting cleanly.')
+        sys.exit(0)
+
+    # FP6.4: storage guard closed -> skip the run before scraping/rendering.
+    import quota
+    quota.preflight_or_exit(db._client())
+
     # ── Step 1: Find a new set (tiered) ───────────────────────────────────────
     print('[pipeline] Step 1: Looking for a new set...')
     set_data, winning_tier = _find_candidate_tiered()
@@ -107,7 +124,51 @@ def main() -> None:
     caption_text = caption_writer.generate_caption(set_data)
     print(f'[pipeline] Caption preview (first 120 chars): {caption_text[:120]}...')
 
+    # Banned phrase = a fixable mechanical issue, not a failure (Abhinav,
+    # issue #181, 2026-09-24 -- 42172-1 McLaren P1 was refused on "Stunning"
+    # on 2026-09-23). Regenerate with the full Codex PAGE 17 ban list injected,
+    # up to CAPTION_BAN_RETRIES more times; only raise below if still off-voice.
+    offvoice = caption_writer.find_offvoice_phrases(caption_text)
+    for retry in range(1, CAPTION_BAN_RETRIES + 1):
+        if not offvoice:
+            break
+        print(f'[pipeline] Caption uses banned phrase(s) {offvoice} -- regenerating with ban list '
+              f'(retry {retry}/{CAPTION_BAN_RETRIES})...')
+        caption_text = caption_writer.generate_caption(set_data, banned_feedback=offvoice)
+        print(f'[pipeline] Caption preview (first 120 chars): {caption_text[:120]}...')
+        offvoice = caption_writer.find_offvoice_phrases(caption_text)
+
+    # Quality gates (Phase 4c, 2026-08-16) -- raise, don't post an off-voice or
+    # malformed caption. An uncaught exception here is already handled by this
+    # file's own __main__ block (logs, emails failure, exits 1) -- no separate
+    # handling needed, same pattern newsletter/generate.py's gates rely on.
+    if offvoice:
+        raise RuntimeError(
+            'Refusing to post — caption contains phrase(s) the Voice Codex '
+            f'explicitly bans (docs/codex/BOI_Codex_v2.md, PAGE 17): {offvoice}'
+        )
+    length_issues = caption_writer.find_length_violation(caption_text)
+    if length_issues:
+        raise RuntimeError('Refusing to post — ' + '; '.join(length_issues))
+    invented_structure = caption_writer.find_invented_structure(caption_text)
+    if invented_structure:
+        raise RuntimeError(
+            'Refusing to post — caption invents a structured label this schema has no '
+            f'data to support (Phase 4d): {invented_structure}'
+        )
+
     # ── Step 6: Publish ───────────────────────────────────────────────────────
+    # G6 (2 Oct 2026): the caption may state only our live Indian price, or none.
+    allowed_inr = set_data.get('india_price_inr')
+    price_issues = caption_writer.price_violations(caption_text, allowed_inr)
+    if price_issues:
+        print(f'[pipeline] Caption price check failed {price_issues} -- regenerating once...')
+        caption_text = caption_writer.generate_caption(set_data, price_feedback=price_issues)
+        price_issues = caption_writer.price_violations(caption_text, allowed_inr)
+    if price_issues:
+        raise RuntimeError('Refusing to post — caption states a price that is not our Indian '
+                           f'price (G6): {price_issues}')
+
     platforms = {'ig_feed': False, 'ig_reels': False, 'yt_shorts': False}
 
     # Instagram and YouTube are independent platforms — one failing (e.g. an

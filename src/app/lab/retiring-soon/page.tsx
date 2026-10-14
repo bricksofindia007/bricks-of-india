@@ -1,18 +1,22 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
+import { getStores, storeLabels } from '@/lib/stores';
+import { abhinav12Price } from '@/lib/abhinav12';
+import { shownTheme } from '@/lib/theme-display';
 
-export const metadata: Metadata = {
-  title: 'Retirement Radar | Bricks of India Lab',
-  description: 'LEGO sets retiring soon in India — 90-day window. Buy before they\'re gone. Updated weekly.',
-  alternates: { canonical: 'https://bricksofindia.com/lab/retiring-soon' },
-};
+// P10 revalidate audit (29 Sep): this route had no revalidate of its own and was either built
+// once per deploy (its data froze between deploys) or refreshed only as a side effect of a shared
+// read. Its cadence is now explicit and checked in CI.
+export const revalidate = 86400; // = READ_REVALIDATE_SECONDS (src/lib/route-cadence.ts; segment config must be a literal)
 
-const STORE_LABELS: Record<string, string> = {
-  toycra:       'Toycra',
-  mybrickhouse: 'MyBrickHouse',
-};
+export const metadata: Metadata = buildMetadata({
+  title: 'Retirement Radar — The Lab',
+  description: 'LEGO sets retiring soon in India — 90-day window. Buy before they\'re gone.',
+  path: '/lab/retiring-soon',
+});
 
 function fmtInr(n: number) {
   return `₹${Math.round(n).toLocaleString('en-IN')}`;
@@ -40,9 +44,12 @@ interface RetSet {
   retirement_date: string;
   best_price: number | null;
   store_id:   string | null;
+  compare_at: number | null;
 }
 
 export default async function RetiringSoonPage() {
+  // FP5.1: store names come from the retailer registry (src/lib/stores.ts).
+  const STORE_LABELS = storeLabels(await getStores());
   const supabase = createServerClient();
 
   const { data: setsRaw } = await supabase
@@ -59,19 +66,19 @@ export default async function RetiringSoonPage() {
 
   const setNumbers = sets.map(s => s.set_number);
 
-  const bestPrices = new Map<string, { price: number; store_id: string }>();
+  const bestPrices = new Map<string, { price: number; store_id: string; compare_at: number | null }>();
   if (setNumbers.length > 0) {
     const { data: pricesData } = await supabase
       .from('store_prices')
-      .select('set_id, store_id, price_inr')
+      .select('set_id, store_id, price_inr, compare_at_price_inr')
       .eq('in_stock', true)
       .not('price_inr', 'is', null)
       .in('set_id', setNumbers);
 
-    for (const p of (pricesData ?? []) as { set_id: string; store_id: string; price_inr: number }[]) {
+    for (const p of (pricesData ?? []) as { set_id: string; store_id: string; price_inr: number; compare_at_price_inr: number | null }[]) {
       const cur = bestPrices.get(p.set_id);
       if (!cur || p.price_inr < cur.price) {
-        bestPrices.set(p.set_id, { price: p.price_inr, store_id: p.store_id });
+        bestPrices.set(p.set_id, { price: p.price_inr, store_id: p.store_id, compare_at: p.compare_at_price_inr });
       }
     }
   }
@@ -88,6 +95,7 @@ export default async function RetiringSoonPage() {
       retirement_date: s.retirement_date,
       best_price:      bp?.price ?? null,
       store_id:        bp?.store_id ?? null,
+      compare_at:      bp?.compare_at ?? null,
     };
   });
 
@@ -114,7 +122,7 @@ export default async function RetiringSoonPage() {
           {results.length} LEGO set{results.length !== 1 ? 's' : ''} retiring in the next 90 days. Buy before they&apos;re gone.
         </p>
         <p style={{ color: '#CBD5E0', fontSize: '0.72rem', margin: 0 }}>
-          Data from Brickset · Updated weekly · Sorted by retirement date
+          Data from Brickset · Sorted by retirement date
         </p>
       </div>
 
@@ -151,10 +159,8 @@ export default async function RetiringSoonPage() {
                   {group.map(r => {
                     const slug      = `${r.set_number}-${slugify(r.name)}`;
                     const storeName = r.store_id ? (STORE_LABELS[r.store_id] ?? r.store_id) : null;
-                    const isToycra  = r.store_id === 'toycra';
-                    const discounted = isToycra && r.best_price && r.best_price >= 500
-                      ? Math.round(r.best_price * 0.88)
-                      : null;
+                    // ABHINAV12 only on full-price Toycra listings (src/lib/abhinav12.ts).
+                    const discounted = r.store_id ? abhinav12Price({ store_id: r.store_id, price_inr: r.best_price, compare_at_price_inr: r.compare_at, mrp_inr: r.lego_mrp_inr }) : null;
 
                     return (
                       <div key={r.set_number} style={{
@@ -183,7 +189,7 @@ export default async function RetiringSoonPage() {
                             </Link>
                             <div style={{ fontSize: '0.68rem', color: '#9AA5B4', marginTop: 2 }}>
                               #{r.set_number}
-                              {r.theme  ? ` · ${r.theme}`                             : ''}
+                              {shownTheme(r.theme) ? ` · ${shownTheme(r.theme)}` : ''}
                               {r.pieces ? ` · ${r.pieces.toLocaleString('en-IN')} pcs` : ''}
                             </div>
                           </div>

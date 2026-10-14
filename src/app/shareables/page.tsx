@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
 import { getShareablesManifest, shareablesPublicUrl, type ShareablesClip } from '@/lib/shareables';
 import { HowToShareModal } from '@/components/shareables/HowToShareModal';
@@ -12,13 +13,12 @@ import { HowToShareModal } from '@/components/shareables/HowToShareModal';
 // while flagged off -- flip both back when Phase 4 delivers real clips.
 const SHAREABLES_LIVE = false;
 
-export const metadata: Metadata = {
-  title: 'Shareables | Bricks of India',
-  description:
-    'Free AI-animated LEGO minifigure greeting clips for every occasion — download and share on WhatsApp, Instagram, Facebook, or LinkedIn.',
-  alternates: { canonical: 'https://bricksofindia.com/shareables' },
-  ...(!SHAREABLES_LIVE && { robots: { index: false, follow: false } }),
-};
+export const metadata: Metadata = buildMetadata({
+  title: 'Shareables',
+  description: 'Free AI-animated LEGO minifigure greeting clips for every occasion — download and share on WhatsApp, Instagram, Facebook, or LinkedIn.',
+  path: '/shareables',
+  robots: !SHAREABLES_LIVE ? { index: false, follow: false } : undefined,
+});
 
 // Static/filesystem only, matching every other locked decision in this
 // project — no database table, listing generated from manifest.json

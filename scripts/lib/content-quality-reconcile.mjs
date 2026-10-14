@@ -30,9 +30,14 @@
  * @param {string} sourceLabel
  *   Short label for fix_detail on auto-resolved rows (e.g. the calling
  *   script's filename), so a reconciliation's origin is traceable later.
+ * @param {{ inScope?: (slug: string, checkName: string) => boolean }} [opts]
+ *   #430 (P11): a caller that checks only SOME articles (or some checks on some articles) passes
+ *   inScope, and only open rows inside it can be auto-resolved. Without it an unchecked article's
+ *   open issue would read as "no longer detected" -- the same failure as the 2026-08-24 incident
+ *   above, by article instead of by check_name. Omitted = the whole owned scope (unchanged).
  * @returns {Promise<{inserted: number, touched: number, resolved: number, openBefore: number}>}
  */
-export async function reconcileIssues(sb, issues, ownedCheckNames, sourceLabel) {
+export async function reconcileIssues(sb, issues, ownedCheckNames, sourceLabel, opts = {}) {
   const ownedList = [...new Set(ownedCheckNames)];
   if (ownedList.length === 0) {
     console.warn('  reconcileIssues: ownedCheckNames is empty -- nothing will ever be reconciled or auto-resolved.');
@@ -92,43 +97,74 @@ export async function reconcileIssues(sb, issues, ownedCheckNames, sourceLabel) 
   const openBefore = openByKey.size;
   console.log(`  [${sourceLabel}] ${openBefore} currently-open row(s) in scope to reconcile against.`);
 
+  // Fix B (2026-09-26): batched writes. This loop issued one request per
+  // issue (~500-950 PATCHes a day); every request writes a ~2.5 KB Supabase
+  // gateway log line and log ingest is over the Free quota. Recurring rows
+  // are now one id-keyed upsert per batch (only the columns sent are
+  // updated -- the table has no triggers and every other NOT NULL column has
+  // a default), new rows one insert per batch, and auto-resolves one .in()
+  // update per batch. A failed batch falls back to per-row writes so a bad
+  // row is still logged by key exactly as before.
   const seenKeys = new Set();
   let inserted = 0, touched = 0;
-  const BATCH = 50;
-  for (let i = 0; i < issues.length; i += BATCH) {
-    const batch = issues.slice(i, i + BATCH);
-    await Promise.all(batch.map(async (issue) => {
-      const key = `${issue.article_slug}|${issue.check_name}`;
-      seenKeys.add(key);
-      const existingId = openByKey.get(key);
-      if (existingId) {
-        const { error } = await sb.from('content_quality_issues')
-          .update({ checked_at: issue.checked_at, detail: issue.detail, severity: issue.severity, auto_fixable: issue.auto_fixable })
-          .eq('id', existingId);
-        if (error) console.error(`  Update error (${key}):`, error.message);
-        else touched++;
-      } else {
-        const { error } = await sb.from('content_quality_issues').insert({ ...issue, first_seen_at: issue.checked_at });
-        if (error) console.error(`  Insert error (${key}):`, error.message);
-        else inserted++;
-      }
-    }));
+  const WRITE_BATCH = 500;
+  const toTouch = [];
+  const toInsert = [];
+  for (const issue of issues) {
+    const key = `${issue.article_slug}|${issue.check_name}`;
+    seenKeys.add(key);
+    const existingId = openByKey.get(key);
+    if (existingId) toTouch.push({ key, row: { id: existingId, checked_at: issue.checked_at, detail: issue.detail, severity: issue.severity, auto_fixable: issue.auto_fixable } });
+    else toInsert.push({ key, row: { ...issue, first_seen_at: issue.checked_at } });
+  }
+
+  for (let i = 0; i < toTouch.length; i += WRITE_BATCH) {
+    const chunk = toTouch.slice(i, i + WRITE_BATCH);
+    const { error } = await sb.from('content_quality_issues').upsert(chunk.map((c) => c.row), { onConflict: 'id' });
+    if (!error) { touched += chunk.length; continue; }
+    console.error(`  Batch update error (${error.message}) -- retrying ${chunk.length} row(s) individually`);
+    for (const { key, row } of chunk) {
+      const { id, ...fields } = row;
+      const { error: e } = await sb.from('content_quality_issues').update(fields).eq('id', id);
+      if (e) console.error(`  Update error (${key}):`, e.message);
+      else touched++;
+    }
+  }
+
+  for (let i = 0; i < toInsert.length; i += WRITE_BATCH) {
+    const chunk = toInsert.slice(i, i + WRITE_BATCH);
+    const { error } = await sb.from('content_quality_issues').insert(chunk.map((c) => c.row), { defaultToNull: false });
+    if (!error) { inserted += chunk.length; continue; }
+    console.error(`  Batch insert error (${error.message}) -- retrying ${chunk.length} row(s) individually`);
+    for (const { key, row } of chunk) {
+      const { error: e } = await sb.from('content_quality_issues').insert(row);
+      if (e) console.error(`  Insert error (${key}):`, e.message);
+      else inserted++;
+    }
   }
 
   // Auto-resolve: previously open IN THIS SCRIPT'S OWN SCOPE, not
   // re-detected this run. Never touches a check_name outside ownedList.
-  const goneKeys = [...openByKey.keys()].filter(k => !seenKeys.has(k));
+  const inScope = opts.inScope ?? (() => true);
+  const goneKeys = [...openByKey.keys()].filter(k => {
+    if (seenKeys.has(k)) return false;
+    const [slug, check] = k.split('|');
+    return inScope(slug, check);
+  });
   let resolvedCount = 0;
-  for (let i = 0; i < goneKeys.length; i += BATCH) {
-    const batch = goneKeys.slice(i, i + BATCH);
-    await Promise.all(batch.map(async (key) => {
-      const id = openByKey.get(key);
-      const { error } = await sb.from('content_quality_issues')
-        .update({ resolved: true, resolved_at: new Date().toISOString(), fix_detail: `Auto-resolved: no longer detected by ${sourceLabel}` })
-        .eq('id', id);
-      if (error) console.error(`  Auto-resolve error (${key}):`, error.message);
+  const RESOLVE_BATCH = 200; // ids go in the URL; 200 uuids keeps it well under limits
+  const resolvedAt = new Date().toISOString();
+  const resolveFields = { resolved: true, resolved_at: resolvedAt, fix_detail: `Auto-resolved: no longer detected by ${sourceLabel}` };
+  for (let i = 0; i < goneKeys.length; i += RESOLVE_BATCH) {
+    const keys = goneKeys.slice(i, i + RESOLVE_BATCH);
+    const { error } = await sb.from('content_quality_issues').update(resolveFields).in('id', keys.map((k) => openByKey.get(k)));
+    if (!error) { resolvedCount += keys.length; continue; }
+    console.error(`  Batch auto-resolve error (${error.message}) -- retrying ${keys.length} row(s) individually`);
+    for (const key of keys) {
+      const { error: e } = await sb.from('content_quality_issues').update(resolveFields).eq('id', openByKey.get(key));
+      if (e) console.error(`  Auto-resolve error (${key}):`, e.message);
       else resolvedCount++;
-    }));
+    }
   }
 
   console.log(`  [${sourceLabel}] ${inserted} new, ${touched} recurring (touched), ${resolvedCount} auto-resolved (no longer detected).`);

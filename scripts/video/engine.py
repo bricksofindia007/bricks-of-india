@@ -41,6 +41,7 @@ from secrets_util import get_secret
 # working-directory: scripts/video (see video-generate-daily.yml).
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from config.feature_flags import FEATURE_FLAGS  # noqa: E402
+from config.quota_guard import QuotaBlockedError  # noqa: E402  (FP6.4)
 
 load_dotenv()
 
@@ -65,6 +66,7 @@ from supabase import create_client  # noqa: E402
 
 import gates  # noqa: E402
 import prompts  # noqa: E402
+from price_baseline import pick_baselines  # noqa: E402  (#383)
 
 BASE_DIR = Path(__file__).parent
 MASTER_ASSETS = BASE_DIR / "master_assets"
@@ -626,7 +628,8 @@ def already_used(sb, product_url: str, set_number: str | None) -> bool:
 
 # Price-drop detection: same query pattern and threshold as the real web
 # pipeline's src/app/lab/price-drops/page.tsx (drop_inr >= 200 OR
-# drop_pct >= 5, baseline = oldest price_history row in the last 30 days),
+# drop_pct >= 5, baseline = the price 30 days ago: latest price_history row
+# at or before the window start, #383),
 # reused rather than re-derived. store_prices/price_history.set_id is the
 # plain set-number string, not a UUID FK -- verified live against the
 # actual table before assuming the join key.
@@ -641,15 +644,22 @@ def get_price_drops(sb, set_numbers: list[str], store_id: str = "mybrickhouse") 
         if r.get("price_inr") is not None:
             current[r["set_id"]] = {"price": float(r["price_inr"]), "scraped_at": r["scraped_at"]}
 
-    baseline: dict[str, float] = {}
+    # #383: baseline = the price AT the window start (latest row at or before
+    # `since`), since price_history is change-only from FP5.7 -- the oldest row
+    # inside the window is the first change (e.g. the already-dropped price).
+    # See price_baseline.py; in-window rows are only the fallback for listings
+    # first observed inside the window.
+    pre_res = (
+        sb.table("price_history").select("set_id, price_inr, recorded_at")
+        .eq("store_id", store_id).in_("set_id", set_numbers).lte("recorded_at", since)
+        .order("recorded_at", desc=True).execute()
+    )
     hist_res = (
         sb.table("price_history").select("set_id, price_inr, recorded_at")
-        .eq("store_id", store_id).in_("set_id", set_numbers).gte("recorded_at", since)
+        .eq("store_id", store_id).in_("set_id", set_numbers).gt("recorded_at", since)
         .order("recorded_at", desc=False).execute()
     )
-    for r in hist_res.data or []:
-        if r["set_id"] not in baseline and r.get("price_inr") is not None:
-            baseline[r["set_id"]] = float(r["price_inr"])
+    baseline: dict[str, float] = pick_baselines(pre_res.data or [], hist_res.data or [])
 
     drops: dict[str, dict] = {}
     for set_num, cur in current.items():
@@ -1157,7 +1167,17 @@ def _try_tier1_pre_tts_remediation(
     if fixed_raw == raw_script_text.strip():
         return None  # not quote-wrapped -- nothing for this fix to do
     new_report = gates.run_all_gates(fixed_raw, pieces, sets_lookup, recent, price_inr)
-    return new_report if new_report.all_passed else None
+    return new_report if new_report.passed_or_held else None
+
+
+def held_escalation_text(report: gates.GateReport) -> str:
+    """#378: reviewer-facing sentence for held (judge-unavailable) gates, or ''."""
+    held = [r.gate for r in report.results if not r.passed and r.held]
+    if not held:
+        return ""
+    return (f" The coherence judge could not run ({', '.join(held)} held, fail-closed since #378), "
+            "so no regeneration was tried: a person must judge whether the script reads as coherent "
+            "English, then approve with a gate override reason, or reject.")
 
 
 def build_escalation_note(report: gates.GateReport, remediation_attempted: str) -> dict:
@@ -1233,7 +1253,10 @@ def run_gates_with_one_retry(sb, candidate: dict) -> tuple[str, gates.GateReport
         # on to fail on content gates instead, a genuinely different reason.
         provider_error = None
         report = gates.run_all_gates(raw_script.text, candidate.get("pieces"), sets_lookup, recent, candidate["price_inr"])
-        if report.all_passed:
+        # #378: held-only failures (judge unavailable) are not regenerated --
+        # a new script can't fix a judge outage. The story continues to human
+        # review carrying an escalation note (see held_escalation_text()).
+        if report.passed_or_held:
             # Sanitized text, not raw -- this is what actually reaches TTS
             # and gets stored as the canonical script (see gates.sanitize_script).
             return report.sanitized_script, report, raw_script.provider, raw_script.input_tokens, raw_script.output_tokens
@@ -1974,8 +1997,12 @@ def render_with_caption_gate(
     set_title: str,
     placeholder_anchors: bool = False,
     no_tts: bool = False,
+    phase_mark=None,
 ) -> tuple[float, list[dict], gates.GateResult, bool]:
-    """Generates TTS, assembles the video, transcribes it, burns captions,
+    """phase_mark (issue #200): optional callable(name) recording a wall-clock
+    mark after each sub-step (tts / assemble / whisper / burn), per attempt.
+
+    Generates TTS, assembles the video, transcribes it, burns captions,
     and checks G11 -- retrying the WHOLE sequence once (fresh TTS call,
     fresh Whisper pass) if G11 fails, before accepting a final result.
     Shared by both the daily generation path (main()) and --rerender, so
@@ -2010,17 +2037,25 @@ def render_with_caption_gate(
             print(f"--no-tts: silent placeholder audio, estimated duration {est_duration:.1f}s")
         else:
             generate_tts(script, audio_path)
+        if phase_mark:
+            phase_mark(f"tts_attempt{attempt}")
 
         total_duration = assemble_video(image_paths, audio_path, output_path, placeholder_anchors=placeholder_anchors)
         print(f"\nRendered: {output_path}")
         print(f"Total duration: {total_duration:.1f}s")
+        if phase_mark:
+            phase_mark(f"assemble_attempt{attempt}")
         if total_duration > 90:
             print("WARNING: video exceeds 90s — IG Reels/YT Shorts may reject or truncate.")
 
         print("Transcribing rendered audio for captions (Whisper, catches real TTS pronunciation)...")
         segments = transcribe_for_captions(output_path, initial_prompt=caption_initial_prompt)
+        if phase_mark:
+            phase_mark(f"whisper_attempt{attempt}")
         captioned_path = output_path.with_name(output_path.stem + "_captioned.mp4")
         burn_captions(output_path, segments, captioned_path)
+        if phase_mark:
+            phase_mark(f"burn_captions_attempt{attempt}")
 
         g11_result = gates.gate_caption_fidelity(caption_glossary, segments, numerals=caption_numerals)
         print(f"  [{'PASS' if g11_result.passed else 'FAIL'}] {g11_result.gate}: {g11_result.reason}")
@@ -2170,11 +2205,18 @@ def insert_video_post(
     sb, candidate: dict, script: str, gate_report: gates.GateReport, video_path: Path,
     provider: str | None = None, input_tokens: int | None = None, output_tokens: int | None = None,
     escalation_note: dict | None = None,
+    video_id: str | None = None, story_number: int | None = None, status: str = "rendered",
+    storage_url: str | None = None, qc_frame_urls: list | None = None,
+    gate_results: dict | None = None,
 ) -> tuple[str, int]:
-    """Returns (video_id, story_number). story_number is assigned by the
-    video_posts_story_number_trigger DB trigger (COALESCE(MAX(story_number),0)+1)
-    -- only known for certain once the row exists, hence returned here
-    rather than predicted beforehand.
+    """Returns (video_id, story_number).
+
+    Issue #201 (2026-09-26): the cloud path reserves story_number up front
+    (reserve_story_number()) and passes it here together with its own
+    pre-generated video_id, status='pending_approval', storage_url and
+    qc_frame_urls -- the row is written only after the upload succeeded.
+    When story_number is None (local/manual paths) the
+    video_posts_story_number_trigger assigns one from the same sequence.
 
     provider/input_tokens/output_tokens added 2026-08-19 (migration
     20260819000000_video_provider_tracking) -- see ScriptGenResult's
@@ -2191,15 +2233,23 @@ def insert_video_post(
         "price_inr": candidate["price_inr"],
         "script": script,
         "script_chars": len(script),
-        "gate_results": gate_report.as_dict(),
+        "gate_results": gate_results if gate_results is not None else gate_report.as_dict(),
         "video_path": str(video_path),
-        "status": "rendered",
+        "status": status,
         "piece_count_discrepancy": candidate.get("piece_count_discrepancy"),
         "provider": provider,
         "input_tokens": input_tokens,
         "output_tokens": output_tokens,
         "escalation_note": escalation_note,
     }
+    if video_id is not None:
+        row["id"] = video_id
+    if story_number is not None:
+        row["story_number"] = story_number
+    if storage_url is not None:
+        row["storage_url"] = storage_url
+    if qc_frame_urls is not None:
+        row["qc_frame_urls"] = qc_frame_urls
     res = sb.table("video_posts").insert(row).execute()
     video_id, story_number = res.data[0]["id"], res.data[0]["story_number"]
 
@@ -2218,6 +2268,22 @@ def insert_video_post(
     return video_id, story_number
 
 
+def reserve_story_number(sb) -> int:
+    """Issue #201: take the next story number from
+    public.video_posts_story_number_seq WITHOUT creating a row, so the Story
+    badge can be burned in before anything is written. A run killed after
+    this leaves only a gap in the numbering -- never a half-finished row."""
+    res = sb.rpc("reserve_story_number", {}).execute()
+    n = res.data
+    if isinstance(n, list):
+        n = n[0] if n else None
+    if isinstance(n, dict):
+        n = next(iter(n.values()))
+    if not isinstance(n, int):
+        raise RuntimeError(f"reserve_story_number returned {res.data!r}, expected an integer")
+    return n
+
+
 def mark_posted(sb, video_id: str, platform: str) -> None:
     status_map = {"ig": "posted_ig", "yt": "posted_yt", "both": "posted_both"}
     if platform not in status_map:
@@ -2233,65 +2299,14 @@ def mark_posted(sb, video_id: str, platform: str) -> None:
 IST_OFFSET = timedelta(hours=5, minutes=30)
 
 
-def _ist_day_bounds_utc(now_utc: datetime) -> tuple[str, str]:
-    """Returns (start, end) ISO timestamps in UTC that bound "today" in IST
-    -- posted_at is stored in UTC, so the day boundary has to be computed by
-    shifting to IST, truncating to midnight, then shifting back."""
-    now_ist = now_utc + IST_OFFSET
-    start_ist = now_ist.replace(hour=0, minute=0, second=0, microsecond=0)
-    start_utc = start_ist - IST_OFFSET
-    end_utc = start_utc + timedelta(days=1)
-    return start_utc.isoformat(), end_utc.isoformat()
-
-
-def already_published_today_ist_at(sb, now_utc: datetime) -> str | None:
-    """Returns the id of a video_posts row already posted today (IST
-    calendar day, relative to the given now_utc), or None. See the
-    --poll-and-publish daily-cap comment for why this exists -- one publish
-    per calendar day is the core cadence premise (including for the LEGO
-    Fan CoLab application), but nothing checked it before 2026-07-07.
-    now_utc is an explicit parameter (not read internally) so this is
-    directly testable/simulatable without patching the clock."""
-    start, end = _ist_day_bounds_utc(now_utc)
-    res = (
-        sb.table("video_posts")
-        .select("id, posted_at")
-        .in_("status", ["posted_ig", "posted_yt", "posted_both"])
-        .gte("posted_at", start)
-        .lt("posted_at", end)
-        .limit(1)
-        .execute()
-    )
-    return res.data[0]["id"] if res.data else None
-
-
-def already_published_today_ist(sb) -> str | None:
-    """Production entry point -- uses the real current time. See
-    already_published_today_ist_at's docstring for the actual logic."""
-    return already_published_today_ist_at(sb, datetime.now(timezone.utc))
-
-
-# Fixed daily publish window, added 2026-07-07 (operator, explicit): the
-# day-cap alone ("nothing posted yet today") let a publish fire on whatever
-# tick happened to be first after midnight IST -- fine for the cap itself,
-# but the operator wants a predictable evening slot (7:30 PM IST) instead of
-# an arbitrary time of day. Deliberately NOT a single once-a-day cron
-# trigger -- the poller keeps its existing 15-minute tick frequency
-# (video-publish-poller.yml is unchanged, still `*/15 * * * *`, which spans
-# every UTC hour including 14:00 UTC = 19:30 IST) and the publish condition
-# becomes "nothing posted today AND current IST time >= 19:30". If the
-# 19:30 tick itself is missed (API hiccup, runner delay, GitHub Actions
-# scheduling jitter -- schedule triggers are not exact, confirmed live: the
-# 2026-07-06 08:44 UTC run before this fix landed over 2.5 hours behind a
-# nominal 15-minute cadence), 19:45/20:00/etc. still catch it the same
-# evening rather than skipping the whole day, which a single fixed-time
-# trigger could not recover from without waiting until tomorrow.
-PUBLISH_WINDOW_START_IST = (19, 30)  # (hour, minute), IST, 24h
-
-
-def _is_past_publish_window_ist(now_utc: datetime) -> bool:
-    now_ist = now_utc + IST_OFFSET
-    return (now_ist.hour, now_ist.minute) >= PUBLISH_WINDOW_START_IST
+# Daily cap + 19:30 IST publish window: moved to cadence.py (issue #178,
+# 2026-09-24) -- now per platform, shared with VID-QP's Mon/Wed/Fri slots and
+# the missed-slot watchdog. History: the day cap was root-caused 2026-07-07
+# (two posts on 2026-07-06; nothing had ever checked it), and the fixed
+# evening window was added the same day so a publish lands at a predictable
+# 19:30 IST rather than the first tick after midnight. The poller keeps its
+# */15 tick so a missed 19:30 tick is recovered at 19:45/20:00 the same
+# evening.
 
 
 # Biweekly rejection-review reminder, added 2026-07-07 (operator, explicit).
@@ -2415,24 +2430,27 @@ def check_and_send_pending_approval_digest(sb) -> None:
 
 def retry_missing_platforms_all(sb) -> bool:
     """
-    Issue #137, 2026-09-19: --retry-missing-platform entry point. Finds every
+    --retry-missing-platform entry point (issue #137, 2026-09-19). Finds every
     video_posts row stuck at status='posted_ig' or 'posted_yt' and retries
-    the missing platform via publish.retry_missing_platform() -- confirmed
-    via grep before this existed that no code path anywhere ever revisited
-    these rows. Real example this was built against: story #61 (The Fire
-    Knight Mech), posted_yt since 2026-09-18, Instagram never retried.
+    the missing platform via publish.retry_missing_platform().
 
-    DELIBERATELY runs independently of already_published_today_ist()'s
-    one-publish-per-day cap -- completing a platform on content that's
-    already partially live is a different kind of action than generating
-    and posting new content, and folding this into the capped poll-and-
-    publish loop would silently decide that open question (should
-    finishing count against the same slot as new content?) rather than
-    surfacing it. Whether that's the right permanent answer is explicitly
-    Abhinav's call, not assumed here -- this function's independence from
-    the cap is the current interim behavior, not a closed decision.
+    Issue #178 (2026-09-24, Abhinav's decision on the question #137 left
+    open): a retry COUNTS toward that platform's daily cap. It only runs
+    inside an open VID-P4 slot (from 19:30 IST), and if the missing platform
+    already went live today (a new post, or an earlier retry) it is deferred
+    to the next slot -- never a second post on one platform in one day.
+    Every deferral/outcome is recorded in publish_attempts.
+
+    Return value drives the job exit code: False if any attempted retry is
+    still failing (deferrals are not failures). Processes every stuck row
+    regardless of earlier failures -- one platform's outage must not block
+    retrying a different row.
     """
     import publish as publish_mod
+    import cadence
+
+    now_utc = datetime.now(timezone.utc)
+    today = cadence.ist_date(now_utc)
 
     stuck_res = (
         sb.table("video_posts")
@@ -2447,28 +2465,34 @@ def retry_missing_platforms_all(sb) -> bool:
         print("retry_missing_platforms_all: zero posted_ig/posted_yt rows. No-op.")
         return True
 
-    # Return value used by the CLI dispatch to set a real exit code -- found
-    # live during this fix's own first real run (issue #137, 2026-09-19):
-    # every retry failing (the known IG permission gap) still left the job
-    # green, because retry_missing_platform() correctly never raises (by
-    # design -- see its own docstring) and nothing here turned that into a
-    # job-level signal. That's the exact "green checkmark hides a real
-    # failure" pattern this whole issue set out to fix -- would have been
-    # ironic to reintroduce it in the fix meant to close the gap. Processes
-    # every stuck row regardless of earlier failures either way -- one
-    # platform's outage must not block retrying a different row.
+    slot_open, slot_reason = cadence.slot_status(cadence.VIDP4, now_utc)
+    if not slot_open:
+        print(f"retry_missing_platforms_all: {len(stuck_rows)} row(s) waiting, deferred -- {slot_reason}.")
+        for video_post in stuck_rows:  # P12 (c): no silent skips
+            missing = "yt" if video_post["status"] == "posted_ig" else "ig"
+            cadence.record_attempt(sb, cadence.VIDP4, video_post, "retry", "deferred", platform=missing, detail=slot_reason)
+        return True
+
     print(f"retry_missing_platforms_all: {len(stuck_rows)} row(s) with a missing platform.")
     any_failed = False
     for video_post in stuck_rows:
         vid = video_post["id"]
         missing = "yt" if video_post["status"] == "posted_ig" else "ig"
+        already = cadence.platform_posted_on(sb, cadence.VIDP4, missing, today)
+        if already:
+            msg = f"{missing} already posted today (video_posts {already}) -- deferred to next slot"
+            print(f"\n--- Story #{video_post.get('story_number')} {vid}: {msg} ---")
+            cadence.record_attempt(sb, cadence.VIDP4, video_post, "retry", "deferred", platform=missing, detail=msg)
+            continue
         print(f"\n--- Retrying {missing} for {vid} ({video_post['set_title']}, story #{video_post.get('story_number')}) ---")
         result = publish_mod.retry_missing_platform(sb, video_post)
         if "error" in result:
             print(f"Retry still failing for {vid} ({result['platform']}): {result['error']}", file=sys.stderr)
+            cadence.record_attempt(sb, cadence.VIDP4, video_post, "retry", "failed", platform=missing, detail=result["error"])
             any_failed = True
         else:
             print(f"Retry succeeded for {vid} ({result['platform']}).")
+            cadence.record_attempt(sb, cadence.VIDP4, video_post, "retry", "posted", platform=missing)
 
     return not any_failed
 
@@ -2517,7 +2541,7 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
     # the pre-fix text as the audit trail; report.sanitized_script is the
     # corrected, TTS-ready canonical script.
     report = gates.run_all_gates(row["script"], pieces, sets_lookup, recent, row["price_inr"])
-    if not report.all_passed:
+    if not report.passed_or_held:
         print("ERROR: existing script no longer passes gates after re-sanitization -- aborting, not re-rendering.", file=sys.stderr)
         for r in report.results:
             status = "PASS" if r.passed else "FAIL"
@@ -2588,8 +2612,10 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
         )
         escalation_note = build_escalation_note(
             report,
-            remediation_attempted=f"Manual --rerender requested by operator; {retry_note}.",
+            remediation_attempted=f"Manual --rerender requested by operator; {retry_note}.{held_escalation_text(report)}",
         )
+    elif not report.all_passed:
+        escalation_note = build_escalation_note(report, remediation_attempted=held_escalation_text(report).strip())
 
     print(f"Applying Story #{row['story_number']} badge...")
     badged_path = output_path.with_name(output_path.stem + "_badged.mp4")
@@ -2601,8 +2627,13 @@ def rerender_video_post(sb, video_id: str, no_tts: bool = False) -> dict:
     import publish as publish_mod
 
     print("Uploading to storage (same filename -- overwrites existing storage_url in place)...")
-    storage_url = publish_mod.upload_video_to_storage(sb, str(output_path), f"{video_id}.mp4")
-    qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(output_path), video_id)
+    # Overwrite in place under the row's EXISTING file name: rows created
+    # after #201 use story0075_<id>.mp4, older rows <id>.mp4 (or none, e.g.
+    # Story #73). Uploading to a different name would orphan the original.
+    existing = (row.get("storage_url") or "").rsplit("/", 1)[-1].split("?", 1)[0]
+    file_stem = existing[:-4] if existing.endswith(".mp4") else video_id
+    storage_url = publish_mod.upload_video_to_storage(sb, str(output_path), f"{file_stem}.mp4")
+    qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(output_path), file_stem)
 
     # status/story_number/id deliberately absent from this update -- a
     # re-render refreshes content, it never changes a row's identity or
@@ -2664,7 +2695,7 @@ def main() -> None:
     parser.add_argument("--rerender", type=str, help="video_posts.id to fully re-render (re-sanitized script, new TTS, new images, new Whisper captions, new badge) and re-upload to its existing storage_url. Never touches status/story_number/id.")
     parser.add_argument("--check-rejection-reminder", action="store_true", help="weekly cron entry point: send the biweekly content_rejections review reminder if 14+ days have passed since the last one AND at least one row is still review_status='pending'. Silent no-op otherwise.")
     parser.add_argument("--check-pending-approval-digest", action="store_true", help="daily cron entry point: send a digest of every pending_approval row across video_posts and quiet_panic_posts. Silent no-op if both are empty.")
-    parser.add_argument("--retry-missing-platform", action="store_true", help="find every status='posted_ig'/'posted_yt' row and retry the platform that's missing. Deliberately runs independently of already_published_today_ist's daily cap -- see engine.py's own comment on retry_missing_platforms_all() for why, and the open question this leaves for Abhinav.")
+    parser.add_argument("--retry-missing-platform", action="store_true", help="find every status='posted_ig'/'posted_yt' row and retry the platform that's missing. Counts toward that platform's daily cap (issue #178): only inside an open VID-P4 slot, deferred if the platform already posted today.")
     args = parser.parse_args()
 
     sb = get_supabase()
@@ -2724,22 +2755,14 @@ def main() -> None:
         # even on a run that does publish, stop after the first row that
         # actually goes live on at least one platform -- a backlog of
         # multiple approved rows must drain one per day, not all at once.
-        already_posted_id = already_published_today_ist(sb)
-        if already_posted_id:
-            print(f"Already published today (IST): video_posts {already_posted_id}. "
-                  f"Holding all approved rows for tomorrow's poll -- at most one publish per calendar day.")
-            return
+        import cadence
 
-        # Fixed evening window, not a single once-a-day trigger -- see
-        # _is_past_publish_window_ist's comment. The poller still ticks every
-        # 15 minutes; before 19:30 IST this is a deliberate silent no-op so a
-        # missed 19:30 tick is recovered by 19:45/20:00/etc. the same evening.
+        # Issue #178 (2026-09-24): cadence rules moved to cadence.py. The day
+        # cap is now per platform (ig_posted_at / yt_posted_at, plus legacy
+        # posted_at) so a missing-platform retry that went out earlier today
+        # also holds this slot. Slot = VID-P4 daily from 19:30 IST.
         now_utc = datetime.now(timezone.utc)
-        if not _is_past_publish_window_ist(now_utc):
-            now_ist = now_utc + IST_OFFSET
-            print(f"Before publish window (19:30 IST) -- current IST time {now_ist.strftime('%H:%M')}. Nothing to do this tick.")
-            return
-
+        today = cadence.ist_date(now_utc)
         # Explicit, tested sort key: story_number, not created_at. They
         # currently always agree (story_number is assigned by a BEFORE
         # INSERT trigger off row-creation order -- see
@@ -2749,35 +2772,83 @@ def main() -> None:
         # defines "Story #N" ordering.
         approved_res = sb.table("video_posts").select("*").eq("status", "approved").order("story_number").execute()
         approved_rows = approved_res.data
+        head = approved_rows[0] if approved_rows else None
+
+        # P12 (c): every exit below that doesn't post records why
+        # (publish_attempts kind='skipped'), so the missed-slot alert can
+        # quote it. No silent skips.
+        def skip(reason: str) -> None:
+            print(f"{reason}. Nothing to do this tick.")
+            cadence.record_skip(sb, cadence.VIDP4, head, reason)
+
+        already_posted_id = cadence.anything_posted_on(sb, cadence.VIDP4, today)
+        if already_posted_id:
+            skip(f"VID-P4: already published today (IST): video_posts {already_posted_id}; "
+                 f"{len(approved_rows)} approved row(s) held for the next slot -- at most one publish per calendar day")
+            return
 
         if not approved_rows:
-            print("No approved rows found. Nothing to publish.")
+            skip("VID-P4: no approved rows queued")
             return
+
+        # Fixed evening window, not a single once-a-day trigger -- the poller
+        # ticks every 15 minutes on paper, but GitHub fires only 4-8 of those
+        # a day (P12). If yesterday's slot was missed, today's opens at
+        # 07:00 IST instead of 19:30 so a daytime tick recovers it.
+        catchup = cadence.catchup_due(sb, cadence.VIDP4, now_utc, head)
+        slot_open, slot_reason = cadence.slot_status(cadence.VIDP4, now_utc, catchup=catchup)
+        if not slot_open:
+            skip(f"{slot_reason}; {len(approved_rows)} approved row(s) waiting, next is story #{head.get('story_number')}")
+            return
+        print(slot_reason)
 
         print(f"Found {len(approved_rows)} approved row(s) queued; publishing at most one this run (daily cap).")
         exit_code = 0
 
         for i, video_post in enumerate(approved_rows):
             vid = video_post["id"]
-            print(f"\n--- Publishing {vid} ({video_post['set_title']}) ---")
+            print(f"\n--- Publishing {vid} (story #{video_post.get('story_number')}, {video_post['set_title']}) ---")
 
             try:
                 results = publish_mod.publish_video_post(sb, video_post)
-            except (publish_mod.GateFailureError, publish_mod.CaptionsMissingError) as exc:
+            except QuotaBlockedError as exc:
+                # FP6.4: storage guard closed. Already alerted + cleanup dispatched;
+                # the row stays 'approved' so it retries once storage is under the line.
+                print(f"QUOTA: {vid} not published this run: {exc}", file=sys.stderr)
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "blocked", detail=str(exc))
+                continue
+            except (publish_mod.GateFailureError, publish_mod.CaptionsMissingError, publish_mod.StoryBadgeMissingError) as exc:
                 # An already-approved row failing a hard guard at publish time
                 # is unexpected (approval implies the gates already passed at
                 # generation time) -- move it OUT of status='approved' so the
                 # poller doesn't retry the same deterministic failure every
-                # 15-30 minutes and re-alert each time, but keep it clearly
-                # distinct from an operator's own 'discarded' action.
+                # tick, but keep it clearly distinct from an operator's own
+                # 'discarded' action. StoryBadgeMissingError added #178: it
+                # was raised by publish_video_post but never caught here, so
+                # it would have crashed every tick with the same row at the
+                # head of the queue -- blocking the queue indefinitely.
                 print(f"ERROR: hard guard blocked {vid}: {exc}", file=sys.stderr)
                 sb.table("video_posts").update({"status": "publish_blocked"}).eq("id", vid).execute()
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "blocked", detail=f"{type(exc).__name__}: {exc}")
                 notifier_mod.send_skip_notification(
-                    reason=f"Approved video failed a hard guard at publish time: {exc}",
+                    reason=f"Approved video (story #{video_post.get('story_number')}) failed a hard guard at publish time "
+                           f"and was moved to publish_blocked: {exc}. The next queued row is tried this same run.",
                     candidate_title=video_post.get("set_title"),
                 )
                 exit_code = 1
                 continue  # doesn't count as today's publish -- try the next queued row this same run
+            except Exception as exc:  # noqa: BLE001 -- any other failure: alert, move on, never block the queue
+                # Non-guard failure (storage download, network, API outage).
+                # Possibly transient, so the row stays 'approved' and is
+                # retried next tick -- but this run moves on to the next row,
+                # and the operator hears about it (once per row per IST day).
+                print(f"ERROR: publish attempt for {vid} raised {type(exc).__name__}: {exc}", file=sys.stderr)
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "failed", detail=f"{type(exc).__name__}: {exc}")
+                if not cadence.alerted_today(sb, cadence.VIDP4, "error_alert", vid, today):
+                    notifier_mod.send_publish_error_alert("VID-P4", video_post.get("story_number"), video_post.get("set_title"), f"{type(exc).__name__}: {exc}")
+                    cadence.record_attempt(sb, cadence.VIDP4, video_post, "error_alert", "alerted", detail=str(exc))
+                exit_code = 1
+                continue
 
             refreshed = sb.table("video_posts").select("*").eq("id", vid).single().execute().data
             notifier_mod.send_publish_notification(refreshed, results.get("ig"), results.get("yt"))
@@ -2787,14 +2858,18 @@ def main() -> None:
             # "posted" line.
             if "ig" in results and "yt" in results:
                 print(f"{vid}: posted_both -- IG {results['ig']['permalink']} | YT {results['yt']['url']}")
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "posted")
             elif "ig" in results:
                 print(f"{vid}: posted_ig only -- IG {results['ig']['permalink']} live; YouTube FAILED: {results['errors']}", file=sys.stderr)
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "partial", platform="yt", detail="; ".join(results["errors"]))
                 exit_code = 1
             elif "yt" in results:
                 print(f"{vid}: posted_yt only -- YT {results['yt']['url']} live; Instagram FAILED: {results['errors']}", file=sys.stderr)
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "partial", platform="ig", detail="; ".join(results["errors"]))
                 exit_code = 1
             else:
                 print(f"{vid}: BOTH platforms failed: {results['errors']}", file=sys.stderr)
+                cadence.record_attempt(sb, cadence.VIDP4, video_post, "publish", "failed", detail="; ".join(results["errors"]))
                 exit_code = 1
 
             if "ig" in results or "yt" in results:
@@ -2860,6 +2935,11 @@ def main() -> None:
         return
 
     if args.pick or args.url or args.cloud_generate:
+        if args.cloud_generate:
+            # FP6.4: storage guard closed -> skip before any candidate, render,
+            # TTS spend or story-number reservation.
+            from quota import preflight_or_exit
+            preflight_or_exit(sb, 'VID-P4')
         if args.cloud_generate and not args.pick:
             args.pick = 1  # cloud generation always takes the top-ranked candidate
 
@@ -2903,10 +2983,26 @@ def main() -> None:
                 print("ERROR: no candidate from --pick onward has enough studio images, even with Toycra fallback.", file=sys.stderr)
                 sys.exit(1)
 
+        # Issue #200 (2026-09-26): per-phase wall-clock timings, stored in
+        # gate_results._timing.phases_seconds, so slow runs can be compared
+        # against fast ones phase by phase before anything is optimised.
+        phase_marks = [("candidate_selection", datetime.now(timezone.utc))]
+
+        def _mark(phase: str) -> None:
+            phase_marks.append((phase, datetime.now(timezone.utc)))
+
+        def _phase_seconds() -> dict:
+            out, prev = {}, generation_started_at
+            for name, ts in phase_marks:
+                out[name] = round((ts - prev).total_seconds(), 1)
+                prev = ts
+            return out
+
         print(f"Selected: {candidate['title']} ({candidate['product_url']})")
         print(f"Using {len(image_paths)} studio image(s) for this render.")
 
         script, report, script_provider, script_input_tokens, script_output_tokens = run_gates_with_one_retry(sb, candidate)
+        _mark("script_generation_and_gates")
         print("\n--- SCRIPT ---")
         print(script)
         print("--- END SCRIPT ---\n")
@@ -2925,6 +3021,7 @@ def main() -> None:
         # rendered captions, which don't exist yet at pre-TTS gate time).
         total_duration, segments, caption_fidelity_result, g11_retried = render_with_caption_gate(
             script, image_paths, output_path, candidate["title"], placeholder_anchors=args.placeholder_anchors, no_tts=args.no_tts,
+            phase_mark=_mark,
         )
         report.results.append(caption_fidelity_result)
 
@@ -2937,71 +3034,98 @@ def main() -> None:
             )
             escalation_note = build_escalation_note(
                 report,
-                remediation_attempted=f"{retry_note}.",
+                remediation_attempted=f"{retry_note}.{held_escalation_text(report)}",
             )
+        elif not report.all_passed:
+            escalation_note = build_escalation_note(report, remediation_attempted=held_escalation_text(report).strip())
 
-        video_id, story_number = insert_video_post(
-            sb, candidate, script, report, output_path,
+        insert_kwargs = dict(
             provider=script_provider, input_tokens=script_input_tokens, output_tokens=script_output_tokens,
             escalation_note=escalation_note,
         )
-        print(f"video_posts row inserted: {video_id} (Story #{story_number})")
+
+        def _badge(n: int) -> None:
+            print(f"Applying Story #{n} badge...")
+            badged_path = output_path.with_name(output_path.stem + "_badged.mp4")
+            apply_story_badge(output_path, n, badged_path)
+            # Same single-artifact rule as the caption-burn collapse above --
+            # exactly one file per run, no second path anything could
+            # mistakenly reference.
+            output_path.unlink()
+            badged_path.rename(output_path)
+            print(f"Badged (sole output): {output_path}")
+
+        if not args.cloud_generate:
+            # Local/manual path: unchanged -- insert as 'rendered' (trigger
+            # assigns the number from the shared sequence), then badge.
+            video_id, story_number = insert_video_post(sb, candidate, script, report, output_path, **insert_kwargs)
+            print(f"video_posts row inserted: {video_id} (Story #{story_number})")
+            if escalation_note:
+                print(f"  escalation_note written -- G11 still failing after remediation, see gate_results/escalation_note.", file=sys.stderr)
+            _badge(story_number)
+            return
+
+        # Cloud path (issue #201, 2026-09-26): reserve the number, badge,
+        # upload, and only THEN write the row -- already complete, in
+        # 'pending_approval'. A run killed at any point before the insert
+        # leaves no row at all, only a gap in the story numbering. Before
+        # this, the row was inserted as 'rendered' first and a kill before
+        # upload stranded it with no video (Story #73, 2026-09-24).
+        import publish as publish_mod
+        import notifier as notifier_mod
+
+        story_number = reserve_story_number(sb)
+        video_id = str(uuid.uuid4())
+        print(f"Reserved Story #{story_number} (row id {video_id} -- not written until upload succeeds)")
+        _badge(story_number)
+        _mark("badge")
+
+        # Files are named with the reserved number (Abhinav, 2026-09-26), so a
+        # run killed AFTER upload but before the insert leaves an orphan that
+        # is identifiable by name (story0075_<id>.mp4) even though no row
+        # references it. Such orphans are never touched by the deny-by-default
+        # storage cleanup (it only deletes paths a terminal row references) --
+        # tracked in #201's follow-up scope.
+        file_stem = f"story{story_number:04d}_{video_id}"
+        print("Stage 2: uploading captioned video + QC frames to storage...")
+        storage_url = publish_mod.upload_video_to_storage(sb, str(output_path), f"{file_stem}.mp4")
+        qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(output_path), file_stem)
+        _mark("upload_video_and_qc_frames")
+
+        # Generation-to-ready timing: real measurement, stored under the
+        # same "_"-prefixed metadata convention gate_results already uses
+        # (see assert_all_gates_passed()'s "_" = metadata, not a gate rule).
+        pending_approval_at = datetime.now(timezone.utc)
+        gate_results_with_timing = report.as_dict()
+        gate_results_with_timing["_timing"] = {
+            "generation_started_at": generation_started_at.isoformat(),
+            "pending_approval_at": pending_approval_at.isoformat(),
+            "duration_seconds": (pending_approval_at - generation_started_at).total_seconds(),
+            "phases_seconds": _phase_seconds(),
+            "g11_retried": g11_retried,
+            "note": "generation_started_at is this script's own start, not the cron-fire instant -- see main()'s opening comment. phases_seconds: wall-clock per phase, in order (issue #200).",
+        }
+
+        video_id, story_number = insert_video_post(
+            sb, candidate, script, report, output_path, **insert_kwargs,
+            video_id=video_id, story_number=story_number, status="pending_approval",
+            storage_url=storage_url, qc_frame_urls=qc_urls, gate_results=gate_results_with_timing,
+        )
         if escalation_note:
             print(f"  escalation_note written -- G11 still failing after remediation, see gate_results/escalation_note.", file=sys.stderr)
+        duration_s = gate_results_with_timing["_timing"]["duration_seconds"]
+        print(f"video_posts {video_id} inserted as Story #{story_number}, status='pending_approval'. storage_url: {storage_url}")
+        print(f"[TIMING] generation_started_at={generation_started_at.isoformat()} "
+              f"pending_approval_at={pending_approval_at.isoformat()} duration={duration_s:.1f}s "
+              f"phases={json.dumps(gate_results_with_timing['_timing']['phases_seconds'])}")
 
-        print(f"Applying Story #{story_number} badge...")
-        badged_path = output_path.with_name(output_path.stem + "_badged.mp4")
-        apply_story_badge(output_path, story_number, badged_path)
-        # Same single-artifact rule as the caption-burn collapse above --
-        # exactly one file per run, no second path anything could
-        # mistakenly reference.
-        output_path.unlink()
-        badged_path.rename(output_path)
-        print(f"Badged (sole output): {output_path}")
-
-        if args.cloud_generate:
-            import publish as publish_mod
-            import notifier as notifier_mod
-
-            print("Stage 2: uploading captioned video + QC frames to storage...")
-            storage_url = publish_mod.upload_video_to_storage(sb, str(output_path), f"{video_id}.mp4")
-            qc_urls = publish_mod.extract_and_upload_qc_frames(sb, str(output_path), video_id)
-
-            # Generation-to-ready timing: real measurement, stored under the
-            # same "_"-prefixed metadata convention gate_results already uses
-            # (see assert_all_gates_passed()'s "_" = metadata, not a gate rule)
-            # so it rides along with the row rather than needing a schema
-            # migration. `report` is still the same GateReport this run
-            # produced earlier -- re-serializing it here just adds the timing
-            # key on top of the gate results already written at insert time.
-            pending_approval_at = datetime.now(timezone.utc)
-            gate_results_with_timing = report.as_dict()
-            gate_results_with_timing["_timing"] = {
-                "generation_started_at": generation_started_at.isoformat(),
-                "pending_approval_at": pending_approval_at.isoformat(),
-                "duration_seconds": (pending_approval_at - generation_started_at).total_seconds(),
-                "note": "generation_started_at is this script's own start, not the cron-fire instant -- see main()'s opening comment.",
-            }
-
-            sb.table("video_posts").update({
-                "storage_url": storage_url,
-                "qc_frame_urls": qc_urls,
-                "status": "pending_approval",
-                "gate_results": gate_results_with_timing,
-            }).eq("id", video_id).execute()
-            duration_s = gate_results_with_timing["_timing"]["duration_seconds"]
-            print(f"video_posts {video_id} set to status='pending_approval'. storage_url: {storage_url}")
-            print(f"[TIMING] generation_started_at={generation_started_at.isoformat()} "
-                  f"pending_approval_at={pending_approval_at.isoformat()} duration={duration_s:.1f}s "
-                  f"(measured from this script's own start -- see note above for what this does/doesn't include)")
-
-            notifier_mod.send_ready_for_review_notification(
-                story_number=story_number,
-                set_title=candidate["title"],
-                storage_url=storage_url,
-                qc_frame_urls=qc_urls,
-                escalation_note=escalation_note,
-            )
+        notifier_mod.send_ready_for_review_notification(
+            story_number=story_number,
+            set_title=candidate["title"],
+            storage_url=storage_url,
+            qc_frame_urls=qc_urls,
+            escalation_note=escalation_note,
+        )
 
         return
 

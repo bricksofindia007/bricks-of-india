@@ -10,6 +10,12 @@ export interface HardRuleResult {
   reason?: string;
 }
 
+/** Failed Gate 7 rules for the run log, with what matched (round 11a: the log showed only
+ *  the rule id, so 58 A3 rejections in 14 days couldn't be traced to a phrase). */
+export function formatHardRuleFailures(results: HardRuleResult[]): string[] {
+  return results.filter(r => !r.pass).map(r => (r.reason ? `gate7:${r.id} (${r.reason})` : `gate7:${r.id}`));
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function paragraphs(content: string): string[] {

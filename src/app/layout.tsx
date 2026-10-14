@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
-import { Poppins, Fredoka, Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import { Navbar } from "@/components/layout/Navbar";
 import { Footer } from "@/components/layout/Footer";
@@ -9,23 +9,38 @@ import { BreadcrumbSchema } from "@/components/BreadcrumbSchema";
 import { organizationSchema, websiteSchema } from "@/lib/schemas";
 import { BRAND } from "@/lib/brand";
 
-const poppins = Poppins({
-  subsets: ["latin"],
-  weight: ["400", "600", "700", "800"],
+// Self-hosted (#219): next/font/google fetched fonts.googleapis.com at build
+// time, and a flaky fetch failed whole builds -- 3 on 2026-09-26 alone,
+// including a required email-guard check. Same families, weights, latin
+// subset, CSS variables and display: swap as before; files are the OFL-
+// licensed Fontsource latin builds in ./fonts (licences alongside).
+const poppins = localFont({
+  src: [
+    { path: "./fonts/poppins-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/poppins-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/poppins-latin-700-normal.woff2", weight: "700", style: "normal" },
+    { path: "./fonts/poppins-latin-800-normal.woff2", weight: "800", style: "normal" },
+  ],
   variable: "--font-poppins",
   display: "swap",
 });
 
-const fredoka = Fredoka({
-  subsets: ["latin"],
-  weight: ["400", "600", "700"],
+const fredoka = localFont({
+  src: [
+    { path: "./fonts/fredoka-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/fredoka-latin-600-normal.woff2", weight: "600", style: "normal" },
+    { path: "./fonts/fredoka-latin-700-normal.woff2", weight: "700", style: "normal" },
+  ],
   variable: "--font-fredoka",
   display: "swap",
 });
 
-const inter = Inter({
-  subsets: ["latin"],
-  weight: ["400", "500", "600"],
+const inter = localFont({
+  src: [
+    { path: "./fonts/inter-latin-400-normal.woff2", weight: "400", style: "normal" },
+    { path: "./fonts/inter-latin-500-normal.woff2", weight: "500", style: "normal" },
+    { path: "./fonts/inter-latin-600-normal.woff2", weight: "600", style: "normal" },
+  ],
   variable: "--font-inter",
   display: "swap",
 });
@@ -39,7 +54,7 @@ export const metadata: Metadata = {
     template: "%s | Bricks of India",
   },
   description:
-    `Compare LEGO prices across India's top stores. Updated every 6 hours. Plus honest reviews and guides. ${BRAND.tagline}.`,
+    `Compare LEGO prices across India's top stores. Plus honest reviews and guides. ${BRAND.tagline}.`,
   keywords: [
     "LEGO India",
     "LEGO price comparison India",
@@ -53,11 +68,13 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "en_IN",
-    url: "https://bricksofindia.com",
+    // No `url` here (#208): a layout-level og:url was inherited by every
+    // static route, pointing all of them at the homepage. Each route now
+    // sets og:url = its own canonical via buildMetadata() (src/lib/metadata.ts).
     siteName: "Bricks of India",
     title: "Bricks of India — LEGO Price Comparison & Reviews in India 2026",
     description:
-      `Compare LEGO prices across India's top stores. Updated every 6 hours. ${BRAND.tagline}.`,
+      `Compare LEGO prices across India's top stores. ${BRAND.tagline}.`,
     images: [
       {
         url: "/assets/og-image.jpg",

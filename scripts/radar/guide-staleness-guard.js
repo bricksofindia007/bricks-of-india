@@ -2,25 +2,38 @@
 /**
  * Guides staleness guard (§5, Nav & Content Overhaul, 2026-08-09).
  *
- * Monthly job. Finds the oldest guides (by updated_at) and checks their
- * content for patterns that commonly go stale (a ₹ price figure, an
- * "as of/in 2026"-style date claim). It does NOT auto-correct anything —
- * Guides has no live-price gate (§5 deliberately skips it, unlike
- * Reviews), so there is no source of truth to auto-correct a stale figure
- * TO. Silently rewriting one unverified number into another guess is
- * exactly what BOI's no-fabrication rule exists to prevent (same reasoning
- * already applied to the Reviews weekly job's verdict-flip case — flag,
- * don't guess). Flags into content_quality_issues (the existing CQS table)
- * for manual review instead.
+ * Monthly job. Checks guide content for patterns that commonly go stale
+ * (a ₹ price figure, an "as of/in 2026"-style date claim). It does NOT
+ * auto-correct anything — Guides has no live-price gate (§5 deliberately
+ * skips it, unlike Reviews), so there is no source of truth to
+ * auto-correct a stale figure TO. Silently rewriting one unverified
+ * number into another guess is exactly what BOI's no-fabrication rule
+ * exists to prevent (same reasoning already applied to the Reviews
+ * weekly job's verdict-flip case — flag, don't guess). Flags into
+ * content_quality_issues (the existing CQS table) for manual review
+ * instead.
  *
  * Deliberately NOT distinguishing "templated date stamp" (safe to
  * auto-refresh, not a factual claim) from "real stale price/date claim"
  * (needs a human) yet — Abhinav's call, 2026-08-09: build that distinction
  * later, from real flag-queue data, not speculatively now.
  *
+ * Default LIMIT raised from 3 to 100 (2026-09-21, content-freshness
+ * mechanism build) — at 3/month it took ~9 months to cycle through all
+ * 26 guides once. The table is small (26 rows) and the regex scan is
+ * cheap; checking effectively all of them every run costs nothing extra
+ * and closes that gap. Still monthly, still flag-only.
+ *
+ * Also checks (2026-09-21): guides that link to a specific `/sets/{num}-`
+ * page (only 3 of 26 do — the rest have no structural hook to a live
+ * set at all, and prose-parsing set references out of free text is
+ * explicitly not attempted) against `sets.retired`. Flag-only here too,
+ * same as the price/year-claim check — a guide isn't a single verdict
+ * like a review, so there's nothing safe to auto-correct.
+ *
  * Idempotent: skips a guide that already has an unresolved
- * guide_staleness issue on file, so re-running monthly doesn't spam
- * duplicate flags for the same still-unreviewed row.
+ * guide_staleness or guide_set_retired issue on file, so re-running
+ * monthly doesn't spam duplicate flags for the same still-unreviewed row.
  *
  * Usage:
  *   node scripts/radar/guide-staleness-guard.js [--dry-run] [--limit N]
@@ -32,7 +45,7 @@ const { createClient } = require('@supabase/supabase-js');
 const DRY_RUN = process.argv.includes('--dry-run');
 const LIMIT = (() => {
   const i = process.argv.indexOf('--limit');
-  return i !== -1 ? parseInt(process.argv[i + 1], 10) : 3;
+  return i !== -1 ? parseInt(process.argv[i + 1], 10) : 100;
 })();
 
 const SUPABASE_URL         = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -64,6 +77,46 @@ function findStalePatterns(content) {
   return hits;
 }
 
+async function checkSetRetirement(g) {
+  const setNumbers = [...new Set([...g.content.matchAll(/\/sets\/(\d+)-/g)].map(m => m[1]))];
+  if (setNumbers.length === 0) return; // no structural hook to a live set — not attempted, per design
+
+  const { data: sets, error: setsErr } = await sb
+    .from('sets')
+    .select('set_number, name, retired')
+    .in('set_number', setNumbers);
+  if (setsErr) { console.error(`  [ERROR] set lookup failed for "${g.title}":`, setsErr.message); return; }
+
+  const retiredSets = (sets ?? []).filter(s => s.retired);
+  if (retiredSets.length === 0) return;
+
+  const { data: existingIssue } = await sb
+    .from('content_quality_issues')
+    .select('id')
+    .eq('article_slug', g.slug)
+    .eq('section', 'guides')
+    .eq('check_name', 'guide_set_retired')
+    .eq('resolved', false)
+    .maybeSingle();
+  if (existingIssue) {
+    console.log(`  [already flagged] "${g.title}" — guide_set_retired issue already on file`);
+    return;
+  }
+
+  const detail = `Guide links to ${retiredSets.length} now-retired set(s): ${retiredSets.map(s => `${s.set_number} (${s.name})`).join(', ')}. Guide content not auto-corrected (no single verdict to fix, unlike a review) — needs manual review.`;
+  if (DRY_RUN) {
+    console.log(`  [DRY-RUN would flag] "${g.title}" — ${detail}`);
+    return;
+  }
+  const { error: insErr } = await sb.from('content_quality_issues').insert({
+    article_slug: g.slug, section: 'guides',
+    check_name: 'guide_set_retired', severity: 'warning', detail, auto_fixable: false,
+    checked_at: new Date().toISOString(), first_seen_at: new Date().toISOString(), resolved: false,
+  });
+  if (insErr) console.error('[supabase-write] table=content_quality_issues op=insert error:', insErr);
+  else console.log(`  [FLAGGED] "${g.title}" — ${detail}`);
+}
+
 (async () => {
   const t0 = Date.now();
   console.log(`━━ Guides staleness guard${DRY_RUN ? ' [DRY-RUN]' : ''} (limit=${LIMIT}) ━━━━━━━━━━━━━━━━━`);
@@ -78,6 +131,10 @@ function findStalePatterns(content) {
   if (!oldest || oldest.length === 0) {
     console.log('No guides to check.');
     return;
+  }
+
+  for (const g of oldest) {
+    await checkSetRetirement(g);
   }
 
   let flagged = 0, skippedAlreadyFlagged = 0, clean = 0;
@@ -115,7 +172,6 @@ function findStalePatterns(content) {
     }
 
     const { error: insErr } = await sb.from('content_quality_issues').insert({
-      article_id:   String(g.id),
       article_slug: g.slug,
       section:      'guides',
       check_name:   CHECK_NAME,

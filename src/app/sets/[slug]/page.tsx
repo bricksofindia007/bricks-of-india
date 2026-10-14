@@ -1,25 +1,39 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { AFFILIATE_NOTE } from '@/lib/affiliate-disclosure';
 import type { Metadata } from 'next';
+import { cache } from 'react';
+import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
+import { SET_PAGE_REVALIDATE_SECONDS, UNPRICED_SET_REVALIDATE_SECONDS, bestInStock, isPriceFresh, formatIst } from '@/lib/price-freshness';
+import { unstable_cache } from 'next/cache';
 import { getSet } from '@/lib/rebrickable';
 import { formatPrice, whatsappShareUrl, socialCardImage, setMetaDescription } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
 import { resolveThemeSlug } from '@/lib/themeMapping';
-import { Badge, BestPriceBadge, OutOfStockBadge } from '@/components/ui/Badge';
+import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/Badge';
+import { priceLabel, normalise, type SetPriceSummary } from '@/lib/price-summary';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { SetCard } from '@/components/sets/SetCard';
+import { SetImage } from '@/components/sets/SetImage';
 import { JsonLd } from '@/components/JsonLd';
+import { FreshOnly } from '@/components/ui/FreshOnly';
 import { buildProductSchema, buildFAQSchema } from '@/lib/schemas';
-// Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
-// pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
-// served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
-export const revalidate = 3600;
-// Next 15: fetch() is uncached by default, independent of revalidate above --
-// without this, the Supabase reads below become per-request and the route
-// drops from ISR to full SSR. Scoped per-route, not the root layout.
-export const fetchCache = 'default-cache';
+import { getStores, storeLabels } from '@/lib/stores';
+import { setNumberCandidates, pickSetNumber, slugMatchesSet } from '@/lib/set-slug';
+import { SaleSetLine } from '@/components/sales/SaleSetLine';
+import { shownTheme } from '@/lib/theme-display';
+// Durable-cache guard (2026-07-02): a revalidate must always be set, or
+// rendered pages persist across deploys. 14 days = UNPRICED_SET_REVALIDATE_SECONDS
+// (approved 10 Oct 2026; segment config must be a literal). A priced
+// page adds a 6 h read (SET_PAGE_REVALIDATE_SECONDS) and Next takes the
+// lowest revalidate in a render, so priced pages still refresh every 6 h.
+export const revalidate = 1209600;
+// Reads are cached with unstable_cache (not fetchCache='default-cache', which
+// cached until the next deploy), so each cached value carries the time it was
+// read: that's the "as of" time the page shows, never newer than the data.
+// Tagged set:<n> for FP1.6's revalidateTag.
 
 export async function generateStaticParams() {
   return [];
@@ -29,24 +43,74 @@ interface Props {
   params: Promise<{ slug: string }>;
 }
 
-// ── The 2 stores we actively track ───────────────────────────────────────────
-const TRACKED_STORES = [
-  { id: 'toycra',       name: 'Toycra',       url: 'https://www.toycra.com'   },
-  { id: 'mybrickhouse', name: 'MyBrickHouse',  url: 'https://mybrickhouse.com' },
-];
+// Stores come from the retailer registry (FP5.1, src/lib/stores.ts): enabled
+// stores in display_order. The table below re-sorts them (R5: stores at the
+// lowest price first, then alphabetical; no store gets precedence).
 
-async function getSetData(slug: string) {
-  const setNumber = slug.split('-')[0];
-  const client = createServerClient();
+// Fix A (2026-09-26): everything this page renders comes from ONE read-only
+// RPC, public.set_page_data (migration 20260926030000), instead of 8
+// separate requests. React cache() makes generateMetadata and the page share
+// that single call. Every Supabase request writes a ~2.5 KB gateway log line
+// and crawlers render thousands of distinct set pages a day, so this page
+// was the main driver of the project's log ingest and a large share of egress.
+type SetPageData = {
+  set: any | null;
+  store_prices: any[];
+  related: any[];
+  related_prices: { set_id: string; price_inr: number; store_id: string; product_url: string | null; in_stock: boolean; scraped_at: string }[];
+  coverage: { news: any[]; guides: any[]; reviews: any[] };
+  // PR-B: public.set_price_summary rows (R2-R6), folded into the same call.
+  summary: SetPriceSummary | null;
+  related_summaries: SetPriceSummary[];
+  // When this data was read (ISO). Shown as "as of {time}" (FP1.6 §2 wording).
+  as_of: string;
+};
 
-  // Primary path: Supabase
-  const { data: set } = await client
-    .from('sets')
-    .select('*, reviews(*)')
-    .eq('set_number', setNumber)
-    .single();
+const readRpc = (setNumber: string, slug: string) =>
+  unstable_cache(async () => {
+    const { data, error } = await createServerClient().rpc('set_page_data', { p_set_number: setNumber, p_slug: slug });
+    if (error) throw error;  // thrown results are never cached
+    return { d: data as Omit<SetPageData, 'as_of'>, at: new Date().toISOString() };
+  }, ['set_page_data', setNumber, slug], { revalidate: UNPRICED_SET_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
 
-  if (set) return set;
+// Priced page: the offers and summary on the 6 h clock, under their own key.
+const readPriceSide = (setNumber: string) =>
+  unstable_cache(async () => {
+    const sb = createServerClient();
+    const [sp, sum] = await Promise.all([
+      sb.from('store_prices').select('*').eq('set_id', setNumber).order('store_id'),
+      sb.from('set_price_summary').select('*').eq('set_id', setNumber).maybeSingle(),
+    ]);
+    if (sp.error) throw sp.error;
+    if (sum.error) throw sum.error;
+    return { store_prices: sp.data ?? [], summary: (sum.data ? normalise(sum.data) : null) as SetPriceSummary | null, at: new Date().toISOString() };
+  }, ['set_price_side', setNumber], { revalidate: SET_PAGE_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
+
+// A1: which catalogue set a slug names, when its first "-" segment isn't it (set numbers that
+// contain "-"). One extra read, only on that path; the normal page costs nothing more.
+const resolveSetNumber = (slug: string) =>
+  unstable_cache(async () => {
+    const { data, error } = await createServerClient().from('sets').select('set_number, name').in('set_number', setNumberCandidates(slug));
+    if (error) throw error;
+    return pickSetNumber(slug, data ?? []);
+  }, ['set_slug_resolve', slug], { revalidate: UNPRICED_SET_REVALIDATE_SECONDS })();
+
+const getSetPageData = cache(async (slug: string): Promise<SetPageData | null> => {
+  let setNumber = slug.split('-')[0];
+  let { d: rpc, at } = await readRpc(setNumber, slug);
+  if (!(rpc.set && slugMatchesSet(slug, rpc.set)) && slug.includes('-', setNumber.length + 1)) {
+    const resolved = await resolveSetNumber(slug);
+    if (resolved && resolved !== setNumber) {
+      setNumber = resolved;
+      ({ d: rpc, at } = await readRpc(setNumber, slug));
+    }
+  }
+  const d: SetPageData = { ...rpc, as_of: at };
+  if (d.set && d.store_prices?.length) {
+    const p = await readPriceSide(setNumber);
+    d.store_prices = p.store_prices; d.summary = p.summary; d.as_of = p.at;
+  }
+  if (d.set) return d;
 
   // Fallback: Rebrickable (runtime only — never called at build time since
   // this route has no generateStaticParams)
@@ -54,33 +118,41 @@ async function getSetData(slug: string) {
   if (!rbSet) return null;
 
   return {
-    id: rbSet.set_num,
-    set_number: setNumber,
-    rebrickable_id: rbSet.set_num,
-    name: rbSet.name,
-    year: rbSet.year,
-    theme: '',
-    subtheme: null,
-    pieces: rbSet.num_parts,
-    minifigs: null,
-    image_url: rbSet.set_img_url,
-    description: null,
-    age_range: null,
-    lego_mrp_inr: null,
-    created_at: '',
-    updated_at: '',
-    reviews: [],
+    ...d,
+    set: {
+      id: rbSet.set_num,
+      set_number: setNumber,
+      rebrickable_id: rbSet.set_num,
+      name: rbSet.name,
+      year: rbSet.year,
+      theme: '',
+      subtheme: null,
+      pieces: rbSet.num_parts,
+      minifigs: null,
+      image_url: rbSet.set_img_url,
+      description: null,
+      age_range: null,
+      lego_mrp_inr: null,
+      created_at: '',
+      updated_at: '',
+      reviews: [],
+    },
   };
-}
+});
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
   const params = await props.params;
-  const set = await getSetData(params.slug);
+  const set = (await getSetPageData(params.slug))?.set;
   if (!set) return { title: 'Set Not Found' };
   return {
-    title: `${set.name} (${set.set_number}) Price in India 2026`,
-    description: setMetaDescription(set.name),
-    alternates: { canonical: `https://bricksofindia.com/sets/${params.slug}` },
+    ...buildMetadata({
+      title: `${set.name} (${set.set_number}) Price in India 2026`,
+      description: setMetaDescription(set.name),
+      path: `/sets/${params.slug}`,
+      image: socialCardImage(set.image_url),
+      ogTitle: `${set.name} (${set.set_number}) — Best Price in India`,
+      ogDescription: `Compare ${set.name} prices across Indian stores.`,
+    }),
     // GSC-01 Part A: Tier 3 (merch/parts/exclusives, not real LEGO sets)
     // stays crawlable -- follow: true -- so link equity and any existing
     // backlinks still flow through, but is excluded from the index. The
@@ -96,31 +168,21 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     // 'tier3' override on the next Rebrickable metadata resync -- see the
     // migration's own comment). Same follow:true treatment as tier3.
     ...((set.index_tier === 'tier3' || set.noindex_override) && { robots: { index: false, follow: true } }),
-    openGraph: {
-      title: `${set.name} (${set.set_number}) — Best Price in India`,
-      description: `Compare ${set.name} prices across Indian stores. Best deal updated every 6 hours.`,
-      images: socialCardImage(set.image_url) ? [{ url: socialCardImage(set.image_url)! }] : [],
-    },
-    twitter: {
-      card: set.image_url ? 'summary_large_image' : 'summary',
-      title: `${set.name} (${set.set_number}) — Best Price in India`,
-      description: `Compare ${set.name} prices across Indian stores. Best deal updated every 6 hours.`,
-      images: socialCardImage(set.image_url) ? [socialCardImage(set.image_url)!] : undefined,
-    },
   };
 }
 
 export default async function SetPage(props: Props) {
   const params = await props.params;
-  const set = await getSetData(params.slug);
-  if (!set) notFound();
+  const pageData = await getSetPageData(params.slug);
+  if (!pageData?.set) notFound();
+  const set = pageData.set;
+  // Same clock as the page: 6 h when priced, 14 days when not (see getStores).
+  const stores = await getStores(pageData.store_prices?.length ? SET_PAGE_REVALIDATE_SECONDS : UNPRICED_SET_REVALIDATE_SECONDS);
+  const TRACKED_STORES = stores.map((st) => ({ id: st.id, name: st.name, url: st.site_url }));
+  const STORE_NAMES = storeLabels(stores);
 
-  // ── Query store_prices for this set ──────────────────────────────────────
-  const serverClient = createServerClient();
-  const { data: storePrices } = await serverClient
-    .from('store_prices')
-    .select('*')
-    .eq('set_id', set.set_number);
+  // ── store_prices for this set (from set_page_data) ───────────────────────
+  const storePrices = pageData.store_prices;
 
   const storePriceMap = new Map((storePrices ?? []).map((sp: any) => [sp.store_id, sp]));
 
@@ -131,57 +193,46 @@ export default async function SetPage(props: Props) {
         storePrices[0].scraped_at)
     : null;
 
-  const hoursAgo = lastUpdated
-    ? (Date.now() - new Date(lastUpdated).getTime()) / 3_600_000
-    : null;
-
-  const stalenessColor =
-    !hoursAgo         ? 'text-gray-400' :
-    hoursAgo > 72     ? 'text-red-500'  :
-    hoursAgo > 24     ? 'text-amber-500':
-                        'text-gray-400';
-
-  const stalenessText =
-    !hoursAgo     ? 'Prices not yet scraped — check stores directly' :
-    hoursAgo < 1  ? 'Updated just now' :
-    hoursAgo < 24 ? `Updated ${Math.floor(hoursAgo)}h ago` :
-    hoursAgo > 72 ? `Updated ${Math.floor(hoursAgo)}h ago — data may be stale` :
-                    `Updated ${Math.floor(hoursAgo)}h ago`;
-
-  // Best price across tracked stores (for schema + FAQ)
+  // Best price across tracked stores (for schema + FAQ). PR-A: in-stock rows
+  // only -- a sold-out listing's price is not a price anyone can pay. The
+  // badge additionally needs a fresh row (<= PRICE_STALE_HOURS); an older
+  // row still shows, with its real age, but earns no badge.
   const activePrices = TRACKED_STORES
     .map((s) => storePriceMap.get(s.id))
     .filter((sp): sp is any => sp?.price_inr != null);
-  const bestStorePrice = activePrices.sort((a, b) => a.price_inr - b.price_inr)[0] ?? null;
-  const hasPrices = activePrices.length > 0;
+  const bestStorePrice = bestInStock(activePrices);
+  const hasPrices = bestStorePrice != null;
+
+  // PR-B: locked rules R2-R6 from public.set_price_summary -- the MRP anchor
+  // and its source, the deal tier, and which store(s) hold the fresh
+  // in-stock best price. Badges come only from here.
+  const summary = pageData.summary ?? null;
+  const label = priceLabel(summary);
+  const bestStoreIds = new Set(summary?.best_store_ids ?? []);
+  // R5: stores at the lowest price first (alphabetical), then the rest.
+  const orderedStores = [...TRACKED_STORES].sort((a, b) =>
+    Number(bestStoreIds.has(b.id)) - Number(bestStoreIds.has(a.id)) || a.name.localeCompare(b.name));
+  const anchorMrp = summary?.anchor_mrp_inr ?? null;
   const hasToycra = !!storePriceMap.get('toycra')?.price_inr;
 
-  // Related sets
-  let relatedSets: any[] = [];
-  const relatedPriceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
-  if (set.theme) {
-    const { data: relData } = await serverClient
-      .from('sets')
-      .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr, mrp_verified')
-      .eq('theme', set.theme)
-      .neq('set_number', set.set_number)
-      .limit(4);
-    relatedSets = relData ?? [];
-
-    const relNumbers = relatedSets.map((s: any) => s.set_number);
-    if (relNumbers.length > 0) {
-      const { data: relPrices } = await serverClient
-        .from('store_prices')
-        .select('set_id, price_inr, store_id, product_url')
-        .in('set_id', relNumbers);
-      for (const rp of (relPrices ?? []) as { set_id: string; price_inr: number; store_id: string; product_url: string | null }[]) {
-        const existing = relatedPriceMap[rp.set_id];
-        if (!existing || rp.price_inr < existing.price_inr) {
-          relatedPriceMap[rp.set_id] = { price_inr: rp.price_inr, store_name: rp.store_id, buy_url: rp.product_url ?? null };
-        }
-      }
+  // Related sets (same theme, newest first) and their prices, from set_page_data.
+  const relatedSets: any[] = pageData.related;
+  const relatedPriceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null; in_stock: boolean; scraped_at: string }> = {};
+  for (const rp of pageData.related_prices) {
+    if (!rp.in_stock) continue; // PR-A: best price = in-stock rows only
+    const existing = relatedPriceMap[rp.set_id];
+    if (!existing || rp.price_inr < existing.price_inr) {
+      relatedPriceMap[rp.set_id] = { price_inr: rp.price_inr, store_name: rp.store_id, buy_url: rp.product_url ?? null, in_stock: true, scraped_at: rp.scraped_at };
     }
   }
+
+  const relSummaries = new Map((pageData.related_summaries ?? []).map((r) => [r.set_id, r]));
+  // 'More [theme] sets' shows only sets with something to show: a price or a verified MRP
+  // (the same rule the card uses), never a 'Price TBD' card (3 Oct 2026).
+  const shownRelated = relatedSets.filter((s: any) => {
+    const sum = relSummaries.get(s.set_number);
+    return relatedPriceMap[s.set_number] != null || sum?.best_price_inr != null || sum?.anchor_mrp_inr != null || (s.lego_mrp_inr && s.mrp_verified);
+  });
 
   // Related Coverage (GEO-05b Phase 3) — the reverse of Phase 2's forward
   // linking: any published article whose body links to THIS set's own
@@ -195,12 +246,10 @@ export default async function SetPage(props: Props) {
   // (category='Opinion'), so querying blog_posts too would either double-
   // count the same coverage or point at a slug that now just 301s. guides
   // added since it's a real coverage source now (weekly generation, §5).
-  const coveragePattern = `%](/sets/${params.slug})%`;
-  const [newsCoverageRes, guidesCoverageRes, reviewCoverageRes] = await Promise.all([
-    serverClient.from('news_articles').select('slug, title, published_at, category').ilike('content', coveragePattern),
-    serverClient.from('guides').select('slug, title, published_at').ilike('content', coveragePattern),
-    serverClient.from('reviews').select('slug, title, published_at').ilike('content', coveragePattern),
-  ]);
+  // Same %](/sets/<slug>)% match, now done inside set_page_data.
+  const newsCoverageRes = { data: pageData.coverage.news };
+  const guidesCoverageRes = { data: pageData.coverage.guides };
+  const reviewCoverageRes = { data: pageData.coverage.reviews };
   const relatedCoverage = [
     ...(newsCoverageRes.data ?? []).map((a: any) => ({
       ...a,
@@ -213,18 +262,9 @@ export default async function SetPage(props: Props) {
 
   const review = set.reviews?.[0] || null;
   const shareUrl = `https://bricksofindia.com/sets/${params.slug}`;
-  const waText   = `Check out ${set.name} price comparison on Bricks of India — use code ABHINAV12 for 12% off at Toycra!`;
+  const waText   = `Check out ${set.name} price comparison on Bricks of India — use code ABHINAV12 for 12% off full-price sets at Toycra!`;
 
-  const setImageSrc =
-    set.image_url ??
-    (set.rebrickable_id
-      ? `https://cdn.rebrickable.com/media/sets/${set.rebrickable_id}.jpg`
-      : '/mascots/blue-fig-confused.png');
 
-  const STORE_NAMES: Record<string, string> = {
-    toycra:       'Toycra',
-    mybrickhouse: 'MyBrickHouse',
-  };
 
   return (
     <div className="bg-white min-h-screen">
@@ -235,9 +275,9 @@ export default async function SetPage(props: Props) {
         <nav className="text-sm text-gray-400 flex items-center gap-2">
           <Link href="/" className="hover:text-accent-blue">Home</Link>
           <span>/</span>
-          <Link href="/compare" className="hover:text-accent-blue">Sets</Link>
+          <Link href="/sets" className="hover:text-accent-blue">Sets</Link>
           <span>/</span>
-          {set.theme && (() => {
+          {shownTheme(set.theme) && (() => {
             // Was `/themes/${slugify(set.theme)}` unconditionally -- 404'd
             // for any raw theme (Rebrickable's full taxonomy) that isn't
             // one of the curated /themes/ pages. resolveThemeSlug() only
@@ -248,15 +288,15 @@ export default async function SetPage(props: Props) {
             return (
               <>
                 {themeSlug ? (
-                  <Link href={`/themes/${themeSlug}`} className="hover:text-accent-blue">{set.theme}</Link>
+                  <Link href={`/themes/${themeSlug}`} className="hover:text-accent-blue">{shownTheme(set.theme)}</Link>
                 ) : (
-                  <span>{set.theme}</span>
+                  <span>{shownTheme(set.theme)}</span>
                 )}
                 <span>/</span>
               </>
             );
           })()}
-          <span className="text-dark font-bold truncate">{set.name}</span>
+          <span className="text-dark font-bold truncate min-w-0 flex-1">{set.name}</span>
         </nav>
       </div>
 
@@ -266,14 +306,17 @@ export default async function SetPage(props: Props) {
           <div className="lg:col-span-2">
             <div className="sticky top-20">
               <div className="bg-light-grey rounded-2xl p-6 border-2 border-border">
-                <Image
-                  src={setImageSrc}
-                  alt={set.name}
-                  width={500}
-                  height={500}
-                  className="w-full object-contain"
-                  unoptimized
-                />
+                {/* PR-E: the hero is this page's LCP element -- Rebrickable's
+                    1000x800 resized copy, loaded eagerly at high priority
+                    (was the full-size original, lazy-loaded). */}
+                <div className="relative w-full aspect-square">
+                  <SetImage
+                    set={set}
+                    variant="hero"
+                    className="object-contain"
+                    sizes="(max-width: 1024px) 100vw, 40vw"
+                  />
+                </div>
               </div>
               {/* Share */}
               <div className="mt-4 flex gap-3">
@@ -296,24 +339,30 @@ export default async function SetPage(props: Props) {
           <div className="lg:col-span-3">
             {/* Badges + Title */}
             <div className="flex flex-wrap gap-2 mb-3">
-              {set.theme    && <Badge variant="grey">{set.theme}</Badge>}
+              {shownTheme(set.theme) && <Badge variant="grey">{shownTheme(set.theme)}</Badge>}
               {set.year     && <Badge variant="grey">{set.year}</Badge>}
               {set.age_range && <Badge variant="grey">Ages {set.age_range}</Badge>}
               {set.pieces   && <Badge variant="grey">{set.pieces.toLocaleString()} pcs</Badge>}
             </div>
             <h1 className="font-heading text-dark text-4xl md:text-5xl leading-tight mb-2">{set.name}</h1>
             <p className="text-gray-400 font-price text-sm mb-4">Set #{set.set_number}</p>
+            <SaleSetLine setNumber={set.set_number} />
 
-            {/* Official MRP */}
-            {set.lego_mrp_inr && (
-              <div className="bg-light-grey rounded-xl p-4 mb-6 flex items-center justify-between">
+            {/* MRP (R2): the anchor and its source win over any other MRP. The
+                US-price estimate shows only when there is no anchor at all. */}
+            {(anchorMrp || (set.lego_mrp_inr && set.mrp_verified)) && (
+              <div className="bg-light-grey rounded-xl p-4 mb-6 flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs text-gray-400 uppercase tracking-wide font-bold">
-                    {set.mrp_verified ? 'MRP' : 'Est. MRP (from US price)'}
+                    MRP
                   </p>
-                  <p className="font-price text-2xl font-bold text-dark">{formatPrice(set.lego_mrp_inr)}</p>
+                  <p className="font-price text-2xl font-bold text-dark">{formatPrice(anchorMrp ?? set.lego_mrp_inr!)}</p>
                 </div>
-                <span className="text-3xl">🏷️</span>
+                {summary?.deal_tier ? (
+                  <FreshOnly scrapedAt={summary.best_scraped_at} fallback={<span className="text-3xl">🏷️</span>}>
+                    <DealBadge tier={summary.deal_tier} pct={summary.discount_pct} />
+                  </FreshOnly>
+                ) : <span className="text-3xl">🏷️</span>}
               </div>
             )}
 
@@ -325,12 +374,14 @@ export default async function SetPage(props: Props) {
 
               <div className="divide-y divide-border">
                 {/* Tracked stores — always shown, even if no data */}
-                {TRACKED_STORES.map((store, i) => {
+                {orderedStores.map((store) => {
                   const sp = storePriceMap.get(store.id);
-                  // Tie handling (2026-07-02): exactly ONE badge. On equal prices the
-                  // sorted-lowest row (bestStorePrice) wins; price-equality matching gave
-                  // every tied store a 🏆 simultaneously, which read as a bug on live.
-                  const isBest = hasPrices && sp?.price_inr != null && sp?.store_id === bestStorePrice?.store_id;
+                  // R5/R6 (PR-B): every store at the fresh in-stock lowest price is
+                  // highlighted equally; the trophy appears only when 2+ stores are
+                  // in stock and exactly one is cheapest; one store in stock reads
+                  // "Only at <store>". Replaces the 2026-07-02 single-winner rule,
+                  // which silently favoured whichever store was listed first.
+                  const atBest = bestStoreIds.has(store.id);
                   const isToycra = store.id === 'toycra';
 
                   if (!sp) {
@@ -338,24 +389,36 @@ export default async function SetPage(props: Props) {
                     return (
                       <div key={store.id} className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
                         <span className="font-bold text-dark">{store.name}</span>
-                        <span className="text-gray-400 text-sm">Not available at {store.name}</span>
+                        <span className="text-gray-400 text-sm">No listing found at {store.name}.</span>
                       </div>
                     );
                   }
 
                   return (
-                    <div key={store.id} className={`px-5 py-4 ${isToycra ? 'bg-yellow-50' : ''}`}>
+                    <div key={store.id} className="px-5 py-4">
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div className="flex items-center gap-3">
-                          {isBest && <BestPriceBadge />}
+                          <FreshOnly scrapedAt={summary?.best_scraped_at}>
+                            {atBest && label?.kind === 'best' && <BestPriceBadge />}
+                            {atBest && label?.kind === 'only' && <OnlyAtBadge store={store.name} />}
+                          </FreshOnly>
                           <span className="font-bold text-dark">{store.name}</span>
-                          {sp.price_inr && !sp.in_stock && <OutOfStockBadge />}
+                          {!sp.in_stock && (
+                            <span className="text-sm text-gray-500 font-bold">Out of stock at {store.name}</span>
+                          )}
                         </div>
                         <div className="flex items-center gap-3">
-                          {sp.price_inr ? (
-                            <span className={`font-price font-bold text-lg ${isBest ? 'text-deal-green' : 'text-dark'}`}>
+                          {sp.price_inr && isPriceFresh(sp.scraped_at) ? (
+                            <span
+                              className={`font-price font-bold text-lg ${atBest ? 'text-deal-green' : sp.in_stock ? 'text-dark' : 'text-gray-400'}`}
+                              data-best-price={atBest ? sp.price_inr : undefined}
+                            >
                               {formatPrice(sp.price_inr)}
                             </span>
+                          ) : sp.price_inr ? (
+                            <a href={sp.product_url ?? undefined} target="_blank" rel="noopener noreferrer sponsored" className="text-sm font-bold text-dark underline">
+                              See the price at {store.name} →
+                            </a>
                           ) : (
                             <span className="text-gray-400 text-sm">Price unavailable</span>
                           )}
@@ -368,11 +431,6 @@ export default async function SetPage(props: Props) {
                             >
                               {sp.price_inr ? 'Buy Now →' : 'Check Price →'}
                             </a>
-                          )}
-                          {!sp.in_stock && (
-                            <span className="bg-gray-100 text-gray-500 text-sm font-bold px-4 py-2 rounded-lg whitespace-nowrap">
-                              Sold out
-                            </span>
                           )}
                         </div>
                       </div>
@@ -412,11 +470,11 @@ export default async function SetPage(props: Props) {
             </div>
 
             {/* Staleness indicator */}
-            <p className={`text-xs mb-4 ${stalenessColor}`}>{stalenessText}</p>
+            {!lastUpdated && <p className="text-xs mb-4 text-gray-400">No retailer listing found.</p>}
 
             {/* Price disclaimer */}
             <p className="text-xs text-gray-400 mb-6">
-              Prices updated every 6 hours. Always verify the final price on the retailer&apos;s website before purchase.
+              Always check the final price on the store&apos;s website before you buy.
               LEGO® is a trademark of The LEGO Group which does not sponsor or endorse this site.
             </p>
 
@@ -440,7 +498,7 @@ export default async function SetPage(props: Props) {
                     <h2 className="font-heading text-dark text-2xl mb-1">BRICKS OF INDIA VERDICT</h2>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-primary text-lg">{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
-                      <span className="text-sm text-gray-400">({review.rating}/5)</span>
+                      <span className="text-sm text-gray-400">{`(${review.rating}/5)`}</span>
                     </div>
                     <p className="text-gray-600 font-body mb-3">{review.verdict}</p>
                     <Link href={`/reviews/${review.slug}`} className="text-accent-blue font-bold text-sm hover:underline">
@@ -469,20 +527,27 @@ export default async function SetPage(props: Props) {
                 {(() => { const faqs = [
                   {
                     q: `Where is ${set.name} cheapest in India?`,
-                    a: hasPrices
-                      ? `Based on our latest comparison, ${bestStorePrice ? TRACKED_STORES.find(s => s.id === bestStorePrice.store_id)?.name ?? 'a tracked store' : 'a tracked store'} has the best price at ${bestStorePrice ? formatPrice(bestStorePrice.price_inr) : '—'}. Prices update every 6 hours.`
-                      : `We're currently setting up price tracking for ${set.name}. Check Toycra, MyBrickHouse, and Amazon India for live prices.`,
+                    // R5: every store at the lowest price is named, alphabetically.
+                    a: summary?.best_price_inr != null && summary.best_store_ids?.length
+                      ? `Based on our latest comparison, ${summary.best_store_ids.map((id) => STORE_NAMES[id] ?? id).join(' and ')} ${summary.best_store_ids.length > 1 ? 'share' : 'has'} the lowest in-stock price at ${formatPrice(summary.best_price_inr)}.`
+                      : hasPrices
+                      ? `The lowest in-stock price we last saw was ${formatPrice(bestStorePrice!.price_inr)} at ${STORE_NAMES[bestStorePrice!.store_id] ?? bestStorePrice!.store_id}, but that price is more than 12 hours old — check the store for today's price.`
+                      : `We're currently setting up price tracking for ${set.name}. Check Toycra, LEGO.in, and Amazon India for current prices.`,
                   },
                   {
                     q: `Is ${set.name} available in India?`,
-                    a: `${set.name} availability is tracked across Toycra and MyBrickHouse. Check individual store links above for real-time stock.`,
+                    a: `${set.name} availability is tracked across Toycra and LEGO.in. Check the store links above for current stock.`,
                   },
                   {
                     q: `What is the official MRP of ${set.name} in India?`,
-                    a: set.lego_mrp_inr
-                      ? set.mrp_verified
-                        ? `The confirmed LEGO India MRP for ${set.name} is ${formatPrice(set.lego_mrp_inr)}.`
-                        : `Based on the US retail price, ${set.name} works out to roughly ${formatPrice(set.lego_mrp_inr)} in India before local pricing adjustments. Check lego.com/en-in for the official MRP.`
+                    a: anchorMrp && summary?.anchor_source
+                      ? `The MRP for ${set.name} is ${formatPrice(anchorMrp)}.`
+                      : set.lego_mrp_inr && set.mrp_verified
+                      ? `The confirmed LEGO India MRP for ${set.name} is ${formatPrice(set.lego_mrp_inr)}.`
+                      : activePrices.length > 0
+                      ? `LEGO's official MRP for ${set.name} isn't confirmed. The current store price is shown on this page.`
+                      : set.lego_mrp_inr
+                      ? `Official Indian pricing hasn't been announced yet.`
                       : `The official India MRP for ${set.name} hasn't been confirmed. Check lego.com/en-in for the latest official pricing.`,
                   },
                   {
@@ -493,7 +558,7 @@ export default async function SetPage(props: Props) {
                   },
                   {
                     q: `Where can I buy ${set.name} with a discount?`,
-                    a: `Use code ABHINAV12 at Toycra for 12% off (min. ₹500 purchase). This is an exclusive Bricks of India deal with no usage limits.`,
+                    a: `${AFFILIATE_NOTE} This is an exclusive Bricks of India deal.`,
                   },
                 ]; return (<><JsonLd data={buildFAQSchema(faqs)} />{faqs.map((faq, i) => (
                   <details key={i} className="border-2 border-border rounded-xl overflow-hidden group">
@@ -512,13 +577,13 @@ export default async function SetPage(props: Props) {
         </div>
 
         {/* Related Sets */}
-        {relatedSets.length > 0 && (
+        {shownRelated.length > 0 && (
           <div className="mt-12">
-            <h2 className="font-heading text-dark text-3xl mb-6">MORE {set.theme?.toUpperCase()} SETS</h2>
+            <h2 className="font-heading text-dark text-3xl mb-6">{shownTheme(set.theme) ? `MORE ${shownTheme(set.theme)!.toUpperCase()} SETS` : 'MORE SETS'}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {relatedSets.map((relSet: any) => {
+              {shownRelated.map((relSet: any) => {
                 const bestP = relatedPriceMap[relSet.set_number] ?? null;
-                return <SetCard key={relSet.id} set={relSet} bestPrice={bestP} priceCount={bestP ? 1 : 0} />;
+                return <SetCard key={relSet.id} set={relSet} bestPrice={bestP} priceCount={bestP ? 1 : 0} summary={relSummaries.get(relSet.set_number)} />;
               })}
             </div>
           </div>

@@ -1,13 +1,20 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { CmfTracker } from './CmfTracker';
+import { getStores, storeLabels } from '@/lib/stores';
 
-export const metadata: Metadata = {
-  title: 'CMF Tracker | Bricks of India Lab',
+// P10 revalidate audit (29 Sep): this route had no revalidate of its own and was either built
+// once per deploy (its data froze between deploys) or refreshed only as a side effect of a shared
+// read. Its cadence is now explicit and checked in CI.
+export const revalidate = 86400; // = READ_REVALIDATE_SECONDS (src/lib/route-cadence.ts; segment config must be a literal)
+
+export const metadata: Metadata = buildMetadata({
+  title: 'CMF Tracker — The Lab',
   description: 'Browse every LEGO Collectible Minifigures series from 2010–2026 and track which figures you own.',
-  alternates: { canonical: 'https://bricksofindia.com/lab/cmf-tracker' },
-};
+  path: '/lab/cmf-tracker',
+});
 
 export type FigureData = {
   set_number: string;
@@ -18,6 +25,7 @@ export type FigureData = {
 export type PriceData = {
   store_id:  string;
   price_inr: number;
+  compare_at_price_inr?: number | null;
 };
 
 export type SeriesData = {
@@ -78,14 +86,14 @@ export default async function CmfTrackerPage() {
   if (allSeriesNums.length > 0) {
     const { data: priceRows } = await supabase
       .from('store_prices')
-      .select('set_id, store_id, price_inr')
+      .select('set_id, store_id, price_inr, compare_at_price_inr')
       .eq('in_stock', true)
       .not('price_inr', 'is', null)
       .in('set_id', allSeriesNums);
 
-    for (const p of (priceRows ?? []) as { set_id: string; store_id: string; price_inr: number }[]) {
+    for (const p of (priceRows ?? []) as { set_id: string; store_id: string; price_inr: number; compare_at_price_inr: number | null }[]) {
       const idx = seriesSetToIdx.get(p.set_id);
-      if (idx !== undefined) seriesList[idx].prices.push({ store_id: p.store_id, price_inr: p.price_inr });
+      if (idx !== undefined) seriesList[idx].prices.push({ store_id: p.store_id, price_inr: p.price_inr, compare_at_price_inr: p.compare_at_price_inr });
     }
   }
 
@@ -110,7 +118,7 @@ export default async function CmfTrackerPage() {
         </p>
       </div>
 
-      <CmfTracker seriesList={seriesList} />
+      <CmfTracker seriesList={seriesList} storeLabels={storeLabels(await getStores())} />
     </div>
   );
 }

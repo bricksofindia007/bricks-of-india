@@ -33,6 +33,7 @@ import os
 import sys
 import tempfile
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import requests
@@ -284,6 +285,8 @@ def upload_video_to_storage(sb, video_path: str, filename: str) -> str:
     a video/ prefix so they never collide with SOC-AUTO-01's own
     {set_num}_reels.mp4 naming in the same bucket.
     """
+    from quota import guard_upload  # FP6.4: refuse BEFORE touching Storage
+    guard_upload(sb, 'VID-P4', f'video {filename}')
     storage_path = f'video/{filename}'
     with open(video_path, 'rb') as f:
         sb.storage.from_(VIDEO_STORAGE_BUCKET).upload(
@@ -307,6 +310,8 @@ def extract_and_upload_qc_frames(sb, video_path: str, video_id: str, count: int 
     "qc_frames" referenced in engine.py's comments were the operator manually
     reviewing the rendered output, not a generated artifact.
     """
+    from quota import guard_upload  # FP6.4: refuse BEFORE touching Storage
+    guard_upload(sb, 'VID-P4', f'QC frames for {video_id}')
     import subprocess
     import tempfile
 
@@ -343,7 +348,7 @@ def build_ig_caption(script: str) -> str:
     """No AI-voiceover disclosure suffix -- explicit operator decision, 2026-07-06."""
     return (
         f'{script}\n\n'
-        f"📍 Bricks of India — India's only LEGO price tracker\n"
+        f"📍 Bricks of India — India's LEGO price tracker\n"
         f'🔗 bricksofindia.com\n\n'
         f'#LEGO #LEGOIndia #LEGOSets #BricksofIndia #Reels'
     )
@@ -354,7 +359,7 @@ def build_yt_metadata(set_title: str, set_number: str | None, script: str) -> di
     title = f'{base_title} | #LEGO #Shorts'[:100]
     description = (
         f'{script}\n\n'
-        f"📍 Bricks of India — India's only LEGO price tracker\n"
+        f"📍 Bricks of India — India's LEGO price tracker\n"
         f'🔗 bricksofindia.com\n\n'
         f'#LEGO #LEGOIndia #LEGOSets #BricksofIndia #Shorts #LEGOShorts'
     )
@@ -595,8 +600,16 @@ def publish_video_post(sb, video_post: dict) -> dict:
         sb.table('video_posts').update({'storage_url': storage_url}).eq('id', video_post['id']).execute()
 
     if not video_post.get('qc_frame_urls'):
-        qc_urls = extract_and_upload_qc_frames(sb, local_video_path, video_post['id'])
-        sb.table('video_posts').update({'qc_frame_urls': qc_urls}).eq('id', video_post['id']).execute()
+        # P12 (b): QC frames are a Storage upload but not needed to post. A
+        # closed storage guard (>= 800 MB) skips them; it never stops the post.
+        # (The video upload above stays guarded: IG needs a public URL, and
+        # approved rows already have storage_url from generation.)
+        from quota import QuotaBlockedError
+        try:
+            qc_urls = extract_and_upload_qc_frames(sb, local_video_path, video_post['id'])
+            sb.table('video_posts').update({'qc_frame_urls': qc_urls}).eq('id', video_post['id']).execute()
+        except QuotaBlockedError as exc:
+            print(f'[publish] QC frames not uploaded (storage guard): {exc}. Publishing without them.')
 
     caption = build_ig_caption(video_post['script'])
     yt_meta = build_yt_metadata(video_post['set_title'], video_post.get('set_number'), video_post['script'])
@@ -610,6 +623,7 @@ def publish_video_post(sb, video_post: dict) -> dict:
             'ig_media_id': ig_result['media_id'],
             'ig_permalink': ig_result['permalink'],
             'ig_raw_response': ig_result['raw_response'],
+            'ig_posted_at': datetime.now(timezone.utc).isoformat(),
         }).eq('id', video_post['id']).execute()
         results['ig'] = ig_result
     except Exception as exc:
@@ -622,6 +636,7 @@ def publish_video_post(sb, video_post: dict) -> dict:
             'yt_video_id': yt_result['video_id'],
             'yt_url': yt_result['url'],
             'yt_raw_response': yt_result['raw_response'],
+            'yt_posted_at': datetime.now(timezone.utc).isoformat(),
         }).eq('id', video_post['id']).execute()
         results['yt'] = yt_result
     except Exception as exc:
@@ -630,7 +645,6 @@ def publish_video_post(sb, video_post: dict) -> dict:
 
     # Status reflects exactly what actually succeeded -- never claim "posted_both"
     # if only one platform confirmed live.
-    from datetime import datetime, timezone
     if 'ig' in results and 'yt' in results:
         status = 'posted_both'
     elif 'ig' in results:
@@ -695,6 +709,7 @@ def retry_missing_platform(sb, video_post: dict) -> dict:
             'ig_media_id': ig_result['media_id'],
             'ig_permalink': ig_result['permalink'],
             'ig_raw_response': ig_result['raw_response'],
+            'ig_posted_at': datetime.now(timezone.utc).isoformat(),
             'status': 'posted_both',
         }).eq('id', video_post['id']).execute()
         print(f'[publish] IG retry succeeded for {video_post["id"]}: {ig_result["permalink"]}')
@@ -710,6 +725,7 @@ def retry_missing_platform(sb, video_post: dict) -> dict:
         'yt_video_id': yt_result['video_id'],
         'yt_url': yt_result['url'],
         'yt_raw_response': yt_result['raw_response'],
+        'yt_posted_at': datetime.now(timezone.utc).isoformat(),
         'status': 'posted_both',
     }).eq('id', video_post['id']).execute()
     print(f'[publish] YouTube retry succeeded for {video_post["id"]}: {yt_result["url"]}')

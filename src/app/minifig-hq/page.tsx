@@ -1,6 +1,13 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { MinifigHq } from './MinifigHq';
+import { getStores, storeLabels } from '@/lib/stores';
+
+// P10 revalidate audit (29 Sep): this route had no revalidate of its own and was either built
+// once per deploy (its data froze between deploys) or refreshed only as a side effect of a shared
+// read. Its cadence is now explicit and checked in CI.
+export const revalidate = 86400; // = READ_REVALIDATE_SECONDS (src/lib/route-cadence.ts; segment config must be a literal)
 
 // Nav label is "Minifig HQ" (2026-08-11 rebuild — promoted from a /lab
 // tool to its own top-nav slot, replacing Community there). Title, meta
@@ -15,11 +22,11 @@ import { MinifigHq } from './MinifigHq';
 // of the template — a real, pre-existing, site-wide title bug, flagged
 // separately rather than fixed here (18 files affected, out of scope for
 // this build).
-export const metadata: Metadata = {
+export const metadata: Metadata = buildMetadata({
   title: 'Minifig HQ — LEGO CMF Collectible Minifigures Guide',
   description: 'Browse every LEGO Collectible Minifigures (CMF) series from 2010–2026 — every figure, every series, with enlargeable images.',
-  alternates: { canonical: 'https://bricksofindia.com/minifig-hq' },
-};
+  path: '/minifig-hq',
+});
 
 export type FigureData = {
   set_number: string;
@@ -30,6 +37,7 @@ export type FigureData = {
 export type PriceData = {
   store_id:  string;
   price_inr: number;
+  compare_at_price_inr?: number | null;
 };
 
 export type SeriesData = {
@@ -82,14 +90,14 @@ export default async function MinifigHqPage() {
   if (allSeriesNums.length > 0) {
     const { data: priceRows } = await supabase
       .from('store_prices')
-      .select('set_id, store_id, price_inr')
+      .select('set_id, store_id, price_inr, compare_at_price_inr')
       .eq('in_stock', true)
       .not('price_inr', 'is', null)
       .in('set_id', allSeriesNums);
 
-    for (const p of (priceRows ?? []) as { set_id: string; store_id: string; price_inr: number }[]) {
+    for (const p of (priceRows ?? []) as { set_id: string; store_id: string; price_inr: number; compare_at_price_inr: number | null }[]) {
       const idx = seriesSetToIdx.get(p.set_id);
-      if (idx !== undefined) seriesList[idx].prices.push({ store_id: p.store_id, price_inr: p.price_inr });
+      if (idx !== undefined) seriesList[idx].prices.push({ store_id: p.store_id, price_inr: p.price_inr, compare_at_price_inr: p.compare_at_price_inr });
     }
   }
 
@@ -111,7 +119,7 @@ export default async function MinifigHqPage() {
         </p>
       </div>
 
-      <MinifigHq seriesList={seriesList} />
+      <MinifigHq seriesList={seriesList} storeLabels={storeLabels(await getStores())} />
     </div>
   );
 }

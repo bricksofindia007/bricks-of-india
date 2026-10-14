@@ -3,8 +3,12 @@
 // actions.ts catches !overallPass and throws to preserve the existing publish flow.
 // Gate 5 (factuality) and Gate 6 (sourceFidelity) require a Supabase client.
 
+import { unverifiedSetCitations } from './set-identity';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 
+import { reusedOpener, RECENT_OPENERS_WINDOW } from './opener-pattern';
+import { nonStandardAffiliateMentions } from './affiliate-disclosure';
+import { g19Hits } from './g19';
 export const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: [number, number] }> = {
   news    : { pass: [270,  440], fail: [225,  500] },  // target 300–400
   review  : { pass: [450,  770], fail: [375,  875] },  // target 500–700
@@ -15,7 +19,7 @@ export const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: 
 export const VALID_VERDICTS = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID']);
 
 export const INDIA_COMPARISON_RE = /\b(biryani|chai|EMI|Spotify|Netflix|petrol|samosa|litre|liter|movie.?ticket|PVR|butter.?chicken|Swiggy|Zomato|iPhone|months? of|weeks? of|auto.?rickshaw|mango)\b/i;
-export const INDIA_STORE_RE      = /\b(Toycra|MyBrickHouse|Amazon|Flipkart|import.?only)\b/i;
+export const INDIA_STORE_RE      = /\b(Toycra|MyBrickHouse|lego\.in|Amazon|Flipkart|import.?only)\b/i;
 
 // Numbers that are years — excluded from set-number candidates
 const YEAR_MIN = 1932;
@@ -44,6 +48,13 @@ export type LintResult = {
     sourceFidelity:   LintGateResult | null;
     openerUniqueness: LintGateResult | null;
     duplicateContent: LintGateResult | null;
+    citationIdentity: LintGateResult | null;
+    openerPattern: LintGateResult;
+    affiliateDisclosure: LintGateResult;
+    // Gate 15 (G19): nothing public reveals how the site works.
+    g19: LintGateResult;
+    // Gate 14 (#398 1b): set by generate-with-failover only when enforced (reviews).
+    gate14?: LintGateResult;
   };
 };
 
@@ -99,6 +110,11 @@ export function extractSetNumberCandidates(body: string): string[] {
   });
 }
 
+// Capitalised phrases after "LEGO" that are not set names (2 Oct 2026): they failed
+// factuality as "unrecognized LEGO references" (daily drafts rejected for "LEGO India
+// MRP" / "LEGO User Group"; the Brick Rush article for "LEGO Certified Store").
+export const NON_SET_PHRASES = /^(?:Certified Stores?(?:\s+India)?(?:'s)?|India MRP|User Groups?)$/;
+
 // Extract "LEGO [ProperNoun phrase]" candidates (product names, not bare theme names).
 export function extractSetNameCandidates(body: string): string[] {
   const candidates = new Set<string>();
@@ -106,6 +122,7 @@ export function extractSetNameCandidates(body: string): string[] {
   let m: RegExpExecArray | null;
   while ((m = legoNameRe.exec(body)) !== null) {
     const phrase = m[1].trim();
+    if (NON_SET_PHRASES.test(phrase)) continue;
     if (THEME_NAME_RE.test(phrase)) {
       const stripped = phrase.replace(THEME_NAME_RE, '').trim();
       if (stripped && stripped !== phrase) candidates.add(stripped);
@@ -153,6 +170,20 @@ function _normalizeOpener(body: string): string {
     .replace(/\s+/g, ' ')
     .trim()
     .slice(0, 55);
+}
+
+/** Gate 12 (round 11 D1): the opening sentence of the last RECENT_OPENERS_WINDOW published articles
+ * (news, reviews and guides together, newest first) plus drafts accepted earlier in this run. */
+export async function gateRecentOpener(body: string, sb: SupabaseClient, batchOpeners?: string[]): Promise<LintGateResult> {
+  const n = RECENT_OPENERS_WINDOW;
+  const res = await Promise.all(['news_articles', 'reviews', 'guides'].map((t) =>
+    sb.from(t).select('content, published_at').not('published_at', 'is', null).order('published_at', { ascending: false }).limit(n)));
+  const err = res.find((r) => r.error)?.error;
+  if (err) return { pass: true, severity: 'warn', reason: `gate 12 recent-opener query failed — check DEGRADED to batch-only: ${err.message}` };
+  const recent = res.flatMap((r) => (r.data ?? []) as { content: string | null; published_at: string }[])
+    .sort((a, b) => b.published_at.localeCompare(a.published_at)).slice(0, n).map((r) => r.content ?? '');
+  const hit = reusedOpener(body, [...(batchOpeners ?? []), ...recent]);
+  return hit ? { pass: false, severity: 'fail', reason: `opener used in a recent article: "${hit.slice(0, 80)}"` } : { pass: true, severity: 'ok' };
 }
 
 export const OPENER_SIMILARITY_THRESHOLD = 0.85;
@@ -536,7 +567,11 @@ async function gateSourceFidelity(
 export async function lintDraft(draft: LintInput, options: LintOptions = {}): Promise<LintResult> {
   const body      = draft.body || '';
   const format    = draft.format || 'news';
-  const wordCount = draft.word_count ?? body.split(/\s+/).filter(Boolean).length;
+  // Markdown table rows are data, not prose (2 Oct 2026: a 50-row price table put a
+  // ~320-word list article over every format's limit). They don't count toward Gate 1.
+  const hasTable = /^\s*\|.*\|\s*$/m.test(body);
+  const proseWords = body.split('\n').filter((l) => !/^\s*\|/.test(l)).join('\n').split(/\s+/).filter(Boolean).length;
+  const wordCount = hasTable ? proseWords : (draft.word_count ?? proseWords);
   const warnings: string[] = [];
   let overallPass = true;
 
@@ -568,7 +603,8 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
     overallPass = false;
   } else {
     const indiaSeg = body.slice(markerIdx);
-    if (!/₹[\d,]+/.test(indiaSeg)) {
+    // "Official Indian pricing hasn't been announced yet." stands in for a ₹ figure (G19 + chat, 1 Oct 2026: no US-price estimates).
+    if (!/₹[\d,]+/.test(indiaSeg) && !/official indian pricing hasn['’]?t been announced/i.test(indiaSeg)) {
       if (isCommunity) {
         indiaParagraphGate = { pass: false, severity: 'warn', reason: 'No ₹ price found in India paragraph (community content)' };
         warnings.push('[Gate 2 WARN] No INR price in India Paragraph (community content)');
@@ -577,7 +613,7 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
         overallPass = false;
       }
     } else if (!INDIA_STORE_RE.test(indiaSeg)) {
-      indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No store mention (Toycra / MyBrickHouse / Amazon / Flipkart / import-only)' };
+      indiaParagraphGate = { pass: false, severity: 'fail', reason: 'No store mention (Toycra / LEGO.in / Amazon / Flipkart / import-only)' };
       overallPass = false;
     } else if (!INDIA_COMPARISON_RE.test(indiaSeg)) {
       if (isCommunity) {
@@ -595,7 +631,14 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
   // Gate 3: Verdict (non-news only)
   let verdictGate: LintGateResult | null = null;
   if (format !== 'news') {
-    if (isCommunity) {
+    if (isCommunity && format === 'review') {
+      // #387 (2026-09-27): a REVIEW with no verdict can never be stored --
+      // reviews.verdict is NOT NULL -- so the community carve-out below
+      // doesn't apply to it. Fail here so it takes the normal reject+delete
+      // path instead of passing lint and failing the insert on every run.
+      verdictGate = { pass: false, severity: 'fail', reason: 'review-format draft has no verdict (reviews.verdict is NOT NULL)' };
+      overallPass = false;
+    } else if (isCommunity) {
       verdictGate = { pass: true, severity: 'warn', reason: 'community/informational content — no verdict expected' };
       warnings.push('[Gate 3 WARN] No verdict — publishing as community/informational content');
     } else {
@@ -614,6 +657,32 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
   let sourceFidelityGate: LintGateResult | null   = null;
   let openerUniquenessGate: LintGateResult | null = null;
   let duplicateContentGate: LintGateResult | null = null;
+  // Gate 12 (round 11 D1, 4 Oct 2026): the opening sentence must not repeat one used in any of
+  // the last RECENT_OPENERS_WINDOW published articles. BOI voice openers (wallet lines included) are
+  // allowed. Needs the database, so it runs with Gate 8 below; without a database it is skipped.
+  let openerPatternGate: LintGateResult = { pass: true, severity: 'ok' };
+
+  // Gate 13 (#212; round 3): every ABHINAV12 sentence uses the exact standard code line (full-price),
+  // no retired wording. The disclosure itself lives on the legal pages, not beside the code.
+  const undisclosed = nonStandardAffiliateMentions(body);
+  const affiliateDisclosureGate: LintGateResult = undisclosed.length
+    ? { pass: false, severity: 'fail', reason: `ABHINAV12 line is not the standard line (or uses retired wording): "${undisclosed[0].slice(0, 80)}"` }
+    : { pass: true, severity: 'ok' };
+  if (undisclosed.length) overallPass = false;
+
+  // Gate 15 (G19, 1 Oct 2026): the article must not describe how Bricks of India works.
+  // The term list is the G19_TERMS secret (src/lib/g19.ts). Without it the gate fails closed.
+  // The reason never names the matched words (logs are public).
+  const g19 = g19Hits(`${draft.title ?? ''}
+${body}`);
+  const g19Gate: LintGateResult = g19 === null
+    ? { pass: false, severity: 'fail', reason: 'G19: term list not configured (G19_TERMS secret missing)' }
+    : g19.length
+    ? { pass: false, severity: 'fail', reason: `G19: ${g19.length} sentence(s) describe how the site works (first: sentence ${g19[0].index + 1})` }
+    : { pass: true, severity: 'ok' };
+  if (g19 === null || g19.length) overallPass = false;
+
+  let citationIdentityGate: LintGateResult | null = null;
 
   if (!options.skipFactuality) {
     // Gate 6: Source fidelity — pure text comparison, no DB needed
@@ -638,6 +707,9 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
       openerUniquenessGate = await gateOpenerUniqueness(body, sb, options.batchOpeners);
       if (!openerUniquenessGate.pass) overallPass = false;
 
+      openerPatternGate = await gateRecentOpener(body, sb, options.batchOpeners);
+      if (!openerPatternGate.pass) overallPass = false;
+
       // Gate 9: Duplicate content by set_number/topic-stem — news format only
       // (that's the exact scope of every confirmed duplicate-article
       // incident). No-ops without a title (some callers don't have one yet
@@ -646,6 +718,20 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
         duplicateContentGate = await gateDuplicateContent(draft.title, body, sb);
         if (!duplicateContentGate.pass) overallPass = false;
       }
+
+      // Gate 11: citation identity (2026-09-26, Donkey Kong "(2000)" / 10332
+      // incident). A catalogue set number written as a set citation --
+      // "(NNNN)", "LEGO NNNN", "#NNNN" or a /sets/ link -- must sit in an
+      // article that names that set. Years and part numbers written in
+      // parentheses fail here too when they collide with a catalogue number.
+      // generate-with-failover.ts allows ONE regeneration with explicit
+      // feedback before this fails the draft.
+      const bad = await unverifiedSetCitations(sb, `${draft.title ?? ''}
+${body}`);
+      citationIdentityGate = bad.length
+        ? { pass: false, severity: 'fail', reason: `set citations not matching the article: ${bad.map((b) => `${b.setNumber} (catalogue: "${b.name}", ${b.form})`).join('; ')}` }
+        : { pass: true, severity: 'ok' };
+      if (!citationIdentityGate.pass) overallPass = false;
     }
   }
 
@@ -660,6 +746,10 @@ export async function lintDraft(draft: LintInput, options: LintOptions = {}): Pr
       sourceFidelity:   sourceFidelityGate,
       openerUniqueness: openerUniquenessGate,
       duplicateContent: duplicateContentGate,
+      citationIdentity: citationIdentityGate,
+      openerPattern: openerPatternGate,
+      affiliateDisclosure: affiliateDisclosureGate,
+      g19: g19Gate,
     },
   };
 }

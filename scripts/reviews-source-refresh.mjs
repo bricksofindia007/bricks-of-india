@@ -21,7 +21,8 @@ dotenv.config({ path: '.env.local' });
 
 import { createClient } from '@supabase/supabase-js';
 import { fetchLiveListings, resolveEligibleListing, STORE_DISPLAY_NAME } from './lib/reviews-source.mjs';
-import { resplicePublishedIndiaParagraph, extractIndiaParagraphBlock } from '../src/lib/publish-draft.ts';
+import { planPriceUpdate } from './lib/price-line-check.mjs';
+import { extractIndiaParagraphBlock, priceLineStores } from '../src/lib/publish-draft.ts';
 import { assertFlipFreezeGuarantee } from '../src/lib/flip-freeze-assertion.ts';
 import { getSecret } from '../src/lib/get-secret.ts';
 
@@ -176,6 +177,10 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
 
   let p1Updated = 0, p1Flagged = 0, p1OutOfStock = 0, p1FetchIncomplete = 0;
 
+  // Fix B (2026-09-26): reviews whose only change is source_checked_at are
+  // stamped in one .in() update below instead of one request each (every
+  // request writes a ~2.5 KB Supabase gateway log line). Same `now` value.
+  const checkedIds = [];
   for (const review of publishedReviews) {
     const setNumber = setNumberById.get(review.set_id);
     if (!setNumber) {
@@ -197,7 +202,7 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
       await flagIssue(review.slug, 'review_source_fetch_incomplete', 'warning',
         `Re-verification incomplete — store fetch failed this run for ${setNumber}; not auto-updated, not treated as out-of-stock`);
       if (!DRY_RUN) {
-        await sb.from('reviews').update({ source_checked_at: now }).eq('id', review.id);
+        checkedIds.push(review.id);
       }
       continue;
     }
@@ -212,7 +217,7 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
       await flagIssue(review.slug, 'review_out_of_stock', 'critical',
         `${setNumber} is ${resolved ? 'confirmed out of stock at both stores' : 'no longer listed at either store'} — was ${review.source_retailer} at ₹${review.source_price_inr}. Manual decision needed (add out-of-stock note, or pull down).`);
       if (!DRY_RUN) {
-        await sb.from('reviews').update({ source_checked_at: now }).eq('id', review.id);
+        checkedIds.push(review.id);
       }
       continue;
     }
@@ -227,44 +232,53 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
       await flagIssue(review.slug, 'verdict_flip_candidate', 'critical',
         `${setNumber}: ₹${review.source_price_inr} -> ₹${newPrice} (${(pctChange * 100).toFixed(1)}% change) at ${resolved.sourceRetailer}, current verdict ${review.verdict} — plausibly flips the verdict. Frozen pending chat approval; only source_checked_at updated.`);
       if (!DRY_RUN) {
-        await sb.from('reviews').update({ source_checked_at: now }).eq('id', review.id);
+        checkedIds.push(review.id);
       }
       continue;
     }
 
-    // Non-flip price/retailer change — safe to auto-update price + content
-    // (disclaimer variant recomputed mechanically; verdict itself unchanged).
-    if (newPrice !== oldPrice || resolved.sourceRetailer !== review.source_retailer) {
+    // Non-flip price/retailer change (approved option a): the stored source columns update.
+    // The price line printed in the review is never rewritten by this job, so the published text
+    // stays as it was. A stores mismatch is reported only.
+    const stampSource = {
+      source_retailer:     resolved.sourceRetailer,
+      source_price_inr:    resolved.sourcePriceInr,
+      source_stock_status: resolved.sourceStockStatus,
+      source_checked_at:   now,
+      featured_store:      resolved.featuredStore,
+      ...(resolved.otherStore ? { other_price_inr: resolved.otherStore.priceInr, other_in_stock: resolved.otherStore.inStock } : {}),
+    };
+    const storesNow = priceLineStores(stampSource);
+    const plan = planPriceUpdate({ content: review.content, storesNow, oldPrice, newPrice, retailerChanged: resolved.sourceRetailer !== review.source_retailer });
+    if (plan.storesMismatch) console.log(`  [NOTE] ${review.slug}: printed price line does not name ${storesNow}; text left unchanged`);
+    if (plan.updateStoredColumns) {
       p1Updated++;
-      console.log(`  [UPDATE] ${review.slug}: ₹${oldPrice} -> ₹${newPrice} @ ${resolved.sourceRetailer} (verdict unchanged: ${review.verdict})`);
+      console.log(`  [UPDATE] ${review.slug}: ₹${oldPrice} -> ₹${newPrice} @ ${resolved.sourceRetailer} (stored columns only; verdict unchanged: ${review.verdict})`);
       if (!DRY_RUN) {
-        try {
-          const { content, disclaimerVariant } = resplicePublishedIndiaParagraph(review.content, review.verdict, {
-            source_retailer:     resolved.sourceRetailer,
-            source_price_inr:    resolved.sourcePriceInr,
-            source_stock_status: resolved.sourceStockStatus,
-            source_checked_at:   now,
-          });
-          await sb.from('reviews').update({
-            content,
-            source_retailer:            resolved.sourceRetailer,
-            source_price_inr:           resolved.sourcePriceInr,
-            source_stock_status:        resolved.sourceStockStatus,
-            source_checked_at:          now,
-            verdict_disclaimer_variant: disclaimerVariant,
-          }).eq('id', review.id);
-        } catch (err) {
-          await flagIssue(review.slug, 'review_resplice_failed', 'critical', `Re-splice failed: ${err.message} — source_checked_at updated only, content untouched`);
-          await sb.from('reviews').update({ source_checked_at: now }).eq('id', review.id);
-        }
+        const { error } = await sb.from('reviews').update({
+          source_retailer:     resolved.sourceRetailer,
+          source_price_inr:    resolved.sourcePriceInr,
+          source_stock_status: resolved.sourceStockStatus,
+          source_checked_at:   now,
+        }).eq('id', review.id);
+        if (error) await flagIssue(review.slug, 'stored_columns_update_failed', 'critical', `Stored price columns not updated: ${error.message}`);
       }
-    } else {
-      // No change at all — still record that we checked.
-      if (!DRY_RUN) await sb.from('reviews').update({ source_checked_at: now }).eq('id', review.id);
+    } else if (!DRY_RUN) {
+      // No change at all: still record that we checked.
+      checkedIds.push(review.id);
     }
   }
 
   console.log(`Pass 1 summary: ${p1Updated} auto-updated, ${p1Flagged} flagged (possible verdict flip), ${p1OutOfStock} flagged (out of stock), ${p1FetchIncomplete} skipped (fetch incomplete)\n`);
+
+  if (!DRY_RUN && checkedIds.length) {
+    for (let i = 0; i < checkedIds.length; i += 200) {
+      const ids = checkedIds.slice(i, i + 200);
+      const { error } = await sb.from('reviews').update({ source_checked_at: now }).in('id', ids);
+      if (error) console.error(`  source_checked_at batch update failed for ${ids.length} review(s): ${error.message}`);
+    }
+    console.log(`  source_checked_at stamped on ${checkedIds.length} review(s) in ${Math.ceil(checkedIds.length / 200)} request(s)`);
+  }
 
   // ── Self-verifying flip-freeze assertion ────────────────────────────────────
   // For every row flagged verdict_flip_candidate THIS run, re-read the LIVE
@@ -287,6 +301,40 @@ async function flagIssue(articleSlug, checkName, severity, detail) {
     assertFlipFreezeGuarantee(preRunSnapshot, liveRows);
     console.log(`Flip-freeze guarantee held for all ${flipFlaggedReviewIds.length} flagged row(s) — verdict/disclaimer/India Paragraph unchanged.\n`);
   }
+
+  // ══ PASS 1b — legacy IMPORT ONLY reviews now sold in India ═════════════════
+  // Wave 1 item 9 (2026-09-26). Pass 1 only sees retailer-sourced reviews
+  // (source_retailer NOT NULL), so a legacy RADAR review that said IMPORT
+  // ONLY stayed IMPORT ONLY after the set reached MyBrickHouse/Toycra (7 such
+  // reviews found on 2026-09-26). Same treatment as a Pass 1 flip: flag
+  // verdict_flip_candidate, never change the review. The fix path is
+  // scripts/review-verdict-refresh.ts (proposals held for approval). Skipped
+  // when a store fetch failed, and for sets already covered by a
+  // retailer-sourced review (that duplicate needs a redirect, not a rewrite).
+  console.log('── PASS 1b: legacy IMPORT ONLY reviews now in stock ──');
+  const legacyImportOnly = await paginate(offset =>
+    sb.from('reviews')
+      .select('id, slug, set_id')
+      .is('source_retailer', null)
+      .eq('verdict', 'IMPORT ONLY')
+      .range(offset, offset + PAGE - 1),
+  );
+  const coveredSetIds = new Set(publishedReviews.map(r => r.set_id));
+  let p1bFlagged = 0;
+  for (const review of legacyImportOnly) {
+    const setNumber = setNumberById.get(review.set_id);
+    if (!setNumber || failedStoreIds.size > 0) continue;
+    const resolved = resolveEligibleListing(listings.get(setNumber));
+    if (!resolved || resolved.sourceStockStatus !== 'in_stock') continue;
+    const where = STORE_DISPLAY_NAME[resolved.sourceRetailer] ?? resolved.sourceRetailer;
+    p1bFlagged++;
+    await flagIssue(review.slug, 'verdict_flip_candidate', 'critical',
+      coveredSetIds.has(review.set_id)
+        ? `${setNumber}: legacy IMPORT ONLY review, but the set is in stock (₹${resolved.sourcePriceInr} at ${where}) AND already has a retailer-sourced review — duplicate: redirect this slug to that review rather than rewriting it.`
+        : `${setNumber}: legacy IMPORT ONLY review, but the set is now in stock — ₹${resolved.sourcePriceInr} at ${where}. Propose a verdict refresh (npx tsx scripts/review-verdict-refresh.ts --sets ${setNumber}); held for approval, nothing auto-changes.`);
+  }
+  console.log(`Pass 1b: ${legacyImportOnly.length} legacy IMPORT ONLY review(s) checked, ${p1bFlagged} flagged as now in stock${failedStoreIds.size > 0 ? ' (skipped: a store fetch failed this run)' : ''}
+`);
 
   // ══ PASS 2 — discovery of new qualifying sets ═══════════════════════════════
   console.log('── PASS 2: discovery ──');

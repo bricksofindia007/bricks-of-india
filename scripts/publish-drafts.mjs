@@ -1,4 +1,45 @@
 /**
+ * DEPRECATED 2026-09-22 — no longer invoked by any workflow (issue #170).
+ * .github/workflows/publish-drafts.yml deleted the same day. Kept in place
+ * for reference only, same convention as scripts/radar/generate-drafts.js
+ * ("deprecated — do not use for new work") and RADAR-08 before it.
+ *
+ * Real audit finding: this cron queried `pending_drafts.status='draft'`,
+ * expecting rows that "completed generation but failed Gate 7/lint." That
+ * expectation was already superseded, on the SAME day this file's core
+ * logic was last unified (2026-06-28), by generate-approved-drafts.ts's
+ * own explicit, dated policy: a draft that completes generation and fails
+ * quality gates is rejected and deleted outright, not parked for a cron to
+ * retry later (see generate-approved-drafts.ts's "Policy locked 2026-06-28"
+ * comment — "a row sitting in failed_lint/draft forever provides no value
+ * and was the dominant contributor to the unbounded backlog growth").
+ * Separately, `status='draft'` itself means "awaiting operator review
+ * in /admin/pending, pre-generation" under classify-signals.js's real
+ * semantics — never "generated, needs a publish decision" the way this
+ * script assumed. Both mean this cron's own query could never find real,
+ * current input under the pipeline as it has actually worked since
+ * 2026-06-28 — confirmed live: `Drafts to process: 0` on every real run
+ * checked (10+ runs, several days, 2026-09-18 through 2026-09-21).
+ *
+ * /admin/pending's own approve/reject actions (src/app/admin/pending/
+ * actions.ts) fully cover what this cron would have needed to do instead:
+ * approveDraft() sets status='approved', which re-enters generate-
+ * approved-drafts.ts's own input queue for a fresh generation attempt —
+ * not a republish of the stale existing body. rejectDraft() sets
+ * status='rejected' (a real, minor doc/behavior mismatch found in the
+ * same investigation: DATA_SOURCES.md/CLAUDE.md both describe reject as
+ * "deletes it" — it doesn't; nothing currently reads status='rejected',
+ * so it's an inert dead end, not a delete). The standalone Publish button
+ * (publishDraft()) lets an operator force a real, synchronous publish
+ * attempt on any specific draft on demand.
+ *
+ * 3 real drafts remain parked at status='failed_lint' from before this
+ * policy fully applied (2 from 2026-06-20, 1 from 2026-09-09) — left
+ * untouched by this deprecation; whether to manually review or
+ * retroactively reject+delete them per the same 2026-06-28 policy is a
+ * separate, undecided follow-up, not resolved here.
+ *
+ * ---- Original header, describing the now-dead cron's design ----
  * Publish pending_drafts in batch.
  *
  * Unified 2026-06-28: lint gates, slug/target resolution, hero-image
@@ -14,7 +55,7 @@
  * EDITORIAL_CDN_BLOCKLIST) and from actions.ts (sendLintAlert is NOT used
  * here — see options.onLintFail below, intentionally omitted for batch runs).
  *
- * Usage:
+ * Usage (manual only now — no workflow invokes this):
  *   node --env-file=.env.local scripts/publish-drafts.mjs --limit 15
  *   node --env-file=.env.local scripts/publish-drafts.mjs --ids id1,id2,...
  *   node --env-file=.env.local scripts/publish-drafts.mjs --dry-run --limit 15

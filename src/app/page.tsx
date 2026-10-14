@@ -1,74 +1,70 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { SearchBar } from '@/components/ui/SearchBar';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { NewsletterSignup } from '@/components/ui/NewsletterSignup';
 import { YouTubeSection } from '@/components/ui/YouTubeSection';
 import { SetCard } from '@/components/sets/SetCard';
 import { ArticleCard, ReviewCard } from '@/components/content/ArticleCard';
+import { NEWS_CARD_COLS, REVIEW_CARD_COLS } from '@/lib/article-cards';
 import { YoutubeStrip } from '@/components/content/YoutubeStrip';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { TricolourStripe } from '@/components/ui/TricolourStripe';
 import { TaglineChip } from '@/components/ui/Taglines';
 import { LabStrip } from '@/components/ui/LabStrip';
 import { BRAND, MASCOTS, THEMES } from '@/lib/brand';
-import { supabase, createServerClient } from '@/lib/supabase';
+import { supabaseRead as supabase, createServerClient } from '@/lib/supabase';
+import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
+import { getDeals } from '@/lib/price-summary';
+import { SaleBanner } from '@/components/sales/SaleBanner';
 
-export const revalidate = 3600; // re-fetch from Supabase at most every hour
-// Next 15: fetch() is uncached by default, independent of the revalidate
-// export above -- without this, every Supabase read on this page becomes
-// a per-request dynamic fetch and the route silently drops from ISR to
-// full SSR. Scoped here (not the root layout) since other routes are
-// dynamic on purpose. See docs/ or the Next 15 upgrade audit for detail.
-export const fetchCache = 'default-cache';
+export const revalidate = 86400; // re-fetch from Supabase at most once a day
+// Supabase reads here expire hourly via per-read `next.revalidate`
+// (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
+// NOT fetchCache='default-cache', which cached them until the next deploy.
 
-export const metadata: Metadata = {
+export const metadata: Metadata = buildMetadata({
   title: 'Bricks of India — LEGO Price Comparison & Reviews in India 2026',
-  description:
-    `Compare LEGO prices across India's top stores. Updated every 6 hours. Plus honest reviews and guides. ${BRAND.tagline}.`,
-  alternates: { canonical: 'https://bricksofindia.com' },
-};
+  description: `Compare LEGO prices across India's top stores. Plus honest reviews and guides. ${BRAND.tagline}.`,
+  path: '/',
+  absoluteTitle: true,
+});
 
 async function getHomepageData() {
-  const svc = createServerClient();
+  const svc = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
 
-  // Deal sets: start from store_prices (service client bypasses RLS).
-  // Flip from old sets-first approach which produced MRP sets with no matching
-  // store_prices rows. Now we start from what's actually stocked.
-  const { data: inStockSp } = await svc
-    .from('store_prices')
-    .select('set_id, store_id, price_inr, product_url')
-    .eq('in_stock', true)
-    .not('price_inr', 'is', null)
-    .limit(500);
+  // PR-B: "LATEST DEALS" shows real deals -- the 8 biggest discounts from
+  // public.set_price_summary (locked rules R2/R3), not merely in-stock sets.
+  // The homepage must not fail because of this section: on a read error the
+  // section is simply hidden (sets.length === 0).
+  // #204: the "Active deals" stat is the length of this same list -- the
+  // exact source and filters /deals renders (set_price_summary.deal_tier:
+  // in stock, <= 12h fresh, >= 10% below the anchor). On a read error the
+  // count is null and the stat is hidden; never a hardcoded fallback number.
+  const allDeals = await getDeals(svc).catch((e) => { console.error('[home] deals read failed:', e?.message ?? e); return null; });
+  const dealCount = allDeals ? allDeals.length : null;
+  const topDeals = (allDeals ?? []).slice(0, 8);
+  const dealSummaries = new Map(topDeals.map((d) => [d.set_id, d]));
+  const dealSetNums = topDeals.map((d) => d.set_id);
 
-  const dealPriceMap: Record<string, { price_inr: number; store_name: string; buy_url: string | null }> = {};
-  for (const row of (inStockSp ?? []) as any[]) {
-    const ex = dealPriceMap[row.set_id];
-    if (!ex || row.price_inr < ex.price_inr) {
-      dealPriceMap[row.set_id] = { price_inr: row.price_inr, store_name: row.store_id, buy_url: row.product_url ?? null };
-    }
-  }
-  const dealSetNums = Object.keys(dealPriceMap);
-
-  const [setsRes, reviewsRes, newsRes, guidesRes, featuredVideosRes, setsCountRes, newsCountRes, reviewsCountRes] = await Promise.allSettled([
+  const [setsRes, reviewsRes, newsRes, guidesRes, featuredVideosRes, setsCountRes, newsCountRes, reviewsCountRes, cmfCountRes] = await Promise.allSettled([
     dealSetNums.length > 0
       ? supabase
           .from('sets')
           .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr, mrp_verified')
           .in('set_number', dealSetNums)
-          .order('year', { ascending: false })
           .limit(8)
       : Promise.resolve({ data: [] }),
     supabase
       .from('reviews')
-      .select('*, set:sets(name, image_url, rebrickable_id, set_number, theme)')
+      .select(REVIEW_CARD_COLS)
       .order('published_at', { ascending: false })
       .limit(3),
     supabase
       .from('news_articles')
-      .select('*')
+      .select(NEWS_CARD_COLS)
       .order('published_at', { ascending: false })
       .limit(3),
     // Nav & Content Overhaul (2026-08-09): "GUIDES & OPINION" replaced with
@@ -90,14 +86,21 @@ async function getHomepageData() {
       .order('display_order', { ascending: true })
       .limit(3),
     supabase.from('sets').select('*', { count: 'exact', head: true }),
-    supabase.from('news_articles').select('*', { count: 'exact', head: true }),
-    supabase.from('reviews').select('*', { count: 'exact', head: true }),
+    supabase.from('news_articles').select('id', { count: 'exact', head: true }),
+    supabase.from('reviews').select('id', { count: 'exact', head: true }),
+    // #379: same table /minifig-hq renders (every cmf_figures row).
+    supabase.from('cmf_figures').select('*', { count: 'exact', head: true }),
   ]);
 
   const setsCount = setsCountRes.status === 'fulfilled' ? (setsCountRes.value.count ?? 0) : 0;
   const newsCount = newsCountRes.status === 'fulfilled' ? (newsCountRes.value.count ?? 0) : 0;
   const reviewsCount = reviewsCountRes.status === 'fulfilled' ? (reviewsCountRes.value.count ?? 0) : 0;
-  const sets = setsRes.status === 'fulfilled' ? ((setsRes.value as any).data || []) : [];
+  // #379: live CMF figure count; null (tile hidden) if the read fails --
+  // never a hardcoded fallback number.
+  const cmfCount = cmfCountRes.status === 'fulfilled' && !cmfCountRes.value.error && cmfCountRes.value.count != null
+    ? cmfCountRes.value.count : null;
+  const sets = (setsRes.status === 'fulfilled' ? ((setsRes.value as any).data || []) : [])
+    .sort((a: any, b: any) => dealSetNums.indexOf(a.set_number) - dealSetNums.indexOf(b.set_number));
 
   const guides = guidesRes.status === 'fulfilled' ? ((guidesRes.value as any).data || []) : [];
   // Normalize to ArticleCard's CardArticle shape: featured_image_url ->
@@ -117,7 +120,7 @@ async function getHomepageData() {
 
   return {
     sets,
-    dealPriceMap,
+    dealSummaries,
     reviews: reviewsRes.status === 'fulfilled' ? (reviewsRes.value.data || []) : [],
     news: newsRes.status === 'fulfilled' ? (newsRes.value.data || []) : [],
     guides: guideCards,
@@ -125,14 +128,17 @@ async function getHomepageData() {
     setsCount,
     newsCount,
     reviewsCount,
+    dealCount,
+    cmfCount,
   };
 }
 
 export default async function HomePage() {
-  const { sets, dealPriceMap, reviews, news, guides, featuredVideos, setsCount, newsCount, reviewsCount } = await getHomepageData();
+  const { sets, dealSummaries, reviews, news, guides, featuredVideos, setsCount, newsCount, reviewsCount, dealCount, cmfCount } = await getHomepageData();
 
   return (
     <div className="bg-white">
+      <SaleBanner />
       {/* ── HERO ─────────────────────────────────────────────────────────────── */}
       <section
         className="relative overflow-hidden"
@@ -188,7 +194,7 @@ export default async function HomePage() {
               opacity: 0.85,
             }}
           >
-            Every set. Every store. Updated daily.
+            Every set. Every store.
           </p>
 
           {/* CTAs */}
@@ -265,33 +271,37 @@ export default async function HomePage() {
               </div>
             </Link>
 
-            {/* Deals — clickable */}
+            {/* Deals — clickable; live count, hidden when unavailable (#204) */}
+            {dealCount != null && (
             <Link
               href="/deals"
               className="rounded-xl px-4 py-4 text-center transition-opacity hover:opacity-80"
               style={{ border: '2px solid #E30613', background: 'rgba(227,6,19,0.10)' }}
             >
               <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--boi-navy)', fontFamily: 'var(--font-fredoka)', lineHeight: 1.2 }}>
-                500+
+                {dealCount}
               </div>
               <div style={{ fontSize: '11px', fontWeight: 600, color: '#666', fontFamily: 'var(--font-inter)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>
                 Active deals
               </div>
             </Link>
+            )}
 
-            {/* CMF tracker — clickable */}
+            {/* CMF tracker — clickable; live count, hidden when unavailable (#379) */}
+            {cmfCount != null && (
             <Link
               href="/minifig-hq"
               className="rounded-xl px-4 py-4 text-center transition-opacity hover:opacity-80"
               style={{ border: '2px solid #1a2332', background: 'rgba(26,35,50,0.10)' }}
             >
               <div style={{ fontSize: '22px', fontWeight: 800, color: 'var(--boi-navy)', fontFamily: 'var(--font-fredoka)', lineHeight: 1.2 }}>
-                400+
+                {cmfCount}
               </div>
               <div style={{ fontSize: '11px', fontWeight: 600, color: '#666', fontFamily: 'var(--font-inter)', textTransform: 'uppercase', letterSpacing: '0.05em', marginTop: '2px' }}>
                 CMF minifigures
               </div>
             </Link>
+            )}
           </div>
         </div>
       </section>
@@ -306,8 +316,8 @@ export default async function HomePage() {
             <div className="flex-1 text-center md:text-left">
               <h2 className="font-heading text-dark text-5xl mb-3">FIND THE CHEAPEST PRICE IN INDIA</h2>
               <p className="text-text-secondary mb-6 font-body">
-                Type a set name or number. We&apos;ll find it across Toycra and MyBrickHouse.
-                Updated every 6 hours. We never sleep. Unlike your wallet.
+                Type a set name or number. We&apos;ll find it across Toycra and LEGO.in.
+                We never sleep. Unlike your wallet.
               </p>
               <div className="max-w-xl">
                 <SearchBar size="lg" placeholder="Search by name or set number... go on then." />
@@ -341,13 +351,13 @@ export default async function HomePage() {
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
               {sets.slice(0, 8).map((set: any) => {
-                const bestPrice = dealPriceMap[set.set_number] ?? null;
+                const summary = dealSummaries.get(set.set_number) ?? null;
                 return (
                   <SetCard
                     key={set.id}
                     set={set}
-                    bestPrice={bestPrice}
-                    priceCount={bestPrice ? 1 : 0}
+                    bestPrice={summary ? { price_inr: summary.best_price_inr, in_stock: true, scraped_at: summary.best_scraped_at } : null}
+                    summary={summary}
                   />
                 );
               })}

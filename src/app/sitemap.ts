@@ -23,17 +23,19 @@ import { THEMES } from '@/lib/brand';
 // ingestion added, without revalidating far more often than the
 // underlying data ever actually changes.
 export const revalidate = 86400;
-// Next 15: fetch() is uncached by default, independent of revalidate above --
-// without this, the Supabase reads below become per-request and the route
-// drops from ISR to full SSR. Scoped per-route, not the root layout.
-export const fetchCache = 'default-cache';
+// Supabase reads here expire DAILY via per-read `next.revalidate` (86400,
+// matching the segment revalidate above; operator decision 2026-09-26 --
+// only the price/content routes go hourly),
+// NOT fetchCache='default-cache', which cached them until the next deploy.
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = 'https://bricksofindia.com';
-  const supabase = createServerClient();
+  const supabase = createServerClient({ revalidate: 86400 });
 
   const staticPages = [
-    { url: base, priority: 1.0 },
+    // A7 (1 Oct 2026): the homepage exactly as Google inspects it ("https://bricksofindia.com/"),
+    // which Search Console reported as having no referring sitemap.
+    { url: `${base}/`, priority: 1.0 },
     { url: `${base}/sets`, priority: 0.9 },
     { url: `${base}/deals`, priority: 0.9 },
     { url: `${base}/reviews`, priority: 0.8 },
@@ -41,7 +43,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/lab`, priority: 0.8 },
     { url: `${base}/lab/biryani-index`, priority: 0.7 },
     { url: `${base}/lab/which-set`, priority: 0.7 },
-    { url: `${base}/lab/heat-map`, priority: 0.7 },
     { url: `${base}/lab/deals`, priority: 0.7 },
     { url: `${base}/lab/budget-calculator`, priority: 0.7 },
     { url: `${base}/lab/retiring-soon`, priority: 0.7 },
@@ -53,11 +54,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/community`, priority: 0.8 },
     { url: `${base}/about`, priority: 0.6 },
     { url: `${base}/contact`, priority: 0.5 },
+    { url: `${base}/bot`, priority: 0.3 }, // FP5.10: who our price bot is
     { url: `${base}/legal/disclaimer`, priority: 0.3 },
     { url: `${base}/legal/affiliate-disclosure`, priority: 0.3 },
     { url: `${base}/legal/privacy`, priority: 0.3 },
-    { url: `${base}/legal/terms`, priority: 0.3 },
     { url: `${base}/legal/data-deletion`, priority: 0.3 },
+    { url: `${base}/legal/terms`, priority: 0.3 },
+    { url: `${base}/corrections`, priority: 0.4 },
     ...THEMES.map((t) => ({ url: `${base}/themes/${t.slug}`, priority: 0.7 })),
   ].map((p) => ({
     url: p.url,
@@ -99,6 +102,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     allSets.push(...data);
     if (data.length < PAGE) break;
   }
+  // A1: set numbers containing "-" resolve to their own page again (src/lib/set-slug.ts), so all are listed.
   const setPages = allSets.map((s) => ({
     url: `${base}/sets/${s.set_number}-${slugify(s.name)}`,
     lastModified: new Date(s.updated_at),
@@ -113,8 +117,13 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // redirect" GSC issue this project already fixed once (see §GSC-02). The
   // migrated content is sitemapped below via guidePages/newsPages instead.
 
+  // #446: published rows only -- this client is the service role (bypasses RLS), so filter here the
+  // same way anon's "published read" policy does, or a future-dated row would be sitemapped and 404.
+  const publishedBy = new Date().toISOString();
+
   // News articles
-  const { data: news } = await supabase.from('news_articles').select('slug, published_at');
+  const { data: news } = await supabase.from('news_articles').select('slug, published_at')
+    .not('published_at', 'is', null).lte('published_at', publishedBy);
   const newsPages = (news || []).map((n: any) => ({
     url: `${base}/news/${n.slug}`,
     lastModified: new Date(n.published_at),
@@ -123,7 +132,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   // Reviews
-  const { data: reviews } = await supabase.from('reviews').select('slug, published_at');
+  const { data: reviews } = await supabase.from('reviews').select('slug, published_at')
+    .not('published_at', 'is', null).lte('published_at', publishedBy);
   const reviewPages = (reviews || []).map((r: any) => ({
     url: `${base}/reviews/${r.slug}`,
     lastModified: new Date(r.published_at),
@@ -132,7 +142,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }));
 
   // Guides
-  const { data: guides } = await supabase.from('guides').select('slug, updated_at');
+  const { data: guides } = await supabase.from('guides').select('slug, updated_at')
+    .not('published_at', 'is', null).lte('published_at', publishedBy);
   const guidePages = (guides || []).map((g: any) => ({
     url: `${base}/guides/${g.slug}`,
     lastModified: new Date(g.updated_at),

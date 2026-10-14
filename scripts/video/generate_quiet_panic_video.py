@@ -61,6 +61,7 @@ from quiet_panic_script_gen import (  # noqa: E402
 # with working-directory: scripts/video (see video-generate-quiet-panic.yml).
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from config.feature_flags import FEATURE_FLAGS  # noqa: E402
+from coherence_judge import judge_coherence, only_held_failures, qp_judge_prompt  # noqa: E402
 
 # Retry budget for script-gen's pre-TTS validation (added 2026-08-01 after
 # a real 3-for-3 miss streak on Rapunzel's Castle in production CI, all
@@ -284,6 +285,8 @@ def upload_video_to_storage(sb, local_path: str, filename: str) -> str:
     video_path-only row was unpublishable from there until someone
     manually uploaded it. Uploading at generation time instead means every
     future render is publishable regardless of where generation happened."""
+    from quota import guard_upload  # FP6.4: refuse BEFORE touching Storage
+    guard_upload(sb, 'VID-QP', f'video {filename}')
     with open(local_path, 'rb') as f:
         sb.storage.from_(VIDEO_STORAGE_BUCKET).upload(
             filename, f, {'content-type': 'video/mp4', 'upsert': 'true'}
@@ -1027,62 +1030,30 @@ def gate_price_plausibility(full_text: str, price_inr: float) -> dict:
     return {'pass': True, 'detail': 'no implausible comparisons found (or none recognized against the reference table)'}
 
 
-def gate_coherence_llm_judge(full_text: str) -> dict:
-    """LLM-as-judge: does this read as complete, coherent English -- not a
-    garbled or nonsensical fragment (e.g. the real published Kakamora
-    script's ending "No stranding." with no clear referent to anything
-    earlier in the script)? Model-agnostic by design: a post-hoc check on
-    the FINAL text, independent of which provider (Gemini/Groq/Cerebras)
-    generated it. Uses Groq (cheapest currently-active provider).
+def gate_coherence_llm_judge(full_text: str, facts: dict | None = None) -> dict:
+    """LLM coherence judge on the FINAL script text. Implementation lives in
+    coherence_judge.py (#365, 2026-09-27).
 
-    Fails OPEN (pass=True with a WARNING detail) if the judge call itself
-    errors -- a transient judge-API hiccup blocking ALL publishing would be
-    a worse regression than occasionally missing a coherence problem,
-    especially now that generation itself already has real retry/backoff
-    (see _retry_backoff_sleep()).
+    History: 2026-08-22 swapped llama-3.3-70b-versatile -> qwen/qwen3.6-27b
+    after the first went dead on Groq. Groq then shut qwen/qwen3.6-27b down
+    on 2026-09-14, and this gate (which failed OPEN on any judge error)
+    passed every QP script unjudged from then on. The 2026-09-17 fix reached
+    gates.py (VID-P4) but not this copy.
 
-    2026-08-22: model swapped llama-3.3-70b-versatile -> qwen/qwen3.6-27b,
-    same fix and same rationale as gates.py's gate_coherence_llm_judge()
-    (VID-P4) -- the old model is decommissioned on Groq (confirmed live,
-    404 model_not_found), so this gate has been silently fail-open on
-    every call, never actually judging anything. Not flag-gated: a bug fix
-    restoring intended behavior, not new capability; gate results here are
-    logged for human review only, never auto-blocking. reasoning_effort=
-    'none' required for qwen (confirmed empirically during this rollout)."""
-    groq_key = os.environ.get('GROQ_API_KEY', '').strip()
-    if not groq_key:
-        return {'pass': True, 'detail': 'SKIPPED: GROQ_API_KEY not set (fail-open, judge unavailable)'}
-    judge_prompt = (
-        "You are a strict but fair editor reviewing a short video script that will be "
-        "read aloud verbatim. Reply with exactly one line: 'COHERENT' if the script "
-        "reads as complete, sensible English with no garbled, truncated, or nonsensical "
-        "fragments (for example, an ending like 'No stranding.' with no clear referent "
-        "to anything earlier in the script would NOT be coherent) -- or "
-        "'INCOHERENT: <short reason>' if it does not.\n\nSCRIPT:\n" + full_text
-    )
-    try:
-        resp = requests.post(
-            'https://api.groq.com/openai/v1/chat/completions',
-            headers={'Authorization': f'Bearer {groq_key}', 'Content-Type': 'application/json'},
-            json={
-                'model': 'qwen/qwen3.6-27b',
-                'messages': [{'role': 'user', 'content': judge_prompt}],
-                'max_tokens': 200,
-                'temperature': 0.0,
-                'reasoning_effort': 'none',
-            },
-            timeout=30,
-        )
-        resp.raise_for_status()
-        verdict = resp.json()['choices'][0]['message']['content'].strip()
-        if verdict.upper().startswith('COHERENT'):
-            return {'pass': True, 'detail': verdict}
-        return {'pass': False, 'detail': verdict}
-    except Exception as e:
-        return {'pass': True, 'detail': f'SKIPPED: judge call failed ({e}) -- fail-open, not blocking on judge availability'}
+    Now: model openai/gpt-oss-120b, and it FAILS CLOSED. No real verdict
+    means pass=False with held=True, so the row lands publish_blocked. It is
+    still uploaded and a "held for manual review" email goes out; see
+    _render_segments_core() and the workflow's held_for_review step.
+
+    2026-09-28 (P8 item 5): judged with the QP rubric (coherence_judge.QP_RUBRIC) against the set's
+    facts -- fails only for an unexplained number, a wrong set/price, no identifiable set, or a
+    contradiction; terse fragments pass. Still fail-closed."""
+    f = facts or {}
+    return judge_coherence(full_text, prompt=qp_judge_prompt(f.get('set_title', ''), f.get('set_number', ''),
+                                                            f.get('price_inr'), f.get('pieces')))
 
 
-def run_all_gates(segments: list, total_duration: float, price_inr: int) -> dict:
+def run_all_gates(segments: list, total_duration: float, price_inr: int, facts: dict | None = None) -> dict:
     full_text = ' '.join(s['text'] for s in segments)
 
     result = {
@@ -1094,7 +1065,7 @@ def run_all_gates(segments: list, total_duration: float, price_inr: int) -> dict
         'banned_constructions': gate_banned_constructions(full_text),
         'vocab_complexity': gate_vocab_complexity(full_text),
         'price_plausibility': gate_price_plausibility(full_text, price_inr),
-        'coherence': gate_coherence_llm_judge(full_text),
+        'coherence': gate_coherence_llm_judge(full_text, facts),
     }
 
     # SHADOW MODE (2026-08-16), gated (2026-08-18) behind
@@ -1250,6 +1221,17 @@ def _retry_backoff_sleep(attempt: int, provider_failure: bool) -> None:
 # Full per-candidate pipeline
 # ---------------------------------------------------------------------------
 
+def _set_pieces(set_number: str):
+    """Catalogue piece count for the QP judge's facts; None if it can't be read (the rubric then
+    treats "<n> pieces" as explained rather than failing on a missing fact)."""
+    try:
+        r = get_supabase().table('sets').select('pieces').eq('set_number', set_number).limit(1).execute()
+        return (r.data or [{}])[0].get('pieces') or None
+    except Exception as e:  # noqa: BLE001 -- a missing fact must not block the render
+        print(f'WARN: pieces lookup failed for {set_number}: {e}', file=sys.stderr)
+        return None
+
+
 def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_image_url: str, segments: list) -> dict:
     """The actual render pipeline (TTS -> gates -> images -> audio mix ->
     video assembly -> Storage upload), factored out of process_candidate()
@@ -1313,10 +1295,18 @@ def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_i
     total_video_duration = intro_duration + total_measured + outro_duration
 
     # 2. Gates (after TTS, per section 0's design note).
-    gate_results = run_all_gates(segments, total_video_duration, price_inr)
+    gate_results = run_all_gates(segments, total_video_duration, price_inr,
+                                 facts={'set_title': set_title, 'set_number': set_number, 'price_inr': price_inr,
+                                        'pieces': _set_pieces(set_number)})
     for name, result in gate_results.items():
         print(f'  GATE {name}: {"PASS" if result["pass"] else "FAIL"} -- {result["detail"]}')
     all_passed = all(r['pass'] for r in gate_results.values())
+    # #365: failed ONLY because the coherence judge couldn't give a verdict
+    # (fail-closed). Not a rejection: the render is still uploaded so a
+    # human can judge it, but the row stays publish_blocked.
+    held_for_review = (not all_passed) and only_held_failures(gate_results)
+    if held_for_review:
+        print('  HELD for manual review: every failing gate is judge-unavailable, not a real failure.')
 
     # 3. Images.
     images = resolve_candidate_images(set_number, fallback_image_url, work_dir)
@@ -1445,7 +1435,7 @@ def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_i
     # (assert_all_gates_passed) would refuse to publish it anyway.
     sb = get_supabase()
     storage_url = None
-    if all_passed:
+    if all_passed or held_for_review:
         if video_file_is_valid(output_path):
             storage_filename = f'{set_number}_{timestamp_str}.mp4'
             storage_url = upload_video_to_storage(sb, str(output_path), storage_filename)
@@ -1458,6 +1448,7 @@ def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_i
         'segments': segments,
         'gate_results': gate_results,
         'all_passed': all_passed,
+        'held_for_review': held_for_review,
         'total_video_duration': total_video_duration,
         'output_path': output_path,
         'storage_url': storage_url,
@@ -1628,6 +1619,7 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
     segments = render_result['segments']
     gate_results = render_result['gate_results']
     all_passed = render_result['all_passed']
+    held_for_review = render_result['held_for_review']
     total_video_duration = render_result['total_video_duration']
     output_path = render_result['output_path']
     storage_url = render_result['storage_url']
@@ -1661,6 +1653,7 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
         'set_number': set_number,
         'price_inr': price_inr,
         'status': status,
+        'held_for_review': held_for_review,
         'gate_results': gate_results,
         'total_duration': total_video_duration,
         'video_path': str(output_path),
@@ -1681,7 +1674,9 @@ def _write_github_output(result: dict) -> None:
         return
     with open(output_path, 'a', encoding='utf-8') as f:
         f.write(f"post_id={result['post_id']}\n")
-        f.write(f"status={result['status']}\n")
+        # 'held_for_review' (#365) is an output-only status: the DB row is
+        # publish_blocked, but the workflow emails a manual-review notice.
+        f.write(f"status={'held_for_review' if result.get('held_for_review') else result['status']}\n")
         f.write(f"set_title={result['set_title']}\n")
         f.write(f"set_number={result['set_number']}\n")
         f.write(f"price_inr={result['price_inr']}\n")
@@ -1734,6 +1729,10 @@ def main():
     if not args.test_batch:
         parser.print_help()
         return
+
+    # FP6.4: storage guard closed -> skip the whole run before any work.
+    from quota import preflight_or_exit
+    preflight_or_exit(get_supabase(), 'VID-QP')
 
     with open(args.test_batch) as f:
         candidates = json.load(f)

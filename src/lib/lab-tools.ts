@@ -28,7 +28,7 @@ export const LAB_TOOLS: LabTool[] = [
     id: "price-drops",
     name: "Price Drop Board",
     emoji: "📉",
-    tagline: "Today's steepest falls. Updated daily. Suspicious by nature.",
+    tagline: "Today's steepest falls. Suspicious by nature.",
     href: "/lab/price-drops",
     status: "live",
   },
@@ -40,19 +40,14 @@ export const LAB_TOOLS: LabTool[] = [
     href: "/lab/retiring-soon",
     status: "live",
   },
-  {
-    id: "heat-map",
-    name: "LEGO Heat Map",
-    emoji: "🗺️",
-    tagline: "Which Indian city searches for LEGO most. We have opinions.",
-    href: "/lab/heat-map",
-    status: "live",
-  },
+  // "heat-map" removed 2026-09-26 (#213, Wave 1 PR-H): its data was hardcoded
+  // arrays with contradictory "Q1 2026"/"Q1 2025" labels, not live Trends
+  // data. Hidden pending a rebuild; source kept at src/unrouted/lab-heat-map/.
   {
     id: "india-deals",
     name: "India Deals Today",
     emoji: "🏷️",
-    tagline: "Every set currently discounted across Indian stores. Updated every 6 hours.",
+    tagline: "Every set currently discounted across Indian stores.",
     href: "/lab/deals",
     status: "live",
   },

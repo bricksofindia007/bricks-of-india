@@ -42,3 +42,22 @@ export function OutOfStockBadge() {
     </span>
   );
 }
+
+// R6 (PR-B): "Only at <store>" when exactly one store has it in stock.
+export function OnlyAtBadge({ store }: { store: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 px-3 py-1 bg-light-grey text-dark text-xs font-bold rounded-full">
+      Only at {store}
+    </span>
+  );
+}
+
+// R3 (PR-B): deal tier vs the MRP anchor. Listed price only -- no coupon applied.
+export function DealBadge({ tier, pct }: { tier: 'hot' | 'deal'; pct: number | null }) {
+  const off = pct != null ? ` −${Math.floor(pct)}%` : '';
+  return (
+    <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 text-white text-xs font-bold rounded-full ${tier === 'hot' ? 'bg-primary' : 'bg-warning-orange'}`}>
+      {tier === 'hot' ? '🔥 Hot deal' : 'Deal'}{off}
+    </span>
+  );
+}

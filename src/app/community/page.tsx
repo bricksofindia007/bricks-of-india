@@ -1,15 +1,21 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { supabase } from '@/lib/supabase';
 import { MASCOTS } from '@/lib/brand';
 import { formatDate } from '@/lib/utils';
 
-export const metadata: Metadata = {
-  title: 'Indian LEGO Builder Spotlights — Community | Bricks of India',
+// P10 revalidate audit (29 Sep): this route had no revalidate of its own and was either built
+// once per deploy (its data froze between deploys) or refreshed only as a side effect of a shared
+// read. Its cadence is now explicit and checked in CI.
+export const revalidate = 86400; // = READ_REVALIDATE_SECONDS (src/lib/route-cadence.ts; segment config must be a literal)
+
+export const metadata: Metadata = buildMetadata({
+  title: 'Indian LEGO Builder Spotlights — Community',
   description: "Meet India's most remarkable LEGO builders. Profiles, MOCs, and the stories behind the brick rooms.",
-  alternates: { canonical: 'https://bricksofindia.com/community' },
-};
+  path: '/community',
+});
 
 interface Spotlight {
   id: number;

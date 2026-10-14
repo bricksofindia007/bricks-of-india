@@ -1,9 +1,13 @@
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import Link from 'next/link';
+import { rebrickableResized } from '@/lib/set-image';
+import { AFFILIATE_NOTE } from '@/lib/affiliate-disclosure';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
-import ReactMarkdown from 'react-markdown';
-import { supabase } from '@/lib/supabase';
+import { ArticleMarkdown } from '@/components/content/ArticleMarkdown';
+import { supabaseRead as supabase } from '@/lib/supabase';
+import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { formatDate, whatsappShareUrl, twitterShareUrl, socialCardImage } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
@@ -12,14 +16,15 @@ import { Byline } from '@/components/content/Byline';
 import { CopyLinkButton } from '@/components/ui/CopyLinkButton';
 import { JsonLd } from '@/components/JsonLd';
 import { buildArticleSchema, buildFAQSchema, buildReviewSchema, verdictToRating } from '@/lib/schemas';
+import { PriceAsOfNote } from '@/components/content/PriceAsOfNote';
+import { hasTypedStorePrice } from '@/lib/price-as-of';
 // Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
-export const revalidate = 3600;
-// Next 15: fetch() is uncached by default, independent of revalidate above --
-// without this, the Supabase reads below become per-request and the route
-// drops from ISR to full SSR. Scoped per-route, not the root layout.
-export const fetchCache = 'default-cache';
+export const revalidate = 86400;
+// Supabase reads here expire hourly via per-read `next.revalidate`
+// (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
+// NOT fetchCache='default-cache', which cached them until the next deploy.
 
 // Netlify credit audit (2026-08-29): this route had `revalidate` but no
 // `generateStaticParams` at all, which per Next.js's own rule means "no
@@ -44,18 +49,15 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   const params = await props.params;
   const { data: article } = await supabase.from('news_articles').select('*').eq('slug', params.slug).single();
   if (!article) return { title: 'Article Not Found' };
-  return {
+  return buildMetadata({
     title: article.seo_title || article.title,
     description: article.seo_description || article.excerpt,
-    alternates: { canonical: `https://bricksofindia.com/news/${params.slug}` },
-    openGraph: { title: article.title, description: article.excerpt, images: socialCardImage(article.hero_image) ? [{ url: socialCardImage(article.hero_image)! }] : [] },
-    twitter: {
-      card: article.hero_image ? 'summary_large_image' : 'summary',
-      title: article.title,
-      description: article.seo_description || article.excerpt,
-      images: socialCardImage(article.hero_image) ? [socialCardImage(article.hero_image)!] : undefined,
-    },
-  };
+    path: `/news/${params.slug}`,
+    image: socialCardImage(article.hero_image),
+    ogTitle: article.title,
+    ogDescription: article.excerpt,
+    ogType: 'article',
+  });
 }
 
 export default async function NewsArticlePage(props: Props) {
@@ -73,10 +75,15 @@ export default async function NewsArticlePage(props: Props) {
     .replace(/^THE [A-Z\s]+$/gm, '')
     .trim();
 
-  const { data: related } = await supabase.from('news_articles').select('*').eq('category', article.category).neq('slug', params.slug).limit(3);
+  // P6 Step 2a (egress): only the columns the three related cards show. `content` was ~3 KB of
+  // every related row and was used only for "N min read"; without it the card omits reading time
+  // (never a made-up value, G14).
+  const { data: related } = await supabase.from('news_articles')
+    .select('id, slug, title, category, excerpt, hero_image, published_at')
+    .eq('category', article.category).neq('slug', params.slug).limit(3);
 
   const shareUrl = `https://bricksofindia.com/news/${params.slug}`;
-  const waText = `${article.title} — via Bricks of India. Use code ABHINAV12 for 12% off at Toycra!`;
+  const waText = `${article.title} — via Bricks of India. Use code ABHINAV12 for 12% off full-price sets at Toycra!`;
 
   return (
     <div className="bg-white min-h-screen">
@@ -91,14 +98,17 @@ export default async function NewsArticlePage(props: Props) {
           <span>/</span>
           <Link href="/news" className="hover:text-accent-blue">News</Link>
           <span>/</span>
-          <span className="text-dark font-bold truncate">{article.title}</span>
+          <span className="text-dark font-bold truncate min-w-0 flex-1">{article.title}</span>
         </nav>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 pb-12">
         <div className="relative h-64 md:h-96 rounded-2xl overflow-hidden mb-6">
           <ImageWithFallback
-            srcs={[article.hero_image, '/fallback-hero.png'].filter(Boolean) as string[]}
+            // LCP (round 2, 2 Oct): Rebrickable's 1000x800 resize first (the Brick Rush hero original is 3.8 MB,
+            // 24 s LCP on mobile); the original, then the local fallback, if the resize 404s. Eager + high priority.
+            srcs={[article.hero_image && rebrickableResized(article.hero_image, '1000x800'), article.hero_image, '/fallback-hero.png'].filter(Boolean) as string[]}
+            priority
             alt={article.title}
             fill
             className="object-cover"
@@ -113,8 +123,11 @@ export default async function NewsArticlePage(props: Props) {
 
         <h1 className="font-heading text-dark text-5xl md:text-6xl mb-3">{article.title}</h1>
         <Byline publishedAt={article.published_at} updatedAt={article.updated_at} />
+        {hasTypedStorePrice(cleanContent) && (
+          <PriceAsOfNote date={formatDate(article.published_at)} href={article.set_number ? `/sets/${article.set_number}` : '/deals'} />
+        )}
         <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8 prose-p:mb-5 prose-p:leading-relaxed prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-2xl prose-h3:text-xl">
-          <ReactMarkdown>{cleanContent}</ReactMarkdown>
+          <ArticleMarkdown>{cleanContent}</ArticleMarkdown>
         </div>
 
         {/* Share */}
@@ -133,11 +146,11 @@ export default async function NewsArticlePage(props: Props) {
           <h2 className="font-heading text-dark text-3xl mb-4">FREQUENTLY ASKED QUESTIONS</h2>
           <div className="space-y-3">
             {(() => { const faqs = [
-              { q: 'Where can I buy the latest LEGO sets in India?', a: 'Toycra and MyBrickHouse are the most reliable online sources. Use code ABHINAV12 at Toycra for 12% off.' },
-              { q: 'What is the best LEGO deal in India right now?', a: 'Check our deals page for the current best prices updated every 6 hours. Use code ABHINAV12 at Toycra for an exclusive 12% discount.' },
-              { q: 'Are LEGO sets available in India?', a: 'Yes — most major LEGO sets are available in India through stores like Toycra, MyBrickHouse, Amazon India, and Flipkart.' },
+              { q: 'Where can I buy the latest LEGO sets in India?', a: 'We check prices daily at Toycra and LEGO.in; Amazon India and Flipkart also sell LEGO. ' + AFFILIATE_NOTE },
+              { q: 'What is the best LEGO deal in India right now?', a: 'Check our deals page for the current best prices. ' + AFFILIATE_NOTE.replace('takes 12% off', 'takes an exclusive 12% off') },
+              { q: 'Are LEGO sets available in India?', a: 'Yes — most major LEGO sets are available in India through stores like Toycra, LEGO.in, Amazon India, and Flipkart.' },
               { q: 'Why are LEGO sets expensive in India?', a: 'Import duties, GST, and currency conversion all contribute to LEGO prices in India being higher than in the US or UK. We cover this in detail in our guide on why Indian LEGO prices are what they are.' },
-              { q: 'Is there a discount code for LEGO in India?', a: 'Yes! Use code ABHINAV12 at Toycra for 12% off any LEGO set. Minimum purchase ₹500. No usage limits. This is an exclusive Bricks of India deal.' },
+              { q: 'Is there a discount code for LEGO in India?', a: `Yes. ${AFFILIATE_NOTE} This is an exclusive Bricks of India deal.` },
             ]; return (<><JsonLd data={buildFAQSchema(faqs)} />{faqs.map((faq, i) => (
               <details key={i} className="border-2 border-border rounded-xl overflow-hidden">
                 <summary className="px-4 py-3 font-bold text-dark cursor-pointer hover:bg-light-grey transition-colors">{faq.q}</summary>

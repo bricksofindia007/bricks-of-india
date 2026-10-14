@@ -77,7 +77,7 @@ duplicate-slug data. Terminal held that commit (467e0af) for Abhinav's
 explicit approval, as required. Two later commits were then classified
 and approved as Tier 1 in isolation — both genuinely docs-only diffs
 against what was live (a DEPLOY_POLICY.md commit, then a
-BOI_MASTER_TRACKER.md logging commit) — without checking that both were
+boi-ops/BOI_MASTER_TRACKER.md (private repo) logging commit) — without checking that both were
 descendants of the still-unapproved 467e0af. Approving either one
 deployed the full tree, which included 467e0af's changes. The redirect
 went live without Abhinav ever approving that specific commit. No harm
@@ -95,10 +95,17 @@ independently evaluating the change himself.
 ## Logging
 
 Every classification (tier + specific criterion that decided it) gets
-logged to BOI_MASTER_TRACKER.md as it happens — both auto-approvals and
+logged to boi-ops/BOI_MASTER_TRACKER.md (private repo) as it happens — both auto-approvals and
 held items.
 
 ## Review cadence
 
 Revisit after a few weeks of real use. Adjust criteria explicitly if
 something slips through or everything lands in Tier 2.
+
+## Release trains (4 Oct 2026)
+
+- Site deploys start by hand only, once per release. Merging to main never starts a deploy.
+- Changes that don't touch the site (workflows, scripts, database roles) can merge at any time.
+- Site changes wait for the next release and go out together in one deploy.
+- Database changes go through the database job: staging first, backups first, production approved by the owner, then the site deploy.

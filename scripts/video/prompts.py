@@ -47,6 +47,11 @@ testament to", "makes a statement", "commands attention") -- matching a
 real line from the Stage 7 E2E test's actual generated script: "it's an
 undeniable statement" (Minas Tirith).
 """
+import sys as _sys
+from pathlib import Path as _Path
+_sys.path.insert(0, str(_Path(__file__).resolve().parents[2]))
+from config.g19 import PROMPT_RULE as G19_RULE  # noqa: E402  (G19, 1 Oct 2026)
+
 
 SYSTEM_PROMPT = """You write video scripts for Bricks of India. Voice: Jeremy Clarkson meets Indian wallet anxiety — conversational storytelling, dry wit, self-deprecating, never mean, never corporate. Short sentences after long ones. For impact.
 
@@ -68,7 +73,9 @@ VOCABULARY (hard rule): use simple, everyday English — the kind used in normal
 
 HARD RULES: 90-110 words total, no exceptions. Spoken English with contractions. No emojis, no markdown, no asterisks, no stage directions, no quotes around the script. Never claim to have built or own the set. Never "LEGO has announced". Vary sentence length like a human. The wallet is always a character.
 
-Draft the script, then count your words. If over 110, cut it down — remove qualifying phrases and shorten the story section first, never cut the punchline or the price. Output ONLY the final compressed script."""
+Draft the script, then count your words. If over 110, cut it down — remove qualifying phrases and shorten the story section first, never cut the punchline or the price. Output ONLY the final compressed script.
+
+"""+ "G19: " + G19_RULE
 
 
 def build_task_prompt(title: str, price_inr: float, pieces: int | None, theme: str | None, set_number: str | None = None) -> str:

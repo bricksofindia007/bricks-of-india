@@ -7,6 +7,9 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { estimateCycleUsage, EGRESS_QUOTA_GB, LOG_INGEST_QUOTA_GB } from './lib/capacity-estimate.mjs';
+import { sendAlert } from './lib/alert.mjs';
+import { LIMITS } from './lib/quota-guard.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
@@ -45,32 +48,8 @@ const sb = createClient(SUPABASE_URL, SERVICE_KEY);
 
 const failures = [];
 
-async function sendAlert(subject, body) {
-  if (!IS_GITHUB_ACTIONS && !FORCE_REAL_ALERTS) {
-    console.warn(`[TEST MODE — not in GitHub Actions, alert NOT sent] ${subject}`);
-    return;
-  }
-  if (!RESEND_API_KEY || !BRIEF_EMAIL) {
-    console.warn(`ALERT (no email config): ${subject}`);
-    return;
-  }
-  const res = await fetch('https://api.resend.com/emails', {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${RESEND_API_KEY}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      from: 'Bricks of India <abhinav@bricksofindia.com>',
-      to: [BRIEF_EMAIL],
-      subject,
-      html: `<pre style="font-family:monospace;font-size:14px;">${body}</pre>`,
-    }),
-  });
-  if (!res.ok) {
-    console.error(`Resend failed (${res.status}): ${await res.text()}`);
-  } else {
-    const sent = await res.json();
-    console.log(`[alert] Email sent. ID: ${sent.id}`);
-  }
-}
+// sendAlert moved verbatim to scripts/lib/alert.mjs (FP6.4) so the quota
+// guards reuse this exact sender.
 
 // ── Check 1: /news freshness (> 7 days = alert) ─────────────────────────────
 try {
@@ -99,30 +78,49 @@ try {
   );
 }
 
-// ── Check 2: /blog freshness (> 14 days = alert) ────────────────────────────
+// ── Check 2: /guides freshness -- the page /blog now serves (> 14 days = alert) ──
+// Issue #180 (2026-09-24): this used to read blog_posts with .single(). /blog
+// has 308-redirected to /guides since the 2026-08-09 Nav & Content Overhaul
+// (next.config.mjs), and blog_posts was hard-deleted to 0 rows on 2026-09-21
+// (issue #161) -- .single() on zero rows throws "Cannot coerce the result to a
+// single JSON object", so Check 2 crashed daily from 2026-09-22. It now reads
+// the table /guides actually renders from, uses .maybeSingle(), and treats
+// "no rows at all" as an explicit staleness alert rather than a crash.
+// 14 days = two missed runs of the weekly guide pipeline
+// (generate-guide-weekly.yml, Thursdays).
 try {
   const { data, error } = await sb
-    .from('blog_posts')
-    .select('published_at')
+    .from('guides')
+    .select('slug, published_at')
+    .not('published_at', 'is', null)
     .order('published_at', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
   if (error) throw error;
-  const ageDays = (Date.now() - new Date(data.published_at).getTime()) / 86_400_000;
-  console.log(`[2] /blog freshness: last post ${ageDays.toFixed(1)} days ago`);
-  if (ageDays > 14) {
-    failures.push('blog-stale');
+  if (!data) {
+    console.log('[2] /guides (/blog) freshness: NO published guides at all');
+    failures.push('guides-stale');
     await sendAlert(
-      '⚠️ BOI Health Alert — /blog stale',
-      `Last blog post published ${ageDays.toFixed(1)} days ago.\n\nThreshold: 14 days.\n\nCheck /admin/pending for opinion drafts.`
+      '⚠️ BOI Health Alert — /guides has no published guides',
+      `The guides table returned zero published rows. /blog redirects to /guides, so both pages are empty.\n\nCheck generate-guide-weekly.yml and the guides table directly.`
     );
+  } else {
+    const ageDays = (Date.now() - new Date(data.published_at).getTime()) / 86_400_000;
+    console.log(`[2] /guides (/blog) freshness: last guide ${ageDays.toFixed(1)} days ago (${data.slug})`);
+    if (ageDays > 14) {
+      failures.push('guides-stale');
+      await sendAlert(
+        '⚠️ BOI Health Alert — /guides stale',
+        `Last guide published ${ageDays.toFixed(1)} days ago (${data.slug}).\n\nThreshold: 14 days (two missed weekly guide runs). /blog redirects here.\n\nCheck generate-guide-weekly.yml runs and /admin/pending for guide-format drafts.`
+      );
+    }
   }
 } catch (e) {
-  console.error('[2] blog freshness check failed:', e.message);
-  failures.push('blog-check-error');
+  console.error('[2] guides freshness check failed:', e.message);
+  failures.push('guides-check-error');
   await sendAlert(
-    '🔥 [BOI INFRA FAILURE] — /blog freshness check crashed',
-    `Check 2 itself failed to run (this is not a normal staleness alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real /blog freshness state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 2 directly.`
+    '🔥 [BOI INFRA FAILURE] — /guides freshness check crashed',
+    `Check 2 itself failed to run (this is not a normal staleness alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real /guides freshness state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 2 directly.`
   );
 }
 
@@ -283,6 +281,21 @@ try {
 }
 
 // ── Check 6b: YouTube token expiry ───────────────────────────────────────────
+// #150, root-caused 2026-09-20: the live secret's real shape (confirmed via a
+// throwaway debug workflow reading its keys only, never its values) is
+// `['token', 'refresh_token', 'token_uri', 'client_id', 'client_secret',
+// 'scopes']` -- no `expiry` field at all. That's exactly Google
+// google-auth-library's own `Credentials.to_json()` shape (what
+// publisher.py's _load_youtube_credentials() produces after a real
+// creds.refresh() call), not youtube_oauth_helper.py's shape (which adds a
+// custom `expiry` string this check was written to read). Something along
+// the way re-saved the secret using the library's own serialization,
+// dropping the custom field -- not a credential problem (the token itself is
+// live and working: Check 6c's real upload heartbeat confirms real
+// successful uploads), a parsing bug in this check's own assumption that
+// `expiry` is always present. Missing `expiry` is now a distinct, non-failing
+// case -- Check 6c is the authoritative "does it still work" signal; this
+// check can only warn on it, never crash on it.
 try {
   const ytSecrets = (process.env.YOUTUBE_CLIENT_SECRETS || '').replace(/^﻿/, '').trim();
   if (!ytSecrets) {
@@ -293,15 +306,22 @@ try {
     );
   } else {
     const creds = JSON.parse(ytSecrets);
-    const expiry = new Date(creds.expiry);
-    const daysLeft = Math.floor((expiry - new Date()) / (1000 * 60 * 60 * 24));
-    console.log(`[6b] YouTube token: expires in ${daysLeft} day(s) (${expiry.toISOString().slice(0, 10)})`);
-    if (daysLeft <= 3) {
-      failures.push('yt-token-expiring');
-      await sendAlert(
-        '⚠️ BOI Health Alert — YouTube token expiring',
-        `Token expires in ${daysLeft} day(s) — re-auth required via social-automation/youtube_oauth_helper.py.\n\nUpdate YOUTUBE_CLIENT_SECRETS in GitHub Secrets before it expires.`
-      );
+    if (creds.expiry === undefined || creds.expiry === null) {
+      console.log('[6b] YouTube token: no custom `expiry` field in the stored secret (shape matches google-auth-library\'s own Credentials.to_json(), not youtube_oauth_helper.py\'s) -- expiry countdown unavailable; see Check 6c for the real working/not-working signal.');
+    } else {
+      const expiry = new Date(creds.expiry);
+      if (isNaN(expiry.getTime())) {
+        throw new Error(`creds.expiry is present but not a valid date: ${JSON.stringify(creds.expiry)}`);
+      }
+      const daysLeft = Math.floor((expiry - new Date()) / (1000 * 60 * 60 * 24));
+      console.log(`[6b] YouTube token: expires in ${daysLeft} day(s) (${expiry.toISOString().slice(0, 10)})`);
+      if (daysLeft <= 3) {
+        failures.push('yt-token-expiring');
+        await sendAlert(
+          '⚠️ BOI Health Alert — YouTube token expiring',
+          `Token expires in ${daysLeft} day(s) — re-auth required via social-automation/youtube_oauth_helper.py.\n\nUpdate YOUTUBE_CLIENT_SECRETS in GitHub Secrets before it expires.`
+        );
+      }
     }
   }
 } catch (e) {
@@ -446,7 +466,12 @@ try {
     // Added 2026-07-26 -- previously absent despite being two of the more
     // consequential workflows in the repo this week.
     { file: 'ig-token-refresh.yml',  label: 'IG token auto-refresh', maxAgeHours: 432 }, // 1st+15th cron; worst real gap is 17 days (31-day month, 15th -> 1st) + 1 day buffer
-    { file: 'publish-drafts.yml',    label: 'Publish drafts',        maxAgeHours: 16 },  // 3x/day cron (~19:00/07:30/12:30 UTC); worst gap ~12.5h + buffer
+    // publish-drafts.yml entry removed 2026-09-22 -- workflow retired (issue
+    // #170), would otherwise 404 against the GitHub API here forever.
+    // Added 2026-09-22 -- flipped from dry-run-only to real live deletion
+    // the same day; a write job with real effect deserves freshness
+    // watching like the others above, not left out because it's newer.
+    { file: 'cleanup-published-assets.yml', label: 'Storage cleanup', maxAgeHours: 194 }, // Sunday 04:00 UTC weekly; worst real gap 7 days + 2 day buffer
   ];
 
   for (const wf of workflows) {
@@ -505,6 +530,100 @@ try {
   console.log(`[10] Store coverage: ${coveredSetIds.size}/${totalSets} sets covered (${pct}%), ${uncovered} with zero coverage`);
 } catch (e) {
   console.error('[10] Store coverage check failed:', e.message);
+}
+
+// ── Check 11: Free-plan capacity -- DB size + Storage buckets ─────────────────
+// DB-size issue, 2026-09-25. The project is on the Supabase Free plan:
+// database > 500 MB goes read-only (every pipeline write fails), and Storage
+// over the 1 GB quota restricts the whole project (HTTP 402 on every call --
+// what took the site's pipelines down 09-13/09-14). Weekly
+// retention-cleanup.yml holds the DB flat; this check catches drift early.
+// Values from public.db_usage_report() (service_role only).
+// FP6.4 (P4 Step 2): alert lines = the guard lines in scripts/lib/quota-guard.mjs.
+// WARNING at the alert line; CRITICAL at the line where guards refuse/pause.
+const DB_WARN_MB = LIMITS.db.alertMb, DB_CRIT_MB = LIMITS.db.blockMb;
+const STORAGE_WARN_MB = LIMITS.storage.alertMb, STORAGE_CRIT_MB = LIMITS.storage.blockMb;
+try {
+  const { data, error } = await sb.rpc('db_usage_report');
+  if (error) throw error;
+  const dbMb = Number(data.db_size_mb), stMb = Number(data.storage_mb);
+  console.log(`[11] Capacity: database ${dbMb} MB of 500 MB (warn ${DB_WARN_MB}, critical ${DB_CRIT_MB}: non-essential writers pause); storage ${stMb} MB of 1024 MB (warn ${STORAGE_WARN_MB}, critical ${STORAGE_CRIT_MB}: uploads refused) ${JSON.stringify(data.storage_by_bucket)}`);
+  if (dbMb >= DB_CRIT_MB) {
+    failures.push('db-size-critical');
+    await sendAlert(
+      '🚨 BOI Health Alert — Database size CRITICAL',
+      `Database is ${dbMb} MB. Free-plan limit is 500 MB -- above it the database goes READ-ONLY and every pipeline write fails.\n\nAct now: run retention-cleanup.yml, check which table grew (pg_total_relation_size), and see the 2026-09-25 DB-size entry in BOI_MASTER_TRACKER.md for the trim + VACUUM FULL runbook.`
+    );
+  } else if (dbMb >= DB_WARN_MB) {
+    failures.push('db-size-warning');
+    await sendAlert(
+      '⚠️ BOI Health Alert — Database size warning',
+      `Database is ${dbMb} MB (warning threshold ${DB_WARN_MB} MB, Free-plan read-only limit 500 MB). Retention is not keeping up -- check which table grew and whether retention-cleanup.yml's last run succeeded.`
+    );
+  }
+  if (stMb >= STORAGE_CRIT_MB) {
+    failures.push('storage-size-critical');
+    await sendAlert(
+      '🚨 BOI Health Alert — Storage CRITICAL: media uploads are being refused',
+      `Storage buckets total ${stMb} MB, at or over the ${STORAGE_CRIT_MB} MB FP6.4 guard (1 GB Free-plan quota). Every media upload path (VID-P4, VID-QP, social) now refuses before uploading and dispatches cleanup-published-assets.yml.\n\nBy bucket: ${JSON.stringify(data.storage_by_bucket)}. The grace period is used up -- going over the quota restricts the project immediately.`
+    );
+  } else if (stMb >= STORAGE_WARN_MB) {
+    failures.push('storage-size-warning');
+    await sendAlert(
+      '⚠️ BOI Health Alert — Storage buckets near Free-plan quota',
+      `Storage buckets total ${stMb} MB of the 1 GB Free-plan quota (by bucket: ${JSON.stringify(data.storage_by_bucket)}).\n\nGoing over restricted the whole project with HTTP 402 on 09-13/09-14, and the grace period is already used -- a repeat restricts immediately. Check that cleanup-published-assets.yml is running live.`
+    );
+  }
+} catch (e) {
+  failures.push('capacity-error');
+  console.error('[11] Capacity check failed:', e.message);
+}
+
+// ── Check 11b: Egress + log ingest, cycle-to-date estimate ────────────────────
+// 2026-09-26: the Free plan's grace period is used up, so going over ANY
+// quota stops the project serving. Egress (5 GB) and log ingest (1 GB) both
+// scale with API request count; there is no usage API without a Management
+// token (deliberately not provisioned), so this estimates them from a nightly
+// snapshot of the API-role pg_stat_statements counter
+// (public.capacity_snapshot, migration 20260926050000) -- calibration and
+// thresholds in scripts/lib/capacity-estimate.mjs. Estimates, not the
+// dashboard: confirm on the Supabase usage page when this fires.
+try {
+  const { data: snaps, error } = await sb.rpc('capacity_snapshot', { p_days: 40 });
+  if (error) throw error;
+  const est = estimateCycleUsage(snaps ?? []);
+  if (!est.ok) {
+    console.log(`[11b] Egress/log estimate: ${est.reason} (cycle from ${est.start.toISOString().slice(0, 10)}) -- first full estimate after the next run.`);
+  } else {
+    const gb = (x) => x.toFixed(2);
+    const line =
+      `cycle ${est.start.toISOString().slice(0, 10)} -> ${est.end.toISOString().slice(0, 10)}, day ${est.elapsedDays.toFixed(1)}` +
+      `${est.extrapolated ? ` (extrapolated from ${est.observedDays.toFixed(1)} observed days)` : ''}: ` +
+      `~${est.requests.toLocaleString('en-US')} API requests; egress ~${gb(est.egressGB)} of ${EGRESS_QUOTA_GB} GB (${est.egressPct.toFixed(0)}%, projected ${gb(est.projectedEgressGB)} GB); ` +
+      `log ingest ~${gb(est.logGB)} of ${LOG_INGEST_QUOTA_GB} GB (${est.logPct.toFixed(0)}%, projected ${gb(est.projectedLogGB)} GB)`;
+    console.log(`[11b] ${line}`);
+    // FP6.4 (P4 Step 2g): egress is judged on the cycle-end PROJECTION against
+    // the guard lines (WARNING >= 3.5 GB, CRITICAL >= 4.0 GB, where
+    // non-essential readers pause). On 27 Sep the projection (~3.85 GB) is
+    // already past 3.5 GB, so this raises a WARNING from the first run -- a real
+    // reading, not a bug.
+    const pe = est.projectedEgressGB;
+    const egressLevel = pe >= LIMITS.egress.blockGb ? 'critical' : pe >= LIMITS.egress.alertGb ? 'warning' : null;
+    if (egressLevel) {
+      failures.push(`egress-${egressLevel}`);
+      await sendAlert(
+        `${egressLevel === 'critical' ? '🚨' : '⚠️'} BOI Health Alert — Supabase egress projected ${gb(pe)} GB (${egressLevel === 'critical' ? `>= ${LIMITS.egress.blockGb} GB guard: non-essential readers paused` : `>= ${LIMITS.egress.alertGb} GB alert line`})`,
+        `Projected egress at cycle end is ~${gb(pe)} GB of the ${EGRESS_QUOTA_GB} GB Free-plan quota.\n\n${line}\n\nThe grace period is already used: going over stops the project serving. Confirm on the Supabase usage page, then cut API request volume (set-page renders, batch writers, CI builds -- see the 2026-09-26 capacity entry in BOI_MASTER_TRACKER.md).`
+      );
+    }
+    // Log ingestion over 1 GB is known and not enforced until early 2027
+    // (Supabase support, P0.3), so it's an INFO line, never an email -- the
+    // nightly CRITICAL mail was drowning real alerts.
+    console.log(`[11b] INFO log ingest ~${gb(est.logGB)} of ${LOG_INGEST_QUOTA_GB} GB (${est.logPct.toFixed(0)}%) -- known, not enforced until early 2027; no alert.`);
+  }
+} catch (e) {
+  failures.push('capacity-estimate-error');
+  console.error('[11b] Egress/log estimate failed:', e.message);
 }
 
 // ── Summary ──────────────────────────────────────────────────────────────────

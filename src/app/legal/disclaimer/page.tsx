@@ -1,20 +1,22 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 
-export const metadata: Metadata = {
-  title: 'Disclaimer | Bricks of India',
+export const metadata: Metadata = buildMetadata({
+  title: 'Disclaimer',
   description: 'Important disclaimers about price accuracy, LEGO® trademark, and content on Bricks of India.',
-};
+  path: '/legal/disclaimer',
+});
 
 export default function DisclaimerPage() {
   return (
     <div className="bg-white min-h-screen">
       <div className="max-w-3xl mx-auto px-4 py-12">
         <h1 className="font-heading text-dark text-5xl mb-2">DISCLAIMER</h1>
-        <p className="text-gray-400 text-sm mb-8">Last updated: April 2026</p>
+        <p className="text-gray-400 text-sm mb-8">Last updated: October 2026</p>
         <div className="prose prose-gray max-w-none font-body space-y-6 text-gray-600 leading-relaxed">
           <section>
             <h2 className="font-heading text-dark text-2xl mb-3">PRICE ACCURACY</h2>
-            <p>Prices shown on Bricks of India are scraped automatically from third-party retailer websites and may not be 100% accurate at the time of viewing. Always verify the final price on the retailer&apos;s website before completing a purchase. We update prices every 6 hours but cannot guarantee real-time accuracy.</p>
+            <p>Prices shown on Bricks of India come from third-party retailer websites and may not be 100% accurate at the time of viewing. Always verify the final price on the retailer&apos;s website before completing a purchase. We check prices daily, so a price can change before our next check.</p>
           </section>
           <section>
             <h2 className="font-heading text-dark text-2xl mb-3">PRODUCT AVAILABILITY</h2>

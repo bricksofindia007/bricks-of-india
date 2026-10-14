@@ -1,17 +1,19 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { unstable_cache } from 'next/cache';
 import { supabase } from '@/lib/supabase';
 import { ArticleCard } from '@/components/content/ArticleCard';
+import { NEWS_CARD_COLS, toNewsCard } from '@/lib/article-cards';
 import { Badge } from '@/components/ui/Badge';
 import { MASCOTS } from '@/lib/brand';
 
-export const metadata: Metadata = {
-  title: 'LEGO News India 2026 — New Sets, Deals & Launches | Bricks of India',
+export const metadata: Metadata = buildMetadata({
+  title: 'LEGO News India 2026 — New Sets, Deals & Launches',
   description: 'Latest LEGO news for Indian buyers. New set releases, India price updates, deals, and everything happening in the LEGO world in 2026.',
-  alternates: { canonical: 'https://bricksofindia.com/news' },
-};
+  path: '/news',
+});
 
 const NEWS_CATEGORIES = ['New Sets', 'Deals', 'India Launches', 'Rumours', 'Community'];
 
@@ -32,12 +34,12 @@ const getAllNewsArticles = unstable_cache(
   async () => {
     const { data } = await supabase
       .from('news_articles')
-      .select('*')
+      .select(NEWS_CARD_COLS)
       .order('published_at', { ascending: false });
-    return data ?? [];
+    return (data ?? []).map(toNewsCard);
   },
   ['news-page-all-articles'],
-  { revalidate: 300 },
+  { revalidate: 86400 },
 );
 
 export default async function NewsPage(props: { searchParams: Promise<{ category?: string }> }) {

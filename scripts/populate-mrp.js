@@ -250,36 +250,47 @@ async function run() {
     return;
   }
 
-  // Phase 4 — update lego_mrp_inr in parallel batches of 50
-  const CONCURRENCY = 50;
-  let written = 0;
-  for (let i = 0; i < updates.length; i += CONCURRENCY) {
-    const chunk = updates.slice(i, i + CONCURRENCY);
-    await Promise.all(chunk.map(async u => {
-      const { error } = await sb.from('sets').update({ lego_mrp_inr: u.lego_mrp_inr }).eq('id', u.id);
-      if (error) console.error(`\n  Update error ${u.id}: ${error.message}`);
-      else written++;
-    }));
-    process.stdout.write(`\r  Written: ${written}/${updates.length}`);
+  // Fix B (2026-09-26): Phases 4 and 5 were one PATCH request per set
+  // (~6,700 in one run); each writes a ~2.5 KB Supabase gateway log line and
+  // log ingest is over the Free quota. They now go through
+  // public.sets_bulk_patch (migration 20260926040000), 500 rows per call. A
+  // failed batch falls back to per-row updates so errors stay per set.
+  const WRITE_BATCH = 500;
+  async function bulkPatch(rows, perRow) {
+    let ok = 0, failed = 0;
+    for (let i = 0; i < rows.length; i += WRITE_BATCH) {
+      const chunk = rows.slice(i, i + WRITE_BATCH);
+      const { data, error } = await sb.rpc('sets_bulk_patch', { p_rows: chunk });
+      if (!error) { ok += Number(data ?? chunk.length); }
+      else {
+        console.error(`\n  Batch ${i / WRITE_BATCH + 1} failed (${error.message}) -- retrying ${chunk.length} row(s) individually`);
+        for (const r of chunk) {
+          const { error: e } = await perRow(r);
+          if (e) { failed++; console.error(`\n  Update error ${r.id ?? r.set_number}: ${e.message}`); }
+          else ok++;
+        }
+      }
+      process.stdout.write(`\r  Written: ${ok}/${rows.length}`);
+    }
+    return { ok, failed };
   }
-  console.log(`\nDone. ${written} MRP rows updated.`);
+
+  // Phase 4 — update lego_mrp_inr (keyed by id)
+  const p4 = await bulkPatch(
+    updates.map(u => ({ id: u.id, lego_mrp_inr: u.lego_mrp_inr })),
+    r => sb.from('sets').update({ lego_mrp_inr: r.lego_mrp_inr }).eq('id', r.id),
+  );
+  console.log(`\nDone. ${p4.ok} MRP rows updated.`);
 
   // Phase 5 — write retirement_date for all Brickset sets that have an exitDate
   // Applies to ALL matched sets regardless of MRP null status (separate from Phase 4 filter)
   const exitEntries = Object.entries(bricksetExitDates);
   console.log(`\nPhase 5 — writing retirement_date for ${exitEntries.length} sets with Brickset exitDate...`);
-  let rdWritten = 0, rdErrors = 0;
-  for (let i = 0; i < exitEntries.length; i += CONCURRENCY) {
-    const chunk = exitEntries.slice(i, i + CONCURRENCY);
-    await Promise.all(chunk.map(async ([setNum, exitDate]) => {
-      const { error } = await sb.from('sets')
-        .update({ retirement_date: exitDate })
-        .eq('set_number', setNum);
-      if (error) { rdErrors++; }
-      else rdWritten++;
-    }));
-    process.stdout.write(`\r  retirement_date written: ${rdWritten}/${exitEntries.length}`);
-  }
+  const p5 = await bulkPatch(
+    exitEntries.map(([setNum, exitDate]) => ({ set_number: setNum, retirement_date: exitDate })),
+    r => sb.from('sets').update({ retirement_date: r.retirement_date }).eq('set_number', r.set_number),
+  );
+  const rdWritten = p5.ok, rdErrors = p5.failed;
   console.log(`\nDone. ${rdWritten} retirement_date rows updated${rdErrors ? `, ${rdErrors} errors` : ''}.`);
 
   // Final self-report, matching catalogue-audit.ts's corrected universe

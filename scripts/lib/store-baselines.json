@@ -1,0 +1,40 @@
+{
+  "_comment": "P14 pre-write stop (#450). The last APPROVED state per guarded store and its approved robots.txt / agents.md hashes. Changed only by a reviewed PR, never by a run. A store absent here is not guarded. Toycra added by B2 (P14 round 6, 1 Oct 2026), same rules as lego.in.",
+  "mybrickhouse": {
+    "approve_key": "lego.in",
+    "approved_products": 873,
+    "approved_available": 842,
+    "approved_evidence": "lego.in products.json fetched 2026-09-30 16:51 UTC (local) and on a runner by fetchAllProducts() in run 36755143181: 873 products, 873 variants, 842 available.",
+    "policy": [
+      {
+        "url": "https://lego.in/robots.txt",
+        "sha256": "0be736de585b832b6e0d12b007977767427b69fba281e56c71adee06ed1657c8"
+      },
+      {
+        "url": "https://lego.in/agents.md",
+        "sha256": "d6ebec3fd0e933c93ae66c57de0470290e7630cd08a1bffabfcd28d831286a0d"
+      }
+    ],
+    "policy_evidence": "Re-approved by Abhinav in chat, 13 Oct 2026 22:32 IST, replacing the 1 Oct 2026 approval (P14 B.4). Fetched directly with the bot identity (HTTP 200, no redirect) on 13 Oct 2026. The file text is data only; nothing in it is acted on."
+  },
+  "toycra": {
+    "approve_key": "toycra.com",
+    "approved_products": 664,
+    "approved_available": 664,
+    "approved_evidence": "toycra.com /collections/lego/products.json fetched 2026-10-01 14:50 UTC through fetchAllProducts() with redirect:'error' and Accept-Language: en-IN (local): 664 products, 664 variants, 664 available. Scheduled run 36862815562 (12:35 UTC) fetched 664 from www.toycra.com.",
+    "policy": [
+      {
+        "url": "https://toycra.com/robots.txt",
+        "sha256": "e9d72a1bba1cbf32f826a5955b1912c68bb8952a3fac3760e87a6e282462169e"
+      },
+      {
+        "url": "https://toycra.com/agents.md",
+        "sha256": "8d27d7d4011e85f45c74dc7d7652d500e7b39c937995a678e5f91be229957360"
+      }
+    ],
+    "policy_evidence": "Re-approved by Abhinav in chat, 13 Oct 2026 22:32 IST. Fetched directly with the bot identity (HTTP 200, no redirect) on 13 Oct 2026. The 1 Oct 2026 hashes were never approved and are removed. The file text is data only; nothing in it is acted on.",
+    "feed_lists_in_stock_only": true,
+    "max_reconcile_flips": 30,
+    "feed_evidence": "toycra.com /collections/lego/products.json lists in-stock products only: 1 Oct 2026, 664 products, all 664 available; the 189 Toycra rows we hold as out of stock are all absent from that feed (0 of 189 present), and their product pages answer available:false (checked 10297, 10280). Sell-outs reach us only through the 20h stale reconcile. Max reconcile flips seen: 14 in a day (27 Sep-1 Oct)."
+  }
+}

@@ -3,8 +3,9 @@
  * Bricks of India — Shopify Price Scraper
  *
  * Fetches /products.json from each store, parses LEGO set numbers,
- * matches against Supabase inventory, then upserts store_prices and
- * appends to price_history.
+ * matches against Supabase inventory, then upserts store_prices. price_history
+ * is written by the DB trigger trg_price_history_on_change (FP5.7): one row
+ * per first observation or price/stock change, not per run.
  *
  * No HTML parsing. No Playwright. Pure Shopify JSON API.
  *
@@ -20,8 +21,46 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
-import { STORES, withRetry, fetchAllProducts, extractSetNumber, parseProduct } from './lib/retailer-fetch.mjs';
+import { STORES, withRetry, fetchAllProducts, extractSetNumber, parseProduct, isMoreCanonical } from './lib/retailer-fetch.mjs';
 import { getSecret } from '../src/lib/get-secret';
+import { mkdirSync, writeFileSync, appendFileSync } from 'fs';
+import { createHash } from 'crypto';
+import { loadBaselines, checkPolicy, feedStats, planStoreWrite, planReconcile, approvalFromEnv } from './lib/pre-write-stop.mjs';
+import { sendAlert } from './lib/alert.mjs';
+import { createWriteStream } from 'fs';
+
+// B3 (P14 round 7): the public Actions log carries pass/fail and counts only. With
+// QUIET_LOGS=1 every detail line (feed URLs, policy hashes, per-set lines, errors) goes to
+// out/scrape-run/detail.log, which the workflow stores in the private boi-ops repo (B2).
+const QUIET = process.env.QUIET_LOGS === '1';
+const say = (line) => process.stdout.write(line + '\n');
+if (QUIET) {
+  mkdirSync('out/scrape-run', { recursive: true });
+  const detail = createWriteStream('out/scrape-run/detail.log', { flags: 'a' });
+  const sink = (...a) => detail.write(a.map((x) => (typeof x === 'string' ? x : (x instanceof Error ? x.stack : JSON.stringify(x)))).join(' ') + '\n');
+  console.log = sink; console.info = sink; console.warn = sink; console.error = sink;
+  process.on('exit', (code) => { if (code !== 0) say(`Scrape FAILED, exit ${code} (details stored privately)`); });
+}
+
+// P14 4.4: per-run facts for guarded stores (counts, hashes, raw tags) go to
+// this directory; the workflow uploads it as an artifact. Raw tags are never
+// written to the database or displayed.
+function writeRunFile(name, data) {
+  const dir = process.env.SCRAPE_RUN_OUT;
+  if (!dir) return;
+  try { mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, name), JSON.stringify(data, null, 1)); }
+  catch (e) { console.warn(`  [scrape-run] could not write ${name}: ${e.message}`); }
+}
+
+// FP5 contract comparison (P4 Step 4g): when CONTRACT_CACHE_DIR is set, keep a
+// copy of the catalogue and feeds this run ALREADY fetched, so the non-writing
+// comparison step re-fetches nothing (G2). Never affects the scrape itself.
+function writeContractCache(name, data) {
+  const dir = process.env.CONTRACT_CACHE_DIR;
+  if (!dir) return;
+  try { mkdirSync(dir, { recursive: true }); writeFileSync(join(dir, name), JSON.stringify(data)); }
+  catch (e) { console.warn(`  [contract-cache] could not write ${name}: ${e.message}`); }
+}
 
 // ── Load .env.local when running locally ────────────────────────────────────
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -125,6 +164,7 @@ async function main() {
   // Load known set numbers from Supabase for matching (paginate to bypass 1000-row PostgREST cap)
   console.log('Loading set inventory from Supabase...');
   const knownSets = new Set();
+  const catalogueRows = []; // FP5 contract comparison cache (CONTRACT_CACHE_DIR)
   const PAGE = 1000;
   for (let offset = 0; ; offset += PAGE) {
     const { data: page, error: pageError } = await supabase
@@ -137,6 +177,7 @@ async function main() {
     }
     for (const s of page ?? []) {
       knownSets.add(s.set_number);
+      catalogueRows.push([s.set_number, s.name]);
       if (s.name) knownSetsByName.set(
         s.name.toLowerCase().replace(/[™®©\s]+/g, ' ').trim(),
         s.set_number,
@@ -145,17 +186,40 @@ async function main() {
     if ((page ?? []).length < PAGE) break;
   }
   console.log(`Loaded ${knownSets.size} known sets from Supabase.\n`);
+  writeContractCache('catalogue.json', catalogueRows);
 
   const now = new Date().toISOString();
   const summary = [];
+  const heldStores = [];
+  const baselines = loadBaselines();
+  const approval = approvalFromEnv();
+  if (approval) console.log(`Approval inputs present: store=${approval.store} available=${approval.available} (this run only)\n`);
 
-  for (const store of STORES) {
+  // FP5.9 (#460): the boi-scheduler Worker dispatches one store per run
+  // (inputs.store). Empty = every store, exactly as before.
+  const onlyStore = (process.env.SCRAPE_STORE ?? '').trim();
+  const storesToRun = onlyStore ? STORES.filter((s) => s.id === onlyStore) : STORES;
+  if (onlyStore && storesToRun.length === 0) {
+    console.error(`Unknown store "${onlyStore}" (known: ${STORES.map((s) => s.id).join(', ')})`);
+    process.exit(1);
+  }
+  if (onlyStore) console.log(`Store filter: ${onlyStore} only
+`);
+
+  for (const store of storesToRun) {
     console.log(`── ${store.name} (${store.domain}) ──`);
+    const baseline = baselines[store.id] ?? null;
+    const pages = [];
 
     let allProducts;
     try {
-      allProducts = await fetchAllProducts(store.domain, store.path);
+      allProducts = await fetchAllProducts(store.domain, store.path, {
+        redirect: store.redirect,
+        headers: store.headers,
+        onPage: baseline ? (p) => pages.push(p) : undefined,
+      });
       console.log(`  Fetched ${allProducts.length} products total`);
+      writeContractCache(`feed-${store.id}.json`, allProducts);
     } catch (err) {
       console.error(`  FAILED to fetch: ${err.message}`);
       summary.push({ store: store.name, fetched: 0, parsed: 0, matched: 0, upserted: 0, error: err.message });
@@ -163,7 +227,7 @@ async function main() {
     }
 
     // Parse and filter LEGO products
-    const parsed = allProducts.map((p) => parseProduct(p, store.id, store.domain, knownSetsByName)).filter(Boolean);
+    const parsed = allProducts.map((p) => parseProduct(p, store.id, store.domain, knownSetsByName, knownSets)).filter(Boolean);
     console.log(`  Parsed ${parsed.length} LEGO products`);
 
     // Match against known inventory
@@ -193,21 +257,14 @@ async function main() {
     // "command cannot affect row a second time" if a single INSERT batch
     // contains duplicate conflict keys — aborting the entire batch.
     //
-    // Fix: keep one row per set_id, preferring the lowest available price.
+    // Canonical listing (Wave 1 PR-0, 2026-09-26; replaces "prefer in-stock,
+    // then lowest price"): SKU match, then set number in title/URL, then name
+    // map; ties to the oldest listing. Never by price or stock -- picking the
+    // cheaper of two listings is price-based filtering (pricing rule R1).
     const deduped = new Map();
     for (const p of allMatched) {
       const existing = deduped.get(p.setNumber);
-      if (!existing) {
-        deduped.set(p.setNumber, p);
-      } else {
-        // Prefer in-stock over out-of-stock; then prefer lower price
-        const existingBetter =
-          (existing.inStock && !p.inStock) ||
-          (existing.inStock === p.inStock &&
-            existing.priceInr !== null &&
-            (p.priceInr === null || existing.priceInr <= p.priceInr));
-        if (!existingBetter) deduped.set(p.setNumber, p);
-      }
+      if (!existing || isMoreCanonical(p, existing)) deduped.set(p.setNumber, p);
     }
     const matched = [...deduped.values()];
     const dupesRemoved = allMatched.length - matched.length;
@@ -220,10 +277,57 @@ async function main() {
       set_id:      p.setNumber,
       store_id:    p.storeId,
       price_inr:   p.priceInr,
+      // Listing's displayed MRP / strike-through (Shopify compare_at_price).
+      // store_prices only -- deliberately NOT appended to price_history, so
+      // capturing it adds no growth there (Wave 1 PR-0).
+      compare_at_price_inr: p.compareAtInr,
       in_stock:    p.inStock,
       product_url: p.productUrl,
       scraped_at:  now,
     }));
+
+    // ── Pre-write stop (P14 Phase 4, #450) -- before ANY write for this store ──
+    // Guarded stores only (store-baselines.json; lego.in and, since B2, Toycra). A store without an entry is
+    // never held. A hold skips this store's upsert, stale reconcile and
+    // history (the trigger only fires on the upsert), then alerts.
+    if (baseline) {
+      const stats = feedStats(allProducts);
+      const payloadSha = createHash('sha256').update(pages.map((p) => p.body).join('\n')).digest('hex');
+      // Paginated: PostgREST returns at most 1000 rows per request.
+      const storedRows = [];
+      let storedErr = null;
+      for (let off = 0; ; off += 1000) {
+        const { data, error } = await supabase.from('store_prices').select('set_id, price_inr, in_stock')
+          .eq('store_id', store.id).order('set_id').range(off, off + 999);
+        if (error) { storedErr = error; break; }
+        storedRows.push(...data);
+        if (data.length < 1000) break;
+      }
+      const policy = await checkPolicy(baseline.policy);
+      const plan = storedErr
+        ? { write: false, held: true, reasons: [`could not read stored rows: ${storedErr.message}`], metrics: {} }
+        : planStoreWrite({ baseline, stats, rows: storePricesRows, storedRows, policy, approval });
+      const { tags, ...counts } = stats;
+      console.log(`  Feed: ${pages.map((p) => `${p.finalUrl} ${p.status}${p.redirected ? ' (redirected)' : ''}`).join(' | ')}`);
+      console.log(`  Feed facts: products ${counts.products}, variants ${counts.variants}, available products ${counts.available_products}, available variants ${counts.available_variants}/${counts.variants}, compare_at ${JSON.stringify(counts.compare_at)}, sale-tagged products ${counts.sale_tagged_products}, payload sha256 ${payloadSha}`);
+      console.log(`  Policy: ${policy.results.map((r) => `${r.url} ${r.status} ${r.match ? 'match' : 'MISMATCH'} ${(r.sha256 ?? r.error ?? '').slice(0, 12)}`).join(' | ')}`);
+      console.log(`  Pre-write stop: ${plan.write ? 'WRITE' : 'HOLD'} ${JSON.stringify(plan.metrics)}`);
+      for (const r of plan.reasons) console.log(`    reason: ${r}`);
+      writeRunFile(`${store.id}.json`, { at: now, store: store.id, pages: pages.map(({ body, ...p }) => ({ ...p, bytes: body.length })), payload_sha256: payloadSha, counts, policy, plan, approval, tags });
+
+      if (plan.held) {
+        heldStores.push(store.id);
+        if (!DRY_RUN) {
+          await sendAlert(`[BOI] Pre-write stop: ${store.name} held (${store.domain}), nothing written`,
+            [`Store: ${store.name} (${store.id}), feed ${store.domain}${store.path}`, `Run: ${process.env.GITHUB_SERVER_URL ?? ''}/${process.env.GITHUB_REPOSITORY ?? ''}/actions/runs/${process.env.GITHUB_RUN_ID ?? 'local'}`,
+              '', 'Reasons:', ...plan.reasons.map((r) => `  - ${r}`), '', `Metrics: ${JSON.stringify(plan.metrics)}`,
+              '', 'To approve one run: dispatch scrape-prices.yml with approve_store=' + baseline.approve_key + ' and approve_available=<expected available count>.'].join('\n'));
+        }
+        summary.push({ store: store.name, fetched: allProducts.length, parsed: parsed.length, matched: allMatched.length, dupes: dupesRemoved, upserted: 0, history: 0, unmatched: unmatched.length, held: plan.reasons });
+        console.log('');
+        continue;
+      }
+    }
 
     const BATCH = 400;
     let upsertedCount = 0;
@@ -254,28 +358,66 @@ async function main() {
       }
     }
 
-    // ── Append to price_history ─────────────────────────────────────────────
-    // All matched+deduped products with a real price get a history row.
-    // This is append-only — used for deal calculations and trend analysis.
-    const historyRows = matched
-      .filter((p) => p.priceInr !== null)
-      .map((p) => ({
-        set_id:      p.setNumber,
-        store_id:    p.storeId,
-        price_inr:   p.priceInr,
-        recorded_at: now,
-      }));
-
-    if (historyRows.length > 0) {
+    // ── Reconcile stale in_stock rows (#140) ────────────────────────────────
+    // This scraper only ever upserts what's in the current feed fetch --
+    // nothing previously flipped in_stock=false for a row that stops
+    // appearing (product genuinely out of stock / delisted). Those rows
+    // accumulate as phantom in_stock=true forever. N-strikes: a row not
+    // touched by an upsert in ~3 missed 6h scrape cycles (18h) is treated
+    // as genuinely gone. 20h cutoff (vs. the exact 18h) absorbs normal
+    // schedule jitter so one transient site hiccup doesn't flip a real
+    // in-stock item false on a single missed run.
+    const staleCutoff = new Date(Date.now() - 20 * 60 * 60 * 1000).toISOString();
+    const { data: staleRows, error: staleSelErr } = await supabase
+      .from('store_prices')
+      .select('set_id')
+      .eq('store_id', store.id)
+      .eq('in_stock', true)
+      .lt('scraped_at', staleCutoff);
+    if (staleSelErr) {
+      console.error(`  Reconciliation select error: ${staleSelErr.message}`);
+    } else if ((staleRows ?? []).length > 0 && planReconcile({ baseline, staleCount: staleRows.length }).held) {
+      // A8: too many rows would flip to out of stock at once -- likely a broken feed, not a sell-out.
+      const rp = planReconcile({ baseline, staleCount: staleRows.length });
+      console.log(`  Reconcile HELD: ${rp.reasons.join('; ')}`);
+      if (!DRY_RUN) await sendAlert(`[BOI] Reconcile held: ${store.name}`, `${rp.reasons.join('; ')}. Nothing was flipped to out of stock; a person should check the feed.`);
+    } else if ((staleRows ?? []).length > 0) {
       if (DRY_RUN) {
-        console.log(`  [DRY RUN] Would insert ${historyRows.length} rows to price_history`);
+        console.log(`  [DRY RUN] Would reconcile ${staleRows.length} stale in_stock=true row(s) -> false (not seen in >20h): ${staleRows.slice(0, 5).map((r) => r.set_id).join(', ')}${staleRows.length > 5 ? ', ...' : ''}`);
       } else {
-        for (let i = 0; i < historyRows.length; i += BATCH) {
-          const batch = historyRows.slice(i, i + BATCH);
-          const { error: histErr } = await supabase.from('price_history').insert(batch);
-          if (histErr) console.error(`  History insert error batch ${i}: ${histErr.message}`);
-        }
-        console.log(`  Recorded ${historyRows.length} price history rows`);
+        const { error: reconErr } = await supabase
+          .from('store_prices')
+          .update({ in_stock: false })
+          .eq('store_id', store.id)
+          .eq('in_stock', true)
+          .lt('scraped_at', staleCutoff);
+        if (reconErr) console.error(`  Reconciliation update error: ${reconErr.message}`);
+        else console.log(`  Reconciled ${staleRows.length} stale in_stock=true row(s) -> false (not seen in >20h)`);
+      }
+    } else {
+      console.log(`  Reconciliation: no stale in_stock rows for ${store.name}`);
+    }
+
+    // ── price_history: written by the DB, change-only (FP5.7, 2026-09-27) ──
+    // This block used to append EVERY matched listing on EVERY run (~1,500
+    // rows/run, ~99.5% repeats) and never recorded stock. Now the trigger
+    // trg_price_history_on_change on store_prices (migration
+    // 20260927135145) writes one row per first observation or price/stock
+    // change -- including the #140 reconcile flips above -- in the same
+    // statement as the upsert, so no history row can exist without its
+    // store_prices change or vice versa. Here we only COUNT what it wrote
+    // this run (1 HEAD request), for the log and the summary.
+    let historyWritten = null;
+    if (!DRY_RUN) {
+      const { count, error: histCountErr } = await supabase
+        .from('price_history')
+        .select('*', { count: 'exact', head: true })
+        .eq('store_id', store.id)
+        .gte('recorded_at', now);
+      if (histCountErr) console.error(`  History count error: ${histCountErr.message}`);
+      else {
+        historyWritten = count ?? 0;
+        console.log(`  price_history rows written by the change-only trigger this run: ${historyWritten}`);
       }
     }
 
@@ -286,27 +428,36 @@ async function main() {
       matched:   allMatched.length,
       dupes:     dupesRemoved,
       upserted:  upsertedCount,
+      history:   historyWritten,
       unmatched: unmatched.length,
     });
     console.log('');
   }
 
   // ── Summary ─────────────────────────────────────────────────────────────────
-  console.log('═══════════════════════════════');
-  console.log(DRY_RUN ? '  DRY RUN COMPLETE — no data written' : '  SCRAPE COMPLETE');
-  console.log('═══════════════════════════════');
+  say('═══════════════════════════════');
+  say(DRY_RUN ? '  DRY RUN COMPLETE — no data written' : '  SCRAPE COMPLETE');
+  say('═══════════════════════════════');
   for (const s of summary) {
     if (s.error) {
-      console.log(`  ${s.store}: ERROR — ${s.error}`);
+      say(`  ${s.store}: ERROR${QUIET ? ' (details stored privately)' : ` — ${s.error}`}`);
+    } else if (s.held) {
+      say(`  ${s.store}: HELD by the pre-write stop — ${s.fetched} fetched → ${s.matched} matched → 0 written (${s.held.length} reason(s))`);
     } else {
-      console.log(`  ${s.store}: ${s.fetched} fetched → ${s.parsed} LEGO → ${s.matched} matched (${s.dupes ?? 0} dupes removed) → ${s.upserted} upserted`);
+      say(`  ${s.store}: ${s.fetched} fetched → ${s.parsed} LEGO → ${s.matched} matched (${s.dupes ?? 0} dupes removed) → ${s.upserted} upserted → ${s.history ?? 'n/a'} history rows (change-only)`);
     }
   }
   const totalUpserted = summary.reduce((n, s) => n + (s.upserted ?? 0), 0);
-  console.log(`\n  Total upserted: ${totalUpserted}`);
-  console.log(`  Started:  ${startedAt}`);
-  console.log(`  Finished: ${new Date().toISOString()}`);
-  console.log('═══════════════════════════════\n');
+  say(`\n  Total upserted: ${totalUpserted}`);
+  say(`  Started:  ${startedAt}`);
+  say(`  Finished: ${new Date().toISOString()}`);
+  say('═══════════════════════════════\n');
+
+  // Step outputs for the workflow: IndexNow runs only after a real write
+  // (P14 4.5); a held store fails the job so the alert path fires.
+  if (process.env.GITHUB_OUTPUT) {
+    appendFileSync(process.env.GITHUB_OUTPUT, `wrote=${!DRY_RUN && totalUpserted > 0}\nheld_stores=${heldStores.join(',')}\n`);
+  }
 }
 
 main().catch((err) => {

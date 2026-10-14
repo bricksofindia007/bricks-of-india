@@ -1,23 +1,32 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { AFFILIATE_NOTE } from '@/lib/affiliate-disclosure';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
-import ReactMarkdown from 'react-markdown';
-import { createServerClient, supabase } from '@/lib/supabase';
+import { ArticleMarkdown } from '@/components/content/ArticleMarkdown';
+import { createServerClient, supabaseRead as supabase } from '@/lib/supabase';
+import { READ_REVALIDATE_SECONDS, bestInStock, badgeEligible } from '@/lib/price-freshness';
 import { formatDate, formatPrice, whatsappShareUrl, twitterShareUrl, socialCardImage } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { Byline } from '@/components/content/Byline';
 import { JsonLd } from '@/components/JsonLd';
 import { buildReviewSchema } from '@/lib/schemas';
+import { getStores, storeLabels } from '@/lib/stores';
+import { computeIndiaStatus, indiaStatusLine, RETIRED_IN_INDIA_DAYS, HUNT_IT_LINE } from '@/lib/india-status';
+import { getPriceSummaries, type SetPriceSummary } from '@/lib/price-summary';
+import { waitDiscountLine } from '@/lib/verdict-notes';
+import { PriceAsOfNote } from '@/components/content/PriceAsOfNote';
+import { hasTypedStorePrice } from '@/lib/price-as-of';
+import { isKnownMissingImage } from '@/lib/missing-images';
 // Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
-export const revalidate = 3600;
-// Next 15: fetch() is uncached by default, independent of revalidate above --
-// without this, the Supabase reads below become per-request and the route
-// drops from ISR to full SSR. Scoped per-route, not the root layout.
-export const fetchCache = 'default-cache';
+export const revalidate = 86400;
+// Supabase reads here expire hourly via per-read `next.revalidate`
+// (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
+// NOT fetchCache='default-cache', which cached them until the next deploy.
 
 // Netlify credit audit (2026-08-29): same missing-generateStaticParams gap
 // as /news/[slug] — see that file's comment for the full explanation.
@@ -31,12 +40,7 @@ export async function generateStaticParams() {
 
 interface Props { params: Promise<{ slug: string }> }
 
-const TRACKED_STORES = [
-  { id: 'toycra',       name: 'Toycra'      },
-  { id: 'mybrickhouse', name: 'MyBrickHouse' },
-];
-
-const STORE_NAMES: Record<string, string> = Object.fromEntries(TRACKED_STORES.map((s) => [s.id, s.name]));
+// Stores come from the retailer registry (FP5.1, src/lib/stores.ts).
 
 // Verdict-driven badge — NOT rating-driven. A null rating (IMPORT ONLY: an
 // availability call, not a quality score) still needs a badge that reflects
@@ -47,6 +51,8 @@ function verdictBadge(verdict: string | null): { emoji: string; label: string; c
     case 'BUY NOW':      return { emoji: '👍', label: 'Recommended', className: 'bg-deal-green text-white' };
     case 'AVOID':        return { emoji: '👎', label: 'Skip It',     className: 'bg-warning-orange text-white' };
     case 'IMPORT ONLY':  return { emoji: '🌍', label: 'Import Only', className: 'bg-accent text-dark' };
+    case 'HUNT IT':      return { emoji: '🔎', label: 'Hunt It',     className: 'bg-primary text-white' };
+    case 'SKIP':         return { emoji: '👎', label: 'Skip It',     className: 'bg-warning-orange text-white' };
     default:              return null; // WAIT, or anything unrecognized — neutral, no badge
   }
 }
@@ -66,25 +72,21 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   // cause, fixed in the same pass since it's the same missing-fallback bug).
   const setName = review.sets?.name || review.title;
   const productName = /^lego\b/i.test(setName) ? setName : `LEGO ${setName}`;
-  return {
+  return buildMetadata({
     title: `${productName} Review — Is It Worth Buying in India?`,
     description: `Our honest verdict on the ${productName}. ${ratingBlurb}Read the full review including price comparison and buying advice for India.`,
-    alternates: { canonical: `https://bricksofindia.com/reviews/${params.slug}` },
-    openGraph: {
-      title: `${productName} Review — Bricks of India`,
-      description: `${ratingBlurb}Honest verdict with live India price comparison.`,
-      images: socialCardImage(review.hero_image) ? [{ url: socialCardImage(review.hero_image)! }] : [],
-    },
-    twitter: {
-      card: review.hero_image ? 'summary_large_image' : 'summary',
-      title: `${productName} Review — Bricks of India`,
-      description: `${ratingBlurb}Honest verdict with live India price comparison.`,
-      images: socialCardImage(review.hero_image) ? [socialCardImage(review.hero_image)!] : undefined,
-    },
-  };
+    path: `/reviews/${params.slug}`,
+    image: socialCardImage(review.hero_image),
+    ogTitle: `${productName} Review — Bricks of India`,
+    ogDescription: `${ratingBlurb}Honest verdict with live India price comparison.`,
+    ogType: 'article',
+  });
 }
 
 export default async function ReviewPage(props: Props) {
+  const stores = await getStores();
+  const TRACKED_STORES = stores.map((st) => ({ id: st.id, name: st.name }));
+  const STORE_NAMES = storeLabels(stores);
   const params = await props.params;
   const { data: review } = await supabase
     .from('reviews')
@@ -101,26 +103,42 @@ export default async function ReviewPage(props: Props) {
     .trim();
 
   // Store prices — full map for all tracked stores (mirrors sets/[slug]/page.tsx pattern)
-  const storePriceMap = new Map<string, { store_id: string; price_inr: number | null; in_stock: boolean; product_url: string }>();
+  const storePriceMap = new Map<string, { store_id: string; price_inr: number | null; in_stock: boolean; product_url: string; scraped_at: string }>();
+  let recentStockEventsAt: string[] = [];
+  let priceSummary: SetPriceSummary | null = null;
   if (set?.set_number) {
-    const serverClient = createServerClient();
-    const { data: storePrices } = await serverClient
-      .from('store_prices')
-      .select('store_id, price_inr, in_stock, product_url')
-      .eq('set_id', set.set_number);
+    const serverClient = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
+    const since = new Date(Date.now() - RETIRED_IN_INDIA_DAYS * 864e5).toISOString();
+    const [{ data: storePrices }, { data: history }, summaries] = await Promise.all([
+      serverClient
+        .from('store_prices')
+        .select('store_id, price_inr, in_stock, product_url, scraped_at')
+        .eq('set_id', set.set_number),
+      // Item 0: stock activity in the last 14 days (India status input).
+      serverClient
+        .from('price_history')
+        .select('store_id, recorded_at')
+        .eq('set_id', set.set_number)
+        .gte('recorded_at', since),
+      // Same Deal/Hot tier the price box badges (WAIT discount line).
+      getPriceSummaries(serverClient, [set.set_number]),
+    ]);
+    priceSummary = summaries.get(set.set_number) ?? null;
     for (const sp of storePrices ?? []) {
       storePriceMap.set(sp.store_id, sp);
     }
+    const tracked = new Set(TRACKED_STORES.map((t) => t.id));
+    recentStockEventsAt = (history ?? []).filter((h) => tracked.has(h.store_id)).map((h) => h.recorded_at);
   }
   const activePrices = TRACKED_STORES
     .map(s => storePriceMap.get(s.id))
-    .filter((sp): sp is { store_id: string; price_inr: number; in_stock: boolean; product_url: string } =>
+    .filter((sp): sp is { store_id: string; price_inr: number; in_stock: boolean; product_url: string; scraped_at: string } =>
       sp != null && sp.price_inr != null);
   const hasPrices = activePrices.length > 0;
-  const bestStorePrice =
-    activePrices.filter(sp => sp.in_stock).sort((a, b) => a.price_inr - b.price_inr)[0]
-    ?? activePrices.sort((a, b) => a.price_inr - b.price_inr)[0]
-    ?? null;
+  // PR-A: best price = cheapest in-stock row only (no sold-out fallback);
+  // highlighted only while fresh (<= PRICE_STALE_HOURS).
+  const bestStorePrice = bestInStock(activePrices);
+  const bestIsBadged = badgeEligible(bestStorePrice);
 
   // GWP pricing rule (BOI Fix Brief issue #78, decided by Abhinav): the
   // store_prices check above is ALWAYS the first and only source of truth
@@ -140,8 +158,24 @@ export default async function ReviewPage(props: Props) {
 
   const stars = review.rating != null ? '★'.repeat(review.rating) + '☆'.repeat(5 - review.rating) : null;
   const badge = verdictBadge(review.verdict);
+  // Item 0 (India-only rule): availability wording comes only from the India
+  // status. "Retired" is never a verdict; a legacy RETIRED verdict is not shown.
+  const indiaStatus = computeIndiaStatus({
+    legoRetired: set?.retired === true,
+    listings: TRACKED_STORES.flatMap((t) => {
+      const sp = storePriceMap.get(t.id);
+      return sp ? [{ storeName: t.name, inStock: sp.in_stock === true }] : [];
+    }),
+    recentStockEventsAt,
+  });
+  const availabilityLine = indiaStatusLine(indiaStatus);
+  const isLegacyRetiredVerdict = (review.verdict || '').trim().toUpperCase() === 'RETIRED';
+  const discountLine = waitDiscountLine(review.verdict, priceSummary);
+  const shownVerdict = isLegacyRetiredVerdict
+    ? (availabilityLine ?? 'Sold in India: see prices below (we check them daily).')
+    : review.verdict;
   const shareUrl = `https://bricksofindia.com/reviews/${params.slug}`;
-  const waText = `Just read this LEGO review on Bricks of India — use ABHINAV12 for 12% off at Toycra!`;
+  const waText = `Just read this LEGO review on Bricks of India — use ABHINAV12 for 12% off full-price sets at Toycra!`;
 
   return (
     <div className="bg-white min-h-screen">
@@ -160,7 +194,7 @@ export default async function ReviewPage(props: Props) {
             {stars != null && (
               <>
                 <span className="text-primary text-2xl">{stars}</span>
-                <span className="text-gray-400">({review.rating}/5)</span>
+                <span className="text-gray-400">{`(${review.rating}/5)`}</span>
               </>
             )}
             {badge && (
@@ -191,8 +225,11 @@ export default async function ReviewPage(props: Props) {
             )}
 
             {/* Review content */}
+            {hasTypedStorePrice(cleanContent) && (
+              <PriceAsOfNote date={formatDate(review.published_at)} href={set?.set_number ? `/sets/${set.set_number}` : '/deals'} />
+            )}
             <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8 prose-p:mb-5 prose-p:leading-relaxed prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-2xl prose-h3:text-xl">
-              <ReactMarkdown>{cleanContent}</ReactMarkdown>
+              <ArticleMarkdown>{cleanContent}</ArticleMarkdown>
             </div>
 
             {/* Verdict */}
@@ -211,11 +248,12 @@ export default async function ReviewPage(props: Props) {
                 />
                 <div>
                   <h3 className="font-heading text-dark text-2xl mb-1">BRICKS OF INDIA SAYS:</h3>
-                  <p className="font-bold text-lg text-dark">{review.verdict}</p>
+                  <p className="font-bold text-lg text-dark">{shownVerdict}</p>
+                  {discountLine && <p className="text-sm text-dark mt-1">{discountLine}</p>}
                   {stars != null && (
                     <div className="mt-2 flex items-center gap-2">
                       <span className="text-primary text-xl">{stars}</span>
-                      <span className="font-price font-bold text-dark">{review.rating}/5</span>
+                      <span className="font-price font-bold text-dark">{`${review.rating}/5`}</span>
                     </div>
                   )}
                 </div>
@@ -243,12 +281,11 @@ export default async function ReviewPage(props: Props) {
               <div className="sticky top-20">
                 <div className="bg-light-grey rounded-2xl p-4 border-2 border-border mb-6">
                   <Image
-                    src={
-                      set.image_url ??
-                      (set.rebrickable_id
-                        ? `https://cdn.rebrickable.com/media/sets/${set.rebrickable_id}.jpg`
-                        : '/mascots/blue-fig-confused.png')
-                    }
+                    src={(() => {
+                      const u = set.image_url ??
+                        (set.rebrickable_id ? `https://cdn.rebrickable.com/media/sets/${set.rebrickable_id}.jpg` : null);
+                      return !u ? '/mascots/blue-fig-confused.png' : isKnownMissingImage(u) ? '/images/lego-placeholder.svg' : u;
+                    })()}
                     alt={set.name}
                     width={300}
                     height={300}
@@ -286,6 +323,12 @@ export default async function ReviewPage(props: Props) {
                       </p>
                     ) : (
                     <div className="space-y-2">
+                      {/* 3 Oct 2026: a plain line when no store we compare sells the set. */}
+                      {!hasPrices && (
+                        <p className="text-sm text-dark">
+                          Not sold by {TRACKED_STORES.map((s) => s.name).join(' or ')} right now. Your wallet gets the day off; the price shows up here once either store lists it.
+                        </p>
+                      )}
                       {TRACKED_STORES.map((store) => {
                         const sp = storePriceMap.get(store.id);
                         if (!sp?.price_inr) {
@@ -296,12 +339,15 @@ export default async function ReviewPage(props: Props) {
                             </div>
                           );
                         }
-                        const isBest = hasPrices && sp.price_inr === bestStorePrice?.price_inr;
+                        const isBest = bestIsBadged && sp.store_id === bestStorePrice?.store_id;
                         return (
                           <div key={store.id} className="flex items-center justify-between">
                             <span className="text-sm text-dark">{store.name}</span>
                             <div className="flex items-center gap-2">
-                              <span className={`font-price text-sm font-bold ${isBest ? 'text-deal-green' : 'text-dark'}`}>
+                              <span
+                                className={`font-price text-sm font-bold ${isBest ? 'text-deal-green' : 'text-dark'}`}
+                                data-best-price={isBest ? sp.price_inr : undefined}
+                              >
                                 {formatPrice(sp.price_inr)}
                               </span>
                               {sp.in_stock ? (
@@ -352,26 +398,31 @@ export default async function ReviewPage(props: Props) {
               {
                 q: `Is ${set?.name || 'this set'} worth buying in India in 2026?`,
                 a: [
-                  review.verdict,
+                  isLegacyRetiredVerdict ? null : review.verdict,
                   review.rating != null ? `Our rating: ${review.rating}/5.` : null,
                   badge?.label === 'Recommended' ? "Yes, we think it's a solid purchase."
                     : badge?.label === 'Skip It' ? "We'd recommend waiting for a better deal or considering alternatives."
+                    : badge?.label === 'Hunt It' ? (indiaStatus.kind === 'retired' ? `${HUNT_IT_LINE} No Indian store has it in stock right now.` : 'An Indian store lists it again: compare the prices on this page (we check them daily).')
                     : badge?.label === 'Import Only' ? "It's not officially sold in India yet, so factor in import costs and timelines before buying."
-                    : "We'd suggest waiting for a better price before buying.",
+                    : availabilityLine ?? (isLegacyRetiredVerdict
+                      ? 'It is sold in India: compare the prices on this page (we check them daily).'
+                      : "We'd suggest waiting for a better price before buying."),
                 ].filter(Boolean).join(' '),
               },
               {
                 q: `Where can I buy ${set?.name || 'this set'} cheapest in India?`,
-                a: hasPrices
-                  ? `Based on our latest tracking, ${TRACKED_STORES.find(s => s.id === bestStorePrice?.store_id)?.name ?? 'a tracked store'} has the best price. Use code ABHINAV12 at Toycra for 12% off.`
-                  : `Check Toycra and MyBrickHouse for current prices. Use code ABHINAV12 at Toycra for an exclusive 12% off.`,
+                a: bestStorePrice
+                  ? `Based on our latest tracking, ${TRACKED_STORES.find(s => s.id === bestStorePrice?.store_id)?.name ?? 'a tracked store'} has the best price. ${AFFILIATE_NOTE}`
+                  : `Check Toycra and LEGO.in for current prices. ${AFFILIATE_NOTE}`,
               },
               {
                 q: `What is the price of ${set?.name || 'this set'} in India?`,
-                a: set?.lego_mrp_inr
-                  ? set.mrp_verified
-                    ? `The confirmed LEGO India MRP is ₹${set.lego_mrp_inr.toLocaleString('en-IN')}. Some stores may sell at a discount. Compare prices above.`
-                    : `Based on the US retail price, this set works out to roughly ₹${set.lego_mrp_inr.toLocaleString('en-IN')} in India before local pricing adjustments. Check lego.com/en-in for the official MRP.`
+                a: set?.lego_mrp_inr && set.mrp_verified
+                  ? `The confirmed LEGO India MRP is ₹${set.lego_mrp_inr.toLocaleString('en-IN')}. Some stores may sell at a discount. Compare prices above.`
+                  : hasPrices
+                  ? `LEGO's official MRP for ${set?.name || 'this set'} isn't confirmed. The current store price is shown on this page.`
+                  : set?.lego_mrp_inr
+                  ? `Official Indian pricing hasn't been announced yet.`
                   : 'Check our price comparison tool for current prices across Indian stores.',
               },
               {

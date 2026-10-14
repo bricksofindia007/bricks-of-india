@@ -1,16 +1,16 @@
 # BOI Agent Instructions
 
-**Canonical reference:** `BOI_MASTER_TRACKER.md` — read this at the start of every session.
+**Canonical reference:** `boi-ops/BOI_MASTER_TRACKER.md` (private repo `bricksofindia007/boi-ops`, cloned next to this one) — read this at the start of every session. Plans, reports, reconciliation notes, evidence, the tracker and the dashboard live in that private repo (C2, P14 round 6), not in this public one.
 
 ---
 
 ## Session discipline
 
-SESSION START: Read `BOI_MASTER_TRACKER.md` — header block (metadata, current blockers, carry-overs, lab status, deadlines). Confirm the HEAD commit field matches `git log -1 --format="%H"`. Paste summary to strategic layer. Do not use `docs/SESSION_START_CHECKLIST.md` — that file's handover-doc protocol was abandoned after Day 35 and is queued for archival.
+SESSION START: Read `boi-ops/BOI_MASTER_TRACKER.md` — header block (metadata, current blockers, carry-overs, lab status, deadlines). Confirm the HEAD commit field matches `git log -1 --format="%H"`. Paste summary to strategic layer. Do not use `docs/SESSION_START_CHECKLIST.md` — that file's handover-doc protocol was abandoned after Day 35 and is queued for archival.
 
-**Dashboard sync:** see `BOI_MASTER_TRACKER.md` § Auto-update protocol — every state change updates `admin/dashboard.html` in the same commit. Enforced on PRs by `.github/workflows/lint-tracker-dashboard-sync.yml` (added 2026-08-23, after a 30-day ground-truth audit found the rule recurring as an unenforced, self-reported violation rather than the exception) — does not cover the docs-only-direct-push fast path below, by design.
+**Dashboard sync:** see `boi-ops/BOI_MASTER_TRACKER.md` § Auto-update protocol — every state change updates `boi-ops/admin/dashboard.html` in the same commit. The sync lint moved to boi-ops with the files.
 
-**Dashboard validation:** at session start, confirm `admin/dashboard.html` JSON parses cleanly before doing anything else. If it doesn't, fix first.
+**Dashboard validation:** at session start, confirm `boi-ops/admin/dashboard.html` JSON parses cleanly before doing anything else. If it doesn't, fix first.
 
 **Issue-filing is binding, not optional.** Any future action item, pending decision, or "revisit later" note surfaced during a session — a deferred fix, an accepted risk, an operator-owned follow-up, a "not done this session, flagged not hidden" note — must be filed as a real GitHub issue before the session or PR is considered complete. A mention in chat, a commit message, or a tracker paragraph does not satisfy this — none of those are visible to anyone (including a future session) who isn't specifically reading git history end-to-end. Added 2026-08-23 after a 30-day audit found multiple real, still-open items (a confirmed-reachable, unpatched CVE deferred with a documented rationale; an operator-owned credential/OAuth follow-up; a documented internal-tooling reconciliation gap) living only in commit bodies and tracker prose, with zero corresponding issue, invisible to anything but a targeted grep. The tracker entry may still carry the full reasoning/context — the issue is the pointer that makes the item discoverable at all, not a replacement for that detail.
 
@@ -20,7 +20,37 @@ SESSION START: Read `BOI_MASTER_TRACKER.md` — header block (metadata, current 
 
 **Defect log:** `docs/BRIEF_DEFECTS.md` — log every defect found during execution. Never reuse a defect ID.
 
-**Handover docs:** Pattern retired after Day 35. Write a changelog entry in `BOI_MASTER_TRACKER.md` §Sprint changelog instead. No new Day_N_Ground_Truth files — `docs/handover/` is frozen.
+**Handover docs:** Pattern retired after Day 35. Write a changelog entry in `boi-ops/BOI_MASTER_TRACKER.md` §Sprint changelog instead. No new Day_N_Ground_Truth files — `docs/handover/` is frozen.
+
+**Cycle 2 plan:** `boi-ops/docs/plans/BOI_Cycle2_Master_Plan.md` (v2.4, approved 27 Sep 2026) is the scope, gate and open-item register for Cycle 2. Every plan ID has a GitHub issue (label `cycle-2` plus `stage-0` / `foundation` / `build` / `trust`, title prefixed with the plan ID). No closing keywords (`Closes #`, `Fixes #`) in commits or PRs; issues close only through an evidence comment. Email addresses and DNS: `docs/email/ADDRESSES.md`.
+
+---
+
+## Cycle 2 guardrails (binding, plan §13)
+
+These are rules, not guidance. Where an older rule further down this file conflicts with one of them (e.g. the Resend `from` address or Netlify-era notes), the guardrail wins, and the older rule is updated when the work that changes it lands.
+
+- **G1 — Public pages stay cached.** No cookies, headers or session reads on public routes. Auth UI is client-only. Middleware only on `/account` and `/auth`. Enforced by the FP3.4 CI check.
+- **G2 — Every new request path goes in the budget:** Supabase calls, Worker routes, KV/R2 operations, emails, Actions jobs. Volume stated in the PR; plan §10 updated.
+- **G3 — Pages get price data only through the snapshot reader.** The Supabase RPC is a fallback, never the primary path.
+- **G4 — Retailers are data.** The registry plus runtime display flags. No retailer-specific branches in display code.
+- **G5 — Every scraper uses the contract** (FP5): identity ladder, breaker, batched writes, change-only history, heartbeat, robots snapshot, bot identity.
+- **G6 — Nothing is guessed.** Unmatched listings go to the queue. Remaps purge history, with a backup first.
+- **G7 — Migrations only from repo files,** rehearsed on staging, rollback SQL, backup first. Never through MCP.
+- **G8 — RLS everywhere;** explicit grants per role; the negative-test suite must pass.
+- **G9 — Flags before launches.**
+- **G10 — Jobs are safe to re-run** (dedupe keys; write only after validation).
+- **G11 — Honest wording comes from data** (store lists, counts, "tracking since").
+- **G12 — Every email goes through the gateway,** with a stream, an idempotency key and a suppression check. No direct provider calls anywhere else.
+- **G13 — Every scheduled job writes a heartbeat.** A job without one isn't allowed in production.
+- **G14 — Fail honest, not wrong.** Any new code path must state its failure behaviour, and that behaviour must degrade to older-but-labelled data or to no output, never to incorrect output.
+- **G15 — The `extensions` schema is never added to PostgREST's exposed-schema list without a security review and a chat sign-off; this is what keeps the http extension (and anything else moved there) unreachable via the Data API.** (Added 27 Sep 2026, FP3.0 #361: the http functions there still carry PUBLIC EXECUTE granted by `supabase_admin`, which `postgres` can't revoke.) Enforced by the `G15 extensions-schema exposure probe` step in `.github/workflows/ci.yml` (one live request per CI run: the `extensions` profile must return 406 PGRST106).
+- **G16 — Published content is corrected, never removed.** Reviews, articles, news, guides and every public page are fixed in place: back up the prior text, correct only what's wrong, and add a visible dated correction note. No published row is deleted or unpublished, and no public URL is retired, without chat's explicit sign-off. The only accepted exception is merging a true duplicate, and then the old URL must 308 to the surviving page. Drafts that fail quality gates before publication are not covered. (Added 27 Sep 2026 by Abhinav, binding.)
+- **G17 — No command may print a secret's value.** Secret searches list names and locations only (`grep -l`, key names, masked values). Never grep or cat `.env*` files, secret files or connection strings for content. If a value is ever printed, stop, report it, and treat it as compromised (rotate). (Added 28 Sep 2026 by Abhinav, binding, after a search printed three growth-role passwords into a session.)
+- **G18 — Dates are never deadlines.** Sequence all work by dependencies and evidence gates. Reports state what each item is waiting on (a dependency, a proof count, or a decision), never a target date. (Added 28 Sep 2026 by Abhinav, binding. It replaced the 5–11 Oct deploy freeze and every dated deploy in the snapshot plan.)
+- **G19 — Nothing public reveals how Bricks of India works.** No public page, meta tag, JSON-LD, alt text, HTML comment, public text file (robots.txt, llms.txt, manifests), email, video description, caption or article may mention: scraping or scrapers, bot behaviour, feeds, APIs, Shopify or products.json, schedules or update frequency ("every 6 hours"), automation, cron, AI/LLM generation, model or provider names, pipelines, gates, pricing formulas or anchor rules, which store is the MRP reference, security posture (rate limits, infrastructure), internal paths or tool names. No price timestamps on public pages (Abhinav, 4 Oct 2026). "We check prices daily" is the only cadence statement; a price past the 48 h limit is never shown as current. Kept on purpose: the /bot page's two sentences (who the bot belongs to, how to reach us). Every content-generation prompt and quality gate carries this rule. Factual content is still corrected per G16, with wording approved by chat. (Added 1 Oct 2026 by Abhinav, binding, non-negotiable.)
+
+Transitional: G3, G12 and G13 describe systems not yet built. Existing paths are grandfathered only until their migration item lands (G3 → FP1.1, G12 → FP4.9, G13 → FP6.1). No NEW path may add a direct price read, a direct provider email call or an un-heartbeated scheduled job unless chat approves it in writing and an issue tracks it.
 
 ---
 
@@ -107,11 +137,7 @@ if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set — check
 
 ## Price data rules
 
-**Two price tables exist — do not confuse them:**
-- `prices` — legacy table. Schema: `store_name`, `availability`, `is_active`, `buy_url`. No longer written to by active scrapers. Used as fallback on `/deals`.
-- `store_prices` — active scraper table. Schema: `store_id`, `in_stock`, `product_url`, `scraped_at`. Written by `scripts/scrape-now.mjs` every 6h. All listing pages (`/sets`, `/sets/page/[page]`, `/compare`) read from this table.
-
-When adding price display to any new page, always use `store_prices`, never `prices`.
+**One price table: `store_prices`** — schema `set_id`, `store_id` (FK to `stores`, the FP5.1 retailer registry), `price_inr`, `in_stock`, `product_url`, `scraped_at`. Written by `scripts/scrape-now.mjs` every 6h; `price_history` is written change-only by the `trg_price_history_on_change` trigger on it (FP5.7, ADR 0002). Deals, badges and best price come from the `set_price_summary` view. The legacy `prices` table was dead since 2026-05-10 (every price NULL) and was dropped on 2026-09-27 (FP5.1, backup in `boi-db-backups6-09-27-fp5.1\`); /deals does not read it.
 
 ---
 
@@ -135,9 +161,9 @@ A known, already-accepted failure condition (e.g. Cerebras's payment-block, 402,
 
 **`radar.yml` cron = RADAR-01 → RADAR-02 → RADAR-03 only.** Signals are fetched, deduped, and classified automatically. Generation and publishing run on separate schedules.
 
-**Pipeline order:** RADAR-01 (fetch) → RADAR-02 (dedupe) → RADAR-03 (classify → pending_drafts) → RADAR-04 (generate bodies for approved rows) → publish-drafts.yml cron (auto-publish on full lint pass) or `/admin/pending` (manual approve/reject for `failed_lint` rows).
+**Pipeline order:** RADAR-01 (fetch) → RADAR-02 (dedupe) → RADAR-03 (classify → pending_drafts) → RADAR-04/generate-drafts.yml (generate bodies for approved rows, auto-publish on full lint pass) or `/admin/pending` (manual approve/reject for `status='draft'` rows still awaiting operator review pre-generation).
 
-**Publishing policy (locked 2026-06-20, code-verified 2026-06-22):** Drafts that pass all 6 lint gates (word count, India Paragraph, verdict, hero image, factuality against master sets DB, source fidelity for low-confidence sources) auto-publish via the `publish-drafts.yml` cron 3×/day. Drafts that fail any gate move to `status='failed_lint'`, trigger an email alert, and surface in `/admin/pending` for manual review — operator either approves (publishes the row) or rejects (deletes it). There is no manual-approval gate on the happy path; the lint gates are the gate.
+**Publishing policy (superseded 2026-06-28, re-confirmed 2026-09-22 during a write-job audit — issue #170):** `generate-approved-drafts.ts` generates a draft's body and, on full pass of all lint/factuality/voice gates, auto-publishes it directly — no separate publish cron. A draft that fails any gate is **rejected**: since 4 Oct 2026 (#525, Abhinav's decision of 2 Oct) it is kept for 30 days as `status='rejected'` with its reason (`discard_reason` starting `rejected_by_gates:` or `both_providers_failed:`) and its generated text, then deleted by `scripts/retention-cleanup.mjs`. It is never republished from there. Rejected rows from before 4 Oct are not touched by that purge. Exception: a review or news draft whose only failing gate is Gate 14 is held for review (`status='draft'`, back in `/admin/pending`), never discarded. The older `publish-drafts.yml` cron + `status='failed_lint'` parking/manual-approve-then-republish model this section used to describe is retired (workflow deleted, `scripts/publish-drafts.mjs` kept only as a deprecated reference) — it queried a status value that stopped receiving real input the same day this policy took effect, and ran 3×/day reporting `success` while publishing nothing for roughly 3 months before being found. `/admin/pending`'s reject action sets `status='rejected'`, not a delete — nothing currently reads that status, so it's an inert dead end, not literal deletion.
 
 **RADAR-03 qualifying threshold:** score ≥ 4 (Tier 1=5pts, Tier 2=4pts, Tier 3=3pts; has body +2pts; freshness +2/+1pts). Tier 4/5 almost never qualify unless they have body content.
 

@@ -1,20 +1,23 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
 import Image from 'next/image';
 import { unstable_cache } from 'next/cache';
 import { createServerClient } from '@/lib/supabase';
+import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { SetCard } from '@/components/sets/SetCard';
 import { MASCOTS, THEMES } from '@/lib/brand'; // THEMES used as fallback only
 import { JsonLd } from '@/components/JsonLd';
 import { buildItemListSchema } from '@/lib/schemas';
+import { getPriceSummaries } from '@/lib/price-summary';
+import { SETS_PRICE_BANDS } from '@/lib/price-bands';
 
-export const metadata: Metadata = {
-  title: 'All LEGO Sets in India | Bricks of India',
-  description:
-    'Browse every LEGO set available in India. Filter by theme, price, and availability. ' +
-    'Compare prices across Toycra and MyBrickHouse. Updated every 6 hours.',
-  alternates: { canonical: 'https://bricksofindia.com/sets' },
-};
+export const metadata: Metadata = buildMetadata({
+  title: 'All LEGO Sets in India',
+  description: 'Browse every LEGO set available in India. Filter by theme, price, and availability. ' +
+    'Compare prices across Toycra and LEGO.in.',
+  path: '/sets',
+});
 
 const PAGE_SIZE = 48;
 
@@ -27,12 +30,7 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'pieces',     label: 'Most Pieces' },
 ];
 
-const PRICE_BANDS: Record<string, { min: number; max: number; label: string }> = {
-  under2k: { min: 0,     max: 1999,    label: 'Under ₹2,000' },
-  '2k5k':  { min: 2000,  max: 4999,    label: '₹2,000–5,000' },
-  '5k10k': { min: 5000,  max: 9999,    label: '₹5,000–10,000' },
-  '10k':   { min: 10000, max: 9_999_999, label: '₹10,000+' },
-};
+const PRICE_BANDS = SETS_PRICE_BANDS; // #381: defined in src/lib/price-bands.ts (label/bound test)
 
 type SearchParams = {
   page?:    string;
@@ -74,7 +72,7 @@ function buildUrl(
 // /lab/price-drops, not copied from /deals's unrelated 6h value.
 type PriceRow = {
   set_id: string; price_inr: number;
-  in_stock: boolean; store_id: string; product_url: string | null;
+  in_stock: boolean; store_id: string; product_url: string | null; scraped_at: string;
 };
 const getAllSetsStorePrices = unstable_cache(
   async (): Promise<PriceRow[]> => {
@@ -83,7 +81,7 @@ const getAllSetsStorePrices = unstable_cache(
     for (let offset = 0; ; offset += 1000) {
       const { data } = await supabase
         .from('store_prices')
-        .select('set_id, price_inr, in_stock, store_id, product_url')
+        .select('set_id, price_inr, in_stock, store_id, product_url, scraped_at')
         .range(offset, offset + 999);
       if (!data || data.length === 0) break;
       allPrices.push(...(data as PriceRow[]));
@@ -92,7 +90,7 @@ const getAllSetsStorePrices = unstable_cache(
     return allPrices;
   },
   ['sets-page-all-store-prices'],
-  { revalidate: 21600 }, // 6h — matches scrape-prices.yml
+  { revalidate: READ_REVALIDATE_SECONDS }, // PR-A: hourly, same clock as every other price read (was 6h, which stacked on the 6h scrape gap)
 );
 
 export default async function SetsPage(props: Props) {
@@ -122,20 +120,19 @@ export default async function SetsPage(props: Props) {
   // ── 1. All store_prices (filtering + card display) ────────────────────────
   const allPrices = await getAllSetsStorePrices();
 
-  // Best-price map: one row per set (in-stock preferred, then cheapest)
+  // Best-price map: one row per set, cheapest IN-STOCK row only (PR-A). A
+  // sold-out listing's price is not shown as the set's price; such sets
+  // fall back to the MRP line on the card.
   const priceMap: Record<string, {
-    price_inr: number; store_name: string; buy_url: string | null; in_stock: boolean;
+    price_inr: number; store_name: string; buy_url: string | null; in_stock: boolean; scraped_at: string;
   }> = {};
   for (const p of allPrices) {
+    if (!p.in_stock || p.price_inr == null) continue;
     const ex = priceMap[p.set_id];
-    const better =
-      !ex ||
-      (p.in_stock && !ex.in_stock) ||
-      (p.in_stock === ex.in_stock && p.price_inr < ex.price_inr);
-    if (better) {
+    if (!ex || p.price_inr < ex.price_inr) {
       priceMap[p.set_id] = {
         price_inr: p.price_inr, store_name: p.store_id,
-        buy_url: p.product_url ?? null, in_stock: p.in_stock,
+        buy_url: p.product_url ?? null, in_stock: p.in_stock, scraped_at: p.scraped_at,
       };
     }
   }
@@ -215,6 +212,8 @@ export default async function SetsPage(props: Props) {
     searchParams.price || '',
     sortKey !== 'newest' ? sortKey : '',
   ].filter(Boolean).length;
+
+  const summaries = await getPriceSummaries(supabase, sets.map((x: any) => x.set_number));
 
   return (
     <div className="bg-white min-h-screen">
@@ -348,6 +347,7 @@ export default async function SetsPage(props: Props) {
                 set={set}
                 bestPrice={priceMap[set.set_number] ?? null}
                 priceCount={priceMap[set.set_number] ? 1 : 0}
+                summary={summaries.get(set.set_number)}
               />
             ))}
           </div>
@@ -400,7 +400,7 @@ export default async function SetsPage(props: Props) {
 
       <div className="max-w-site mx-auto px-4 pb-8">
         <p className="text-xs text-gray-400 text-center border-t border-border pt-4">
-          Prices updated every 6 hours. Always verify the final price on the retailer&apos;s website
+          Always check the final price on the store&apos;s website before you buy.
           before purchase. LEGO® is a trademark of The LEGO Group which does not sponsor or
           endorse this site.
         </p>

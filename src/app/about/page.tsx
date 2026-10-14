@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import Image from 'next/image';
 import Link from 'next/link';
 import { JsonLd } from '@/components/JsonLd';
@@ -6,12 +7,11 @@ import { personSchema } from '@/lib/schemas';
 import { BRAND, MASCOTS } from '@/lib/brand';
 import { TaglineChip, TaglineWink } from '@/components/ui/Taglines';
 
-export const metadata: Metadata = {
-  title: 'About Abhinav Bhargav — Founder, Bricks of India',
-  description:
-    "Meet Abhinav Bhargav, founder of Bricks of India. 20+ years in enterprise sales, marketing, and account management. Cornell University. Building India's first LEGO price comparison site.",
-  alternates: { canonical: 'https://bricksofindia.com/about' },
-};
+export const metadata: Metadata = buildMetadata({
+  title: 'About Abhinav Bhargav — Founder',
+  description: "Meet Abhinav Bhargav, founder of Bricks of India. 20+ years in enterprise sales, marketing, and account management. Cornell University. Building India's first LEGO price comparison site.",
+  path: '/about',
+});
 
 
 function YouTubeIcon() {

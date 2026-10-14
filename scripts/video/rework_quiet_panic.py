@@ -11,7 +11,7 @@ reworked=true whether the rework succeeds or gets escalated.
 Escalation cap: if a set_number accumulates 2 rows that reach
 status='rejected' (the original + a reworked version that was ALSO
 rejected), automated rework stops for that set -- flagged to
-BOI_MASTER_TRACKER.md instead of a third automatic attempt.
+a GitHub issue instead of a third automatic attempt (C2: the tracker moved to boi-ops).
 
 Deliberately imports scripts/video/generate_quiet_panic_video.py's
 get_supabase()/process_candidate() rather than duplicating them -- operator
@@ -25,6 +25,7 @@ shared code path. Imports nothing from publish_quiet_panic.py or engine.py.
 """
 
 import argparse
+import os
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -32,8 +33,85 @@ from pathlib import Path
 import generate_quiet_panic_video as gqpv
 
 ESCALATION_THRESHOLD = 2  # 2 rejected rows for the same set_number -> stop automated rework
-TRACKER_PATH = Path(__file__).parent.parent.parent / 'BOI_MASTER_TRACKER.md'
-ESCALATION_SECTION_HEADER = '## VID-QP Rework — Escalated Sets (operator attention needed)'
+
+
+def send_review_email(result: dict, original: dict | None) -> bool:
+    """
+    Issue #179 (2026-09-24): the one-time "video ready for review" email for a
+    REWORKED row. Before this, only video-generate-quiet-panic.yml sent that
+    email (a workflow step reading $GITHUB_OUTPUT for its single candidate);
+    video-rework-poller-quiet-panic.yml had no notification step at all, so
+    reworked rows (QP #34/#35/#36, created 2026-09-22) reached
+    pending_approval silently and only surfaced in the daily digest.
+
+    Sends through the EXACT path the fresh-candidate email uses and that is
+    confirmed to reach Abhinav: scripts/workflow-failure-notify.mjs in
+    NOTIFY_TYPE=custom mode (from abhinav@bricksofindia.com, to the
+    BRIEF_EMAIL secret, plain text). The first version of this fix used
+    notifier._send (from notifications@, to the abhinav@bricksofindia.com
+    mailbox); Resend reported that send "delivered" (to the receiving mail
+    server) but it never reached Abhinav's inbox -- 2026-09-25 diagnosis.
+
+    Called from Python rather than as a workflow step because one rework
+    run can produce several rows -- a single-candidate $GITHUB_OUTPUT step
+    can't represent that. Returns False (never raises) if the send failed,
+    so the caller can fail the job visibly instead of silently.
+    """
+    import os
+    import subprocess
+
+    title = (result.get('set_title') or '').replace('\ufeff', '')
+    reason = ((original or {}).get('rejection_reason') or '').replace('\ufeff', '')
+    held = bool(result.get('held_for_review'))
+    if held:  # #365: coherence judge gave no verdict (fail-closed); row is publish_blocked
+        subject = f"Quiet Panic HELD for manual review (rework, coherence judge unavailable): {title} (#{result.get('set_number')})"
+        first = ('A reworked Quiet Panic video passed every gate it could be checked on, but the coherence '
+                 'judge gave no verdict, so it is HELD (status publish_blocked). Judge the script yourself; '
+                 'to publish, approve it with gate_override=true and a gate_override_reason.')
+    else:
+        subject = f"Quiet Panic video ready for review (rework): {title} (#{result.get('set_number')})"
+        first = 'A reworked Quiet Panic video passed all gates and is ready for your review.'
+    body = '\n'.join([
+        first,
+        '',
+        f"Set: {title} (#{result.get('set_number')})",
+        f"Price: Rs.{result.get('price_inr')}",
+        f"Row id: {result.get('post_id')}",
+        f"Reworked from: {result.get('reworked_from')}",
+        '',
+        'Rejection reason this rework addresses:',
+        reason or '(none recorded)',
+        '',
+        'Watch it here:',
+        result.get('storage_url') or '',
+        '',
+        'Watch this, then tell Claude "approved" or "rejected: <reason>" in chat.',
+    ])
+    notify_script = Path(__file__).parent.parent / 'workflow-failure-notify.mjs'
+    env = {**os.environ, 'NOTIFY_TYPE': 'custom', 'SUBJECT': subject, 'BODY': body}
+    try:
+        proc = subprocess.run(['node', str(notify_script)], env=env, capture_output=True, text=True, timeout=60)
+    except Exception as exc:  # noqa: BLE001 -- node missing, timeout, etc.
+        print(f'ERROR: ready-for-review email failed for {result.get("post_id")}: {exc}', file=sys.stderr)
+        return False
+    print(proc.stdout.strip())
+    if proc.returncode != 0:
+        print(f'ERROR: ready-for-review email failed for {result.get("post_id")}: {proc.stderr.strip()}', file=sys.stderr)
+        return False
+    return True
+
+
+def _notify_if_pending(result: dict, original: dict) -> bool:
+    """Email only for rows that actually entered pending_approval (a rework
+    that fails gates lands publish_blocked -- no review email, same rule as
+    the fresh-candidate path)."""
+    if result.get('status') != 'pending_approval' and not result.get('held_for_review'):
+        print(f"  No review email: new row status={result.get('status')} (only pending_approval or held-for-review is emailed).")
+        return True
+    ok = send_review_email(result, original)
+    if ok:
+        print(f"  Ready-for-review email sent for {result['post_id']}.")
+    return ok
 
 
 def fetch_rejected_queue(sb) -> list:
@@ -69,32 +147,27 @@ def count_rejected_for_set(sb, set_number: str) -> list:
 
 
 def append_tracker_escalation(set_number: str, set_title: str, rejected_ids: list) -> None:
-    if not TRACKER_PATH.exists():
-        raise FileNotFoundError(f'BOI_MASTER_TRACKER.md not found at {TRACKER_PATH}')
-    text = TRACKER_PATH.read_text(encoding='utf-8')
+    """C2 (P14 round 6): the tracker moved to the private boi-ops repo, and this job never
+    committed its tracker edit anyway (contents: read), so escalations were lost. It now
+    files a GitHub issue instead (issue-filing is binding, CLAUDE.md)."""
+    import json as _json
+    import urllib.request as _ur
+    token = (os.environ.get('GITHUB_TOKEN') or '').lstrip('﻿').strip()
+    repo = os.environ.get('GITHUB_REPOSITORY', 'bricksofindia007/bricks-of-india')
+    if not token:
+        raise RuntimeError('GITHUB_TOKEN not set; cannot file the escalation issue')
     date_str = datetime.now(timezone.utc).strftime('%Y-%m-%d')
     id_list = ', '.join(f'`{i}`' for i in rejected_ids)
-    entry = (
-        f'- **{date_str}** — set `{set_number}` ({set_title}): reached '
-        f'{len(rejected_ids)} rejected rows ({id_list}). Automated rework '
-        f'stopped after {ESCALATION_THRESHOLD} rejections per '
-        f'rework_quiet_panic.py\'s escalation cap -- needs operator\'s '
-        f'direct attention (manual rework, or abandon this set). Not '
-        f'auto-retried further.\n'
-    )
-
-    if ESCALATION_SECTION_HEADER in text:
-        idx = text.index(ESCALATION_SECTION_HEADER)
-        insert_at = text.index('\n', idx) + 1
-        new_text = text[:insert_at] + entry + text[insert_at:]
-    else:
-        marker = '\n---\n'
-        first_sep = text.index(marker)
-        insert_at = first_sep + len(marker)
-        section = f'\n{ESCALATION_SECTION_HEADER}\n\n{entry}\n---\n'
-        new_text = text[:insert_at] + section + text[insert_at:]
-
-    TRACKER_PATH.write_text(new_text, encoding='utf-8')
+    body = (f'{date_str}: set `{set_number}` ({set_title}) reached {len(rejected_ids)} rejected rows '
+            f'({id_list}). Automated rework stopped after {ESCALATION_THRESHOLD} rejections '
+            f"(rework_quiet_panic.py escalation cap). Needs operator's direct attention "
+            f'(manual rework, or abandon this set). Not auto-retried further.')
+    req = _ur.Request(f'https://api.github.com/repos/{repo}/issues', method='POST',
+                      data=_json.dumps({'title': f'VID-QP rework escalated: set {set_number}', 'body': body}).encode(),
+                      headers={'Authorization': f'Bearer {token}', 'Accept': 'application/vnd.github+json'})
+    with _ur.urlopen(req, timeout=20) as r:
+        if r.status >= 300:
+            raise RuntimeError(f'issue create HTTP {r.status}')
 
 
 def rework_one(sb, row: dict) -> dict:
@@ -142,11 +215,11 @@ def poll_and_rework() -> int:
         rejected_ids = count_rejected_for_set(sb, set_number)
         if len(rejected_ids) >= ESCALATION_THRESHOLD:
             print(f'ESCALATION: set {set_number} has {len(rejected_ids)} rejected row(s) '
-                  f'(>= {ESCALATION_THRESHOLD}) -- stopping automated rework, flagging to tracker.')
+                  f'(>= {ESCALATION_THRESHOLD}) -- stopping automated rework, filing an issue.')
             try:
                 append_tracker_escalation(set_number, row['set_title'], rejected_ids)
             except Exception as e:
-                print(f'WARN: failed to write tracker escalation note: {e}', file=sys.stderr)
+                print(f'WARN: failed to file the escalation issue: {e}', file=sys.stderr)
                 exit_code = 1
             sb.table('quiet_panic_posts').update({'reworked': True}).eq('id', rid).execute()
             continue
@@ -160,6 +233,8 @@ def poll_and_rework() -> int:
             continue
 
         sb.table('quiet_panic_posts').update({'reworked': True}).eq('id', rid).execute()
+        if not _notify_if_pending(result, row):
+            exit_code = 1
 
     return exit_code
 
@@ -207,15 +282,40 @@ def rework_one_by_id(sb, row_id: str) -> int:
         return 1
 
     sb.table('quiet_panic_posts').update({'reworked': True}).eq('id', row_id).execute()
-    return 0
+    return 0 if _notify_if_pending(result, row) else 1
+
+
+def send_review_email_for_existing(sb, row_id: str) -> int:
+    """--send-review-email: (re)send the rework ready-for-review email for an
+    EXISTING reworked row, from its stored data. Used to verify #179's email
+    path against a real rework row without generating a new video, and to
+    backfill a missed email if one ever fails."""
+    res = sb.table('quiet_panic_posts').select('*').eq('id', row_id).limit(1).execute()
+    if not res.data:
+        print(f'ERROR: no quiet_panic_posts row with id {row_id}', file=sys.stderr)
+        return 1
+    row = res.data[0]
+    if not row.get('reworked_from'):
+        print(f'ERROR: row {row_id} is not a rework (reworked_from is null).', file=sys.stderr)
+        return 1
+    orig = sb.table('quiet_panic_posts').select('rejection_reason').eq('id', row['reworked_from']).limit(1).execute().data
+    result = {
+        'post_id': row['id'], 'set_title': row['set_title'], 'set_number': row['set_number'],
+        'price_inr': row['price_inr'], 'storage_url': row.get('storage_url'),
+        'reworked_from': row['reworked_from'], 'status': 'pending_approval',
+    }
+    return 0 if send_review_email(result, orig[0] if orig else None) else 1
 
 
 def main():
     parser = argparse.ArgumentParser(description='Quiet Panic rejection-rework poller.')
     parser.add_argument('--poll-and-rework', action='store_true', help='Poll quiet_panic_posts for rejected rows with a reason and rework them.')
+    parser.add_argument('--send-review-email', default=None, metavar='ROW_ID', help='(Re)send the rework ready-for-review email for an existing reworked row (issue #179 verification/backfill). Generates nothing.')
     parser.add_argument('--row-id', default=None, help='Targeted rework for one specific quiet_panic_posts row id, bypassing the escalation-gated queue fetch. Manual use only -- not called by the scheduled poller.')
     args = parser.parse_args()
 
+    if args.send_review_email:
+        sys.exit(send_review_email_for_existing(gqpv.get_supabase(), args.send_review_email))
     if args.row_id:
         sb = gqpv.get_supabase()
         sys.exit(rework_one_by_id(sb, args.row_id))

@@ -10,7 +10,7 @@ export default function DataDeletionPage() {
     <div className="bg-white min-h-screen">
       <div className="max-w-3xl mx-auto px-4 py-12">
         <h1 className="font-heading text-dark text-5xl mb-2">DATA DELETION INSTRUCTIONS</h1>
-        <p className="text-gray-400 text-sm mb-8">Last updated: September 2026</p>
+        <p className="text-gray-400 text-sm mb-8">Last updated: October 2026</p>
         <div className="font-body space-y-6 text-gray-600 leading-relaxed">
           <section>
             <h2 className="font-heading text-dark text-2xl mb-3">NEWSLETTER SUBSCRIBERS</h2>
@@ -18,7 +18,7 @@ export default function DataDeletionPage() {
           </section>
           <section>
             <h2 className="font-heading text-dark text-2xl mb-3">INSTAGRAM / FACEBOOK DATA</h2>
-            <p>Bricks of India&apos;s Instagram account (@bricksofindia) is managed by our own app, which uses the Meta Graph API solely to publish content (photos, videos, and captions) that we ourselves create to our own Instagram Business Account. We do not collect, store, or process personal data belonging to Instagram or Facebook users through this integration &mdash; no follower data, comments, messages, or third-party profile information is accessed, retained, or shared.</p>
+            <p>Bricks of India&apos;s Instagram account (@bricksofindia) posts only content that we create ourselves, to our own account. We do not collect, store, or process personal data belonging to Instagram or Facebook users through this account &mdash; no follower data, comments, messages, or third-party profile information is accessed, retained, or shared.</p>
             <p>If you believe any data associated with your Instagram or Facebook account has been collected by Bricks of India in error, contact us via the <a href="/contact" className="text-accent-blue hover:underline">contact form</a> and we will investigate and delete any such data within 7 days.</p>
           </section>
           <section>

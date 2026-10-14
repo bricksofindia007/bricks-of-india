@@ -1,9 +1,13 @@
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import Link from 'next/link';
+import { rebrickableResized } from '@/lib/set-image';
+import { AFFILIATE_NOTE } from '@/lib/affiliate-disclosure';
 import type { Metadata } from 'next';
+import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
-import ReactMarkdown from 'react-markdown';
+import { supabaseRead as supabase } from '@/lib/supabase';
+import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
+import { ArticleMarkdown } from '@/components/content/ArticleMarkdown';
 import { formatDate, readingTime, whatsappShareUrl, twitterShareUrl, socialCardImage } from '@/lib/utils';
 import { Badge } from '@/components/ui/Badge';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
@@ -14,11 +18,10 @@ import { buildArticleSchema, buildFAQSchema } from '@/lib/schemas';
 // Durable-cache guard (2026-07-02): Netlify's Next runtime persists rendered
 // pages ACROSS deploys when no revalidate is set — d25c73b deployed green but
 // served stale for hours. Hourly ISR caps staleness at 60 min, permanently.
-export const revalidate = 3600;
-// Next 15: fetch() is uncached by default, independent of revalidate above --
-// without this, the Supabase reads below become per-request and the route
-// drops from ISR to full SSR. Scoped per-route, not the root layout.
-export const fetchCache = 'default-cache';
+export const revalidate = 86400;
+// Supabase reads here expire hourly via per-read `next.revalidate`
+// (supabaseRead / createServerClient({ revalidate }) -- src/lib/supabase.ts),
+// NOT fetchCache='default-cache', which cached them until the next deploy.
 
 
 interface Props { params: Promise<{ slug: string }> }
@@ -27,18 +30,15 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   const params = await props.params;
   const { data: post } = await supabase.from('blog_posts').select('*').eq('slug', params.slug).neq('category', 'Opinion').single();
   if (!post) return { title: 'Post Not Found' };
-  return {
-    title: post.seo_title || `${post.title} | Bricks of India`,
+  return buildMetadata({
+    title: post.seo_title || post.title,
     description: post.seo_description || post.excerpt,
-    alternates: { canonical: `https://bricksofindia.com/blog/${params.slug}` },
-    openGraph: { title: post.title, description: post.excerpt, images: socialCardImage(post.hero_image) ? [{ url: socialCardImage(post.hero_image)! }] : [] },
-    twitter: {
-      card: post.hero_image ? 'summary_large_image' : 'summary',
-      title: post.title,
-      description: post.seo_description || post.excerpt,
-      images: socialCardImage(post.hero_image) ? [socialCardImage(post.hero_image)!] : undefined,
-    },
-  };
+    path: `/blog/${params.slug}`,
+    image: socialCardImage(post.hero_image),
+    ogTitle: post.title,
+    ogDescription: post.excerpt,
+    ogType: 'article',
+  });
 }
 
 export default async function BlogPostPage(props: Props) {
@@ -53,7 +53,7 @@ export default async function BlogPostPage(props: Props) {
   const { data: related } = await supabase.from('blog_posts').select('*').eq('category', post.category).neq('slug', params.slug).limit(3);
 
   const shareUrl = `https://bricksofindia.com/blog/${params.slug}`;
-  const waText = `${post.title} — via Bricks of India. Use code ABHINAV12 for 12% off at Toycra!`;
+  const waText = `${post.title} — via Bricks of India. Use code ABHINAV12 for 12% off full-price sets at Toycra!`;
 
   return (
     <div className="bg-white min-h-screen">
@@ -65,14 +65,17 @@ export default async function BlogPostPage(props: Props) {
           <span>/</span>
           <Link href="/blog" className="hover:text-accent-blue">Blog</Link>
           <span>/</span>
-          <span className="text-dark font-bold truncate">{post.title}</span>
+          <span className="text-dark font-bold truncate min-w-0 flex-1">{post.title}</span>
         </nav>
       </div>
 
       <div className="max-w-3xl mx-auto px-4 pb-12">
         <div className="relative h-64 md:h-96 rounded-2xl overflow-hidden mb-6">
           <ImageWithFallback
-            srcs={[post.hero_image, '/fallback-hero.png'].filter(Boolean) as string[]}
+            // LCP (round 2, 2 Oct): Rebrickable's 1000x800 resize first (the Brick Rush hero original is 3.8 MB,
+            // 24 s LCP on mobile); the original, then the local fallback, if the resize 404s. Eager + high priority.
+            srcs={[post.hero_image && rebrickableResized(post.hero_image, '1000x800'), post.hero_image, '/fallback-hero.png'].filter(Boolean) as string[]}
+            priority
             alt={post.title}
             fill
             className="object-cover"
@@ -90,7 +93,7 @@ export default async function BlogPostPage(props: Props) {
         <h1 className="font-heading text-dark text-5xl md:text-6xl mb-3">{post.title}</h1>
         <Byline publishedAt={post.published_at} updatedAt={post.updated_at} />
         <div className="prose prose-gray max-w-none font-body leading-relaxed text-gray-700 mb-8 prose-p:mb-5 prose-p:leading-relaxed prose-headings:mt-8 prose-headings:mb-3 prose-h2:text-2xl prose-h3:text-xl">
-          <ReactMarkdown>{cleanContent}</ReactMarkdown>
+          <ArticleMarkdown>{cleanContent}</ArticleMarkdown>
         </div>
 
         {/* Share */}
@@ -108,11 +111,11 @@ export default async function BlogPostPage(props: Props) {
           <h2 className="font-heading text-dark text-3xl mb-4">FREQUENTLY ASKED QUESTIONS</h2>
           <div className="space-y-3">
             {(() => { const faqs = [
-              { q: 'Where is the cheapest place to buy LEGO in India?', a: 'Toycra consistently offers competitive prices. Use exclusive code ABHINAV12 for an extra 12% off (min. ₹500). Also check MyBrickHouse, Amazon India, and Flipkart.' },
+              { q: 'Where is the cheapest place to buy LEGO in India?', a: `It depends on the set — each set page compares prices at Toycra and LEGO.in (we check prices daily). ${AFFILIATE_NOTE} Amazon India and Flipkart also sell LEGO.` },
               { q: 'Are LEGO sets worth buying in India in 2026?', a: 'Absolutely — if you buy from the right stores at the right price. Use our price comparison tool to ensure you\'re not overpaying. The sets are genuine and the builds are genuinely enjoyable.' },
-              { q: 'Is there a LEGO discount code for India?', a: 'Yes! Use code ABHINAV12 at Toycra for 12% off any LEGO set. Minimum purchase ₹500. No usage limits. This is an exclusive Bricks of India deal.' },
-              { q: 'Can I trust the prices on Bricks of India?', a: 'Our prices are scraped every 6 hours from actual retailer websites. We always recommend verifying on the store website before purchase, as prices can change. We\'re accurate, not psychic.' },
-              { q: 'How do I know if a LEGO set is genuine in India?', a: 'Buy from authorised retailers: Toycra, MyBrickHouse, Amazon India, and Flipkart. If a price looks too good to be true, it probably is.' },
+              { q: 'Is there a LEGO discount code for India?', a: `Yes. ${AFFILIATE_NOTE} This is an exclusive Bricks of India deal.` },
+              { q: 'Can I trust the prices on Bricks of India?', a: 'Prices shown are what each store lists. We always recommend verifying on the store website before purchase, as prices can change. We\'re accurate, not psychic.' },
+              { q: 'How do I know if a LEGO set is genuine in India?', a: 'Buy from authorised retailers: Toycra, LEGO.in, Amazon India, and Flipkart. If a price looks too good to be true, it probably is.' },
             ]; return (<><JsonLd data={buildFAQSchema(faqs)} />{faqs.map((faq, i) => (
               <details key={i} className="border-2 border-border rounded-xl overflow-hidden">
                 <summary className="px-4 py-3 font-bold text-dark cursor-pointer hover:bg-light-grey transition-colors">{faq.q}</summary>

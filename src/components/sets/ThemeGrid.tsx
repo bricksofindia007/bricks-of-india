@@ -105,7 +105,7 @@ export function ThemeGrid({ sets }: ThemeGridProps) {
       {/* Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-10">
         {paginated.map(({ set, bestPrice, priceCount }) => (
-          <SetCard key={set.id} set={set} bestPrice={bestPrice} priceCount={priceCount} />
+          <SetCard key={set.id} set={set} bestPrice={bestPrice} priceCount={priceCount} summary={set.summary ?? null} />
         ))}
       </div>
 

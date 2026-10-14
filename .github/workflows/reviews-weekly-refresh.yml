@@ -28,20 +28,36 @@ on:
         type: boolean
 
 jobs:
+  # FP6.4 quota gate (P4 Step 2): non-essential workflow -- pauses when a
+  # Free-plan guard is closed (storage >= 800 MB / DB >= 400 MB / egress
+  # projected >= 4.0 GB) or usage is unreadable. See quota-gate.yml.
+  quota-gate:
+    uses: ./.github/workflows/quota-gate.yml
+    permissions:
+      contents: read
+      actions: write
+    with:
+      job: reviews-weekly-refresh
+      needs: 'read,write'
+    secrets: inherit
+
   refresh:
+    needs: [quota-gate]
+    if: needs.quota-gate.outputs.proceed == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
+      G19_TERMS: ${{ secrets.G19_TERMS }}  # G19 term list (never in the repo); gates fail closed without it
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
       NEXT_PUBLIC_SUPABASE_URL:  ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
           cache: 'npm'

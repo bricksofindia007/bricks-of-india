@@ -93,7 +93,7 @@ function hashTitle(title) {
 }
 
 function buildSignal({ sourceName, sourceTier, sourceType, externalId,
-                        url, title, body, publishedAt, rawPayload }) {
+                        url, title, body, publishedAt }) {
   return {
     source_name    : sourceName,
     source_tier    : sourceTier,
@@ -105,7 +105,14 @@ function buildSignal({ sourceName, sourceTier, sourceType, externalId,
     title_hash     : hashTitle(title),
     body           : body || null,
     published_at   : publishedAt ? new Date(publishedAt).toISOString() : null,
-    raw_payload    : rawPayload,
+    // Not stored (DB-size issue, 2026-09-25): nothing reads raw_payload --
+    // grepped every reader in this repo and boi-growth-engine -- yet it was
+    // ~2.3 KB per row (22 KB for BrickNerd's full-article feed), re-written
+    // on every fetch of every item still in a feed, and the bulk of
+    // raw_signals' TOAST growth. Column kept (no schema change); callers
+    // still pass rawPayload, so re-enabling is a one-line change if a real
+    // reader ever needs it.
+    raw_payload    : null,
     dedup_status   : 'pending',
     dedup_group_id : null,
   };

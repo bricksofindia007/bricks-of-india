@@ -1,14 +1,3 @@
-# Bricks of India — robots.txt
-# Policy: allow all respectful crawlers; block sensitive paths; Crawl-delay: 2 (advisory)
-# Note: Crawl-delay above is advisory only (standard robots.txt semantics) —
-# checked directly in the Cloudflare dashboard (Security > Security rules)
-# and confirmed no rate-limiting rule enforces it at the edge. The zone's
-# one Rate limiting rule is Cloudflare's own "Leaked credential check"
-# (blocks login requests with a known-leaked password), unrelated to
-# crawler pacing.
-# Last reviewed: 2026-08-29
-
-# Default: allow all, block sensitive paths
 User-agent: *
 Allow: /
 Disallow: /admin/
@@ -17,9 +6,6 @@ Disallow: /_next/
 Disallow: /pending/
 Disallow: /*?*draft=
 Crawl-delay: 2
-
-# Per-agent blocks — explicit Allow + Disallows override any conflicting * rule
-# All 22 agents get same treatment: allow public content, block sensitive paths
 
 User-agent: GPTBot
 Allow: /

@@ -1331,20 +1331,16 @@ try {
   else log('DataPipeline', `guides: ${count} rows with content ✓`);
 } catch (e) { alertFail('DataPipeline', `guides check error: ${e.message.slice(0, 80)}`); }
 
-// 13f: blog_posts — at least 1 with non-null content AND hero_image
-try {
-  const { count } = await sb.from('blog_posts').select('*', { count: 'exact', head: true })
-    .not('content', 'is', null).not('hero_image', 'is', null);
-  if (!count || count === 0) alertFail('DataPipeline', 'blog_posts: no rows with both content and hero_image — blog cards will show no images');
-  else log('DataPipeline', `blog_posts: ${count} rows with content + hero_image ✓`);
-} catch (e) { alertFail('DataPipeline', `blog_posts check error: ${e.message.slice(0, 80)}`); }
+// 13f: blog_posts is dormant and permanently empty since 2026-09-21 (its 25
+// rows were confirmed duplicated into guides/news_articles and deleted —
+// see docs/archive/blog_posts_dormant_backup_2026-09-21.json). /blog and
+// /opinion 308-redirect before any page ever queries this table, so "0
+// rows" is the expected steady state, not a pipeline failure — skip.
+log('DataPipeline', 'blog_posts: dormant, permanently empty by design — check skipped');
 
-// 13g: legacy prices table — flag existence as cleanup reminder
-try {
-  const { error } = await sb.from('prices').select('id').limit(1);
-  if (!error) log('DataPipeline', 'prices (legacy): table still exists — ADMIN-CLEANUP-01 pending. Safe to drop once confirmed unused.');
-  // No alert — informational only
-} catch (e) { /* table may not exist — fine */ }
+// 13g (retired 2026-09-27): the legacy `prices` table was backed up and dropped by
+// FP5.1 part 1 (migration 20260927152208; backup boi-db-backups6-09-27-fp5.1\).
+// ADMIN-CLEANUP-01 is done, so there's nothing left to remind about.
 
 // ── Check 14: Content integrity ────────────────────────────────────────────────
 
@@ -1699,7 +1695,7 @@ try {
 // longer counted as a failure here -- it's surfaced separately, at info
 // level, so the split stays visible rather than silently dropped.
 try {
-  const { data: allReviewedSets } = await sb.from('reviews').select('set_id, title');
+  const { data: allReviewedSets } = await sb.from('reviews').select('set_id, title, slug');
   // Exclude reviews with no matched catalog set (added 2026-08-03 -- a
   // review with set_id=null, e.g. the price-uncertain Ninjago Destiny's
   // Bounty board game review, has no set to check store_prices for. Worse,
@@ -1719,16 +1715,33 @@ try {
     .select('set_id')
     .in('set_id', setNumbers);
   const pricedSetNumbers = new Set(priceRows.map(p => p.set_id));
+  // 2026-09-21: reviews already labeled ineligible (content-freshness
+  // mechanism build -- broken set_id link, or genuinely never scraped by
+  // either tracked store) are known, accepted, permanent gaps, same
+  // class as the GWP exclusion above -- not a new problem to alert on
+  // every week. See content_quality_issues check_name='price_refresh_
+  // ineligible_*', and issues #165/#166 for the underlying, separately-
+  // tracked gaps this doesn't fix.
+  const { data: labeledIneligible } = await sb.from('content_quality_issues')
+    .select('article_slug')
+    .in('check_name', ['price_refresh_ineligible_untracked', 'price_refresh_ineligible_broken_link'])
+    .eq('resolved', false);
+  const ineligibleSlugs = new Set((labeledIneligible ?? []).map(r => r.article_slug));
+
   const unpriced = reviewedSets.filter(r => !pricedSetNumbers.has(setMap[r.set_id]?.set_number));
-  const missing = unpriced.filter(r => !setMap[r.set_id]?.is_gwp);
+  const expectedIneligible = unpriced.filter(r => !setMap[r.set_id]?.is_gwp && ineligibleSlugs.has(r.slug));
+  const missing = unpriced.filter(r => !setMap[r.set_id]?.is_gwp && !ineligibleSlugs.has(r.slug));
   const expectedGwp = unpriced.filter(r => setMap[r.set_id]?.is_gwp);
   if (missing.length > 0) {
     alertFail('ReviewedSetPrices', `${missing.length} reviewed set(s) have no store_prices: ${missing.map(r => r.title).join(', ')}`);
   } else {
-    log('ReviewedSetPrices', `all ${reviewedSets.length - expectedGwp.length} non-GWP reviewed sets have store_prices ✓`);
+    log('ReviewedSetPrices', `all ${reviewedSets.length - expectedGwp.length - expectedIneligible.length} non-GWP, non-labeled-ineligible reviewed sets have store_prices ✓`);
   }
   if (expectedGwp.length > 0) {
     log('ReviewedSetPrices', `${expectedGwp.length} confirmed-GWP reviewed set(s) correctly excluded (no independent price expected): ${expectedGwp.map(r => r.title).join(', ')}`);
+  }
+  if (expectedIneligible.length > 0) {
+    log('ReviewedSetPrices', `${expectedIneligible.length} reviewed set(s) correctly excluded (already labeled price_refresh_ineligible_* -- see issues #165/#166): ${expectedIneligible.map(r => r.title).join(', ')}`);
   }
 } catch (e) { alertFail('ReviewedSetPrices', `check failed: ${e.message.slice(0, 80)}`); }
 

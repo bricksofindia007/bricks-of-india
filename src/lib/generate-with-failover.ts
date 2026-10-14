@@ -1,3 +1,4 @@
+import { unverifiedSetCitations, citationFeedback } from './set-identity';
 import { buildSystemPrompt, buildUserPrompt, parseDraftResponse } from './prompts/draft-prompt';
 import { GeminiProvider, GroqProvider, CerebrasProvider } from './providers';
 import type { Provider } from './providers';
@@ -7,6 +8,10 @@ import { runHardRules, type HardRuleResult, type DraftFormat } from './hard-rule
 import { FEATURE_FLAGS } from './feature-flags';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
+import { OPENER_FEEDBACK } from './opener-pattern';
+import { AFFILIATE_FEEDBACK } from './affiliate-disclosure';
+import { gate14Check, blocking, type Gate14Facts, type Gate14Finding } from './gate14';
+import { gate14Feedback } from './gate14-facts';
 export type DraftGenerationInput = {
   format: string;
   sourceTitle: string | null;
@@ -18,6 +23,10 @@ export type DraftGenerationInput = {
   indiaPriceContext: string;
   // Opinion fortnightly cadence fallback path — see draft-prompt.ts.
   forceOpinionTake?: boolean;
+  // Gate 14 (#398 1b): catalogue facts for a review draft. enforce=false is
+  // shadow mode (findings computed and returned, nothing else changes);
+  // enforce=true joins the Gates 11-13 regeneration and fails the lint.
+  gate14?: { facts: Gate14Facts; enforce: boolean };
 };
 
 export type GenerationOutcome = {
@@ -33,6 +42,7 @@ export type GenerationOutcome = {
   lintResult: LintResult | null;
   hardRules: HardRuleResult[];
   hardFail: boolean;
+  gate14?: { findings: Gate14Finding[]; enforce: boolean };
 };
 
 // Added 2026-06-28 (Abhinav, this session): "what fails through Gemini and
@@ -64,12 +74,13 @@ export class BothProvidersFailedError extends Error {
 }
 
 // Determines whether a Gemini error should trigger Cerebras failover.
-// Only 429 and 5xx are retryable — parse errors and bad requests are not.
+// Only 402 (payment required / out of credit), 429 and 5xx are retryable — parse errors and bad requests are not.
+// 402 added 10 Oct 2026 (approved bundle): a Gemini credit wall now routes to Groq like a rate limit does.
 // SMOKE_TEST=1 widens to include 400 so a bad API key can simulate failover.
 function isRetryableGeminiError(err: unknown): boolean {
   const msg = (err instanceof Error ? err.message : String(err));
   if (process.env.SMOKE_TEST === '1') return /\[4\d\d/.test(msg) || /\[5\d\d/.test(msg);
-  return /\[429/.test(msg) || /\[5\d\d/.test(msg);
+  return /\[402/.test(msg) || /\[429/.test(msg) || /\[5\d\d/.test(msg);
 }
 
 const vlog = (...args: unknown[]) => {
@@ -102,11 +113,12 @@ export async function generateWithFailover(
   const systemPrompt = buildSystemPrompt();
   const userPrompt   = buildUserPrompt(input);
 
-  async function runLint(body: string, verdict: string | null, wordCount: number): Promise<LintResult> {
+  async function runLint(body: string, verdict: string | null, wordCount: number, title?: string): Promise<LintResult> {
     return lintDraft(
       {
         format: input.format,
         body,
+        title,
         word_count: wordCount,
         verdict,
         source: {
@@ -119,6 +131,65 @@ export async function generateWithFailover(
     );
   }
 
+  // Gate 11 retry (2026-09-26): a draft whose set citations don't match the
+  // article (Donkey Kong "(2000)"/10332 class) gets ONE regeneration from the
+  // same provider with explicit feedback; the second draft is linted again and
+  // stands or falls on its own -- no further retries (same pattern as #194).
+  // One regeneration with explicit feedback for the gates that can be fixed by
+  // telling the model what went wrong -- Gate 11 (citation identity) and
+  // Gate 12 (banned opener, #194) -- then the second draft stands or falls on
+  // its own. Both failing produce one combined REVISION REQUIRED, not two calls.
+  async function lintWithFeedbackRetry(
+    call: (userPromptOverride: string) => Promise<string>,
+    first: ReturnType<typeof parseDraftResponse>,
+  ): Promise<{ parsed: ReturnType<typeof parseDraftResponse>; lint: LintResult | null; retried: boolean; gate14: Gate14Finding[] }> {
+    const lint = await runLint(first.body, first.verdict, first.wordCount, first.title).catch(() => null);
+    const citationFailed = !!lint?.gates.citationIdentity && !lint.gates.citationIdentity.pass;
+    const openerFailed = !!lint?.gates.openerPattern && !lint.gates.openerPattern.pass;
+    const affiliateFailed = !!lint?.gates.affiliateDisclosure && !lint.gates.affiliateDisclosure.pass;
+    const g14First = gate14For(first);
+    const gate14Failed = !!input.gate14?.enforce && blocking(g14First).length > 0;
+    if (!citationFailed && !openerFailed && !affiliateFailed && !gate14Failed) return { parsed: first, lint: withGate14(lint, g14First), retried: false, gate14: g14First };
+    const feedback: string[] = [];
+    if (citationFailed) feedback.push(citationFeedback(await unverifiedSetCitations(sb, `${first.title}
+${first.body}`)));
+    if (openerFailed) feedback.push(OPENER_FEEDBACK);
+    if (affiliateFailed) feedback.push(AFFILIATE_FEEDBACK);
+    if (gate14Failed) feedback.push(gate14Feedback(blocking(g14First)));
+    vlog(`Feedback gates failed (${[citationFailed && 'Gate 11', openerFailed && 'Gate 12', affiliateFailed && 'Gate 13', gate14Failed && 'Gate 14'].filter(Boolean).join(', ')}) -- regenerating once with feedback`);
+    try {
+      const text = await call(`${userPrompt}
+
+REVISION REQUIRED: ${feedback.join(' ')}`);
+      const second = parseDraftResponse(text, input.format);
+      const lint2 = await runLint(second.body, second.verdict, second.wordCount, second.title).catch(() => null);
+      vlog(`After regeneration: Gate 11 ${lint2?.gates.citationIdentity?.pass === false ? 'FAIL' : 'ok'}, Gate 12 ${lint2?.gates.openerPattern?.pass === false ? 'FAIL' : 'ok'}`);
+      const g14Second = gate14For(second);
+      return { parsed: second, lint: withGate14(lint2, g14Second), retried: true, gate14: g14Second };
+    } catch (err) {
+      vlog(`Regeneration call failed: ${err instanceof Error ? err.message.slice(0, 120) : String(err)} -- keeping the failing first draft`);
+      return { parsed: first, lint: withGate14(lint, g14First), retried: true, gate14: g14First };
+    }
+  }
+
+  // Gate 14 (#398 1b): reviews, and news since round 11 (4 Oct 2026); the draft's own
+  // verdict is the one a review body must carry exactly once.
+  function gate14For(p: ReturnType<typeof parseDraftResponse>): Gate14Finding[] {
+    if (!input.gate14 || (input.format !== 'review' && input.format !== 'news')) return [];
+    return gate14Check(p.body, { ...input.gate14.facts, verdict: p.verdict });
+  }
+  // Enforced findings fail the lint by name, so the existing reject path
+  // reports "gate14: ..." like any other failing gate. Shadow mode: untouched.
+  function withGate14(lint: LintResult | null, findings: Gate14Finding[]): LintResult | null {
+    findings = blocking(findings);
+    if (!lint || !input.gate14?.enforce || findings.length === 0) return lint;
+    return {
+      ...lint,
+      overallPass: false,
+      gates: { ...lint.gates, gate14: { pass: false, severity: 'fail', reason: findings.slice(0, 5).map((x) => `[${x.rule}] ${x.detail}`).join('; ') } },
+    };
+  }
+
   // ── Gemini first ─────────────────────────────────────────────────────────────
   const gemini = new GeminiProvider(geminiKey);
   let geminiErr: unknown = null;
@@ -127,8 +198,10 @@ export async function generateWithFailover(
   try {
     const { text } = await gemini.call({ systemPrompt, userPrompt });
     vlog('Gemini succeeded — running lint + Gate 7');
-    const parsed    = parseDraftResponse(text, input.format);
-    const lint      = await runLint(parsed.body, parsed.verdict, parsed.wordCount).catch(() => null);
+    const { parsed, lint, gate14 } = await lintWithFeedbackRetry(
+      async (up) => (await gemini.call({ systemPrompt, userPrompt: up })).text,
+      parseDraftResponse(text, input.format),
+    );
     const hardRules = runHardRules(parsed.body, input.format as DraftFormat, input.sourceUrl);
     const hardFail  = hardRules.some(r => !r.pass);
     lintSummary(lint);
@@ -147,6 +220,7 @@ export async function generateWithFailover(
       lintResult: lint,
       hardRules,
       hardFail,
+      ...(input.gate14 ? { gate14: { findings: gate14, enforce: input.gate14.enforce } } : {}),
     };
   } catch (err) {
     geminiErr = err;
@@ -228,7 +302,13 @@ export async function generateWithFailover(
   }
   vlog(`Parsed: title="${parsed.title.slice(0, 60)}" wordCount=${parsed.wordCount} verdict=${parsed.verdict}`);
 
-  const lint      = await runLint(parsed.body, parsed.verdict, parsed.wordCount).catch(() => null);
+  const usedCall = candidates.find((c) => c.name === usedProvider)!.provider;
+  const retried = await lintWithFeedbackRetry(
+    async (up) => (await usedCall.call({ systemPrompt, userPrompt: up })).text,
+    parsed,
+  );
+  parsed = retried.parsed;
+  const lint      = retried.lint;
   const hardRules = runHardRules(parsed.body, input.format as DraftFormat, input.sourceUrl);
   const hardFail  = hardRules.some(r => !r.pass);
   lintSummary(lint);
@@ -248,5 +328,6 @@ export async function generateWithFailover(
     lintResult: lint,
     hardRules,
     hardFail,
+    ...(input.gate14 ? { gate14: { findings: retried.gate14, enforce: input.gate14.enforce } } : {}),
   };
 }

@@ -1055,6 +1055,12 @@ Every piece uses one of these or invents a new one in the same register. The des
 
 What the auto-drafter must NEVER produce. These break voice or break trust.
 
+### G19 — Never reveal how Bricks of India works (non-negotiable, 1 Oct 2026)
+
+No article, review, news item, guide, caption, video description, email or page may mention: scraping or scrapers, bots and what they do, feeds, APIs, Shopify or products.json, how often prices update ("every 6 hours", "daily", "hourly"), automation, cron, AI or LLM writing, model or provider names, pipelines, gates or quality checks, pricing formulas or MRP anchor rules, which store sets the MRP, rate limits or infrastructure, internal paths or tool names.
+
+Say what the reader gets, never how we get it. "Toycra has it at ₹X" — yes. "Our scraper found it at ₹X" — never. A price's age may be shown only as "Updated X ago", with no claim about how often it updates.
+
 ### Banned Openers
 
 “LEGO has announced…” — corporate PR voice

@@ -14,16 +14,27 @@ on:
   workflow_dispatch:  # manual trigger for testing
 
 jobs:
+  # P12 (29 Sep 2026): ESSENTIAL -- publishing approved content is never
+  # paused by the FP6.4 quota gate (it was misclassified non-essential in
+  # #395). The only guard left on this path is the in-code storage guard,
+  # and only on an actual Storage upload (publish.py / publish_quiet_panic.py).
+
   poll:
     runs-on: ubuntu-latest
+    # Issue #178 (b): one concurrency group per pipeline, shared with the
+    # missing-platform retry job (video-retry-missing-platform.yml), so two
+    # publishers for the same pipeline never overlap. Queued, never cancelled.
+    concurrency:
+      group: video-publish-vidqp
+      cancel-in-progress: false
     # 10 most recent runs: 1m31s-5m0s (gh run list
     # --workflow=video-publish-poller-quiet-panic.yml --limit 10,
     # 2026-08-18). ~2.5x observed max.
     timeout-minutes: 12
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-python@v4
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.11'
 

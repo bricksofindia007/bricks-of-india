@@ -23,6 +23,14 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 import notifier
 
+# Z4 (2026-10-02): never send a real email from a test. notifier.py loads
+# .env.local, so with a live RESEND_API_KEY the calls below used to send real
+# "BOI Posted" emails (the 1 Oct "LEGO Set Name (12345-1), row 99" email came
+# from a local run of this file). Capture the email instead of sending it.
+sent = []
+notifier.RESEND_API_KEY = ''
+notifier._send = lambda subject, html_body: sent.append((subject, html_body))
+
 results = []
 PASS, FAIL = 'PASS', 'FAIL'
 
@@ -60,6 +68,8 @@ bom_mid_set_data = {
 try:
     notifier.send_success(bom_mid_set_data, bom_platforms, row_id=99)
     check('send_success() does not raise on a mid-string BOM', True)
+    check('emails were captured, not sent', len(sent) == 2, f'captured={len(sent)}')
+    check('captured subjects carry no BOM', all('﻿' not in subj for subj, _ in sent))
 except UnicodeEncodeError as exc:
     check('send_success() does not raise on a mid-string BOM', False, str(exc))
 
