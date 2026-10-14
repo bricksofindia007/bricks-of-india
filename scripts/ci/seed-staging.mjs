@@ -19,7 +19,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
-export const PROD_REF = 'hqpaiarhmiocmjrzjhtw';
+import { PROD_REF } from './prod-reference.mjs';
+export { PROD_REF };
 export const HISTORY_TRIGGER = 'trg_price_history_on_change';
 // mode 'replace' = truncate + reload every column.
 // mode 'columns' = UPDATE only the listed columns on rows staging already has (by id); no inserts, and

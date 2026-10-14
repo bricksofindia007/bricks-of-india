@@ -25,6 +25,23 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { compareParity, versionOf } from './migration-parity.mjs';
+import { PROD_REF } from './prod-reference.mjs';
+
+// Staging safety check (P44). Runs before any connection. A staging address must not contain the
+// production project reference. That covers both address forms: the direct form has it in the host,
+// the pooler form carries it in the user name. A missing or malformed reference refuses too.
+// The reason never includes the address, the host or the reference.
+export function checkStagingTarget(target, url, prodRef = PROD_REF) {
+  if (target !== 'staging') return { ok: true, skipped: true };
+  if (typeof prodRef !== 'string' || !/^[a-z0-9]{20}$/.test(prodRef)) {
+    return { ok: false, reason: 'the production reference is missing or malformed; refusing to run against staging' };
+  }
+  if (typeof url !== 'string' || url === '') return { ok: false, reason: 'no staging address given' };
+  if (url.includes(prodRef)) {
+    return { ok: false, reason: 'the staging address refers to the production project; refusing to run' };
+  }
+  return { ok: true, skipped: false };
+}
 
 export const MIGRATIONS_DIR = 'supabase/migrations';
 export const FIXES_DIR = 'supabase/data-fixes';
@@ -146,6 +163,10 @@ async function main() {
   const OUT = process.env.OUT_DIR ?? 'db-migrate-out', RUN_URL = process.env.RUN_URL ?? '';
   if (!['staging', 'production'].includes(TARGET)) throw new Error('TARGET must be staging or production');
   if (!URL) throw new Error(`DATABASE_URL not set -- the ${TARGET} environment secret MIGRATE_DB_URL is missing`);
+  // P44: staging must never be pointed at production. Checked before any connection or query.
+  const guard = checkStagingTarget(TARGET, URL);
+  if (!guard.ok) throw new Error(guard.reason);
+  if (!guard.skipped) console.log('staging target check passed');
   fs.mkdirSync(OUT, { recursive: true });
   const log = [];
   const say = (s) => { console.log(s); log.push(s); };
