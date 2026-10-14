@@ -105,19 +105,17 @@ class SlotLogic(unittest.TestCase):
         self.assertFalse(cadence.slot_status(VIDP4, utc('2026-09-25T13:59:00'))[0])  # Fri 19:29 IST
         self.assertTrue(cadence.slot_status(VIDP4, utc('2026-09-25T14:00:00'))[0])   # Fri 19:30 IST
 
-    def test_vidqp_mon_wed_fri_only(self):
+    def test_vidqp_tue_thu_sat_only(self):
         # IST dates: 2026-09-21 Mon ... 2026-09-27 Sun. 06:00 UTC = 11:30 IST.
-        expected = {21: True, 22: False, 23: True, 24: False, 25: True, 26: False, 27: False}
+        expected = {21: False, 22: True, 23: False, 24: True, 25: False, 26: True, 27: False}
         for d, ok in expected.items():
             self.assertEqual(cadence.slot_status(VIDQP, utc(f'2026-09-{d}T06:00:00'))[0], ok, d)
 
-    def test_vidqp_thursday_just_after_ist_midnight_is_closed(self):
-        # The exact case found live 2026-09-24: QP #34 approved early Thu
-        # (IST) -- any Thursday tick must NOT publish; first tick after IST
-        # midnight into Friday may.
-        self.assertFalse(cadence.slot_status(VIDQP, utc('2026-09-23T18:47:00'))[0])  # 00:17 IST Thu
-        self.assertFalse(cadence.slot_status(VIDQP, utc('2026-09-24T04:00:00'))[0])  # 09:30 IST Thu
-        self.assertTrue(cadence.slot_status(VIDQP, utc('2026-09-24T18:47:00'))[0])   # 00:17 IST Fri
+    def test_vidqp_slot_opens_at_ist_midnight_on_a_slot_day_only(self):
+        # Thu 00:17 IST opens (Thu is a QP day); Fri 00:17 IST stays closed; Sat opens.
+        self.assertTrue(cadence.slot_status(VIDQP, utc('2026-09-23T18:47:00'))[0])   # 00:17 IST Thu
+        self.assertFalse(cadence.slot_status(VIDQP, utc('2026-09-24T18:47:00'))[0])  # 00:17 IST Fri
+        self.assertTrue(cadence.slot_status(VIDQP, utc('2026-09-25T18:47:00'))[0])   # 00:17 IST Sat
 
     def test_watchdog_judges_previous_ist_day_despite_lag(self):
         for run in ('2026-09-25T00:15:00', '2026-09-25T04:30:00', '2026-09-25T06:29:00'):
@@ -257,11 +255,11 @@ class MissedSlot(unittest.TestCase):
         self.assertEqual(sent, [])
 
     def test_qp_non_slot_day_is_quiet(self):
-        thu_run = utc('2026-09-25T00:15:00')  # judges Thu 2026-09-24
-        sb = FakeSB(thu_run, quiet_panic_posts=[
+        mon_run = utc('2026-09-29T00:15:00')  # judges Mon 2026-09-28
+        sb = FakeSB(mon_run, quiet_panic_posts=[
             {'id': 'qp34', 'sequence_number': 34, 'status': 'approved', 'approved_at': None},
         ])
-        summary, sent = self._run(sb, VIDQP, run=thu_run)  # Thu -- not a QP slot day
+        summary, sent = self._run(sb, VIDQP, run=mon_run)  # Mon -- not a QP slot day
         self.assertEqual(summary['action'], 'not_a_slot_day')
         self.assertEqual(sent, [])
 
@@ -318,10 +316,11 @@ class CatchUpSlot(unittest.TestCase):
         self.assertFalse(cadence.slot_status(VIDP4, utc('2026-09-30T01:29:00'), catchup=True)[0])  # 06:59 IST
 
     def test_no_catchup_when_previous_slot_posted(self):
+        # The previous VID-P4 slot day before Wed 30 Sep is Sun 27 Sep.
         now = utc('2026-09-30T02:46:00')
         sb = FakeSB(now, video_posts=[self.HEAD, {
-            'id': 'r66', 'status': 'posted_both', 'posted_at': '2026-09-28T14:10:00+00:00',
-            'ig_posted_at': '2026-09-28T14:10:00+00:00', 'yt_posted_at': '2026-09-28T14:11:00+00:00'}])
+            'id': 'r66', 'status': 'posted_both', 'posted_at': '2026-09-27T14:10:00+00:00',
+            'ig_posted_at': '2026-09-27T14:10:00+00:00', 'yt_posted_at': '2026-09-27T14:11:00+00:00'}])
         self.assertFalse(cadence.catchup_due(sb, VIDP4, now, self.HEAD))
 
     def test_no_catchup_when_head_approved_after_previous_slot(self):
@@ -366,9 +365,9 @@ class RecordSkip(unittest.TestCase):
         cadence.record_skip(Boom(), VIDP4, None, 'x')
 
     def test_missed_slot_alert_quotes_skip_reason(self):
-        run = utc('2026-09-29T00:15:00')  # judges Mon 28 Sep
+        run = utc('2026-09-28T00:15:00')  # judges Sun 27 Sep, a VID-P4 slot day
         sb = FakeSB(run, video_posts=[CatchUpSlot.HEAD | {'set_title': 'X'}], publish_attempts=[])
-        sb.db['_now'] = utc('2026-09-28T11:37:00')
+        sb.db['_now'] = utc('2026-09-27T11:37:00')
         cadence.record_skip(sb, VIDP4, CatchUpSlot.HEAD, 'VID-P4: before slot (19:30 IST) -- current IST 17:07')
         sb.db['_now'] = run
         sent = []

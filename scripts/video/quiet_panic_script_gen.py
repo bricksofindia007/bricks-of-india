@@ -775,7 +775,7 @@ class CaptionLengthExceededError(PreTTSValidationError):
     caption_length_budget() now runs from generate_quiet_panic_video.py's
     run_all_gates() instead, purely logged into gate_results for
     comparison against real gate_duration results over several live
-    Mon/Wed/Fri cycles. Kept defined (not deleted) so reinstating the
+    VID-QP generation cycles. Kept defined (not deleted) so reinstating the
     raise later is a small, reviewable diff instead of reconstructing it."""
 
 
@@ -1154,7 +1154,7 @@ def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) 
     # run_all_gates(), which calls it non-blocking and folds the result
     # into gate_results (pre_tts_estimate_pass/_duration/_detail/_segments)
     # alongside the real post-render gate_duration -- lets the two be
-    # compared per real run, over several Mon/Wed/Fri cycles, before any
+    # compared per real run, over several VID-QP generation cycles, before any
     # decision to reinstate this as a real pre-TTS gate. Generation control
     # flow (this retry loop, TOTAL_SCRIPT_GEN_ATTEMPTS, etc.) is completely
     # unaffected by the caption-length estimate now -- only check_word_

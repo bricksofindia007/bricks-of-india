@@ -2,8 +2,8 @@
 cadence.py -- posting-cadence rules shared by both video pipelines (issue #178).
 
 Rule (Abhinav, 2026-09-24): max 1 post per day per pipeline, per platform.
-  - VID-P4 (video_posts): every day, slot opens 19:30 IST.
-  - VID-QP (quiet_panic_posts): Mon/Wed/Fri only.
+  - VID-P4 (video_posts): Wed/Fri/Sun only, slot opens 19:30 IST.
+  - VID-QP (quiet_panic_posts): Tue/Thu/Sat only.
 Approved rows queue and drain one per slot. A missing-platform retry counts
 toward that platform's daily cap -- if the platform already posted today,
 the retry is deferred to the next slot. Nothing is skipped silently: every
@@ -51,24 +51,25 @@ class Pipeline:
 # After a missed day the slot opens at 07:00 IST instead, so any daytime tick
 # recovers it. Still one post per IST day, in queue order -- the catch-up post
 # IS that day's post, never an extra one.
-# P23b (13 Oct 2026): VID-P4 posts on Monday, Wednesday and Friday only (IST),
-# one per slot. The 19:30 slot and the 07:00 catch-up are unchanged; a catch-up
-# is now keyed to the previous SLOT day (see previous_slot_day), not to
-# yesterday, because on Mon/Wed/Fri yesterday is never a slot day.
+# Posting days (Mon=0 ... Sun=6, Python weekday numbering). The 19:30 slot and the
+# 07:00 catch-up are unchanged; a catch-up is keyed to the previous SLOT day
+# (see previous_slot_day), so a gap of several days is handled by the same rule.
+# P23b (13 Oct 2026) set VID-P4 to Mon/Wed/Fri. The week was re-set to one post a
+# day across two pipelines (2026-10-14): VID-P4 Wed/Fri/Sun.
 VIDP4 = Pipeline(
     key='vidp4', label='VID-P4', table='video_posts', order_column='story_number',
-    slot_weekdays=frozenset({0, 2, 4}), slot_start_ist=(19, 30),
+    slot_weekdays=frozenset({2, 4, 6}), slot_start_ist=(19, 30),
     catchup_start_ist=(7, 0),
 )
 
-# VID-QP slot days are Mon/Wed/Fri (Abhinav, 2026-09-24). No time-of-day was
-# specified for QP -- (0, 0) keeps the pre-existing behaviour of publishing
-# on the first poller tick of the slot day (historically ~00:30 IST). That
-# time is a real open question, not a decision made here: change
-# slot_start_ist if a specific evening time is wanted.
+# VID-QP posting days are Tue/Thu/Sat (2026-10-14; before that Mon/Wed/Fri,
+# from Abhinav, 2026-09-24). No time-of-day was specified for QP -- (0, 0) keeps
+# the pre-existing behaviour of publishing on the first poller tick of the slot
+# day (historically ~00:30 IST). That time is a real open question, not a
+# decision made here: change slot_start_ist if a specific evening time is wanted.
 VIDQP = Pipeline(
     key='vidqp', label='VID-QP', table='quiet_panic_posts', order_column='sequence_number',
-    slot_weekdays=frozenset({0, 2, 4}), slot_start_ist=(0, 0),
+    slot_weekdays=frozenset({1, 3, 5}), slot_start_ist=(0, 0),
 )
 
 
@@ -204,7 +205,7 @@ def catchup_due(sb, p: Pipeline, now_utc: datetime, head_row: dict | None) -> bo
     SLOT day (not necessarily yesterday) had no post, and head_row (the next
     approved row) was already waiting before that slot opened -- the same
     test the missed-slot watchdog uses to call a slot missed. Only slot days
-    are judged, so a Mon/Wed/Fri pipeline catches up on the next Wed/Fri/Mon."""
+    are judged, so a pipeline catches up on its next slot day, whatever the gap."""
     if p.catchup_start_ist is None or not head_row:
         return False
     prev = previous_slot_day(p, ist_date(now_utc))

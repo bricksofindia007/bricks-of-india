@@ -1,4 +1,4 @@
-name: VID-QP Generate (cloud, Mon/Wed/Fri schedule + manual trigger)
+name: VID-QP Generate (cloud, Tue/Thu/Sat schedule + manual trigger)
 
 # Cloud rendering for the Quiet Panic format. Separate from
 # video-publish-poller-quiet-panic.yml, which only publishes already-
@@ -15,8 +15,8 @@ name: VID-QP Generate (cloud, Mon/Wed/Fri schedule + manual trigger)
 #
 # UPDATED 2026-08-01: schedule enabled after this session's script-gen
 # persona tuning + gate hardening (word budget, verdict-reason,
-# broadened banned-construction gate) was reviewed. Mon/Wed/Fri 03:30 UTC
-# (09:00 IST). Scheduled runs carry no `inputs` context at all (that's
+# broadened banned-construction gate) was reviewed. Tue/Thu/Sat 03:30 UTC
+# (09:00 IST) since 2026-10-14 (was Mon/Wed/Fri). Scheduled runs carry no `inputs` context at all (that's
 # workflow_dispatch-only) -- the "Validate candidate" step below falls
 # back to select_quiet_panic_candidate.py's select_candidates() to
 # auto-pick the next eligible set when SET_NUMBER comes through empty,
@@ -27,7 +27,7 @@ name: VID-QP Generate (cloud, Mon/Wed/Fri schedule + manual trigger)
 
 on:
   schedule:
-    - cron: '30 3 * * 1,3,5'
+    - cron: '30 3 * * 2,4,6'   # VID-QP posting days: Tue/Thu/Sat, 09:00 IST
   workflow_dispatch:
     inputs:
       set_number:

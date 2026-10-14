@@ -9,7 +9,7 @@ name: VID Retry Missing Platform
 #
 # Issue #178, 2026-09-24 (Abhinav decided the question #137 left open): a
 # retry COUNTS toward that platform's daily cap. Each retry only runs inside
-# its pipeline's open slot (VID-P4 from 19:30 IST daily; VID-QP Mon/Wed/Fri)
+# its pipeline's open slot (VID-P4 from 19:30 IST on its posting days; VID-QP on its posting days)
 # and is deferred to the next slot if that platform already posted today --
 # see cadence.py and both retry_missing_platforms_all() implementations.
 # Still a separate scheduled step from the pollers; outside a slot it is a

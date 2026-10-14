@@ -3,7 +3,7 @@ name: Video Cadence Tests
 # Issue #178. Runs scripts/video/test_cadence.py (stdlib unittest, in-memory
 # fake Supabase -- no network, no secrets) on any PR touching the posting
 # cadence rules or the publishers that use them, so the per-platform cap,
-# QP Mon/Wed/Fri slot, merge-day posted_at fallback and end-of-day watchdog
+# QP posting-day slot, merge-day posted_at fallback and end-of-day watchdog
 # rules can't regress unseen. cadence.py imports only the stdlib.
 on:
   pull_request:
