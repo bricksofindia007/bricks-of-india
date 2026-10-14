@@ -14,16 +14,16 @@ export default function DataDeletionPage() {
         <div className="font-body space-y-6 text-gray-600 leading-relaxed">
           <section>
             <h2 className="font-heading text-dark text-2xl mb-3">NEWSLETTER SUBSCRIBERS</h2>
-            <p>If you subscribed to the Bricks of India newsletter, you can request deletion of your email address at any time by using the unsubscribe link in any email we send, or by contacting us via the <a href="/contact" className="text-accent-blue hover:underline">contact form</a>. We will delete your stored email address within 7 days of a verified request.</p>
+            <p>If you subscribed to the Bricks of India newsletter, you can request deletion of your email address at any time by using the unsubscribe link in any email we send, or by contacting us via the <a href="/contact" className="text-accent-blue hover:underline">contact form</a>. We will delete your stored email address on request, as soon as reasonably possible.</p>
           </section>
           <section>
             <h2 className="font-heading text-dark text-2xl mb-3">INSTAGRAM / FACEBOOK DATA</h2>
             <p>Bricks of India&apos;s Instagram account (@bricksofindia) posts only content that we create ourselves, to our own account. We do not collect, store, or process personal data belonging to Instagram or Facebook users through this account &mdash; no follower data, comments, messages, or third-party profile information is accessed, retained, or shared.</p>
-            <p>If you believe any data associated with your Instagram or Facebook account has been collected by Bricks of India in error, contact us via the <a href="/contact" className="text-accent-blue hover:underline">contact form</a> and we will investigate and delete any such data within 7 days.</p>
+            <p>If you believe any data associated with your Instagram or Facebook account has been collected by Bricks of India in error, contact us via the <a href="/contact" className="text-accent-blue hover:underline">contact form</a> and we will investigate and delete any such data on request, as soon as reasonably possible.</p>
           </section>
           <section>
             <h2 className="font-heading text-dark text-2xl mb-3">HOW TO REQUEST DELETION</h2>
-            <p>Email us via the <a href="/contact" className="text-accent-blue hover:underline">contact form</a> with the subject line &quot;Data Deletion Request&quot; and the email address or account you used. We will confirm receipt within 48 hours and complete deletion within 7 days, then confirm back to you by email.</p>
+            <p>Email us via the <a href="/contact" className="text-accent-blue hover:underline">contact form</a> with the subject line &quot;Data Deletion Request&quot; and the email address or account you used. We will confirm receipt within 48 hours and complete deletion on request, as soon as reasonably possible, then confirm back to you by email.</p>
           </section>
           <section>
             <h2 className="font-heading text-dark text-2xl mb-3">SEE ALSO</h2>
