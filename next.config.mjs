@@ -3,6 +3,8 @@
 // native git integration deploys independently of deploy.yml's netlify-cli
 // step.
 const nextConfig = {
+  // No X-Powered-By header (3 Oct 2026): it only advertises the framework.
+  poweredByHeader: false,
   async redirects() {
     return [
       // #213 (Wave 1 PR-H, 2026-09-26): the heat map is hidden pending a
@@ -26,6 +28,18 @@ const nextConfig = {
       {
         source: '/news/lego-40900-scary-haunted-tree-gwp-revealed-halloween-2026',
         destination: '/news/lego-creator-40900-scary-haunted-tree-revealed-as-new-gift-w',
+        permanent: true,
+      },
+      // 3 Oct 2026: two removed articles about set 5986 that Google still lists
+      // as 404. No article replaces them, so they go to the set's own page.
+      {
+        source: '/news/lego-amazon-ancient-ruins-5986-nostalgia-trip-or-wallet-drai',
+        destination: '/sets/5986',
+        permanent: true,
+      },
+      {
+        source: '/news/lego-adventurers-amazon-ancient-ruins-5986-1-nostalgia-or-ov',
+        destination: '/sets/5986',
         permanent: true,
       },
       // Nav & Content Overhaul, 2026-08-09 -- Blog/Opinion retired as
@@ -314,16 +328,14 @@ const nextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-XSS-Protection', value: '1; mode=block' },
-          // Round 11 item 3 (headers): HTTPS-only for a year (no includeSubDomains / preload
-          // until every subdomain is confirmed HTTPS; preload is hard to undo), no full URLs
-          // leaked to other sites, and browser features the site never uses switched off.
+          // HTTPS-only for one year. No includeSubDomains or preload until every
+          // subdomain is confirmed HTTPS (preload is hard to undo). No full URLs leaked to other sites;
+          // browser features the site never uses switched off.
           { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()' },
           // CSP in report-only mode — enforcing blocked by inline GA script (tracked: GEO-AUDIT-FIX-01)
-          // Move GA to non-inline before switching to Content-Security-Policy.
-          // GA4 also sends to regional collectors (region1.google-analytics.com,
-          // *.analytics.google.com) and loads from *.googletagmanager.com: covered by wildcards.
+          // Move GA to non-inline before switching to Content-Security-Policy
           {
             key: 'Content-Security-Policy-Report-Only',
             value: [
@@ -356,53 +368,53 @@ const nextConfig = {
       // Cache hints below are aligned with each route's real ISR interval
       // (2026-09-26): a hint shorter than the page's revalidate only makes
       // downstream caches re-ask for a page that cannot have changed yet.
-      // Set detail — 6h (SET_PAGE_REVALIDATE_SECONDS, src/app/sets/[slug]), 1d stale
+      // Set detail — 24h (SET_PAGE_REVALIDATE_SECONDS, src/app/sets/[slug]), 1d stale
       {
         source: '/sets/:slug',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=21600, stale-while-revalidate=86400' },
+          { key: 'Cache-Control', value: 'public, s-maxage=86400, stale-while-revalidate=86400' },
         ],
       },
-      // Set pagination — 1h (prices via unstable_cache READ_REVALIDATE_SECONDS), 1d stale
+      // Set pagination — 24h (prices via unstable_cache READ_REVALIDATE_SECONDS), 1d stale
       {
         source: '/sets/page/:path*',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' },
+          { key: 'Cache-Control', value: 'public, s-maxage=86400, stale-while-revalidate=86400' },
         ],
       },
-      // /lab index — rarely changes — 1h fresh, 1d stale
+      // /lab index — 24h fresh, 1d stale
       {
         source: '/lab',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' },
+          { key: 'Cache-Control', value: 'public, s-maxage=86400, stale-while-revalidate=86400' },
         ],
       },
-      // Lab tool pages — 30min fresh, 1d stale
+      // Lab tool pages — 24h fresh, 1d stale
       {
         source: '/lab/:path+',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=1800, stale-while-revalidate=86400' },
+          { key: 'Cache-Control', value: 'public, s-maxage=86400, stale-while-revalidate=86400' },
         ],
       },
-      // /lab/deals is hourly ISR (PR-B) — overrides the rule above (last match wins)
+      // /lab/deals — 24h ISR — overrides the rule above (last match wins)
       {
         source: '/lab/deals',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' },
+          { key: 'Cache-Control', value: 'public, s-maxage=86400, stale-while-revalidate=86400' },
         ],
       },
-      // Content listing pages — 5min fresh, 1h stale
+      // Content listing pages — 24h fresh, 1d stale
       {
         source: '/(news|blog|reviews)',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=300, stale-while-revalidate=3600' },
+          { key: 'Cache-Control', value: 'public, s-maxage=86400, stale-while-revalidate=86400' },
         ],
       },
-      // Content detail pages — 1h (their ISR revalidate), 1d stale
+      // Content detail pages — 24h (their ISR revalidate), 1d stale
       {
         source: '/(news|blog|reviews)/:path+',
         headers: [
-          { key: 'Cache-Control', value: 'public, s-maxage=3600, stale-while-revalidate=86400' },
+          { key: 'Cache-Control', value: 'public, s-maxage=86400, stale-while-revalidate=86400' },
         ],
       },
       // Sitemap — 1d (its revalidate, operator decision 2026-09-26)
