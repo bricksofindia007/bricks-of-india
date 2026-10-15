@@ -149,8 +149,25 @@ export function backupName(table, stamp) {
 }
 
 // ── runtime (not unit-tested; exercised by the workflow on staging first) ──
-function psql(url, args, input) {
-  const r = spawnSync('psql', [url, '-X', '-q', '-v', 'ON_ERROR_STOP=1', ...args], { input, encoding: 'utf8', env: { ...process.env, PGCONNECT_TIMEOUT: '15' } });
+/**
+ * Reads the rows changed from psql's command tags ("UPDATE 52", "DELETE 3"). Pure; the output is parsed,
+ * never printed. Other tags (BEGIN, COMMIT, INSERT, DO, SELECT) are ignored. Returns the total and each statement.
+ */
+export function changedRowCount(psqlOut) {
+  const statements = [];
+  for (const line of String(psqlOut ?? '').split('\n')) {
+    const m = /^(UPDATE|DELETE) (\d+)$/.exec(line.trim());
+    if (m) statements.push(`${m[1]} ${m[2]}`);
+  }
+  const total = statements.reduce((sum, s) => sum + Number(s.split(' ')[1]), 0);
+  return { total, statements };
+}
+
+// quiet (default) hides command tags. The apply step turns it off to read "UPDATE n" / "DELETE n"
+// (changedRowCount). Its output is parsed, never printed: a SELECT in a file could print row data.
+function psql(url, args, input, { quiet = true } = {}) {
+  const flags = quiet ? ['-X', '-q'] : ['-X'];
+  const r = spawnSync('psql', [url, ...flags, '-v', 'ON_ERROR_STOP=1', ...args], { input, encoding: 'utf8', env: { ...process.env, PGCONNECT_TIMEOUT: '15' } });
   // CRLF-safe: psql on Windows ends lines with \r, which would make every version mismatch.
   return { ok: r.status === 0, out: (r.stdout ?? '').replace(/\r/g, '').trim(), err: (r.stderr ?? '').replace(/\r/g, '').trim() };
 }
@@ -240,15 +257,17 @@ async function main() {
         const sha = crypto.createHash('sha256').update(it.sql).digest('hex');
         wrapper = `BEGIN;\n${assert(b, 'before')}\n\\i ${abs}\n${assert(a, 'after')}\nINSERT INTO supabase_migrations.data_fix_log(name, issue, sha256, before_count, after_count, run_url) VALUES (${lit(it.name)}, ${it.header.issue}, ${lit(sha)}, ${b.count}, ${a.count}, ${lit(RUN_URL)});\nCOMMIT;\n`;
       }
-      const r = psql(URL, ['-f', '-'], wrapper);
+      const r = psql(URL, ['-f', '-'], wrapper, { quiet: false });
       const notices = (r.err.match(/NOTICE:.*$/gm) ?? []).map((s) => s.replace(/^.*NOTICE:\s*/, ''));
       if (!r.ok) {
         say(`FAILED ${it.kind} ${it.name} (rolled back): ${r.err.split('\n').filter((l) => /ERROR|DETAIL|HINT/.test(l)).join(' | ').slice(0, 600)}`);
         evidence.failed = it.name;
         break;
       }
-      evidence.applied.push({ kind: it.kind, name: it.name, issue: it.header.issue, notices });
-      say(`applied ${it.kind} ${it.name}${notices.length ? ` -- ${notices.join('; ')}` : ''}`);
+      // Rows changed = the UPDATE/DELETE command tags psql printed for this file (the asserts are DO blocks and print nothing).
+      const changed = changedRowCount(r.out);
+      evidence.applied.push({ kind: it.kind, name: it.name, issue: it.header.issue, notices, rows_changed: changed.total });
+      say(`applied ${it.kind} ${it.name}: ${changed.total} row(s) changed${changed.statements.length ? ` (${changed.statements.join(', ')})` : ''}${notices.length ? ` -- ${notices.join('; ')}` : ''}`);
     }
     // Backups taken before the manifest existed (the run that creates it) are registered now,
     // so the 30-day prune can find them.

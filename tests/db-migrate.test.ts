@@ -126,3 +126,19 @@ describe('staging target check', () => {
     expect(checkStagingTarget('staging', '').ok).toBe(false);
   });
 });
+
+// Apply step: rows changed, read from psql's command tags (the asserts print nothing).
+import { changedRowCount } from '../scripts/ci/db-migrate.mjs';
+
+describe('rows changed per fix', () => {
+  it('sums the UPDATE and DELETE tags and ignores the rest', () => {
+    const out = 'BEGIN\nDO\nUPDATE 52\nUPDATE 6\nINSERT 0 1\nCOMMIT';
+    expect(changedRowCount(out)).toEqual({ total: 58, statements: ['UPDATE 52', 'UPDATE 6'] });
+  });
+
+  it('counts deletes too, and is zero when nothing changed', () => {
+    expect(changedRowCount('DELETE 3\nUPDATE 0').total).toBe(3);
+    expect(changedRowCount('BEGIN\nDO\nCOMMIT')).toEqual({ total: 0, statements: [] });
+    expect(changedRowCount(undefined)).toEqual({ total: 0, statements: [] });
+  });
+});
