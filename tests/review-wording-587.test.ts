@@ -13,9 +13,11 @@ const SLUGS = [
   'lego-ideas-21373-downton-abbey-worth-33600',
   'lego-mewtwos-lab-break-72163-worth-6700',
   'lego-privateer-frigate-fortuna-910059-a-pirates-dream-or-a-w',
+  'lego-cubone-and-gengars-spooky-showdown-72166-worth-8600',
+  'lego-72156-trainers-buggy-adventure-with-squirtle-a-squirtle',
 ];
 
-// One entry per edit in the fix (11 edits across 7 reviews). The same old text can appear in
+// One entry per edit in the fix (15 edits across 9 reviews). The same old text can appear in
 // more than one review, so each entry's expected count is how many entries share its old text.
 const EDITS: Array<{ old: string; new: string }> = [
   { old: 'At ₹5,400 (official MRP), that\'s 12 months of Spotify Premium.', new: 'At an expected ₹5,400 (our estimate; LEGO India hasn\'t confirmed it), that\'s 12 months of Spotify Premium.' },
@@ -29,6 +31,10 @@ const EDITS: Array<{ old: string; new: string }> = [
   { old: 'The set is listed with an official MRP of ₹33,600.', new: 'The set has an expected price of ₹33,600 (our estimate; LEGO India hasn\'t confirmed it).' },
   { old: 'At ₹6,700 (official MRP),', new: 'At an expected ₹6,700 (our estimate; LEGO India hasn\'t confirmed it),' },
   { old: 'has an official MRP of ₹31,500', new: 'has an expected price of ₹31,500 (our estimate; LEGO India hasn\'t confirmed it)' },
+  { old: 'the Indian MRP of ₹8,600', new: 'the expected Indian price of ₹8,600 (our estimate; LEGO India hasn\'t confirmed it)' },
+  { old: 'especially given the MRP of ₹5,400.', new: 'especially given the expected price of ₹5,400 (our estimate; LEGO India hasn\'t confirmed it).' },
+  { old: 'but the MRP is set at ₹2,900.', new: 'but our estimate is ₹2,900 (LEGO India hasn\'t confirmed it).' },
+  { old: 'at its current MRP', new: 'at the expected price' },
 ];
 
 const count = (haystack: string, needle: string) => haystack.split(needle).length - 1;
@@ -39,13 +45,13 @@ describe('data fix 587 (review wording, unlisted sets)', () => {
     expect(sql).toContain('-- boi:backup-tables public.reviews');
   });
 
-  it('has before and after counts (7 and 6)', () => {
-    expect(sql).toMatch(/-- boi:expect-before .* = 7\n/);
-    expect(sql).toMatch(/-- boi:expect-after .* = 6\n/);
+  it('has before and after counts (9 and 8)', () => {
+    expect(sql).toMatch(/-- boi:expect-before .* = 9\n/);
+    expect(sql).toMatch(/-- boi:expect-after .* = 8\n/);
   });
 
-  it('touches only the seven expected reviews', () => {
-    const found = [...new Set(sql.match(/lego-[a-z0-9-]+-worth-\d+(-\d+)?|lego-privateer-[a-z0-9-]+/g) ?? [])].sort();
+  it('touches only the nine expected reviews', () => {
+    const found = [...new Set([...sql.matchAll(/'(lego-[a-z0-9-]+)'/g)].map((m) => m[1]))].sort();
     expect(found).toEqual([...SLUGS].sort());
   });
 
@@ -56,7 +62,7 @@ describe('data fix 587 (review wording, unlisted sets)', () => {
   });
 
   it('has each old and new text once per review that uses it', () => {
-    expect(EDITS.length).toBe(11);
+    expect(EDITS.length).toBe(15);
     for (const e of EDITS) {
       const sharesOld = EDITS.filter((x) => x.old === e.old).length;
       const sharesNew = EDITS.filter((x) => x.new === e.new).length;

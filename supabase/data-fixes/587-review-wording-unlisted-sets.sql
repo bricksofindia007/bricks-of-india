@@ -1,8 +1,8 @@
 -- boi:issue 587
 -- boi:backup-tables public.reviews
--- boi:expect-before select count(*) from public.reviews where slug in ('lego-77059-timmy-tommys-fun-day-out-worth-5400', 'lego-olivia-rodrigos-dual-guitar-43031-worth-15400', 'lego-sagrada-famlia-21065-worth-76400', 'lego-sagrada-famlia-21065-worth-76400-2', 'lego-ideas-21373-downton-abbey-worth-33600', 'lego-mewtwos-lab-break-72163-worth-6700', 'lego-privateer-frigate-fortuna-910059-a-pirates-dream-or-a-w') and (position('official MRP' in content) > 0 or position('The price is right' in content) > 0) = 7
--- boi:expect-after select count(*) from public.reviews where slug in ('lego-77059-timmy-tommys-fun-day-out-worth-5400', 'lego-sagrada-famlia-21065-worth-76400', 'lego-sagrada-famlia-21065-worth-76400-2', 'lego-ideas-21373-downton-abbey-worth-33600', 'lego-mewtwos-lab-break-72163-worth-6700', 'lego-privateer-frigate-fortuna-910059-a-pirates-dream-or-a-w') and position($s$our estimate; LEGO India hasn't confirmed it$s$ in content) > 0 = 6
--- Replaces the official-price wording on seven published reviews with estimate wording, and moves two of them from BUY NOW to WAIT.
+-- boi:expect-before select count(*) from public.reviews where slug in ('lego-77059-timmy-tommys-fun-day-out-worth-5400', 'lego-olivia-rodrigos-dual-guitar-43031-worth-15400', 'lego-sagrada-famlia-21065-worth-76400', 'lego-sagrada-famlia-21065-worth-76400-2', 'lego-ideas-21373-downton-abbey-worth-33600', 'lego-mewtwos-lab-break-72163-worth-6700', 'lego-privateer-frigate-fortuna-910059-a-pirates-dream-or-a-w', 'lego-cubone-and-gengars-spooky-showdown-72166-worth-8600', 'lego-72156-trainers-buggy-adventure-with-squirtle-a-squirtle') and (position('official MRP' in content) > 0 or position('The price is right' in content) > 0 or position('Indian MRP of' in content) > 0 or position('MRP of ₹5,400' in content) > 0 or position('MRP is set at' in content) > 0 or position('current MRP' in content) > 0) = 9
+-- boi:expect-after select count(*) from public.reviews where slug in ('lego-77059-timmy-tommys-fun-day-out-worth-5400', 'lego-olivia-rodrigos-dual-guitar-43031-worth-15400', 'lego-sagrada-famlia-21065-worth-76400', 'lego-sagrada-famlia-21065-worth-76400-2', 'lego-ideas-21373-downton-abbey-worth-33600', 'lego-mewtwos-lab-break-72163-worth-6700', 'lego-privateer-frigate-fortuna-910059-a-pirates-dream-or-a-w', 'lego-cubone-and-gengars-spooky-showdown-72166-worth-8600', 'lego-72156-trainers-buggy-adventure-with-squirtle-a-squirtle') and position($s$LEGO India hasn't confirmed it$s$ in content) > 0 = 8
+-- Replaces the official-price wording on nine published reviews with estimate wording, and moves two of them from BUY NOW to WAIT.
 -- Each replacement must match exactly once in its review; if any text is missing or repeated, nothing is changed.
 -- Nothing else in any review is changed.
 
@@ -47,7 +47,23 @@ BEGIN
      $s$At an expected ₹6,700 (our estimate; LEGO India hasn't confirmed it),$s$),
     (11, 'lego-privateer-frigate-fortuna-910059-a-pirates-dream-or-a-w',
      $s$has an official MRP of ₹31,500$s$,
-     $s$has an expected price of ₹31,500 (our estimate; LEGO India hasn't confirmed it)$s$);
+     $s$has an expected price of ₹31,500 (our estimate; LEGO India hasn't confirmed it)$s$),
+    (12, 'lego-cubone-and-gengars-spooky-showdown-72166-worth-8600',
+     $s$the Indian MRP of ₹8,600$s$,
+     $s$the expected Indian price of ₹8,600 (our estimate; LEGO India hasn't confirmed it)$s$),
+    (13, 'lego-77059-timmy-tommys-fun-day-out-worth-5400',
+     $s$especially given the MRP of ₹5,400.$s$,
+     $s$especially given the expected price of ₹5,400 (our estimate; LEGO India hasn't confirmed it).$s$),
+    (14, 'lego-72156-trainers-buggy-adventure-with-squirtle-a-squirtle',
+     $s$but the MRP is set at ₹2,900.$s$,
+     $s$but our estimate is ₹2,900 (LEGO India hasn't confirmed it).$s$),
+    (15, 'lego-72156-trainers-buggy-adventure-with-squirtle-a-squirtle',
+     $s$at its current MRP$s$,
+     $s$at the expected price$s$);
+
+  IF (SELECT count(DISTINCT slug) FROM fix_edits) <> 9 THEN
+    RAISE EXCEPTION 'expected 9 reviews in the fix; nothing changed';
+  END IF;
 
   -- Check every edit before changing anything: the review exists and the old text occurs exactly once in it.
   FOR rec IN SELECT * FROM fix_edits ORDER BY ord LOOP
