@@ -256,7 +256,7 @@ try {
       failures.push('ig-heartbeat-stale');
       await sendAlert(
         '⚠️ BOI Health Alert — Instagram pipeline not attempting',
-        `social-automation.yml last ran ${igAttemptAge.toFixed(1)} hours ago.\n\nThreshold: ${IG_HEARTBEAT_WINDOW_HOURS} hours (8 days; posts run on Mondays).\n\nCheck GitHub Actions → social-automation.yml for failures or missed triggers.`
+        `social-automation.yml last ran ${igAttemptAge.toFixed(1)} hours ago.\n\nThreshold: ${IG_HEARTBEAT_WINDOW_HOURS} hours (8 days).\n\nCheck GitHub Actions → social-automation.yml for failures or missed triggers.`
       );
     } else if (igHb.last_success_at) {
       const igSuccessAge = (Date.now() - new Date(igHb.last_success_at).getTime()) / 3_600_000;

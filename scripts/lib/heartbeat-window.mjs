@@ -1,6 +1,5 @@
-// Instagram heartbeat window. Posts go out on Mondays only, so a run or a
-// successful post is expected about once a week. The health check alerts only
-// after 8 days with none.
+// Window for the Instagram heartbeat checks. A check alerts only after the
+// window has passed with no run or no successful post.
 export const IG_HEARTBEAT_WINDOW_HOURS = 192;
 
 // Exactly at the limit is not past it.
