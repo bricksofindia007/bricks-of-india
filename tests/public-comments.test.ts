@@ -19,18 +19,4 @@ describe('public comments carry no internal detail', () => {
     expect(line).not.toMatch(/lego_mrp_inr|github\.run_id|run log/);
   });
 
-  it('credit-budget comments carry no counts, tool or config names', () => {
-    const t = read('credit-budget-check.yml');
-    const bodies = t.split('\n').filter(l => /COMMENT_BODY=/.test(l));
-    expect(bodies.length).toBe(2);
-    for (const b of bodies) for (const bad of FORBIDDEN) expect(b).not.toContain(bad);
-  });
-
-  it('credit-budget dedupe markers are still present', () => {
-    const t = read('credit-budget-check.yml');
-    expect(t).toContain('MARKER="EXCEEDED"');
-    expect(t).toContain('MARKER="80% of Tier 2"');
-    expect(t).toMatch(/contains\(\$c\)/);
-    expect(t).toContain('\$CYCLE_START');
-  });
 });

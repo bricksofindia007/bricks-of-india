@@ -11,9 +11,7 @@ name: Workflow Freshness Watchdog
 # via the GitHub Actions API and alerts if it's older than a multiple of
 # its own expected interval (read from WATCHLIST below, not derived from
 # history -- a workflow can go stale before it has enough history to infer
-# an interval from). Same alert channel as health-check.yml /
-# credit-budget-check.yml (Resend email, already-provisioned secrets, no
-# new credential).
+# an interval from). Same alert channel as health-check.yml.
 
 on:
   schedule:
@@ -57,7 +55,6 @@ jobs:
               "reviews-weekly-refresh.yml": [7 * 24, 2],
               "sync-catalogue.yml":         [7 * 24, 2],
               "retention-cleanup.yml":      [7 * 24, 2],
-              "credit-budget-check.yml":    [24, 2],
             };
 
             const stale = [];
