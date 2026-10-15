@@ -27,7 +27,7 @@ import { spawnSync } from 'node:child_process';
 import { compareParity, versionOf } from './migration-parity.mjs';
 import { PROD_REF } from './prod-reference.mjs';
 
-// Staging safety check (P44). Runs before any connection. A staging address must not contain the
+// Staging safety check. Runs before any connection. A staging address must not contain the
 // production project reference. That covers both address forms: the direct form has it in the host,
 // the pooler form carries it in the user name. A missing or malformed reference refuses too.
 // The reason never includes the address, the host or the reference.
@@ -180,7 +180,7 @@ async function main() {
   const OUT = process.env.OUT_DIR ?? 'db-migrate-out', RUN_URL = process.env.RUN_URL ?? '';
   if (!['staging', 'production'].includes(TARGET)) throw new Error('TARGET must be staging or production');
   if (!URL) throw new Error(`DATABASE_URL not set -- the ${TARGET} environment secret MIGRATE_DB_URL is missing`);
-  // P44: staging must never be pointed at production. Checked before any connection or query.
+  // Staging must never be pointed at production. Checked before any connection or query.
   const guard = checkStagingTarget(TARGET, URL);
   if (!guard.ok) throw new Error(guard.reason);
   if (!guard.skipped) console.log('staging target check passed');

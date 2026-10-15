@@ -92,7 +92,7 @@ export type UnlistedLineResult =
 
 /**
  * Adds the standard closing line to a review that has none, for a review with
- * no store recorded (P38). The line goes in the paragraph after the LAST
+ * no store recorded. The line goes in the paragraph after the LAST
  * "Verdict: X." line, with a blank line between, which is where the retailer
  * reviews put theirs. A review can have an earlier verdict line mid-article
  * too; that one is left untouched. Content that already has a
