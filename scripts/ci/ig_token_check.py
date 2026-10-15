@@ -1,27 +1,33 @@
 #!/usr/bin/env python3
 """Daily check of this repo's own Instagram token (IG_ACCESS_TOKEN).
 
-Reads days left from Meta's debug_token (the token's own expiry). Emails only
-when the token is rejected or under 10 days from expiry. No refresh here: the
-rotation stays in ig-token-refresh.yml. No token value is printed or emailed.
+Reads days left from Meta's debug_token (the token's own expiry). The job fails
+(non-zero exit) when the token is rejected, when fewer than 10 days are left, or
+when the check cannot run. A failure is reported only by the failed workflow run.
+No notification is sent from this script. No refresh here: rotation stays in
+ig-token-refresh.yml. No token value is printed.
 
-Env: IG_ACCESS_TOKEN, FB_APP_ID, FB_APP_SECRET, RESEND_API_KEY (all existing).
+Heartbeat (G13): every run writes one line to the IG_TOKEN_CHECK_HEARTBEAT repo
+variable: "<UTC time>|<ok or failed>|<reason>". Needs GH_TOKEN with variables write.
+
+Env: IG_ACCESS_TOKEN, FB_APP_ID, FB_APP_SECRET (existing); GH_TOKEN, GITHUB_REPOSITORY for the heartbeat.
 """
 import datetime as dt
 import json
 import os
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
 import urllib.request
 
 ALERT_BELOW_DAYS = 10
-ALERT_TO = "abhinav@bricksofindia.com"
-ALERT_FROM = "BOI Alerts <alerts@bricksofindia.com>"
+HEARTBEAT_VAR = "IG_TOKEN_CHECK_HEARTBEAT"
+BOM = "﻿"
 
 
 def strip(name):
-    return os.environ.get(name, "").lstrip("﻿").strip()
+    return os.environ.get(name, "").lstrip(BOM).strip()
 
 
 def debug_token(token, app_id, app_secret):
@@ -45,7 +51,8 @@ def days_left(data, now):
     return (dt.datetime.fromtimestamp(expires_at, dt.timezone.utc) - now).total_seconds() / 86400
 
 
-def should_alert(days):
+def is_failure(days):
+    """A failure: the token is not valid, or fewer than ALERT_BELOW_DAYS are left."""
     return days is None or days < ALERT_BELOW_DAYS
 
 
@@ -57,26 +64,35 @@ def describe(days):
     return f"{days:.0f} days left"
 
 
-def send(subject, text):
-    import resend  # installed by the workflow step
-    resend.api_key = strip("RESEND_API_KEY")
-    resend.Emails.send({"from": ALERT_FROM, "to": [ALERT_TO], "subject": subject,
-                        "html": f"<p>{text}</p>"})
+def write_heartbeat(now, ok, reason, run=subprocess.run):
+    """Writes the heartbeat variable. Returns True on success. A failed write fails the job (G14)."""
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    value = f"{now.strftime('%Y-%m-%dT%H:%M:%SZ')}|{'ok' if ok else 'failed'}|{reason}"
+    try:
+        run(["gh", "variable", "set", HEARTBEAT_VAR, "--repo", repo, "--body", value],
+            check=True, capture_output=True, text=True)
+        return True
+    except (subprocess.CalledProcessError, FileNotFoundError) as exc:
+        print(f"heartbeat not written: {type(exc).__name__}")
+        return False
 
 
-def main():
-    token, app_id, app_secret = strip("IG_ACCESS_TOKEN"), strip("FB_APP_ID"), strip("FB_APP_SECRET")
+def main(env_check=strip, fetch=debug_token, heartbeat=write_heartbeat, now_fn=None):
+    now = (now_fn or (lambda: dt.datetime.now(dt.timezone.utc)))()
+    token, app_id, app_secret = env_check("IG_ACCESS_TOKEN"), env_check("FB_APP_ID"), env_check("FB_APP_SECRET")
     if not (token and app_id and app_secret):
+        heartbeat(now, False, "setup: a required secret is not set")
         print("setup: IG_ACCESS_TOKEN, FB_APP_ID or FB_APP_SECRET not set")
-        sys.exit(1)
-    now = dt.datetime.now(dt.timezone.utc)
-    days = days_left(debug_token(token, app_id, app_secret), now)
+        return 1
+    days = days_left(fetch(token, app_id, app_secret), now)
     print(f"main-repo Instagram token: {describe(days)}")
-    if should_alert(days):
-        send("[BOI] Main-repo Instagram token needs attention",
-             f"The main-repo Instagram token: {describe(days)}. The rotation job runs twice a month; check it if this repeats.")
-        sys.exit(1 if days is None else 0)
+    failed = is_failure(days)
+    wrote = heartbeat(now, not failed, describe(days))
+    if failed:
+        print("check failed: the token needs attention; the failed run is the notice")
+        return 1
+    return 0 if wrote else 1
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

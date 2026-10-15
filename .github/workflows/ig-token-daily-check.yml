@@ -1,10 +1,12 @@
 # Daily check of this repo's own Instagram token (IG_ACCESS_TOKEN).
-# Reads days left from Meta's debug_token. Emails only when the token is
-# rejected or under 10 days from expiry. Makes no refresh (ig-token-refresh.yml
-# still rotates). No token values are printed or emailed.
+# Reads days left from Meta's debug_token. The run fails when the token is rejected
+# or under 10 days from expiry; that failed run is the only notice (no email is sent).
+# Makes no refresh (ig-token-refresh.yml still rotates). No token values are printed.
 #
-# Uses existing secrets only: IG_ACCESS_TOKEN, FB_APP_ID, FB_APP_SECRET,
-# RESEND_API_KEY. No new secret is needed.
+# Heartbeat: each run writes the IG_TOKEN_CHECK_HEARTBEAT repo variable (G13).
+#
+# Secrets used: IG_ACCESS_TOKEN, FB_APP_ID, FB_APP_SECRET (existing), and
+# ADMIN_PAT (existing; needs variables write for the heartbeat).
 
 name: ig-token-daily-check
 
@@ -27,13 +29,10 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install resend
-        run: pip install -q resend
-
-      - name: Check the token
+      - name: Check the token and write the heartbeat
         env:
           IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
           FB_APP_ID: ${{ secrets.FB_APP_ID }}
           FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
-          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
         run: python scripts/ci/ig_token_check.py
