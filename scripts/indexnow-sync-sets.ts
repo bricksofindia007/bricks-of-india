@@ -3,11 +3,13 @@
  * sitemap change." Classification itself is DB-enforced (see migration
  * 20260727000000_index_tier_classification.sql, triggers on sets and
  * store_prices), so rather than hooking every individual writer to
- * `sets` (generate-approved-drafts.ts, radar-08-reviews.js,
- * scrape-now.mjs, sync-rebrickable.js -- 4+ separate scripts), this
- * reads DB state directly: any tier1/tier2 set that's new or has
- * changed since its last IndexNow submission gets (re-)submitted, scoped
- * to actual changed URLs, not the whole sitemap.
+ * `sets`, this reads DB state directly: any tier1/tier2 set that's new or
+ * has changed since its last IndexNow submission gets (re-)submitted,
+ * scoped to actual changed URLs, not the whole sitemap.
+ *
+ * Reads only the columns the ping needs, and only never-sent sets plus
+ * sets changed in the last day (see scripts/lib/indexnow-pending.ts).
+ * Exits non-zero if it crashes, so a broken run is visible.
  *
  * Run: npx tsx scripts/indexnow-sync-sets.ts
  * Wired into: .github/workflows/scrape-prices.yml (every 6h -- runs
@@ -19,6 +21,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getSecret } from '../src/lib/get-secret';
 import { submitToIndexNow } from '../src/lib/indexnow';
 import { slugify } from '../src/lib/utils';
+import { PING_COLUMNS, PING_TIERS, changedSince, pendingFromRows, type PingRow } from './lib/indexnow-pending';
 
 dotenv.config({ path: '.env.local' });
 
@@ -32,22 +35,38 @@ if (!SUPABASE_URL || !SERVICE_KEY) {
 
 const sb = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
 
-async function main() {
+// Pages through one query. Stable order, so pages do not overlap or skip.
+async function readAll(build: () => any): Promise<PingRow[]> {
   const PAGE = 1000;
-  const pending: { set_number: string; name: string }[] = [];
+  const rows: PingRow[] = [];
   for (let offset = 0; ; offset += PAGE) {
-    const { data, error } = await sb
-      .from('sets')
-      .select('set_number, name, updated_at, indexnow_submitted_at')
-      .in('index_tier', ['tier1', 'tier2'])
-      .or('indexnow_submitted_at.is.null,updated_at.gt.indexnow_submitted_at')
-      .range(offset, offset + PAGE - 1);
+    const { data, error } = await build().range(offset, offset + PAGE - 1);
     if (error) throw error;
     if (!data || data.length === 0) break;
-    pending.push(...data);
+    rows.push(...(data as PingRow[]));
     if (data.length < PAGE) break;
   }
+  return rows;
+}
 
+async function main() {
+  const since = changedSince(Date.now());
+  // 1. Never sent.
+  const neverSent = await readAll(() => sb
+    .from('sets').select(PING_COLUMNS)
+    .in('index_tier', [...PING_TIERS])
+    .is('indexnow_submitted_at', null)
+    .order('set_number'));
+  // 2. Sent before, and changed in the last day (the comparison with the last send is made in code).
+  const changed = await readAll(() => sb
+    .from('sets').select(PING_COLUMNS)
+    .in('index_tier', [...PING_TIERS])
+    .not('indexnow_submitted_at', 'is', null)
+    .gte('updated_at', since)
+    .order('set_number'));
+  console.log(`[IndexNow] read ${neverSent.length} never-sent and ${changed.length} recently changed tier1/tier2 set row(s).`);
+
+  const pending = pendingFromRows([...neverSent, ...changed]);
   if (pending.length === 0) {
     console.log('[IndexNow] no new/changed tier1/tier2 sets since last sync.');
     return;
@@ -70,8 +89,7 @@ async function main() {
 }
 
 main().catch((err) => {
-  // Never fail the workflow over this -- matches the old ping's
-  // continue-on-error intent, just enforced in the script itself since
-  // this runs as one step among several in scrape-prices.yml.
-  console.error('[IndexNow] sync-sets crashed (non-fatal):', err);
+  // A crash fails this step, so a broken run shows up in the workflow.
+  console.error('[IndexNow] sync-sets crashed:', err);
+  process.exit(1);
 });
