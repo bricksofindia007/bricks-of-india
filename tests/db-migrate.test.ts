@@ -80,7 +80,7 @@ describe('selectFixes: only fixes named in the run input are applied', () => {
   });
 });
 
-// P44: staging safety check. Addresses below are built from placeholders; no real address is used.
+// Staging safety check. Addresses below are built from placeholders; no real address is used.
 describe('staging target check', () => {
   const STG_REF = 'abcdefghijklmnopqrst'; // placeholder staging reference (20 characters)
   const direct = (ref: string) => `postgresql://postgres:placeholder@db.${ref}.supabase.co:5432/postgres`;

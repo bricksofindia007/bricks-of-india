@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// P45: staging-only rollback of data fix 586 (the standard line on reviews with no store).
+// Staging-only rollback of a data fix (the standard line on reviews with no store).
 //
 //   TARGET=staging BACKUP_TABLE=public__reviews__<stamp> DATABASE_URL=... node scripts/ci/data-fix-rollback.mjs
 //

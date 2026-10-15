@@ -35,7 +35,7 @@ describe('unlisted reviews (no retailer link)', () => {
   });
 });
 
-describe('addUnlistedDisclaimerLine (P38: the missing line for reviews with no store)', () => {
+describe('addUnlistedDisclaimerLine (the missing line for reviews with no store)', () => {
   const WAIT_LINE = disclaimerTextFor('wait_unlisted');
   const BUY_LINE = disclaimerTextFor('buy');
 

@@ -970,7 +970,7 @@ export async function publishOneDraft(
     rawBody = draft.draft_body
       .replace(/<!--\s*INDIA_PARAGRAPH\s*-->\n?/g, '')
       .replace(/<!--\s*\/INDIAN?_PARAGRAPH\s*-->\n?/g, '');  // /INDIAN_PARAGRAPH is a known model typo
-    // P38: a review with no store recorded skips the splice above, so nothing
+    // A review with no store recorded skips the splice above, so nothing
     // ever added its standard closing line. Add it here for BUY NOW, WAIT and
     // AVOID. A body that already has the line is left alone. If its verdict
     // line can't be found exactly once, the review still publishes as before,
