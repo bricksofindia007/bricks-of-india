@@ -24,11 +24,19 @@ export const ORIGINAL = {
 export const WAIT_BLOCK = "Standard disclaimer: if you're rich, you can skip the verdict and just buy it. The rest of us will be here doing math before we hit checkout.";
 export const BUY_BLOCK = "Standard disclaimer: if you've got the money, obviously buy it — that's what the verdict says too, for once we all agree.";
 
-const BACKUP_RE = /^public__reviews__\d{8}T\d{6}$/;
+// The stamp is matched without regard to case. Postgres stores the unquoted name in lower case, so the
+// table comes back with a lower-case t even when the stamp was written with a capital T.
+const BACKUP_RE = /^public__reviews__\d{8}t\d{6}$/i;
 
 /** Only the backup name the update step makes is accepted: it becomes an identifier in the SQL. */
 export function isValidBackupTable(name) {
   return typeof name === 'string' && BACKUP_RE.test(name);
+}
+
+/** Validates the name (any case) and returns it in lower case. That one value is used everywhere after this. */
+export function normalizeBackupTable(name) {
+  if (!isValidBackupTable(name)) throw new Error('backup table name is not in the expected form; refusing');
+  return name.toLowerCase();
 }
 
 /** The rollback runs against staging only. Returns { ok, reason }; the reason never repeats the address. */
@@ -73,8 +81,8 @@ function guardExpr(source, verdict) {
  * It is meant to be run by psql with -1 (one transaction) and ON_ERROR_STOP.
  */
 export function buildRollbackSql(backupTable) {
-  if (!isValidBackupTable(backupTable)) throw new Error('backup table name is not in the expected form; refusing');
-  const bt = `boi_backups."${backupTable}"`;
+  const name = normalizeBackupTable(backupTable);
+  const bt = `boi_backups."${name}"`;
   const W = guardExpr('public.reviews', 'WAIT');
   const B = guardExpr('public.reviews', 'BUY NOW');
   const WB = guardExpr(bt, 'WAIT');
@@ -88,7 +96,7 @@ DECLARE
   already boolean;
 BEGIN
   IF NOT EXISTS (SELECT 1 FROM pg_class c JOIN pg_namespace ns ON ns.oid = c.relnamespace
-                 WHERE ns.nspname = 'boi_backups' AND c.relname = ${sqlLit(backupTable)}) THEN
+                 WHERE ns.nspname = 'boi_backups' AND c.relname = ${sqlLit(name)}) THEN
     RAISE EXCEPTION 'backup table not found; nothing changed';
   END IF;
 
@@ -138,8 +146,8 @@ $rollback$;
 // The table is looked up in the database's own catalogue (pg_class joined to pg_namespace), not in
 // information_schema, which hides tables a role has no privilege on.
 export function lookupBackupSql(backupTable) {
-  if (!isValidBackupTable(backupTable)) throw new Error('backup table name is not in the expected form; refusing');
-  return `select count(*) from pg_class c join pg_namespace ns on ns.oid = c.relnamespace where ns.nspname = 'boi_backups' and c.relname = ${sqlLit(backupTable)};`;
+  const name = normalizeBackupTable(backupTable);
+  return `select count(*) from pg_class c join pg_namespace ns on ns.oid = c.relnamespace where ns.nspname = 'boi_backups' and c.relname = ${sqlLit(name)};`;
 }
 
 // Names only, plus whether this role can use the schema. No table content is read.
@@ -168,8 +176,9 @@ export function parseDiagnostic(out) {
 }
 
 export function notFoundMessage(backupTable, diag) {
+  const name = normalizeBackupTable(backupTable);
   const names = diag.names.length ? diag.names.join(', ') : 'none';
-  return `backup table ${backupTable} not found in boi_backups. Tables there starting with public__reviews__: ${names}. `
+  return `backup table ${name} not found in boi_backups. Tables there starting with public__reviews__: ${names}. `
     + `Current role can read the boi_backups schema: ${diag.canRead === null ? 'unknown' : diag.canRead ? 'yes' : 'no'}. Nothing was changed.`;
 }
 
@@ -178,9 +187,10 @@ export function notFoundMessage(backupTable, diag) {
  * Returns { found: true } or { found: false, message } where the message names tables and the role's read access only.
  */
 export function checkBackupPresent(backupTable, run) {
-  if (parseCount(run(lookupBackupSql(backupTable))) === 1) return { found: true };
+  const name = normalizeBackupTable(backupTable);
+  if (parseCount(run(lookupBackupSql(name))) === 1) return { found: true };
   const diag = parseDiagnostic(run(diagnosticSql()));
-  return { found: false, message: notFoundMessage(backupTable, diag) };
+  return { found: false, message: notFoundMessage(name, diag) };
 }
 
 async function main() {
