@@ -228,7 +228,7 @@ try {
 // state). Reads the same social_automation_heartbeat table Check 6c already
 // uses for YouTube -- real success/failure signal instead of a guessed date.
 // Primary alert  (26h): last_attempt_at stale -> workflow itself hasn't run
-// Secondary alert (120h): last_success_at stale -> workflow runs but IG never succeeds.
+// Secondary alert (192h = 8 days): last_success_at stale -> workflow runs but IG never succeeds.
 // Widened from 72h to 120h 2026-07-26: live posted_sets history showed real,
 // non-failure gaps up to 71.9h between eligible sets (the ~7-of-17-days gate),
 // putting 72h at risk of the same false-positive shape Check 4 had. 120h gives
@@ -260,11 +260,11 @@ try {
     } else if (igHb.last_success_at) {
       const igSuccessAge = (Date.now() - new Date(igHb.last_success_at).getTime()) / 3_600_000;
       console.log(`[6] Instagram heartbeat: last success ${igSuccessAge.toFixed(1)}h ago`);
-      if (igSuccessAge > 120) {
+      if (igSuccessAge > 192) {
         failures.push('ig-heartbeat-no-success');
         await sendAlert(
           '⚠️ BOI Health Alert — Instagram not posting',
-          `Pipeline is running (last attempt ${igAttemptAge.toFixed(1)}h ago) but last successful Instagram post was ${igSuccessAge.toFixed(1)} hours ago.\n\nThreshold: 120 hours.\n\nLikely causes: token expiry/invalidation, no eligible sets, or post error. Check social-automation.yml logs.`
+          `Pipeline is running (last attempt ${igAttemptAge.toFixed(1)}h ago) but last successful Instagram post was ${igSuccessAge.toFixed(1)} hours ago.\n\nThreshold: 192 hours (8 days).\n\nLikely causes: token expiry/invalidation, no eligible sets, or post error. Check social-automation.yml logs.`
         );
       }
     } else {
