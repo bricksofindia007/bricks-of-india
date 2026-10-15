@@ -3,7 +3,7 @@
 # or under 10 days from expiry; that failed run is the only notice (no email is sent).
 # Makes no refresh (ig-token-refresh.yml still rotates). No token values are printed.
 #
-# Heartbeat: each run writes the IG_TOKEN_CHECK_HEARTBEAT repo variable (G13).
+# Each run records its result in the IG_TOKEN_CHECK_HEARTBEAT repo variable.
 #
 # Secrets used: IG_ACCESS_TOKEN, FB_APP_ID, FB_APP_SECRET (existing), and
 # ADMIN_PAT (existing; needs variables write for the heartbeat).

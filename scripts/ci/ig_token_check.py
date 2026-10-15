@@ -7,8 +7,8 @@ when the check cannot run. A failure is reported only by the failed workflow run
 No notification is sent from this script. No refresh here: rotation stays in
 ig-token-refresh.yml. No token value is printed.
 
-Heartbeat (G13): every run writes one line to the IG_TOKEN_CHECK_HEARTBEAT repo
-variable: "<UTC time>|<ok or failed>|<reason>". Needs GH_TOKEN with variables write.
+Every run records one line in the IG_TOKEN_CHECK_HEARTBEAT repo variable:
+"<UTC time>|<ok or failed>|<reason>". Needs GH_TOKEN with variables write.
 
 Env: IG_ACCESS_TOKEN, FB_APP_ID, FB_APP_SECRET (existing); GH_TOKEN, GITHUB_REPOSITORY for the heartbeat.
 """
@@ -65,7 +65,7 @@ def describe(days):
 
 
 def write_heartbeat(now, ok, reason, run=subprocess.run):
-    """Writes the heartbeat variable. Returns True on success. A failed write fails the job (G14)."""
+    """Writes the heartbeat variable. Returns True on success. A failed write fails the job."""
     repo = os.environ.get("GITHUB_REPOSITORY", "")
     value = f"{now.strftime('%Y-%m-%dT%H:%M:%SZ')}|{'ok' if ok else 'failed'}|{reason}"
     try:
