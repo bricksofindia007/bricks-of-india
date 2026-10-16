@@ -12,6 +12,7 @@
 //  - The dispatcher is inert unless BOTH the BOI_SCHEDULER_DISPATCH_TOKEN secret exists AND
 //    flag:v1.dispatch_enabled is true (set only after Abhinav confirms the token, P5).
 import { verifyAndParse } from './auth';
+import { BACKUP_CRON, countRunsToday, decideBackup, dispatchWorkflow, istDay, jobForSlot } from './backup';
 
 export interface Env {
   BOI_SNAPSHOTS: KVNamespace;
@@ -69,6 +70,39 @@ async function dispatch(env: Env, store: string, slot: string): Promise<void> {
   if (status < 200 || status >= 300) await env.BOI_SNAPSHOTS.put('meta:dispatch_fail', JSON.stringify(note));
 }
 
+// P32 backup dispatch. Writes nothing and calls nothing GitHub-side unless the flag, the token and
+// production are all present. Each decision (including skips) is written to meta:backup:last.
+async function runBackup(env: Env, file: string, label: string, at: Date): Promise<void> {
+  const flags = ((await env.BOI_SNAPSHOTS.get('flag:v1', 'json')) ?? {}) as { backup_dispatch_enabled?: boolean };
+  const isProduction = env.TARGET === 'production';
+  const flagOn = flags.backup_dispatch_enabled === true;
+  const token = env.BOI_SCHEDULER_DISPATCH_TOKEN ?? '';
+  if (!isProduction || !flagOn || !token) return; // inert: no KV write, no GitHub call
+  const day = istDay(at);
+  const claimKey = `meta:backup:${file}:${day}`;
+  const alreadyClaimed = (await env.BOI_SNAPSHOTS.get(claimKey)) !== null;
+  let startedToday: number | null = null;
+  if (!alreadyClaimed) {
+    try { startedToday = await countRunsToday(token, env.GITHUB_REPO, file, day); }
+    catch (e) { console.log(`backup ${file}: run list failed: ${(e as Error).message}`); }
+  }
+  const decision = decideBackup({ isProduction, flagOn, hasToken: true, alreadyClaimed, startedToday });
+  const note = { file, label, slot: at.toISOString(), ist_day: day, action: decision.action, reason: decision.reason };
+  if (decision.action === 'skip') {
+    // Claim when GitHub said it already started, so later ticks stop asking. A failed read is not claimed,
+    // so the next backup tick may check again.
+    if (startedToday !== null || alreadyClaimed) await env.BOI_SNAPSHOTS.put(claimKey, JSON.stringify(note), { expirationTtl: 3 * 86400 });
+    await env.BOI_SNAPSHOTS.put('meta:backup:last', JSON.stringify({ ...note, at: new Date().toISOString() }));
+    return;
+  }
+  // Claim BEFORE dispatching. If the outcome is unknown, the claim stays: no automatic retry that day.
+  await env.BOI_SNAPSHOTS.put(claimKey, JSON.stringify(note), { expirationTtl: 3 * 86400 });
+  const status = await dispatchWorkflow(token, env.GITHUB_REPO, file);
+  const done = { ...note, http_status: status, at: new Date().toISOString() };
+  await env.BOI_SNAPSHOTS.put('meta:backup:last', JSON.stringify(done));
+  if (status < 200 || status >= 300) await env.BOI_SNAPSHOTS.put('meta:backup_fail', JSON.stringify(done));
+}
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(req.url);
@@ -81,5 +115,10 @@ export default {
     await env.BOI_SNAPSHOTS.put('meta:scheduler:heartbeat', JSON.stringify({ at: new Date().toISOString(), slot, cron: ev.cron, version: VERSION, target: env.TARGET }));
     const store = CRON_STORE[ev.cron];
     if (store) ctx.waitUntil(dispatch(env, store, slot));
+    if (ev.cron === BACKUP_CRON) {
+      const at = new Date(ev.scheduledTime);
+      const job = jobForSlot(at);
+      if (job) ctx.waitUntil(runBackup(env, job.file, job.label, at));
+    }
   },
 };
