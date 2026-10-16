@@ -152,8 +152,9 @@ jobs:
             echo "::error::scrape or freshness check failed -- see step logs above; alert email already sent"
             exit 1
           fi
+          # A held store is a notice, not a failure: nothing was written for it,
+          # and the one grouped notice for the run has already been sent.
           if [ -n "${{ steps.scrape.outputs.held_stores }}" ]; then
-            echo "::error::pre-write stop held: ${{ steps.scrape.outputs.held_stores }} (nothing written for it; alert email already sent)"
-            exit 1
+            echo "::notice::held this run: ${{ steps.scrape.outputs.held_stores }} (nothing written for them; one notice sent)"
           fi
           echo "Scrape and freshness check passed."
