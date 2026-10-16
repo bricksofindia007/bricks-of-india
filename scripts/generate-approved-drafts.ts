@@ -24,7 +24,8 @@ import { createClient } from '@supabase/supabase-js';
 import { generateWithFailover, BothProvidersFailedError, type DraftGenerationInput, type GenerationOutcome } from '../src/lib/generate-with-failover';
 import { getSecret } from '../src/lib/get-secret';
 import { passesAutoPublishGates } from '../src/lib/auto-publish-gate';
-import { publishOneDraft, PublishInsertError } from '../src/lib/publish-draft';
+import { publishOneDraft, PublishInsertError, UnsourcedReviewRefused } from '../src/lib/publish-draft';
+import { reviewListingCheck } from './lib/review-listing-guard.mjs';
 import { buildRetailerSourcePriceContext } from '../src/lib/prompts/draft-prompt';
 import { STORE_DISPLAY_NAME } from './lib/reviews-source.mjs';
 import { loadRecentNews, cataloguedCandidates, decideSameSet, holdReason } from '../src/lib/same-set-guard';
@@ -464,6 +465,7 @@ if (IS_MAIN) (async () => {
   const recentNews = await loadRecentNews(sb);
   const batchSets = new Map<string, string>();
   let heldSameSet = 0;
+  let reviewGuardSkipped = 0;
 
   for (let i = 0; i < queue.length; i++) {
     await acquireGeminiSlot();
@@ -489,6 +491,18 @@ if (IS_MAIN) (async () => {
         }
         console.log(`HELD (same set ${hit.set_number}: ${hit.path}) -- back in /admin/pending`);
         continue;
+      }
+
+      // Interim guard: a review is written only for a set in the catalogue with an in-stock listing.
+      // Otherwise the draft is left untouched, ungenerated.
+      if (draft.draft_format === 'review') {
+        const resolved = await resolveSourceSet(sb, draft.source_url, draft.source_title ?? null, draft.source_excerpt ?? null);
+        const listing = await reviewListingCheck(sb, resolved?.setNumber ?? null);
+        if (!listing.ok) {
+          reviewGuardSkipped++;
+          console.log(`[review-guard] skipped draft ${draft.id}: ${listing.reason}; left ungenerated`);
+          continue;
+        }
       }
 
       const outcome = await generateBodyWithFailover(draft, batchOpeners);
@@ -652,6 +666,13 @@ if (IS_MAIN) (async () => {
       // (the generator only picks up 'approved'), cause in discard_reason.
       // Kept, not deleted -- unlike a quality-gate reject this is our bug,
       // so the row stays for diagnosis.
+      // Interim guard: a review with no retailer source is not published. The draft is left as it is.
+      if (err instanceof UnsourcedReviewRefused) {
+        reviewGuardSkipped++;
+        console.log(`[review-guard] not published: ${err.message}`);
+        continue;
+      }
+
       if (err instanceof PublishInsertError && err.permanent) {
         geminiAttempted++;
         publishRejected++;

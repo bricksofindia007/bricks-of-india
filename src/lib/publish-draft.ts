@@ -868,12 +868,24 @@ async function bothStoresDetail(supabase: SupabaseClient, productUrl: string): P
   }
 }
 
+/** A review with no retailer source is never published. The draft is left as it is. */
+export class UnsourcedReviewRefused extends Error {
+  constructor(public readonly draftId: string) {
+    super(`review ${draftId} has no source_retailer; not published`);
+    this.name = 'UnsourcedReviewRefused';
+  }
+}
+
 export async function publishOneDraft(
   draft: PublishableDraft,
   supabase: SupabaseClient,
   options: PublishOneDraftOptions = {},
 ): Promise<{ path: string; slug: string; table: string; reviewVerdict: string | null; reviewSetNumber: string | null }> {
   if (!draft.draft_body) throw new Error('Draft has no generated body');
+  if (draft.draft_format === 'review' && !draft.source_retailer) {
+    console.warn(`[review-guard] refused to publish draft ${draft.id}: no source_retailer`);
+    throw new UnsourcedReviewRefused(draft.id);
+  }
 
   const freshnessMs = options.lintFreshnessMs ?? DEFAULT_LINT_FRESHNESS_MS;
   const storedFresh = freshnessMs > 0
