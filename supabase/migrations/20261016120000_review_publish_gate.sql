@@ -1,5 +1,4 @@
--- boi:issue 0
--- Note for review: the issue number above is a placeholder and must be replaced with the tracking issue before merge.
+-- boi:issue 599
 -- Publish gate for public.reviews (interim, until the shared review-writer module is in place).
 -- A review is refused when it is inserted or published unless it has a confirmed retailer source
 -- (source_retailer, source_price_inr, source_checked_at) and its set has a store_prices row.

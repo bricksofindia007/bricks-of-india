@@ -8,7 +8,8 @@ const sql = readFileSync(MIGRATION, 'utf8');
 
 describe('review publish gate migration', () => {
   it('has an issue header and no transaction statements outside the function body', () => {
-    expect(sql).toMatch(/^-- boi:issue \d+$/m);
+    expect(sql).toMatch(/^-- boi:issue 599$/m);
+    expect(sql).not.toMatch(/placeholder/i);
     const outside = sql.replace(/\$([a-z]*)\$[\s\S]*?\$\1\$/g, '');
     expect(outside).not.toMatch(/^\s*(BEGIN|COMMIT|ROLLBACK)\b/im);
   });
