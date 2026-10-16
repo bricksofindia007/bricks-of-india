@@ -23,6 +23,8 @@ import math
 import os
 import random
 import sys
+sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "lib"))
+from ai_guard import AiLimitError, gemini_generate, run_budget  # noqa: E402  (safety limits on every Gemini call)
 import time
 import unicodedata
 import uuid
@@ -969,17 +971,16 @@ def generate_script(title: str, price_inr: float, pieces: int | None, theme: str
             from google import genai
             from google.genai import types
             client = genai.Client(api_key=gemini_key)
-            resp = client.models.generate_content(
-                model="gemini-2.5-flash",
-                contents=task_prompt,
+            res = gemini_generate(
+                client, site="video", model="gemini-2.5-flash", system=prompts.SYSTEM_PROMPT, user=task_prompt,
                 config=types.GenerateContentConfig(system_instruction=prompts.SYSTEM_PROMPT),
+                budget=run_budget(),
             )
-            if resp.text and resp.text.strip():
-                usage = getattr(resp, "usage_metadata", None)
-                in_tok = getattr(usage, "prompt_token_count", None) if usage else None
-                out_tok = getattr(usage, "candidates_token_count", None) if usage else None
-                return ScriptGenResult(resp.text.strip(), "gemini", in_tok, out_tok)
+            if res["text"] and res["text"].strip():
+                return ScriptGenResult(res["text"].strip(), "gemini", res["inputTokens"], res["outputTokens"])
             print("WARN: Gemini returned empty text, falling back.", file=sys.stderr)
+        except AiLimitError:
+            raise  # a safety-limit refusal fails the run; it is never retried or sent to a fallback
         except Exception as e:
             print(f"WARN: Gemini failed ({e}), falling back.", file=sys.stderr)
     else:

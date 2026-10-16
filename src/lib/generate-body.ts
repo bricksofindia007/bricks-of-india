@@ -188,12 +188,19 @@ export async function generateBody(
 
   const { GoogleGenerativeAI } = await import('@google/generative-ai');
   const genai  = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
-  const result = await genai
-    .getGenerativeModel({ model: MODEL_CONFIG.model, systemInstruction: systemPrompt })
-    .generateContent({
-      contents         : [{ role: 'user', parts: [{ text: userPrompt }] }],
-      generationConfig : { temperature: MODEL_CONFIG.temperature, maxOutputTokens: MODEL_CONFIG.maxOutputTokens },
-    });
+  const { guardedCall, runBudget } = await import('../../scripts/lib/ai-guard.mjs');
+  const res = await guardedCall({
+    site: 'draft', model: MODEL_CONFIG.model, system: systemPrompt, user: userPrompt, budget: runBudget({ scope: 'request' }),
+    invoke: async () => {
+      const result = await genai
+        .getGenerativeModel({ model: MODEL_CONFIG.model, systemInstruction: systemPrompt })
+        .generateContent({
+          contents         : [{ role: 'user', parts: [{ text: userPrompt }] }],
+          generationConfig : { temperature: MODEL_CONFIG.temperature, maxOutputTokens: MODEL_CONFIG.maxOutputTokens },
+        });
+      return { text: result.response.text(), inputTokens: result.response.usageMetadata?.promptTokenCount, outputTokens: result.response.usageMetadata?.candidatesTokenCount };
+    },
+  });
 
-  return parseDraftResponse(result.response.text(), format);
+  return parseDraftResponse(res.text, format);
 }

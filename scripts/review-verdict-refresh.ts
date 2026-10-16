@@ -106,9 +106,16 @@ ${review.content}`;
 async function callModel(text: string): Promise<{ verdict: string; body: string }> {
   const { GoogleGenerativeAI } = await import('@google/generative-ai');
   const genai = new GoogleGenerativeAI(getSecret('GEMINI_API_KEY')!);
-  const res = await genai.getGenerativeModel({ model: MODEL_CONFIG.model }).generateContent({
-    contents: [{ role: 'user', parts: [{ text }] }],
-    generationConfig: { temperature: 0.3, maxOutputTokens: 4000, responseMimeType: 'application/json' },
+  const { guardedCall, runBudget, geminiUsage } = await import('./lib/ai-guard.mjs');
+  const res = await guardedCall({
+    site: 'draft', model: MODEL_CONFIG.model, system: '', user: text, budget: runBudget(),
+    invoke: async () => {
+      const r = await genai.getGenerativeModel({ model: MODEL_CONFIG.model }).generateContent({
+        contents: [{ role: 'user', parts: [{ text }] }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 4000, responseMimeType: 'application/json' },
+      });
+      return { ...r, ...geminiUsage(r) };
+    },
   });
   return JSON.parse(res.response.text());
 }
