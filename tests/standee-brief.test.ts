@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { summariseStandee, standeeLines, followerChange, STANDEE_START } from '../scripts/lib/standee.mjs';
+import { summariseStandee, standeeLines, followerChange, STANDEE_START, PRE_STANDEE_SOURCE } from '../scripts/lib/standee.mjs';
 
 // Fixtures use the same row shapes fetchStandeeData() returns (metric_date as text, values as strings: pg returns numeric as string).
 const base = {
@@ -24,11 +24,12 @@ const base = {
     { metric_date: '2026-10-14', value: '2' },
     { metric_date: '2026-10-15', value: '5' },
   ],
+  // Seeded pre-standee baselines (the last reads before the standee) plus one post-standee read each.
   followers: [
-    { platform: 'instagram', captured_on: '2026-10-15', followers: 188 },
-    { platform: 'instagram', captured_on: '2026-10-16', followers: 190 },
-    { platform: 'youtube', captured_on: '2026-10-15', followers: 290 },
-    { platform: 'youtube', captured_on: '2026-10-16', followers: 293 },
+    { platform: 'instagram', captured_on: '2026-10-08', captured_at: '2026-10-08T01:11:00Z', followers: '184', source: PRE_STANDEE_SOURCE },
+    { platform: 'instagram', captured_on: '2026-10-16', captured_at: '2026-10-16T21:31:00Z', followers: '190', source: 'followers_snapshot' },
+    { platform: 'youtube', captured_on: '2026-10-14', captured_at: '2026-10-14T00:29:00Z', followers: '289', source: PRE_STANDEE_SOURCE },
+    { platform: 'youtube', captured_on: '2026-10-16', captured_at: '2026-10-16T21:31:00Z', followers: '293', source: 'followers_snapshot' },
   ],
 };
 
@@ -59,43 +60,73 @@ describe('summariseStandee', () => {
     expect(s.since.sessions).toBe(0);
   });
 
-  it('does not sum activeUsers across days (the inputs do not carry it at all)', () => {
-    // Structural: the summary's since-totals are built only from sessions, clicks and page views.
+  it('does not sum activeUsers across days (the since-totals are built only from additive measures)', () => {
     const s = summariseStandee(base);
     expect(Object.keys(s.since).sort()).toEqual(['about', 'clicks', 'sessions', 'sessionsIndia', 'sets', 'siteSessions']);
   });
 });
 
 describe('followerChange', () => {
-  it('uses the exact 15 Oct snapshot as the baseline when there is one', () => {
+  it('uses the seeded pre-standee read as the baseline and the newest read as latest', () => {
     const f = followerChange(base.followers, 'instagram');
-    expect(f).toMatchObject({ status: 'ok', baseline: 188, baselineExact: true, latest: 190, change: 2, latestDate: '2026-10-16' });
+    expect(f).toMatchObject({
+      status: 'ok',
+      baseline: { followers: 184, capturedAt: '2026-10-08T01:11:00Z' },
+      latest: { followers: 190, capturedOn: '2026-10-16' },
+      change: 6,
+    });
   });
 
-  it('falls back to the first later snapshot and says so, rather than pretending it is 15 Oct', () => {
-    const rows = [{ platform: 'youtube', captured_on: '2026-10-17', followers: 300 }, { platform: 'youtube', captured_on: '2026-10-18', followers: 302 }];
+  it('computes YouTube against its own seeded baseline (14 Oct read), not Instagram\'s', () => {
+    const f = followerChange(base.followers, 'youtube');
+    expect(f).toMatchObject({ status: 'ok', baseline: { followers: 289, capturedAt: '2026-10-14T00:29:00Z' }, change: 4 });
+  });
+
+  it('is baseline pending when no pre-standee read has been seeded', () => {
+    const rows = base.followers.filter((r) => r.source !== PRE_STANDEE_SOURCE);
+    expect(followerChange(rows, 'instagram')).toEqual({ platform: 'instagram', status: 'baseline pending' });
+  });
+
+  it('is "no read since" when the baseline is the only read', () => {
+    const rows = base.followers.filter((r) => r.platform === 'youtube' && r.source === PRE_STANDEE_SOURCE);
     const f = followerChange(rows, 'youtube');
-    expect(f).toMatchObject({ status: 'ok', baselineDate: '2026-10-17', baselineExact: false, change: 2 });
+    expect(f.status).toBe('no read since');
+    expect(f.baseline.followers).toBe(289);
+    expect(f.change).toBeUndefined();
   });
 
-  it('is baseline pending with no snapshots at all', () => {
-    expect(followerChange([], 'instagram')).toEqual({ platform: 'instagram', status: 'baseline pending' });
-  });
-
-  it('a single snapshot is the baseline with zero change, not a fabricated trend', () => {
-    const f = followerChange([{ platform: 'instagram', captured_on: '2026-10-15', followers: 188 }], 'instagram');
-    expect(f.change).toBe(0);
-    expect(f.latestDate).toBe(f.baselineDate);
+  it('does not treat a post-standee read as the baseline', () => {
+    const rows = [{ platform: 'youtube', captured_on: '2026-10-17', captured_at: '2026-10-17T21:31:00Z', followers: '300', source: 'followers_snapshot' }];
+    expect(followerChange(rows, 'youtube').status).toBe('baseline pending');
   });
 });
 
-describe('standeeLines', () => {
-  it('renders plain wording with the day label, the since line, and follower changes', () => {
+describe('standeeLines: follower wording', () => {
+  it('says "since the last pre-standee read" and gives the baseline date and time in plain words', () => {
+    const lines = standeeLines(summariseStandee(base));
+    expect(lines[2]).toBe('Instagram followers: 190 as of 16 Oct, +6 since the last pre-standee read (184, read 8 Oct, 01:11 UTC).');
+    expect(lines[3]).toBe('YouTube followers: 293 as of 16 Oct, +4 since the last pre-standee read (289, read 14 Oct, 00:29 UTC).');
+  });
+
+  it('says there is no newer read when only the baseline exists', () => {
+    const rows = base.followers.filter((r) => r.source === PRE_STANDEE_SOURCE);
+    const lines = standeeLines(summariseStandee({ ...base, followers: rows }));
+    expect(lines).toContain('Instagram followers: 184 at the last pre-standee read (8 Oct, 01:11 UTC). No newer read yet.');
+  });
+
+  it('says baseline pending, not a number, when nothing is seeded', () => {
+    const rows = base.followers.filter((r) => r.source !== PRE_STANDEE_SOURCE);
+    const lines = standeeLines(summariseStandee({ ...base, followers: rows }));
+    expect(lines).toContain('Instagram followers: baseline pending (no pre-standee read on record).');
+    expect(lines).toContain('YouTube followers: baseline pending (no pre-standee read on record).');
+  });
+});
+
+describe('standeeLines: other wording', () => {
+  it('renders the day label and the since line', () => {
     const lines = standeeLines(summariseStandee(base));
     expect(lines[0]).toBe('Yesterday (15 Oct): 20 sessions (5 from India), 5 clicks, 4 /about visits, 2 /sets visits.');
     expect(lines[1]).toBe('Since 15 Oct: 20 sessions (5 from India), 5 clicks, 4 /about visits, 2 /sets visits. That is 3.3% of all site sessions.');
-    expect(lines[2]).toBe('Instagram followers: 190 now, +2 vs 188 on 15 Oct.');
-    expect(lines[3]).toBe('YouTube followers: 293 now, +3 vs 290 on 15 Oct.');
   });
 
   it('says "Latest GA4 day" when the reported day is not yesterday', () => {
@@ -103,17 +134,9 @@ describe('standeeLines', () => {
     expect(lines[0].startsWith('Latest GA4 day (15 Oct):')).toBe(true);
   });
 
-  it('is honest when there is no GA4 data and no follower baseline', () => {
-    const lines = standeeLines(summariseStandee({ ...base, campaignSessions: [], pageViews: [], clicks: [], followers: [] }));
+  it('is honest when there is no GA4 data', () => {
+    const lines = standeeLines(summariseStandee({ ...base, campaignSessions: [], pageViews: [], clicks: [] }));
     expect(lines[0]).toBe('No GA4 data for the standee campaign has been reported yet (GA4 runs 1–2 days behind).');
-    expect(lines).toContain('Instagram followers: baseline pending (no snapshot yet).');
-    expect(lines).toContain('YouTube followers: baseline pending (no snapshot yet).');
-  });
-
-  it('marks a non-15-Oct baseline as such', () => {
-    const rows = [{ platform: 'instagram', captured_on: '2026-10-17', followers: 191 }, { platform: 'instagram', captured_on: '2026-10-18', followers: 193 }];
-    const lines = standeeLines(summariseStandee({ ...base, followers: rows }));
-    expect(lines).toContain('Instagram followers: 193 now, +2 vs 191 on 17 Oct, not 15 Oct.');
   });
 
   it('renders an unavailable line for a failed read, and never throws', () => {
@@ -122,7 +145,8 @@ describe('standeeLines', () => {
 });
 
 describe('constants', () => {
-  it('the standee window starts on 15 Oct 2026', () => {
+  it('the standee window starts on 15 Oct 2026, and the baseline source tag is fixed', () => {
     expect(STANDEE_START).toBe('2026-10-15');
+    expect(PRE_STANDEE_SOURCE).toBe('pre_standee_seed');
   });
 });

@@ -10,7 +10,9 @@
  * The caller turns any error into one "unavailable" line (see standeeLines).
  */
 
-export const STANDEE_START = '2026-10-15';   // the day the QR went up; also the follower baseline day
+export const STANDEE_START = '2026-10-15';   // the day the QR went up; the since-start window
+// Source tag of the seeded baseline rows: the last follower read before the standee (see the growth migration).
+export const PRE_STANDEE_SOURCE = 'pre_standee_seed';
 export const CLICK_EVENTS = ['click'];        // standee click event name is UNCONFIRMED (growth issue); widen once confirmed
 const PAGES = ['/about', '/sets'];
 
@@ -71,21 +73,28 @@ export function summariseStandee({ today, campaignSessions, siteSessions, pageVi
   };
 }
 
-/** Baseline = the snapshot on STANDEE_START. Failing that, the first one after it, flagged approximate. */
+/**
+ * Baseline = the seeded pre-standee read for the platform (source PRE_STANDEE_SOURCE), which is the last
+ * count taken before the standee went up. Latest = the most recent read after it.
+ * No seeded baseline -> "baseline pending". A baseline with no newer read -> "no read since".
+ */
 export function followerChange(rows, platform) {
   const mine = rows.filter((r) => r.platform === platform).sort((a, b) => a.captured_on.localeCompare(b.captured_on));
-  const base = mine.find((r) => r.captured_on === STANDEE_START) ?? mine.find((r) => r.captured_on > STANDEE_START);
-  const latest = mine.at(-1);
-  if (!base || !latest) return { platform, status: 'baseline pending' };
+  const base = mine.find((r) => r.source === PRE_STANDEE_SOURCE);
+  if (!base) return { platform, status: 'baseline pending' };
+  const baseline = {
+    followers: num(base.followers),
+    capturedAt: base.captured_at,
+  };
+  const after = mine.filter((r) => r.captured_on > base.captured_on);
+  const latest = after.at(-1);
+  if (!latest) return { platform, status: 'no read since', baseline };
   return {
     platform,
     status: 'ok',
-    baselineDate: base.captured_on,
-    baselineExact: base.captured_on === STANDEE_START,
-    baseline: num(base.followers),
-    latestDate: latest.captured_on,
-    latest: num(latest.followers),
-    change: num(latest.followers) - num(base.followers),
+    baseline,
+    latest: { followers: num(latest.followers), capturedOn: latest.captured_on },
+    change: num(latest.followers) - baseline.followers,
   };
 }
 
@@ -106,13 +115,16 @@ export function standeeLines(summary) {
   out.push(`Since 15 Oct: ${s.sessions} sessions (${s.sessionsIndia} from India), ${s.clicks} clicks, ` +
     `${s.about} /about visits, ${s.sets} /sets visits.${share}`);
   for (const f of summary.followers) {
-    if (f.status !== 'ok') {
-      out.push(`${label(f.platform)} followers: baseline pending (no snapshot yet).`);
-      continue;
+    const name = label(f.platform);
+    if (f.status === 'baseline pending') {
+      out.push(`${name} followers: baseline pending (no pre-standee read on record).`);
+    } else if (f.status === 'no read since') {
+      out.push(`${name} followers: ${f.baseline.followers} at the last pre-standee read (${fmtWhen(f.baseline.capturedAt)}). No newer read yet.`);
+    } else {
+      const sign = f.change > 0 ? '+' : '';
+      out.push(`${name} followers: ${f.latest.followers} as of ${fmtDate(f.latest.capturedOn)}, ` +
+        `${sign}${f.change} since the last pre-standee read (${f.baseline.followers}, read ${fmtWhen(f.baseline.capturedAt)}).`);
     }
-    const sign = f.change > 0 ? '+' : '';
-    const basis = f.baselineExact ? '15 Oct' : `${fmtDate(f.baselineDate)}, not 15 Oct`;
-    out.push(`${label(f.platform)} followers: ${f.latest} now, ${sign}${f.change} vs ${f.baseline} on ${basis}.`);
   }
   return out;
 }
@@ -129,6 +141,11 @@ function shiftDay(ymd, delta) {
 function fmtDate(ymd) {
   const [y, m, d] = ymd.split('-').map(Number);
   return new Date(Date.UTC(y, m - 1, d)).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' });
+}
+
+/** ISO UTC timestamp -> "8 Oct, 01:11 UTC". */
+function fmtWhen(iso) {
+  return `${fmtDate(iso.slice(0, 10))}, ${iso.slice(11, 16)} UTC`;
 }
 
 // ── DB read (the only part that touches the network) ──────────────────────────
@@ -158,8 +175,10 @@ export async function fetchStandeeData(connectionString, { today }) {
       q(`select metric_date::text as metric_date, sum(value) as value from growth.ga4_campaign_metrics
            where scope = 'campaign' and geo = 'all' and breakdown = 'event' and metric = 'eventCount'
              and dimension_value = any($1) and metric_date >= $2 group by metric_date`, [CLICK_EVENTS, STANDEE_START]),
-      q(`select platform, captured_on::text as captured_on, followers from growth.follower_snapshots
-           where captured_on >= $1`, [STANDEE_START]),
+      // All rows, not just since 15 Oct: the seeded pre-standee baselines are dated before it.
+      q(`select platform, captured_on::text as captured_on, source, followers,
+                to_char(captured_at at time zone 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS"Z"') as captured_at
+           from growth.follower_snapshots`),
     ]);
     return { today, campaignSessions, siteSessions, pageViews, clicks, followers };
   } finally {
