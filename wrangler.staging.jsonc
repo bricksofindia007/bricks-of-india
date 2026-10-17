@@ -36,5 +36,5 @@
       "new_sqlite_classes": ["DOQueueHandler", "DOShardedTagCache"]
     }
   ],
-  "vars": { "DEPLOY_TARGET": "staging" }
+  "vars": { "DEPLOY_TARGET": "staging", "STAGING_READ_ONLY": "1" }
 }
