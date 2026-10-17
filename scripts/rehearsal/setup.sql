@@ -31,5 +31,10 @@ create table if not exists storage.objects (
 create or replace function auth.uid() returns uuid language sql stable as 'select null::uuid';
 create or replace function auth.role() returns text language sql stable as 'select ''anon''::text';
 
+-- Default privileges: the image grants anon and authenticated on every new table. Production
+-- does not (FP3.3 revokes it), so the rehearsal removes the default grants to match. ASSUMPTION:
+-- confirm against production with a read-only query on pg_default_acl before relying on it.
+alter default privileges for role supabase_admin in schema public revoke all on tables from anon, authenticated;
+alter default privileges in schema public revoke all on tables from anon, authenticated;
 create schema if not exists supabase_migrations;
 create table if not exists supabase_migrations.schema_migrations (version text primary key, name text, statements text[]);
