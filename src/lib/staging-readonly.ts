@@ -30,6 +30,18 @@ export function readonlyGate(method: string, pathname: string): Response | null 
   });
 }
 
+/**
+ * Used when the guard or the site throws. Writes (any method other than GET or HEAD) get 503;
+ * they are never passed on. Reads may still pass to the site.
+ */
+export function failClosedResponse(method: string): Response | null {
+  if (method === 'GET' || method === 'HEAD') return null;
+  return new Response('Read-only staging: the request could not be checked, so it was refused.', {
+    status: 503,
+    headers: { 'retry-after': '60', 'content-type': 'text/plain; charset=utf-8', 'x-robots-tag': 'noindex, nofollow' },
+  });
+}
+
 /** Adds noindex to any response. */
 export function withNoindex(res: Response): Response {
   const headers = new Headers(res.headers);

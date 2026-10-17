@@ -8,9 +8,9 @@ on:
   workflow_dispatch:
     inputs:
       ref:
-        description: 'Branch or commit to build (default main)'
+        description: 'Branch or commit to build (default staging-readonly)'
         required: false
-        default: main
+        default: staging-readonly
 
 concurrency:
   group: deploy-cloudflare-staging

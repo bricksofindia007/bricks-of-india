@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isReadonly, readonlyGate, withNoindex } from '@/lib/staging-readonly';
+import { failClosedResponse, isReadonly, readonlyGate, withNoindex } from '@/lib/staging-readonly';
 
 describe('staging read-only: blocked writes (405 on every route)', () => {
   it('blocks a contact form post', () => {
@@ -74,5 +74,17 @@ describe('staging read-only: the flag', () => {
     expect(isReadonly({ STAGING_READONLY: '0' })).toBe(false);
     expect(isReadonly({})).toBe(false);
     expect(isReadonly(undefined)).toBe(false);
+  });
+});
+
+describe('staging read-only: fail closed on error', () => {
+  it('answers a write with 503 and never passes it on; a read may still pass', () => {
+    for (const m of ['POST', 'PUT', 'PATCH', 'DELETE']) {
+      const r = failClosedResponse(m);
+      expect(r?.status).toBe(503);
+      expect(r?.headers.get('x-robots-tag')).toContain('noindex');
+    }
+    expect(failClosedResponse('GET')).toBeNull();
+    expect(failClosedResponse('HEAD')).toBeNull();
   });
 });
