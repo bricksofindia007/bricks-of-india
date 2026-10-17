@@ -47,7 +47,7 @@ jobs:
           set +u
           results=""
           for f in $(ls supabase/migrations/*.sql | sort); do
-            if psql -v ON_ERROR_STOP=1 -q -f "$f" > /tmp/out.txt 2>&1; then
+            if psql -1 -v ON_ERROR_STOP=1 -q -f "$f" > /tmp/out.txt 2>&1; then
               results="$results\nPASS  $f"
             else
               results="$results\nFAIL  $f"
@@ -63,6 +63,6 @@ jobs:
         run: |
           for f in $(ls supabase/rehearsal/*.sql 2>/dev/null | sort); do
             echo "applying $f"
-            psql -v ON_ERROR_STOP=1 -q -f "$f" || { echo "FAIL $f"; exit 1; }
+            psql -1 -v ON_ERROR_STOP=1 -q -f "$f" || { echo "FAIL $f"; exit 1; }
           done
           echo "rehearsal files applied (none is fine)"
