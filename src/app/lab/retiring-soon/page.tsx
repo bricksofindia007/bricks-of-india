@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
-import { createServerClient } from '@/lib/supabase';
+import { createPublicClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { getStores, storeLabels } from '@/lib/stores';
 import { abhinav12Price } from '@/lib/abhinav12';
@@ -50,7 +50,7 @@ interface RetSet {
 export default async function RetiringSoonPage() {
   // FP5.1: store names come from the retailer registry (src/lib/stores.ts).
   const STORE_LABELS = storeLabels(await getStores());
-  const supabase = createServerClient();
+  const supabase = createPublicClient();
 
   const { data: setsRaw } = await supabase
     .from('sets')
