@@ -35,7 +35,15 @@ import { purgeCache } from "@opennextjs/cloudflare/overrides/cache-purge/index";
 export default defineCloudflareConfig({
   incrementalCache: r2IncrementalCache,
   queue: doQueue,
-  tagCache: doShardedTagCache({ baseShardSize: 12 }),
+  // Regional cache on: tag lookups are answered from the colo cache for 60 s,
+  // including "no tag" answers, so most lookups skip the shard object. A publish
+  // or fix is visible within 60 s per colo. Rollback: restore the one-line call.
+  tagCache: doShardedTagCache({
+    baseShardSize: 12,
+    regionalCache: true,
+    regionalCacheTtlSec: 60,
+    regionalCacheDangerouslyPersistMissingTags: true,
+  }),
   cachePurge: purgeCache({ type: "direct" }),
   // Serve cached pages straight from the cache with the refresh time stored alongside each
   // page (3 Oct 2026). Without this, pages made on demand were marked stale almost at once
