@@ -5,7 +5,7 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { ArticleMarkdown } from '@/components/content/ArticleMarkdown';
-import { createServerClient, supabaseRead as supabase } from '@/lib/supabase';
+import { createPublicClient, supabaseRead as supabase } from '@/lib/supabase';
 import { READ_REVALIDATE_SECONDS, bestInStock, badgeEligible } from '@/lib/price-freshness';
 import { formatDate, formatPrice, whatsappShareUrl, twitterShareUrl, socialCardImage } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
@@ -107,22 +107,18 @@ export default async function ReviewPage(props: Props) {
   let recentStockEventsAt: string[] = [];
   let priceSummary: SetPriceSummary | null = null;
   if (set?.set_number) {
-    const serverClient = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
+    // Public key only: prices come through the price functions (migration 20261017200000).
+    const publicClient = createPublicClient({ revalidate: READ_REVALIDATE_SECONDS });
     const since = new Date(Date.now() - RETIRED_IN_INDIA_DAYS * 864e5).toISOString();
-    const [{ data: storePrices }, { data: history }, summaries] = await Promise.all([
-      serverClient
-        .from('store_prices')
-        .select('store_id, price_inr, in_stock, product_url, scraped_at')
-        .eq('set_id', set.set_number),
-      // Item 0: stock activity in the last 14 days (India status input).
-      serverClient
-        .from('price_history')
-        .select('store_id, recorded_at')
-        .eq('set_id', set.set_number)
-        .gte('recorded_at', since),
+    const [{ data: storePrices }, { data: historyRows }, summaries] = await Promise.all([
+      publicClient.rpc('get_set_prices', { p_set_number: set.set_number }),
+      // Item 0: stock activity in the last 14 days (India status input). The function returns the
+      // newest 500 rows for the set; the window is applied here.
+      publicClient.rpc('get_price_history', { p_set_number: set.set_number, p_limit: 500 }),
       // Same Deal/Hot tier the price box badges (WAIT discount line).
-      getPriceSummaries(serverClient, [set.set_number]),
+      getPriceSummaries(publicClient, [set.set_number]),
     ]);
+    const history = ((historyRows ?? []) as { store_id: string; recorded_at: string }[]).filter((h) => h.recorded_at >= since);
     priceSummary = summaries.get(set.set_number) ?? null;
     for (const sp of storePrices ?? []) {
       storePriceMap.set(sp.store_id, sp);
