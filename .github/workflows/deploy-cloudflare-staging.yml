@@ -1,7 +1,8 @@
 name: Staging Worker (bricks-of-india-staging)
 
-# Manual dispatch only. Deploys a separate staging Worker with its own R2 bucket, Durable Object classes and KV.
-# No custom route, no production bindings, no production Supabase values. Uses the repo's existing deploy token.
+# Manual dispatch only. Deploys a separate staging Worker with its own R2 bucket and Durable Object classes.
+# No KV (production binds none). No custom route, no production bindings, no production Supabase values.
+# Uses the repo's existing deploy token.
 
 on:
   workflow_dispatch:
@@ -29,18 +30,8 @@ jobs:
         with:
           node-version: '22'
       - run: npm ci
-      - name: Create staging R2 bucket and KV namespace (if missing)
-        run: |
-          npx wrangler r2 bucket create bricksofindia-next-cache-staging || echo "R2 bucket exists or create skipped"
-          npx wrangler kv namespace create boi-staging-kv > kv.txt 2>&1 || echo "KV create skipped (may exist)"
-          cat kv.txt | sed -E 's/[0-9a-f]{32}/[id]/g'
-          ID=$(grep -oE '[0-9a-f]{32}' kv.txt | head -1)
-          if [ -z "$ID" ]; then
-            npx wrangler kv namespace list > kvlist.json
-            ID=$(node -e "const l=require('./kvlist.json');const n=l.find(x=>x.title&&x.title.endsWith('boi-staging-kv'));process.stdout.write(n?n.id:'')")
-          fi
-          test -n "$ID" || { echo "::error::could not find the staging KV namespace id"; exit 1; }
-          sed -i "s/REPLACE_AT_DEPLOY/$ID/" wrangler.staging.jsonc
+      - name: Create staging R2 bucket (if missing)
+        run: npx wrangler r2 bucket create bricksofindia-next-cache-staging || echo "R2 bucket exists or create skipped"
       - name: Next.js build (staging values)
         run: npm run build
       - name: OpenNext Cloudflare build

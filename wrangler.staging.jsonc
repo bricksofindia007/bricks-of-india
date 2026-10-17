@@ -1,6 +1,7 @@
 {
-  // Staging Worker for bricks-of-india. Own name, own R2 bucket, own Durable Object classes, own KV.
-  // No custom route, no production bindings. Deployed only by .github/workflows/deploy-cloudflare-staging.yml.
+  // Staging Worker for bricks-of-india. Own name, own R2 bucket, own Durable Object classes.
+  // No KV: production does not bind KV. No custom route, no production bindings.
+  // Deployed only by .github/workflows/deploy-cloudflare-staging.yml (manual dispatch).
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "bricks-of-india-staging",
   "main": ".open-next/worker.js",
@@ -34,9 +35,6 @@
       "tag": "v1",
       "new_sqlite_classes": ["DOQueueHandler", "DOShardedTagCache"]
     }
-  ],
-  "kv_namespaces": [
-    { "binding": "STAGING_KV", "id": "REPLACE_AT_DEPLOY" }
   ],
   "vars": { "DEPLOY_TARGET": "staging" }
 }
