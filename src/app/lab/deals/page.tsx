@@ -95,7 +95,7 @@ export default async function DealsPage() {
       {/* Deal count chip */}
       {deals.length > 0 && (
         <div style={{ padding: '10px 28px 0', fontSize: '0.78rem', fontWeight: 700, color: 'var(--boi-saffron)' }}>
-          {deals.length} set{deals.length !== 1 ? 's' : ''} at least 10% below MRP right now
+          {deals.length} set{deals.length !== 1 ? 's' : ''} priced well below MRP right now
         </div>
       )}
 
@@ -105,7 +105,7 @@ export default async function DealsPage() {
           <div style={{ textAlign: 'center', padding: '80px 24px' }}>
             <div style={{ fontSize: '2.5rem', marginBottom: 12 }}>🏷️</div>
             <h2 style={{ fontFamily: 'var(--font-fredoka)', fontSize: '1.4rem', color: 'var(--boi-text)', margin: '0 0 10px' }}>
-              Nothing 10% or more below MRP right now.
+              Nothing is priced well below MRP right now.
             </h2>
             <p style={{ fontSize: '0.88rem', color: 'var(--boi-text-secondary)', maxWidth: 360, margin: '0 auto 20px' }}>
               The stores are doing their best. Their best is not good enough. Check back later.
