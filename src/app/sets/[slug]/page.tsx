@@ -1,5 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { TrackedLink } from '@/components/analytics/TrackedLink';
+import { hostOf } from '@/lib/analytics';
 import { AFFILIATE_NOTE } from '@/lib/affiliate-disclosure';
 import type { Metadata } from 'next';
 import { cache } from 'react';
@@ -416,21 +418,23 @@ export default async function SetPage(props: Props) {
                               {formatPrice(sp.price_inr)}
                             </span>
                           ) : sp.price_inr ? (
-                            <a href={sp.product_url ?? undefined} target="_blank" rel="noopener noreferrer sponsored" className="text-sm font-bold text-dark underline">
+                            <TrackedLink event="click_store_listing" params={{ page_type: 'set', store: sp.store_id, set_number: set.set_number }} href={sp.product_url ?? undefined} target="_blank" rel="noopener noreferrer sponsored" className="text-sm font-bold text-dark underline">
                               See the price at {store.name} →
-                            </a>
+                            </TrackedLink>
                           ) : (
                             <span className="text-gray-400 text-sm">Price unavailable</span>
                           )}
                           {sp.in_stock && (
-                            <a
+                            <TrackedLink
+                              event="click_store_listing"
+                              params={{ page_type: 'set', store: sp.store_id, set_number: set.set_number }}
                               href={sp.product_url}
                               target="_blank"
                               rel="noopener noreferrer sponsored"
                               className="bg-dark text-white text-sm font-bold px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
                             >
                               {sp.price_inr ? 'Buy Now →' : 'Check Price →'}
-                            </a>
+                            </TrackedLink>
                           )}
                         </div>
                       </div>
@@ -446,25 +450,29 @@ export default async function SetPage(props: Props) {
                 {/* Amazon + Flipkart — search links only, never quoted prices */}
                 <div className="px-5 py-4 flex items-center justify-between flex-wrap gap-3">
                   <span className="font-bold text-dark">Amazon India</span>
-                  <a
+                  <TrackedLink
+                    event="click_outbound_search"
+                    params={{ page_type: 'set', set_number: set.set_number, destination_host: hostOf('https://www.amazon.in') }}
                     href={`https://www.amazon.in/s?k=LEGO+${set.set_number}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-accent-blue font-bold text-sm hover:underline"
-                  >
+                    >
                     Search on Amazon →
-                  </a>
+                    </TrackedLink>
                 </div>
                 <div className="px-5 py-4 flex items-center justify-between flex-wrap gap-3">
                   <span className="font-bold text-dark">Flipkart</span>
-                  <a
+                  <TrackedLink
+                    event="click_outbound_search"
+                    params={{ page_type: 'set', set_number: set.set_number, destination_host: hostOf('https://www.flipkart.com') }}
                     href={`https://www.flipkart.com/search?q=LEGO+${set.set_number}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-accent-blue font-bold text-sm hover:underline"
-                  >
+                    >
                     Search on Flipkart →
-                  </a>
+                    </TrackedLink>
                 </div>
               </div>
             </div>

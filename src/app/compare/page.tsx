@@ -228,7 +228,7 @@ export default async function ComparePage(props: Props) {
             />
           </div>
           <div className="mt-6 max-w-2xl">
-            <SearchBar size="lg" initialValue={q} placeholder="Search by set name or number... go on then." />
+            <SearchBar pageType="compare" size="lg" initialValue={q} placeholder="Search by set name or number... go on then." />
           </div>
         </div>
       </div>
