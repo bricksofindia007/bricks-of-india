@@ -1,7 +1,9 @@
 name: Staging Worker (bricks-of-india-staging)
 
 # Manual dispatch only. Deploys a separate staging Worker with its own R2 bucket and Durable Object classes.
-# No KV (production binds none). No custom route, no production bindings, no production Supabase values.
+# No KV (production binds none). No custom route, no production bindings.
+# Staging uses the production public URL and public key only (no staging Supabase project exists).
+# The build FAILS if a service-role key is present for staging (no service key may reach a staging build).
 # Uses the repo's existing deploy token.
 
 on:
@@ -22,24 +24,31 @@ permissions:
 jobs:
   deploy-staging:
     name: Build and deploy staging Worker
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 45
     env:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_PUBLISHABLE_KEY }}
-      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+      STAGING_SERVICE_KEY_PRESENT: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY != '' }}
     steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref }}
+      - name: Refuse a staging build that holds a service-role key
+        run: |
+          if [ "$STAGING_SERVICE_KEY_PRESENT" = "true" ]; then
+            echo "::error::A service-role key is set for staging. Remove STAGING_SUPABASE_SERVICE_ROLE_KEY; staging uses the public key only."
+            exit 1
+          fi
+          echo "no service-role key in staging: ok"
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
       - run: npm ci
       - name: Create staging R2 bucket (if missing)
         run: npx wrangler r2 bucket create bricksofindia-next-cache-staging || echo "R2 bucket exists or create skipped"
-      - name: Next.js build (staging values)
+      - name: Next.js build (public values only)
         run: npm run build
       - name: OpenNext Cloudflare build
         run: npx opennextjs-cloudflare build
