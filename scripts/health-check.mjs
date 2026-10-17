@@ -9,6 +9,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { estimateCycleUsage, EGRESS_QUOTA_GB, LOG_INGEST_QUOTA_GB } from './lib/capacity-estimate.mjs';
 import { sendAlert } from './lib/alert.mjs';
+import { zeroArticleAlert } from './lib/zero-article.mjs';
 import { LIMITS } from './lib/quota-guard.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -439,6 +440,30 @@ try {
     '🔥 [BOI INFRA FAILURE] — Store price count check crashed',
     `Check 8 itself failed to run (this is not a normal low-count alert): ${e.message}\n\nThe health check's own query broke — Supabase error, schema drift, or similar. The real store price count state is unknown until this is fixed. Investigate scripts/health-check.mjs Check 8 directly.`
   );
+}
+
+// ── Check 9b: zero-article run (latest generation run published nothing) ────
+try {
+  const { data: runRows, error } = await sb
+    .from('generator_runs')
+    .select('started_at, ended_at, drafts_attempted, drafts_succeeded')
+    .order('started_at', { ascending: false })
+    .limit(1);
+  if (error) throw error;
+  const verdict = zeroArticleAlert(runRows?.[0] ?? null);
+  console.log(`[9b] Latest generation run: ${verdict.reason}`);
+  if (verdict.alert) {
+    failures.push('zero-articles-run');
+    await sendAlert(
+      '⚠️ BOI Health Alert — Generation run published no articles',
+      `${verdict.reason}.
+
+Check GitHub Actions → generate-drafts.yml for the run and its gate results.`
+    );
+  }
+} catch (e) {
+  console.error('[9b] zero-article check failed:', e.message);
+  failures.push('zero-article-check-error');
 }
 
 // ── Check 9: Cron success timestamps + run-failure detection ────────────────
