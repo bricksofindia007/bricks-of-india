@@ -53,6 +53,24 @@ export async function getPriceSummaries(sb: SupabaseClient, setIds: string[]): P
   return out;
 }
 
+/** The one summary field the reviews page renders: its deal tier (WAIT line). Read through the price function. */
+export type ReviewDealSummary = { deal_tier: DealTier | null };
+
+export async function getReviewDealTiers(sb: SupabaseClient, setIds: string[]): Promise<Map<string, ReviewDealSummary>> {
+  const out = new Map<string, ReviewDealSummary>();
+  const ids = [...new Set(setIds)];
+  for (let i = 0; i < ids.length; i += 150) {
+    const { data, error } = await sb.rpc('get_price_summaries', { p_set_numbers: ids.slice(i, i + 150) });
+    if (error) { console.error('[price-summary] get_price_summaries failed:', error.message); return out; }
+    for (const r of data ?? []) {
+      // Same rule as normalise(): no MRP-derived tier for these sets.
+      if (NO_MRP_SETS.has(r.set_id)) continue;
+      out.set(r.set_id, { deal_tier: (r.deal_tier as DealTier | null) ?? null });
+    }
+  }
+  return out;
+}
+
 /** Every current deal (R3), biggest discount first. Paginated past PostgREST's 1,000-row cap. */
 export async function getDeals(sb: SupabaseClient): Promise<SetPriceSummary[]> {
   const out: SetPriceSummary[] = [];

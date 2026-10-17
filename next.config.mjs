@@ -328,10 +328,10 @@ const nextConfig = {
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           { key: 'X-Frame-Options', value: 'DENY' },
           { key: 'X-XSS-Protection', value: '1; mode=block' },
-          // HTTPS-only, short max-age to start (1 day); no includeSubDomains or preload until every
-          // subdomain is confirmed HTTPS (preload is hard to undo). No full URLs leaked to other sites;
-          // browser features the site never uses switched off.
-          { key: 'Strict-Transport-Security', value: 'max-age=86400' },
+          // HTTPS for one year. No includeSubDomains or preload until every subdomain is confirmed
+          // HTTPS (preload is hard to undo). No full URLs leaked to other sites; browser features the
+          // site never uses switched off.
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()' },
           // CSP in report-only mode — enforcing blocked by inline GA script (tracked: GEO-AUDIT-FIX-01)
@@ -363,6 +363,13 @@ const nextConfig = {
         source: '/api/:path*',
         headers: [
           { key: 'X-Robots-Tag', value: 'noindex, nofollow' },
+        ],
+      },
+      // Legacy pending path — noindex (robots.txt no longer lists it; the header is what keeps it out of search)
+      {
+        source: '/pending/:path*',
+        headers: [
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive, nosnippet' },
         ],
       },
       // Cache hints below are aligned with each route's real ISR interval
