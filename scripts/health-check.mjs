@@ -164,7 +164,7 @@ try {
 // making this check fully redundant once pointed at the right data, so it
 // was removed rather than duplicated.
 
-// ── Check 5: Store price scraper (> 7 hours = alert) ────────────────────────
+// ── Check 5: Store price scraper (> 26 hours = alert) ───────────────────────
 try {
   const { data, error } = await sb
     .from('store_prices')
@@ -175,11 +175,11 @@ try {
   if (error) throw error;
   const ageHours = (Date.now() - new Date(data.scraped_at).getTime()) / 3_600_000;
   console.log(`[5] Store prices: last scrape ${ageHours.toFixed(1)}h ago`);
-  if (ageHours > 7) {
+  if (ageHours > 26) {
     failures.push('prices-stale');
     await sendAlert(
       '⚠️ BOI Health Alert — Store prices stale',
-      `Last store price scraped ${ageHours.toFixed(1)} hours ago.\n\nThreshold: 7 hours (scraper runs every 6h).\n\nCheck GitHub Actions → scrape-prices.yml for failures.`
+      `Last store price scraped ${ageHours.toFixed(1)} hours ago.\n\nThreshold: 26 hours.\n\nCheck GitHub Actions → scrape-prices.yml for failures.`
     );
   }
 } catch (e) {
@@ -191,9 +191,9 @@ try {
   );
 }
 
-// ── Check 5b: Scrape coverage — % of in-stock rows fresh (<7h) ───────────────
+// ── Check 5b: Scrape coverage — % of in-stock rows fresh (<26h) ──────────────
 try {
-  const cutoff5b = new Date(Date.now() - 7 * 3_600_000).toISOString();
+  const cutoff5b = new Date(Date.now() - 26 * 3_600_000).toISOString();
   const stores5b = ['toycra', 'mybrickhouse'];
   for (const store of stores5b) {
     const [{ count: total }, { count: fresh }] = await Promise.all([
@@ -203,12 +203,12 @@ try {
         .eq('store_id', store).eq('in_stock', true).gte('scraped_at', cutoff5b),
     ]);
     const pct = total > 0 ? Math.round((fresh / total) * 100) : 0;
-    console.log(`[5b] ScrapeCoverage ${store}: ${fresh}/${total} in-stock rows fresh (<7h) = ${pct}%`);
+    console.log(`[5b] ScrapeCoverage ${store}: ${fresh}/${total} in-stock rows fresh (<26h) = ${pct}%`);
     if (pct < 80) {
       failures.push(`scrape-coverage-${store}`);
       await sendAlert(
         `⚠️ BOI Health Alert — Scrape coverage low: ${store}`,
-        `Only ${pct}% of in-stock rows for ${store} scraped in last 7h (${fresh}/${total}).\n\nThreshold: 80%.\n\nCheck GitHub Actions → scrape-prices.yml.`
+        `Only ${pct}% of in-stock rows for ${store} scraped in last 26h (${fresh}/${total}).\n\nThreshold: 80%.\n\nCheck GitHub Actions → scrape-prices.yml.`
       );
     }
   }

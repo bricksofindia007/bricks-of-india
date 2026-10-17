@@ -20,11 +20,11 @@ describe('buildAggregateOffer (#220)', () => {
     expect(o.offers).toHaveLength(1);
     expect(o.offers[0].seller.name).toBe('MyBrickHouse');
   });
-  it('ignores an in-stock row older than 12h', () => {
+  it('ignores an in-stock row older than 26h', () => {
     const o: any = buildAggregateOffer([
-      { store_id: 'toycra', price_inr: 900, in_stock: true, scraped_at: hAgo(13) },
+      { store_id: 'toycra', price_inr: 900, in_stock: true, scraped_at: hAgo(27) },
       { store_id: 'mybrickhouse', price_inr: 1000, in_stock: true, scraped_at: hAgo(2) },
-      { store_id: 'x', price_inr: 1200, in_stock: true, scraped_at: hAgo(11.9) },
+      { store_id: 'x', price_inr: 1200, in_stock: true, scraped_at: hAgo(25.9) },
     ], NAMES, URL, NOW);
     expect([o.lowPrice, o.highPrice, o.offerCount]).toEqual([1000, 1200, 2]);
   });
