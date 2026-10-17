@@ -5,7 +5,7 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { ArticleMarkdown } from '@/components/content/ArticleMarkdown';
-import { createServerClient, supabaseRead as supabase } from '@/lib/supabase';
+import { createPublicClient, supabaseRead as supabase } from '@/lib/supabase';
 import { READ_REVALIDATE_SECONDS, bestInStock, badgeEligible } from '@/lib/price-freshness';
 import { formatDate, formatPrice, whatsappShareUrl, twitterShareUrl, socialCardImage } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
@@ -14,8 +14,9 @@ import { Byline } from '@/components/content/Byline';
 import { JsonLd } from '@/components/JsonLd';
 import { buildReviewSchema } from '@/lib/schemas';
 import { getStores, storeLabels } from '@/lib/stores';
+import { TrackedLink } from '@/components/analytics/TrackedLink';
 import { computeIndiaStatus, indiaStatusLine, RETIRED_IN_INDIA_DAYS, HUNT_IT_LINE } from '@/lib/india-status';
-import { getPriceSummaries, type SetPriceSummary } from '@/lib/price-summary';
+import { normalise, type SetPriceSummary } from '@/lib/price-summary';
 import { waitDiscountLine } from '@/lib/verdict-notes';
 import { PriceAsOfNote } from '@/components/content/PriceAsOfNote';
 import { hasTypedStorePrice } from '@/lib/price-as-of';
@@ -107,23 +108,19 @@ export default async function ReviewPage(props: Props) {
   let recentStockEventsAt: string[] = [];
   let priceSummary: SetPriceSummary | null = null;
   if (set?.set_number) {
-    const serverClient = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
+    // Public key only: prices come through the price functions (migration 20261017200000).
+    const publicClient = createPublicClient({ revalidate: READ_REVALIDATE_SECONDS });
     const since = new Date(Date.now() - RETIRED_IN_INDIA_DAYS * 864e5).toISOString();
-    const [{ data: storePrices }, { data: history }, summaries] = await Promise.all([
-      serverClient
-        .from('store_prices')
-        .select('store_id, price_inr, in_stock, product_url, scraped_at')
-        .eq('set_id', set.set_number),
-      // Item 0: stock activity in the last 14 days (India status input).
-      serverClient
-        .from('price_history')
-        .select('store_id, recorded_at')
-        .eq('set_id', set.set_number)
-        .gte('recorded_at', since),
-      // Same Deal/Hot tier the price box badges (WAIT discount line).
-      getPriceSummaries(serverClient, [set.set_number]),
+    const [{ data: storePrices }, { data: historyRows }, { data: summaryRows }] = await Promise.all([
+      publicClient.rpc('get_set_prices', { p_set_number: set.set_number }),
+      // Item 0: stock activity in the last 14 days (India status input). The function returns the
+      // newest 500 rows for the set; the window is applied here.
+      publicClient.rpc('get_price_history', { p_set_number: set.set_number, p_limit: 500 }),
+      // Same Deal/Hot tier the price box badges (WAIT discount line). One set, one row, through the per-set function.
+      publicClient.rpc('get_price_summary_for_set', { p_set_number: set.set_number }),
     ]);
-    priceSummary = summaries.get(set.set_number) ?? null;
+    const history = ((historyRows ?? []) as { store_id: string; recorded_at: string }[]).filter((h) => h.recorded_at >= since);
+    priceSummary = summaryRows?.[0] ? normalise(summaryRows[0]) : null;
     for (const sp of storePrices ?? []) {
       storePriceMap.set(sp.store_id, sp);
     }
@@ -351,14 +348,16 @@ export default async function ReviewPage(props: Props) {
                                 {formatPrice(sp.price_inr)}
                               </span>
                               {sp.in_stock ? (
-                                <a
+                                <TrackedLink
+                                  event="click_store_listing"
+                                  params={{ page_type: 'review', store: sp.store_id, store_name: storeLabels(stores)[sp.store_id], set_number: set.set_number }}
                                   href={sp.product_url}
                                   target="_blank"
                                   rel="noopener noreferrer sponsored"
                                   className="text-xs font-bold text-primary hover:underline"
-                                >
+                                  >
                                   Buy →
-                                </a>
+                                  </TrackedLink>
                               ) : (
                                 <span className="text-xs text-gray-400">OOS</span>
                               )}
@@ -369,14 +368,16 @@ export default async function ReviewPage(props: Props) {
                     </div>
                     )}
                     {bestStorePrice?.in_stock && (
-                      <a
+                      <TrackedLink
+                        event="click_store_listing"
+                        params={{ page_type: 'review', store: bestStorePrice.store_id, store_name: storeLabels(stores)[bestStorePrice.store_id], set_number: set.set_number }}
                         href={bestStorePrice.product_url}
                         target="_blank"
                         rel="noopener noreferrer sponsored"
                         className="block w-full text-center bg-deal-green text-white font-bold py-2 rounded-lg hover:opacity-90 transition-opacity text-sm mt-3"
-                      >
+                        >
                         Buy Now →
-                      </a>
+                        </TrackedLink>
                     )}
                   </div>
 

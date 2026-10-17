@@ -1,4 +1,4 @@
-import Link from 'next/link';
+import { TrackedNextLink } from '@/components/analytics/TrackedNextLink';
 import { formatPrice, slugify } from '@/lib/utils';
 import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/Badge';
 import { SetImage } from '@/components/sets/SetImage';
@@ -17,9 +17,12 @@ interface SetCardProps {
   // the MRP anchor (R2), deal tier (R3) and the R5/R6 label. Badges come ONLY
   // from here, so every card on the site applies the same rules.
   summary?: SetPriceSummary | null;
+  // Optional: when a page passes this, the card link records a click with the
+  // best-price store (registry id and display name) and the card position.
+  trackAs?: { pageType: string; storeId?: string | null; storeName?: string | null; position?: number };
 }
 
-export function SetCard({ set, bestPrice, priceCount, summary }: SetCardProps) {
+export function SetCard({ set, bestPrice, priceCount, summary, trackAs }: SetCardProps) {
   const slug = `${set.set_number}-${slugify(set.name)}`;
   const freshPrice = summary?.best_price_inr ?? null;
   const shownPrice = freshPrice ?? bestPrice?.price_inr ?? null;
@@ -29,8 +32,10 @@ export function SetCard({ set, bestPrice, priceCount, summary }: SetCardProps) {
   const mrpVerified = summary?.anchor_mrp_inr != null || set.mrp_verified;
 
   return (
-    <Link
+    <TrackedNextLink
       href={`/sets/${slug}`}
+      event={trackAs ? 'click_related_set' : undefined}
+      params={trackAs ? { page_type: trackAs.pageType, store: trackAs.storeId ?? undefined, store_name: trackAs.storeName ?? undefined, set_number: set.set_number, position: trackAs.position } : undefined}
       className="group block bg-white rounded-xl border border-border hover:border-primary transition-all duration-200 hover:shadow-lg hover:-translate-y-0.5 overflow-hidden"
     >
       {/* Image */}
@@ -91,6 +96,6 @@ export function SetCard({ set, bestPrice, priceCount, summary }: SetCardProps) {
           <span className="text-xs font-bold text-primary group-hover:underline shrink-0">Compare →</span>
         </div>
       </div>
-    </Link>
+    </TrackedNextLink>
   );
 }

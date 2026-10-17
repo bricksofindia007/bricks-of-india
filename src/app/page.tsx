@@ -320,7 +320,7 @@ export default async function HomePage() {
                 We never sleep. Unlike your wallet.
               </p>
               <div className="max-w-xl">
-                <SearchBar size="lg" placeholder="Search by name or set number... go on then." />
+                <SearchBar pageType="home" size="lg" placeholder="Search by name or set number... go on then." />
               </div>
               <p className="text-xs text-gray-400 mt-3">
                 Prices may vary. Always verify on store website before purchase.
