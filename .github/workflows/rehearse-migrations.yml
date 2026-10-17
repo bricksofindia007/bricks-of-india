@@ -1,0 +1,74 @@
+name: rehearse-migrations
+
+# Throwaway database inside this run. Applies the repo's migrations in order, then the
+# rehearsal files, and checks that the anonymous role sees what the policies allow.
+# Never connects to production or staging: the database is a service container that
+# exists only for this job. No secrets are used.
+
+on:
+  push:
+    branches: [migration-rehearsal, price-read-functions, release/price-reads]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  rehearse:
+    name: Rehearse migrations on a throwaway database
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: supabase/postgres:17.6.1.066
+        env:
+          POSTGRES_PASSWORD: rehearsal-only-container
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: supabase_admin
+      PGPASSWORD: rehearsal-only-container
+      PGDATABASE: postgres
+    steps:
+      - uses: actions/checkout@v5
+      - name: Client tools
+        run: sudo apt-get install -y postgresql-client > /dev/null
+      - name: Supabase roles and schemas the migrations expect (throwaway database)
+        run: psql -v ON_ERROR_STOP=1 -q -f scripts/rehearsal/setup.sql
+      - name: Apply repo migrations in order (each file is its own step in the log)
+        run: |
+          set +u
+          results=""
+          for f in $(ls supabase/migrations/*.sql | sort); do
+            if psql -1 -v ON_ERROR_STOP=1 -q -f "$f" > /tmp/out.txt 2>&1; then
+              results="$results\nPASS  $f"
+            else
+              results="$results\nFAIL  $f"
+              tail -20 /tmp/out.txt
+              echo "$results" > rehearsal-result.txt
+              cat rehearsal-result.txt >> "$GITHUB_STEP_SUMMARY"
+              exit 1
+            fi
+          done
+          echo "$results" > rehearsal-result.txt
+          cat rehearsal-result.txt >> "$GITHUB_STEP_SUMMARY"
+      - name: Anonymous expectations (direct reads refused, functions answer)
+        run: psql -q -v ON_ERROR_STOP=1 -f scripts/rehearsal/anon-expect.sql
+      - name: Apply rehearsal files (new policies and column lockdown, in order)
+        run: |
+          for f in $(ls supabase/rehearsal/*.sql 2>/dev/null | sort); do
+            echo "applying $f"
+            psql -1 -v ON_ERROR_STOP=1 -q -f "$f" || { echo "FAIL $f"; exit 1; }
+          done
+          echo "rehearsal files applied (none is fine)"
+      - name: On failure, list public objects anon or authenticated can still write (diagnostic)
+        if: failure()
+        run: |
+          psql -q -f scripts/rehearsal/diag.sql

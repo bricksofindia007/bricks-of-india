@@ -3,7 +3,6 @@
 
 ## What this site offers
 - Price comparison for LEGO sets across Indian stores: lego.in and Toycra
-- Deals: LEGO sets currently selling below MRP in India
 - Independent set reviews with an India-specific verdict and INR prices
 - LEGO news written for Indian fans
 - Guides for buying and collecting LEGO in India
@@ -11,7 +10,7 @@
 
 ## Key sections
 - [Sets](https://bricksofindia.com/sets): every LEGO set, with Indian store prices where a store lists it
-- [Deals](https://bricksofindia.com/deals): sets currently selling below MRP
+- [Deals](https://bricksofindia.com/deals): current LEGO deals in India
 - [Themes](https://bricksofindia.com/themes): sets by theme
 - [Reviews](https://bricksofindia.com/reviews): set reviews with an India verdict
 - [News](https://bricksofindia.com/news): LEGO news for India
