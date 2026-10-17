@@ -26,6 +26,7 @@ const RPCS = [
   { name: 'get_set_prices', body: { p_set_number: '75419' }, expect: 'open' },
   { name: 'get_prices_for_sets', body: { p_set_numbers: ['75419', '10305'] }, expect: 'open' },
   { name: 'get_price_history', body: { p_set_number: '75419', p_limit: 10 }, expect: 'open' },
+  { name: 'get_best_prices_for_sets', body: { p_set_numbers: ['75419', '10305'] }, expect: 'open' },
 ];
 // Insert probes: an empty object violates NOT NULL, so nothing is written. The anonymous role must not insert.
 const INSERTS = ['newsletter_subscribers', 'community_spotlights'];
