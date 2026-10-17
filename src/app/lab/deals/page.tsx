@@ -205,7 +205,7 @@ function DealCard({ deal, labels }: { deal: DealRow; labels: Record<string, stri
         {/* CTA */}
         <TrackedLink
           event="click_store_listing"
-          params={{ page_type: 'lab_deals', store: deal.store_id, set_number: deal.set.set_number }}
+          params={{ page_type: 'lab_deals', store: deal.store_id, store_name: labels[deal.store_id], set_number: deal.set.set_number }}
           href={deal.product_url}
           target="_blank"
           rel="noopener noreferrer sponsored"

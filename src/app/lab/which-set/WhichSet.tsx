@@ -261,7 +261,7 @@ export function WhichSet({ stores }: { stores: WhichSetStore[] }) {
               <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                 {stores.map(store => (
                   <a key={store.name} href={store.url} target="_blank" rel="noopener noreferrer sponsored"
-                    onClick={() => trackEvent('click_store_listing', { page_type: 'which_set', store: store.id })}
+                    onClick={() => trackEvent('click_store_listing', { page_type: 'which_set', store: store.id, store_name: store.name })}
                     style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px', border: '1.5px solid #F7A800', borderRadius: 10, textDecoration: 'none', color: 'var(--boi-text)', fontWeight: 600, fontSize: '0.86rem' }}>
                     <span>{store.name}</span>
                     {store.note && <span style={{ fontSize: '0.73rem', color: 'var(--boi-saffron)', fontWeight: 700 }}>{store.note}</span>}

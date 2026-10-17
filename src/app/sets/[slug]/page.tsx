@@ -418,7 +418,7 @@ export default async function SetPage(props: Props) {
                               {formatPrice(sp.price_inr)}
                             </span>
                           ) : sp.price_inr ? (
-                            <TrackedLink event="click_store_listing" params={{ page_type: 'set', store: sp.store_id, set_number: set.set_number }} href={sp.product_url ?? undefined} target="_blank" rel="noopener noreferrer sponsored" className="text-sm font-bold text-dark underline">
+                            <TrackedLink event="click_store_listing" params={{ page_type: 'set', store: sp.store_id, store_name: store.name, set_number: set.set_number }} href={sp.product_url ?? undefined} target="_blank" rel="noopener noreferrer sponsored" className="text-sm font-bold text-dark underline">
                               See the price at {store.name} →
                             </TrackedLink>
                           ) : (
@@ -427,7 +427,7 @@ export default async function SetPage(props: Props) {
                           {sp.in_stock && (
                             <TrackedLink
                               event="click_store_listing"
-                              params={{ page_type: 'set', store: sp.store_id, set_number: set.set_number }}
+                              params={{ page_type: 'set', store: sp.store_id, store_name: store.name, set_number: set.set_number }}
                               href={sp.product_url}
                               target="_blank"
                               rel="noopener noreferrer sponsored"

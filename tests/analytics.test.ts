@@ -37,6 +37,18 @@ describe('sanitizeParams', () => {
     expect(sanitizeParams('click_related_set', { set_number: 'Death Star' })).toEqual({});
   });
 
+  it('sends the registry display name as store_name', () => {
+    expect(sanitizeParams('click_store_listing', { store: 'mybrickhouse', store_name: 'LEGO.in' })).toEqual({ store: 'mybrickhouse', store_name: 'LEGO.in' });
+    expect(sanitizeParams('click_store_listing', { store_name: 'Toycra' })).toEqual({ store_name: 'Toycra' });
+    expect(sanitizeParams('click_store_listing', { store_name: '<script>' })).toEqual({});
+    expect(sanitizeParams('click_store_listing', { store_name: 'x'.repeat(61) })).toEqual({});
+  });
+
+  it('related-set clicks carry the store id, name and position', () => {
+    expect(sanitizeParams('click_related_set', { page_type: 'compare', store: 'toycra', store_name: 'Toycra', set_number: '75419', position: 3 }))
+      .toEqual({ page_type: 'compare', store: 'toycra', store_name: 'Toycra', set_number: '75419', position: 3 });
+  });
+
   it('sends search length, never search text', () => {
     expect(sanitizeParams('search_submit', { search_length: 9, query: 'death star' })).toEqual({ search_length: 9 });
   });

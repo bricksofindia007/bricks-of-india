@@ -28,9 +28,9 @@ export type BudgetBand = (typeof BUDGET_BANDS)[number];
 
 // Event name -> parameters it may carry. Anything else is dropped.
 const ALLOWED: Record<string, readonly string[]> = {
-  click_store_listing: ['page_type', 'store', 'set_number', 'position'],
+  click_store_listing: ['page_type', 'store', 'store_name', 'set_number', 'position'],
   click_outbound_search: ['page_type', 'destination_host', 'set_number'],
-  click_related_set: ['page_type', 'set_number', 'position'],
+  click_related_set: ['page_type', 'store', 'store_name', 'set_number', 'position'],
   submit_budget_calculator: ['page_type', 'budget_band', 'result_count'],
   submit_newsletter_signup: ['page_type'],
   search_submit: ['page_type', 'search_length'],
@@ -42,6 +42,7 @@ const ALLOWED: Record<string, readonly string[]> = {
 };
 
 const STORE_ID = /^[a-z0-9_]{1,40}$/;
+const STORE_NAME = /^[\p{L}\p{N} .&'-]{1,60}$/u;
 const SET_NUMBER = /^[0-9]{3,7}(-[0-9]{1,2})?$/;
 
 /** Keep only allowed parameters, with values that match their rule. */
@@ -56,6 +57,8 @@ export function sanitizeParams(name: string, raw: Record<string, unknown>): Reco
       if ((PAGE_TYPES as readonly string[]).includes(String(v))) out[key] = String(v);
     } else if (key === 'store') {
       if (typeof v === 'string' && STORE_ID.test(v)) out[key] = v;
+    } else if (key === 'store_name') {
+      if (typeof v === 'string' && STORE_NAME.test(v)) out[key] = v;
     } else if (key === 'set_number') {
       if (typeof v === 'string' && SET_NUMBER.test(v)) out[key] = v;
     } else if (key === 'budget_band') {
