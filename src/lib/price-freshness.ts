@@ -6,13 +6,13 @@
 // revalidate=INFINITE_CACHE -- next/dist/server/lib/patch-fetch.js), so the
 // site could show week-old prices under an "every 6 hours" promise.
 
-// Scraper cadence -- must match .github/workflows/scrape-prices.yml (cron: every 6th hour, minute 0).
-export const SCRAPE_INTERVAL_HOURS = 6;
+// Scraper cadence -- must match the scheduler's cron (workers/boi-scheduler): each store once a day (decision 4 Oct 2026).
+export const SCRAPE_INTERVAL_HOURS = 24;
 
 // G19 (1 Oct 2026): no public text states the cadence, so there is no PRICE_CADENCE text constant.
 
 /** A price row older than this (two missed scrapes) shows its real age and gets no badges. */
-export const PRICE_STALE_HOURS = 2 * SCRAPE_INTERVAL_HOURS;
+export const PRICE_STALE_HOURS = SCRAPE_INTERVAL_HOURS + 2; // one daily scrape plus 2 h; the health check alerts at 26 h
 
 /**
  * Data-cache lifetime for every Supabase read on an ISR route (per-read
