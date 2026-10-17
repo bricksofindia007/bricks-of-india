@@ -18,6 +18,7 @@ jobs:
       STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
       STAGING_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.STAGING_SUPABASE_PUBLISHABLE_KEY }}
       STAGING_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+      PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
     steps:
       - name: Check each value (status codes and yes/no only)
         run: |
@@ -26,6 +27,7 @@ jobs:
           echo "URL set: $([ -n "$URL" ] && echo yes || echo no)"
           echo "URL is an https supabase host: $(echo "$URL" | grep -qE '^https://[a-z0-9]{20}\.supabase\.co/?$' && echo yes || echo no)"
           REF=$(echo "$URL" | sed -E 's#^https://([a-z0-9]{20})\.supabase\.co.*#\1#')
+          PREF=$(echo "$PRODUCTION_SUPABASE_URL" | sed -E 's#^https://([a-z0-9]{20})\.supabase\.co.*#\1#')
           for NAME in STAGING_SUPABASE_PUBLISHABLE_KEY STAGING_SUPABASE_SERVICE_ROLE_KEY; do
             VAL="${!NAME}"
             echo "--- $NAME"
@@ -40,4 +42,5 @@ jobs:
             echo "  key project matches URL project: $([ "$KREF" = "$REF" ] && echo yes || echo no)"
             CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$URL/rest/v1/" -H "apikey: $VAL" -H "Authorization: Bearer $VAL")
             echo "  HTTP status from REST root: $CODE"
+            echo "  key project is the PRODUCTION project: $([ "$KREF" = "$PREF" ] && echo yes || echo no)"
           done
