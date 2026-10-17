@@ -3,6 +3,15 @@
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { BUDGET_QUICK_RANGES } from '@/lib/price-bands';
+import { trackEvent } from '@/lib/analytics';
+
+// Band from the upper bound only; the amount itself is never sent.
+function budgetBand(max: number): string {
+  if (max <= 2000) return 'under_2000';
+  if (max <= 5000) return '2000_5000';
+  if (max <= 10000) return '5000_10000';
+  return 'over_10000';
+}
 
 const QUICK_RANGES = BUDGET_QUICK_RANGES; // #381: defined in src/lib/price-bands.ts (label/bound test)
 
@@ -19,6 +28,7 @@ export function BudgetForm({ defaultMin, defaultMax }: { defaultMin: number; def
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    trackEvent('submit_budget_calculator', { page_type: 'budget_calculator', budget_band: budgetBand(max) });
     router.push(`/lab/budget-calculator?min=${min}&max=${max}`);
   }
 

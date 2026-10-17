@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { MASCOTS } from '@/lib/brand';
 import { TaglineWink } from '@/components/ui/Taglines';
 import { subscribeNewsletter } from '@/app/actions/newsletter';
+import { trackEvent } from '@/lib/analytics';
 
 export function NewsletterSignup() {
   const [email, setEmail] = useState('');
@@ -19,6 +20,7 @@ export function NewsletterSignup() {
       const result = await subscribeNewsletter(email.trim());
       if (!result.ok) throw new Error('subscribe failed');
       setStatus('success');
+      if (!result.duplicate) trackEvent('submit_newsletter_signup', { page_type: 'other' });
       setMessage(result.duplicate ? "Already subscribed — you're ahead of the curve." : "You're in. Your wallet has been warned.");
       setEmail('');
     } catch {

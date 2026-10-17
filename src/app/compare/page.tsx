@@ -9,6 +9,7 @@ import { SearchBar } from '@/components/ui/SearchBar';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { MASCOTS, THEMES, PRICE_RANGES } from '@/lib/brand';
 import { getPriceSummaries } from '@/lib/price-summary';
+import { getStores, storeLabels } from '@/lib/stores';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Compare LEGO Prices in India',
@@ -200,6 +201,8 @@ export default async function ComparePage(props: Props) {
   }
 
   const summaries = await getPriceSummaries(supabase, setNumbers);
+  // Registry display names for the store ids in the card links (never typed here).
+  const compareStoreNames = storeLabels(await getStores());
 
   const totalPages = Math.ceil(total / PAGE_SIZE);
 
@@ -228,7 +231,7 @@ export default async function ComparePage(props: Props) {
             />
           </div>
           <div className="mt-6 max-w-2xl">
-            <SearchBar size="lg" initialValue={q} placeholder="Search by set name or number... go on then." />
+            <SearchBar pageType="compare" size="lg" initialValue={q} placeholder="Search by set name or number... go on then." />
           </div>
         </div>
       </div>
@@ -336,10 +339,19 @@ export default async function ComparePage(props: Props) {
               </p>
             </div>
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4">
-              {sets.map((set: any) => {
+              {sets.map((set: any, index: number) => {
                 const bestPrice = priceMap[set.set_number] ?? null;
+                const summary = summaries.get(set.set_number);
+                const storeId = summary?.best_store_ids?.[0] ?? null;
                 return (
-                  <SetCard key={set.id} set={set} bestPrice={bestPrice} priceCount={bestPrice ? 1 : 0} summary={summaries.get(set.set_number)} />
+                  <SetCard
+                    key={set.id}
+                    set={set}
+                    bestPrice={bestPrice}
+                    priceCount={bestPrice ? 1 : 0}
+                    summary={summary}
+                    trackAs={{ pageType: 'compare', storeId, storeName: storeId ? compareStoreNames[storeId] ?? null : null, position: index + 1 }}
+                  />
                 );
               })}
             </div>
