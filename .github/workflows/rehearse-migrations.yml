@@ -34,7 +34,7 @@ jobs:
     env:
       PGHOST: localhost
       PGPORT: '5432'
-      PGUSER: postgres
+      PGUSER: supabase_admin
       PGPASSWORD: rehearsal-only-container
       PGDATABASE: rehearsal
     steps:
