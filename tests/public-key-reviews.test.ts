@@ -28,12 +28,18 @@ describe('reviews page: public key only', () => {
     expect(page).not.toMatch(/\.from\('store_prices'\)/);
     expect(page).not.toMatch(/\.from\('price_history'\)/);
   });
+
+  it('reads the summary per set, never through the array summary', () => {
+    expect(page).toMatch(/rpc\('get_price_summary_for_set'/);
+    expect(page).not.toMatch(/rpc\('get_price_summaries'/);
+    expect(page).not.toMatch(/getPriceSummaries\(/);
+  });
 });
 
 describe('price summary helper: function, not the view', () => {
   const summary = codeOnly(readFileSync(join(root, 'src/lib/price-summary.ts'), 'utf8'));
 
-  it('reads summaries through get_price_summaries', () => {
+  it('reads summaries through get_price_summaries (server pages only)', () => {
     expect(summary).toMatch(/rpc\('get_price_summaries'/);
   });
 

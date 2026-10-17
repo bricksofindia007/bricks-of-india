@@ -76,16 +76,32 @@ as $$
   limit 500
 $$;
 
+-- One set's summary row for the anonymous reviews page. Capped at one row; the array form above is server-only.
+create or replace function public.get_price_summary_for_set(p_set_number text)
+returns setof public.set_price_summary
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select * from public.set_price_summary
+  where set_id = p_set_number
+  limit 1
+$$;
+
 revoke all on function public.get_set_prices(text) from public;
 revoke all on function public.get_prices_for_sets(text[]) from public;
 revoke all on function public.get_price_history(text, int) from public;
 revoke all on function public.get_best_prices_for_sets(text[]) from public;
 revoke all on function public.get_price_summaries(text[]) from public;
+revoke all on function public.get_price_summary_for_set(text) from public;
 grant execute on function public.get_set_prices(text) to anon, authenticated, service_role;
 grant execute on function public.get_prices_for_sets(text[]) to anon, authenticated, service_role;
 grant execute on function public.get_price_history(text, int) to anon, authenticated, service_role;
 grant execute on function public.get_best_prices_for_sets(text[]) to anon, authenticated, service_role;
-grant execute on function public.get_price_summaries(text[]) to anon, authenticated, service_role;
+revoke execute on function public.get_price_summaries(text[]) from anon, authenticated;
+grant execute on function public.get_price_summaries(text[]) to service_role;
+grant execute on function public.get_price_summary_for_set(text) to anon, authenticated, service_role;
 
 -- The anonymous direct read goes. service_role keeps its access (server pages).
 revoke select on public.store_prices from anon, authenticated;

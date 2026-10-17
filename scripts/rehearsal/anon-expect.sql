@@ -22,13 +22,23 @@ begin
     reset role;
   end;
 
-  -- 2. functions answer
+  -- 2. the server-only array summary is refused to anon
+  begin
+    set local role anon;
+    perform count(*) from public.get_price_summaries(array['75419', '10305']);
+    reset role;
+    raise exception 'EXPECTED REFUSAL: anonymous role could call get_price_summaries';
+  exception when insufficient_privilege then
+    reset role;
+  end;
+
+  -- 3. functions answer (anon paths: per set)
   set local role anon;
   perform count(*) from public.get_set_prices('75419');
   perform count(*) from public.get_prices_for_sets(array['75419', '10305']);
   perform count(*) from public.get_price_history('75419', 10);
   perform count(*) from public.get_best_prices_for_sets(array['75419', '10305']);
-  perform count(*) from public.get_price_summaries(array['75419', '10305']);
+  perform count(*) from public.get_price_summary_for_set('75419');
   reset role;
-  raise notice 'anon expectations met: direct reads refused, functions answer';
+  raise notice 'anon expectations met: direct reads refused, array summary refused, functions answer';
 end $$;
