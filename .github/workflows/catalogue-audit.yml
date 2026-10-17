@@ -26,7 +26,7 @@ jobs:
     needs: [quota-gate]
     if: needs.quota-gate.outputs.proceed == 'true'
     name: Catalogue health checks
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     permissions:
       issues: write

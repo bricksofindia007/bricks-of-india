@@ -34,7 +34,7 @@ jobs:
   digest:
     needs: [quota-gate]
     if: needs.quota-gate.outputs.proceed == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # No prior runs to measure yet -- same class of small, boundable
     # workload as video-rejection-reminder.yml (two simple selects + one
     # conditional email), so its observed 1m54s-2m55s range is used as the
