@@ -7,4 +7,5 @@ grant select on public.price_history to anon, authenticated;
 drop function if exists public.get_set_prices(text);
 drop function if exists public.get_prices_for_sets(text[]);
 drop function if exists public.get_price_history(text, int);
+drop function if exists public.get_best_prices_for_sets(text[]);
 commit;

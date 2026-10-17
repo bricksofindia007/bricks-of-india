@@ -27,6 +27,7 @@ begin
   perform count(*) from public.get_set_prices('75419');
   perform count(*) from public.get_prices_for_sets(array['75419', '10305']);
   perform count(*) from public.get_price_history('75419', 10);
+  perform count(*) from public.get_best_prices_for_sets(array['75419', '10305']);
   reset role;
   raise notice 'anon expectations met: direct reads refused, functions answer';
 end $$;
