@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
-import { createServerClient } from '@/lib/supabase';
+import { createPublicClient } from '@/lib/supabase';
 import { MinifigHq } from './MinifigHq';
 import { getStores, storeLabels } from '@/lib/stores';
 
@@ -48,7 +48,7 @@ export type SeriesData = {
 };
 
 export default async function MinifigHqPage() {
-  const supabase = createServerClient();
+  const supabase = createPublicClient();
 
   // Fetch individual figures from cmf_figures (populated by
   // sync-cmf-figures.mjs, images backfilled from Brickset where available

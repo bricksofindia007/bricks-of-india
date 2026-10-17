@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
-import { createServerClient } from '@/lib/supabase';
+import { createPublicClient } from '@/lib/supabase';
 import { CmfTracker } from './CmfTracker';
 import { getStores, storeLabels } from '@/lib/stores';
 
@@ -46,7 +46,7 @@ function sortBySetNum(a: FigureData, b: FigureData): number {
 }
 
 export default async function CmfTrackerPage() {
-  const supabase = createServerClient();
+  const supabase = createPublicClient();
 
   // Fetch individual figures from cmf_figures (populated by sync-cmf-figures.mjs)
   const { data: rawRows } = await supabase
