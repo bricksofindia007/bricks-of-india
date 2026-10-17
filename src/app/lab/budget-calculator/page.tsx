@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
-import { createServerClient } from '@/lib/supabase';
+import { createPublicClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { BudgetForm } from './BudgetForm';
 import { getStores, storeLabels } from '@/lib/stores';
@@ -40,7 +40,7 @@ export default async function BudgetCalculatorPage(
   const min = Math.max(0, parseInt(searchParams.min ?? '1000', 10) || 0);
   const max = Math.max(min, parseInt(searchParams.max ?? '5000', 10) || 5000);
 
-  const supabase = createServerClient();
+  const supabase = createPublicClient();
 
   // Paginate store_prices — PostgREST caps at 1000 rows
   const PAGE = 1000;

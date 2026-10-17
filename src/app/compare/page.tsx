@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import Image from 'next/image';
 import Link from 'next/link';
-import { createServerClient } from '@/lib/supabase';
+import { createPublicClient } from '@/lib/supabase';
 import { searchSets } from '@/lib/rebrickable';
 import { SetCard } from '@/components/sets/SetCard';
 import { SearchBar } from '@/components/ui/SearchBar';
@@ -54,7 +54,7 @@ export default async function ComparePage(props: Props) {
   let total            = 0;
   let usedRebrickable  = false;
 
-  const supabase = createServerClient();
+  const supabase = createPublicClient();
 
   // ── Rebrickable-first for plain-text search (no theme/price filter) ──────────
   const useRebrickable = !!q && !themeFilter && !priceFilter;
