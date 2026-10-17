@@ -58,7 +58,7 @@ export default async function DealsPage() {
           <div className="flex-1">
             <h1 className="font-heading text-white text-6xl mb-2">BEST LEGO DEALS IN INDIA</h1>
             <p className="text-white/70 font-body text-lg mb-2">
-              Every set at least 10% below its MRP right now, at the price the store lists — no coupon applied.
+              Every set priced well below its MRP right now, at the price the store lists — no coupon applied.
               Your wallet is about to have a very complicated day.
             </p>
             <p className="mt-1">
@@ -120,7 +120,7 @@ export default async function DealsPage() {
             />
             <h2 className="font-heading text-dark text-3xl mb-2">NO DEALS RIGHT NOW</h2>
             <p className="text-gray-400 font-body mb-4">
-              No set is currently 10% or more below its MRP at a store that has it in stock.
+              No set is priced well below its MRP at a store that has it in stock right now.
               Check back soon.
             </p>
             <Link
@@ -133,8 +133,8 @@ export default async function DealsPage() {
         ) : (
           <>
             {[
-              { title: 'HOT DEALS', sub: 'Hot deal: 20% or more below MRP', list: hotDeals },
-              { title: 'DEALS', sub: 'Deal: 10–20% below MRP', list: plainDeals },
+              { title: 'HOT DEALS', sub: 'Hot deal: the biggest discounts we are tracking', list: hotDeals },
+              { title: 'DEALS', sub: 'Deal: a good discount', list: plainDeals },
             ].filter((g) => g.list.length > 0).map((g) => (
               <section key={g.title} className="mb-10">
                 <h2 className="font-heading text-dark text-3xl mb-1">
