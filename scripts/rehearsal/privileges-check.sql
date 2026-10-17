@@ -15,7 +15,7 @@ begin
     into bad
   from pg_class c
   join pg_namespace n on n.oid = c.relnamespace
-  cross join lateral aclexplode(coalesce(c.relacl, acldefault(case when c.relkind = 'S' then 'S' else 'r' end, c.relowner))) a
+  cross join lateral aclexplode(coalesce(c.relacl, acldefault(case when c.relkind = 'S' then 'S'::"char" else 'r'::"char" end, c.relowner))) a
   join pg_roles r on r.oid = a.grantee
   where n.nspname = 'public'
     and c.relkind in ('r', 'v', 'm', 'p', 'f', 'S')
