@@ -105,3 +105,10 @@ test('the daily line names the mode and each metric', () => {
   assert.equal(r.line, '[usage] mode warn: Cloudflare 62%, pace 124% of pro-rated; Gemini unreadable');
   assert.equal(dailyLine('normal', []), '[usage] mode normal: ');
 });
+
+test("a level metric has no pace", () => {
+  const r = evaluateMetric({ name: 'Database', unit: 'MB', used: 270, allowance: 500, dayOfCycle: 31, cycleDays: 31, level: true });
+  assert.equal(r.pace, null);
+  assert.equal(r.mode, 'normal');
+  assert.equal(dailyLine('normal', [r]), '[usage] mode normal: Database 54%');
+});

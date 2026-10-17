@@ -43,6 +43,7 @@ export function prorated(allowance, dayOfCycle, cycleDays) {
 /**
  * One metric reading.
  *   { name, unit, used, allowance, dayOfCycle, cycleDays }
+ * level: true for a level such as database size (no pace).
  * used === null means the reading failed.
  */
 export function evaluateMetric(m) {
@@ -51,7 +52,8 @@ export function evaluateMetric(m) {
     return { ...base, fraction: null, pace: null, mode: 'unknown' };
   }
   const fraction = m.used / m.allowance;
-  const pace = prorated(m.allowance, m.dayOfCycle, m.cycleDays);
+  // A level (such as database size) is not a running total, so it has no pace.
+  const pace = m.level ? null : prorated(m.allowance, m.dayOfCycle, m.cycleDays);
   return { ...base, fraction, pace, mode: modeForFraction(fraction) };
 }
 
