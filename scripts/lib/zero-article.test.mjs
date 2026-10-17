@@ -1,5 +1,5 @@
-// Run: node --test scripts/lib/zero-article.test.mjs
-import { test } from 'node:test';
+// Run: npm test (vitest)
+import { test } from 'vitest';
 import assert from 'node:assert/strict';
 import { zeroArticleAlert } from './zero-article.mjs';
 
