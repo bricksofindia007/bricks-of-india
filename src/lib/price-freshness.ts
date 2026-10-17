@@ -1,18 +1,16 @@
-// Price cadence + freshness: the one place these numbers live (PR-A, 2026-09-26).
+// Price refresh timing and freshness: the one place these numbers live.
 //
-// Before this, "Updated every 6 hours" / "Updated daily" were hand-written in
-// ~25 places, and the ISR routes' Supabase reads were cached until the next
-// deploy (fetchCache='default-cache' gives un-configured fetches
-// revalidate=INFINITE_CACHE -- next/dist/server/lib/patch-fetch.js), so the
-// site could show week-old prices under an "every 6 hours" promise.
+// Before this, refresh-time wording was written by hand in many places, and
+// some price reads on the ISR routes had no bounded cache lifetime, so a page
+// could show prices older than the refresh interval.
 
-// Scraper cadence -- must match the scheduler's cron (workers/boi-scheduler): each store once a day (decision 4 Oct 2026).
+// Scraper interval: must match the scheduler's dispatch times (workers/boi-scheduler).
 export const SCRAPE_INTERVAL_HOURS = 24;
 
-// G19 (1 Oct 2026): no public text states the cadence, so there is no PRICE_CADENCE text constant.
+// No public text states the refresh timing, so there is no text constant for it.
 
-/** A price row older than this (two missed scrapes) shows its real age and gets no badges. */
-export const PRICE_STALE_HOURS = SCRAPE_INTERVAL_HOURS + 2; // one daily scrape plus 2 h; the health check alerts at 26 h
+/** A price row older than this shows its real age and gets no badges. */
+export const PRICE_STALE_HOURS = SCRAPE_INTERVAL_HOURS + 2; // one interval plus a margin; the health check uses the same window
 
 /**
  * Data-cache lifetime for every Supabase read on an ISR route (per-read
@@ -22,19 +20,19 @@ export const PRICE_STALE_HOURS = SCRAPE_INTERVAL_HOURS + 2; // one daily scrape 
 export const READ_REVALIDATE_SECONDS = 86400;
 
 /**
- * Set pages only (/sets/[slug]): 6h, matching the scrape cadence. Operator
- * decision 2026-09-26 -- 26k crawlable set URLs, and Supabase egress is the
- * binding Free-plan quota, so each set page refreshes its data at most 4x/day.
+ * Set pages only (/sets/[slug]): refreshed at most once per interval, the same
+ * as the scrape interval above. Many set URLs are crawlable and each read is
+ * billed, so a set page never refreshes more often than its data changes.
  * "Updated X ago" is computed from scraped_at in the browser, so a cached page
  * never claims to be fresher than its data.
  */
 export const SET_PAGE_REVALIDATE_SECONDS = 86400;
 
 /**
- * Unpriced set pages (14 days, approved by Abhinav 10 Oct 2026; was 72 h under
- * FP1.6 design §2, P8 item 4): the set_page_data read and the route segment live 14 days. A priced page makes
- * a second small read of its offers on the 6 h clock above, and Next takes the
- * lowest revalidate in a render, so priced pages still refresh every 6 h.
+ * Unpriced set pages: the set_page_data read and the route segment live 14
+ * days. A priced page makes a second small read of its offers on the interval
+ * above, and Next takes the lowest revalidate in a render, so priced pages
+ * still refresh on the interval above.
  */
 export const UNPRICED_SET_REVALIDATE_SECONDS = 1209600;
 
