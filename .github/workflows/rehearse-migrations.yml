@@ -23,7 +23,6 @@ jobs:
         image: supabase/postgres:15.8.1.085
         env:
           POSTGRES_PASSWORD: rehearsal-only-container
-          POSTGRES_DB: rehearsal
         ports:
           - 5432:5432
         options: >-
@@ -36,7 +35,7 @@ jobs:
       PGPORT: '5432'
       PGUSER: supabase_admin
       PGPASSWORD: rehearsal-only-container
-      PGDATABASE: rehearsal
+      PGDATABASE: postgres
     steps:
       - uses: actions/checkout@v5
       - name: Client tools
