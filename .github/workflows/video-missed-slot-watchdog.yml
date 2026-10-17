@@ -35,7 +35,7 @@ on:
 
 jobs:
   watchdog:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # No prior runs to measure. Same workload class as
     # video-pending-approval-digest.yml (a few selects + at most two emails),
     # but lighter -- only supabase/resend/dotenv are installed, not the full

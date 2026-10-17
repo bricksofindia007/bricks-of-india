@@ -54,7 +54,7 @@ permissions:
 
 jobs:
   refresh:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # 4 most recent runs: 13s-24s (gh run list --workflow=ig-token-refresh.yml
     # --limit 10, 2026-08-18). Rounded up to a sane floor rather than strict
     # 2.5x (60s) -- a job this trivial shouldn't have a timeout tight enough

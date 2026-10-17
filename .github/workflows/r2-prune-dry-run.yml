@@ -15,7 +15,7 @@ permissions:
 
 jobs:
   plan:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # No runs yet: ~45 paginated list calls, well under a minute. Resize after 3 runs.
     timeout-minutes: 10
     steps:

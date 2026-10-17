@@ -21,7 +21,7 @@ permissions:
 
 jobs:
   rejudge:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # A few Groq calls (30s timeout each) plus a pip install of requests;
     # no run history yet, so this is a ceiling, not a sized estimate.
     timeout-minutes: 5

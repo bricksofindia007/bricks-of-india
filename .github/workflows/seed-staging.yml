@@ -31,7 +31,7 @@ concurrency:
 jobs:
   seed:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: staging-seed
     # No runs yet: export + load of ~26k set rows and the content tables is a few minutes. Resize after 3 runs.
     timeout-minutes: 20

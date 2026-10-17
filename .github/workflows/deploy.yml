@@ -58,7 +58,7 @@ on:
 jobs:
   record-of-intent:
     name: No-op (deploys happen via Netlify's native git integration)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 2
     steps:
       - name: No-op

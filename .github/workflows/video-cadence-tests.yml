@@ -34,7 +34,7 @@ on:
 
 jobs:
   cadence-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # 19 pure-Python tests, ~0.01s locally; the ceiling only covers
     # checkout + setup-python.
     timeout-minutes: 5

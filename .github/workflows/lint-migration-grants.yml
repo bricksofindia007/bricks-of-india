@@ -19,7 +19,7 @@ on:
 
 jobs:
   grants:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Same workload class as lint-workflows.yml (git diff + one stdlib-only
     # Python scan, no installs) -- its 5-minute bound reused.
     timeout-minutes: 5

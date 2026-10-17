@@ -31,7 +31,7 @@ on:
 jobs:
   scrape:
     name: Shopify → Supabase
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 15
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

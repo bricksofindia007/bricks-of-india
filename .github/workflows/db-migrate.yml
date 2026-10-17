@@ -46,7 +46,7 @@ concurrency:
 jobs:
   staging:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: staging-migrations
     # No runs yet to measure: parse + backups + apply is ~1-3 min. Resize after 3 runs (CLAUDE.md).
     timeout-minutes: 20
@@ -70,7 +70,7 @@ jobs:
   production:
     if: github.ref == 'refs/heads/main'
     needs: staging
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: production-migrations
     timeout-minutes: 20
     steps:

@@ -25,7 +25,7 @@ concurrency:
 jobs:
   deploy:
     if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     environment: ${{ inputs.target == 'production' && 'production' || 'staging-scheduler' }}
     # No runs yet: npm ci + a small wrangler deploy is ~2 min. Resize after 3 runs.
     timeout-minutes: 10

@@ -32,7 +32,7 @@ concurrency:
 
 jobs:
   post:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # scheduled run waits ~20 min, then posts (~5 min per piece)
     timeout-minutes: 45
     steps:
