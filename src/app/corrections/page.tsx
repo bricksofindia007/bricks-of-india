@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { buildMetadata } from '@/lib/metadata';
-import { createServerClient } from '@/lib/supabase';
+import { createPublicClient } from '@/lib/supabase';
 import { extractCorrections, STORE_RENAME_NOTE, noteParts, groupKey, groupLabel, GROUP_MIN, type NotePart } from '@/lib/corrections';
 
 // FP7.6 (3 Oct 2026): every dated correction on the site, newest first, linked to the page it fixed.
@@ -21,7 +21,7 @@ const SOURCES = [
 ] as const;
 
 async function loadCorrections(): Promise<{ rows: Row[]; renameCount: number; renameDate: string | null }> {
-  const sb = createServerClient({ revalidate: 86400 });
+  const sb = createPublicClient({ revalidate: 86400 });
   const rows: Row[] = [];
   let renameCount = 0, renameDate: string | null = null;
   for (const { table, path } of SOURCES) {
