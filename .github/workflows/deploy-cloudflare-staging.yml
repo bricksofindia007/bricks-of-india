@@ -34,14 +34,14 @@ jobs:
       - uses: actions/checkout@v5
         with:
           ref: ${{ inputs.ref }}
-      - name: Refuse a staging build that holds a service-role key
+      - name: Build environment names contain no service-role name
         run: |
-          # Checks the runtime environment of this job, not whether a repo secret exists.
-          if [ -n "${SUPABASE_SERVICE_ROLE_KEY:-}" ] || [ -n "${STAGING_SUPABASE_SERVICE_ROLE_KEY:-}" ]; then
-            echo "::error::A service-role key is set for staging. Remove STAGING_SUPABASE_SERVICE_ROLE_KEY; staging uses the public key only."
+          # Names only: the list is cut at '=', so no value is ever printed.
+          if env | cut -d= -f1 | grep -iE 'service[_-]?role'; then
+            echo "::error::A service-role name is in the staging build environment (names printed above). Staging uses the public values only."
             exit 1
           fi
-          echo "no service-role key in staging: ok"
+          echo "build environment: no service-role name"
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
@@ -54,3 +54,19 @@ jobs:
         run: npx opennextjs-cloudflare build
       - name: wrangler deploy (staging)
         run: npx wrangler deploy --config wrangler.staging.jsonc
+      - name: "Proof 5 - deployed secret and binding names hold no service-role name"
+        run: |
+          # Names only. Secret names come from the deployed Worker; binding names from its config file.
+          npx wrangler secret list --name bricks-of-india-staging --format json > secrets.json
+          node -e '
+            const fs = require("fs");
+            const names = JSON.parse(fs.readFileSync("secrets.json", "utf8")).map(s => s.name);
+            const config = fs.readFileSync("wrangler.staging.jsonc", "utf8");
+            const bindings = [...config.matchAll(/"(binding|name)"\s*:\s*"([^"]+)"/g)].map(m => m[2]);
+            const all = [...names, ...bindings];
+            const bad = all.filter(n => /service[_-]?role/i.test(n));
+            console.log("secret names: " + names.length + ", binding names: " + bindings.length);
+            if (bad.length) { console.log("::error::service-role name present: " + bad.join(", ")); process.exit(1); }
+            console.log("proof 5: pass");
+          '
+          rm -f secrets.json
