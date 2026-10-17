@@ -4,7 +4,10 @@ import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { cn } from '@/lib/utils';
 
+import { trackEvent, type PageType } from '@/lib/analytics';
+
 interface SearchBarProps {
+  pageType?: PageType;
   className?: string;
   size?: 'sm' | 'md' | 'lg';
   placeholder?: string;
@@ -12,6 +15,7 @@ interface SearchBarProps {
 }
 
 export function SearchBar({
+  pageType = 'other',
   className,
   size = 'md',
   placeholder = "Find any LEGO set... go on then.",
@@ -24,6 +28,7 @@ export function SearchBar({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (query.trim()) {
+      trackEvent('search_submit', { page_type: pageType, search_length: query.trim().length });
       router.push(`/compare?q=${encodeURIComponent(query.trim())}`);
     }
   };
