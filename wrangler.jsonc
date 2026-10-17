@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "bricks-of-india",
-  "main": ".open-next/worker.js",
+  "main": "worker/entry.ts",
   // Set to today's date rather than pinned to the documented-template
   // minimum -- Cloudflare's guidance is to use the latest date to maximize
   // compatibility. This also clears two dates relevant to this exact
