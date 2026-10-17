@@ -20,7 +20,7 @@ jobs:
     timeout-minutes: 20
     services:
       postgres:
-        image: supabase/postgres:15.8.1.085
+        image: supabase/postgres:17.6.1.066
         env:
           POSTGRES_PASSWORD: rehearsal-only-container
         ports:
