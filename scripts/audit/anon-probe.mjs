@@ -22,11 +22,11 @@ const READS = [
   // The two price tables: direct reads must be refused. The functions below answer instead.
   ['store_prices', 'refused'], ['price_history', 'refused'],
 ];
+// Set numbers are text. allowedKeys: the only columns a row may carry (no reference price, no price source).
 const RPCS = [
   { name: 'get_set_prices', body: { p_set_number: '75419' }, expect: 'open' },
-  { name: 'get_prices_for_sets', body: { p_set_numbers: ['75419', '10305'] }, expect: 'open' },
   { name: 'get_price_history', body: { p_set_number: '75419', p_limit: 10 }, expect: 'open' },
-  { name: 'get_best_prices_for_sets', body: { p_set_numbers: ['75419', '10305'] }, expect: 'open' },
+  { name: 'get_price_summaries', body: { p_set_numbers: ['75419', '10305'] }, expect: 'open', allowedKeys: ['set_id', 'deal_tier'] },
 ];
 // Insert probes: an empty object violates NOT NULL, so nothing is written. The anonymous role must not insert.
 const INSERTS = ['newsletter_subscribers', 'community_spotlights'];
@@ -42,9 +42,10 @@ function verdict(expect, status) {
   return ok ? 'PASS' : 'FAIL';
 }
 
-async function check(label, expect, method, path, body) {
+async function check(label, expect, method, path, body, allowedKeys) {
   let status = 'error';
   let rows = '-';
+  let shape = '';
   try {
     const r = await fetch(`${url}/rest/v1/${path}`, {
       method,
@@ -55,15 +56,20 @@ async function check(label, expect, method, path, body) {
     if (method === 'GET' || (method === 'POST' && r.ok)) {
       const j = await r.json().catch(() => null);
       rows = Array.isArray(j) ? String(j.length) : '-';
+      if (allowedKeys && Array.isArray(j)) {
+        const extra = [...new Set(j.flatMap((row) => Object.keys(row)).filter((k) => !allowedKeys.includes(k)))];
+        if (extra.length > 0) { failures++; shape = ` | extra columns: ${extra.join(',')} | FAIL`; }
+        else shape = ' | columns: as allowed';
+      }
     }
   } catch {
     status = 'network-error';
   }
-  console.log(`${label} | expect ${expect} | ${method} | ${status} | rows:${rows} | ${verdict(expect, status)}`);
+  console.log(`${label} | expect ${expect} | ${method} | ${status} | rows:${rows} | ${verdict(expect, status)}${shape}`);
 }
 
 for (const [t, expect] of READS) await check(`read ${t}`, expect, 'GET', `${t}?select=*&limit=1`);
-for (const f of RPCS) await check(`rpc ${f.name}`, f.expect, 'POST', f.name, f.body);
+for (const f of RPCS) await check(`rpc ${f.name}`, f.expect, 'POST', f.name, f.body, f.allowedKeys);
 for (const t of INSERTS) await check(`insert-probe ${t}`, 'refused', 'POST', t, {});
 
 // Site checks (read-only GETs or HEADs): the private prefixes are kept out of search by a header,
