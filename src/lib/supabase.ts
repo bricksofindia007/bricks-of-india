@@ -46,6 +46,18 @@ export function createServerClient(opts?: { revalidate?: number }) {
     : createClient(supabaseUrl, serviceKey);
 }
 
+/**
+ * Public (anon) client for pages whose reads the anonymous role may make. It uses the public key
+ * only and never falls back to the full key: a missing public key is an error.
+ */
+export function createPublicClient(opts?: { revalidate?: number }) {
+  if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set — check Netlify environment variables');
+  if (!supabaseAnonKey) throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not set — refusing to use any other key');
+  return opts?.revalidate != null
+    ? createClient(supabaseUrl, supabaseAnonKey, { global: { fetch: revalidatingFetch(opts.revalidate) } })
+    : createClient(supabaseUrl, supabaseAnonKey);
+}
+
 // Types matching our schema
 export interface LegoSet {
   id: string;
