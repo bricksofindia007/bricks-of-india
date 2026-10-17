@@ -66,3 +66,7 @@ jobs:
             psql -1 -v ON_ERROR_STOP=1 -q -f "$f" || { echo "FAIL $f"; exit 1; }
           done
           echo "rehearsal files applied (none is fine)"
+      - name: On failure, list public objects anon or authenticated can still write (diagnostic)
+        if: failure()
+        run: |
+          psql -q -f scripts/rehearsal/diag.sql
