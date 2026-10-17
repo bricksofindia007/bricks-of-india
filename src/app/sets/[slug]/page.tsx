@@ -531,7 +531,7 @@ export default async function SetPage(props: Props) {
                     a: summary?.best_price_inr != null && summary.best_store_ids?.length
                       ? `Based on our latest comparison, ${summary.best_store_ids.map((id) => STORE_NAMES[id] ?? id).join(' and ')} ${summary.best_store_ids.length > 1 ? 'share' : 'has'} the lowest in-stock price at ${formatPrice(summary.best_price_inr)}.`
                       : hasPrices
-                      ? `The lowest in-stock price we last saw was ${formatPrice(bestStorePrice!.price_inr)} at ${STORE_NAMES[bestStorePrice!.store_id] ?? bestStorePrice!.store_id}, but that price is more than 12 hours old — check the store for today's price.`
+                      ? `The lowest in-stock price we last saw was ${formatPrice(bestStorePrice!.price_inr)} at ${STORE_NAMES[bestStorePrice!.store_id] ?? bestStorePrice!.store_id}, but that price is more than a day old — check the store for today's price.`
                       : `We're currently setting up price tracking for ${set.name}. Check Toycra, LEGO.in, and Amazon India for current prices.`,
                   },
                   {

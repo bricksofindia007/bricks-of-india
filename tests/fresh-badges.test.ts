@@ -15,22 +15,22 @@ const hotDeal = (scrapedAt: string | null, now?: number, fallback?: unknown) =>
   renderToStaticMarkup(h(FreshOnly, { scrapedAt, now, fallback: fallback as any, children: h(DealBadge, { tier: 'hot', pct: 24 }) }));
 
 describe('FreshOnly (browser-side stale badge hide)', () => {
-  it('hides a hot-deal badge whose price is 13h old', () => {
-    expect(hotDeal(hoursAgo(13), NOW)).toBe('');
+  it('hides a hot-deal badge whose price is 27h old', () => {
+    expect(hotDeal(hoursAgo(27), NOW)).toBe('');
   });
 
-  it('keeps it at 1h and exactly 12h', () => {
+  it('keeps it at 1h and exactly 26h', () => {
     expect(hotDeal(hoursAgo(1), NOW)).toContain('Hot deal');
-    expect(hotDeal(hoursAgo(12), NOW)).toContain('Hot deal');
+    expect(hotDeal(hoursAgo(26), NOW)).toContain('Hot deal');
   });
 
-  it('hides the best-price badge on the same 13h fixture', () => {
-    const html = renderToStaticMarkup(h(FreshOnly, { scrapedAt: hoursAgo(13), now: NOW, children: h(BestPriceBadge) }));
+  it('hides the best-price badge on the same 27h fixture', () => {
+    const html = renderToStaticMarkup(h(FreshOnly, { scrapedAt: hoursAgo(27), now: NOW, children: h(BestPriceBadge) }));
     expect(html).toBe('');
   });
 
   it('shows the fallback instead when stale (set page 🏷️)', () => {
-    expect(hotDeal(hoursAgo(13), NOW, h('span', null, '🏷️'))).toBe('<span>🏷️</span>');
+    expect(hotDeal(hoursAgo(27), NOW, h('span', null, '🏷️'))).toBe('<span>🏷️</span>');
   });
 
   it('unknown age is never fresh', () => {
