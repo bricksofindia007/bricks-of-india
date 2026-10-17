@@ -4,13 +4,21 @@ import { searchSets } from '@/lib/rebrickable';
 
 const PAGE_SIZE = 48;
 
+// Public search: the anonymous key only. The service-role key is never used here, and there is
+// no fallback to it: a missing anonymous key is an error, not a reason to read with more rights.
 function getSupabase() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !key) {
     throw new Error('Missing Supabase env vars');
   }
   return createClient(url, key);
+}
+
+/** Price rows are not served by this endpoint. Set pages show prices. */
+function withoutPrices<T extends Record<string, unknown>>(row: T): Omit<T, 'prices'> & { prices: [] } {
+  const { prices: _dropped, ...rest } = row;
+  return { ...rest, prices: [] };
 }
 
 /** Strip Rebrickable variant suffix: "75192-1" → "75192" */
@@ -41,7 +49,7 @@ export async function GET(request: NextRequest) {
         const supabase = getSupabase();
         const { data: supabaseSets } = await supabase
           .from('sets')
-          .select('id, set_number, lego_mrp_inr, age_range, theme, subtheme, minifigs, prices(*)')
+          .select('id, set_number, lego_mrp_inr, age_range, theme, subtheme, minifigs')
           .in('set_number', setNumbers);
 
         const supabaseMap = new Map<string, any>(
@@ -67,7 +75,7 @@ export async function GET(request: NextRequest) {
             lego_mrp_inr:  sup?.lego_mrp_inr ?? null,
             created_at:    '',
             updated_at:    '',
-            prices:        sup?.prices ?? [],
+            prices:        [],
           };
         });
 
@@ -89,7 +97,7 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from('sets')
-      .select('*, prices(*)', { count: 'exact' })
+      .select('*', { count: 'exact' })
       .order('year', { ascending: false })
       .range(from, to);
 
@@ -105,7 +113,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ sets: [], total: 0, error: 'Search failed' }, { status: 500 });
     }
 
-    return NextResponse.json({ sets: data ?? [], total: count ?? 0 });
+    return NextResponse.json({ sets: (data ?? []).map(withoutPrices), total: count ?? 0 });
   } catch (err) {
     console.error('[Search] Fatal error:', err);
     return NextResponse.json({ sets: [], total: 0, error: 'Search failed' }, { status: 500 });
