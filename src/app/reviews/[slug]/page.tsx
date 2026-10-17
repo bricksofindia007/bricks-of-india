@@ -15,7 +15,7 @@ import { JsonLd } from '@/components/JsonLd';
 import { buildReviewSchema } from '@/lib/schemas';
 import { getStores, storeLabels } from '@/lib/stores';
 import { computeIndiaStatus, indiaStatusLine, RETIRED_IN_INDIA_DAYS, HUNT_IT_LINE } from '@/lib/india-status';
-import { getPriceSummaries, type SetPriceSummary } from '@/lib/price-summary';
+import { getReviewDealTiers, type ReviewDealSummary } from '@/lib/price-summary';
 import { waitDiscountLine } from '@/lib/verdict-notes';
 import { PriceAsOfNote } from '@/components/content/PriceAsOfNote';
 import { hasTypedStorePrice } from '@/lib/price-as-of';
@@ -105,7 +105,7 @@ export default async function ReviewPage(props: Props) {
   // Store prices — full map for all tracked stores (mirrors sets/[slug]/page.tsx pattern)
   const storePriceMap = new Map<string, { store_id: string; price_inr: number | null; in_stock: boolean; product_url: string; scraped_at: string }>();
   let recentStockEventsAt: string[] = [];
-  let priceSummary: SetPriceSummary | null = null;
+  let priceSummary: ReviewDealSummary | null = null;
   if (set?.set_number) {
     // Public key only: prices come through the price functions (migration 20261017200000).
     const publicClient = createPublicClient({ revalidate: READ_REVALIDATE_SECONDS });
@@ -116,7 +116,7 @@ export default async function ReviewPage(props: Props) {
       // newest 500 rows for the set; the window is applied here.
       publicClient.rpc('get_price_history', { p_set_number: set.set_number, p_limit: 500 }),
       // Same Deal/Hot tier the price box badges (WAIT discount line).
-      getPriceSummaries(publicClient, [set.set_number]),
+      getReviewDealTiers(publicClient, [set.set_number]),
     ]);
     const history = ((historyRows ?? []) as { store_id: string; recorded_at: string }[]).filter((h) => h.recorded_at >= since);
     priceSummary = summaries.get(set.set_number) ?? null;

@@ -7,7 +7,35 @@ do $$
 declare
   n int;
   testing_rows int;
+  col_type text;
+  fn_result text;
 begin
+  -- 0. column types the functions depend on: set numbers are text on every price table and the summary view
+  -- (sets.set_number is text; sets.id is uuid and is not used by any price function)
+  foreach col_type in array array[
+    'store_prices.set_id', 'price_history.set_id', 'set_price_summary.set_id'
+  ] loop
+    select data_type into fn_result from information_schema.columns
+      where table_schema = 'public'
+        and table_name = split_part(col_type, '.', 1)
+        and column_name = split_part(col_type, '.', 2);
+    if fn_result is distinct from 'text' then
+      raise exception 'TYPE: % is % (expected text)', col_type, fn_result;
+    end if;
+  end loop;
+
+  select data_type into fn_result from information_schema.columns
+    where table_schema = 'public' and table_name = 'sets' and column_name = 'set_number';
+  if fn_result is distinct from 'text' then raise exception 'TYPE: sets.set_number is % (expected text)', fn_result; end if;
+
+  -- the summary function returns only set_id and deal_tier (no reference price, no price source)
+  select pg_get_function_result(p.oid) into fn_result
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'get_price_summaries';
+  if fn_result is distinct from 'TABLE(set_id text, deal_tier text)' then
+    raise exception 'SHAPE: get_price_summaries returns %, expected TABLE(set_id text, deal_tier text)', fn_result;
+  end if;
+
   -- 1. direct reads refused
   begin
     set local role anon;

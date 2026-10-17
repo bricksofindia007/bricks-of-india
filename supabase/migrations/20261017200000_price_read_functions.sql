@@ -37,17 +37,20 @@ as $$
   limit least(greatest(coalesce(p_limit, 200), 1), 200)
 $$;
 
--- Summary row (reference price, discount tier, best store) for a list of sets. Reads the existing
+-- Deal tier only, for a list of sets: the one summary field the reviews page renders (WAIT line).
+-- Set numbers are text (sets.set_number); the view's set_id is text. The reference price and the
+-- source of that price are not returned, because no page on this path renders them. Reads the
 -- set_price_summary view, which keeps display_enabled stores only and runs with its owner's rights.
 create or replace function public.get_price_summaries(p_set_numbers text[])
-returns setof public.set_price_summary
+returns table (set_id text, deal_tier text)
 language sql
 stable
 security definer
 set search_path = ''
 as $$
-  select * from public.set_price_summary
-  where set_id = any (p_set_numbers[1:150])
+  select v.set_id::text, v.deal_tier::text
+  from public.set_price_summary v
+  where v.set_id = any (p_set_numbers[1:150])
   limit 150
 $$;
 

@@ -28,18 +28,39 @@ describe('reviews page: public key only', () => {
     expect(page).not.toMatch(/\.from\('store_prices'\)/);
     expect(page).not.toMatch(/\.from\('price_history'\)/);
   });
+
+  it('takes only the deal tier from the summary (no reference price, no price source)', () => {
+    expect(page).toMatch(/getReviewDealTiers\(/);
+    expect(page).not.toMatch(/getPriceSummaries\(/);
+    expect(page).not.toMatch(/anchor_source|anchor_mrp_inr|best_store_ids/);
+  });
 });
 
-describe('price summary helper: function, not the view', () => {
+describe('price summary helpers: the reviews path uses the narrow function', () => {
   const summary = codeOnly(readFileSync(join(root, 'src/lib/price-summary.ts'), 'utf8'));
+  const reviewPart = summary.slice(summary.indexOf('export async function getReviewDealTiers'));
 
-  it('reads summaries through get_price_summaries', () => {
-    expect(summary).toMatch(/rpc\('get_price_summaries'/);
+  it('the reviews helper reads through get_price_summaries', () => {
+    expect(reviewPart).toMatch(/rpc\('get_price_summaries'/);
   });
 
-  it('no longer reads the summary view directly in the list helper', () => {
-    const list = summary.slice(summary.indexOf('export async function getPriceSummaries'), summary.indexOf('export async function getDeals'));
-    expect(list).not.toMatch(/from\('set_price_summary'\)/);
+  it('the shared helper keeps reading the summary view (other pages render more fields)', () => {
+    const shared = summary.slice(summary.indexOf('export async function getPriceSummaries'), summary.indexOf('/** The one summary field'));
+    expect(shared).toMatch(/from\('set_price_summary'\)/);
+  });
+});
+
+describe('getReviewDealTiers: no-MRP sets get no tier, and only the deal tier is read', () => {
+  it('drops a no-MRP set and returns only deal_tier', async () => {
+    const { getReviewDealTiers } = await import('../src/lib/price-summary');
+    const rows = [
+      { set_id: '42670', deal_tier: 'hot' },
+      { set_id: '10449', deal_tier: 'deal' },
+    ];
+    const sb: any = { rpc: async () => ({ data: rows, error: null }) };
+    const m = await getReviewDealTiers(sb, ['42670', '10449']);
+    expect(m.has('42670')).toBe(false);
+    expect(m.get('10449')).toEqual({ deal_tier: 'deal' });
   });
 });
 
