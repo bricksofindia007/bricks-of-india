@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
-import { createServerClient } from '@/lib/supabase';
+import { createPublicClient } from '@/lib/supabase';
 import { ThemeGrid } from '@/components/sets/ThemeGrid';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import { THEMES } from '@/lib/brand';
@@ -46,7 +46,7 @@ export default async function ThemePage(props: Props) {
 
   // Build-time: Supabase only — no Rebrickable calls during next build.
   // Rebrickable is queried offline (GitHub Actions) and data is stored in Supabase.
-  const supabase = createServerClient();
+  const supabase = createPublicClient();
 
   // Two populations, merged: (1) the existing substring match on the
   // curated theme's own name -- covers direct/near matches (e.g. "Star

@@ -3,7 +3,7 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import type { CSSProperties } from 'react';
 import { unstable_cache } from 'next/cache';
-import { createServerClient } from '@/lib/supabase';
+import { createPublicClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { baselinePrices, type HistRow } from '@/lib/price-baseline';
 import { getStores, storeLabels } from '@/lib/stores';
@@ -60,7 +60,7 @@ interface Props {
 // /deals is a real coincidence, not a copy.
 const getPriceDropsData = unstable_cache(
   async (): Promise<{ allRows: DropRow[]; allThemes: string[] }> => {
-    const supabase = createServerClient();
+    const supabase = createPublicClient();
     const since = new Date(Date.now() - 30 * 86_400_000).toISOString();
     const PAGE  = 1000;
 
