@@ -5,6 +5,8 @@ name: anon-probe
 
 on:
   workflow_dispatch:
+  push:
+    branches: [b4-anon-audit]
 
 permissions:
   contents: read
