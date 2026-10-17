@@ -66,5 +66,24 @@ for (const [t, expect] of READS) await check(`read ${t}`, expect, 'GET', `${t}?s
 for (const f of RPCS) await check(`rpc ${f.name}`, f.expect, 'POST', f.name, f.body);
 for (const t of INSERTS) await check(`insert-probe ${t}`, 'refused', 'POST', t, {});
 
+// Site checks (read-only GETs or HEADs): the private prefixes are kept out of search by a header,
+// not by robots.txt. Prints paths and PASS/FAIL only.
+const SITE = process.env.SITE_URL || 'https://bricksofindia.com';
+const PRIVATE_PREFIXES = ['/admin/', '/api/', '/pending/'];
+const robotsText = await fetch(`${SITE}/robots.txt`).then((r) => (r.ok ? r.text() : '')).catch(() => '');
+for (const p of PRIVATE_PREFIXES) {
+  const listed = robotsText.split('\n').some((l) => l.trim() === `Disallow: ${p}`);
+  if (listed) failures++;
+  console.log(`site robots lists ${p} | expect not listed | ${listed ? 'FAIL' : 'PASS'}`);
+}
+for (const p of PRIVATE_PREFIXES) {
+  const tag = await fetch(`${SITE}${p}`, { method: 'HEAD', redirect: 'manual' })
+    .then((r) => r.headers.get('x-robots-tag') || '')
+    .catch(() => '');
+  const ok = /noindex/i.test(tag);
+  if (!ok) failures++;
+  console.log(`site header noindex on ${p} | expect noindex | ${ok ? 'PASS' : 'FAIL'}`);
+}
+
 console.log(`probe summary: ${failures === 0 ? 'all expectations met' : failures + ' expectation(s) not met'}`);
 if (failures > 0) process.exitCode = 1;
