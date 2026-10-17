@@ -9,6 +9,7 @@ import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { reusedOpener, RECENT_OPENERS_WINDOW } from './opener-pattern';
 import { nonStandardAffiliateMentions } from './affiliate-disclosure';
 import { g19Hits } from './g19';
+import { stagingReadOnly } from './supabase';
 export const WORD_COUNT_TARGETS: Record<string, { pass: [number, number]; fail: [number, number] }> = {
   news    : { pass: [270,  440], fail: [225,  500] },  // target 300–400
   review  : { pass: [450,  770], fail: [375,  875] },  // target 500–700
@@ -695,7 +696,8 @@ ${body}`);
     let sb: SupabaseClient | null = options.supabase ?? null;
     if (!sb) {
       const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-      const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+      // Staging read-only mode uses the public key; the service-role key is never read there.
+      const key = stagingReadOnly() ? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY : process.env.SUPABASE_SERVICE_ROLE_KEY;
       if (url && key) sb = createClient(url, key, { auth: { persistSession: false } });
     }
     if (sb) {
