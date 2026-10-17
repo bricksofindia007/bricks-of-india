@@ -30,3 +30,6 @@ create table if not exists storage.objects (
 
 create or replace function auth.uid() returns uuid language sql stable as 'select null::uuid';
 create or replace function auth.role() returns text language sql stable as 'select ''anon''::text';
+
+create schema if not exists supabase_migrations;
+create table if not exists supabase_migrations.schema_migrations (version text primary key, name text, statements text[]);
