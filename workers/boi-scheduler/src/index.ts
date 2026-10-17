@@ -23,7 +23,7 @@ export interface Env {
 
 const VERSION = 'boi-scheduler/1';
 // FP5.9: one cron per retailer, offset so they don't pile up. The cron expression maps to the store.
-const CRON_STORE: Record<string, string> = { '0 */6 * * *': 'mybrickhouse', '5 */6 * * *': 'toycra' };
+const CRON_STORE: Record<string, string> = { '0 3 * * *': 'mybrickhouse', '5 3 * * *': 'toycra' };
 const NONCE_TTL_S = 600;
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-robots-tag': 'noindex' } });
