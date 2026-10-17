@@ -1,5 +1,5 @@
 import { MetadataRoute } from 'next';
-import { createServerClient } from '@/lib/supabase';
+import { createPublicClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { THEMES } from '@/lib/brand';
 
@@ -30,7 +30,7 @@ export const revalidate = 86400;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = 'https://bricksofindia.com';
-  const supabase = createServerClient({ revalidate: 86400 });
+  const supabase = createPublicClient({ revalidate: 86400 });
 
   const staticPages = [
     // A7 (1 Oct 2026): the homepage exactly as Google inspects it ("https://bricksofindia.com/"),
