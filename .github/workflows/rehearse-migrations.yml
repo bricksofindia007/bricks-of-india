@@ -22,7 +22,7 @@ jobs:
       postgres:
         image: supabase/postgres:15.8.1.085
         env:
-          POSTGRES_HOST_AUTH_METHOD: trust
+          POSTGRES_PASSWORD: rehearsal-only-container
           POSTGRES_DB: rehearsal
         ports:
           - 5432:5432
@@ -35,6 +35,7 @@ jobs:
       PGHOST: localhost
       PGPORT: '5432'
       PGUSER: postgres
+      PGPASSWORD: rehearsal-only-container
       PGDATABASE: rehearsal
     steps:
       - uses: actions/checkout@v5
