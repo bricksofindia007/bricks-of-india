@@ -85,7 +85,11 @@
     "stop": 90
   },
   "gemini_plan": {
-    "status": "unconfirmed",
-    "note": "The plan on the Gemini API key is unconfirmed. Chat is checking. Prices above are the paid per-token prices; a free-tier key has no billing and would be capped by the provider instead."
+    "status": "paid",
+    "tier": "Tier 1",
+    "google_side_monthly_cap_inr": 400,
+    "spent_this_month_inr": 208.31,
+    "as_of": "2026-10-18",
+    "note": "Paid Tier 1, with a Google-side cap of Rs 400 a month. Rs 208.31 spent so far this month. The Google cap is separate from the rupee stop in this config, which counts tokens at the stored rate."
   }
 }
