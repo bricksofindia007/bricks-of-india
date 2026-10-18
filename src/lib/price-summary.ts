@@ -2,12 +2,9 @@
 // come from the public.set_price_summary view (migration 20260926020000) so
 // /deals, /, set pages, cards and /lab/deals can never disagree.
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { storeDisplayName } from './store-display-names';
+import { STORE_DISPLAY_NAMES } from './store-display-names';
 
-export const STORE_NAMES: Record<string, string> = {
-  mybrickhouse: storeDisplayName('mybrickhouse'),
-  toycra: storeDisplayName('toycra'),
-};
+export const STORE_NAMES: Record<string, string> = { ...STORE_DISPLAY_NAMES };
 export const storeName = (id: string) => STORE_NAMES[id] ?? id;
 
 export type DealTier = 'hot' | 'deal';
