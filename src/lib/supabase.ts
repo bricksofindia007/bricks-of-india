@@ -36,9 +36,8 @@ export const supabaseRead = supabaseUrl
  * then uses the public key and never reads the service-role key. Production never sets the flag,
  * so production keeps requiring the service-role key. Checked before any key is read.
  */
-export function stagingReadOnly(): boolean {
-  return process.env.STAGING_READ_ONLY === '1';
-}
+import { stagingReadOnly } from './staging-mode';
+export { stagingReadOnly };
 
 /**
  * Service-role client. Pass `{ revalidate }` on ISR routes so reads expire

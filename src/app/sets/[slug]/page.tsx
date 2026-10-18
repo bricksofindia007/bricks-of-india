@@ -6,6 +6,7 @@ import { cache } from 'react';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
+import { emptyOnStagingError } from '@/lib/staging-mode';
 import { SET_PAGE_REVALIDATE_SECONDS, UNPRICED_SET_REVALIDATE_SECONDS, bestInStock, isPriceFresh, formatIst } from '@/lib/price-freshness';
 import { unstable_cache } from 'next/cache';
 import { getSet } from '@/lib/rebrickable';
@@ -81,8 +82,9 @@ const readPriceSide = (setNumber: string) =>
       sb.from('store_prices').select('*').eq('set_id', setNumber).order('store_id'),
       sb.from('set_price_summary').select('*').eq('set_id', setNumber).maybeSingle(),
     ]);
-    if (sp.error) throw sp.error;
-    if (sum.error) throw sum.error;
+    // Staging read-only mode: an unreadable price side is empty (no offers, no summary), not an error.
+    emptyOnStagingError(sp.error);
+    emptyOnStagingError(sum.error);
     return { store_prices: sp.data ?? [], summary: (sum.data ? normalise(sum.data) : null) as SetPriceSummary | null, at: new Date().toISOString() };
   }, ['set_price_side', setNumber], { revalidate: SET_PAGE_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
 
