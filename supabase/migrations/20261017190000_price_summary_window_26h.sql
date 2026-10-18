@@ -1,3 +1,4 @@
+-- boi:issue 625
 -- Widen the freshness window of public.set_price_summary to match the price refresh
 -- interval (26 hours). Same view as 20260927153249, with only the window changed.
 -- NOT APPLIED. G7: rehearse on staging, take a backup first, keep the rollback

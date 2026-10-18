@@ -1,3 +1,4 @@
+-- boi:issue 625
 -- The anonymous and signed-in roles may not set sequence values. Inserts need only USAGE (nextval),
 -- which stays granted, so the public insert paths (newsletter, community spotlights) are unchanged.
 -- Found by the standing privilege check (scripts/rehearsal/privileges-check.sql). Rollback:

@@ -1,3 +1,4 @@
+-- boi:issue 625
 -- Price read functions for the public key. Creates the functions and their execute grants only; revokes nothing.
 -- Each function runs with its owner's rights, so the anonymous role can call it without a direct grant on the table.
 -- Rollback: supabase/rollbacks/20261017200000_price_read_functions.down.sql. The anonymous direct-read revoke is in 20261017270000 (separate, applied after the deploy).

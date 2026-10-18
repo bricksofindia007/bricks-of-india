@@ -1,3 +1,4 @@
+-- boi:issue 625
 -- Read-only: the cumulative call count of each price function, from the query statistics extension.
 -- A call is counted when the function's name appears in a recorded query. Returns function names and
 -- call counts only. Runs with its owner's rights (security definer) so it can read the statistics view.
