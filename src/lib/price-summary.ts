@@ -2,11 +2,9 @@
 // come from the public.set_price_summary view (migration 20260926020000) so
 // /deals, /, set pages, cards and /lab/deals can never disagree.
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { STORE_DISPLAY_NAMES } from './store-display-names';
 
-export const STORE_NAMES: Record<string, string> = {
-  mybrickhouse: 'LEGO.in',
-  toycra: 'Toycra',
-};
+export const STORE_NAMES: Record<string, string> = { ...STORE_DISPLAY_NAMES };
 export const storeName = (id: string) => STORE_NAMES[id] ?? id;
 
 export type DealTier = 'hot' | 'deal';
@@ -44,8 +42,7 @@ export async function getPriceSummaries(sb: SupabaseClient, setIds: string[]): P
   const out = new Map<string, SetPriceSummary>();
   const ids = [...new Set(setIds)];
   for (let i = 0; i < ids.length; i += 150) {
-    // Through the price function (not the view): the public key can call it, and it is the only summary read the anonymous role has.
-    const { data, error } = await sb.rpc('get_price_summaries', { p_set_numbers: ids.slice(i, i + 150) });
+    const { data, error } = await sb.from('set_price_summary').select(COLS).in('set_id', ids.slice(i, i + 150));
     // Cards degrade to "no badge" rather than failing the page; /deals
     // (getDeals) throws instead, since without the view it has nothing to show.
     if (error) { console.error('[price-summary] set_price_summary read failed:', error.message); return out; }
