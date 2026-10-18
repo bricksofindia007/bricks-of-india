@@ -1,5 +1,6 @@
 import type { Provider, ProviderCallInput, ProviderCallResult } from './types';
 import { FEATURE_FLAGS } from '../feature-flags';
+import { guardAiCall, recordAiCall } from '../spend-guard-pilot';
 
 // 2026-08-22 (qwen rollout evidence pass): default model swapped from the
 // now-decommissioned llama-3.3-70b-versatile (confirmed dead, live 404) to
@@ -22,6 +23,9 @@ export class GroqProvider implements Provider {
   constructor(private readonly apiKey: string) {}
 
   async call({ systemPrompt, userPrompt }: ProviderCallInput): Promise<ProviderCallResult> {
+    // Pilot (flag off = no check, no count): refuse once the day's Groq cap is reached.
+    const guard = await guardAiCall('groq');
+    if (!guard.allowed) throw new Error(`Groq not called: ${guard.reason}`);
     const model = FEATURE_FLAGS.articleGroqFallbackModel || DEFAULT_GROQ_MODEL;
     const body: Record<string, unknown> = {
       model,
@@ -88,6 +92,7 @@ export class GroqProvider implements Provider {
       };
       const text = json.choices?.[0]?.message?.content;
       if (!text) throw new Error('Groq: empty response content');
+      await recordAiCall('groq', model, json.usage?.prompt_tokens ?? 0, json.usage?.completion_tokens ?? 0);
       return { text, inputTokens: json.usage?.prompt_tokens, outputTokens: json.usage?.completion_tokens };
     }
     throw new Error('Groq call failed: unreachable retry exhaustion.');
