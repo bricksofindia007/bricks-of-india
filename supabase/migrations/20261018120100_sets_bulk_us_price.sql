@@ -1,3 +1,4 @@
+-- boi:issue 625
 -- Batch write of the US price column, one call per batch. Used by scripts/populate-mrp.js.
 -- Narrow on purpose: only us_price_usd, keyed by set_number. A row with no set_number is skipped.
 -- sets_bulk_patch (lego_mrp_inr and retirement_date) is unchanged. SECURITY INVOKER, service_role only.
