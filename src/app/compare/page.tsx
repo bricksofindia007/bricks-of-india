@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getStores, storeLabels } from '@/lib/stores';
 import { buildMetadata } from '@/lib/metadata';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -41,6 +42,7 @@ function stripSuffix(setNum: string): string {
 }
 
 export default async function ComparePage(props: Props) {
+  const storeNames = storeLabels(await getStores());
   const searchParams = await props.searchParams;
   const q              = (searchParams.q ?? '').trim();
   const themeFilter    = searchParams.theme ?? '';
@@ -339,7 +341,7 @@ export default async function ComparePage(props: Props) {
               {sets.map((set: any) => {
                 const bestPrice = priceMap[set.set_number] ?? null;
                 return (
-                  <SetCard key={set.id} set={set} bestPrice={bestPrice} priceCount={bestPrice ? 1 : 0} summary={summaries.get(set.set_number)} />
+                  <SetCard key={set.id} set={set} bestPrice={bestPrice} priceCount={bestPrice ? 1 : 0} summary={summaries.get(set.set_number)} storeNames={storeNames} />
                 );
               })}
             </div>

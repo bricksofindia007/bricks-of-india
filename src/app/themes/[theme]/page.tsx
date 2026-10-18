@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getStores, storeLabels } from '@/lib/stores';
 import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -40,6 +41,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 }
 
 export default async function ThemePage(props: Props) {
+  const storeNames = storeLabels(await getStores());
   const params = await props.params;
   const theme = THEMES.find((t) => t.slug === params.theme);
   if (!theme) notFound();
@@ -184,7 +186,7 @@ export default async function ThemePage(props: Props) {
             <p className="text-text-secondary font-body">We&apos;re syncing the set database. Check back shortly.</p>
           </div>
         ) : (
-          <ThemeGrid sets={sets} />
+          <ThemeGrid sets={sets} storeNames={storeNames} />
         )}
       </div>
     </div>
