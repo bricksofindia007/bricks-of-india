@@ -40,7 +40,7 @@ $$;
 -- Deal tier only, for a list of sets: the one summary field the reviews page renders (WAIT line).
 -- Set numbers are text (sets.set_number); the view's set_id is text. The reference price and the
 -- source of that price are not returned, because no page on this path renders them. Reads the
--- set_price_summary view, which keeps display_enabled stores only and runs with its owner's rights.
+-- set_price_summary view, which keeps display_enabled stores only. The view runs with the caller's rights (security invoker), so the function's own definer rights are what let the anonymous role read it.
 create or replace function public.get_price_summaries(p_set_numbers text[])
 returns table (set_id text, deal_tier text)
 language sql

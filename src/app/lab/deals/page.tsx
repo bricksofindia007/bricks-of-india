@@ -158,7 +158,7 @@ function DealCard({ deal, labels }: { deal: DealRow; labels: Record<string, stri
         ) : (
           <span style={{ fontSize: '2.5rem' }}>🧱</span>
         )}
-        {/* Discount badge -- hidden in the browser once the price is over 12h old (P12 3b) */}
+        {/* Discount badge -- hidden in the browser once the price is outside the freshness window (P12 3b) */}
         <FreshOnly scrapedAt={deal.scraped_at || null}>
           <div style={{
             position: 'absolute', top: 10, right: 10,

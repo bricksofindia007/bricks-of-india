@@ -41,7 +41,7 @@ async function getHomepageData() {
   // section is simply hidden (sets.length === 0).
   // #204: the "Active deals" stat is the length of this same list -- the
   // exact source and filters /deals renders (set_price_summary.deal_tier:
-  // in stock, <= 12h fresh, >= 10% below the anchor). On a read error the
+  // in stock, fresh, >= 10% below the anchor). On a read error the
   // count is null and the stat is hidden; never a hardcoded fallback number.
   const allDeals = await getDeals(svc).catch((e) => { console.error('[home] deals read failed:', e?.message ?? e); return null; });
   const dealCount = allDeals ? allDeals.length : null;

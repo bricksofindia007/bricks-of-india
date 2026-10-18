@@ -10,7 +10,7 @@ import { shownTheme } from '@/lib/theme-display';
 interface SetCardProps {
   set: LegoSet;
   // Shown when there is no fresh summary price (e.g. an in-stock row older
-  // than 12h): displayed, never badged.
+  // outside the freshness window): displayed, never badged.
   bestPrice?: { price_inr: number | null; in_stock?: boolean | null; scraped_at?: string | null } | null;
   priceCount?: number;
   // PR-B: public.set_price_summary row. Carries the fresh in-stock best price,
