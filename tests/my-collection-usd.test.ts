@@ -35,7 +35,7 @@ describe('worthInputFor', () => {
 describe('the price route reads US prices without putting the price read at risk', () => {
   const src = readFileSync(join(root, 'src/app/api/saved-sets/route.ts'), 'utf8');
   it('reads us_price_usd from sets, in its own query', () => {
-    expect(src).toContain("from('sets').select('set_number, us_price_usd, lego_mrp_inr')");
+    expect(src).toContain("from('sets').select('set_number, us_price_usd, lego_mrp_inr, mrp_verified, retired')");
   });
   it('a failed US read is logged and leaves US prices empty; it never returns an error', () => {
     expect(src).toMatch(/if \(us\.error\) console\.error\('\[my-collection\] US price read unavailable:', us\.error\.message\);/);
@@ -43,5 +43,16 @@ describe('the price route reads US prices without putting the price read at risk
   it('never reads the INR MRP column for worth', () => {
     expect(src).toMatch(/lego_mrp_inr/); // read only for the stored-estimate fallback
     expect(readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8')).not.toMatch(/lego_mrp_inr/);
+  });
+});
+
+describe('the stored figure is an estimate for unverified rows only', () => {
+  const src = readFileSync(join(root, 'src/app/api/saved-sets/route.ts'), 'utf8');
+  it('is kept only when the row is not verified', () => {
+    expect(src).toContain('r.lego_mrp_inr != null && r.mrp_verified === false');
+  });
+  it('is returned under an estimate field, never as a price', () => {
+    expect(src).toContain('stored_estimate_inr:');
+    expect(src).not.toMatch(/price_inr:\s*(stored|r\.lego_mrp_inr)/);
   });
 });
