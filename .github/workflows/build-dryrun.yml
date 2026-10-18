@@ -1,0 +1,32 @@
+name: Build dry run (no deploy)
+
+# The production deploy's build steps, in the same order and with the same settings, stopping before the deploy.
+# No production secrets: public values come from the staging environment and the server key is a placeholder.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      NEXT_PUBLIC_SUPABASE_URL:       ${{ secrets.STAGING_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY:  ${{ secrets.STAGING_SUPABASE_PUBLISHABLE_KEY }}
+      SUPABASE_SERVICE_ROLE_KEY:      dry-run-placeholder
+      NEXT_PUBLIC_SITE_URL:           https://bricksofindia.com
+      NEXT_PUBLIC_GA_MEASUREMENT_ID:  ""
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - run: npm ci
+      - name: Next.js build
+        run: npm run build
+      - name: OpenNext Cloudflare build
+        run: npx opennextjs-cloudflare build
