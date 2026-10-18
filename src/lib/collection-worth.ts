@@ -30,7 +30,10 @@ export const ESTIMATE_NOTE =
 export const WORTH_UNKNOWN_LINE = 'Worth not known yet';
 export const WISHLIST_NO_PRICE_LINE = 'No Indian price yet';
 
-export type WorthRule = 'indian' | 'estimate' | 'retired' | 'unknown';
+export type WorthRule = 'indian' | 'estimate' | 'stored-estimate' | 'retired' | 'unknown';
+
+/** Stored rupee estimate (a converted list price). A fallback only: never counted in the total. */
+export const STORED_ESTIMATE_NOTE = 'Estimates can differ from what Indian shops charge. Not a valuation.';
 
 export type WorthItem = {
   set: string;
@@ -40,6 +43,8 @@ export type WorthItem = {
   usPriceUsd: number | null;
   /** Copies owned. Used for the money total; the set counts are per set. */
   qty: number;
+  /** The stored rupee estimate for the set, used only when there is no US price. Optional; null when none. */
+  storedEstimateInr?: number | null;
 };
 
 export type WorthResult = {
@@ -103,9 +108,13 @@ export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boole
     return {
       rule: 'estimate',
       inr,
-      line: `About ₹${formatRs(inr)}, worked out from the US price`,
+      line: `About ₹${formatRs(inr)}, estimated from the US list price`,
       note: ESTIMATE_NOTE,
     };
+  }
+  if (retired !== true && item.storedEstimateInr != null && item.storedEstimateInr > 0) {
+    const inr = Math.round(item.storedEstimateInr);
+    return { rule: 'stored-estimate', inr, line: `About ₹${formatRs(inr)}, estimated from the stored list price`, note: STORED_ESTIMATE_NOTE };
   }
   if (retired === true) return { rule: 'retired', inr: null, line: retiredLine(lastSeen), note: null };
   return { rule: 'unknown', inr: null, line: WORTH_UNKNOWN_LINE, note: null };
@@ -137,6 +146,8 @@ export type WorthTotal = {
   estimate: number;
   retired: number;
   unknown: number;
+  /** Sets whose only figure is the stored estimate: shown, not counted. */
+  storedEstimate: number;
   /** The sentence that says how the total is made up. */
   line: string;
 };
@@ -155,18 +166,21 @@ export function worthTotal(items: WorthItem[], rate: StoredRate | null, retiredO
   let estimate = 0;
   let retired = 0;
   let unknown = 0;
+  let storedEstimate = 0;
   for (const it of items) {
     const w = worthOf(it, rate, retiredOf(it.set));
     if (w.rule === 'indian') { indian++; inr += (w.inr ?? 0) * it.qty; }
     else if (w.rule === 'estimate') { estimate++; inr += (w.inr ?? 0) * it.qty; }
     else if (w.rule === 'retired') retired++;
+    else if (w.rule === 'stored-estimate') storedEstimate++;
     else unknown++;
   }
   const sets = items.length;
   const counted = indian + estimate;
   let line = `Worth counts ${counted} of ${sets} ${plural(sets, 'set', 'sets')}: ${indian} at Indian ${plural(indian, 'price', 'prices')}, ${estimate} estimated from US ${plural(estimate, 'price', 'prices')}.`;
   if (retired > 0) line += ` ${retired} ${plural(retired, 'is', 'are')} retired and not counted.`;
+  if (storedEstimate > 0) line += ` ${storedEstimate} ${plural(storedEstimate, 'is', 'are')} estimated from the stored list price and not counted.`;
   if (unknown > 0) line += ` ${unknown} ${plural(unknown, 'has', 'have')} no price yet and not counted.`;
   if (capped) line += ` ${CAP_SENTENCE}`;
-  return { inr, sets, counted, indian, estimate, retired, unknown, line };
+  return { inr, sets, counted, indian, estimate, retired, unknown, storedEstimate, line };
 }
