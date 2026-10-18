@@ -1,6 +1,6 @@
 'use server';
 
-import { requireAdmin } from '@/app/admin/require-admin';
+import { requireAdmin, requireAdminForm } from '@/app/admin/require-admin';
 import { redirect } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
 
@@ -15,7 +15,7 @@ import { createServerClient } from '@/lib/supabase';
  */
 
 export async function approveNewsletterDraft(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'approveNewsletterDraft');
   const id = formData.get('id') as string;
   if (!id) return;
   const supabase = createServerClient();
@@ -33,7 +33,7 @@ export async function approveNewsletterDraft(formData: FormData) {
 }
 
 export async function dismissNewsletterDraft(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'dismissNewsletterDraft');
   const id = formData.get('id') as string;
   if (!id) return;
   const supabase = createServerClient();
