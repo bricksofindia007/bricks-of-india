@@ -30,7 +30,7 @@ describe('reviews page: store-click tracking', () => {
     for (const e of events) {
       expect(e).toMatch(/page_type: 'review'/);
       expect(e).toMatch(/store: \w+\.store_id/);
-      expect(e).toMatch(/store_name: STORE_NAMES\[/);
+      expect(e).toMatch(/store_name: storeLabels\(stores\)\[/);
       expect(e).toMatch(/set_number: set\.set_number/);
     }
   });

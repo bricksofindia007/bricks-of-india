@@ -350,7 +350,7 @@ export default async function ReviewPage(props: Props) {
                               {sp.in_stock ? (
                                 <TrackedLink
                                   event="click_store_listing"
-                                  params={{ page_type: 'review', store: sp.store_id, store_name: STORE_NAMES[sp.store_id] ?? sp.store_id, set_number: set.set_number }}
+                                  params={{ page_type: 'review', store: sp.store_id, store_name: storeLabels(stores)[sp.store_id] ?? sp.store_id, set_number: set.set_number }}
                                   href={sp.product_url}
                                   target="_blank"
                                   rel="noopener noreferrer sponsored"
@@ -370,7 +370,7 @@ export default async function ReviewPage(props: Props) {
                     {bestStorePrice?.in_stock && (
                       <TrackedLink
                         event="click_store_listing"
-                        params={{ page_type: 'review', store: bestStorePrice.store_id, store_name: STORE_NAMES[bestStorePrice.store_id] ?? bestStorePrice.store_id, set_number: set.set_number }}
+                        params={{ page_type: 'review', store: bestStorePrice.store_id, store_name: storeLabels(stores)[bestStorePrice.store_id] ?? bestStorePrice.store_id, set_number: set.set_number }}
                         href={bestStorePrice.product_url}
                         target="_blank"
                         rel="noopener noreferrer sponsored"
