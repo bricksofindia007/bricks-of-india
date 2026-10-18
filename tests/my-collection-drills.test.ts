@@ -100,8 +100,10 @@ describe('no verified Indian price', () => {
     const src = readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
     // Owned rows pass the rule's own line through; the wishlist row is the only place the no-price copy is written.
     expect(src).toContain('<OwnedWorthLine line={w.line} />');
-    expect(src).toMatch(/<p className="mt-1 text-gray-500">\{WISHLIST_NO_PRICE_LINE\}<\/p>/);
-    expect(readFileSync(join(root, 'src/app/my/PriceNotes.tsx'), 'utf8')).not.toContain('WISHLIST_NO_PRICE_LINE');
+    expect(src).toContain('<WishPrice');
+    const notes = readFileSync(join(root, 'src/app/my/PriceNotes.tsx'), 'utf8');
+    expect(notes).toMatch(/export function WishPrice[\s\S]*WISHLIST_NO_PRICE_LINE/);
+    expect(notes).not.toMatch(/export function OwnedWorthLine[\s\S]*WISHLIST_NO_PRICE_LINE/);
   });
   it('the set is left out of the worth total', () => {
     const unpriced = worthInputFor({ set: '10307', qty: 2 }, undefined, true);
