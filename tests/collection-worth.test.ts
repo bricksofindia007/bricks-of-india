@@ -194,7 +194,7 @@ describe('estimates: US list price x current rate first, the stored estimate onl
   it('with no US price, the stored estimate is shown with its own source named', () => {
     const w = worthOf(item({ usPriceUsd: null, storedEstimateInr: 43900 }), RATE, false);
     expect(w).toMatchObject({ rule: 'stored-estimate', inr: 43900 });
-    expect(w.line).toBe('About ₹43,900, estimated from the stored list price');
+    expect(w.line).toBe('About ₹43,900, worked out from the US price');
   });
   it('a US price beats the stored estimate when both exist', () => {
     expect(worthOf(item({ usPriceUsd: 499, storedEstimateInr: 99999 }), RATE, false).rule).toBe('estimate');
@@ -209,7 +209,7 @@ describe('estimates: US list price x current rate first, the stored estimate onl
     const t = worthTotal([item({ set: 'a', storedEstimateInr: 43900 })], RATE, () => false);
     expect(t.inr).toBe(0);
     expect(t.storedEstimate).toBe(1);
-    expect(t.line).toMatch(/1 is estimated from the stored list price and not counted\./);
+    expect(t.line).toMatch(/1 is worked out from the US price and not counted\./);
   });
   it('a zero or missing stored estimate is not used', () => {
     expect(worthOf(item({ storedEstimateInr: 0 }), RATE, false).rule).toBe('unknown');

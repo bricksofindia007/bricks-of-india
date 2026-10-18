@@ -114,7 +114,7 @@ export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boole
   }
   if (retired !== true && item.storedEstimateInr != null && item.storedEstimateInr > 0) {
     const inr = Math.round(item.storedEstimateInr);
-    return { rule: 'stored-estimate', inr, line: `About ₹${formatRs(inr)}, estimated from the stored list price`, note: STORED_ESTIMATE_NOTE };
+    return { rule: 'stored-estimate', inr, line: `About ₹${formatRs(inr)}, worked out from the US price`, note: STORED_ESTIMATE_NOTE };
   }
   if (retired === true) return { rule: 'retired', inr: null, line: retiredLine(lastSeen), note: null };
   return { rule: 'unknown', inr: null, line: WORTH_UNKNOWN_LINE, note: null };
@@ -180,7 +180,7 @@ export function worthTotal(items: WorthItem[], rate: StoredRate | null, retiredO
   const counted = indian + estimate;
   let line = `Worth counts ${counted} of ${sets} ${plural(sets, 'set', 'sets')}: ${indian} at Indian ${plural(indian, 'price', 'prices')}, ${estimate} estimated from US ${plural(estimate, 'price', 'prices')}.`;
   if (retired > 0) line += ` ${retired} ${plural(retired, 'is', 'are')} retired and not counted.`;
-  if (storedEstimate > 0) line += ` ${storedEstimate} ${plural(storedEstimate, 'is', 'are')} estimated from the stored list price and not counted.`;
+  if (storedEstimate > 0) line += ` ${storedEstimate} ${plural(storedEstimate, 'is', 'are')} worked out from the US price and not counted.`;
   if (unknown > 0) line += ` ${unknown} ${plural(unknown, 'has', 'have')} no price yet and not counted.`;
   if (capped) line += ` ${CAP_SENTENCE}`;
   return { inr, sets, counted, indian, estimate, retired, unknown, storedEstimate, line };
