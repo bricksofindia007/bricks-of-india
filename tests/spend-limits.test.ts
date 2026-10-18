@@ -102,3 +102,22 @@ describe('the config file and migration', () => {
     expect(sql).toMatch(/GRANT EXECUTE ON FUNCTION public\.ai_usage_add\(date, text, integer, bigint\) TO service_role;/);
   });
 });
+
+describe('rupee stop (binding once prices are set)', () => {
+  it('warn at Rs 6, stop at Rs 10', async () => {
+    const { rupeeLevel } = await import('../src/lib/spend-limits');
+    expect(rupeeLevel(5.99)).toBe('ok');
+    expect(rupeeLevel(6)).toBe('warn');
+    expect(rupeeLevel(9.99)).toBe('warn');
+    expect(rupeeLevel(10)).toBe('stop');
+  });
+  it('the config sets Rs 6 and Rs 10', () => {
+    expect(config.rupee_stop.warn_inr).toBe(6);
+    expect(config.rupee_stop.stop_inr).toBe(10);
+  });
+  it('unpriced models stay null, and gemini-3.1-flash-lite is listed', () => {
+    const t = config.ai.rupee_price_per_million_tokens as Record<string, unknown>;
+    expect(t['gemini-3.1-flash-lite']).toBeNull();
+    expect(t['gemini-2.5-flash-lite']).toBeNull();
+  });
+});

@@ -40,6 +40,14 @@ export function rupeesFor(provider: ProviderName, model: string, tokens: number)
   return (tokens / 1_000_000) * perMillion;
 }
 
+/** Rupee spend for the day: warn at Rs 6, stop at Rs 10 (binding once prices are set). */
+export function rupeeLevel(inr: number): Level {
+  const r = limits.rupee_stop;
+  if (inr >= r.stop_inr) return 'stop';
+  if (inr >= r.warn_inr) return 'warn';
+  return 'ok';
+}
+
 export type EgressLevel = 'ok' | 'alert' | 'guard' | 'stop';
 
 /**
