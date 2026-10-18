@@ -31,5 +31,7 @@ as $$
   where r.id = 1
 $$;
 
-revoke all on function public.get_usd_inr_rate() from public, anon, authenticated;
-grant execute on function public.get_usd_inr_rate() to service_role;
+-- Same grant as the existing price read functions: public revoked; anon, authenticated and service role may execute.
+-- The function returns only the rate, its value date, its source and the fetch time. The table itself stays closed.
+revoke all on function public.get_usd_inr_rate() from public;
+grant execute on function public.get_usd_inr_rate() to anon, authenticated, service_role;

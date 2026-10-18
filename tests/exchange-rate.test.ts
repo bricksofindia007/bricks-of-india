@@ -90,13 +90,18 @@ describe('no fixed fallback, heartbeat, and the stored row', () => {
     expect(src).toMatch(/heartbeat\(now\)/);
   });
 
-  it('the stored row: row security on, no browser role granted, a server-only read function', () => {
+  it('the table: row security on, closed to every browser role, written by the service role only', () => {
     const sql = read('supabase/migrations/20261018190000_usd_inr_rate.sql');
     expect(sql).toMatch(/enable row level security/);
     expect(sql).toMatch(/revoke all on public\.usd_inr_rate from public, anon, authenticated/);
-    expect(sql).toMatch(/revoke all on function public\.get_usd_inr_rate\(\) from public, anon, authenticated/);
-    expect(sql).toMatch(/grant execute on function public\.get_usd_inr_rate\(\) to service_role/);
-    expect(sql).not.toMatch(/to anon|to authenticated/);
+    expect(sql).toMatch(/grant select, insert, update on public\.usd_inr_rate to service_role/);
+    expect(sql).not.toMatch(/grant[^;]*usd_inr_rate[^;]*to (anon|authenticated)/);
+  });
+
+  it('the read function: public revoked; anon, authenticated and service role may execute (same as the price read functions)', () => {
+    const sql = read('supabase/migrations/20261018190000_usd_inr_rate.sql');
+    expect(sql).toMatch(/revoke all on function public\.get_usd_inr_rate\(\) from public;/);
+    expect(sql).toMatch(/grant execute on function public\.get_usd_inr_rate\(\) to anon, authenticated, service_role;/);
   });
 
   it('the migration carries its own PR number as the issue header', () => {
