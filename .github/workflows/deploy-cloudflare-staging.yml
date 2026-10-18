@@ -30,6 +30,9 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      # Staging-only read mode. The build's prerender also needs it, so it is set here as well as in wrangler.staging.jsonc.
+      STAGING_READ_ONLY: '1'
+      STAGING_READONLY: '1'
     steps:
       - uses: actions/checkout@v5
         with:
