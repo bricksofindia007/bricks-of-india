@@ -1,4 +1,5 @@
 import { lintDraft, extractSetNumberCandidates, type LintResult } from './lint';
+import { LEGACY_STORE_NAME_FIXES } from '@/lib/legacy-store-names';
 import { linkFirstSetMentions } from './link-set-mentions';
 import { submitToIndexNow } from './indexnow';
 import { resolveDisclaimerVariant, disclaimerTextFor, addUnlistedDisclaimerLine, STORE_DISPLAY_NAME, type SourceRetailer } from './review-disclaimer';
@@ -138,14 +139,6 @@ const FORBIDDEN_SUBS: [RegExp, string][] = [
   [/\bcognoscenti\b/gi,            'experts'],
 ];
 
-const JAIMAN_SUBS: [RegExp, string][] = [
-  [/MyBrickHouse,\s*Toycra,\s*and\s*Jaiman\s*Toys/gi, 'LEGO.in and Toycra'],
-  [/Toycra,\s*and\s*Jaiman\s*Toys/gi,                 'Toycra'],
-  [/MyBrickHouse\s*and\s*Jaiman\s*Toys/gi,             'LEGO.in and Toycra'],
-  [/,?\s*and\s*Jaiman\s*Toys/gi,                       ''],
-  [/Jaiman\s*Toys/gi,                                  'Toycra'],
-];
-
 const SIGNOFF_TEXT = 'On that bombshell, bubyee.';
 
 const BAD_OPENER_PATTERNS = [
@@ -165,7 +158,7 @@ export function prePublishAutoFix(body: string, draft: { source_title?: string |
 
   while (c.includes('  ')) c = c.replace(/  /g, ' ');
 
-  for (const [re, sub] of JAIMAN_SUBS) c = c.replace(re, sub);
+  for (const [re, sub] of LEGACY_STORE_NAME_FIXES) c = c.replace(re, sub);
   for (const [re, sub] of FORBIDDEN_SUBS) c = c.replace(re, sub);
 
   for (const pat of BAD_OPENER_PATTERNS) {
