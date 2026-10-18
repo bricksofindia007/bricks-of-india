@@ -33,10 +33,18 @@ export async function logout() {
   redirect('/admin/pending');
 }
 
-// Ends every admin session, this browser's included. The caller must be signed in first.
-export async function logoutEverywhere() {
+export type LogoutEverywhereState = { error: string } | null;
+
+// Ends every admin session, this browser's included. The caller must be signed in first (a caller who is not
+// signed in gets the usual Unauthorized error). If the sessions could not be ended, the result says so: it is
+// never a success, and this browser stays signed in so the page can show the error.
+export async function logoutEverywhere(_previous: LogoutEverywhereState): Promise<LogoutEverywhereState> {
   await requireAdmin();
-  await revokeAllAdminSessions();
+  try {
+    await revokeAllAdminSessions();
+  } catch {
+    return { error: 'Sessions could not be ended. Nothing has changed. Try again.' };
+  }
   (await cookies()).delete(ADMIN_COOKIE);
   redirect('/admin/pending');
 }
