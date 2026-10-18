@@ -42,7 +42,7 @@ describe('owner text is verbatim', () => {
 
   it('delete page heading, paragraphs and button', () => {
     expect(copy.DELETE_HEADING).toBe('Want out? Fair enough.');
-    expect(copy.DELETE_PARAGRAPHS[3]).toBe('Your data is removed from the live site straight away.');
+    expect(copy.DELETE_PARAGRAPHS[3]).toBe('Your data is removed from the live site straight away. Copies held only as safety backups are removed within 13 months.');
     expect(copy.DELETE_BUTTON).toBe('Delete my account');
     expect(copy.DELETE_DONE_TEXT).toBe('Done. Your account is gone. You will get one last email to confirm it.');
   });
@@ -59,11 +59,16 @@ describe('no placeholder or removed text', () => {
     expect(everything).not.toMatch(/Data Protection Board/);
   });
 
-  it('the held backup sentence is not rendered anywhere', () => {
-    expect(copy.HELD_DELETE_BACKUP_SENTENCE).toBeNull();
-    for (const f of ['src/app/account/delete/page.tsx', 'src/components/legal/LegalNotices.tsx']) {
-      expect(read(f)).not.toMatch(/HELD_DELETE_BACKUP_SENTENCE/);
-    }
+  it('the delete page text says backups are removed within 13 months, not 30 days', () => {
+    const pageText = copy.DELETE_PARAGRAPHS.join(' ');
+    expect(pageText).toContain('13 months');
+    expect(pageText).not.toMatch(/backups[^.]*30 days/);
+    expect(pageText).toContain(copy.HELD_DELETE_BACKUP_SENTENCE);
+  });
+
+  it('the privacy notice keeps the 30-day response time', () => {
+    const all = copy.PRIVACY_SECTIONS.map((s) => s.text).join(' ');
+    expect(all).toContain('We reply within 30 days.');
   });
 });
 

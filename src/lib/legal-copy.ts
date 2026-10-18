@@ -101,17 +101,18 @@ export const TERMS_SECTIONS: { lead: string; text: string }[] = [
   },
 ];
 
+// Approved by the owner, 18 Oct 2026. Shown as the last paragraph of the delete page.
+export const HELD_DELETE_BACKUP_SENTENCE =
+  'Your data is removed from the live site straight away. Copies held only as safety backups are removed within 13 months.';
+
 export const DELETE_HEADING = 'Want out? Fair enough.';
 export const DELETE_PARAGRAPHS = [
   'Deleting your account removes your email, your wishlist, your collection and your alert settings from the site. It cannot be undone.',
   'Signed in? Press the button below and confirm by email.',
   'Cannot sign in? Write to privacy@bricksofindia.com from the email address on the account and we will do it for you.',
-  'Your data is removed from the live site straight away.',
+  HELD_DELETE_BACKUP_SENTENCE,
 ];
 export const DELETE_BUTTON = 'Delete my account';
 export const DELETE_DONE_TEXT =
   'Done. Your account is gone. You will get one last email to confirm it.';
 
-// Held out of the delete page until T1 confirms the backup retention. Not rendered anywhere.
-// Set the sentence here when it is approved; while null, nothing is shown.
-export const HELD_DELETE_BACKUP_SENTENCE: string | null = null;
