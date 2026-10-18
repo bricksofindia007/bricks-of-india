@@ -1,0 +1,30 @@
+name: Estimate job count-only dry run (no writes)
+
+# Counts only. Reads through the read-only database role and the Brickset key. No writes, no service key.
+on:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  count:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install the database client
+        run: |
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list > /dev/null
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client-17 > /dev/null
+      - name: Count only
+        env:
+          BRICKSET_API_KEY: ${{ secrets.BRICKSET_API_KEY }}
+          CI_READONLY_DB_URL: ${{ secrets.CI_READONLY_DB_URL }}
+        run: node scripts/populate-mrp-count.mjs
