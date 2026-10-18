@@ -59,7 +59,7 @@ export function SetCard({ set, bestPrice, priceCount, summary, trackAs }: SetCar
 
         {/* Meta */}
         <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
-          {set.pieces && <span>{set.pieces.toLocaleString()} pcs</span>}
+          {set.pieces ? <span>{set.pieces.toLocaleString()} pcs</span> : <span>not confirmed</span>}
           {set.year && <span>· {set.year}</span>}
           {set.age_range && <span>· {set.age_range}</span>}
         </div>

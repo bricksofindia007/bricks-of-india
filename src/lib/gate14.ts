@@ -75,13 +75,13 @@ const VERDICTS = ['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID'];
 
 function inrAllowed(v: number, f: Gate14Facts): boolean {
   const bases = [...f.prices, ...f.mrp].filter((x) => x > 0);
-  if (Math.abs(v - 500) < 1) return true;
+  if (v === 500) return true;
   for (const b of bases) {
-    if (Math.abs(v - b) <= 1) return true;                                   // displayed price / MRP
-    if (f.pieces && f.pieces > 0 && Math.abs(v - b / f.pieces) <= 0.6) return true; // per piece
+    if (v === b) return true;                                                // displayed price / MRP (A12: exact)
+    if (f.pieces && f.pieces > 0 && v === Math.round(b / f.pieces)) return true; // per piece (A12: exact after rounding the derived value)
   }
   for (const b of (f.codeBases ?? bases).filter((x) => x >= 500)) {
-    if (Math.abs(v - Math.round(b * 0.88)) <= 2) return true;                // ABHINAV12 12% off
+    if (v === Math.round(b * 0.88)) return true;                             // ABHINAV12 12% off (A12: exact)
     if (Math.abs(v - (b - Math.round(b * 0.12))) <= 2) return true;
     if (Math.abs(v - Math.round(b * 0.12)) <= 2) return true;                // the saving itself
   }
@@ -138,8 +138,7 @@ export function gate14Check(body: string, f: Gate14Facts): Gate14Finding[] {
       let ok: boolean;
       if (/over|more than/.test(q)) ok = p > n && p <= n * 1.1;
       else if (/under|fewer than/.test(q)) ok = p < n && p >= n * 0.9;
-      else if (q) ok = Math.abs(p - n) <= Math.max(2, p * 0.05);
-      else ok = Math.abs(n - p) <= p * 0.02;
+      else ok = n === p; // A12: exact match with the catalogue count, no rounding
       if (!ok) out.push({ rule: 'pieces', detail: `"${m[0]}"; catalogue ${p}`, sentence: s });
     }
     for (const m of s.matchAll(MINIFIG_RE)) {
