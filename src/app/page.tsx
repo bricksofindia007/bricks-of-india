@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { getStores, storeLabels } from '@/lib/stores';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
@@ -134,6 +135,7 @@ async function getHomepageData() {
 }
 
 export default async function HomePage() {
+  const storeNames = storeLabels(await getStores());
   const { sets, dealSummaries, reviews, news, guides, featuredVideos, setsCount, newsCount, reviewsCount, dealCount, cmfCount } = await getHomepageData();
 
   return (
@@ -358,6 +360,7 @@ export default async function HomePage() {
                     set={set}
                     bestPrice={summary ? { price_inr: summary.best_price_inr, in_stock: true, scraped_at: summary.best_scraped_at } : null}
                     summary={summary}
+                    storeNames={storeNames}
                   />
                 );
               })}

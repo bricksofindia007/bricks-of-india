@@ -583,7 +583,7 @@ export default async function SetPage(props: Props) {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
               {shownRelated.map((relSet: any) => {
                 const bestP = relatedPriceMap[relSet.set_number] ?? null;
-                return <SetCard key={relSet.id} set={relSet} bestPrice={bestP} priceCount={bestP ? 1 : 0} summary={relSummaries.get(relSet.set_number)} />;
+                return <SetCard key={relSet.id} set={relSet} bestPrice={bestP} priceCount={bestP ? 1 : 0} summary={relSummaries.get(relSet.set_number)} storeNames={STORE_NAMES} />;
               })}
             </div>
           </div>

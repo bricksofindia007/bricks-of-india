@@ -1,4 +1,5 @@
 import Image from 'next/image';
+import { getStores, storeLabels } from '@/lib/stores';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
@@ -33,6 +34,7 @@ export const revalidate = 86400; // = READ_REVALIDATE_SECONDS (segment config mu
 // returned 1,000 of each, so the averages were computed from a fragment --
 // plus an MSRP x 1.35 "fallback" that called above-MRP prices deals.
 export default async function DealsPage() {
+  const storeNames = storeLabels(await getStores());
   const supabase = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
   const deals = await getDeals(supabase);
 
@@ -148,6 +150,7 @@ export default async function DealsPage() {
                       set={setsById.get(d.set_id)}
                       bestPrice={{ price_inr: d.best_price_inr, in_stock: true, scraped_at: d.best_scraped_at }}
                       summary={d}
+                      storeNames={storeNames}
                     />
                   ))}
                 </div>

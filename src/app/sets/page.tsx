@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { getStores, storeLabels } from '@/lib/stores';
 import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
 import Image from 'next/image';
@@ -94,6 +95,7 @@ const getAllSetsStorePrices = unstable_cache(
 );
 
 export default async function SetsPage(props: Props) {
+  const storeNames = storeLabels(await getStores());
   const searchParams = await props.searchParams;
   const supabase    = createServerClient();
   const pageNum     = Math.max(1, parseInt(searchParams.page || '1') || 1);
@@ -348,6 +350,7 @@ export default async function SetsPage(props: Props) {
                 bestPrice={priceMap[set.set_number] ?? null}
                 priceCount={priceMap[set.set_number] ? 1 : 0}
                 summary={summaries.get(set.set_number)}
+                storeNames={storeNames}
               />
             ))}
           </div>

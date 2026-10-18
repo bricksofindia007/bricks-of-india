@@ -17,9 +17,11 @@ interface SetCardProps {
   // the MRP anchor (R2), deal tier (R3) and the R5/R6 label. Badges come ONLY
   // from here, so every card on the site applies the same rules.
   summary?: SetPriceSummary | null;
+  // Store id -> display name from the store registry (src/lib/stores.ts). The page passes it in.
+  storeNames: Record<string, string>;
 }
 
-export function SetCard({ set, bestPrice, priceCount, summary }: SetCardProps) {
+export function SetCard({ set, bestPrice, priceCount, summary, storeNames }: SetCardProps) {
   const slug = `${set.set_number}-${slugify(set.name)}`;
   const freshPrice = summary?.best_price_inr ?? null;
   const shownPrice = freshPrice ?? bestPrice?.price_inr ?? null;
@@ -67,7 +69,7 @@ export function SetCard({ set, bestPrice, priceCount, summary }: SetCardProps) {
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <FreshOnly scrapedAt={summary?.best_scraped_at}>
                     {label?.kind === 'best' && <BestPriceBadge />}
-                    {label?.kind === 'only' && <OnlyAtBadge store={storeName(label.stores[0])} />}
+                    {label?.kind === 'only' && <OnlyAtBadge store={storeName(storeNames, label.stores[0])} />}
                   </FreshOnly>
                   <span className={`font-price font-bold text-sm ${freshPrice ? 'text-deal-green' : 'text-dark'}`}>
                     {formatPrice(shownPrice)}

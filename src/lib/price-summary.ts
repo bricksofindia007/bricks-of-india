@@ -3,18 +3,18 @@
 // /deals, /, set pages, cards and /lab/deals can never disagree.
 import type { SupabaseClient } from '@supabase/supabase-js';
 
-export const STORE_NAMES: Record<string, string> = {
-  mybrickhouse: 'LEGO.in',
-  toycra: 'Toycra',
-};
-export const storeName = (id: string) => STORE_NAMES[id] ?? id;
+// Store display names come from the registry (src/lib/stores.ts). A caller passes the registry's
+// id-to-name map; a store missing from the map shows a neutral label, never a guessed name.
+export function storeName(names: Record<string, string>, id: string): string {
+  return names[id] ?? 'a single store';
+}
 
 export type DealTier = 'hot' | 'deal';
 
 export type SetPriceSummary = {
   set_id: string;
   anchor_mrp_inr: number | null;
-  anchor_source: 'mybrickhouse' | 'toycra' | 'catalogue' | null;
+  anchor_source: string | null;       // registry store id that set the reference price, or 'catalogue'
   best_price_inr: number | null;      // cheapest in-stock price scraped within 12h
   best_store_ids: string[] | null;    // every store at that price, alphabetical (R5)
   best_scraped_at: string | null;
@@ -26,7 +26,7 @@ export type SetPriceSummary = {
 const COLS = 'set_id, anchor_mrp_inr, anchor_source, best_price_inr, best_store_ids, best_scraped_at, in_stock_store_count, discount_pct, deal_tier';
 
 // Sets whose MRP we can't confirm from the store that sets it, so no MRP (and no discount from one) is shown,
-// even if another store lists a compare-at price (3 Oct 2026: 42670 is no longer on LEGO.in).
+// even if another store lists a compare-at price (3 Oct 2026: 42670 is no longer listed by its reference store).
 export const NO_MRP_SETS = new Set(['42670']);
 
 export function normalise(r: any): SetPriceSummary {
