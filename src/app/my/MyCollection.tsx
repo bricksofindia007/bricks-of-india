@@ -10,12 +10,13 @@ import {
   PRICE_READ_CAP, priceIds, removeWish, setOwnedQty, trackCollectionEvent, updateList, type OwnedItem, type WishItem,
 } from '@/lib/my-collection';
 import {
-  worthOf, worthTotal, usableRate, formatRs, worthInputFor, WISHLIST_NO_PRICE_LINE, type LastSeen, type RateSource, type WorthItem,
+  worthOf, worthTotal, usableRate, formatRs, worthInputFor, WISHLIST_NO_PRICE_LINE, type LastSeen, type StoredRate, type WorthItem,
 } from '@/lib/collection-worth';
+import { rateSourceOf } from '@/lib/usd-rate-reader';
 
-// No exchange rate is wired yet, so estimates are hidden. Retired status comes from the price read (sets.retired);
-// it is unknown, and so never treated as retired, until that read succeeds.
-const noRate: RateSource = { getRate: () => null };
+// The stored exchange rate arrives with the price read, server side. Missing, stale (over 5 days) or out-of-band rates
+// mean no estimate is shown. Retired status comes from the price read (sets.retired); it is unknown, and so never
+// treated as retired, until that read succeeds.
 
 type Price = {
   set_number: string;
@@ -68,6 +69,7 @@ export function MyCollection() {
   const [kind, setKind] = useState<'sets' | 'figures'>('sets');
   const [prices, setPrices] = useState<Map<string, Price>>(new Map());
   const [storeNames, setStoreNames] = useState<Record<string, string>>({});
+  const [storedRate, setStoredRate] = useState<StoredRate | null>(null);
 
   // Load the lists from this browser and follow changes made elsewhere on the page or in another tab.
   useEffect(() => {
@@ -84,18 +86,19 @@ export function MyCollection() {
   const ids = useMemo(() => priceIds(wish, owned).join(','), [wish, owned]);
   useEffect(() => {
     if (!ready) return;
-    if (!ids) { setPriceState('ok'); setPrices(new Map()); return; }
+    if (!ids) { setPriceState('ok'); setPrices(new Map()); setStoredRate(null); return; }
     let live = true;
     setPriceState('loading');
     fetch(`/api/saved-sets?ids=${encodeURIComponent(ids)}`)
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
-      .then((j: { sets: Price[]; store_names: Record<string, string> }) => {
+      .then((j: { sets: Price[]; store_names: Record<string, string>; usd_inr?: StoredRate | null }) => {
         if (!live) return;
         setPrices(new Map(j.sets.map((s) => [s.set_number, s])));
         setStoreNames(j.store_names ?? {});
+        setStoredRate(j.usd_inr ?? null);
         setPriceState('ok');
       })
-      .catch(() => { if (live) setPriceState('failed'); });
+      .catch(() => { if (live) { setStoredRate(null); setPriceState('failed'); } });
     return () => { live = false; };
   }, [ready, ids]);
 
@@ -122,7 +125,7 @@ export function MyCollection() {
     return () => { live = false; };
   }, [retiredIds]);
 
-  const rate = usableRate(noRate.getRate(), new Date());
+  const rate = usableRate(rateSourceOf(storedRate).getRate(), new Date());
   const worthItems: WorthItem[] = owned.map((o) => worthInputFor(o, prices.get(o.set), priceState === 'ok'));
   // The price read covers the newest sets only; a collection set it leaves out is capped out of the total.
   const pricedIds = new Set(priceIds(wish, owned));
