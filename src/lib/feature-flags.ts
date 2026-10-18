@@ -101,4 +101,6 @@ export const FEATURE_FLAGS = {
   // "USD x 1.35" estimate that turned spend thresholds into invented import prices.
   // ON 29 Sep 2026 (P11 item 2, Abhinav, Tier 2): this is the cause of invented import prices.
   gwpNoPriceContext: true,
+  // Spend guard pilot (AI daily caps). Off: the Groq provider makes no guard check and writes no counts.
+  aiSpendGuardPilot: false,
 } as const;
