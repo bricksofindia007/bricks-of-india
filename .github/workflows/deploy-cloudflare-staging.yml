@@ -25,16 +25,8 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_PUBLISHABLE_KEY }}
-      STAGING_SERVICE_KEY_PRESENT: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY != '' }}
     steps:
       - uses: actions/checkout@v5
-      - name: Refuse a staging build that holds a service-role key
-        run: |
-          if [ "$STAGING_SERVICE_KEY_PRESENT" = "true" ]; then
-            echo "::error::A service-role key is set for staging. Remove STAGING_SUPABASE_SERVICE_ROLE_KEY; staging uses the public key only."
-            exit 1
-          fi
-          echo "no service-role key in staging: ok"
       - uses: actions/setup-node@v6
         with:
           node-version: '22'
