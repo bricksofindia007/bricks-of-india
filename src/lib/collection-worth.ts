@@ -5,7 +5,7 @@ import { PRICE_READ_CAP } from './my-collection';
 // supplied by the caller.
 
 /** An estimate needs a rate stored at most this many days ago; older, estimates are hidden. */
-export const RATE_MAX_AGE_DAYS = 3;
+export const RATE_MAX_AGE_DAYS = 5;
 
 /** The stored rate: rupees per US dollar, and the date it was stored (YYYY-MM-DD). */
 export type StoredRate = { rate: number; asOf: string };
