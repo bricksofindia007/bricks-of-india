@@ -5,7 +5,7 @@
 
 export const EXISTING_REVIEW_VERDICT_LINES = {
   'IMPORT ONLY':
-    "Standard disclaimer: if you're rich, you can import it and skip the wait. The rest of us will be here checking whether an Indian store ever stocks it, and doing the sums first.",
+    "Standard disclaimer: if you're rich, you can import it and skip the wait. The rest of us will be here checking whether an Indian store ever stocks it, and doing the sums first. If you're determined enough to import this one, do the maths on freight and customs first.",
   'HUNT IT':
     "Standard disclaimer: if you're rich, you can skip the hunt and just buy it. The rest of us will be out looking for a better deal before we check out.",
 } as const;

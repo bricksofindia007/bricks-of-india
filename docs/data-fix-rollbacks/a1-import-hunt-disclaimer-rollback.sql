@@ -7,7 +7,7 @@ DO $$
 DECLARE
   bt text;
   n integer;
-  import_line text := 'Standard disclaimer: if you''re rich, you can import it and skip the wait. The rest of us will be here checking whether an Indian store ever stocks it, and doing the sums first.';
+  import_line text := 'Standard disclaimer: if you''re rich, you can import it and skip the wait. The rest of us will be here checking whether an Indian store ever stocks it, and doing the sums first. If you''re determined enough to import this one, do the maths on freight and customs first.';
   hunt_line text := 'Standard disclaimer: if you''re rich, you can skip the hunt and just buy it. The rest of us will be out looking for a better deal before we check out.';
 BEGIN
   SELECT table_name INTO bt
