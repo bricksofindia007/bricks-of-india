@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import { PrivacyNotice } from '@/components/legal/LegalNotices';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Privacy Policy',
@@ -8,6 +10,7 @@ export const metadata: Metadata = buildMetadata({
 });
 
 export default function PrivacyPage() {
+  if (FEATURE_FLAGS.accountsEnabled) return <PrivacyNotice />;
   return (
     <div className="bg-white min-h-screen">
       <div className="max-w-3xl mx-auto px-4 py-12">
