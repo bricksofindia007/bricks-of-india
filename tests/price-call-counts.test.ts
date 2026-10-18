@@ -16,8 +16,10 @@ describe('get_price_call_counts', () => {
     expect(sql).not.toMatch(/\b(insert|update|delete|truncate|alter|create table)\b/i);
   });
 
-  it('covers only the three price functions', () => {
-    expect(sql).toMatch(/'get_set_prices', 'get_price_history', 'get_price_summaries'/);
+  it('covers all six price functions', () => {
+    for (const fn of ['get_set_prices', 'get_prices_for_sets', 'get_price_history', 'get_best_prices_for_sets', 'get_price_summaries', 'get_price_summary_for_set']) {
+      expect(sql).toMatch(new RegExp(`'${fn}'`));
+    }
   });
 
   it('revokes from public, anonymous and signed-in roles; grants only the full-access role', () => {
