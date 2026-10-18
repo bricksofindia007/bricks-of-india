@@ -3,6 +3,9 @@
 // Browser storage can be missing or refuse writes, so every read and write is guarded and the
 // page still works without it.
 
+import { trackEvent } from '@/lib/analytics';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
+
 export const MY_SETS_LIMIT = 500;
 export const PAGE_SIZE = 50;
 export const PRICE_READ_CAP = 150;
@@ -35,6 +38,23 @@ export type OwnedItem = SetRef & { qty: number; added_at: string };
 
 const SET_RE = /^[0-9]{3,7}(-[0-9]{1,2})?$/;
 export const isSetNumber = (s: unknown): s is string => typeof s === 'string' && SET_RE.test(s);
+
+export type CollectionEvent = 'heart_add' | 'heart_remove' | 'owned_add' | 'my_sets_view';
+
+/**
+ * My Collection usage events, through the shared event helper. Off unless the flag for the surface is on.
+ * Only the page type and the set number go in the payload (the event helper keeps only those keys, and checks the
+ * set number's shape). Never a list, a price, a note or anything the visitor typed.
+ */
+export function trackCollectionEvent(name: CollectionEvent, payload: { page_type: string; set_number?: string }): void {
+  if (name === 'my_sets_view') {
+    if (!FEATURE_FLAGS.myCollectionPage) return;
+    trackEvent(name, { page_type: payload.page_type });
+    return;
+  }
+  if (!FEATURE_FLAGS.myCollectionHearts) return;
+  trackEvent(name, { page_type: payload.page_type, set_number: payload.set_number });
+}
 
 const posInt = (v: unknown) => (typeof v === 'number' && Number.isInteger(v) && v > 0 ? v : null);
 const str = (v: unknown, max: number) => (typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null);
