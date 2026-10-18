@@ -11,7 +11,7 @@
 -- Rows that already carry "Standard disclaimer:" are not touched. Idempotent: a second run finds no targets.
 -- Rollback: docs/data-fix-rollbacks/a1-import-hunt-disclaimer-rollback.sql.
 UPDATE public.reviews
-SET content = regexp_replace(content, '^(.*Verdict: IMPORT ONLY\.[^\n]*)', '\1' || chr(10) || chr(10) || 'Standard disclaimer: if you''re rich, you can import it and skip the wait. The rest of us will be here checking whether an Indian store ever stocks it, and doing the sums first.')
+SET content = regexp_replace(content, '^(.*Verdict: IMPORT ONLY\.[^\n]*)', '\1' || chr(10) || chr(10) || 'Standard disclaimer: if you''re rich, you can import it and skip the wait. The rest of us will be here checking whether an Indian store ever stocks it, and doing the sums first. If you''re determined enough to import this one, do the maths on freight and customs first.')
 WHERE slug IN (
   'lego-40912-sea-serpent-gwp-2026-worth-the-23300-price-tag',
   'lego-darth-vaders-lightsaber-40897-worth-the-import-price',
