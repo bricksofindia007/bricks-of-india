@@ -13,7 +13,7 @@ import {
   worthOf, worthTotal, usableRate, formatRs, worthInputFor, WISHLIST_NO_PRICE_LINE, type StoredRate, type WorthItem,
 } from '@/lib/collection-worth';
 import { rateSourceOf } from '@/lib/usd-rate-reader';
-import { OwnedWorthLine, PricesUnavailable, TotalWorthValue } from './PriceNotes';
+import { OwnedWorthLine, PricesUnavailable, TotalWorthValue, WishPrice } from './PriceNotes';
 
 // The stored exchange rate arrives with the price read, server side. Missing, stale (over 5 days) or out-of-band rates
 // mean no estimate is shown. Retired status comes from the price read (sets.retired); it is unknown, and so never
@@ -114,7 +114,6 @@ export function MyCollection() {
   const pieces = owned.reduce((n, o) => n + (o.pieces ?? 0) * o.qty, 0);
   const piecesMissing = owned.some((o) => o.pieces == null);
 
-  const storeList = (ids: string[] | null) => (ids ?? []).map((id) => storeNames[id] ?? id).join(', ');
 
   // Each change reads the stored list at the moment of writing (not the page state), so another tab's change is kept.
   const removeFromWish = (set: string) => {
@@ -200,11 +199,7 @@ export function MyCollection() {
                       <p className="font-bold text-dark leading-tight line-clamp-2">{w.name}</p>
                       {w.pieces != null && <p className="text-xs text-gray-500">{formatRs(w.pieces)} pieces</p>}
                       {priceState === 'loading' && <p className="mt-1 h-3 w-24 bg-surface rounded animate-pulse" />}
-                      {priceState === 'ok' && (p?.best_price_inr != null ? (
-                        <p className="mt-1"><span className="font-price font-bold text-deal-green">₹{formatRs(p.best_price_inr)}</span>
-                          {p.best_store_ids?.length ? <> at {storeList(p.best_store_ids)}</> : null}
-                        </p>
-                      ) : <p className="mt-1 text-gray-500">{WISHLIST_NO_PRICE_LINE}</p>)}
+                      <WishPrice priceReady={priceState === 'ok'} price={p?.best_price_inr ?? null} storeIds={p?.best_store_ids ?? null} storeNames={storeNames} />
                       <div className="mt-2 flex gap-3 text-xs">
                         <button type="button" aria-label={`Remove ${w.name} from your wishlist`} onClick={() => removeFromWish(w.set)} className="underline text-gray-500">Remove</button>
                       </div>
