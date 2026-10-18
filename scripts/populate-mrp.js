@@ -1,6 +1,6 @@
 // scripts/populate-mrp.js
 // Populates lego_mrp_inr on sets table using Brickset API retail prices.
-// Fetches all sets by year (2020–2027) from Brickset API, converts LEGOCom.US.retailPrice → INR (×90, round to nearest ₹100).
+// Fetches all sets by year (2020–2027) from Brickset API, converts LEGOCom.US.retailPrice → INR (live rate, rounded to nearest ₹100; no fixed rate).
 // Safe to re-run — only writes to rows where lego_mrp_inr IS NULL.
 // Usage: node scripts/populate-mrp.js [--dry-run]
 //
@@ -63,19 +63,31 @@ const END_YEAR   = 2027;
 const PAGE_SIZE  = 500;
 const CALL_DELAY = 1000; // ms between Brickset API calls
 
-const USD_TO_INR_FALLBACK = 90;
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// One stored rate with its date; no fixed fallback (decision of 18 Oct 2026). The stored-rate read is not in this
+// build yet (no table): until it exists, a failed fetch leaves no valid rate and the run writes nothing.
+const { resolveRate } = require('./lib/usd-rate.cjs');
+
+async function readStoredUsdInrRate() {
+  return null; // TODO(exchange-rate job): read the single stored row { rate, date } once that table exists.
+}
+
 async function fetchUsdInrRate() {
+  let fetched = null;
   try {
     const r = await fetch('https://open.er-api.com/v6/latest/USD');
     const d = await r.json();
     const rate = d?.rates?.INR;
-    if (rate && rate > 80 && rate < 120) { console.log(`Live USD/INR: ${rate}`); return rate; }
-  } catch (e) { /* fall through */ }
-  console.log(`USD/INR fetch failed — using fallback ${USD_TO_INR_FALLBACK}`);
-  return USD_TO_INR_FALLBACK;
+    if (typeof rate === 'number') fetched = rate;
+  } catch (e) { /* treated as a failed fetch below */ }
+  const stored = await readStoredUsdInrRate();
+  const today = new Date().toISOString().slice(0, 10);
+  const res = resolveRate({ fetched, stored, today });
+  console.log(`USD/INR source: ${res.source}${res.rate ? ' ' + res.rate : ''}`);
+  if (res.alert) console.log(`ALERT: ${res.alert}`);
+  return res.rate;
 }
 
 function usdToInr(usd, rate) {
@@ -201,6 +213,7 @@ async function run() {
   console.log(`populate-mrp.js  dry-run=${DRY_RUN}  scope=year>=${START_YEAR}`);
 
   const rate = await fetchUsdInrRate();
+  if (rate == null) { console.error("ALERT: no valid USD/INR rate; no writes made"); process.exit(1); }
 
   // Phase 1 — fetch all Brickset prices and exit dates by year
   const bricksetPrices    = {};
