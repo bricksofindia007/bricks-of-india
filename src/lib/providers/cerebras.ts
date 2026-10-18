@@ -1,4 +1,5 @@
 import type { Provider, ProviderCallInput, ProviderCallResult } from './types';
+import { guardAiCall, recordAiCall } from '../spend-guard-pilot';
 
 const CEREBRAS_MODEL   = 'gpt-oss-120b'; // proven free-tier model; llama-3.3-70b is not available on free tier
 const CEREBRAS_API_URL = 'https://api.cerebras.ai/v1/chat/completions';
@@ -9,6 +10,9 @@ export class CerebrasProvider implements Provider {
   constructor(private readonly apiKey: string) {}
 
   async call({ systemPrompt, userPrompt }: ProviderCallInput): Promise<ProviderCallResult> {
+    // Pilot (flag off = no check, no count): refuse once today's Cerebras limit is reached.
+    const guard = await guardAiCall('cerebras');
+    if (!guard.allowed) throw new Error(`Cerebras not called: ${guard.reason}`);
     const body = JSON.stringify({
       model: CEREBRAS_MODEL,
       messages: [
@@ -47,6 +51,7 @@ export class CerebrasProvider implements Provider {
     };
     const text = json.choices?.[0]?.message?.content;
     if (!text) throw new Error('Cerebras: empty response content');
+    await recordAiCall('cerebras', CEREBRAS_MODEL, json.usage?.prompt_tokens ?? 0, json.usage?.completion_tokens ?? 0);
     return { text, inputTokens: json.usage?.prompt_tokens, outputTokens: json.usage?.completion_tokens };
   }
 }
