@@ -1,3 +1,5 @@
+import { PRICE_READ_CAP } from './my-collection';
+
 // My Collection: what each set is worth, and the line that says how the total is made up.
 // Pure functions. The exchange rate and the retired status come in through interfaces and are
 // supplied by the caller.
@@ -17,6 +19,9 @@ export interface RateSource {
 export interface RetiredSource {
   isRetired(setNumber: string): boolean | null;
 }
+
+/** Added to the total when the price read left some collection sets out (the read is capped). */
+export const CAP_SENTENCE = `Worth counts your newest ${PRICE_READ_CAP} sets.`;
 
 export const RETIRED_LINE =
   'Retired and sought after. Resellers know what this is worth. Check the secondary market before you sell.';
@@ -75,14 +80,14 @@ export function usableRate(stored: StoredRate | null, now: Date): StoredRate | n
  */
 export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boolean | null): WorthResult {
   if (item.indianPriceInr != null) {
-    return { rule: 'indian', inr: item.indianPriceInr, line: `Rs ${formatRs(item.indianPriceInr)}`, note: null };
+    return { rule: 'indian', inr: item.indianPriceInr, line: `₹${formatRs(item.indianPriceInr)}`, note: null };
   }
   if (retired !== true && item.usPriceUsd != null && rate) {
     const inr = Math.round(item.usPriceUsd * rate.rate);
     return {
       rule: 'estimate',
       inr,
-      line: `About Rs ${formatRs(inr)}, worked out from the US price`,
+      line: `About ₹${formatRs(inr)}, worked out from the US price`,
       note: ESTIMATE_NOTE,
     };
   }
@@ -111,7 +116,7 @@ function plural(n: number, one: string, many: string) {
  * The total line. Total = rules 1 and 2 only. It always states how it is made up, e.g.
  * "Worth counts 14 of 17 sets: 9 at Indian prices, 5 estimated from US prices. 3 are retired and not counted."
  */
-export function worthTotal(items: WorthItem[], rate: StoredRate | null, retiredOf: (set: string) => boolean | null): WorthTotal {
+export function worthTotal(items: WorthItem[], rate: StoredRate | null, retiredOf: (set: string) => boolean | null, capped = false): WorthTotal {
   let inr = 0;
   let indian = 0;
   let estimate = 0;
@@ -129,5 +134,6 @@ export function worthTotal(items: WorthItem[], rate: StoredRate | null, retiredO
   let line = `Worth counts ${counted} of ${sets} ${plural(sets, 'set', 'sets')}: ${indian} at Indian ${plural(indian, 'price', 'prices')}, ${estimate} estimated from US ${plural(estimate, 'price', 'prices')}.`;
   if (retired > 0) line += ` ${retired} ${plural(retired, 'is', 'are')} retired and not counted.`;
   if (unknown > 0) line += ` ${unknown} ${plural(unknown, 'has', 'have')} no price yet and not counted.`;
+  if (capped) line += ` ${CAP_SENTENCE}`;
   return { inr, sets, counted, indian, estimate, retired, unknown, line };
 }
