@@ -92,3 +92,41 @@ describe('the list shows no price', () => {
     expect(src).not.toMatch(/price|₹|Rs /i);
   });
 });
+
+describe('the batch request fits in the URL limit', () => {
+  // The read is a PostgREST GET: the select list plus the `id=in.(…)` list. A 150-id batch must stay well under
+  // 8 KB, the limit we check against. Measured against the same host shape as production (20-character project ref).
+  it('a full 150-id batch URL is under 8 KB, and the measured length is recorded', () => {
+    const base = 'https://abcdefghijklmnopqrst.supabase.co/rest/v1/cmf_figures';
+    const ids = Array.from({ length: FIGURE_READ_CAP }, (_, i) => uuid(i + 1));
+    const url = `${base}?select=${encodeURIComponent(FIGURE_COLUMNS)}&id=in.(${ids.join(',')})`;
+    expect(FIGURE_READ_CAP).toBe(150);
+    expect(url.length).toBeLessThan(8 * 1024);
+    // Recorded for the report: the length of the 150-id URL.
+    expect(url.length).toBe(5722);
+  });
+  it('a 100-id batch is shorter still', () => {
+    const base = 'https://abcdefghijklmnopqrst.supabase.co/rest/v1/cmf_figures';
+    const ids = Array.from({ length: 100 }, (_, i) => uuid(i + 1));
+    const url = `${base}?select=${encodeURIComponent(FIGURE_COLUMNS)}&id=in.(${ids.join(',')})`;
+    expect(url.length).toBeLessThan(4200);
+  });
+});
+
+describe('empty list copy, the tracker heart, and its events', () => {
+  it('the minifigures view shows the approved empty-list line and keeps the error line', () => {
+    const src = readFileSync(join(root, 'src/app/my/FiguresList.tsx'), 'utf8');
+    expect(src).toContain('Nothing saved yet. Your wallet admires your patience.');
+    expect(src).toContain('Figures are unavailable right now.');
+  });
+  it('the tracker wraps a cell with the heart only when my_collection_hearts is on', () => {
+    const src = readFileSync(join(root, 'src/app/lab/cmf-tracker/CmfTracker.tsx'), 'utf8');
+    expect(src).toMatch(/if \(!FEATURE_FLAGS\.myCollectionHearts\) return cell;/);
+    expect(src).toMatch(/\{fig\.figure_id \? <FigureHeart/);
+  });
+  it('the heart fires heart_add and heart_remove', () => {
+    const src = readFileSync(join(root, 'src/app/lab/cmf-tracker/FigureHeart.tsx'), 'utf8');
+    expect(src).toContain("trackEvent('heart_add'");
+    expect(src).toContain("trackEvent('heart_remove'");
+  });
+});

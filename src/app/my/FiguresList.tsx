@@ -41,7 +41,7 @@ export function FiguresList() {
     return <p role="alert" className="text-sm text-gray-600">Figures are unavailable right now.</p>;
   }
   if (rows.length === 0) {
-    return <p className="text-gray-600">No figures saved yet.</p>;
+    return <p className="text-gray-600">Nothing saved yet. Your wallet admires your patience.</p>;
   }
   const byId = new Map(rows.map((r) => [r.id, r]));
   return (
