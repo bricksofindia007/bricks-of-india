@@ -1,0 +1,124 @@
+// My Collection worth rules (spec section 4): the four rules, the stale rate, unknown retired status
+// and the total line. The rate and retired status are test doubles here.
+import { describe, it, expect } from 'vitest';
+import {
+  worthOf, worthTotal, usableRate, formatRs, RETIRED_LINE, ESTIMATE_NOTE, WORTH_UNKNOWN_LINE,
+  RATE_MAX_AGE_DAYS, type StoredRate, type WorthItem,
+} from '../src/lib/collection-worth';
+
+const NOW = new Date('2026-10-18T06:00:00Z');
+const RATE: StoredRate = { rate: 88, asOf: '2026-10-18' }; // "rate of 18 Oct"
+const item = (over: Partial<WorthItem> = {}): WorthItem => ({ set: '10307', indianPriceInr: null, usPriceUsd: null, qty: 1, ...over });
+
+describe('worth rule 1: verified, fresh Indian price', () => {
+  it('shows the Indian price plainly, whatever the retired status', () => {
+    for (const retired of [true, false, null]) {
+      const w = worthOf(item({ indianPriceInr: 41199, usPriceUsd: 499 }), RATE, retired);
+      expect(w).toEqual({ rule: 'indian', inr: 41199, line: 'Rs 41,199', note: null });
+    }
+  });
+});
+
+describe('worth rule 2: US price estimate', () => {
+  it('converts the US price at the stored rate, with the wording and the note', () => {
+    const w = worthOf(item({ usPriceUsd: 499 }), RATE, false);
+    expect(w.rule).toBe('estimate');
+    expect(w.inr).toBe(43912);
+    expect(w.line).toBe('About Rs 43,912, worked out from the US price');
+    expect(w.note).toBe(ESTIMATE_NOTE);
+  });
+  it('never names a store or offers a buy action', () => {
+    const w = worthOf(item({ usPriceUsd: 499 }), RATE, false);
+    expect(w.line).not.toMatch(/store|buy|shop|LEGO\.in|Toycra/i);
+  });
+  it('also applies when retired status is unknown (never rule 3 for unknown)', () => {
+    expect(worthOf(item({ usPriceUsd: 499 }), RATE, null).rule).toBe('estimate');
+  });
+});
+
+describe('worth rule 3: retired set, no figure', () => {
+  it('shows only the retired line, with no number', () => {
+    const w = worthOf(item({ usPriceUsd: 499 }), RATE, true);
+    expect(w).toEqual({ rule: 'retired', inr: null, line: RETIRED_LINE, note: null });
+    expect(w.line).toBe('Retired and sought after. Resellers know what this is worth. Check the secondary market before you sell.');
+    expect(w.line).not.toMatch(/\d/);
+  });
+  it('a retired set with no US price is still retired, not unknown', () => {
+    expect(worthOf(item(), RATE, true).rule).toBe('retired');
+  });
+});
+
+describe('worth rule 4: nothing known', () => {
+  it('no Indian price and no US price, set current: not known yet, not valued', () => {
+    const w = worthOf(item(), RATE, false);
+    expect(w).toEqual({ rule: 'unknown', inr: null, line: WORTH_UNKNOWN_LINE, note: null });
+  });
+  it('unknown retired status with no US price: unknown, never retired', () => {
+    expect(worthOf(item(), RATE, null).rule).toBe('unknown');
+  });
+});
+
+describe('stale or missing rate', () => {
+  it('a rate 3 days old is still usable; 4 days old is not', () => {
+    expect(usableRate({ rate: 88, asOf: '2026-10-15' }, NOW)).not.toBeNull();
+    expect(usableRate({ rate: 88, asOf: '2026-10-14' }, NOW)).toBeNull();
+    expect(RATE_MAX_AGE_DAYS).toBe(3);
+  });
+  it('a stale rate hides estimates: a US-only set falls to not known yet', () => {
+    const stale = usableRate({ rate: 88, asOf: '2026-10-01' }, NOW);
+    const w = worthOf(item({ usPriceUsd: 499 }), stale, false);
+    expect(w.rule).toBe('unknown');
+    expect(w.line).not.toMatch(/About Rs/);
+  });
+  it('a stale rate on a retired set still shows the retired line, not an estimate', () => {
+    expect(worthOf(item({ usPriceUsd: 499 }), null, true).rule).toBe('retired');
+  });
+  it('no stored rate or a bad rate is not usable', () => {
+    expect(usableRate(null, NOW)).toBeNull();
+    expect(usableRate({ rate: 0, asOf: '2026-10-18' }, NOW)).toBeNull();
+    expect(usableRate({ rate: Number.NaN, asOf: '2026-10-18' }, NOW)).toBeNull();
+  });
+});
+
+describe('total line', () => {
+  it('counts rules 1 and 2 only, and states how it is made up', () => {
+    const items: WorthItem[] = [
+      ...Array.from({ length: 9 }, (_, i) => item({ set: `i${i}`, indianPriceInr: 1000, qty: 1 })),
+      ...Array.from({ length: 5 }, (_, i) => item({ set: `e${i}`, usPriceUsd: 10, qty: 1 })),
+      ...Array.from({ length: 3 }, (_, i) => item({ set: `r${i}`, usPriceUsd: 10 })),
+    ];
+    const t = worthTotal(items, RATE, (s) => (s.startsWith('r') ? true : false));
+    expect(t.sets).toBe(17);
+    expect(t.counted).toBe(14);
+    expect(t.indian).toBe(9);
+    expect(t.estimate).toBe(5);
+    expect(t.retired).toBe(3);
+    expect(t.line).toBe('Worth counts 14 of 17 sets: 9 at Indian prices, 5 estimated from US prices. 3 are retired and not counted.');
+    expect(t.inr).toBe(9000 + 5 * 880);
+  });
+  it('multiplies by copies owned for the money total', () => {
+    const t = worthTotal([item({ set: 'a', indianPriceInr: 1000, qty: 3 })], RATE, () => false);
+    expect(t.inr).toBe(3000);
+  });
+  it('adds the unknown sentence only when there are unknown sets', () => {
+    const t = worthTotal([item({ set: 'a', indianPriceInr: 1000 }), item({ set: 'b' })], RATE, () => false);
+    expect(t.line).toBe('Worth counts 1 of 2 sets: 1 at Indian price, 0 estimated from US prices. 1 has no price yet and not counted.');
+  });
+  it('an empty collection gives an empty count line', () => {
+    expect(worthTotal([], RATE, () => false).line).toBe('Worth counts 0 of 0 sets: 0 at Indian prices, 0 estimated from US prices.');
+  });
+  it('an unknown retired status is never counted as retired', () => {
+    const t = worthTotal([item({ set: 'a', usPriceUsd: 10 })], RATE, () => null);
+    expect(t.retired).toBe(0);
+    expect(t.estimate).toBe(1);
+  });
+});
+
+describe('Indian digit grouping', () => {
+  it('groups as 12,34,567 and leaves small numbers alone', () => {
+    expect(formatRs(41199)).toBe('41,199');
+    expect(formatRs(1234567)).toBe('12,34,567');
+    expect(formatRs(999)).toBe('999');
+    expect(formatRs(1000)).toBe('1,000');
+  });
+});

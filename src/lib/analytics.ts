@@ -39,6 +39,11 @@ const ALLOWED: Record<string, readonly string[]> = {
   remove_wishlist: ['page_type', 'set_number'],
   mark_owned: ['page_type', 'set_number'],
   unmark_owned: ['page_type', 'set_number'],
+  // My Collection (Bundle 2), sets only.
+  heart_add: ['page_type', 'set_number'],
+  heart_remove: ['page_type', 'set_number'],
+  owned_add: ['page_type', 'set_number'],
+  my_sets_view: ['page_type'],
 };
 
 const STORE_ID = /^[a-z0-9_]{1,40}$/;

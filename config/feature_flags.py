@@ -118,4 +118,9 @@ FEATURE_FLAGS = {
     # whichever model is configured here, not just a live-model check.
     "p4_groq_fallback_enabled": False,
     "p4_groq_fallback_model": "openai/gpt-oss-120b",
+
+    # My Collection (Bundle 2). Hearts on set cards and set pages; the My Collection page
+    # itself. Both off until the launch. Mirrored in src/lib/feature-flags.ts; keep in sync.
+    "my_collection_hearts": False,
+    "my_collection_page": False,
 }
