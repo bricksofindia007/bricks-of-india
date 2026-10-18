@@ -1,6 +1,8 @@
 // My Collection worth rules (spec section 4): the four rules, the stale rate, unknown retired status
 // and the total line. The rate and retired status are test doubles here.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   worthOf, worthTotal, usableRate, formatRs, RETIRED_LINE, ESTIMATE_NOTE, WORTH_UNKNOWN_LINE, CAP_SENTENCE,
   RATE_MAX_AGE_DAYS, type StoredRate, type WorthItem,
@@ -78,6 +80,40 @@ describe('stale or missing rate', () => {
     expect(usableRate(null, NOW)).toBeNull();
     expect(usableRate({ rate: 0, asOf: '2026-10-18' }, NOW)).toBeNull();
     expect(usableRate({ rate: Number.NaN, asOf: '2026-10-18' }, NOW)).toBeNull();
+  });
+});
+
+// Estimates stay hidden in both states: no rate at all, and a rate more than RATE_MAX_AGE_DAYS old.
+describe('estimates stay hidden without a usable rate', () => {
+  const usOnly = () => item({ usPriceUsd: 499 });
+  it('no rate: the row shows no estimate and no rupee figure', () => {
+    const w = worthOf(usOnly(), usableRate(null, NOW), false);
+    expect(w.rule).toBe('unknown');
+    expect(w.inr).toBeNull();
+    expect(w.line).not.toMatch(/About Rs|₹/);
+  });
+  it('a rate over 5 days old: the row shows no estimate and no rupee figure', () => {
+    const w = worthOf(usOnly(), usableRate({ rate: 88, asOf: '2026-10-12' }, NOW), false);
+    expect(w.rule).toBe('unknown');
+    expect(w.inr).toBeNull();
+    expect(w.line).not.toMatch(/About Rs|₹/);
+  });
+  it('a rate exactly 5 days old is still usable (the boundary is inclusive)', () => {
+    const w = worthOf(usOnly(), usableRate({ rate: 88, asOf: '2026-10-13' }, NOW), false);
+    expect(w.rule).toBe('estimate');
+    expect(w.inr).not.toBeNull();
+  });
+  it('the total counts neither state, with or without a rate date to show', () => {
+    for (const stored of [null, { rate: 88, asOf: '2026-10-12' }]) {
+      const t = worthTotal([usOnly()], usableRate(stored, NOW), () => false);
+      expect(t.inr ?? 0).toBe(0);
+      expect(t.line).not.toMatch(/₹/);
+    }
+  });
+  it('the page passes no rate when none is wired, so the hidden state is the one the page shows', () => {
+    const src = readFileSync(join(__dirname, '..', 'src/app/my/MyCollection.tsx'), 'utf8');
+    expect(src).toContain('const noRate: RateSource = { getRate: () => null };');
+    expect(src).toContain('usableRate(noRate.getRate(), new Date())');
   });
 });
 
