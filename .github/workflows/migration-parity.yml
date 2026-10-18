@@ -22,7 +22,7 @@ permissions:
 
 jobs:
   parity:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # git diff + one psql query + two node runs: ~30s. Sized like lint-migration-grants.yml.
     timeout-minutes: 5
     steps:

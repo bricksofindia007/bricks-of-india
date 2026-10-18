@@ -22,7 +22,7 @@ jobs:
   update-retiring-soon:
     needs: [quota-gate]
     if: needs.quota-gate.outputs.proceed == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5

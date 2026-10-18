@@ -5,7 +5,7 @@ on:
 
 jobs:
   backfill:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # 8 most recent runs: 43s-9m43s (gh run list
     # --workflow=youtube-backfill.yml --limit 10, 2026-08-18). ~2x observed
     # max.

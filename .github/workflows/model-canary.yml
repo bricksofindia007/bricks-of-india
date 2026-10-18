@@ -24,7 +24,7 @@ on:
 
 jobs:
   canary:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Real calls are tiny (max_tokens ~20, one-word replies) against 4
     # models total -- no observed-runtime history yet to size this off of
     # (first run), but this is a small enough, boundable workload that a

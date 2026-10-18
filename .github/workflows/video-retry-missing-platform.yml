@@ -31,7 +31,7 @@ jobs:
   # and only on an actual Storage upload (publish.py / publish_quiet_panic.py).
 
   retry-vidp4:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Issue #178 (b): shares one concurrency group with this pipeline's
     # publish poller, so a retry and a publish for the same pipeline can
     # never run at the same time (each re-reads the daily cap only after
@@ -67,7 +67,7 @@ jobs:
         run: python engine.py --retry-missing-platform
 
   retry-vidqp:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Issue #178 (b): shares one concurrency group with this pipeline's
     # publish poller, so a retry and a publish for the same pipeline can
     # never run at the same time (each re-reads the daily cap only after

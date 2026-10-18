@@ -24,7 +24,7 @@ on:
 
 jobs:
   publish:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Issue #178 (b): one concurrency group per pipeline, shared with the
     # missing-platform retry job (video-retry-missing-platform.yml), so two
     # publishers for the same pipeline never overlap. Queued, never cancelled.

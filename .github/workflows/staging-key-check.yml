@@ -1,0 +1,46 @@
+name: Staging key check (HTTP status only)
+
+# Manual dispatch only. Read-only: one GET per key to the staging project's REST root.
+# Prints HTTP status codes and yes/no comparisons only. Never prints a key, URL or token value.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  key-check:
+    name: Check the three staging Supabase values
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      STAGING_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
+      STAGING_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.STAGING_SUPABASE_PUBLISHABLE_KEY }}
+      STAGING_SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
+      PRODUCTION_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+    steps:
+      - name: Check each value (status codes and yes/no only)
+        run: |
+          set -u
+          URL="${STAGING_SUPABASE_URL}"
+          echo "URL set: $([ -n "$URL" ] && echo yes || echo no)"
+          echo "URL is an https supabase host: $(echo "$URL" | grep -qE '^https://[a-z0-9]{20}\.supabase\.co/?$' && echo yes || echo no)"
+          REF=$(echo "$URL" | sed -E 's#^https://([a-z0-9]{20})\.supabase\.co.*#\1#')
+          PREF=$(echo "$PRODUCTION_SUPABASE_URL" | sed -E 's#^https://([a-z0-9]{20})\.supabase\.co.*#\1#')
+          for NAME in STAGING_SUPABASE_PUBLISHABLE_KEY STAGING_SUPABASE_SERVICE_ROLE_KEY; do
+            VAL="${!NAME}"
+            echo "--- $NAME"
+            echo "  set: $([ -n "$VAL" ] && echo yes || echo no)"
+            if [ -z "$VAL" ]; then continue; fi
+            PAYLOAD=$(echo "$VAL" | cut -d. -f2 | tr '_-' '/+' )
+            PAD=$(( (4 - ${#PAYLOAD} % 4) % 4 )); PAYLOAD="$PAYLOAD$(printf '=%.0s' $(seq 1 $PAD 2>/dev/null) )"
+            CLAIMS=$(echo "$PAYLOAD" | base64 -d 2>/dev/null || true)
+            ROLE=$(echo "$CLAIMS" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);process.stdout.write(String(j.role||'none'))}catch{process.stdout.write('not-a-jwt')}})")
+            KREF=$(echo "$CLAIMS" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{const j=JSON.parse(s);process.stdout.write(String(j.ref||'none'))}catch{process.stdout.write('none')}})")
+            echo "  key role claim: $ROLE"
+            echo "  key project matches URL project: $([ "$KREF" = "$REF" ] && echo yes || echo no)"
+            CODE=$(curl -s -o /dev/null -w '%{http_code}' --max-time 20 "$URL/rest/v1/" -H "apikey: $VAL" -H "Authorization: Bearer $VAL")
+            echo "  HTTP status from REST root: $CODE"
+            echo "  key project is the PRODUCTION project: $([ "$KREF" = "$PREF" ] && echo yes || echo no)"
+          done

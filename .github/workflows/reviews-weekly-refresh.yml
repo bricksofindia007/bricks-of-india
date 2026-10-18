@@ -44,7 +44,7 @@ jobs:
   refresh:
     needs: [quota-gate]
     if: needs.quota-gate.outputs.proceed == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 20
     env:
       G19_TERMS: ${{ secrets.G19_TERMS }}  # G19 term list (never in the repo); gates fail closed without it

@@ -64,7 +64,7 @@ jobs:
   generate:
     needs: [quota-gate]
     if: needs.quota-gate.outputs.proceed == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       G19_TERMS: ${{ secrets.G19_TERMS }}  # G19 term list (never in the repo); gates fail closed without it
     # 10 most recent runs: successful runs range 4m12s-19m49s (gh run list
