@@ -15,7 +15,8 @@ as $$
   select s.funcname::text as function_name, s.calls
   from pg_stat_user_functions s
   where s.schemaname = 'public'
-    and s.funcname in ('get_set_prices', 'get_price_history', 'get_price_summaries')
+    and s.funcname in ('get_set_prices', 'get_prices_for_sets', 'get_price_history', 'get_best_prices_for_sets',
+                       'get_price_summaries', 'get_price_summary_for_set')
   order by s.funcname
 $$;
 
