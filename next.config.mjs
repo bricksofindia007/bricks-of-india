@@ -331,7 +331,7 @@ const nextConfig = {
           // HTTPS-only, short max-age to start (1 day); no includeSubDomains or preload until every
           // subdomain is confirmed HTTPS (preload is hard to undo). No full URLs leaked to other sites;
           // browser features the site never uses switched off.
-          { key: 'Strict-Transport-Security', value: 'max-age=86400' },
+          { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
           { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
           { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=(), browsing-topics=()' },
           // CSP in report-only mode — enforcing blocked by inline GA script (tracked: GEO-AUDIT-FIX-01)
