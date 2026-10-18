@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import { ADMIN_COOKIE, ADMIN_SESSION_SECONDS, adminPasswordMatches, createAdminSession, isValidAdminSession, revokeAdminSession } from '@/lib/admin-session';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { adminFormTokenValid } from '@/lib/admin-form';
 import { createServerClient } from '@/lib/supabase';
 import { generateBody } from '@/lib/generate-body';
 import { publishOneDraft } from '@/lib/publish-draft';
@@ -26,9 +27,12 @@ export async function login(formData: FormData) {
   redirect('/admin/pending');
 }
 
-export async function logout() {
+export async function logout(formData: FormData) {
   const jar = await cookies();
-  await revokeAdminSession(jar.get(ADMIN_COOKIE)?.value);
+  const token = jar.get(ADMIN_COOKIE)?.value;
+  // A sign-out without its signed field changes nothing.
+  if (!adminFormTokenValid(formData.get('csrf'), token, 'logout')) redirect('/admin/pending');
+  await revokeAdminSession(token);
   jar.delete(ADMIN_COOKIE);
   redirect('/admin/pending');
 }
