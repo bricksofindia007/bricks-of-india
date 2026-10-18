@@ -5,7 +5,7 @@ import { resolveUnlistedDisclaimerVariant, InvalidReviewVerdictError } from '@/l
 describe('existing-review standard lines (owner-approved option B, verbatim)', () => {
   it('IMPORT ONLY line is the approved text', () => {
     expect(EXISTING_REVIEW_VERDICT_LINES['IMPORT ONLY']).toBe(
-      "Standard disclaimer: if you're rich, you can import it and skip the wait. The rest of us will be here checking whether an Indian store ever stocks it, and doing the sums first.",
+      "Standard disclaimer: if you're rich, you can import it and skip the wait. The rest of us will be here checking whether an Indian store ever stocks it, and doing the sums first. If you're determined enough to import this one, do the maths on freight and customs first.",
     );
   });
 
