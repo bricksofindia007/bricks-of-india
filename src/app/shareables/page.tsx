@@ -15,7 +15,7 @@ const SHAREABLES_LIVE = false;
 
 export const metadata: Metadata = buildMetadata({
   title: 'Shareables',
-  description: 'Free AI-animated LEGO minifigure greeting clips for every occasion — download and share on WhatsApp, Instagram, Facebook, or LinkedIn.',
+  description: 'Free animated LEGO minifigure greeting clips for every occasion — download and share on WhatsApp, Instagram, Facebook, or LinkedIn.',
   path: '/shareables',
   robots: !SHAREABLES_LIVE ? { index: false, follow: false } : undefined,
 });
@@ -147,7 +147,7 @@ function ShareablesComingSoon() {
             className="font-body text-lg max-w-lg mx-auto mb-8"
             style={{ color: 'var(--boi-navy)', opacity: 0.75 }}
           >
-            We&apos;re putting together a library of free AI-animated BOI
+            We&apos;re putting together a library of free animated BOI
             mascot greeting clips for every occasion. Check back soon.
           </p>
           <Link

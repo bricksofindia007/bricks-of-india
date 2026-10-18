@@ -14,9 +14,8 @@ import { Byline } from '@/components/content/Byline';
 import { JsonLd } from '@/components/JsonLd';
 import { buildReviewSchema } from '@/lib/schemas';
 import { getStores, storeLabels } from '@/lib/stores';
-import { TrackedLink } from '@/components/analytics/TrackedLink';
 import { computeIndiaStatus, indiaStatusLine, RETIRED_IN_INDIA_DAYS, HUNT_IT_LINE } from '@/lib/india-status';
-import { normalise, type SetPriceSummary } from '@/lib/price-summary';
+import { getReviewDealTiers, type ReviewDealSummary } from '@/lib/price-summary';
 import { waitDiscountLine } from '@/lib/verdict-notes';
 import { PriceAsOfNote } from '@/components/content/PriceAsOfNote';
 import { hasTypedStorePrice } from '@/lib/price-as-of';
@@ -106,21 +105,21 @@ export default async function ReviewPage(props: Props) {
   // Store prices — full map for all tracked stores (mirrors sets/[slug]/page.tsx pattern)
   const storePriceMap = new Map<string, { store_id: string; price_inr: number | null; in_stock: boolean; product_url: string; scraped_at: string }>();
   let recentStockEventsAt: string[] = [];
-  let priceSummary: SetPriceSummary | null = null;
+  let priceSummary: ReviewDealSummary | null = null;
   if (set?.set_number) {
     // Public key only: prices come through the price functions (migration 20261017200000).
     const publicClient = createPublicClient({ revalidate: READ_REVALIDATE_SECONDS });
     const since = new Date(Date.now() - RETIRED_IN_INDIA_DAYS * 864e5).toISOString();
-    const [{ data: storePrices }, { data: historyRows }, { data: summaryRows }] = await Promise.all([
+    const [{ data: storePrices }, { data: historyRows }, summaries] = await Promise.all([
       publicClient.rpc('get_set_prices', { p_set_number: set.set_number }),
       // Item 0: stock activity in the last 14 days (India status input). The function returns the
       // newest 500 rows for the set; the window is applied here.
       publicClient.rpc('get_price_history', { p_set_number: set.set_number, p_limit: 500 }),
-      // Same Deal/Hot tier the price box badges (WAIT discount line). One set, one row, through the per-set function.
-      publicClient.rpc('get_price_summary_for_set', { p_set_number: set.set_number }),
+      // Same Deal/Hot tier the price box badges (WAIT discount line).
+      getReviewDealTiers(publicClient, [set.set_number]),
     ]);
     const history = ((historyRows ?? []) as { store_id: string; recorded_at: string }[]).filter((h) => h.recorded_at >= since);
-    priceSummary = summaryRows?.[0] ? normalise(summaryRows[0]) : null;
+    priceSummary = summaries.get(set.set_number) ?? null;
     for (const sp of storePrices ?? []) {
       storePriceMap.set(sp.store_id, sp);
     }
@@ -348,16 +347,14 @@ export default async function ReviewPage(props: Props) {
                                 {formatPrice(sp.price_inr)}
                               </span>
                               {sp.in_stock ? (
-                                <TrackedLink
-                                  event="click_store_listing"
-                                  params={{ page_type: 'review', store: sp.store_id, store_name: storeLabels(stores)[sp.store_id], set_number: set.set_number }}
+                                <a
                                   href={sp.product_url}
                                   target="_blank"
                                   rel="noopener noreferrer sponsored"
                                   className="text-xs font-bold text-primary hover:underline"
-                                  >
+                                >
                                   Buy →
-                                  </TrackedLink>
+                                </a>
                               ) : (
                                 <span className="text-xs text-gray-400">OOS</span>
                               )}
@@ -368,16 +365,14 @@ export default async function ReviewPage(props: Props) {
                     </div>
                     )}
                     {bestStorePrice?.in_stock && (
-                      <TrackedLink
-                        event="click_store_listing"
-                        params={{ page_type: 'review', store: bestStorePrice.store_id, store_name: storeLabels(stores)[bestStorePrice.store_id], set_number: set.set_number }}
+                      <a
                         href={bestStorePrice.product_url}
                         target="_blank"
                         rel="noopener noreferrer sponsored"
                         className="block w-full text-center bg-deal-green text-white font-bold py-2 rounded-lg hover:opacity-90 transition-opacity text-sm mt-3"
-                        >
+                      >
                         Buy Now →
-                        </TrackedLink>
+                      </a>
                     )}
                   </div>
 
