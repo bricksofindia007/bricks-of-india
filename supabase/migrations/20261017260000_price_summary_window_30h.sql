@@ -1,3 +1,4 @@
+-- boi:issue 625
 -- Widen the freshness window of public.set_price_summary to 30 hours. The 26-hour health check and watchdog still alarm first, with about 4 hours in hand.
 -- Same view as 20260927153249, with only the window changed.
 -- G7: rehearse on staging and take a backup first. Rollback: supabase/rollbacks/20261017260000_price_summary_window_30h.down.sql (restores the 12-hour window).
