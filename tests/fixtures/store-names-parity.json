@@ -1,0 +1,62 @@
+{
+  "autoFix": [
+    "Set 10307 is ₹41,199 at LEGO.in and Toycra. Code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500.\n\nOn that bombshell, bubyee.",
+    "Available at Toycra and Toycra for ₹41,199. Code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500.\n\nOn that bombshell, bubyee.",
+    "LEGO.in and Toycra both list it. Code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500.\n\nOn that bombshell, bubyee.",
+    "Buy it from Toycra. Code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500.\n\nOn that bombshell, bubyee.",
+    "Toycra is selling it at ₹41,599 today. Code ABHINAV12 takes 12% off.\n\nOn that bombshell, bubyee.",
+    "Verdict: WAIT. Check prices at LEGO.in and Toycra first. Code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500.\n\nOn that bombshell, bubyee.",
+    "Toycra has it at ₹41,199 — a good price. Code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500.\n\nHeading\n\nitem one\nitem two\n\nOn that bombshell, bubyee."
+  ],
+  "priceLineStores": [
+    "LEGO.in",
+    "Toycra",
+    "LEGO.in and Toycra",
+    "Toycra (₹42,000 on LEGO.in)",
+    "LEGO.in (₹41,500 on Toycra, out of stock)",
+    "the cheaper of LEGO.in and Toycra"
+  ],
+  "disclaimers": {
+    "buy": "Standard disclaimer: if you've got the money, obviously buy it — that's what the verdict says too, for once we all agree.",
+    "wait_mybrickhouse": "Standard disclaimer: rich readers can skip the verdict and just buy it. We'll be over here checking if LEGO.in's HDFC EMI discount makes this hurt less.",
+    "wait_toycra": "Standard disclaimer: rich readers can skip the verdict and just buy it. Toycra's prepaid-only, so the rest of us will be here doing sums before we hit checkout.",
+    "wait_unlisted": "Standard disclaimer: if you're rich, you can skip the verdict and just buy it. The rest of us will be here doing math before we hit checkout.",
+    "avoid": "Standard disclaimer: this one we mean literally — money doesn't fix bad design. Even the rich readers should sit this one out."
+  },
+  "variants": [
+    "buy",
+    "wait_mybrickhouse",
+    "wait_toycra",
+    "wait_mybrickhouse",
+    "avoid"
+  ],
+  "unlisted": [
+    {
+      "status": "added",
+      "content": "Intro.\n\nVerdict: BUY NOW.\n\nStandard disclaimer: if you've got the money, obviously buy it — that's what the verdict says too, for once we all agree.\n\nMore text.",
+      "variant": "buy"
+    },
+    {
+      "status": "added",
+      "content": "Intro.\n\nVerdict: WAIT.\n\nStandard disclaimer: if you're rich, you can skip the verdict and just buy it. The rest of us will be here doing math before we hit checkout.\n\nMore text.",
+      "variant": "wait_unlisted"
+    },
+    {
+      "status": "added",
+      "content": "Intro.\n\nVerdict: AVOID.\n\nStandard disclaimer: this one we mean literally — money doesn't fix bad design. Even the rich readers should sit this one out.\n\nMore text.",
+      "variant": "avoid"
+    }
+  ],
+  "systemPromptSha": "ac74dafcacdd6c0b870ba37114aa1963420385f25d4ef26dcbc7e0466cf802fd",
+  "retailerContextSha": "e5748a40700e911020c74b63cea795dcfa705ef2d54b5b88d5760796e0f24b46",
+  "toycraAvailable": [
+    true,
+    true,
+    false
+  ],
+  "banner": [
+    "<div class=\"bg-accent py-4 px-6\"><div class=\"max-w-site mx-auto flex flex-col sm:flex-row items-center justify-between gap-4\"><div class=\"flex items-center gap-3\"><span class=\"text-3xl\">🎉</span><div><p class=\"font-bold text-dark text-lg leading-tight\">Exclusive Bricks of India Deal at Toycra</p><p class=\"text-dark text-sm\">Code <strong class=\"font-price text-base bg-dark text-accent px-2 py-0.5 rounded mx-1\">ABHINAV12</strong> takes 12% off full-price sets at Toycra, minimum order ₹500. Your wallet can handle it.</p><span class=\"block text-dark/70 text-xs mt-1\">ABHINAV12 gets you 12% off full-price sets at Toycra. It’s not a fortune. But neither is your bank balance. We cannot fix everything!</span></div></div><button class=\"shrink-0 bg-dark text-white font-bold px-6 py-3 rounded-lg hover:bg-gray-800 transition-colors text-sm uppercase tracking-wide\">Copy ABHINAV12</button></div></div>",
+    "<div class=\"flex items-center gap-2 bg-amber-50 border border-accent rounded-lg px-3 py-2 text-sm\"><span class=\"text-xl\">🎉</span><span class=\"text-dark font-bold\">Code </span><button class=\"bg-accent text-dark font-bold px-2 py-0.5 rounded font-price text-sm hover:bg-accent-hover transition-colors\">ABHINAV12</button><span class=\"text-dark\">takes 12% off full-price sets at Toycra, minimum order ₹500.</span><span class=\"basis-full text-xs text-gray-500\">ABHINAV12 gets you 12% off full-price sets at Toycra. It’s not a fortune. But neither is your bank balance. We cannot fix everything!</span></div>",
+    "<div class=\"bg-accent text-dark py-2 px-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg\"><p class=\"text-sm font-bold\">🎉 Exclusive deal: code <span class=\"font-price\">ABHINAV12</span> takes 12% off full-price sets at Toycra, minimum order ₹500.</p><button class=\"shrink-0 bg-dark text-white text-xs font-bold px-3 py-1 rounded hover:bg-gray-800 transition-colors\">Copy Code</button><span class=\"basis-full text-xs text-dark/70\">ABHINAV12 gets you 12% off full-price sets at Toycra. It’s not a fortune. But neither is your bank balance. We cannot fix everything!</span></div>"
+  ]
+}

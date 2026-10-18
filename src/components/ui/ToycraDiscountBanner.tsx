@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { storeDisplayName } from '@/lib/store-display-names';
+
+const TOYCRA = storeDisplayName('toycra');
 import { BRAND } from '@/lib/brand';
 
 // Round 3 (Abhinav, 2 Oct 2026 night): no disclosure beside the code; it lives on the legal pages
@@ -9,7 +12,7 @@ import { BRAND } from '@/lib/brand';
 function SecondLine({ className }: { className?: string }) {
   return (
     <span className={className}>
-      ABHINAV12 gets you 12% off full-price sets at Toycra. It’s not a fortune. But neither is your bank balance. We cannot fix everything!
+      ABHINAV12 gets you 12% off full-price sets at {TOYCRA}. It’s not a fortune. But neither is your bank balance. We cannot fix everything!
     </span>
   );
 }
@@ -38,7 +41,7 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
         >
           {BRAND.toycraCode}
         </button>
-        <span className="text-dark">takes {BRAND.toycraDiscount} off full-price sets at Toycra, minimum order {BRAND.toycraMinOrder}.</span>
+        <span className="text-dark">takes {BRAND.toycraDiscount} off full-price sets at {TOYCRA}, minimum order {BRAND.toycraMinOrder}.</span>
         {copied && <span className="text-deal-green text-xs font-bold">✓ Copied!</span>}
         <SecondLine className="basis-full text-xs text-gray-500" />
       </div>
@@ -49,7 +52,7 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
     return (
       <div className="bg-accent text-dark py-2 px-4 flex flex-wrap items-center justify-between gap-x-4 gap-y-1 rounded-lg">
         <p className="text-sm font-bold">
-          🎉 Exclusive deal: code <span className="font-price">{BRAND.toycraCode}</span> takes {BRAND.toycraDiscount} off full-price sets at Toycra, minimum order {BRAND.toycraMinOrder}.
+          🎉 Exclusive deal: code <span className="font-price">{BRAND.toycraCode}</span> takes {BRAND.toycraDiscount} off full-price sets at {TOYCRA}, minimum order {BRAND.toycraMinOrder}.
         </p>
         <button
           onClick={copyCode}
@@ -69,10 +72,10 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
           <span className="text-3xl">🎉</span>
           <div>
             <p className="font-bold text-dark text-lg leading-tight">
-              Exclusive Bricks of India Deal at Toycra
+              Exclusive Bricks of India Deal at {TOYCRA}
             </p>
             <p className="text-dark text-sm">
-              Code <strong className="font-price text-base bg-dark text-accent px-2 py-0.5 rounded mx-1">{BRAND.toycraCode}</strong> takes {BRAND.toycraDiscount} off full-price sets at Toycra, minimum order {BRAND.toycraMinOrder}. Your wallet can handle it.
+              Code <strong className="font-price text-base bg-dark text-accent px-2 py-0.5 rounded mx-1">{BRAND.toycraCode}</strong> takes {BRAND.toycraDiscount} off full-price sets at {TOYCRA}, minimum order {BRAND.toycraMinOrder}. Your wallet can handle it.
             </p>
             <SecondLine className="block text-dark/70 text-xs mt-1" />
           </div>
