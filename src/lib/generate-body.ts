@@ -116,14 +116,14 @@ export async function buildIndiaPriceContext(
     .eq('set_id', setNumber);
 
   const INDIA_STORE_PRIORITY: Record<string, number> = { mybrickhouse: 1, toycra: 2 };
-  const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: storeDisplayName('mybrickhouse'), toycra: storeDisplayName('toycra') };
+  // Any store in the shared display-name file gets its name; an unknown id shows as itself.
 
   const priced = (sp ?? [])
     .sort((a: any, b: any) => (INDIA_STORE_PRIORITY[a.store_id] ?? 9) - (INDIA_STORE_PRIORITY[b.store_id] ?? 9));
 
   if (priced.length > 0) {
     const lines = priced.map((p: any) => {
-      const label = INDIA_STORE_LABELS[p.store_id] ?? p.store_id;
+      const label = storeDisplayName(p.store_id);
       const stock = p.in_stock ? '' : ' (may be out of stock)';
       return `  ${label}: ₹${fmtInr(Number(p.price_inr))}${stock}`;
     });
