@@ -6,7 +6,7 @@ import { join } from 'node:path';
 
 // In-memory stand-in for public.admin_sessions. The mock is hoisted, so the state lives on the mocked module.
 vi.mock('../src/lib/supabase', () => {
-  const state = { rows: new Map<string, { token_hash: string; expires_at: string; revoked: boolean }>(), fail: null as null | 'insert' | 'select', selects: 0 };
+  const state = { rows: new Map<string, { token_hash: string; expires_at: string; revoked: boolean }>(), fail: null as null | 'insert' | 'select' | 'update', selects: 0 };
   const table = () => ({
     insert(row: { token_hash: string; expires_at: string }) {
       if (state.fail === 'insert') return Promise.resolve({ error: { message: 'down' } });
@@ -29,8 +29,13 @@ vi.mock('../src/lib/supabase', () => {
     },
     update(patch: { revoked: boolean }) {
       return {
-        eq(_col: string, hash: string) {
-          const r = state.rows.get(hash);
+        eq(col: string, value: string | boolean) {
+          if (state.fail === 'update') return Promise.resolve({ error: { message: 'down' } });
+          if (col === 'revoked') {
+            for (const r of state.rows.values()) if (!r.revoked) Object.assign(r, patch);
+            return Promise.resolve({ error: null });
+          }
+          const r = state.rows.get(value as string);
           if (r) Object.assign(r, patch);
           return Promise.resolve({ error: null });
         },
@@ -41,7 +46,7 @@ vi.mock('../src/lib/supabase', () => {
 });
 
 import * as sup from '../src/lib/supabase';
-import { createAdminSession, isValidAdminSession, revokeAdminSession, hashToken, ADMIN_SESSION_SECONDS } from '../src/lib/admin-session';
+import { createAdminSession, isValidAdminSession, revokeAdminSession, revokeAllAdminSessions, hashToken, ADMIN_SESSION_SECONDS } from '../src/lib/admin-session';
 
 const state = (sup as unknown as { __state: { rows: Map<string, unknown>; fail: string | null; selects: number } }).__state;
 const PASSWORD = 'correct horse battery staple';
@@ -165,5 +170,40 @@ describe('every caller awaits the check', () => {
     const lines = out.split('\n').filter((l) => l && !l.includes('admin-session.ts'));
     const offenders = lines.filter((l) => !/await isValidAdminSession\(/.test(l) && !/^\S+:\d+:\s*return isValidAdminSession\(/.test(l));
     expect(offenders).toEqual([]);
+  });
+});
+
+describe('revoke all sessions', () => {
+  it('ends every session that is still open, and none of them is valid afterwards', async () => {
+    const a = await createAdminSession(NOW);
+    const b = await createAdminSession(NOW);
+    const c = await createAdminSession(NOW);
+    await revokeAdminSession(c); // already revoked: stays revoked, not counted twice
+    await revokeAllAdminSessions();
+    expect(await isValidAdminSession(a, NOW)).toBe(false);
+    expect(await isValidAdminSession(b, NOW)).toBe(false);
+    expect(await isValidAdminSession(c, NOW)).toBe(false);
+    expect([...(state.rows as Map<string, { revoked: boolean }>).values()].every((r) => r.revoked)).toBe(true);
+  });
+  it('a session created after revoke-all is valid again (revocation ends sessions, it does not ban the password)', async () => {
+    await createAdminSession(NOW);
+    await revokeAllAdminSessions();
+    const fresh = await createAdminSession(NOW);
+    expect(await isValidAdminSession(fresh, NOW)).toBe(true);
+  });
+  it('a failed write throws, so the caller knows the sessions are still open', async () => {
+    const t = await createAdminSession(NOW);
+    state.fail = 'update';
+    await expect(revokeAllAdminSessions()).rejects.toThrow('admin sessions could not be revoked');
+    state.fail = null;
+    expect(await isValidAdminSession(t, NOW)).toBe(true);
+  });
+  it('the logout-everywhere action checks the caller first, revokes all, then clears the cookie', () => {
+    const src = readFileSync(join(root, 'src/app/admin/pending/actions.ts'), 'utf8');
+    const body = src.slice(src.indexOf('export async function logoutEverywhere'));
+    const first = body.indexOf('await requireAdminForm(');
+    expect(first).toBeGreaterThan(-1);
+    expect(first).toBeLessThan(body.indexOf('await revokeAllAdminSessions()'));
+    expect(body.indexOf('await revokeAllAdminSessions()')).toBeLessThan(body.indexOf('.delete(ADMIN_COOKIE)'));
   });
 });
