@@ -2,8 +2,13 @@
 -- boi:backup-tables public.pending_drafts
 -- Status change only: stale draft rows are set to 'rejected' with a visible marker. Nothing is deleted.
 -- Cutoffs are fixed: news drafts created before 2026-10-04 03:54 UTC; review drafts created before 2026-09-18 03:54 UTC.
--- Guard: the whole change stops (rolls back) unless the news count is within 3 of 184 and the review count is exactly 7.
--- Rollback: supabase/data-fix-rollbacks (docs/data-fix-rollbacks/backlog-stale-reject-rollback.sql).
+-- Guard: the whole change stops (and rolls back) unless the news count is within 3 of 184 and the review count is exactly 7.
+-- Before changing anything, the original id, status, discard_reason, approved_at and approved_by of every affected row
+-- are saved in boi_backups.public__pending_drafts__backlog (the per-run backup copy). The rollback restores those saved
+-- values for exactly the marker rows. Nothing is set to NULL by the rollback.
+-- updated_at is NOT compared and NOT restored: the trigger on pending_drafts rewrites it on every update.
+-- Rows already carrying a discard_reason or approved_at (19 and 15 on production) are included, and restored exactly.
+-- Rollback: docs/data-fix-rollbacks/backlog-stale-reject-rollback.sql
 DO $$
 DECLARE
   news_n integer;
@@ -25,10 +30,16 @@ BEGIN
     RAISE EXCEPTION 'backlog fix: counts outside the agreed guard (news %, expected 184 +/- 3; reviews %, expected 7); stopped', news_n, review_n;
   END IF;
 
+  -- Save the original values first. Fails if the table already exists (a second run must not overwrite the first copy).
+  CREATE TABLE boi_backups.public__pending_drafts__backlog AS
+    SELECT id, status, discard_reason, approved_at, approved_by
+    FROM public.pending_drafts
+    WHERE status = 'draft'
+      AND ((draft_format = 'news' AND created_at < '2026-10-04 03:54:00+00')
+        OR (draft_format = 'review' AND created_at < '2026-09-18 03:54:00+00'));
+
   UPDATE public.pending_drafts
   SET status = 'rejected', discard_reason = 'stale backlog', updated_at = now()
-  WHERE status = 'draft'
-    AND ((draft_format = 'news' AND created_at < '2026-10-04 03:54:00+00')
-      OR (draft_format = 'review' AND created_at < '2026-09-18 03:54:00+00'));
+  WHERE id IN (SELECT id FROM boi_backups.public__pending_drafts__backlog);
   RAISE NOTICE 'backlog fix: rows rejected %', news_n + review_n;
 END $$;
