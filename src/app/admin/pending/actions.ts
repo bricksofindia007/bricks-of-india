@@ -42,8 +42,8 @@ export type LogoutEverywhereState = { error: string } | null;
 // Ends every admin session, this browser's included. The caller must be signed in first (a caller who is not
 // signed in gets the usual Unauthorized error). If the sessions could not be ended, the result says so: it is
 // never a success, and this browser stays signed in so the page can show the error.
-export async function logoutEverywhere(_previous: LogoutEverywhereState): Promise<LogoutEverywhereState> {
-  await requireAdmin();
+export async function logoutEverywhere(_previous: LogoutEverywhereState, formData: FormData): Promise<LogoutEverywhereState> {
+  await requireAdminForm(formData, 'logoutEverywhere');
   try {
     await revokeAllAdminSessions();
   } catch {

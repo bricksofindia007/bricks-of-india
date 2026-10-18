@@ -1,13 +1,16 @@
 'use client';
 
+import type { ReactNode } from 'react';
 import { useActionState } from 'react';
 import { logoutEverywhere, type LogoutEverywhereState } from './actions';
 
-// Ends every admin session. A failure is shown on the page; it is never reported as a sign-out.
-export function LogoutEverywhereButton() {
+// Ends every admin session. The page passes the signed field as children (a hidden input for this action).
+// A failure is shown on the page; it is never reported as a sign-out.
+export function LogoutEverywhereButton({ children }: { children?: ReactNode }) {
   const [state, action, pending] = useActionState<LogoutEverywhereState, FormData>(logoutEverywhere, null);
   return (
     <form action={action} style={{ margin: 0, display: 'flex', alignItems: 'center', gap: 10 }}>
+      {children}
       <button
         type="submit"
         disabled={pending}
