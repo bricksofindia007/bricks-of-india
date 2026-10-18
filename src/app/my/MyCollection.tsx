@@ -10,7 +10,7 @@ import {
   setOwnedQty, writeList, type OwnedItem, type WishItem,
 } from '@/lib/my-collection';
 import {
-  worthOf, worthTotal, usableRate, formatRs, WISHLIST_NO_PRICE_LINE, type RateSource, type RetiredSource, type WorthItem,
+  worthOf, worthTotal, usableRate, formatRs, worthInputFor, WISHLIST_NO_PRICE_LINE, type RateSource, type RetiredSource, type WorthItem,
 } from '@/lib/collection-worth';
 
 // No exchange rate or retired status is wired yet. Until they are, estimates are hidden and no set is
@@ -18,7 +18,7 @@ import {
 const noRate: RateSource = { getRate: () => null };
 const unknownRetired: RetiredSource = { isRetired: () => null };
 
-type Price = { set_number: string; best_price_inr: number | null; best_store_ids: string[] | null };
+type Price = { set_number: string; best_price_inr: number | null; best_store_ids: string[] | null; us_price_usd: number | null };
 type Tab = 'wish' | 'owned';
 type PriceState = 'loading' | 'ok' | 'failed';
 
@@ -92,12 +92,7 @@ export function MyCollection() {
   }, [ready, ids]);
 
   const rate = usableRate(noRate.getRate(), new Date());
-  const worthItems: WorthItem[] = owned.map((o) => ({
-    set: o.set,
-    indianPriceInr: priceState === 'ok' ? (prices.get(o.set)?.best_price_inr ?? null) : null,
-    usPriceUsd: null, // no US price source is wired yet
-    qty: o.qty,
-  }));
+  const worthItems: WorthItem[] = owned.map((o) => worthInputFor(o, prices.get(o.set), priceState === 'ok'));
   // The price read covers the newest sets only; a collection set it leaves out is capped out of the total.
   const pricedIds = new Set(priceIds(wish, owned));
   const capped = owned.some((o) => !pricedIds.has(o.set));
@@ -187,11 +182,7 @@ export function MyCollection() {
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {ownedPaged.rows.map((o) => {
                 const p = prices.get(o.set);
-                const w = worthOf(
-                  { set: o.set, indianPriceInr: priceState === 'ok' ? (p?.best_price_inr ?? null) : null, usPriceUsd: null, qty: o.qty },
-                  rate,
-                  unknownRetired.isRetired(o.set),
-                );
+                const w = worthOf(worthInputFor(o, p, priceState === 'ok'), rate, unknownRetired.isRetired(o.set));
                 return (
                   <li key={o.set} className="border border-border rounded-xl p-3 flex gap-3">
                     <Link href={`/sets/${o.set}-${slugify(o.name)}`} className="w-20 h-20 shrink-0 relative bg-surface rounded">
