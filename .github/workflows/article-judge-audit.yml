@@ -29,7 +29,7 @@ concurrency:
 
 jobs:
   judge:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # No runs yet: ~35 calls paced ~25 s apart ~= 15 min. Resize after 3 runs.
     timeout-minutes: 40
     steps:

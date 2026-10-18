@@ -17,7 +17,7 @@ jobs:
   # passing) when only docs or data-fix files changed, or when a push to main is the merge of a
   # pull request that already ran these checks.
   scope:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 3
     outputs:
       code: ${{ steps.s.outputs.code }}
@@ -48,7 +48,7 @@ jobs:
   verify-no-email-in-client-bundle:
     needs: scope
     if: needs.scope.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # 10 most recent runs: 1m58s-2m30s (gh run list --workflow=ci.yml --limit
     # 10, 2026-08-18). ~2.5x observed max.
     timeout-minutes: 8
@@ -273,7 +273,7 @@ jobs:
   snapshot-tests:
     needs: scope
     if: needs.scope.outputs.code == 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Same run-history basis as verify-no-email-in-client-bundle above (both
     # run per push/PR in this file's 10 most recent recorded runs).
     timeout-minutes: 8
@@ -303,7 +303,7 @@ jobs:
   g19-public-text:
     needs: scope
     if: needs.scope.outputs.merged != 'true'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Pure file scan, no install: well under a minute.
     timeout-minutes: 3
     env:

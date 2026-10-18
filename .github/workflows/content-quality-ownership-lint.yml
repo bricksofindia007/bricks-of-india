@@ -32,7 +32,7 @@ on:
 
 jobs:
   ownership-lint:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Trivial static-analysis script, no deps beyond Node itself -- no
     # historical run data yet (new workflow), sized generously per the
     # same first-run reasoning lint-workflows.yml and

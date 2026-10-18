@@ -40,7 +40,7 @@ concurrency:
 jobs:
   deploy:
     name: Build and deploy (Next.js + OpenNext Cloudflare)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Approval gate (see header): nothing builds until the run is approved.
     environment: production
     # Build and deploy run in ONE job (4 Oct 2026), so the built site never becomes a downloadable artifact.

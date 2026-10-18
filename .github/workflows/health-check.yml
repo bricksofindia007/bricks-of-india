@@ -8,7 +8,7 @@ on:
 jobs:
   health-check:
     name: Check pipeline and content health
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
       FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true

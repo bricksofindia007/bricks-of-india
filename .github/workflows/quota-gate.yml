@@ -38,7 +38,7 @@ permissions:
 
 jobs:
   gate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Two small RPCs + an optional email/dispatch; the ceiling covers npm ci.
     timeout-minutes: 5
     outputs:

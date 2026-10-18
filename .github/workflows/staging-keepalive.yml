@@ -16,7 +16,7 @@ permissions:
 
 jobs:
   ping:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # One curl with a 20s cap.
     timeout-minutes: 3
     steps:
