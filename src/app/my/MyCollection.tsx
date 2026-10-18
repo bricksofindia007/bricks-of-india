@@ -118,7 +118,7 @@ export function MyCollection() {
   return (
     <div>
       {/* Summary strip */}
-      <dl className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6 text-sm">
+      <dl className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6 text-sm">
         <div className="border border-border rounded-lg p-3"><dt className="text-gray-500">Sets saved</dt><dd className="font-bold text-dark text-lg">{wish.length}</dd></div>
         <div className="border border-border rounded-lg p-3"><dt className="text-gray-500">Sets in collection</dt><dd className="font-bold text-dark text-lg">{owned.length}</dd></div>
         <div className="border border-border rounded-lg p-3">
@@ -128,6 +128,10 @@ export function MyCollection() {
         <div className="border border-border rounded-lg p-3">
           <dt className="text-gray-500">Total worth</dt>
           <dd className="font-bold text-dark text-lg">{priceState === 'loading' ? '…' : total.inr > 0 ? `₹${formatRs(total.inr)}` : '—'}</dd>
+        </div>
+        <div className="border border-border rounded-lg p-3">
+          <dt className="text-gray-500">Retired, not valued</dt>
+          <dd className="font-bold text-dark text-lg">{total.retired}</dd>
         </div>
       </dl>
       {owned.length > 0 && priceState !== 'loading' && <p className="text-xs text-gray-600 mb-4">{total.line}</p>}
