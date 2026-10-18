@@ -14,6 +14,7 @@ import { Byline } from '@/components/content/Byline';
 import { JsonLd } from '@/components/JsonLd';
 import { buildReviewSchema } from '@/lib/schemas';
 import { getStores, storeLabels } from '@/lib/stores';
+import { TrackedLink } from '@/components/analytics/TrackedLink';
 import { computeIndiaStatus, indiaStatusLine, RETIRED_IN_INDIA_DAYS, HUNT_IT_LINE } from '@/lib/india-status';
 import { getReviewDealTiers, type ReviewDealSummary } from '@/lib/price-summary';
 import { waitDiscountLine } from '@/lib/verdict-notes';
@@ -113,8 +114,8 @@ export default async function ReviewPage(props: Props) {
     const [{ data: storePrices }, { data: historyRows }, summaries] = await Promise.all([
       publicClient.rpc('get_set_prices', { p_set_number: set.set_number }),
       // Item 0: stock activity in the last 14 days (India status input). The function returns the
-      // newest 500 rows for the set; the window is applied here.
-      publicClient.rpc('get_price_history', { p_set_number: set.set_number, p_limit: 500 }),
+      // newest 200 rows for the set (the function's cap); the window is applied here.
+      publicClient.rpc('get_price_history', { p_set_number: set.set_number, p_limit: 200 }),
       // Same Deal/Hot tier the price box badges (WAIT discount line).
       getReviewDealTiers(publicClient, [set.set_number]),
     ]);
@@ -347,14 +348,16 @@ export default async function ReviewPage(props: Props) {
                                 {formatPrice(sp.price_inr)}
                               </span>
                               {sp.in_stock ? (
-                                <a
+                                <TrackedLink
+                                  event="click_store_listing"
+                                  params={{ page_type: 'review', store: sp.store_id, store_name: STORE_NAMES[sp.store_id] ?? sp.store_id, set_number: set.set_number }}
                                   href={sp.product_url}
                                   target="_blank"
                                   rel="noopener noreferrer sponsored"
                                   className="text-xs font-bold text-primary hover:underline"
                                 >
                                   Buy →
-                                </a>
+                                </TrackedLink>
                               ) : (
                                 <span className="text-xs text-gray-400">OOS</span>
                               )}
@@ -365,14 +368,16 @@ export default async function ReviewPage(props: Props) {
                     </div>
                     )}
                     {bestStorePrice?.in_stock && (
-                      <a
+                      <TrackedLink
+                        event="click_store_listing"
+                        params={{ page_type: 'review', store: bestStorePrice.store_id, store_name: STORE_NAMES[bestStorePrice.store_id] ?? bestStorePrice.store_id, set_number: set.set_number }}
                         href={bestStorePrice.product_url}
                         target="_blank"
                         rel="noopener noreferrer sponsored"
                         className="block w-full text-center bg-deal-green text-white font-bold py-2 rounded-lg hover:opacity-90 transition-opacity text-sm mt-3"
                       >
                         Buy Now →
-                      </a>
+                      </TrackedLink>
                     )}
                   </div>
 
