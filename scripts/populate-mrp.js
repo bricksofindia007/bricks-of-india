@@ -19,6 +19,7 @@
 
 const fs = require('fs');
 const { createClient } = require('@supabase/supabase-js');
+const { collectUsd, usdFromSet, usdRows, batches } = require('./lib/mrp-usd.cjs');
 
 // Load .env.local, falling back to process.env (CI: secrets come from
 // GitHub Actions env, no .env.local file exists there). Fixed 2026-08-16
@@ -85,6 +86,7 @@ function usdToInr(usd, rate) {
 
 async function fetchBricksetYear(year, rate) {
   const prices    = {}; // set_number → inr_price
+  const usdPrices = {}; // set_number → US retail price in dollars (same records; no extra calls)
   const exitDates = {}; // set_number → 'YYYY-MM-DD'
   let page = 1;
   let total = null;
@@ -102,6 +104,7 @@ async function fetchBricksetYear(year, rate) {
     if (json.status !== 'success') throw new Error(`Brickset API error: ${json.message}`);
 
     if (total === null) total = json.matches;
+    collectUsd(json.sets || [], usdPrices);
 
     for (const set of (json.sets || [])) {
       const usd = set.LEGOCom?.US?.retailPrice;
@@ -116,7 +119,7 @@ async function fetchBricksetYear(year, rate) {
     await sleep(CALL_DELAY);
   }
 
-  return { prices, exitDates };
+  return { prices, exitDates, usdPrices };
 }
 
 // DATA-01: store_prices.set_id is the plain set_number string, not a UUID
@@ -159,6 +162,7 @@ async function fetchBricksetSingleSet(setNumber, rate) {
   const usd = set.LEGOCom?.US?.retailPrice;
   return {
     price: usd && usd > 0 ? usdToInr(usd, rate) : null,
+    usd: usdFromSet(set),
     exitDate: set.exitDate ? set.exitDate.slice(0, 10) : null,
   };
 }
@@ -166,7 +170,7 @@ async function fetchBricksetSingleSet(setNumber, rate) {
 // Phase 1.5 -- targeted lookup for sets that are BOTH currently listed
 // (store_prices, Toycra/MyBrickHouse) AND older than START_YEAR, so they
 // don't sit permanently excluded from the year-scoped bulk sweep above.
-async function fillPreYearListedSets(bricksetPrices, bricksetExitDates, rate) {
+async function fillPreYearListedSets(bricksetPrices, bricksetExitDates, rate, bricksetUsd) {
   const storePriceRows = await fetchAllPaginated('store_prices', 'set_id');
   const listedSetNumbers = Array.from(new Set(storePriceRows.map((r) => r.set_id)));
 
@@ -191,6 +195,7 @@ async function fillPreYearListedSets(bricksetPrices, bricksetExitDates, rate) {
       bricksetPrices[s.set_number] = result.price;
       console.log(`  ${s.set_number} (${s.year}) ${s.name.slice(0, 40)}: found ₹${result.price} via individual lookup`);
     }
+    if (result?.usd) bricksetUsd[s.set_number] = result.usd;
     if (result?.exitDate) bricksetExitDates[s.set_number] = result.exitDate;
     await sleep(CALL_DELAY);
   }
@@ -205,9 +210,11 @@ async function run() {
   // Phase 1 — fetch all Brickset prices and exit dates by year
   const bricksetPrices    = {};
   const bricksetExitDates = {};
+  const bricksetUsd       = {};
   for (let year = START_YEAR; year <= END_YEAR; year++) {
     console.log(`\nFetching Brickset year ${year}...`);
-    const { prices, exitDates } = await fetchBricksetYear(year, rate);
+    const { prices, exitDates, usdPrices } = await fetchBricksetYear(year, rate);
+    Object.assign(bricksetUsd, usdPrices);
     Object.assign(bricksetPrices, prices);
     Object.assign(bricksetExitDates, exitDates);
     await sleep(CALL_DELAY);
@@ -217,7 +224,7 @@ async function run() {
 
   // Phase 1.5 — targeted lookup for pre-START_YEAR sets that are currently
   // listed (see file header comment)
-  const oldListedSets = await fillPreYearListedSets(bricksetPrices, bricksetExitDates, rate);
+  const oldListedSets = await fillPreYearListedSets(bricksetPrices, bricksetExitDates, rate, bricksetUsd);
   console.log(`Brickset map (after Phase 1.5): ${Object.keys(bricksetPrices).length} sets with USD retail price`);
 
   // Phase 2 — load DB sets needing MRP: the year-scoped sweep's targets,
@@ -244,6 +251,7 @@ async function run() {
       const s = dbSets.find(x => x.id === u.id);
       console.log(`  ${s.set_number.padEnd(12)} ${String(s.year).padEnd(6)} ${s.name.slice(0, 40).padEnd(42)} ₹${u.lego_mrp_inr}`);
     });
+    console.log(`\nUS prices (dry run, not written): ${Object.keys(bricksetUsd).length} sets`);
     const rdSample = Object.entries(bricksetExitDates).slice(0, 5);
     console.log('\nSample retirement dates:');
     rdSample.forEach(([n, d]) => console.log(`  ${n.padEnd(12)} ${d}`));
@@ -292,6 +300,18 @@ async function run() {
   );
   const rdWritten = p5.ok, rdErrors = p5.failed;
   console.log(`\nDone. ${rdWritten} retirement_date rows updated${rdErrors ? `, ${rdErrors} errors` : ''}.`);
+
+  // Phase 6 — US retail price in dollars (us_price_usd), from the same Brickset records. Batched,
+  // WRITE_BATCH rows per call. Re-running writes the same values. A failed batch is counted and
+  // reported, not retried row by row. Nothing above depends on this phase.
+  const usdAll = usdRows(bricksetUsd);
+  let usdOk = 0, usdFailed = 0;
+  for (const chunk of batches(usdAll)) {
+    const { data, error } = await sb.rpc('sets_bulk_us_price', { p_rows: chunk });
+    if (error) { usdFailed += chunk.length; console.error(`\n  US price batch failed (${error.message})`); }
+    else usdOk += Number(data ?? 0);
+  }
+  console.log(`\nUS prices (us_price_usd): ${usdOk} rows written from ${usdAll.length} Brickset sets${usdFailed ? `, ${usdFailed} in failed batches` : ''}.`);
 
   // Final self-report, matching catalogue-audit.ts's corrected universe
   // (fixed 2026-08-16 -- this used to report against year>=START_YEAR of
