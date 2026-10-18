@@ -1,0 +1,96 @@
+{
+  "_status": "Caps are PROPOSED for owner confirmation. Prices checked 2026-10-18 from the provider pages. The rupee stop binds for every model with a price; a model with null price is counted by its caps only.",
+  "ai": {
+    "warn_fraction": 0.6,
+    "providers": {
+      "gemini": {
+        "daily_calls": 400,
+        "daily_tokens": 2000000,
+        "models": [
+          "gemini-2.5-flash",
+          "gemini-2.5-flash-lite",
+          "gemini-3.1-flash-lite"
+        ]
+      },
+      "groq": {
+        "daily_calls": 300,
+        "daily_tokens": 1000000,
+        "models": [
+          "openai/gpt-oss-120b",
+          "llama-3.3-70b-versatile"
+        ]
+      },
+      "cerebras": {
+        "daily_calls": 300,
+        "daily_tokens": 1000000,
+        "models": [
+          "gpt-oss-120b",
+          "llama3.1-8b"
+        ]
+      }
+    },
+    "prices_last_checked": "2026-10-18",
+    "prices_usd_per_million_tokens": {
+      "gemini-2.5-flash": {
+        "input": 0.3,
+        "output": 2.5
+      },
+      "gemini-2.5-flash-lite": {
+        "input": 0.1,
+        "output": 0.4
+      },
+      "gemini-3.1-flash-lite": {
+        "input": 0.25,
+        "output": 1.5
+      },
+      "openai/gpt-oss-120b": {
+        "input": 0.15,
+        "output": 0.6
+      },
+      "llama-3.3-70b-versatile": null,
+      "gpt-oss-120b": null,
+      "llama3.1-8b": null
+    },
+    "price_notes": {
+      "llama-3.3-70b-versatile": "No public price on Groq. Unpriced; caps only. Decommissioned on Groq; not called.",
+      "gpt-oss-120b": "Cerebras: no price found. Unpriced; caps only. Blocked with 402 today; flagged off.",
+      "llama3.1-8b": "Cerebras: no price found. Unpriced; caps only.",
+      "qwen3.8-27b": "Groq preview at 0.80 / 4.00 USD per million. Not called by any code; not in the table."
+    }
+  },
+  "usd_inr_stored": {
+    "rate": 95,
+    "as_of": "2026-10-18",
+    "note": "Stored value used for rupee cost. Replace when the exchange-rate job is in place."
+  },
+  "rupee_stop": {
+    "warn_inr": 6,
+    "stop_inr": 10
+  },
+  "supabase_egress_gb": {
+    "alert": 3.5,
+    "guard": 4,
+    "stop": 4.6
+  },
+  "r2_class_a_ops_month": {
+    "alert_fraction": 0.6,
+    "stop": 900000
+  },
+  "brevo_emails_day": {
+    "alert_fraction": 0.6,
+    "stop": 270
+  },
+  "resend_emails_day": {
+    "alert_fraction": 0.6,
+    "stop": 90
+  },
+  "gemini_plan": {
+    "status": "confirmed",
+    "source": "Chat, from AI Studio, 18 Oct 2026",
+    "tier": "Paid Tier 1, billing enabled",
+    "google_side_monthly_cap_inr": 400,
+    "spent_this_month_inr": 208.31,
+    "as_of": "2026-10-18",
+    "note": "The rupee stop (warn Rs 6, stop Rs 10 per day) is binding for Gemini. The token and call caps are backstops. The Google-side cap is separate and also applies."
+  }
+}
