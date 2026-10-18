@@ -121,4 +121,7 @@ FEATURE_FLAGS = {
     # whichever model is configured here, not just a live-model check.
     "p4_groq_fallback_enabled": False,
     "p4_groq_fallback_model": "openai/gpt-oss-120b",
+
+    # Spend guard pilot (AI daily caps). Off: the Groq provider makes no guard check and writes no counts.
+    "ai_spend_guard_pilot": False,
 }
