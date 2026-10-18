@@ -32,7 +32,8 @@ export function FiguresList() {
     return () => { live = false; };
   }, [ids]);
 
-  const remove = (id: string) => saveFigures(removeFigure(refs, id));
+  // Reads the stored list at the moment of removing, so another tab's change is kept.
+  const remove = (id: string) => saveFigures(removeFigure(loadFigures(), id));
 
   if (loading) {
     return <p aria-hidden="true" className="h-4 w-40 bg-surface rounded animate-pulse" />;
