@@ -6,6 +6,8 @@ import { FreshOnly } from '@/components/ui/FreshOnly';
 import type { LegoSet } from '@/lib/supabase';
 import { priceLabel, storeName, type SetPriceSummary } from '@/lib/price-summary';
 import { shownTheme } from '@/lib/theme-display';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import { HeartButton } from '@/components/saved/SaveButtons';
 
 interface SetCardProps {
   set: LegoSet;
@@ -48,6 +50,11 @@ export function SetCard({ set, bestPrice, priceCount, summary, trackAs }: SetCar
         <div className="absolute top-2 left-2">
           <Badge variant="grey">{shownTheme(set.theme) || 'LEGO'}</Badge>
         </div>
+        {FEATURE_FLAGS.myCollectionHearts && (
+          <div className="absolute top-2 right-2">
+            <HeartButton set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
+          </div>
+        )}
       </div>
 
       {/* Info */}

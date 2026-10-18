@@ -103,4 +103,9 @@ export const FEATURE_FLAGS = {
   gwpNoPriceContext: true,
   // Spend guard pilot (AI daily caps). Off: the Groq provider makes no guard check and writes no counts.
   aiSpendGuardPilot: false,
+
+  // My Collection (Bundle 2): hearts on set cards and set pages, and the My Collection page.
+  // Both off until launch. Mirrored in config/feature_flags.py; keep in sync.
+  myCollectionHearts: false,
+  myCollectionPage: false,
 } as const;
