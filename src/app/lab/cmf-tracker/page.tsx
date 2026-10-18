@@ -20,6 +20,7 @@ export type FigureData = {
   set_number: string;
   name:       string;
   image_url:  string | null;
+  figure_id?: string;
 };
 
 export type PriceData = {
@@ -51,11 +52,11 @@ export default async function CmfTrackerPage() {
   // Fetch individual figures from cmf_figures (populated by sync-cmf-figures.mjs)
   const { data: rawRows } = await supabase
     .from('cmf_figures')
-    .select('figure_number, series_set_number, name, year, image_url, series_name, figure_index')
+    .select('id, figure_number, series_set_number, name, year, image_url, series_name, figure_index')
     .order('series_set_number', { ascending: true })
     .order('figure_index',       { ascending: true });
 
-  type CmfRow = { figure_number: string; series_set_number: string; name: string; year: number | null; image_url: string | null; series_name: string; figure_index: number };
+  type CmfRow = { id: string; figure_number: string; series_set_number: string; name: string; year: number | null; image_url: string | null; series_name: string; figure_index: number };
 
   // Group by series_set_number, preserving figure order
   const bySeriesMap = new Map<string, SeriesData>();
@@ -72,6 +73,7 @@ export default async function CmfTrackerPage() {
       set_number: row.figure_number,
       name:       row.name,
       image_url:  row.image_url ?? null,
+      figure_id:  row.id,
     });
   }
 

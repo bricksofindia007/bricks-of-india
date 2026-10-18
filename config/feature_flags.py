@@ -124,4 +124,8 @@ FEATURE_FLAGS = {
 
     # Spend guard pilot (AI daily caps). Off: the Groq provider makes no guard check and writes no counts.
     "ai_spend_guard_pilot": False,
+    # My Collection (Bundle 2). Hearts on set cards and set pages; the My Collection page
+    # itself. Both off until the launch. Mirrored in src/lib/feature-flags.ts; keep in sync.
+    "my_collection_hearts": False,
+    "my_collection_page": False,
 }
