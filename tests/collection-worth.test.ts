@@ -145,3 +145,43 @@ describe('Indian digit grouping', () => {
     expect(formatRs(1000)).toBe('1,000');
   });
 });
+
+import { retiredLine, type LastSeen } from '../src/lib/collection-worth';
+
+describe('retired sets: a factual last-seen line, or only the approved line', () => {
+  const seen: LastSeen = { priceInr: 12999, observedAt: '2026-03-14T08:00:00Z' };
+  it('with our own observed Indian price: "Last seen in India at ₹X (month, year)", most recent price, Indian grouping', () => {
+    expect(retiredLine(seen)).toBe('Last seen in India at ₹12,999 (March 2026)');
+    expect(worthOf(item({ set: 'r' }), RATE, true, seen).line).toBe('Last seen in India at ₹12,999 (March 2026)');
+  });
+  it('without one: only the approved line, with no rupee figure and no launch claim', () => {
+    expect(retiredLine(null)).toBe(RETIRED_LINE);
+    expect(retiredLine(null)).not.toMatch(/\d|launch/i);
+  });
+  it('a bad date or a zero price falls back to the approved line, never a guessed figure', () => {
+    expect(retiredLine({ priceInr: 500, observedAt: 'not a date' })).toBe(RETIRED_LINE);
+    expect(retiredLine({ priceInr: 0, observedAt: '2026-03-14T00:00:00Z' })).toBe(RETIRED_LINE);
+  });
+  it('the month names are English and the year is the observed year', () => {
+    expect(retiredLine({ priceInr: 1000, observedAt: '2025-12-31T23:30:00Z' })).toBe('Last seen in India at ₹1,000 (December 2025)');
+  });
+  it('a current Indian price still wins over the retired line', () => {
+    expect(worthOf(item({ indianPriceInr: 41199 }), RATE, true, seen).rule).toBe('indian');
+  });
+  it('retired sets add nothing to the total, even with a last-seen price', () => {
+    const t = worthTotal([item({ set: 'r', indianPriceInr: null, usPriceUsd: 499 })], RATE, () => true);
+    expect(t.inr).toBe(0);
+    expect(t.retired).toBe(1);
+    expect(t.line).toMatch(/1 is retired and not counted/);
+  });
+});
+
+describe('summary strip: retired sets not valued', () => {
+  it('the strip has a "Retired, not valued" count from the total', async () => {
+    const { readFileSync } = await import('node:fs');
+    const { join } = await import('node:path');
+    const src = readFileSync(join(__dirname, '..', 'src/app/my/MyCollection.tsx'), 'utf8');
+    expect(src).toContain('Retired, not valued');
+    expect(src).toContain('{total.retired}');
+  });
+});
