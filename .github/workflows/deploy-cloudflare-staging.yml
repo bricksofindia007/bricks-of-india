@@ -8,6 +8,12 @@ name: Staging Worker (bricks-of-india-staging)
 
 on:
   workflow_dispatch:
+    inputs:
+      regional_tag_cache:
+        description: 'Regional tag cache for this build (60 s). 1 = on, 0 = off (default).'
+        type: choice
+        options: ['0', '1']
+        default: '0'
 
 concurrency:
   group: deploy-cloudflare-staging
@@ -44,6 +50,8 @@ jobs:
       - name: Next.js build (public values only)
         run: npm run build
       - name: OpenNext Cloudflare build
+        env:
+          TAG_REGIONAL_CACHE: ${{ inputs.regional_tag_cache }}
         run: npx opennextjs-cloudflare build
       - name: wrangler deploy (staging)
         run: npx wrangler deploy --config wrangler.staging.jsonc
