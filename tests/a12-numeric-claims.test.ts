@@ -50,3 +50,18 @@ describe('A12: price must match the database exactly', () => {
     expect(f.some((x) => x.rule === 'inr')).toBe(true);
   });
 });
+
+// The piece-count chip on the set card and the set page shows only a positive count. Zero, missing, or
+// "not confirmed" text never render.
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+const root = join(__dirname, '..');
+describe('A12: piece-count chip renders only a positive count', () => {
+  for (const f of ['src/components/sets/SetCard.tsx', 'src/app/sets/[slug]/page.tsx']) {
+    it(`${f} renders the chip only for a positive count, returning null otherwise`, () => {
+      const src = readFileSync(join(root, f), 'utf8');
+      expect(src).toMatch(/set\.pieces != null && set\.pieces > 0 \? .*pcs.* : null\}/);
+      expect(src).not.toMatch(/not confirmed/);
+    });
+  }
+});

@@ -344,7 +344,7 @@ export default async function SetPage(props: Props) {
               {shownTheme(set.theme) && <Badge variant="grey">{shownTheme(set.theme)}</Badge>}
               {set.year     && <Badge variant="grey">{set.year}</Badge>}
               {set.age_range && <Badge variant="grey">Ages {set.age_range}</Badge>}
-              {set.pieces ? <Badge variant="grey">{set.pieces.toLocaleString()} pcs</Badge> : <Badge variant="grey">not confirmed</Badge>}
+              {set.pieces != null && set.pieces > 0 ? <Badge variant="grey">{set.pieces.toLocaleString()} pcs</Badge> : null}
             </div>
             <h1 className="font-heading text-dark text-4xl md:text-5xl leading-tight mb-2">{set.name}</h1>
             <p className="text-gray-400 font-price text-sm mb-4">Set #{set.set_number}</p>
