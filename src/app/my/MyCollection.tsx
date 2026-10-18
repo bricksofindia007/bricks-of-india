@@ -13,6 +13,7 @@ import {
   worthOf, worthTotal, usableRate, formatRs, worthInputFor, WISHLIST_NO_PRICE_LINE, type LastSeen, type StoredRate, type WorthItem,
 } from '@/lib/collection-worth';
 import { rateSourceOf } from '@/lib/usd-rate-reader';
+import { OwnedWorthLine, PricesUnavailable } from './PriceNotes';
 
 // The stored exchange rate arrives with the price read, server side. Missing, stale (over 5 days) or out-of-band rates
 // mean no estimate is shown. Retired status comes from the price read (sets.retired); it is unknown, and so never
@@ -187,7 +188,7 @@ export function MyCollection() {
       </dl>
       {owned.length > 0 && priceState !== 'loading' && <p className="text-xs text-gray-600 mb-4">{total.line}</p>}
 
-      {priceState === 'failed' && <p role="alert" className="text-sm text-gray-600 mb-4">{VOICE.pricesUnavailable}</p>}
+      {priceState === 'failed' && <PricesUnavailable />}
 
       <div role="tablist" className="flex gap-2 mb-6">
         <button role="tab" aria-selected={tab === 'wish'} onClick={() => setTab('wish')} className={`px-4 py-2 rounded-lg font-semibold ${tab === 'wish' ? 'bg-primary text-white' : 'border border-border'}`}>Wishlist ({wish.length})</button>
@@ -251,7 +252,7 @@ export function MyCollection() {
                       <p className="font-bold text-dark leading-tight line-clamp-2">{o.name}</p>
                       {o.pieces != null && <p className="text-xs text-gray-500">{formatRs(o.pieces)} pieces</p>}
                       {priceState === 'loading' && <p className="mt-1 h-3 w-24 bg-surface rounded animate-pulse" />}
-                      {priceState !== 'loading' && <p className="mt-1">{priceState === 'ok' && w.rule === 'unknown' ? WISHLIST_NO_PRICE_LINE : w.line}</p>}
+                      {priceState !== 'loading' && <OwnedWorthLine priceReady={priceState === 'ok'} rule={w.rule} line={w.line} />}
                       {w.note && <p className="mt-1 text-xs text-gray-500">{w.note}</p>}
                       <div className="mt-2 flex items-center gap-2 text-xs">
                         <button type="button" aria-label={`One fewer ${o.name}`} onClick={() => changeQty(o.set, o.qty - 1)} className="w-7 h-7 rounded border border-border">−</button>
