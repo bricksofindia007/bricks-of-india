@@ -15,7 +15,7 @@ export type SetPriceSummary = {
   set_id: string;
   anchor_mrp_inr: number | null;
   anchor_source: 'mybrickhouse' | 'toycra' | 'catalogue' | null;
-  best_price_inr: number | null;      // cheapest in-stock price scraped within 12h
+  best_price_inr: number | null;      // cheapest in-stock price scraped inside the freshness window
   best_store_ids: string[] | null;    // every store at that price, alphabetical (R5)
   best_scraped_at: string | null;
   in_stock_store_count: number;       // stores fresh + in stock

@@ -254,7 +254,7 @@ export function verdictToRating(verdict: string | null): number | null {
 // same data, factored out so the two call sites can't drift.
 //
 // #220: only rows that are in stock AND fresh (scraped <= PRICE_STALE_HOURS,
-// 12h) are offers anyone can act on, so lowPrice/highPrice/offerCount come
+// the freshness window) are offers anyone can act on, so lowPrice/highPrice/offerCount come
 // from those alone -- the same rows the page's best in-stock price uses. A
 // sold-out store's cheaper price used to become lowPrice (/sets/71043 said
 // 37799 while the only buyable price was 50399). When no row qualifies there

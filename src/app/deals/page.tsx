@@ -26,7 +26,7 @@ export const revalidate = 86400; // = READ_REVALIDATE_SECONDS (segment config mu
 // public.set_price_summary view (see src/lib/price-summary.ts):
 //   R2 MRP anchor: MyBrickHouse displayed MRP -> Toycra displayed MRP ->
 //      verified catalogue MRP -> none (never a deal).
-//   R3 deal = fresh (<= 12h) in-stock listed price >= 10% below the anchor;
+//   R3 deal = fresh (inside the freshness window) in-stock listed price >= 10% below the anchor;
 //      hot deal >= 20%. No coupon (ABHINAV12 or any other) is ever applied.
 // Replaces the 30-day-average rule, which read store_prices (1,884 rows) and
 // price_history (167k rows in 30 days) without pagination -- PostgREST
