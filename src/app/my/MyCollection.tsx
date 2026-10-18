@@ -13,7 +13,7 @@ import {
   worthOf, worthTotal, usableRate, formatRs, worthInputFor, WISHLIST_NO_PRICE_LINE, type LastSeen, type StoredRate, type WorthItem,
 } from '@/lib/collection-worth';
 import { rateSourceOf } from '@/lib/usd-rate-reader';
-import { OwnedWorthLine, PricesUnavailable } from './PriceNotes';
+import { OwnedWorthLine, PricesUnavailable, TotalWorthValue } from './PriceNotes';
 
 // The stored exchange rate arrives with the price read, server side. Missing, stale (over 5 days) or out-of-band rates
 // mean no estimate is shown. Retired status comes from the price read (sets.retired); it is unknown, and so never
@@ -179,7 +179,7 @@ export function MyCollection() {
         </div>
         <div className="border border-border rounded-lg p-3">
           <dt className="text-gray-500">Total worth</dt>
-          <dd className="font-bold text-dark text-lg">{priceState === 'loading' ? '…' : total.inr > 0 ? `₹${formatRs(total.inr)}` : '—'}</dd>
+          <dd className="font-bold text-dark text-lg"><TotalWorthValue loading={priceState === 'loading'} inr={total.inr} estimates={total.estimate} /></dd>
         </div>
         <div className="border border-border rounded-lg p-3">
           <dt className="text-gray-500">Retired, not valued</dt>

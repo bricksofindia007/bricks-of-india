@@ -92,6 +92,12 @@ export type LastSeen = { priceInr: number; observedAt: string } | null;
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+/** A stored rate date as the page shows it: "18 Oct 2026". Built from the parts, so it does not depend on the locale. */
+export function rateDateLabel(asOf: string): string {
+  const [y, m, d] = asOf.split('-').map(Number);
+  return `${d} ${MONTH_NAMES[m - 1].slice(0, 3)} ${y}`;
+}
+
 /**
  * The line for a retired set. With our own observed Indian price, a factual line: "Last seen in India at ₹X (month, year)".
  * Without one, only the approved line: no rupee figure, and no claim that it was launched.
@@ -112,7 +118,7 @@ export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boole
     return {
       rule: 'estimate',
       inr,
-      line: `About ₹${formatRs(inr)}, estimated from the US list price`,
+      line: `About ₹${formatRs(inr)}, estimated from the US list price (rate of ${rateDateLabel(rate.asOf)})`,
       note: ESTIMATE_NOTE,
     };
   }
@@ -182,7 +188,7 @@ export function worthTotal(items: WorthItem[], rate: StoredRate | null, retiredO
   }
   const sets = items.length;
   const counted = indian + estimate;
-  let line = `Worth counts ${counted} of ${sets} ${plural(sets, 'set', 'sets')}: ${indian} at Indian ${plural(indian, 'price', 'prices')}, ${estimate} estimated from US ${plural(estimate, 'price', 'prices')}.`;
+  let line = `Worth counts ${counted} of ${sets} ${plural(sets, 'set', 'sets')}: ${indian} at Indian ${plural(indian, 'price', 'prices')}, ${estimate} estimated from US ${plural(estimate, 'price', 'prices')}${estimate > 0 && rate ? ` (rate of ${rateDateLabel(rate.asOf)})` : ''}.`;
   if (retired > 0) line += ` ${retired} ${plural(retired, 'is', 'are')} retired and not counted.`;
   if (storedEstimate > 0) line += ` ${storedEstimate} ${plural(storedEstimate, 'is', 'are')} worked out from the US price and not counted.`;
   if (unknown > 0) line += ` ${unknown} ${plural(unknown, 'has', 'have')} no price yet and not counted.`;
