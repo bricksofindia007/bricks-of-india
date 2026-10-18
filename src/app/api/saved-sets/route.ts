@@ -62,11 +62,13 @@ export async function GET(request: NextRequest) {
     // US retail price in dollars, for worth estimates. Until the column exists, or if it cannot be read,
     // there are no US prices: the total says so by not counting them, and the prices above are unaffected.
     // The stored rupee estimate is a fallback for the page only; it is never a price and is never summed.
-    const us = await sb.from('sets').select('set_number, us_price_usd, lego_mrp_inr').in('set_number', ids);
+    // The stored rupee figure is an estimate worked out from the US price. It is used only for rows that are not
+    // verified, and is returned under an estimate field, never as a price.
+    const us = await sb.from('sets').select('set_number, us_price_usd, lego_mrp_inr, mrp_verified').in('set_number', ids);
     if (us.error) console.error('[my-collection] US price read unavailable:', us.error.message);
     else for (const r of us.data ?? []) {
       if (r.us_price_usd != null) usd.set(r.set_number, Number(r.us_price_usd));
-      if (r.lego_mrp_inr != null) stored.set(r.set_number, Number(r.lego_mrp_inr));
+      if (r.lego_mrp_inr != null && r.mrp_verified === false) stored.set(r.set_number, Number(r.lego_mrp_inr));
     }
     // Store names come from the store list, not from this file. If that read fails, the ids are shown as they are.
     const reg = await sb.from('stores').select('id, name').eq('display_enabled', true);
