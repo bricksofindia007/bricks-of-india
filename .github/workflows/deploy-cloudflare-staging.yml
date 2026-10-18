@@ -1,4 +1,4 @@
-name: Staging Worker (bricks-of-india-staging)
+﻿name: Staging Worker (bricks-of-india-staging)
 
 # Manual dispatch only. Deploys a separate staging Worker with its own R2 bucket and Durable Object classes.
 # No KV (production binds none). No custom route, no production bindings.
@@ -13,6 +13,11 @@ on:
         description: 'Branch or commit to build (default staging-readonly)'
         required: false
         default: staging-readonly
+      regional_tag_cache:
+        description: 'Regional tag cache for this build (60 s). 1 = on, 0 = off (default).'
+        type: choice
+        options: ['0', '1']
+        default: '0'
 
 concurrency:
   group: deploy-cloudflare-staging
@@ -54,6 +59,8 @@ jobs:
       - name: Next.js build (public values only)
         run: npm run build
       - name: OpenNext Cloudflare build
+        env:
+          TAG_REGIONAL_CACHE: ${{ inputs.regional_tag_cache }}
         run: npx opennextjs-cloudflare build
       - name: wrangler deploy (staging)
         run: npx wrangler deploy --config wrangler.staging.jsonc

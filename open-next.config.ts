@@ -32,10 +32,21 @@ import { purgeCache } from "@opennextjs/cloudflare/overrides/cache-purge/index";
 //     high enough to hit Cache-API rate limits, which doesn't apply here
 //     (see wrangler.jsonc's matching comment for why NEXT_CACHE_DO_PURGE/
 //     BucketCachePurge was deliberately not added).
+// Regional tag cache toggle (17 Oct). TAG_REGIONAL_CACHE=1 at build time keeps each tag lookup in the
+// region for 60 seconds. It is read when the Worker is built, so it is set per build (the staging
+// workflow's dispatch input). Off by default: production builds do not set it, and the options stay as
+// they were before this toggle existed.
+export function tagCacheOptions(env: Record<string, string | undefined> = process.env) {
+  const regional = env.TAG_REGIONAL_CACHE === "1";
+  return regional
+    ? { baseShardSize: 12, regionalCache: true, regionalCacheTtlSec: 60 }
+    : { baseShardSize: 12 };
+}
+
 export default defineCloudflareConfig({
   incrementalCache: r2IncrementalCache,
   queue: doQueue,
-  tagCache: doShardedTagCache({ baseShardSize: 12 }),
+  tagCache: doShardedTagCache(tagCacheOptions()),
   cachePurge: purgeCache({ type: "direct" }),
   // Serve cached pages straight from the cache with the refresh time stored alongside each
   // page (3 Oct 2026). Without this, pages made on demand were marked stale almost at once
