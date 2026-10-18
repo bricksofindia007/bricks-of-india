@@ -1,7 +1,6 @@
 -- Per-model daily AI usage, for the rupee stop: calls, input tokens, output tokens and rupees, per UTC day and
 -- model. Written only by the server role, through one atomic function, so concurrent calls cannot under-count.
 -- Row security is on with no policies, and anon and authenticated have no access.
--- Supersedes the provider-level counter in 20261018150000 for rupee purposes; that table is left as it is.
 CREATE TABLE IF NOT EXISTS public.ai_model_usage (
   day            date NOT NULL,
   provider       text NOT NULL,
