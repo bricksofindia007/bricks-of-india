@@ -1,5 +1,6 @@
 'use client';
 
+import { FiguresList } from './FiguresList';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { trackEvent } from '@/lib/analytics';
@@ -64,6 +65,7 @@ export function MyCollection() {
   const [wishPage, setWishPage] = useState(1);
   const [ownedPage, setOwnedPage] = useState(1);
   const [priceState, setPriceState] = useState<PriceState>('loading');
+  const [kind, setKind] = useState<'sets' | 'figures'>('sets');
   const [prices, setPrices] = useState<Map<string, Price>>(new Map());
   const [storeNames, setStoreNames] = useState<Record<string, string>>({});
 
@@ -121,8 +123,25 @@ export function MyCollection() {
   const wishPaged = pageOf(wish, wishPage);
   const ownedPaged = pageOf(owned, ownedPage);
 
+  const filterBar = (
+    <div role="group" aria-label="Show" className="flex gap-2 mb-6">
+      <button type="button" aria-pressed={kind === 'sets'} onClick={() => setKind('sets')} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${kind === 'sets' ? 'bg-primary text-white' : 'border border-border'}`}>Sets</button>
+      <button type="button" aria-pressed={kind === 'figures'} onClick={() => setKind('figures')} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${kind === 'figures' ? 'bg-primary text-white' : 'border border-border'}`}>Minifigures</button>
+    </div>
+  );
+
+  if (kind === 'figures') {
+    return (
+      <div>
+        {filterBar}
+        <FiguresList />
+      </div>
+    );
+  }
+
   return (
     <div>
+      {filterBar}
       {/* Summary strip */}
       <dl className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-6 text-sm">
         <div className="border border-border rounded-lg p-3"><dt className="text-gray-500">Sets saved</dt><dd className="font-bold text-dark text-lg">{wish.length}</dd></div>
