@@ -44,12 +44,30 @@ export async function getPriceSummaries(sb: SupabaseClient, setIds: string[]): P
   const out = new Map<string, SetPriceSummary>();
   const ids = [...new Set(setIds)];
   for (let i = 0; i < ids.length; i += 150) {
-    // Through the price function (not the view): the public key can call it, and it is the only summary read the anonymous role has.
-    const { data, error } = await sb.rpc('get_price_summaries', { p_set_numbers: ids.slice(i, i + 150) });
+    const { data, error } = await sb.from('set_price_summary').select(COLS).in('set_id', ids.slice(i, i + 150));
     // Cards degrade to "no badge" rather than failing the page; /deals
     // (getDeals) throws instead, since without the view it has nothing to show.
     if (error) { console.error('[price-summary] set_price_summary read failed:', error.message); return out; }
     for (const r of data ?? []) out.set(r.set_id, normalise(r));
+  }
+  return out;
+}
+
+/** The one summary field the reviews page renders: its deal tier (WAIT line). Read through the price function. */
+export type ReviewDealSummary = { deal_tier: DealTier | null };
+
+export async function getReviewDealTiers(sb: SupabaseClient, setIds: string[]): Promise<Map<string, ReviewDealSummary>> {
+  const out = new Map<string, ReviewDealSummary>();
+  const ids = [...new Set(setIds)];
+  // One set per call: the anonymous role may read a single set's tier, never a list (owner decision, 17 Oct).
+  for (const id of ids.slice(0, 150)) {
+    const { data, error } = await sb.rpc('get_price_summary_for_set', { p_set_number: id });
+    if (error) { console.error('[price-summary] get_price_summary_for_set failed:', error.message); return out; }
+    for (const r of data ?? []) {
+      // Same rule as normalise(): no MRP-derived tier for these sets.
+      if (NO_MRP_SETS.has(r.set_id)) continue;
+      out.set(r.set_id, { deal_tier: (r.deal_tier as DealTier | null) ?? null });
+    }
   }
   return out;
 }

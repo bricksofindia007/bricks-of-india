@@ -122,7 +122,7 @@ export default async function RetiringSoonPage() {
           {results.length} LEGO set{results.length !== 1 ? 's' : ''} retiring in the next 90 days. Buy before they&apos;re gone.
         </p>
         <p style={{ color: '#CBD5E0', fontSize: '0.72rem', margin: 0 }}>
-          Data from Brickset · Sorted by retirement date
+          Sorted by retirement date
         </p>
       </div>
 
