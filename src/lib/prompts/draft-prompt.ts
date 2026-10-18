@@ -2,6 +2,10 @@
 // Source of truth for both the web (generate-body.ts) and GHA batch script.
 // The .js batch script is the original canonical source — keep this in sync.
 import { g19PromptRule } from '../g19';
+import { storeDisplayName } from '../store-display-names';
+const TOYCRA = storeDisplayName('toycra');
+const LEGO_IN = storeDisplayName('mybrickhouse');
+
 
 export const VOICE_EXAMPLES = `ANTI-FABRICATION RULES (HIGHEST PRIORITY — VIOLATIONS WILL BE REJECTED):
 
@@ -52,7 +56,7 @@ INDIA PARAGRAPH MARKER DISCIPLINE:
   MUST appear INSIDE the <!-- INDIA_PARAGRAPH --> block, not earlier in the body.
 - The marker block contains FOUR things in this order:
   1. INR price, or exactly "Official Indian pricing hasn't been announced yet." if there is no Indian price (never an estimate)
-  2. Indian stores (Toycra, LEGO.in, Amazon India, Flipkart) OR "import only"
+  2. Indian stores (${TOYCRA}, ${LEGO_IN}, Amazon India, Flipkart) OR "import only"
   3. 4-6 week India availability lag (if not yet available)
   4. One-line relatable comparison
 - Comparisons that appear BEFORE the marker get rejected.
@@ -65,13 +69,13 @@ CORRECT comparison placement:
   [main article body discussing the set]
   <!-- INDIA_PARAGRAPH -->
   At ₹6,499, that's 11kg of decent mangoes or four months of Spotify Premium.
-  Toycra and LEGO.in will likely stock it 4–6 weeks after global launch.
+  ${TOYCRA} and ${LEGO_IN} will likely stock it 4–6 weeks after global launch.
   <!-- /INDIA_PARAGRAPH -->
 
 INCORRECT (comparison duplication — WILL BE REJECTED):
   If this were sold in India, it would cost roughly the same as 18 months of Netflix.
   <!-- INDIA_PARAGRAPH -->
-  At ₹X,XXX, that's 18 months of Netflix. Toycra/lego.in will list it...
+  At ₹X,XXX, that's 18 months of Netflix. ${TOYCRA}/lego.in will list it...
   [Why wrong: comparison appears twice — once as a lead-in, once inside the marker.
    The marker block is the only home for the comparison.]
 
@@ -106,10 +110,10 @@ GOOD OPENER (no price data yet):
 "LEGO just announced the Imperial Lambda Shuttle and your wallet is already nervous. No Indian prices yet, which means we are in that particular purgatory where you want it but cannot fully panic yet."
 
 GOOD INDIA PARAGRAPH (price data available):
-"In India, the LEGO Eiffel Tower (10307) is available at LEGO.in for ₹65,999. Toycra has it for ₹61,500. Code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500. That is 18 months of Netflix Premium or a return flight to Dubai. This is not an impulse buy. LEGO.in | Toycra."
+"In India, the LEGO Eiffel Tower (10307) is available at ${LEGO_IN} for ₹65,999. ${TOYCRA} has it for ₹61,500. Code ABHINAV12 takes 12% off full-price sets at ${TOYCRA}, minimum order ₹500. That is 18 months of Netflix Premium or a return flight to Dubai. This is not an impulse buy. ${LEGO_IN} | ${TOYCRA}."
 
 GOOD INDIA PARAGRAPH (no price data):
-"No Indian store prices yet. Official Indian pricing hasn't been announced yet. LEGO.in and Toycra are the stores to watch — code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500. Expect a 4–6 week lag from global launch."
+"No Indian store prices yet. Official Indian pricing hasn't been announced yet. ${LEGO_IN} and ${TOYCRA} are the stores to watch — code ABHINAV12 takes 12% off full-price sets at ${TOYCRA}, minimum order ₹500. Expect a 4–6 week lag from global launch."
 
 WHAT NEVER APPEARS IN BOI ARTICLES:
 - How Bricks of India works (G19). ${g19PromptRule()}
@@ -120,8 +124,8 @@ WHAT NEVER APPEARS IN BOI ARTICLES:
 
 INDIA PARAGRAPH — non-negotiable, every article, no exceptions:
 - Use exact store prices from INDIA PRICE DATA provided. Do not calculate.
-- Always mention both stores: LEGO.in and Toycra — even if only one has a current price. For stores without a listed price, say "check [store] for availability."
-- Always include the Toycra code line exactly: "Code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500." Every sentence that mentions ABHINAV12 must use that line exactly, with no link and no disclosure wording. Never write "commission", "affiliate code" or "no usage limits".
+- Always mention both stores: ${LEGO_IN} and ${TOYCRA} — even if only one has a current price. For stores without a listed price, say "check [store] for availability."
+- Always include the ${TOYCRA} code line exactly: "Code ABHINAV12 takes 12% off full-price sets at ${TOYCRA}, minimum order ₹500." Every sentence that mentions ABHINAV12 must use that line exactly, with no link and no disclosure wording. Never write "commission", "affiliate code" or "no usage limits".
 - If set is not yet in any Indian store: mention 4–6 week India lag from global launch and both stores to watch.
 - MANDATORY COMPARISON — this line is required in every single article, no exceptions, even if there is no price data:
   * If price data exists: compare the actual INR price to something relatable. Good: "that's 14 months of Spotify Premium", "enough for 23 kg of Amul butter", "three EMIs on a decent washing machine". Bad: "more than your monthly rent", "a paneer feast for a year."
