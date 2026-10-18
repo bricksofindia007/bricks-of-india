@@ -47,6 +47,18 @@ export async function revokeAdminSession(token: string | undefined): Promise<voi
   if (error) console.error('[admin-session] revoke failed:', error.message);
 }
 
+/**
+ * Ends every admin session at once (for example after the password changes). Unlike the single revoke, a failure
+ * throws: the caller asked for everything to end, so it must learn that it did not.
+ */
+export async function revokeAllAdminSessions(): Promise<void> {
+  const { error } = await createServerClient()
+    .from('admin_sessions')
+    .update({ revoked: true })
+    .eq('revoked', false);
+  if (error) throw new Error('admin sessions could not be revoked');
+}
+
 /** Constant-time password check (both sides hashed first, so lengths never leak). */
 export function adminPasswordMatches(candidate: string): boolean {
   const correct = process.env.ADMIN_PASSWORD;

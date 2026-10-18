@@ -2,7 +2,7 @@
 
 import { requireAdmin } from '@/app/admin/require-admin';
 import { cookies } from 'next/headers';
-import { ADMIN_COOKIE, ADMIN_SESSION_SECONDS, adminPasswordMatches, createAdminSession, isValidAdminSession, revokeAdminSession } from '@/lib/admin-session';
+import { ADMIN_COOKIE, ADMIN_SESSION_SECONDS, adminPasswordMatches, createAdminSession, isValidAdminSession, revokeAdminSession, revokeAllAdminSessions } from '@/lib/admin-session';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase';
@@ -30,6 +30,14 @@ export async function logout() {
   const jar = await cookies();
   await revokeAdminSession(jar.get(ADMIN_COOKIE)?.value);
   jar.delete(ADMIN_COOKIE);
+  redirect('/admin/pending');
+}
+
+// Ends every admin session, this browser's included. The caller must be signed in first.
+export async function logoutEverywhere() {
+  await requireAdmin();
+  await revokeAllAdminSessions();
+  (await cookies()).delete(ADMIN_COOKIE);
   redirect('/admin/pending');
 }
 
