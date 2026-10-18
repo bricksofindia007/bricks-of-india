@@ -8,7 +8,7 @@ import { NextRequest } from 'next/server';
 const flags = vi.hoisted(() => ({ myCollectionPage: true }));
 vi.mock('../src/lib/feature-flags', () => ({ FEATURE_FLAGS: flags }));
 
-const cfg = vi.hoisted(() => ({ key: 'reader-key' as string | null, rpcCalls: [] as unknown[], rpcResult: { data: [] as unknown[], error: null as null | { message: string } } }));
+const cfg = vi.hoisted(() => ({ key: 'reader-key' as string | null, rpcCalls: [] as unknown[], rpcResult: { data: [] as unknown[] | null, error: null as null | { message: string } } }));
 vi.mock('../src/lib/get-secret', () => ({ getSecret: () => cfg.key }));
 vi.mock('@supabase/supabase-js', () => ({
   createClient: () => ({
