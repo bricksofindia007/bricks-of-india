@@ -1,14 +1,10 @@
--- boi:issue backlog-stale-reject
+-- boi:issue 625
 -- boi:backup-tables public.pending_drafts
--- Status change only: stale draft rows are set to 'rejected' with a visible marker. Nothing is deleted.
--- Cutoffs are fixed: news drafts created before 2026-10-04 03:54 UTC; review drafts created before 2026-09-18 03:54 UTC.
--- Guard: the whole change stops (and rolls back) unless the news count is within 3 of 184 and the review count is exactly 7.
--- Before changing anything, the original id, status, discard_reason, approved_at and approved_by of every affected row
--- are saved in boi_backups.public__pending_drafts__backlog (the per-run backup copy). The rollback restores those saved
--- values for exactly the marker rows. Nothing is set to NULL by the rollback.
--- updated_at is NOT compared and NOT restored: the trigger on pending_drafts rewrites it on every update.
--- Rows already carrying a discard_reason or approved_at (19 and 15 on production) are included, and restored exactly.
--- Rollback: docs/data-fix-rollbacks/backlog-stale-reject-rollback.sql
+-- boi:expect-before select count(*) from public.pending_drafts where status = 'draft' and ((draft_format = 'news' and created_at < '2026-10-04 03:54:00+00') or (draft_format = 'review' and created_at < '2026-09-18 03:54:00+00')) = 191
+-- boi:expect-after select count(*) from public.pending_drafts where discard_reason = 'stale backlog' = 191
+-- Sets status to rejected, with a visible reason, on draft rows created before two fixed cutoffs. Nothing is deleted.
+-- Guard: stops unless the news and review counts are within the agreed range. The original values are saved first.
+-- updated_at is set by the table trigger.
 DO $$
 DECLARE
   news_n integer;
