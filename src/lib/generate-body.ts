@@ -12,6 +12,7 @@ import {
   parseDraftResponse,
   MODEL_CONFIG,
 } from './prompts/draft-prompt';
+import { storeDisplayName } from './store-display-names';
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -115,7 +116,7 @@ export async function buildIndiaPriceContext(
     .eq('set_id', setNumber);
 
   const INDIA_STORE_PRIORITY: Record<string, number> = { mybrickhouse: 1, toycra: 2 };
-  const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: 'LEGO.in', toycra: 'Toycra' };
+  const INDIA_STORE_LABELS:   Record<string, string>  = { mybrickhouse: storeDisplayName('mybrickhouse'), toycra: storeDisplayName('toycra') };
 
   const priced = (sp ?? [])
     .sort((a: any, b: any) => (INDIA_STORE_PRIORITY[a.store_id] ?? 9) - (INDIA_STORE_PRIORITY[b.store_id] ?? 9));
