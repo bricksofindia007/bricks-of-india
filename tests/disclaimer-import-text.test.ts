@@ -26,7 +26,7 @@ describe('import disclaimer text', () => {
   });
 
   it('the data fix writes the owner text exactly, and the HUNT IT text unchanged', () => {
-    const fix = unescapeSql(read('supabase/data-fixes/a1-import-hunt-disclaimer.sql'));
+    const fix = unescapeSql(read('supabase/data-fixes/625-review-note-set.sql'));
     expect(fix).toContain(IMPORT_TEXT);
     expect(fix).toContain(HUNT_TEXT);
   });
@@ -41,7 +41,7 @@ describe('import disclaimer text', () => {
     for (const f of [
       'src/lib/review-existing-verdict-lines.ts',
       'tests/review-existing-verdict-lines.test.ts',
-      'supabase/data-fixes/a1-import-hunt-disclaimer.sql',
+      'supabase/data-fixes/625-review-note-set.sql',
       'docs/data-fix-rollbacks/a1-import-hunt-disclaimer-rollback.sql',
     ]) {
       // the old text ended at "first." and closed the string; the new text continues after it
