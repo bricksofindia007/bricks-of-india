@@ -2,6 +2,7 @@
 // come from the public.set_price_summary view (migration 20260926020000) so
 // /deals, /, set pages, cards and /lab/deals can never disagree.
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { emptyOnStagingError } from './staging-mode';
 
 export const STORE_NAMES: Record<string, string> = {
   mybrickhouse: 'LEGO.in',
@@ -62,7 +63,8 @@ export async function getDeals(sb: SupabaseClient): Promise<SetPriceSummary[]> {
       .order('discount_pct', { ascending: false })
       .order('set_id', { ascending: true })
       .range(off, off + 999);
-    if (error) throw error;
+    // Staging read-only mode: an unreadable view is an empty list, so the staging build completes.
+    if (emptyOnStagingError(error)) break;
     out.push(...(data ?? []).filter((r: any) => !NO_MRP_SETS.has(r.set_id)).map(normalise));
     if (!data || data.length < 1000) break;
   }
