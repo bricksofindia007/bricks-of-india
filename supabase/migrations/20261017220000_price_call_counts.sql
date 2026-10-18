@@ -1,9 +1,10 @@
--- Read-only: the cumulative call count of each price function, from the database statistics.
--- Returns function names and call counts only. Runs with its owner's rights (security definer) so it can read
--- the statistics view. Only the full-access role may call it (anonymous and signed-in roles are revoked).
--- Note: SQL functions are counted only when the database setting track_functions = 'all'. With any other
--- setting the counts stay at zero or are missing; that is a database setting, not a bug in this function.
+-- Read-only: the cumulative call count of each price function, from the query statistics extension.
+-- A call is counted when the function's name appears in a recorded query. Returns function names and
+-- call counts only. Runs with its owner's rights (security definer) so it can read the statistics view.
+-- Only the full-access role may call it (anonymous, signed-in and public roles are revoked).
 -- Rollback: supabase/rollbacks/20261017220000_price_call_counts.down.sql
+
+create extension if not exists pg_stat_statements with schema extensions;
 
 create or replace function public.get_price_call_counts()
 returns table (function_name text, calls bigint)
@@ -12,11 +13,18 @@ stable
 security definer
 set search_path = ''
 as $$
-  select s.funcname::text as function_name, s.calls
-  from pg_stat_user_functions s
-  where s.schemaname = 'public'
-    and s.funcname in ('get_set_prices', 'get_price_history', 'get_price_summaries')
-  order by s.funcname
+  select f.name::text, coalesce(sum(s.calls), 0)::bigint
+  from (values
+    ('get_set_prices'),
+    ('get_prices_for_sets'),
+    ('get_price_history'),
+    ('get_best_prices_for_sets'),
+    ('get_price_summaries'),
+    ('set_page_data')
+  ) as f(name)
+  left join extensions.pg_stat_statements s on strpos(s.query, f.name) > 0
+  group by f.name
+  order by f.name
 $$;
 
 revoke all on function public.get_price_call_counts() from public;
