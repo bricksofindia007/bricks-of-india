@@ -1,5 +1,5 @@
 // Spend limits: pure decisions. The numbers come from config/spend-limits.json; nothing here is hard-coded.
-// A limit reads as: below the warning line = ok; at the warning line = warn; at the stop line = stop.
+// A limit reads as: below the warning line = ok; at the warning line = warn; at or past the stop line = stop.
 import limits from '../../config/spend-limits.json';
 
 export type Level = 'ok' | 'warn' | 'stop';
@@ -14,38 +14,42 @@ export function levelFor(used: number, cap: number, warnFraction: number): Level
 }
 
 export type ProviderName = keyof typeof limits.ai.providers;
-export type ProviderUsage = { calls: number; tokens: number };
+export type ProviderUsage = { calls: number; tokens: number; rupees: number };
 
-/**
- * One AI call is allowed only while the day's totals are below the caps. Refused at 100%, until the next day.
- * A warning comes at 60% of either cap. Free providers (rupee_free) have no rupee figure, so only their
- * caps apply.
- */
-export function aiCallDecision(provider: ProviderName, used: ProviderUsage) {
-  const p = limits.ai.providers[provider];
-  const callLevel = levelFor(used.calls, p.daily_calls, limits.ai.warn_fraction);
-  const tokenLevel = levelFor(used.tokens, p.daily_tokens, limits.ai.warn_fraction);
-  const level: Level = callLevel === 'stop' || tokenLevel === 'stop' ? 'stop' : callLevel === 'warn' || tokenLevel === 'warn' ? 'warn' : 'ok';
-  return { allowed: level !== 'stop', level, callLevel, tokenLevel };
-}
-
-/**
- * Rupee cost of a call. Returns null while the model has no verified price, so the caller uses only the
- * call and token caps. Free providers return 0.
- */
-export function rupeesFor(provider: ProviderName, model: string, tokens: number): number | null {
-  if (limits.ai.providers[provider].rupee_free) return 0;
-  const perMillion = (limits.ai.rupee_price_per_million_tokens as Record<string, number | null>)[model];
-  if (perMillion == null) return null;
-  return (tokens / 1_000_000) * perMillion;
-}
-
-/** Rupee spend for the day: warn at Rs 6, stop at Rs 10 (binding once prices are set). */
+/** Rupee spend for the day: warn at Rs 6, stop at Rs 10. */
 export function rupeeLevel(inr: number): Level {
   const r = limits.rupee_stop;
   if (inr >= r.stop_inr) return 'stop';
   if (inr >= r.warn_inr) return 'warn';
   return 'ok';
+}
+
+/**
+ * One AI call is allowed only while the day's totals are below every cap: calls, tokens, and the rupee
+ * stop. Refused at the stop, until the next day. Warns at 60% of a token or call cap, and at the rupee
+ * warning. Tokens are input plus output.
+ */
+export function aiCallDecision(provider: ProviderName, used: ProviderUsage) {
+  const p = limits.ai.providers[provider];
+  const w = limits.ai.warn_fraction;
+  const callLevel = levelFor(used.calls, p.daily_calls, w);
+  const tokenLevel = levelFor(used.tokens, p.daily_tokens, w);
+  const rupeeLvl = rupeeLevel(used.rupees);
+  const levels = [callLevel, tokenLevel, rupeeLvl];
+  const level: Level = levels.includes('stop') ? 'stop' : levels.includes('warn') ? 'warn' : 'ok';
+  return { allowed: level !== 'stop', level, callLevel, tokenLevel, rupeeLevel: rupeeLvl };
+}
+
+/**
+ * Rupee cost of one call: input and output tokens at the model's USD per-million prices, times the stored
+ * USD to INR rate. Null while the model has no price, so the caller counts only the caps for it.
+ */
+export function rupeesFor(model: string, inputTokens: number, outputTokens: number): number | null {
+  const prices = limits.ai.prices_usd_per_million_tokens as Record<string, { input: number; output: number } | null>;
+  const price = prices[model];
+  if (!price) return null;
+  const usd = (inputTokens / 1_000_000) * price.input + (outputTokens / 1_000_000) * price.output;
+  return usd * limits.usd_inr_stored.rate;
 }
 
 export type EgressLevel = 'ok' | 'alert' | 'guard' | 'stop';

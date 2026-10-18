@@ -1,37 +1,31 @@
-// Spend limits: the AI caps (warning at 60%, refusal at 100%, rupees only when a price is set), and an alert
-// test for each Supabase, R2, Brevo and Resend level.
+// Spend limits: the AI caps (warning at 60%, refusal at the cap), the rupee stop (Rs 6 warn, Rs 10 stop) with
+// per-model prices and the stored rate, and an alert test for each Supabase, R2, Brevo and Resend level.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { config, levelFor, aiCallDecision, rupeesFor, egressLevel, r2ClassALevel, brevoLevel, resendLevel } from '../src/lib/spend-limits';
+import { config, levelFor, rupeeLevel, aiCallDecision, rupeesFor, egressLevel, r2ClassALevel, brevoLevel, resendLevel } from '../src/lib/spend-limits';
 
 const root = join(__dirname, '..');
 const g = config.ai.providers.gemini;
+const none = { calls: 0, tokens: 0, rupees: 0 };
 
 describe('AI daily caps', () => {
-  it('ok below 60% of the cap', () => {
-    expect(aiCallDecision('gemini', { calls: Math.floor(g.daily_calls * 0.59), tokens: 0 })).toMatchObject({ allowed: true, level: 'ok' });
+  it('ok below 60% of the call cap; warn at 60%', () => {
+    expect(aiCallDecision('gemini', { ...none, calls: Math.floor(g.daily_calls * 0.59) }).level).toBe('ok');
+    expect(aiCallDecision('gemini', { ...none, calls: Math.ceil(g.daily_calls * 0.6) })).toMatchObject({ allowed: true, level: 'warn' });
   });
-  it('warns at 60% of the call cap', () => {
-    const d = aiCallDecision('gemini', { calls: Math.ceil(g.daily_calls * 0.6), tokens: 0 });
-    expect(d).toMatchObject({ allowed: true, level: 'warn', callLevel: 'warn' });
+  it('refuses at 100% of the call cap and at 100% of the token cap', () => {
+    expect(aiCallDecision('gemini', { ...none, calls: g.daily_calls })).toMatchObject({ allowed: false, level: 'stop' });
+    expect(aiCallDecision('gemini', { ...none, tokens: g.daily_tokens })).toMatchObject({ allowed: false, level: 'stop' });
   });
-  it('warns at 60% of the token cap', () => {
-    const d = aiCallDecision('gemini', { calls: 0, tokens: g.daily_tokens * 0.6 });
-    expect(d).toMatchObject({ allowed: true, level: 'warn', tokenLevel: 'warn' });
+  it('the next day starts from zero', () => {
+    expect(aiCallDecision('gemini', none).allowed).toBe(true);
   });
-  it('refuses at 100% of the call cap, and at 100% of the token cap', () => {
-    expect(aiCallDecision('gemini', { calls: g.daily_calls, tokens: 0 })).toMatchObject({ allowed: false, level: 'stop' });
-    expect(aiCallDecision('gemini', { calls: 0, tokens: g.daily_tokens })).toMatchObject({ allowed: false, level: 'stop' });
-  });
-  it('the next day starts from zero (the counter is per day, so a fresh day is ok)', () => {
-    expect(aiCallDecision('gemini', { calls: 0, tokens: 0 }).allowed).toBe(true);
-  });
-  it('Groq and Cerebras have their own caps and are refused at their own 100%', () => {
+  it('Groq and Cerebras have their own caps, each refused at its own 100%', () => {
     for (const p of ['groq', 'cerebras'] as const) {
       const c = config.ai.providers[p];
-      expect(aiCallDecision(p, { calls: c.daily_calls, tokens: 0 }).allowed).toBe(false);
-      expect(aiCallDecision(p, { calls: c.daily_calls - 1, tokens: 0 }).allowed).toBe(true);
+      expect(aiCallDecision(p, { ...none, calls: c.daily_calls }).allowed).toBe(false);
+      expect(aiCallDecision(p, { ...none, calls: c.daily_calls - 1 }).allowed).toBe(true);
     }
   });
   it('levelFor boundaries: 59.9% ok, 60% warn, 100% stop', () => {
@@ -41,27 +35,53 @@ describe('AI daily caps', () => {
   });
 });
 
-describe('rupee figure', () => {
-  it('is null while a model price is null: only the caps apply', () => {
-    expect(rupeesFor('gemini', 'gemini-2.5-flash-lite', 1_000_000)).toBeNull();
+describe('rupee stop: Rs 6 warn, Rs 10 stop', () => {
+  it('levels at the boundaries', () => {
+    expect(rupeeLevel(5.99)).toBe('ok');
+    expect(rupeeLevel(6)).toBe('warn');
+    expect(rupeeLevel(9.99)).toBe('warn');
+    expect(rupeeLevel(10)).toBe('stop');
   });
-  it('is zero for Groq and Cerebras (free tiers): their caps are the control', () => {
-    expect(rupeesFor('groq', 'openai/gpt-oss-120b', 5_000_000)).toBe(0);
-    expect(rupeesFor('cerebras', 'gpt-oss-120b', 5_000_000)).toBe(0);
+  it('binds: refuses at Rs 10 even when calls and tokens are well under their caps', () => {
+    expect(aiCallDecision('gemini', { calls: 1, tokens: 1000, rupees: 10 })).toMatchObject({ allowed: false, level: 'stop', rupeeLevel: 'stop' });
   });
-  it('is tokens times the price, once a price is set', () => {
-    const table = config.ai.rupee_price_per_million_tokens as Record<string, number | null>;
-    const before = table['gemini-2.5-flash-lite'];
-    table['gemini-2.5-flash-lite'] = 10;
-    try {
-      expect(rupeesFor('gemini', 'gemini-2.5-flash-lite', 500_000)).toBe(5);
-    } finally {
-      table['gemini-2.5-flash-lite'] = before;
-    }
+  it('warns at Rs 6 without refusing', () => {
+    expect(aiCallDecision('gemini', { calls: 1, tokens: 1000, rupees: 6 })).toMatchObject({ allowed: true, level: 'warn' });
   });
-  it('the config says prices are unchecked until verified prices arrive', () => {
-    expect(config.prices_last_checked).toBeNull();
-    expect(config.ai.rupee_price_per_million_tokens['gemini-2.5-flash-lite']).toBeNull();
+  it('the config sets Rs 6 and Rs 10', () => {
+    expect(config.rupee_stop.warn_inr).toBe(6);
+    expect(config.rupee_stop.stop_inr).toBe(10);
+  });
+});
+
+describe('rupee cost from the price table and the stored rate', () => {
+  it('gemini-2.5-flash-lite at 0.10 input and 0.40 output USD per million: 1M of each is $0.50, Rs 47.50 at 95', () => {
+    expect(rupeesFor('gemini-2.5-flash-lite', 1_000_000, 1_000_000)).toBeCloseTo(47.5, 6);
+  });
+  it('the owner example: Rs 10 at Rs 95 per USD is about 1.05M input tokens on flash-lite', () => {
+    const inrPerInputToken = rupeesFor('gemini-2.5-flash-lite', 1_000_000, 0)!;
+    expect(10 / inrPerInputToken).toBeCloseTo(1.05, 2);
+  });
+  it('an unpriced model returns null, so only its caps apply', () => {
+    expect(rupeesFor('llama-3.3-70b-versatile', 1000, 1000)).toBeNull();
+    expect(rupeesFor('gpt-oss-120b', 1000, 1000)).toBeNull();
+  });
+  it('the checked prices and their date are in the config', () => {
+    expect(config.ai.prices_last_checked).toBe('2026-10-18');
+    expect(config.ai.prices_usd_per_million_tokens['gemini-3.1-flash-lite']).toEqual({ input: 0.25, output: 1.5 });
+    expect(config.ai.prices_usd_per_million_tokens['openai/gpt-oss-120b']).toEqual({ input: 0.15, output: 0.6 });
+    expect(config.ai.prices_usd_per_million_tokens['gemini-2.5-flash']).toEqual({ input: 0.3, output: 2.5 });
+  });
+  it('Groq llama-3.3-70b and the Cerebras models are null, and the Qwen 3.6 name is absent', () => {
+    const t = config.ai.prices_usd_per_million_tokens as Record<string, unknown>;
+    expect(t['llama-3.3-70b-versatile']).toBeNull();
+    expect(t['gpt-oss-120b']).toBeNull();
+    expect(t['llama3.1-8b']).toBeNull();
+    expect(JSON.stringify(config)).not.toMatch(/qwen3\.6/);
+  });
+  it('the stored rate is 95 and dated', () => {
+    expect(config.usd_inr_stored.rate).toBe(95);
+    expect(config.usd_inr_stored.as_of).toBe('2026-10-18');
   });
 });
 
@@ -90,34 +110,13 @@ describe('alerts fire at their levels', () => {
   });
 });
 
-describe('the config file and migration', () => {
-  it('the caps are marked as proposals', () => {
-    expect(config._status).toMatch(/PROPOSED/);
-  });
-  it('the counter table is server-only, and the function is granted to the server role only', () => {
-    const sql = readFileSync(join(root, 'supabase/migrations/20261018150000_ai_daily_usage.sql'), 'utf8');
+describe('the per-model counter migration', () => {
+  it('server-only, with a rupees column and its function granted to the server role only', () => {
+    const sql = readFileSync(join(root, 'supabase/migrations/20261018160000_ai_model_usage.sql'), 'utf8');
     expect(sql).toMatch(/ENABLE ROW LEVEL SECURITY/);
     expect(sql).not.toMatch(/CREATE POLICY/i);
-    expect(sql).toMatch(/REVOKE ALL ON public\.ai_daily_usage FROM PUBLIC, anon, authenticated;/);
-    expect(sql).toMatch(/GRANT EXECUTE ON FUNCTION public\.ai_usage_add\(date, text, integer, bigint\) TO service_role;/);
-  });
-});
-
-describe('rupee stop (binding once prices are set)', () => {
-  it('warn at Rs 6, stop at Rs 10', async () => {
-    const { rupeeLevel } = await import('../src/lib/spend-limits');
-    expect(rupeeLevel(5.99)).toBe('ok');
-    expect(rupeeLevel(6)).toBe('warn');
-    expect(rupeeLevel(9.99)).toBe('warn');
-    expect(rupeeLevel(10)).toBe('stop');
-  });
-  it('the config sets Rs 6 and Rs 10', () => {
-    expect(config.rupee_stop.warn_inr).toBe(6);
-    expect(config.rupee_stop.stop_inr).toBe(10);
-  });
-  it('unpriced models stay null, and gemini-3.1-flash-lite is listed', () => {
-    const t = config.ai.rupee_price_per_million_tokens as Record<string, unknown>;
-    expect(t['gemini-3.1-flash-lite']).toBeNull();
-    expect(t['gemini-2.5-flash-lite']).toBeNull();
+    expect(sql).toMatch(/REVOKE ALL ON public\.ai_model_usage FROM PUBLIC, anon, authenticated;/);
+    expect(sql).toMatch(/GRANT EXECUTE ON FUNCTION public\.ai_model_usage_add\(date, text, text, bigint, bigint, numeric\) TO service_role;/);
+    expect(sql).toMatch(/rupees\s+numeric/);
   });
 });
