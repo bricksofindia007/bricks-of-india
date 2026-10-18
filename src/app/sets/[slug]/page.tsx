@@ -18,7 +18,7 @@ import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/B
 import { priceLabel, normalise, type SetPriceSummary } from '@/lib/price-summary';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
-import { HeartButton, AddToCollectionButton } from '@/components/saved/SaveButtons';
+import { HeartSlot, CollectionSlot } from '@/components/saved/CollectionSlots';
 import { SetCard } from '@/components/sets/SetCard';
 import { SetImage } from '@/components/sets/SetImage';
 import { JsonLd } from '@/components/JsonLd';
@@ -352,8 +352,8 @@ export default async function SetPage(props: Props) {
             <p className="text-gray-400 font-price text-sm mb-4">Set #{set.set_number}</p>
             {FEATURE_FLAGS.myCollectionHearts && (
               <div className="flex flex-wrap items-center gap-3 mb-4">
-                <HeartButton size="lg" set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
-                <AddToCollectionButton set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
+                <HeartSlot enabled size="lg" set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
+                <CollectionSlot enabled set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
               </div>
             )}
             <SaleSetLine setNumber={set.set_number} />

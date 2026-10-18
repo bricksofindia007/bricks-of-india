@@ -46,12 +46,14 @@ describe('the retired line, as rendered', () => {
     expect(out).toBe(RETIRED_LINE);
     expect(out).not.toMatch(/\d|₹/);
   });
-  it('with a recorded Indian price: the dated last-seen line, with the words "last seen"', () => {
+  it('with a recorded Indian price still on file, the page shows only the approved line: no price, no date', () => {
+    // The page passes no last-seen value (owner ruling). The dated function is kept in the tree but not shown.
     const seen = { priceInr: 12999, observedAt: '2026-03-14T09:00:00Z' };
-    const w = worthOf(worthInputFor({ set: '10307', qty: 1 }, { best_price_inr: null, us_price_usd: 499 }, true), null, true, seen);
+    const w = worthOf(worthInputFor({ set: '10307', qty: 1 }, { best_price_inr: null, us_price_usd: 499 }, true), null, true, null);
     const out = text(renderToStaticMarkup(<OwnedWorthLine line={w.line} />));
-    expect(out).toBe('Last seen in India at ₹12,999 (March 2026)');
-    expect(retiredLine(seen)).toBe(out);
+    expect(out).toBe(RETIRED_LINE);
+    expect(out).not.toContain('Last seen');
+    expect(retiredLine(seen)).toMatch(/^Last seen in India at ₹12,999 \(March 2026\)$/);
   });
   it('a set that is not retired never renders the retired line', () => {
     const w = worthOf(worthInputFor({ set: '10307', qty: 1 }, { best_price_inr: null, us_price_usd: 499 }, true), null, false, null);
