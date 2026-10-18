@@ -18,7 +18,7 @@ export const metadata: Metadata = buildMetadata({
 // Same check as /admin/pending — duplicated inline rather than shared,
 // matching the existing convention in this admin area (see
 // src/app/admin/pending/growth/[[...path]]/route.ts's own comment).
-function isAuthed(): boolean {
+async function isAuthed(): Promise<boolean> {
   return isValidAdminSession((cookies() as unknown as UnsafeUnwrappedCookies).get(ADMIN_COOKIE)?.value);
 }
 
@@ -147,7 +147,7 @@ function DraftCard({ draft }: { draft: NewsletterDraft }) {
 }
 
 export default async function NewsletterAdminPage() {
-  if (!isAuthed()) return <LoginPage />;
+  if (!(await isAuthed())) return <LoginPage />;
 
   const supabase = createServerClient();
 
