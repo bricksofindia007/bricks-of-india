@@ -1,38 +1,50 @@
-// Admin session (3 Oct 2026): the admin cookie holds a signed, expiring token, never the password.
-// Token = "v1.<expiry unix seconds>.<HMAC-SHA256 signature>". The signing key is derived from ADMIN_PASSWORD,
-// so changing the password ends every open session. No new secret is needed.
-import { createHmac, timingSafeEqual } from 'node:crypto';
+// Admin session (B6a). The admin cookie holds a random token. Only its SHA-256 hash is stored, in
+// public.admin_sessions. The password never goes into the cookie. Expiry and revocation are checked on the
+// server on every read. The check fails closed: if the row cannot be read, the session is not valid.
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createServerClient } from './supabase';
 
 export const ADMIN_COOKIE = 'boi_admin';
 export const ADMIN_SESSION_SECONDS = 60 * 60 * 8;
 
-function signingKey(): Buffer | null {
-  const pw = process.env.ADMIN_PASSWORD;
-  return pw ? createHmac('sha256', pw).update('boi-admin-session-v1').digest() : null;
+// 32 random bytes, base64url: 43 characters. Anything else is refused before any database call.
+const TOKEN_SHAPE = /^[A-Za-z0-9_-]{43}$/;
+
+/** The stored form of a token. Only this is written to the table. */
+export function hashToken(token: string): string {
+  return createHash('sha256').update(token).digest('hex');
 }
 
-function sign(payload: string, key: Buffer): string {
-  return createHmac('sha256', key).update(payload).digest('base64url');
+/** A new session. Returns the token for the cookie; stores only its hash and the expiry. */
+export async function createAdminSession(now: number = Date.now()): Promise<string> {
+  const token = randomBytes(32).toString('base64url');
+  const { error } = await createServerClient()
+    .from('admin_sessions')
+    .insert({ token_hash: hashToken(token), expires_at: new Date(now + ADMIN_SESSION_SECONDS * 1000).toISOString() });
+  if (error) throw new Error('admin session could not be stored');
+  return token;
 }
 
-/** A new session token valid for ADMIN_SESSION_SECONDS. */
-export function createAdminSession(now: number = Date.now()): string {
-  const key = signingKey();
-  if (!key) throw new Error('ADMIN_PASSWORD env var not set');
-  const payload = `v1.${Math.floor(now / 1000) + ADMIN_SESSION_SECONDS}`;
-  return `${payload}.${sign(payload, key)}`;
+/** True only for an unexpired, unrevoked session. A forged, malformed, expired or revoked token is refused. */
+export async function isValidAdminSession(token: string | undefined, now: number = Date.now()): Promise<boolean> {
+  if (!token || !TOKEN_SHAPE.test(token)) return false;
+  const { data, error } = await createServerClient()
+    .from('admin_sessions')
+    .select('revoked, expires_at')
+    .eq('token_hash', hashToken(token))
+    .maybeSingle();
+  if (error || !data || data.revoked) return false;
+  return Date.parse(data.expires_at) > now;
 }
 
-/** True only for an unexpired token signed with the current key. */
-export function isValidAdminSession(token: string | undefined, now: number = Date.now()): boolean {
-  const key = signingKey();
-  if (!key || !token) return false;
-  const parts = token.split('.');
-  if (parts.length !== 3 || parts[0] !== 'v1' || !/^\d+$/.test(parts[1])) return false;
-  if (Number(parts[1]) * 1000 <= now) return false;
-  const expected = Buffer.from(sign(`v1.${parts[1]}`, key));
-  const got = Buffer.from(parts[2]);
-  return got.length === expected.length && timingSafeEqual(got, expected);
+/** Ends a session on the server. A token of the wrong shape changes nothing. */
+export async function revokeAdminSession(token: string | undefined): Promise<void> {
+  if (!token || !TOKEN_SHAPE.test(token)) return;
+  const { error } = await createServerClient()
+    .from('admin_sessions')
+    .update({ revoked: true })
+    .eq('token_hash', hashToken(token));
+  if (error) console.error('[admin-session] revoke failed:', error.message);
 }
 
 /** Constant-time password check (both sides hashed first, so lengths never leak). */

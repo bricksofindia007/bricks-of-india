@@ -11,6 +11,11 @@
  */
 
 export const FEATURE_FLAGS = {
+  // Accounts (wishlist, sign-in, legal pages). Off until the accounts launch; the legal pages
+  // and footer links stay hidden while this is false. Mirrors config/feature_flags.py
+  // ("accounts_enabled"); keep both in sync by hand. Added 17 Oct 2026.
+  accountsEnabled: false,
+
   // Cerebras fallback (article pipeline's generate-with-failover.ts; see
   // also config/feature_flags.py's 'cerebras_fallback_enabled' for the
   // Python-side video pipelines). Added 2026-08-19: Cerebras has been
