@@ -126,7 +126,7 @@ describe('empty list copy, the tracker heart, and its events', () => {
   });
   it('the heart fires heart_add and heart_remove', () => {
     const src = readFileSync(join(root, 'src/app/lab/cmf-tracker/FigureHeart.tsx'), 'utf8');
-    expect(src).toContain("trackEvent('heart_add'");
-    expect(src).toContain("trackEvent('heart_remove'");
+    expect(src).toContain("trackCollectionEvent('heart_add'");
+    expect(src).toContain("trackCollectionEvent('heart_remove'");
   });
 });

@@ -3,12 +3,11 @@
 import { FiguresList } from './FiguresList';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { trackEvent } from '@/lib/analytics';
 import { SetImage } from '@/components/sets/SetImage';
 import { slugify } from '@/lib/utils';
 import {
   CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, cleanCollection, cleanWishlist, loadCollection, loadWishlist, pageOf,
-  PRICE_READ_CAP, priceIds, removeWish, setOwnedQty, updateList, type OwnedItem, type WishItem,
+  PRICE_READ_CAP, priceIds, removeWish, setOwnedQty, trackCollectionEvent, updateList, type OwnedItem, type WishItem,
 } from '@/lib/my-collection';
 import {
   worthOf, worthTotal, usableRate, formatRs, worthInputFor, WISHLIST_NO_PRICE_LINE, type LastSeen, type RateSource, type WorthItem,
@@ -75,7 +74,7 @@ export function MyCollection() {
     const load = () => { setWish(loadWishlist()); setOwned(loadCollection()); };
     load();
     setReady(true);
-    trackEvent('my_sets_view', { page_type: 'sets_list' });
+    trackCollectionEvent('my_sets_view', { page_type: 'sets_list' });
     window.addEventListener(CHANGED_EVENT, load);
     window.addEventListener('storage', load);
     return () => { window.removeEventListener(CHANGED_EVENT, load); window.removeEventListener('storage', load); };
@@ -139,7 +138,7 @@ export function MyCollection() {
     const out = updateList(WISHLIST_KEY, cleanWishlist, (list) => ({
       list: removeWish(list, set), result: null, changed: list.some((w) => w.set === set),
     }));
-    if (out.ok) trackEvent('heart_remove', { page_type: 'sets_list', set_number: set });
+    if (out.ok) trackCollectionEvent('heart_remove', { page_type: 'sets_list', set_number: set });
   };
   const changeQty = (set: string, q: number) =>
     updateList(COLLECTION_KEY, cleanCollection, (list) => ({ list: setOwnedQty(list, set, q), result: null, changed: true })).ok;
@@ -249,7 +248,7 @@ export function MyCollection() {
                       <p className="font-bold text-dark leading-tight line-clamp-2">{o.name}</p>
                       {o.pieces != null && <p className="text-xs text-gray-500">{formatRs(o.pieces)} pieces</p>}
                       {priceState === 'loading' && <p className="mt-1 h-3 w-24 bg-surface rounded animate-pulse" />}
-                      {priceState !== 'loading' && <p className="mt-1">{w.line}</p>}
+                      {priceState !== 'loading' && <p className="mt-1">{priceState === 'ok' && w.rule === 'unknown' ? WISHLIST_NO_PRICE_LINE : w.line}</p>}
                       {w.note && <p className="mt-1 text-xs text-gray-500">{w.note}</p>}
                       <div className="mt-2 flex items-center gap-2 text-xs">
                         <button type="button" aria-label={`One fewer ${o.name}`} onClick={() => changeQty(o.set, o.qty - 1)} className="w-7 h-7 rounded border border-border">−</button>
