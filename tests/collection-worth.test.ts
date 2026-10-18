@@ -27,7 +27,7 @@ describe('worth rule 2: US price estimate', () => {
     const w = worthOf(item({ usPriceUsd: 499 }), RATE, false);
     expect(w.rule).toBe('estimate');
     expect(w.inr).toBe(43912);
-    expect(w.line).toBe('About ₹43,912, estimated from the US list price');
+    expect(w.line).toBe('About ₹43,912, estimated from the US list price (rate of 18 Oct 2026)');
     expect(w.note).toBe(ESTIMATE_NOTE);
   });
   it('never names a store or offers a buy action', () => {
@@ -156,7 +156,7 @@ describe('total line', () => {
     expect(t.indian).toBe(9);
     expect(t.estimate).toBe(5);
     expect(t.retired).toBe(3);
-    expect(t.line).toBe('Worth counts 14 of 17 sets: 9 at Indian prices, 5 estimated from US prices. 3 are retired and not counted.');
+    expect(t.line).toBe('Worth counts 14 of 17 sets: 9 at Indian prices, 5 estimated from US prices (rate of 18 Oct 2026). 3 are retired and not counted.');
     expect(t.inr).toBe(9000 + 5 * 880);
   });
   it('multiplies by copies owned for the money total', () => {
@@ -251,7 +251,7 @@ describe('summary strip: retired sets not valued', () => {
 describe('estimates: US list price x current rate first, the stored estimate only as a fallback', () => {
   it('the US-price estimate names its source in the same sentence', () => {
     const w = worthOf(item({ usPriceUsd: 499 }), RATE, false);
-    expect(w.line).toMatch(/^About ₹[\d,]+, estimated from the US list price$/);
+    expect(w.line).toMatch(/^About ₹[\d,]+, estimated from the US list price \(rate of 18 Oct 2026\)$/);
   });
   it('with no US price, the stored estimate is shown with its own source named', () => {
     const w = worthOf(item({ usPriceUsd: null, storedEstimateInr: 43900 }), RATE, false);
