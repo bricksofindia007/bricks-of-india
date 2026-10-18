@@ -60,10 +60,10 @@ describe('worth rule 4: nothing known', () => {
 });
 
 describe('stale or missing rate', () => {
-  it('a rate 3 days old is still usable; 4 days old is not', () => {
-    expect(usableRate({ rate: 88, asOf: '2026-10-15' }, NOW)).not.toBeNull();
-    expect(usableRate({ rate: 88, asOf: '2026-10-14' }, NOW)).toBeNull();
-    expect(RATE_MAX_AGE_DAYS).toBe(3);
+  it('a rate 5 days old is still usable; 6 days old is not', () => {
+    expect(usableRate({ rate: 88, asOf: '2026-10-13' }, NOW)).not.toBeNull();
+    expect(usableRate({ rate: 88, asOf: '2026-10-12' }, NOW)).toBeNull();
+    expect(RATE_MAX_AGE_DAYS).toBe(5);
   });
   it('a stale rate hides estimates: a US-only set falls to not known yet', () => {
     const stale = usableRate({ rate: 88, asOf: '2026-10-01' }, NOW);
