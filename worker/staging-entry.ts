@@ -12,7 +12,12 @@ export default {
   async fetch(request: Request, env: Record<string, unknown>, ctx: ExecutionContext): Promise<Response> {
     if (!isReadonly(env)) return site.fetch(request, env as never, ctx);
     try {
-      const blocked = readonlyGate(request.method, new URL(request.url).pathname);
+      const path = new URL(request.url).pathname;
+      // Staging: no crawling at all (robots disallows every path). Production never reaches this branch.
+      if (path === '/robots.txt' && request.method === 'GET') {
+        return new Response('User-agent: *\nDisallow: /\n', { headers: { 'content-type': 'text/plain; charset=utf-8', 'x-robots-tag': 'noindex, nofollow' } });
+      }
+      const blocked = readonlyGate(request.method, path);
       if (blocked) return blocked;
       return withNoindex(await site.fetch(request, env as never, ctx));
     } catch {
