@@ -4,8 +4,8 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { trackEvent } from '@/lib/analytics';
 import {
-  CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, addOwned, addWish, loadCollection, loadWishlist, removeWish,
-  setOwnedQty, writeList, type SetRef,
+  CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, addOwned, addWish, cleanCollection, cleanWishlist, loadCollection,
+  loadWishlist, removeWish, setOwnedQty, updateList, type SetRef,
 } from '@/lib/my-collection';
 
 // Re-read when any button on the page, or another tab, changes the lists.
@@ -38,17 +38,20 @@ export function HeartButton({ size = 'sm', ...ref }: SetRef & { size?: 'sm' | 'l
   const onClick = (e: React.MouseEvent) => {
     e.preventDefault(); // the card around it is a link
     e.stopPropagation();
-    const list = loadWishlist();
-    if (list.some((w) => w.set === set)) {
-      if (writeList(WISHLIST_KEY, removeWish(list, set))) {
-        trackEvent('heart_remove', { page_type: 'sets_list', set_number: set });
-        setNote(VOICE.heartRemoved);
-      }
-      return;
-    }
-    const r = addWish(list, ref, new Date().toISOString());
-    if (r.status === 'limit') return setNote(VOICE.limitReached);
-    if (r.status === 'added' && writeList(WISHLIST_KEY, r.list)) {
+    // Read, change and write in one step, so another tab's change is kept.
+    const now = new Date().toISOString();
+    const out = updateList(WISHLIST_KEY, cleanWishlist, (list) => {
+      if (list.some((w) => w.set === set)) return { list: removeWish(list, set), result: 'removed' as const, changed: true };
+      const r = addWish(list, ref, now);
+      if (r.status === 'added') return { list: r.list, result: 'added' as const, changed: true };
+      return { list, result: r.status as 'limit' | 'present', changed: false };
+    });
+    if (!out.ok || out.result === null) return; // storage refused: say nothing, so the page never claims a save
+    if (out.result === 'limit') return setNote(VOICE.limitReached);
+    if (out.result === 'removed') {
+      trackEvent('heart_remove', { page_type: 'sets_list', set_number: set });
+      setNote(VOICE.heartRemoved);
+    } else if (out.result === 'added') {
       trackEvent('heart_add', { page_type: 'sets_list', set_number: set });
       setNote(VOICE.heartAdded);
     }
@@ -83,15 +86,19 @@ export function AddToCollectionButton(ref: SetRef) {
   const qty = ready ? (loadCollection().find((o) => o.set === set)?.qty ?? 0) : 0;
 
   const change = (q: number) => {
-    const list = loadCollection();
-    const next = setOwnedQty(list, set, q);
-    writeList(COLLECTION_KEY, next);
+    updateList(COLLECTION_KEY, cleanCollection, (list) => ({ list: setOwnedQty(list, set, q), result: null, changed: true }));
   };
 
   const add = () => {
-    const r = addOwned(loadCollection(), ref, new Date().toISOString());
-    if (r.status === 'limit') return setNote(VOICE.limitReached);
-    if (r.status === 'added' && writeList(COLLECTION_KEY, r.list)) {
+    const now = new Date().toISOString();
+    const out = updateList(COLLECTION_KEY, cleanCollection, (list) => {
+      const r = addOwned(list, ref, now);
+      if (r.status === 'added') return { list: r.list, result: 'added' as const, changed: true };
+      return { list, result: r.status as 'limit' | 'present', changed: false };
+    });
+    if (!out.ok || out.result === null) return;
+    if (out.result === 'limit') return setNote(VOICE.limitReached);
+    if (out.result === 'added') {
       trackEvent('owned_add', { page_type: 'set', set_number: set });
       setNote(VOICE.ownedAdded);
     }

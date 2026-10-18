@@ -6,8 +6,8 @@ import { trackEvent } from '@/lib/analytics';
 import { SetImage } from '@/components/sets/SetImage';
 import { slugify } from '@/lib/utils';
 import {
-  CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, loadCollection, loadWishlist, pageOf, priceIds, removeWish,
-  setOwnedQty, writeList, type OwnedItem, type WishItem,
+  CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, cleanCollection, cleanWishlist, loadCollection, loadWishlist, pageOf,
+  priceIds, removeWish, setOwnedQty, updateList, type OwnedItem, type WishItem,
 } from '@/lib/my-collection';
 import {
   worthOf, worthTotal, usableRate, formatRs, worthInputFor, WISHLIST_NO_PRICE_LINE, type RateSource, type RetiredSource, type WorthItem,
@@ -102,12 +102,15 @@ export function MyCollection() {
 
   const storeList = (ids: string[] | null) => (ids ?? []).map((id) => storeNames[id] ?? id).join(', ');
 
+  // Each change reads the stored list at the moment of writing (not the page state), so another tab's change is kept.
   const removeFromWish = (set: string) => {
-    if (writeList(WISHLIST_KEY, removeWish(wish, set))) {
-      trackEvent('heart_remove', { page_type: 'sets_list', set_number: set });
-    }
+    const out = updateList(WISHLIST_KEY, cleanWishlist, (list) => ({
+      list: removeWish(list, set), result: null, changed: list.some((w) => w.set === set),
+    }));
+    if (out.ok) trackEvent('heart_remove', { page_type: 'sets_list', set_number: set });
   };
-  const changeQty = (set: string, q: number) => writeList(COLLECTION_KEY, setOwnedQty(owned, set, q));
+  const changeQty = (set: string, q: number) =>
+    updateList(COLLECTION_KEY, cleanCollection, (list) => ({ list: setOwnedQty(list, set, q), result: null, changed: true })).ok;
 
   const wishPaged = pageOf(wish, wishPage);
   const ownedPaged = pageOf(owned, ownedPage);
