@@ -49,6 +49,7 @@ export async function GET(request: NextRequest) {
   const prices = new Map<string, { best_price_inr: number | null; best_store_ids: string[] | null }>();
   let storeNames: Record<string, string> = {};
   const usd = new Map<string, number>();
+  const stored = new Map<string, number>();
   if (ids.length) {
     const { data, error } = await sb.from('set_price_summary').select('set_id, best_price_inr, best_store_ids').in('set_id', ids);
     if (error) {
@@ -60,9 +61,13 @@ export async function GET(request: NextRequest) {
     }
     // US retail price in dollars, for worth estimates. Until the column exists, or if it cannot be read,
     // there are no US prices: the total says so by not counting them, and the prices above are unaffected.
-    const us = await sb.from('sets').select('set_number, us_price_usd').in('set_number', ids);
+    // The stored rupee estimate is a fallback for the page only; it is never a price and is never summed.
+    const us = await sb.from('sets').select('set_number, us_price_usd, lego_mrp_inr').in('set_number', ids);
     if (us.error) console.error('[my-collection] US price read unavailable:', us.error.message);
-    else for (const r of us.data ?? []) if (r.us_price_usd != null) usd.set(r.set_number, Number(r.us_price_usd));
+    else for (const r of us.data ?? []) {
+      if (r.us_price_usd != null) usd.set(r.set_number, Number(r.us_price_usd));
+      if (r.lego_mrp_inr != null) stored.set(r.set_number, Number(r.lego_mrp_inr));
+    }
     // Store names come from the store list, not from this file. If that read fails, the ids are shown as they are.
     const reg = await sb.from('stores').select('id, name').eq('display_enabled', true);
     if (!reg.error) storeNames = Object.fromEntries((reg.data ?? []).map((s) => [s.id, s.name]));
@@ -72,6 +77,7 @@ export async function GET(request: NextRequest) {
     set_number: set,
     ...(prices.get(set) ?? { best_price_inr: null, best_store_ids: null }),
     us_price_usd: usd.get(set) ?? null,
+    stored_estimate_inr: stored.get(set) ?? null,
   }));
 
   return NextResponse.json({ sets, store_names: storeNames }, { headers: { 'Cache-Control': 'private, max-age=300', Vary: 'Sec-Fetch-Site, Referer' } });
