@@ -100,7 +100,7 @@ GRANT ALL    ON TABLE public.stores TO service_role;
 -- price_history: mybrickhouse 101,123, toycra 74,381 on 27 Sep). Ranks set under the Tier 2 flag.
 SET LOCAL boi.tier2_change = 'on';
 INSERT INTO public.stores (id, name, site_url, display_enabled, display_order, affiliate_note, mrp_anchor_rank, price_precision, scraper_kind, scraper_config) VALUES
-  ('mybrickhouse', 'MyBrickHouse', 'https://mybrickhouse.com', true, 10, NULL, 1, 0, 'shopify_json',
+  ('mybrickhouse', 'LEGO.in', 'https://mybrickhouse.com', true, 10, NULL, 1, 0, 'shopify_json',
      '{"domain": "lego.mybrickhouse.com", "path": "/products.json"}'::jsonb),
   ('toycra',       'Toycra',       'https://www.toycra.com',  true, 20,
      'ABHINAV12 gives 12% off at Toycra; we earn a commission.', 2, 0, 'shopify_json',
