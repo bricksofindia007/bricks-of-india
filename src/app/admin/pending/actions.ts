@@ -1,10 +1,11 @@
 'use server';
 
-import { requireAdmin } from '@/app/admin/require-admin';
+import { requireAdmin, requireAdminForm } from '@/app/admin/require-admin';
 import { cookies } from 'next/headers';
 import { ADMIN_COOKIE, ADMIN_SESSION_SECONDS, adminPasswordMatches, createAdminSession, isValidAdminSession, revokeAdminSession, revokeAllAdminSessions } from '@/lib/admin-session';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { adminFormTokenValid } from '@/lib/admin-form';
 import { createServerClient } from '@/lib/supabase';
 import { generateBody } from '@/lib/generate-body';
 import { publishOneDraft } from '@/lib/publish-draft';
@@ -26,9 +27,12 @@ export async function login(formData: FormData) {
   redirect('/admin/pending');
 }
 
-export async function logout() {
+export async function logout(formData: FormData) {
   const jar = await cookies();
-  await revokeAdminSession(jar.get(ADMIN_COOKIE)?.value);
+  const token = jar.get(ADMIN_COOKIE)?.value;
+  // A sign-out without its signed field changes nothing.
+  if (!adminFormTokenValid(formData.get('csrf'), token, 'logout')) redirect('/admin/pending');
+  await revokeAdminSession(token);
   jar.delete(ADMIN_COOKIE);
   redirect('/admin/pending');
 }
@@ -38,8 +42,8 @@ export type LogoutEverywhereState = { error: string } | null;
 // Ends every admin session, this browser's included. The caller must be signed in first (a caller who is not
 // signed in gets the usual Unauthorized error). If the sessions could not be ended, the result says so: it is
 // never a success, and this browser stays signed in so the page can show the error.
-export async function logoutEverywhere(_previous: LogoutEverywhereState): Promise<LogoutEverywhereState> {
-  await requireAdmin();
+export async function logoutEverywhere(_previous: LogoutEverywhereState, formData: FormData): Promise<LogoutEverywhereState> {
+  await requireAdminForm(formData, 'logoutEverywhere');
   try {
     await revokeAllAdminSessions();
   } catch {
@@ -50,7 +54,7 @@ export async function logoutEverywhere(_previous: LogoutEverywhereState): Promis
 }
 
 export async function approveDraft(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'approveDraft');
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending';
   const supabase   = createServerClient();
@@ -66,7 +70,7 @@ export async function approveDraft(formData: FormData) {
 }
 
 export async function rejectDraft(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'rejectDraft');
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending';
   const supabase   = createServerClient();
@@ -82,7 +86,7 @@ export async function rejectDraft(formData: FormData) {
 }
 
 export async function approveAll(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'approveAll');
   const format     = (formData.get('format') as string) || null;
   const domain     = (formData.get('domain') as string) || null;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending';
@@ -119,7 +123,7 @@ export async function approveAll(formData: FormData) {
 // ── Generate Article (on-demand, single draft) ────────────────────────────────
 
 export async function generateArticle(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'generateArticle');
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
   try {
@@ -223,7 +227,7 @@ async function sendLintAlert(draftTitle: string, gateMessage: string): Promise<v
 // ── publishDraft — single draft via Publish button ────────────────────────────
 
 export async function publishDraft(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'publishDraft');
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
   const supabase   = createServerClient();

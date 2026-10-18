@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { CsrfField } from '@/app/admin/csrf-field';
 import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
 import { cookies, type UnsafeUnwrappedCookies } from 'next/headers';
@@ -126,12 +127,14 @@ function DraftCard({ draft }: { draft: NewsletterDraft }) {
 
       <div style={{ display: 'flex', gap: 8 }}>
         <form action={approveNewsletterDraft} style={{ margin: 0 }}>
+<CsrfField action="approveNewsletterDraft" />
           <input type="hidden" name="id" value={draft.id} />
           <button type="submit" style={{ padding: '8px 16px', background: '#16A34A', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             ✓ Approve
           </button>
         </form>
         <form action={dismissNewsletterDraft} style={{ margin: 0 }}>
+<CsrfField action="dismissNewsletterDraft" />
           <input type="hidden" name="id" value={draft.id} />
           <button type="submit" style={{ padding: '8px 16px', background: 'transparent', color: '#991B1B', border: '1px solid #FCA5A5', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
             ✕ Dismiss
@@ -180,6 +183,7 @@ export default async function NewsletterAdminPage() {
           <Link href="/admin/pending" style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginLeft: 16 }}>← Pending Drafts</Link>
         </div>
         <form action={logout} style={{ margin: 0 }}>
+        <CsrfField action="logout" />
           <button type="submit" style={{ padding: '6px 14px', background: 'transparent', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
             Log out
           </button>

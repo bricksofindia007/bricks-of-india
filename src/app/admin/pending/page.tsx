@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { CsrfField } from '@/app/admin/csrf-field';
 import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
 import { cookies, type UnsafeUnwrappedCookies } from 'next/headers';
@@ -178,6 +179,7 @@ function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filter
       {isDraft && !draft.draft_body && (
         <div style={{ display: 'flex', gap: 8 }}>
           <form action={approveDraft} style={{ margin: 0 }}>
+<CsrfField action="approveDraft" />
             <input type="hidden" name="id" value={draft.id} />
             <input type="hidden" name="redirectTo" value={redirectTo} />
             <button type="submit" style={{ padding: '7px 18px', background: '#16A34A', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -185,6 +187,7 @@ function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filter
             </button>
           </form>
           <form action={rejectDraft} style={{ margin: 0 }}>
+<CsrfField action="rejectDraft" />
             <input type="hidden" name="id" value={draft.id} />
             <input type="hidden" name="redirectTo" value={redirectTo} />
             <button type="submit" style={{ padding: '7px 18px', background: '#fff', color: '#DC2626', border: '2px solid #DC2626', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -198,6 +201,7 @@ function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filter
       {isDraft && draft.draft_body && (
         <div style={{ display: 'flex', gap: 8 }}>
           <form action={approveDraft} style={{ margin: 0 }}>
+<CsrfField action="approveDraft" />
             <input type="hidden" name="id" value={draft.id} />
             <input type="hidden" name="redirectTo" value={redirectTo} />
             <button type="submit" style={{ padding: '7px 18px', background: '#16A34A', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -205,6 +209,7 @@ function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filter
             </button>
           </form>
           <form action={rejectDraft} style={{ margin: 0 }}>
+<CsrfField action="rejectDraft" />
             <input type="hidden" name="id" value={draft.id} />
             <input type="hidden" name="redirectTo" value={redirectTo} />
             <button type="submit" style={{ padding: '7px 18px', background: '#fff', color: '#DC2626', border: '2px solid #DC2626', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -217,6 +222,7 @@ function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filter
       {/* STATE: approved + no body → Generate Article */}
       {draft.status === 'approved' && !draft.draft_body && (
         <form action={generateArticle} style={{ margin: 0 }}>
+<CsrfField action="generateArticle" />
           <input type="hidden" name="id" value={draft.id} />
           <input type="hidden" name="redirectTo" value={redirectTo} />
           <button type="submit" style={{ padding: '7px 18px', background: '#F7A800', color: '#0F2D6B', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -228,6 +234,7 @@ function DraftCard({ draft, filters, redirectTo }: { draft: any; filters: Filter
       {/* STATE: approved + body → Publish */}
       {draft.status === 'approved' && draft.draft_body && (
         <form action={publishDraft} style={{ margin: 0 }}>
+<CsrfField action="publishDraft" />
           <input type="hidden" name="id" value={draft.id} />
           <input type="hidden" name="redirectTo" value={redirectTo} />
           <button type="submit" style={{ padding: '7px 18px', background: '#006CB7', color: '#fff', border: 'none', borderRadius: 8, fontSize: 13, fontWeight: 700, cursor: 'pointer', fontFamily: 'inherit' }}>
@@ -301,8 +308,11 @@ export default async function AdminPendingPage(props: Props) {
           <Link href="/admin/pending/newsletter" style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginLeft: 16 }}>Newsletter →</Link>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <LogoutEverywhereButton />
+          <LogoutEverywhereButton>
+            <CsrfField action="logoutEverywhere" />
+          </LogoutEverywhereButton>
           <form action={logout} style={{ margin: 0 }}>
+            <CsrfField action="logout" />
             <button type="submit" style={{ padding: '6px 14px', background: 'transparent', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
               Log out
             </button>
@@ -385,6 +395,7 @@ export default async function AdminPendingPage(props: Props) {
               </p>
               {statusFilter === 'draft' && draftsToShow.length > 0 && (
                 <form action={approveAll} style={{ margin: 0 }}>
+<CsrfField action="approveAll" />
                   {formatFilter && <input type="hidden" name="format" value={formatFilter} />}
                   {domainFilter && <input type="hidden" name="domain" value={domainFilter} />}
                   <input type="hidden" name="redirectTo" value={redirectTo} />
