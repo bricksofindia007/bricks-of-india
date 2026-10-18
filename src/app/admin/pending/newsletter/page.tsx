@@ -183,6 +183,7 @@ export default async function NewsletterAdminPage() {
           <Link href="/admin/pending" style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginLeft: 16 }}>← Pending Drafts</Link>
         </div>
         <form action={logout} style={{ margin: 0 }}>
+        <CsrfField action="logout" />
           <button type="submit" style={{ padding: '6px 14px', background: 'transparent', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
             Log out
           </button>
