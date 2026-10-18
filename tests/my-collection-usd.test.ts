@@ -11,7 +11,7 @@ const RATE = { rate: 88, asOf: '2026-10-18' };
 describe('worthInputFor', () => {
   it('takes the US price from the price read', () => {
     const w = worthInputFor({ set: '10307', qty: 2 }, { best_price_inr: null, us_price_usd: 499 }, true);
-    expect(w).toEqual({ set: '10307', indianPriceInr: null, usPriceUsd: 499, qty: 2 });
+    expect(w).toEqual({ set: '10307', indianPriceInr: null, usPriceUsd: 499, qty: 2, storedEstimateInr: null });
     expect(worthOf(w, RATE, false).rule).toBe('estimate');
   });
   it('a loaded Indian price still wins (rule 1)', () => {
@@ -24,7 +24,7 @@ describe('worthInputFor', () => {
     expect(w.usPriceUsd).toBeNull();
   });
   it('a set with no price row has no value', () => {
-    expect(worthInputFor({ set: '10307', qty: 1 }, undefined, true)).toEqual({ set: '10307', indianPriceInr: null, usPriceUsd: null, qty: 1 });
+    expect(worthInputFor({ set: '10307', qty: 1 }, undefined, true)).toEqual({ set: '10307', indianPriceInr: null, usPriceUsd: null, qty: 1, storedEstimateInr: null });
   });
   it('a retired set with a US price shows the retired line, not an estimate', () => {
     const w = worthInputFor({ set: '10307', qty: 1 }, { best_price_inr: null, us_price_usd: 499 }, true);
@@ -35,13 +35,13 @@ describe('worthInputFor', () => {
 describe('the price route reads US prices without putting the price read at risk', () => {
   const src = readFileSync(join(root, 'src/app/api/saved-sets/route.ts'), 'utf8');
   it('reads us_price_usd from sets, in its own query', () => {
-    expect(src).toMatch(/\.from\('sets'\)\.select\('set_number, us_price_usd'\)/);
+    expect(src).toContain("from('sets').select('set_number, us_price_usd, lego_mrp_inr')");
   });
   it('a failed US read is logged and leaves US prices empty; it never returns an error', () => {
     expect(src).toMatch(/if \(us\.error\) console\.error\('\[my-collection\] US price read unavailable:', us\.error\.message\);/);
   });
   it('never reads the INR MRP column for worth', () => {
-    expect(src).not.toMatch(/lego_mrp_inr/);
+    expect(src).toMatch(/lego_mrp_inr/); // read only for the stored-estimate fallback
     expect(readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8')).not.toMatch(/lego_mrp_inr/);
   });
 });
