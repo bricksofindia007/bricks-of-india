@@ -36,3 +36,22 @@ describe('migration parity (FP2.3, #197)', () => {
     expect(versionOf('notes.sql')).toBeNull();
   });
 });
+
+describe('release window: versions applied tonight count as expected', () => {
+  it('a repo file in the release window passes, and is reported as such', () => {
+    const r = compareParity([...V, '20260928000000'], V, [], ['20260928000000']);
+    expect(r.ok).toBe(true);
+    expect(r.inWindow).toEqual(['20260928000000']);
+    expect(r.unapplied).toEqual([]);
+  });
+  it('any other missing migration still fails, even with a release window given', () => {
+    const r = compareParity([...V, '20260928000000', '20260929000000'], V, [], ['20260928000000']);
+    expect(r.ok).toBe(false);
+    expect(r.unapplied).toEqual(['20260929000000']);
+  });
+  it('a production-only version still fails, whatever the window says', () => {
+    const r = compareParity(V, [...V, '20260928000000'], [], ['20260928000000']);
+    expect(r.ok).toBe(false);
+    expect(r.prodOnly).toEqual(['20260928000000']);
+  });
+});

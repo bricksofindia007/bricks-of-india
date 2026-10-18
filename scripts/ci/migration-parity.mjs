@@ -27,13 +27,16 @@ export function repoVersions(dir) {
     .filter(Boolean);
 }
 
-export function compareParity(repo, prod, prAdded = []) {
-  const r = new Set(repo), p = new Set(prod), added = new Set(prAdded);
+// releaseWindow: versions that the release window applies tonight. They count as expected, not as drift. Any other
+// repo file that production has not applied still fails.
+export function compareParity(repo, prod, prAdded = [], releaseWindow = []) {
+  const r = new Set(repo), p = new Set(prod), added = new Set(prAdded), window = new Set(releaseWindow);
   const prodOnly = [...p].filter((v) => !r.has(v)).sort();
   const repoOnly = [...r].filter((v) => !p.has(v)).sort();
   const pending = repoOnly.filter((v) => added.has(v));
-  const unapplied = repoOnly.filter((v) => !added.has(v));
-  return { ok: prodOnly.length === 0 && unapplied.length === 0, prodOnly, pending, unapplied, repoCount: r.size, prodCount: p.size };
+  const inWindow = repoOnly.filter((v) => !added.has(v) && window.has(v));
+  const unapplied = repoOnly.filter((v) => !added.has(v) && !window.has(v));
+  return { ok: prodOnly.length === 0 && unapplied.length === 0, prodOnly, pending, inWindow, unapplied, repoCount: r.size, prodCount: p.size };
 }
 
 function arg(name, dflt) {
@@ -48,10 +51,13 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
   if (!prodFile || !fs.existsSync(prodFile)) { console.error('FAIL: no production version list (--prod) -- parity NOT checked'); process.exit(2); }
   const prod = fs.readFileSync(prodFile, 'utf8').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   if (prod.length === 0 || prod.some((v) => !/^\d{14}$/.test(v))) { console.error('FAIL: production version list empty or malformed -- parity NOT checked'); process.exit(2); }
-  const res = compareParity(repoVersions(dir), prod, prAdded);
+  // Accepts bare versions (20261017190000) or file names.
+  const releaseWindow = (arg('--release-window', '') || '').split(/\s+/).filter(Boolean).map((x) => (/^\d{14}$/.test(x) ? x : versionOf(x))).filter(Boolean);
+  const res = compareParity(repoVersions(dir), prod, prAdded, releaseWindow);
   console.log(`repo: ${res.repoCount} migration file(s) in ${dir}; production: ${res.prodCount} schema_migrations row(s)`);
   for (const v of res.prodOnly) console.log(`FAIL production-only: ${v} is applied in production with no repo file (G7)`);
   for (const v of res.unapplied) console.log(`FAIL repo-only: ${v} has a repo file but is not applied in production`);
+  for (const v of res.inWindow) console.log(`OK: ${v} is applied by the release window (tonight), not yet in production`);
   for (const v of res.pending) console.log(`PENDING: ${v} is added by this PR and not yet applied (apply staging first, then production, before merge)`);
   console.log(res.ok ? 'PASS: repo and production migration history match' : 'FAIL: migration drift');
   process.exit(res.ok ? 0 : 1);
