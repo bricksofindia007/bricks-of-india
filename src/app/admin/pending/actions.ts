@@ -3,17 +3,30 @@
 import { requireAdmin, requireAdminForm } from '@/app/admin/require-admin';
 import { cookies } from 'next/headers';
 import { ADMIN_COOKIE, ADMIN_SESSION_SECONDS, adminPasswordMatches, createAdminSession, isValidAdminSession, revokeAdminSession } from '@/lib/admin-session';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { adminFormTokenValid } from '@/lib/admin-form';
+import { limitKey, loginBlocked, recordLoginFailure, clearLoginFailures } from '@/lib/login-limit';
 import { createServerClient } from '@/lib/supabase';
 import { generateBody } from '@/lib/generate-body';
 import { publishOneDraft } from '@/lib/publish-draft';
 
+// Keys for the sign-in limit: the client address and the one admin account. Both are hashed.
+async function loginLimitKeys(): Promise<string[]> {
+  const h = await headers();
+  const ip = (h.get('cf-connecting-ip') ?? h.get('x-forwarded-for')?.split(',')[0] ?? 'unknown').trim();
+  return [limitKey('ip', ip), limitKey('account', 'admin')];
+}
+
 export async function login(formData: FormData) {
   const pw = (formData.get('password') as string) ?? '';
   if (!process.env.ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD env var not set');
+  const keys = await loginLimitKeys();
+  // A blocked client gets the same answer as a wrong password, and the password is not checked.
+  if (await loginBlocked(keys)) redirect('/admin/pending');
   if (adminPasswordMatches(pw)) {
+    await clearLoginFailures(keys);
     // The cookie carries a random session token; the server stores only its hash. Never the password.
     const token = await createAdminSession();
     (await cookies()).set(ADMIN_COOKIE, token, {
@@ -23,6 +36,8 @@ export async function login(formData: FormData) {
       path: '/admin',
       sameSite: 'strict',
     });
+  } else {
+    await recordLoginFailure(keys).catch((e) => console.error('[login-limit] failure not counted:', e?.message));
   }
   redirect('/admin/pending');
 }
