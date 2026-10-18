@@ -1,3 +1,4 @@
+-- boi:issue 658
 -- US retail price in dollars for each set, from the catalogue source. Used only for worth estimates
 -- in My Collection. Nullable, no default: a set has no value until the populate job writes one.
 -- Not read by any public page in this migration.
