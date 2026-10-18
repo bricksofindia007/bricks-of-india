@@ -95,7 +95,7 @@ describe('no fixed fallback, heartbeat, and the stored row', () => {
     expect(sql).toMatch(/enable row level security/);
     expect(sql).toMatch(/revoke all on public\.usd_inr_rate from public, anon, authenticated/);
     expect(sql).toMatch(/grant select, insert, update on public\.usd_inr_rate to service_role/);
-    expect(sql).not.toMatch(/grant[^;]*usd_inr_rate[^;]*to (anon|authenticated)/);
+    expect(sql).not.toMatch(/grant[^;]*on public\.usd_inr_rate[^;]*to (anon|authenticated)/);
   });
 
   it('the read function: public revoked; anon, authenticated and service role may execute (same as the price read functions)', () => {
