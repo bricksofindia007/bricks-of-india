@@ -18,7 +18,13 @@ import {
 const noRate: RateSource = { getRate: () => null };
 const unknownRetired: RetiredSource = { isRetired: () => null };
 
-type Price = { set_number: string; best_price_inr: number | null; best_store_ids: string[] | null; us_price_usd: number | null };
+type Price = {
+  set_number: string;
+  best_price_inr: number | null;
+  best_store_ids: string[] | null;
+  us_price_usd: number | null;
+  stored_estimate_inr: number | null;
+};
 type Tab = 'wish' | 'owned';
 type PriceState = 'loading' | 'ok' | 'failed';
 

@@ -126,7 +126,7 @@ export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boole
  */
 export function worthInputFor(
   owned: { set: string; qty: number },
-  price: { best_price_inr: number | null; us_price_usd: number | null } | undefined,
+  price: { best_price_inr: number | null; us_price_usd: number | null; stored_estimate_inr?: number | null } | undefined,
   pricesLoaded: boolean,
 ): WorthItem {
   return {
@@ -134,6 +134,7 @@ export function worthInputFor(
     indianPriceInr: pricesLoaded ? (price?.best_price_inr ?? null) : null,
     usPriceUsd: pricesLoaded ? (price?.us_price_usd ?? null) : null,
     qty: owned.qty,
+    storedEstimateInr: pricesLoaded ? (price?.stored_estimate_inr ?? null) : null,
   };
 }
 
