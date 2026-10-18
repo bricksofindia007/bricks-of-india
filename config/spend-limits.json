@@ -1,70 +1,33 @@
 {
-  "_status": "PROPOSED caps for owner confirmation. Rupee prices are null (figures not yet supplied). Rupee stop binds only for models with a verified price.",
-  "prices_last_checked": null,
+  "_status": "Caps are PROPOSED for owner confirmation. Prices checked 2026-10-18 from the provider pages. The rupee stop binds for every model with a price; a model with null price is counted by its caps only.",
   "ai": {
     "warn_fraction": 0.6,
     "providers": {
-      "gemini": {
-        "daily_calls": 400,
-        "daily_tokens": 2000000,
-        "models": [
-          "gemini-2.5-flash-lite",
-          "gemini-2.5-flash"
-        ],
-        "rupee_free": false
-      },
-      "groq": {
-        "daily_calls": 300,
-        "daily_tokens": 1000000,
-        "models": [
-          "openai/gpt-oss-120b",
-          "qwen/qwen3.6-27b",
-          "llama-3.3-70b-versatile"
-        ],
-        "rupee_free": true
-      },
-      "cerebras": {
-        "daily_calls": 300,
-        "daily_tokens": 1000000,
-        "models": [
-          "gpt-oss-120b",
-          "llama3.1-8b"
-        ],
-        "rupee_free": true
-      }
+      "gemini":   { "daily_calls": 400, "daily_tokens": 2000000, "models": ["gemini-2.5-flash", "gemini-2.5-flash-lite", "gemini-3.1-flash-lite"] },
+      "groq":     { "daily_calls": 300, "daily_tokens": 1000000, "models": ["openai/gpt-oss-120b", "llama-3.3-70b-versatile"] },
+      "cerebras": { "daily_calls": 300, "daily_tokens": 1000000, "models": ["gpt-oss-120b", "llama3.1-8b"] }
     },
-    "rupee_price_per_million_tokens": {
-      "gemini-2.5-flash-lite": null,
-      "gemini-2.5-flash": null,
-      "gemini-3.1-flash-lite": null
+    "prices_last_checked": "2026-10-18",
+    "prices_usd_per_million_tokens": {
+      "gemini-2.5-flash":        { "input": 0.30, "output": 2.50 },
+      "gemini-2.5-flash-lite":   { "input": 0.10, "output": 0.40 },
+      "gemini-3.1-flash-lite":   { "input": 0.25, "output": 1.50 },
+      "openai/gpt-oss-120b":     { "input": 0.15, "output": 0.60 },
+      "llama-3.3-70b-versatile": null,
+      "gpt-oss-120b":            null,
+      "llama3.1-8b":             null
     },
-    "rupee_price_notes": {
-      "llama-3.3-70b-versatile (Groq)": "not priced: decommissioned",
-      "gpt-oss-120b (Cerebras)": "not priced: Cerebras is payment-blocked and flagged off",
-      "llama3.1-8b (Cerebras)": "not priced",
-      "_table": "Figures not yet supplied. null means no verified price; the rupee stop does not apply to a model with null."
+    "price_notes": {
+      "llama-3.3-70b-versatile": "No public price on Groq. Unpriced; caps only. Decommissioned on Groq; not called.",
+      "gpt-oss-120b": "Cerebras: no price found. Unpriced; caps only. Blocked with 402 today; flagged off.",
+      "llama3.1-8b": "Cerebras: no price found. Unpriced; caps only.",
+      "qwen3.8-27b": "Groq preview at 0.80 / 4.00 USD per million. Not called by any code; not in the table."
     }
   },
-  "supabase_egress_gb": {
-    "alert": 3.5,
-    "guard": 4,
-    "stop": 4.6
-  },
-  "r2_class_a_ops_month": {
-    "alert_fraction": 0.6,
-    "stop": 900000
-  },
-  "brevo_emails_day": {
-    "alert_fraction": 0.6,
-    "stop": 270
-  },
-  "resend_emails_day": {
-    "alert_fraction": 0.6,
-    "stop": 90
-  },
-  "rupee_stop": {
-    "warn_inr": 6,
-    "stop_inr": 10,
-    "note": "Binding once prices are set. Uses the stored exchange rate for USD prices."
-  }
+  "usd_inr_stored": { "rate": 95, "as_of": "2026-10-18", "note": "Stored value used for rupee cost. Replace when the exchange-rate job is in place." },
+  "rupee_stop": { "warn_inr": 6, "stop_inr": 10 },
+  "supabase_egress_gb": { "alert": 3.5, "guard": 4.0, "stop": 4.6 },
+  "r2_class_a_ops_month": { "alert_fraction": 0.6, "stop": 900000 },
+  "brevo_emails_day": { "alert_fraction": 0.6, "stop": 270 },
+  "resend_emails_day": { "alert_fraction": 0.6, "stop": 90 }
 }

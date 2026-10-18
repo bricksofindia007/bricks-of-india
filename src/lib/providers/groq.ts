@@ -92,7 +92,7 @@ export class GroqProvider implements Provider {
       };
       const text = json.choices?.[0]?.message?.content;
       if (!text) throw new Error('Groq: empty response content');
-      await recordAiCall('groq', (json.usage?.prompt_tokens ?? 0) + (json.usage?.completion_tokens ?? 0));
+      await recordAiCall('groq', model, json.usage?.prompt_tokens ?? 0, json.usage?.completion_tokens ?? 0);
       return { text, inputTokens: json.usage?.prompt_tokens, outputTokens: json.usage?.completion_tokens };
     }
     throw new Error('Groq call failed: unreachable retry exhaustion.');
