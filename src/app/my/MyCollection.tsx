@@ -98,7 +98,10 @@ export function MyCollection() {
     usPriceUsd: null, // no US price source is wired yet
     qty: o.qty,
   }));
-  const total = worthTotal(worthItems, rate, (s) => unknownRetired.isRetired(s));
+  // The price read covers the newest sets only; a collection set it leaves out is capped out of the total.
+  const pricedIds = new Set(priceIds(wish, owned));
+  const capped = owned.some((o) => !pricedIds.has(o.set));
+  const total = worthTotal(worthItems, rate, (s) => unknownRetired.isRetired(s), capped);
   const pieces = owned.reduce((n, o) => n + (o.pieces ?? 0) * o.qty, 0);
   const piecesMissing = owned.some((o) => o.pieces == null);
 
@@ -126,7 +129,7 @@ export function MyCollection() {
         </div>
         <div className="border border-border rounded-lg p-3">
           <dt className="text-gray-500">Total worth</dt>
-          <dd className="font-bold text-dark text-lg">{priceState === 'loading' ? '…' : total.inr > 0 ? `Rs ${formatRs(total.inr)}` : '—'}</dd>
+          <dd className="font-bold text-dark text-lg">{priceState === 'loading' ? '…' : total.inr > 0 ? `₹${formatRs(total.inr)}` : '—'}</dd>
         </div>
       </dl>
       {owned.length > 0 && priceState !== 'loading' && <p className="text-xs text-gray-600 mb-4">{total.line}</p>}
@@ -159,7 +162,7 @@ export function MyCollection() {
                       {w.pieces != null && <p className="text-xs text-gray-500">{formatRs(w.pieces)} pieces</p>}
                       {priceState === 'loading' && <p className="mt-1 h-3 w-24 bg-surface rounded animate-pulse" />}
                       {priceState === 'ok' && (p?.best_price_inr != null ? (
-                        <p className="mt-1"><span className="font-price font-bold text-deal-green">Rs {formatRs(p.best_price_inr)}</span>
+                        <p className="mt-1"><span className="font-price font-bold text-deal-green">₹{formatRs(p.best_price_inr)}</span>
                           {p.best_store_ids?.length ? <> at {storeList(p.best_store_ids)}</> : null}
                         </p>
                       ) : <p className="mt-1 text-gray-500">{WISHLIST_NO_PRICE_LINE}</p>)}

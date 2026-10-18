@@ -2,9 +2,10 @@
 // and the total line. The rate and retired status are test doubles here.
 import { describe, it, expect } from 'vitest';
 import {
-  worthOf, worthTotal, usableRate, formatRs, RETIRED_LINE, ESTIMATE_NOTE, WORTH_UNKNOWN_LINE,
+  worthOf, worthTotal, usableRate, formatRs, RETIRED_LINE, ESTIMATE_NOTE, WORTH_UNKNOWN_LINE, CAP_SENTENCE,
   RATE_MAX_AGE_DAYS, type StoredRate, type WorthItem,
 } from '../src/lib/collection-worth';
+import { priceIds, PRICE_READ_CAP } from '../src/lib/my-collection';
 
 const NOW = new Date('2026-10-18T06:00:00Z');
 const RATE: StoredRate = { rate: 88, asOf: '2026-10-18' }; // "rate of 18 Oct"
@@ -14,7 +15,7 @@ describe('worth rule 1: verified, fresh Indian price', () => {
   it('shows the Indian price plainly, whatever the retired status', () => {
     for (const retired of [true, false, null]) {
       const w = worthOf(item({ indianPriceInr: 41199, usPriceUsd: 499 }), RATE, retired);
-      expect(w).toEqual({ rule: 'indian', inr: 41199, line: 'Rs 41,199', note: null });
+      expect(w).toEqual({ rule: 'indian', inr: 41199, line: '₹41,199', note: null });
     }
   });
 });
@@ -24,7 +25,7 @@ describe('worth rule 2: US price estimate', () => {
     const w = worthOf(item({ usPriceUsd: 499 }), RATE, false);
     expect(w.rule).toBe('estimate');
     expect(w.inr).toBe(43912);
-    expect(w.line).toBe('About Rs 43,912, worked out from the US price');
+    expect(w.line).toBe('About ₹43,912, worked out from the US price');
     expect(w.note).toBe(ESTIMATE_NOTE);
   });
   it('never names a store or offers a buy action', () => {
@@ -111,6 +112,28 @@ describe('total line', () => {
     const t = worthTotal([item({ set: 'a', usPriceUsd: 10 })], RATE, () => null);
     expect(t.retired).toBe(0);
     expect(t.estimate).toBe(1);
+  });
+});
+
+describe('the newest-150 read cap in the total', () => {
+  it('adds "Worth counts your newest 150 sets." when the read left sets out', () => {
+    const t = worthTotal([item({ set: 'a', indianPriceInr: 1000 })], RATE, () => false, true);
+    expect(t.line).toBe('Worth counts 1 of 1 set: 1 at Indian price, 0 estimated from US prices. Worth counts your newest 150 sets.');
+  });
+  it('no cap sentence when every set was priced', () => {
+    expect(worthTotal([item({ set: 'a', indianPriceInr: 1000 })], RATE, () => false).line).not.toMatch(/newest 150/);
+  });
+  it('the read leaves out sets past 150, newest first', () => {
+    const owned = Array.from({ length: 160 }, (_, i) => ({ set: String(10000 + i), added_at: new Date(Date.UTC(2026, 0, 1 + i)).toISOString() }));
+    const wish: never[] = [];
+    const priced = new Set(priceIds(wish, owned as never));
+    expect(priced.size).toBe(150);
+    expect(priced.has('10000')).toBe(false);
+    expect(priced.has('10159')).toBe(true);
+  });
+  it('the cap sentence uses the read cap', () => {
+    expect(CAP_SENTENCE).toBe('Worth counts your newest 150 sets.');
+    expect(PRICE_READ_CAP).toBe(150);
   });
 });
 
