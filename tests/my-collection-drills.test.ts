@@ -98,7 +98,8 @@ describe('no verified Indian price', () => {
   it('the copy is "No Indian price yet", and the page shows it for an unpriced owned set', () => {
     expect(WISHLIST_NO_PRICE_LINE).toBe('No Indian price yet');
     const src = readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
-    expect(src).toContain("priceState === 'ok' && w.rule === 'unknown' ? WISHLIST_NO_PRICE_LINE : w.line");
+    expect(src).toContain("<OwnedWorthLine priceReady={priceState === 'ok'} rule={w.rule} line={w.line} />");
+    expect(readFileSync(join(root, 'src/app/my/PriceNotes.tsx'), 'utf8')).toContain("priceReady && rule === 'unknown' ? WISHLIST_NO_PRICE_LINE : line");
   });
   it('the set is left out of the worth total', () => {
     const unpriced = worthInputFor({ set: '10307', qty: 2 }, undefined, true);
@@ -120,9 +121,10 @@ describe('price read fails', () => {
   it('the page says prices are unavailable and still lists the rows (names and pieces come from the browser copy)', () => {
     expect(VOICE.pricesUnavailable).toBe('Prices are unavailable right now. Names and pieces are still shown.');
     const src = readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
-    expect(src).toMatch(/priceState === 'failed' && <p role="alert"[^>]*>\{VOICE\.pricesUnavailable\}<\/p>/);
+    expect(src).toContain("{priceState === 'failed' && <PricesUnavailable />}");
+    expect(readFileSync(join(root, 'src/app/my/PriceNotes.tsx'), 'utf8')).toContain('role="alert"');
     // Rows are not inside a priceState gate: only the price figure is.
-    expect(src).toMatch(/\{priceState !== 'loading' && <p className="mt-1">/);
+    expect(src).toContain("{priceState !== 'loading' && <OwnedWorthLine");
   });
 });
 
@@ -177,7 +179,7 @@ describe('the batch read', () => {
 describe('the retired line', () => {
   it('appears only in My Collection: no other source file imports the worth rules', () => {
     const importers = srcFiles.filter((f) => /from ['"]@\/lib\/collection-worth['"]/.test(f.src)).map((f) => f.file).sort();
-    expect(importers).toEqual(['src/app/my/MyCollection.tsx']);
+    expect(importers).toEqual(['src/app/my/MyCollection.tsx', 'src/app/my/PriceNotes.tsx']);
   });
   it('the approved retired line carries no number', () => {
     expect(RETIRED_LINE).not.toMatch(/\d|₹/);
