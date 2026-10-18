@@ -316,3 +316,6 @@ jobs:
           node-version: '20'
       - name: G19 public-text check
         run: node scripts/ci/g19-check.mjs
+
+      - name: "Static-route check (G1: public routes read no per-visitor value)"
+        run: node scripts/ci/static-route-check.mjs
