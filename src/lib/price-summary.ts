@@ -15,7 +15,7 @@ export type SetPriceSummary = {
   set_id: string;
   anchor_mrp_inr: number | null;
   anchor_source: 'mybrickhouse' | 'toycra' | 'catalogue' | null;
-  best_price_inr: number | null;      // cheapest in-stock price scraped within 12h
+  best_price_inr: number | null;      // cheapest in-stock price scraped inside the freshness window
   best_store_ids: string[] | null;    // every store at that price, alphabetical (R5)
   best_scraped_at: string | null;
   in_stock_store_count: number;       // stores fresh + in stock
@@ -49,6 +49,25 @@ export async function getPriceSummaries(sb: SupabaseClient, setIds: string[]): P
     // (getDeals) throws instead, since without the view it has nothing to show.
     if (error) { console.error('[price-summary] set_price_summary read failed:', error.message); return out; }
     for (const r of data ?? []) out.set(r.set_id, normalise(r));
+  }
+  return out;
+}
+
+/** The one summary field the reviews page renders: its deal tier (WAIT line). Read through the price function. */
+export type ReviewDealSummary = { deal_tier: DealTier | null };
+
+export async function getReviewDealTiers(sb: SupabaseClient, setIds: string[]): Promise<Map<string, ReviewDealSummary>> {
+  const out = new Map<string, ReviewDealSummary>();
+  const ids = [...new Set(setIds)];
+  // One set per call: the anonymous role may read a single set's tier, never a list (owner decision, 17 Oct).
+  for (const id of ids.slice(0, 150)) {
+    const { data, error } = await sb.rpc('get_price_summary_for_set', { p_set_number: id });
+    if (error) { console.error('[price-summary] get_price_summary_for_set failed:', error.message); return out; }
+    for (const r of data ?? []) {
+      // Same rule as normalise(): no MRP-derived tier for these sets.
+      if (NO_MRP_SETS.has(r.set_id)) continue;
+      out.set(r.set_id, { deal_tier: (r.deal_tier as DealTier | null) ?? null });
+    }
   }
   return out;
 }

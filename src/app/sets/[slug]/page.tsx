@@ -1,5 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { TrackedLink } from '@/components/analytics/TrackedLink';
+import { hostOf } from '@/lib/analytics';
 import { AFFILIATE_NOTE } from '@/lib/affiliate-disclosure';
 import type { Metadata } from 'next';
 import { cache } from 'react';
@@ -342,7 +344,7 @@ export default async function SetPage(props: Props) {
               {shownTheme(set.theme) && <Badge variant="grey">{shownTheme(set.theme)}</Badge>}
               {set.year     && <Badge variant="grey">{set.year}</Badge>}
               {set.age_range && <Badge variant="grey">Ages {set.age_range}</Badge>}
-              {set.pieces   && <Badge variant="grey">{set.pieces.toLocaleString()} pcs</Badge>}
+              {set.pieces != null && set.pieces > 0 ? <Badge variant="grey">{set.pieces.toLocaleString()} pcs</Badge> : null}
             </div>
             <h1 className="font-heading text-dark text-4xl md:text-5xl leading-tight mb-2">{set.name}</h1>
             <p className="text-gray-400 font-price text-sm mb-4">Set #{set.set_number}</p>
@@ -416,21 +418,23 @@ export default async function SetPage(props: Props) {
                               {formatPrice(sp.price_inr)}
                             </span>
                           ) : sp.price_inr ? (
-                            <a href={sp.product_url ?? undefined} target="_blank" rel="noopener noreferrer sponsored" className="text-sm font-bold text-dark underline">
+                            <TrackedLink event="click_store_listing" params={{ page_type: 'set', store: sp.store_id, store_name: store.name, set_number: set.set_number }} href={sp.product_url ?? undefined} target="_blank" rel="noopener noreferrer sponsored" className="text-sm font-bold text-dark underline">
                               See the price at {store.name} →
-                            </a>
+                            </TrackedLink>
                           ) : (
                             <span className="text-gray-400 text-sm">Price unavailable</span>
                           )}
                           {sp.in_stock && (
-                            <a
+                            <TrackedLink
+                              event="click_store_listing"
+                              params={{ page_type: 'set', store: sp.store_id, store_name: store.name, set_number: set.set_number }}
                               href={sp.product_url}
                               target="_blank"
                               rel="noopener noreferrer sponsored"
                               className="bg-dark text-white text-sm font-bold px-4 py-2 rounded-lg hover:bg-gray-800 transition-colors whitespace-nowrap"
                             >
                               {sp.price_inr ? 'Buy Now →' : 'Check Price →'}
-                            </a>
+                            </TrackedLink>
                           )}
                         </div>
                       </div>
@@ -446,25 +450,29 @@ export default async function SetPage(props: Props) {
                 {/* Amazon + Flipkart — search links only, never quoted prices */}
                 <div className="px-5 py-4 flex items-center justify-between flex-wrap gap-3">
                   <span className="font-bold text-dark">Amazon India</span>
-                  <a
+                  <TrackedLink
+                    event="click_outbound_search"
+                    params={{ page_type: 'set', set_number: set.set_number, destination_host: hostOf('https://www.amazon.in') }}
                     href={`https://www.amazon.in/s?k=LEGO+${set.set_number}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-accent-blue font-bold text-sm hover:underline"
-                  >
+                    >
                     Search on Amazon →
-                  </a>
+                    </TrackedLink>
                 </div>
                 <div className="px-5 py-4 flex items-center justify-between flex-wrap gap-3">
                   <span className="font-bold text-dark">Flipkart</span>
-                  <a
+                  <TrackedLink
+                    event="click_outbound_search"
+                    params={{ page_type: 'set', set_number: set.set_number, destination_host: hostOf('https://www.flipkart.com') }}
                     href={`https://www.flipkart.com/search?q=LEGO+${set.set_number}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-accent-blue font-bold text-sm hover:underline"
-                  >
+                    >
                     Search on Flipkart →
-                  </a>
+                    </TrackedLink>
                 </div>
               </div>
             </div>
@@ -531,7 +539,7 @@ export default async function SetPage(props: Props) {
                     a: summary?.best_price_inr != null && summary.best_store_ids?.length
                       ? `Based on our latest comparison, ${summary.best_store_ids.map((id) => STORE_NAMES[id] ?? id).join(' and ')} ${summary.best_store_ids.length > 1 ? 'share' : 'has'} the lowest in-stock price at ${formatPrice(summary.best_price_inr)}.`
                       : hasPrices
-                      ? `The lowest in-stock price we last saw was ${formatPrice(bestStorePrice!.price_inr)} at ${STORE_NAMES[bestStorePrice!.store_id] ?? bestStorePrice!.store_id}, but that price is more than 12 hours old — check the store for today's price.`
+                      ? `The lowest in-stock price we last saw was ${formatPrice(bestStorePrice!.price_inr)} at ${STORE_NAMES[bestStorePrice!.store_id] ?? bestStorePrice!.store_id}, but that price is more than a day old — check the store for today's price.`
                       : `We're currently setting up price tracking for ${set.name}. Check Toycra, LEGO.in, and Amazon India for current prices.`,
                   },
                   {

@@ -8,6 +8,7 @@ import { getDeals } from '@/lib/price-summary';
 import { FreshOnly } from '@/components/ui/FreshOnly';
 import { getStores, storeLabels } from '@/lib/stores';
 import { shownTheme } from '@/lib/theme-display';
+import { TrackedLink } from '@/components/analytics/TrackedLink';
 
 export const metadata: Metadata = buildMetadata({
   title: 'India Deals Today — The Lab',
@@ -157,7 +158,7 @@ function DealCard({ deal, labels }: { deal: DealRow; labels: Record<string, stri
         ) : (
           <span style={{ fontSize: '2.5rem' }}>🧱</span>
         )}
-        {/* Discount badge -- hidden in the browser once the price is over 12h old (P12 3b) */}
+        {/* Discount badge -- hidden in the browser once the price is outside the freshness window (P12 3b) */}
         <FreshOnly scrapedAt={deal.scraped_at || null}>
           <div style={{
             position: 'absolute', top: 10, right: 10,
@@ -202,7 +203,9 @@ function DealCard({ deal, labels }: { deal: DealRow; labels: Record<string, stri
         </div>
 
         {/* CTA */}
-        <a
+        <TrackedLink
+          event="click_store_listing"
+          params={{ page_type: 'lab_deals', store: deal.store_id, store_name: labels[deal.store_id], set_number: deal.set.set_number }}
           href={deal.product_url}
           target="_blank"
           rel="noopener noreferrer sponsored"
@@ -217,7 +220,7 @@ function DealCard({ deal, labels }: { deal: DealRow; labels: Record<string, stri
           }}
         >
           Buy on {storeName} →
-        </a>
+        </TrackedLink>
       </div>
     </div>
   );
