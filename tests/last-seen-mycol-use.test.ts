@@ -1,64 +1,41 @@
-// My Collection: the last-seen price is shown only on retired owned sets, comes from the one capped read, and falls back
-// to the approved retired line whenever it is missing or the read fails. Retired status is never guessed.
+// My Collection and the last-seen price: by owner ruling, retired sets show only the approved "sought after" line.
+// The page shows no price and no date for a retired set, and does not call the last-seen route. The route and the
+// function stay in the tree (their own tests live with them). These tests check the page and the rule it uses.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { worthOf, retiredLine, RETIRED_LINE } from '../src/lib/collection-worth';
+import { worthOf, worthInputFor, usableRate, RETIRED_LINE } from '../src/lib/collection-worth';
 
 const root = join(__dirname, '..');
-const RATE = { rate: 88, asOf: '2026-10-18' };
 const page = () => readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
-const route = () => readFileSync(join(root, 'src/app/api/saved-sets/route.ts'), 'utf8');
+const RATE = usableRate({ rate: 88, asOf: '2026-10-18' }, new Date('2026-10-18T06:00:00Z'));
 
-describe('retired line with a last-seen price', () => {
-  it('shows the last seen Indian price and its month', () => {
-    const w = worthOf({ set: '10307', indianPriceInr: null, usPriceUsd: 499, qty: 1, storedEstimateInr: null }, RATE, true,
-      { priceInr: 41199, observedAt: '2026-08-14T10:00:00Z' });
-    expect(w.rule).toBe('retired');
-    expect(w.line).toBe('Last seen in India at ₹41,199 (August 2026)');
+describe('a retired set on My Collection', () => {
+  it('shows the approved line only, with no rupee figure and no date, even with a last-seen price available', () => {
+    const item = worthInputFor({ set: '10307', qty: 1 }, { best_price_inr: null, us_price_usd: 499 }, true);
+    const w = worthOf(item, RATE, true, null);
+    expect(w.line).toBe(RETIRED_LINE);
+    expect(w.line).not.toMatch(/\d|₹|Last seen/);
     expect(w.inr).toBeNull();
   });
-  it('without a last-seen price, the approved retired line', () => {
-    const w = worthOf({ set: '10307', indianPriceInr: null, usPriceUsd: 499, qty: 1, storedEstimateInr: null }, RATE, true, null);
-    expect(w.line).toBe(RETIRED_LINE);
-  });
-  it('a zero or invalid last-seen price falls back to the approved line', () => {
-    expect(retiredLine({ priceInr: 0, observedAt: '2026-08-14T10:00:00Z' })).toBe(RETIRED_LINE);
-    expect(retiredLine({ priceInr: 41199, observedAt: 'not a date' })).toBe(RETIRED_LINE);
-  });
-  it('a set that is not retired never shows the retired line, even with a last-seen price', () => {
-    const w = worthOf({ set: '10307', indianPriceInr: null, usPriceUsd: 499, qty: 1, storedEstimateInr: null }, RATE, false,
-      { priceInr: 41199, observedAt: '2026-08-14T10:00:00Z' });
-    expect(w.rule).not.toBe('retired');
+  it('the total never adds a retired set', () => {
+    const src = page();
+    expect(src).toContain('worthTotal(worthItems, rate, isRetired, capped)');
   });
 });
 
-describe('the page', () => {
-  it('reads last-seen prices only for retired owned sets, through the one route', () => {
+describe('the page does not use the last-seen price', () => {
+  it('the page does not call the last-seen route', () => {
+    expect(page()).not.toContain('/api/last-seen-prices');
+  });
+  it('the page holds no last-seen state and passes no last-seen value to the worth rules', () => {
     const src = page();
-    expect(src).toContain('/api/last-seen-prices?ids=');
-    expect(src).toContain("o.set).sort().slice(0, PRICE_READ_CAP)");
-    expect(src).toMatch(/priceState === 'ok' && prices\.get\(o\.set\)\?\.retired === true/);
+    expect(src).not.toMatch(/lastSeen|LastSeen|setLastSeen|retiredIds/);
+    expect(src).toMatch(/worthOf\(worthInputFor\(o, p, priceState === 'ok'\), rate, isRetired\(o\.set\)\);/);
   });
-  it('never fetches last-seen prices for a set that is not retired or while the price read is pending', () => {
-    expect(page()).toMatch(/if \(!retiredIds\) \{ setLastSeen\(new Map\(\)\); return; \}/);
-  });
-  it('a failed last-seen read keeps the approved retired line', () => {
-    expect(page()).toMatch(/\.catch\(\(\) => \{ if \(live\) setLastSeen\(new Map\(\)\); \}\)/);
-  });
-  it('retired status is unknown until the price read succeeds, and is never a guess', () => {
-    expect(page()).toMatch(/const isRetired = \(set: string\): boolean \| null => \(priceState === 'ok' \? prices\.get\(set\)\?\.retired \?\? null : null\)/);
-  });
-  it('passes the last-seen price into each row, and never reads the INR MRP column', () => {
+  it('the page does not read the INR MRP column, and shows no set-level price for a retired set', () => {
     const src = page();
-    expect(src).toContain('worthOf(worthInputFor(o, p, priceState === \'ok\'), rate, isRetired(o.set), lastSeen.get(o.set) ?? null)');
     expect(src).not.toMatch(/lego_mrp_inr/);
-  });
-});
-
-describe('the saved-sets route', () => {
-  it('returns retired as true or false when the sets read succeeds, and null when it does not', () => {
-    expect(route()).toContain('retired: retired.get(set) ?? null');
-    expect(route()).toContain("retired.set(r.set_number, r.retired === true)");
+    expect(src).not.toMatch(/Last seen/);
   });
 });

@@ -7,10 +7,10 @@ import { SetImage } from '@/components/sets/SetImage';
 import { slugify } from '@/lib/utils';
 import {
   CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, cleanCollection, cleanWishlist, loadCollection, loadWishlist, pageOf,
-  PRICE_READ_CAP, priceIds, removeWish, setOwnedQty, trackCollectionEvent, updateList, type OwnedItem, type WishItem,
+  priceIds, removeWish, setOwnedQty, trackCollectionEvent, updateList, type OwnedItem, type WishItem,
 } from '@/lib/my-collection';
 import {
-  worthOf, worthTotal, usableRate, formatRs, worthInputFor, WISHLIST_NO_PRICE_LINE, type LastSeen, type StoredRate, type WorthItem,
+  worthOf, worthTotal, usableRate, formatRs, worthInputFor, WISHLIST_NO_PRICE_LINE, type StoredRate, type WorthItem,
 } from '@/lib/collection-worth';
 import { rateSourceOf } from '@/lib/usd-rate-reader';
 import { OwnedWorthLine, PricesUnavailable, TotalWorthValue } from './PriceNotes';
@@ -27,7 +27,6 @@ type Price = {
   stored_estimate_inr: number | null;
   retired: boolean | null;
 };
-type LastSeenRow = { set_number: string; price_inr: number; observed_at: string };
 type Tab = 'wish' | 'owned';
 type PriceState = 'loading' | 'ok' | 'failed';
 
@@ -105,26 +104,6 @@ export function MyCollection() {
 
   // Retired status is known only after the price read succeeds. Unknown counts as not retired, so no retired line is guessed.
   const isRetired = (set: string): boolean | null => (priceState === 'ok' ? prices.get(set)?.retired ?? null : null);
-
-  // Last seen Indian price, for retired owned sets only: one call, capped at the read limit. A failure keeps the approved
-  // retired line ("no price shown"), never a guess.
-  const [lastSeen, setLastSeen] = useState<Map<string, LastSeen>>(new Map());
-  const retiredIds = useMemo(
-    () => owned.filter((o) => priceState === 'ok' && prices.get(o.set)?.retired === true).map((o) => o.set).sort().slice(0, PRICE_READ_CAP).join(','),
-    [owned, prices, priceState],
-  );
-  useEffect(() => {
-    if (!retiredIds) { setLastSeen(new Map()); return; }
-    let live = true;
-    fetch(`/api/last-seen-prices?ids=${encodeURIComponent(retiredIds)}`)
-      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
-      .then((j: { prices: LastSeenRow[] }) => {
-        if (!live) return;
-        setLastSeen(new Map(j.prices.map((p) => [p.set_number, { priceInr: p.price_inr, observedAt: p.observed_at }])));
-      })
-      .catch(() => { if (live) setLastSeen(new Map()); });
-    return () => { live = false; };
-  }, [retiredIds]);
 
   const rate = usableRate(rateSourceOf(storedRate).getRate(), new Date());
   const worthItems: WorthItem[] = owned.map((o) => worthInputFor(o, prices.get(o.set), priceState === 'ok'));
@@ -246,7 +225,7 @@ export function MyCollection() {
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {ownedPaged.rows.map((o) => {
                 const p = prices.get(o.set);
-                const w = worthOf(worthInputFor(o, p, priceState === 'ok'), rate, isRetired(o.set), lastSeen.get(o.set) ?? null);
+                const w = worthOf(worthInputFor(o, p, priceState === 'ok'), rate, isRetired(o.set));
                 return (
                   <li key={o.set} className="border border-border rounded-xl p-3 flex gap-3">
                     <Link href={`/sets/${o.set}-${slugify(o.name)}`} className="w-20 h-20 shrink-0 relative bg-surface rounded">
