@@ -1,3 +1,4 @@
+-- boi:issue 664
 -- Per-model daily AI usage, for the rupee stop: calls, input tokens, output tokens and rupees, per UTC day and
 -- model. Written only by the server role, through one atomic function, so concurrent calls cannot under-count.
 -- Row security is on with no policies, and anon and authenticated have no access.
