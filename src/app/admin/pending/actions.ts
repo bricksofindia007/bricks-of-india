@@ -1,18 +1,32 @@
 'use server';
 
-import { requireAdmin } from '@/app/admin/require-admin';
+import { requireAdmin, requireAdminForm } from '@/app/admin/require-admin';
 import { cookies } from 'next/headers';
 import { ADMIN_COOKIE, ADMIN_SESSION_SECONDS, adminPasswordMatches, createAdminSession, isValidAdminSession, revokeAdminSession } from '@/lib/admin-session';
+import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
+import { adminFormTokenValid } from '@/lib/admin-form';
+import { limitKey, loginBlocked, recordLoginFailure, clearLoginFailures } from '@/lib/login-limit';
 import { createServerClient } from '@/lib/supabase';
 import { generateBody } from '@/lib/generate-body';
 import { publishOneDraft } from '@/lib/publish-draft';
 
+// Keys for the sign-in limit: the client address and the one admin account. Both are hashed.
+async function loginLimitKeys(): Promise<string[]> {
+  const h = await headers();
+  const ip = (h.get('cf-connecting-ip') ?? h.get('x-forwarded-for')?.split(',')[0] ?? 'unknown').trim();
+  return [limitKey('ip', ip), limitKey('account', 'admin')];
+}
+
 export async function login(formData: FormData) {
   const pw = (formData.get('password') as string) ?? '';
   if (!process.env.ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD env var not set');
+  const keys = await loginLimitKeys();
+  // A blocked client gets the same answer as a wrong password, and the password is not checked.
+  if (await loginBlocked(keys)) redirect('/admin/pending');
   if (adminPasswordMatches(pw)) {
+    await clearLoginFailures(keys);
     // The cookie carries a random session token; the server stores only its hash. Never the password.
     const token = await createAdminSession();
     (await cookies()).set(ADMIN_COOKIE, token, {
@@ -22,19 +36,24 @@ export async function login(formData: FormData) {
       path: '/admin',
       sameSite: 'strict',
     });
+  } else {
+    await recordLoginFailure(keys).catch((e) => console.error('[login-limit] failure not counted:', e?.message));
   }
   redirect('/admin/pending');
 }
 
-export async function logout() {
+export async function logout(formData: FormData) {
   const jar = await cookies();
-  await revokeAdminSession(jar.get(ADMIN_COOKIE)?.value);
+  const token = jar.get(ADMIN_COOKIE)?.value;
+  // A sign-out without its signed field changes nothing.
+  if (!adminFormTokenValid(formData.get('csrf'), token, 'logout')) redirect('/admin/pending');
+  await revokeAdminSession(token);
   jar.delete(ADMIN_COOKIE);
   redirect('/admin/pending');
 }
 
 export async function approveDraft(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'approveDraft');
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending';
   const supabase   = createServerClient();
@@ -50,7 +69,7 @@ export async function approveDraft(formData: FormData) {
 }
 
 export async function rejectDraft(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'rejectDraft');
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending';
   const supabase   = createServerClient();
@@ -66,7 +85,7 @@ export async function rejectDraft(formData: FormData) {
 }
 
 export async function approveAll(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'approveAll');
   const format     = (formData.get('format') as string) || null;
   const domain     = (formData.get('domain') as string) || null;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending';
@@ -103,7 +122,7 @@ export async function approveAll(formData: FormData) {
 // ── Generate Article (on-demand, single draft) ────────────────────────────────
 
 export async function generateArticle(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'generateArticle');
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
   try {
@@ -207,7 +226,7 @@ async function sendLintAlert(draftTitle: string, gateMessage: string): Promise<v
 // ── publishDraft — single draft via Publish button ────────────────────────────
 
 export async function publishDraft(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'publishDraft');
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
   const supabase   = createServerClient();
