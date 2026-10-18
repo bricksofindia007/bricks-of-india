@@ -85,11 +85,12 @@
     "stop": 90
   },
   "gemini_plan": {
-    "status": "paid",
-    "tier": "Tier 1",
+    "status": "confirmed",
+    "source": "Chat, from AI Studio, 18 Oct 2026",
+    "tier": "Paid Tier 1, billing enabled",
     "google_side_monthly_cap_inr": 400,
     "spent_this_month_inr": 208.31,
     "as_of": "2026-10-18",
-    "note": "Paid Tier 1, with a Google-side cap of Rs 400 a month. Rs 208.31 spent so far this month. The Google cap is separate from the rupee stop in this config, which counts tokens at the stored rate."
+    "note": "The rupee stop (warn Rs 6, stop Rs 10 per day) is binding for Gemini. The token and call caps are backstops. The Google-side cap is separate and also applies."
   }
 }
