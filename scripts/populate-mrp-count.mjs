@@ -24,17 +24,23 @@ async function bricksetUsdBySet() {
   const usd = new Map();
   for (let year = START_YEAR; year <= END_YEAR; year++) {
     let page = 1;
+    let fetched = 0;
+    let total = null;
     while (true) {
       const params = encodeURIComponent(JSON.stringify({ year: String(year), pageSize: PAGE_SIZE, pageNumber: page }));
       const r = await fetch(`https://brickset.com/api/v3.asmx/getSets?apiKey=${KEY}&userHash=&params=${params}`);
       if (!r.ok) throw new Error(`Brickset HTTP ${r.status}`);
       const json = await r.json();
       if (json.status !== 'success') throw new Error('Brickset API error');
-      for (const set of json.sets || []) {
+      if (total === null) total = Number(json.matches) || 0;
+      const sets = json.sets || [];
+      for (const set of sets) {
         const price = set.LEGOCom?.US?.retailPrice;
         if (price && price > 0) usd.set(set.number, price);
       }
-      if ((json.sets?.length ?? 0) < PAGE_SIZE) break;
+      fetched += sets.length;
+      // Same stop rule as the job: the total Brickset reports, or an empty page.
+      if (sets.length === 0 || fetched >= total) break;
       page++;
       await sleep(1000);
     }
