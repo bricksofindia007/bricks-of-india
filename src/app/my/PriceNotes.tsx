@@ -1,5 +1,5 @@
 import { VOICE } from '@/lib/my-collection';
-import { WISHLIST_NO_PRICE_LINE, formatRs } from '@/lib/collection-worth';
+import { formatRs } from '@/lib/collection-worth';
 
 // Presentational pieces of the My Collection page. They take their state as props so the rendered text can be
 // tested on the server (the page itself only knows its price state after the browser runs).
@@ -22,9 +22,9 @@ export function TotalWorthValue({ loading, inr, estimates }: { loading: boolean;
 }
 
 /**
- * The worth line under a row. Once the price read has succeeded, a set with no verified Indian price (rule
- * "unknown") says so. While the read is pending or failed, the row shows the neutral line, never the no-price claim.
+ * The worth line under an owned row. It is the rule's own line: an estimate, the retired line, or "Worth not known yet"
+ * (rule 4). The no-price line is for wishlist rows only.
  */
-export function OwnedWorthLine({ priceReady, rule, line }: { priceReady: boolean; rule: string; line: string }) {
-  return <p className="mt-1">{priceReady && rule === 'unknown' ? WISHLIST_NO_PRICE_LINE : line}</p>;
+export function OwnedWorthLine({ line }: { line: string }) {
+  return <p className="mt-1">{line}</p>;
 }

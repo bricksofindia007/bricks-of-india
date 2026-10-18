@@ -161,6 +161,8 @@ export type WorthTotal = {
   storedEstimate: number;
   /** The sentence that says how the total is made up. */
   line: string;
+  /** The rate date and estimate note, next to the sentence. Empty when no estimate is counted. */
+  rateNote: string;
 };
 
 function plural(n: number, one: string, many: string) {
@@ -188,10 +190,12 @@ export function worthTotal(items: WorthItem[], rate: StoredRate | null, retiredO
   }
   const sets = items.length;
   const counted = indian + estimate;
-  let line = `Worth counts ${counted} of ${sets} ${plural(sets, 'set', 'sets')}: ${indian} at Indian ${plural(indian, 'price', 'prices')}, ${estimate} estimated from US ${plural(estimate, 'price', 'prices')}${estimate > 0 && rate ? ` (rate of ${rateDateLabel(rate.asOf)})` : ''}.`;
+  let line = `Worth counts ${counted} of ${sets} ${plural(sets, 'set', 'sets')}: ${indian} at Indian ${plural(indian, 'price', 'prices')}, ${estimate} estimated from US ${plural(estimate, 'price', 'prices')}.`;
   if (retired > 0) line += ` ${retired} ${plural(retired, 'is', 'are')} retired and not counted.`;
   if (storedEstimate > 0) line += ` ${storedEstimate} ${plural(storedEstimate, 'is', 'are')} worked out from the US price and not counted.`;
-  if (unknown > 0) line += ` ${unknown} ${plural(unknown, 'has', 'have')} no price yet and not counted.`;
+  if (unknown > 0) line += ` ${unknown} ${plural(unknown, 'is', 'are')} worth not known yet and not counted.`;
   if (capped) line += ` ${CAP_SENTENCE}`;
-  return { inr, sets, counted, indian, estimate, retired, unknown, storedEstimate, line };
+  // The rate date and the estimate note, shown on the line after the sentence. Only when estimates are counted.
+  const rateNote = estimate > 0 && rate ? `Rate of ${rateDateLabel(rate.asOf)}. ${ESTIMATE_NOTE}` : '';
+  return { inr, sets, counted, indian, estimate, retired, unknown, storedEstimate, line, rateNote };
 }

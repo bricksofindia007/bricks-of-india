@@ -186,7 +186,12 @@ export function MyCollection() {
           <dd className="font-bold text-dark text-lg">{total.retired}</dd>
         </div>
       </dl>
-      {owned.length > 0 && priceState !== 'loading' && <p className="text-xs text-gray-600 mb-4">{total.line}</p>}
+      {owned.length > 0 && priceState !== 'loading' && (
+        <div className="text-xs text-gray-600 mb-4">
+          <p>{total.line}</p>
+          {total.rateNote && <p className="mt-1">{total.rateNote}</p>}
+        </div>
+      )}
 
       {priceState === 'failed' && <PricesUnavailable />}
 
@@ -252,7 +257,7 @@ export function MyCollection() {
                       <p className="font-bold text-dark leading-tight line-clamp-2">{o.name}</p>
                       {o.pieces != null && <p className="text-xs text-gray-500">{formatRs(o.pieces)} pieces</p>}
                       {priceState === 'loading' && <p className="mt-1 h-3 w-24 bg-surface rounded animate-pulse" />}
-                      {priceState !== 'loading' && <OwnedWorthLine priceReady={priceState === 'ok'} rule={w.rule} line={w.line} />}
+                      {priceState !== 'loading' && <OwnedWorthLine line={w.line} />}
                       {w.note && <p className="mt-1 text-xs text-gray-500">{w.note}</p>}
                       <div className="mt-2 flex items-center gap-2 text-xs">
                         <button type="button" aria-label={`One fewer ${o.name}`} onClick={() => changeQty(o.set, o.qty - 1)} className="w-7 h-7 rounded border border-border">−</button>
