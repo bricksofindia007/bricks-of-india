@@ -1,3 +1,4 @@
+-- boi:issue 625
 -- Admin sign-in sessions (B6a). A session is a random token given to the browser; only its SHA-256 hash is stored.
 -- The browser never holds the password, and the stored hash cannot be used as a session token.
 -- Row security is on with no policies. Anonymous and signed-in users get no access at all. Only the server-side

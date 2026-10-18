@@ -1,3 +1,4 @@
+-- boi:issue 625
 -- Last observed Indian price and its date, per set, for a batch of sets (at most 150). Used by My Collection's
 -- retired-set line: "Last seen in India at ₹X (month, year)". Built as a SECURITY DEFINER function so that the
 -- price history table itself is never readable by a browser role; only this function is.
