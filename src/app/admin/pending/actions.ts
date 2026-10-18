@@ -2,7 +2,7 @@
 
 import { requireAdmin } from '@/app/admin/require-admin';
 import { cookies } from 'next/headers';
-import { ADMIN_COOKIE, ADMIN_SESSION_SECONDS, adminPasswordMatches, createAdminSession, isValidAdminSession } from '@/lib/admin-session';
+import { ADMIN_COOKIE, ADMIN_SESSION_SECONDS, adminPasswordMatches, createAdminSession, isValidAdminSession, revokeAdminSession, revokeAllAdminSessions } from '@/lib/admin-session';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { createServerClient } from '@/lib/supabase';
@@ -13,8 +13,9 @@ export async function login(formData: FormData) {
   const pw = (formData.get('password') as string) ?? '';
   if (!process.env.ADMIN_PASSWORD) throw new Error('ADMIN_PASSWORD env var not set');
   if (adminPasswordMatches(pw)) {
-    // The cookie carries a signed, expiring token, never the password itself.
-    (await cookies()).set(ADMIN_COOKIE, createAdminSession(), {
+    // The cookie carries a random session token; the server stores only its hash. Never the password.
+    const token = await createAdminSession();
+    (await cookies()).set(ADMIN_COOKIE, token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       maxAge: ADMIN_SESSION_SECONDS,
@@ -26,6 +27,24 @@ export async function login(formData: FormData) {
 }
 
 export async function logout() {
+  const jar = await cookies();
+  await revokeAdminSession(jar.get(ADMIN_COOKIE)?.value);
+  jar.delete(ADMIN_COOKIE);
+  redirect('/admin/pending');
+}
+
+export type LogoutEverywhereState = { error: string } | null;
+
+// Ends every admin session, this browser's included. The caller must be signed in first (a caller who is not
+// signed in gets the usual Unauthorized error). If the sessions could not be ended, the result says so: it is
+// never a success, and this browser stays signed in so the page can show the error.
+export async function logoutEverywhere(_previous: LogoutEverywhereState): Promise<LogoutEverywhereState> {
+  await requireAdmin();
+  try {
+    await revokeAllAdminSessions();
+  } catch {
+    return { error: 'Sessions could not be ended. Nothing has changed. Try again.' };
+  }
   (await cookies()).delete(ADMIN_COOKIE);
   redirect('/admin/pending');
 }
@@ -139,7 +158,7 @@ export async function generateArticle(formData: FormData) {
 // ── Trigger batch generation via GitHub Actions ───────────────────────────────
 
 export async function triggerBatchGeneration(): Promise<{ ok: boolean; error?: string }> {
-  if (!isValidAdminSession((await cookies()).get(ADMIN_COOKIE)?.value)) return { ok: false, error: 'Unauthorized' };
+  if (!(await isValidAdminSession((await cookies()).get(ADMIN_COOKIE)?.value))) return { ok: false, error: 'Unauthorized' };
   const token = process.env.GH_DISPATCH_TOKEN;
   if (!token) return { ok: false, error: 'GH_DISPATCH_TOKEN not set — add to Netlify environment variables' };
   try {

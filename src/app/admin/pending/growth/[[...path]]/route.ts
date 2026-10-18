@@ -36,14 +36,14 @@ import { BRAND } from '@/lib/brand';
 
 export const dynamic = 'force-dynamic';
 
-function isAuthed(): boolean {
+async function isAuthed(): Promise<boolean> {
   return isValidAdminSession((cookies() as unknown as UnsafeUnwrappedCookies).get(ADMIN_COOKIE)?.value);
 }
 
 async function proxy(request: NextRequest): Promise<Response> {
   const isWebhook = new URL(request.url).pathname.endsWith('/api/resend-webhook');
 
-  if (!isWebhook && !isAuthed()) {
+  if (!isWebhook && !(await isAuthed())) {
     // Second real bug found the same day: new URL('/admin/pending',
     // request.url) produced a redirect Location pointing at a raw
     // Netlify deploy-preview origin, not bricksofindia.com — request.url
