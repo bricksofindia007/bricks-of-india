@@ -1,6 +1,6 @@
--- Price read functions for the public key, and removal of the anonymous direct read on the two
--- price tables. Read-only. Each function runs with its owner's rights, so the anonymous role can
--- call it without a direct grant on the table. Rollback: supabase/rollbacks/20261017200000_price_read_functions.down.sql
+-- Price read functions for the public key. Creates the functions and their execute grants only; revokes nothing.
+-- Each function runs with its owner's rights, so the anonymous role can call it without a direct grant on the table.
+-- Rollback: supabase/rollbacks/20261017200000_price_read_functions.down.sql. The anonymous direct-read revoke is in 20261017270000 (separate, applied after the deploy).
 --
 -- Sizes are capped at what the migrated pages need (reviews detail: one set, its stores, its
 -- 14-day stock events, its summary). Store visibility: a store is returned only while its registry
@@ -78,7 +78,3 @@ grant execute on function public.get_price_summary_for_set(text) to anon, authen
 -- The array summary is server-only (owner decision, 17 Oct): anon and signed-in roles may not call it.
 revoke execute on function public.get_price_summaries(text[]) from anon, authenticated;
 grant execute on function public.get_price_summaries(text[]) to service_role;
-
--- The anonymous direct read goes. service_role keeps its access (server pages).
-revoke select on public.store_prices from anon, authenticated;
-revoke select on public.price_history from anon, authenticated;
