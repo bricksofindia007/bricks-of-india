@@ -153,3 +153,33 @@ export function writeList(key: string, value: unknown): boolean {
 
 export const loadWishlist = () => cleanWishlist(readList(WISHLIST_KEY));
 export const loadCollection = () => cleanCollection(readList(COLLECTION_KEY));
+
+/**
+ * Reads the stored list at the moment of writing, applies one change, and writes it back. Nothing runs between the
+ * read and the write, so a change another tab made a moment earlier is kept, not overwritten. Returns ok=false (and
+ * no result) when the write is refused; a change that needs no write returns ok=true.
+ */
+export function updateList<T, R>(
+  key: string,
+  clean: (raw: unknown) => T[],
+  change: (list: T[]) => { list: T[]; result: R; changed: boolean },
+): { ok: boolean; result: R | null } {
+  // A read that fails (storage blocked) refuses the write: an unreadable list is never overwritten as if empty.
+  let stored: string | null;
+  try {
+    stored = window.localStorage.getItem(key);
+  } catch {
+    return { ok: false, result: null };
+  }
+  let parsed: unknown = [];
+  try {
+    parsed = stored ? JSON.parse(stored) : [];
+  } catch {
+    parsed = []; // corrupt data cannot be shown; it is replaced by the next valid write
+  }
+  const list = clean(parsed);
+  const { list: next, result, changed } = change(list);
+  if (!changed) return { ok: true, result };
+  const ok = writeList(key, next);
+  return { ok, result: ok ? result : null };
+}
