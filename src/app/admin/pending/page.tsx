@@ -19,7 +19,7 @@ export const metadata: Metadata = buildMetadata({
 
 // ── Auth ──────────────────────────────────────────────────────────────────────
 
-function isAuthed(): boolean {
+async function isAuthed(): Promise<boolean> {
   return isValidAdminSession((cookies() as unknown as UnsafeUnwrappedCookies).get(ADMIN_COOKIE)?.value);
 }
 
@@ -246,7 +246,7 @@ interface Props {
 
 export default async function AdminPendingPage(props: Props) {
   const searchParams = await props.searchParams;
-  if (!isAuthed()) return <LoginPage />;
+  if (!(await isAuthed())) return <LoginPage />;
 
   const genError    = searchParams.genError ? decodeURIComponent(searchParams.genError) : null;
   const statusFilter = searchParams.status || 'draft';
