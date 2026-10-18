@@ -50,6 +50,8 @@ export async function GET(request: NextRequest) {
   let storeNames: Record<string, string> = {};
   const usd = new Map<string, number>();
   const stored = new Map<string, number>();
+  // Retired flag from the sets table. Unknown (null) when that read fails: the page then never treats a set as retired.
+  const retired = new Map<string, boolean>();
   if (ids.length) {
     const { data, error } = await sb.from('set_price_summary').select('set_id, best_price_inr, best_store_ids').in('set_id', ids);
     if (error) {
@@ -64,9 +66,10 @@ export async function GET(request: NextRequest) {
     // The stored rupee estimate is a fallback for the page only; it is never a price and is never summed.
     // The stored rupee figure is an estimate worked out from the US price. It is used only for rows that are not
     // verified, and is returned under an estimate field, never as a price.
-    const us = await sb.from('sets').select('set_number, us_price_usd, lego_mrp_inr, mrp_verified').in('set_number', ids);
+    const us = await sb.from('sets').select('set_number, us_price_usd, lego_mrp_inr, mrp_verified, retired').in('set_number', ids);
     if (us.error) console.error('[my-collection] US price read unavailable:', us.error.message);
     else for (const r of us.data ?? []) {
+      retired.set(r.set_number, r.retired === true);
       if (r.us_price_usd != null) usd.set(r.set_number, Number(r.us_price_usd));
       if (r.lego_mrp_inr != null && r.mrp_verified === false) stored.set(r.set_number, Number(r.lego_mrp_inr));
     }
@@ -80,6 +83,7 @@ export async function GET(request: NextRequest) {
     ...(prices.get(set) ?? { best_price_inr: null, best_store_ids: null }),
     us_price_usd: usd.get(set) ?? null,
     stored_estimate_inr: stored.get(set) ?? null,
+    retired: retired.get(set) ?? null,
   }));
 
   return NextResponse.json({ sets, store_names: storeNames }, { headers: { 'Cache-Control': 'private, max-age=300', Vary: 'Sec-Fetch-Site, Referer' } });

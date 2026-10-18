@@ -157,6 +157,6 @@ describe('page-level: stored estimate only as a fallback, excluded from the tota
   it('the page source uses the same input builder for the rows and the total', () => {
     const src = readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
     expect(src).toContain('worthInputFor(o, prices.get(o.set), priceState === \'ok\')');
-    expect(src).toContain('worthTotal(worthItems, rate, (s) => unknownRetired.isRetired(s), capped)');
+    expect(src).toContain('worthTotal(worthItems, rate, isRetired, capped)');
   });
 });
