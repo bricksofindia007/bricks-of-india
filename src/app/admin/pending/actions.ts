@@ -1,6 +1,6 @@
 'use server';
 
-import { requireAdmin } from '@/app/admin/require-admin';
+import { requireAdmin, requireAdminForm } from '@/app/admin/require-admin';
 import { cookies } from 'next/headers';
 import { ADMIN_COOKIE, ADMIN_SESSION_SECONDS, adminPasswordMatches, createAdminSession, isValidAdminSession, revokeAdminSession, revokeAllAdminSessions } from '@/lib/admin-session';
 import { redirect } from 'next/navigation';
@@ -50,7 +50,7 @@ export async function logoutEverywhere(_previous: LogoutEverywhereState): Promis
 }
 
 export async function approveDraft(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'approveDraft');
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending';
   const supabase   = createServerClient();
@@ -66,7 +66,7 @@ export async function approveDraft(formData: FormData) {
 }
 
 export async function rejectDraft(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'rejectDraft');
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending';
   const supabase   = createServerClient();
@@ -82,7 +82,7 @@ export async function rejectDraft(formData: FormData) {
 }
 
 export async function approveAll(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'approveAll');
   const format     = (formData.get('format') as string) || null;
   const domain     = (formData.get('domain') as string) || null;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending';
@@ -119,7 +119,7 @@ export async function approveAll(formData: FormData) {
 // ── Generate Article (on-demand, single draft) ────────────────────────────────
 
 export async function generateArticle(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'generateArticle');
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
   try {
@@ -223,7 +223,7 @@ async function sendLintAlert(draftTitle: string, gateMessage: string): Promise<v
 // ── publishDraft — single draft via Publish button ────────────────────────────
 
 export async function publishDraft(formData: FormData) {
-  await requireAdmin();
+  await requireAdminForm(formData, 'publishDraft');
   const id         = formData.get('id') as string;
   const redirectTo = (formData.get('redirectTo') as string) || '/admin/pending?status=approved';
   const supabase   = createServerClient();
