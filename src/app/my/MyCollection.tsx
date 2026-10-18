@@ -8,16 +8,15 @@ import { SetImage } from '@/components/sets/SetImage';
 import { slugify } from '@/lib/utils';
 import {
   CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, cleanCollection, cleanWishlist, loadCollection, loadWishlist, pageOf,
-  priceIds, removeWish, setOwnedQty, updateList, type OwnedItem, type WishItem,
+  PRICE_READ_CAP, priceIds, removeWish, setOwnedQty, updateList, type OwnedItem, type WishItem,
 } from '@/lib/my-collection';
 import {
-  worthOf, worthTotal, usableRate, formatRs, worthInputFor, WISHLIST_NO_PRICE_LINE, type RateSource, type RetiredSource, type WorthItem,
+  worthOf, worthTotal, usableRate, formatRs, worthInputFor, WISHLIST_NO_PRICE_LINE, type LastSeen, type RateSource, type WorthItem,
 } from '@/lib/collection-worth';
 
-// No exchange rate or retired status is wired yet. Until they are, estimates are hidden and no set is
-// treated as retired. Replace these two with the real sources when they exist.
+// No exchange rate is wired yet, so estimates are hidden. Retired status comes from the price read (sets.retired);
+// it is unknown, and so never treated as retired, until that read succeeds.
 const noRate: RateSource = { getRate: () => null };
-const unknownRetired: RetiredSource = { isRetired: () => null };
 
 type Price = {
   set_number: string;
@@ -25,7 +24,9 @@ type Price = {
   best_store_ids: string[] | null;
   us_price_usd: number | null;
   stored_estimate_inr: number | null;
+  retired: boolean | null;
 };
+type LastSeenRow = { set_number: string; price_inr: number; observed_at: string };
 type Tab = 'wish' | 'owned';
 type PriceState = 'loading' | 'ok' | 'failed';
 
@@ -99,12 +100,35 @@ export function MyCollection() {
     return () => { live = false; };
   }, [ready, ids]);
 
+  // Retired status is known only after the price read succeeds. Unknown counts as not retired, so no retired line is guessed.
+  const isRetired = (set: string): boolean | null => (priceState === 'ok' ? prices.get(set)?.retired ?? null : null);
+
+  // Last seen Indian price, for retired owned sets only: one call, capped at the read limit. A failure keeps the approved
+  // retired line ("no price shown"), never a guess.
+  const [lastSeen, setLastSeen] = useState<Map<string, LastSeen>>(new Map());
+  const retiredIds = useMemo(
+    () => owned.filter((o) => priceState === 'ok' && prices.get(o.set)?.retired === true).map((o) => o.set).sort().slice(0, PRICE_READ_CAP).join(','),
+    [owned, prices, priceState],
+  );
+  useEffect(() => {
+    if (!retiredIds) { setLastSeen(new Map()); return; }
+    let live = true;
+    fetch(`/api/last-seen-prices?ids=${encodeURIComponent(retiredIds)}`)
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then((j: { prices: LastSeenRow[] }) => {
+        if (!live) return;
+        setLastSeen(new Map(j.prices.map((p) => [p.set_number, { priceInr: p.price_inr, observedAt: p.observed_at }])));
+      })
+      .catch(() => { if (live) setLastSeen(new Map()); });
+    return () => { live = false; };
+  }, [retiredIds]);
+
   const rate = usableRate(noRate.getRate(), new Date());
   const worthItems: WorthItem[] = owned.map((o) => worthInputFor(o, prices.get(o.set), priceState === 'ok'));
   // The price read covers the newest sets only; a collection set it leaves out is capped out of the total.
   const pricedIds = new Set(priceIds(wish, owned));
   const capped = owned.some((o) => !pricedIds.has(o.set));
-  const total = worthTotal(worthItems, rate, (s) => unknownRetired.isRetired(s), capped);
+  const total = worthTotal(worthItems, rate, isRetired, capped);
   const pieces = owned.reduce((n, o) => n + (o.pieces ?? 0) * o.qty, 0);
   const piecesMissing = owned.some((o) => o.pieces == null);
 
@@ -214,7 +238,7 @@ export function MyCollection() {
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {ownedPaged.rows.map((o) => {
                 const p = prices.get(o.set);
-                const w = worthOf(worthInputFor(o, p, priceState === 'ok'), rate, unknownRetired.isRetired(o.set));
+                const w = worthOf(worthInputFor(o, p, priceState === 'ok'), rate, isRetired(o.set), lastSeen.get(o.set) ?? null);
                 return (
                   <li key={o.set} className="border border-border rounded-xl p-3 flex gap-3">
                     <Link href={`/sets/${o.set}-${slugify(o.name)}`} className="w-20 h-20 shrink-0 relative bg-surface rounded">
