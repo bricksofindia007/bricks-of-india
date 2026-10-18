@@ -1,0 +1,5 @@
+{
+  "_source": "The stores table is the source of truth. This file must match the seed rows (display name per slug); a test checks it against supabase/migrations/20260927152208_fp51_stores_registry.sql.",
+  "mybrickhouse": "LEGO.in",
+  "toycra": "Toycra"
+}

@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { storeDisplayName } from './store-display-names';
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -17,7 +18,7 @@ export function formatPrice(price: number): string {
 // the <meta name="description"> tag (generateMetadata) and the Product
 // JSON-LD (buildProductSchema) so they can't drift apart.
 export function setMetaDescription(setName: string): string {
-  return `Find the best price for ${setName} in India. Compare prices across Toycra and LEGO.in.`;
+  return `Find the best price for ${setName} in India. Compare prices across ${storeDisplayName('toycra')} and ${storeDisplayName('mybrickhouse')}.`;
 }
 
 export function slugify(text: string): string {
