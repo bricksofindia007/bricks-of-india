@@ -3,20 +3,21 @@
 import { FiguresList } from './FiguresList';
 import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { trackEvent } from '@/lib/analytics';
 import { SetImage } from '@/components/sets/SetImage';
 import { slugify } from '@/lib/utils';
 import {
   CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, cleanCollection, cleanWishlist, loadCollection, loadWishlist, pageOf,
-  PRICE_READ_CAP, priceIds, removeWish, setOwnedQty, updateList, type OwnedItem, type WishItem,
+  PRICE_READ_CAP, priceIds, removeWish, setOwnedQty, trackCollectionEvent, updateList, type OwnedItem, type WishItem,
 } from '@/lib/my-collection';
 import {
-  worthOf, worthTotal, usableRate, formatRs, worthInputFor, WISHLIST_NO_PRICE_LINE, type LastSeen, type RateSource, type WorthItem,
+  worthOf, worthTotal, usableRate, formatRs, worthInputFor, WISHLIST_NO_PRICE_LINE, type LastSeen, type StoredRate, type WorthItem,
 } from '@/lib/collection-worth';
+import { rateSourceOf } from '@/lib/usd-rate-reader';
+import { OwnedWorthLine, PricesUnavailable } from './PriceNotes';
 
-// No exchange rate is wired yet, so estimates are hidden. Retired status comes from the price read (sets.retired);
-// it is unknown, and so never treated as retired, until that read succeeds.
-const noRate: RateSource = { getRate: () => null };
+// The stored exchange rate arrives with the price read, server side. Missing, stale (over 5 days) or out-of-band rates
+// mean no estimate is shown. Retired status comes from the price read (sets.retired); it is unknown, and so never
+// treated as retired, until that read succeeds.
 
 type Price = {
   set_number: string;
@@ -69,13 +70,14 @@ export function MyCollection() {
   const [kind, setKind] = useState<'sets' | 'figures'>('sets');
   const [prices, setPrices] = useState<Map<string, Price>>(new Map());
   const [storeNames, setStoreNames] = useState<Record<string, string>>({});
+  const [storedRate, setStoredRate] = useState<StoredRate | null>(null);
 
   // Load the lists from this browser and follow changes made elsewhere on the page or in another tab.
   useEffect(() => {
     const load = () => { setWish(loadWishlist()); setOwned(loadCollection()); };
     load();
     setReady(true);
-    trackEvent('my_sets_view', { page_type: 'sets_list' });
+    trackCollectionEvent('my_sets_view', { page_type: 'sets_list' });
     window.addEventListener(CHANGED_EVENT, load);
     window.addEventListener('storage', load);
     return () => { window.removeEventListener(CHANGED_EVENT, load); window.removeEventListener('storage', load); };
@@ -85,18 +87,19 @@ export function MyCollection() {
   const ids = useMemo(() => priceIds(wish, owned).join(','), [wish, owned]);
   useEffect(() => {
     if (!ready) return;
-    if (!ids) { setPriceState('ok'); setPrices(new Map()); return; }
+    if (!ids) { setPriceState('ok'); setPrices(new Map()); setStoredRate(null); return; }
     let live = true;
     setPriceState('loading');
     fetch(`/api/saved-sets?ids=${encodeURIComponent(ids)}`)
       .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
-      .then((j: { sets: Price[]; store_names: Record<string, string> }) => {
+      .then((j: { sets: Price[]; store_names: Record<string, string>; usd_inr?: StoredRate | null }) => {
         if (!live) return;
         setPrices(new Map(j.sets.map((s) => [s.set_number, s])));
         setStoreNames(j.store_names ?? {});
+        setStoredRate(j.usd_inr ?? null);
         setPriceState('ok');
       })
-      .catch(() => { if (live) setPriceState('failed'); });
+      .catch(() => { if (live) { setStoredRate(null); setPriceState('failed'); } });
     return () => { live = false; };
   }, [ready, ids]);
 
@@ -123,7 +126,7 @@ export function MyCollection() {
     return () => { live = false; };
   }, [retiredIds]);
 
-  const rate = usableRate(noRate.getRate(), new Date());
+  const rate = usableRate(rateSourceOf(storedRate).getRate(), new Date());
   const worthItems: WorthItem[] = owned.map((o) => worthInputFor(o, prices.get(o.set), priceState === 'ok'));
   // The price read covers the newest sets only; a collection set it leaves out is capped out of the total.
   const pricedIds = new Set(priceIds(wish, owned));
@@ -139,7 +142,7 @@ export function MyCollection() {
     const out = updateList(WISHLIST_KEY, cleanWishlist, (list) => ({
       list: removeWish(list, set), result: null, changed: list.some((w) => w.set === set),
     }));
-    if (out.ok) trackEvent('heart_remove', { page_type: 'sets_list', set_number: set });
+    if (out.ok) trackCollectionEvent('heart_remove', { page_type: 'sets_list', set_number: set });
   };
   const changeQty = (set: string, q: number) =>
     updateList(COLLECTION_KEY, cleanCollection, (list) => ({ list: setOwnedQty(list, set, q), result: null, changed: true })).ok;
@@ -185,7 +188,7 @@ export function MyCollection() {
       </dl>
       {owned.length > 0 && priceState !== 'loading' && <p className="text-xs text-gray-600 mb-4">{total.line}</p>}
 
-      {priceState === 'failed' && <p role="alert" className="text-sm text-gray-600 mb-4">{VOICE.pricesUnavailable}</p>}
+      {priceState === 'failed' && <PricesUnavailable />}
 
       <div role="tablist" className="flex gap-2 mb-6">
         <button role="tab" aria-selected={tab === 'wish'} onClick={() => setTab('wish')} className={`px-4 py-2 rounded-lg font-semibold ${tab === 'wish' ? 'bg-primary text-white' : 'border border-border'}`}>Wishlist ({wish.length})</button>
@@ -249,7 +252,7 @@ export function MyCollection() {
                       <p className="font-bold text-dark leading-tight line-clamp-2">{o.name}</p>
                       {o.pieces != null && <p className="text-xs text-gray-500">{formatRs(o.pieces)} pieces</p>}
                       {priceState === 'loading' && <p className="mt-1 h-3 w-24 bg-surface rounded animate-pulse" />}
-                      {priceState !== 'loading' && <p className="mt-1">{w.line}</p>}
+                      {priceState !== 'loading' && <OwnedWorthLine priceReady={priceState === 'ok'} rule={w.rule} line={w.line} />}
                       {w.note && <p className="mt-1 text-xs text-gray-500">{w.note}</p>}
                       <div className="mt-2 flex items-center gap-2 text-xs">
                         <button type="button" aria-label={`One fewer ${o.name}`} onClick={() => changeQty(o.set, o.qty - 1)} className="w-7 h-7 rounded border border-border">−</button>

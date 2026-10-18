@@ -1,4 +1,4 @@
--- boi:issue 625
+-- boi:issue 663
 -- Failed sign-in attempts, counted per client (a salted hash of the IP) and per account. After 10 failures in
 -- 10 minutes, a key is blocked for 10 minutes. Keys are hashes: no IP address is stored.
 -- Row security is on with no policies; only the server role can read or write. Complements the edge rate rule.
