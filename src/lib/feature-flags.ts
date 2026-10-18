@@ -96,4 +96,9 @@ export const FEATURE_FLAGS = {
   // "USD x 1.35" estimate that turned spend thresholds into invented import prices.
   // ON 29 Sep 2026 (P11 item 2, Abhinav, Tier 2): this is the cause of invented import prices.
   gwpNoPriceContext: true,
+
+  // My Collection (Bundle 2): hearts on set cards and set pages, and the My Collection page.
+  // Both off until launch. Mirrored in config/feature_flags.py; keep in sync.
+  myCollectionHearts: false,
+  myCollectionPage: false,
 } as const;
