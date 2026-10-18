@@ -1,3 +1,4 @@
+import { storeDisplayName } from './store-display-names';
 // Reviews source pipeline — retailer-conditional verdict disclaimer.
 //
 // Single source of truth for resolving which disclaimer variant belongs to
@@ -10,9 +11,9 @@ export type ReviewVerdict = 'BUY NOW' | 'WAIT' | 'AVOID';
 export type SourceRetailer = 'mybrickhouse' | 'toycra' | 'both';
 
 export const STORE_DISPLAY_NAME: Record<SourceRetailer, string> = {
-  mybrickhouse: 'LEGO.in',
-  toycra:       'Toycra',
-  both:         'LEGO.in and Toycra',
+  mybrickhouse: storeDisplayName('mybrickhouse'),
+  toycra:       storeDisplayName('toycra'),
+  both:         `${storeDisplayName('mybrickhouse')} and ${storeDisplayName('toycra')}`,
 };
 
 export type DisclaimerVariant = 'buy' | 'wait_mybrickhouse' | 'wait_toycra' | 'wait_unlisted' | 'avoid';
