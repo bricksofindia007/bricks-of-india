@@ -95,6 +95,23 @@ export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boole
   return { rule: 'unknown', inr: null, line: WORTH_UNKNOWN_LINE, note: null };
 }
 
+/**
+ * The worth input for one collection set: the verified Indian price (when prices loaded) and the US price.
+ * The stored rate and the retired status are not part of this input; the caller passes them to worthOf.
+ */
+export function worthInputFor(
+  owned: { set: string; qty: number },
+  price: { best_price_inr: number | null; us_price_usd: number | null } | undefined,
+  pricesLoaded: boolean,
+): WorthItem {
+  return {
+    set: owned.set,
+    indianPriceInr: pricesLoaded ? (price?.best_price_inr ?? null) : null,
+    usPriceUsd: pricesLoaded ? (price?.us_price_usd ?? null) : null,
+    qty: owned.qty,
+  };
+}
+
 export type WorthTotal = {
   /** Sum of rules 1 and 2, times copies owned. */
   inr: number;
