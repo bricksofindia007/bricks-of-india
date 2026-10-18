@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { trackEvent } from '@/lib/analytics';
 import {
   CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, addOwned, addWish, cleanCollection, cleanWishlist, loadCollection,
-  loadWishlist, removeWish, setOwnedQty, updateList, type SetRef,
+  loadWishlist, removeWish, setOwnedQty, trackCollectionEvent, updateList, type SetRef,
 } from '@/lib/my-collection';
 
 // Re-read when any button on the page, or another tab, changes the lists.
@@ -49,10 +48,10 @@ export function HeartButton({ size = 'sm', ...ref }: SetRef & { size?: 'sm' | 'l
     if (!out.ok || out.result === null) return; // storage refused: say nothing, so the page never claims a save
     if (out.result === 'limit') return setNote(VOICE.limitReached);
     if (out.result === 'removed') {
-      trackEvent('heart_remove', { page_type: 'sets_list', set_number: set });
+      trackCollectionEvent('heart_remove', { page_type: 'sets_list', set_number: set });
       setNote(VOICE.heartRemoved);
     } else if (out.result === 'added') {
-      trackEvent('heart_add', { page_type: 'sets_list', set_number: set });
+      trackCollectionEvent('heart_add', { page_type: 'sets_list', set_number: set });
       setNote(VOICE.heartAdded);
     }
   };
@@ -99,7 +98,7 @@ export function AddToCollectionButton(ref: SetRef) {
     if (!out.ok || out.result === null) return;
     if (out.result === 'limit') return setNote(VOICE.limitReached);
     if (out.result === 'added') {
-      trackEvent('owned_add', { page_type: 'set', set_number: set });
+      trackCollectionEvent('owned_add', { page_type: 'set', set_number: set });
       setNote(VOICE.ownedAdded);
     }
   };
