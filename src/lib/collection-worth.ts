@@ -78,7 +78,23 @@ export function usableRate(stored: StoredRate | null, now: Date): StoredRate | n
  *  4. Anything else: not known yet; counted but not valued.
  * A set whose retired status is unknown never gets rule 3.
  */
-export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boolean | null): WorthResult {
+/** Our own observed Indian price for a set: the most recent one, with its time. Null when we have none. */
+export type LastSeen = { priceInr: number; observedAt: string } | null;
+
+const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+
+/**
+ * The line for a retired set. With our own observed Indian price, a factual line: "Last seen in India at ₹X (month, year)".
+ * Without one, only the approved line: no rupee figure, and no claim that it was launched.
+ */
+export function retiredLine(lastSeen: LastSeen): string {
+  if (!lastSeen) return RETIRED_LINE;
+  const d = new Date(lastSeen.observedAt);
+  if (!Number.isFinite(d.getTime()) || !Number.isFinite(lastSeen.priceInr) || lastSeen.priceInr <= 0) return RETIRED_LINE;
+  return `Last seen in India at ₹${formatRs(lastSeen.priceInr)} (${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()})`;
+}
+
+export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boolean | null, lastSeen: LastSeen = null): WorthResult {
   if (item.indianPriceInr != null) {
     return { rule: 'indian', inr: item.indianPriceInr, line: `₹${formatRs(item.indianPriceInr)}`, note: null };
   }
@@ -91,7 +107,7 @@ export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boole
       note: ESTIMATE_NOTE,
     };
   }
-  if (retired === true) return { rule: 'retired', inr: null, line: RETIRED_LINE, note: null };
+  if (retired === true) return { rule: 'retired', inr: null, line: retiredLine(lastSeen), note: null };
   return { rule: 'unknown', inr: null, line: WORTH_UNKNOWN_LINE, note: null };
 }
 
