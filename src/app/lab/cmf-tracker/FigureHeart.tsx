@@ -41,7 +41,6 @@ export function FigureHeart({ figureId, name }: { figureId: string; name: string
       <button
         type="button"
         onClick={onClick}
-        aria-pressed={saved}
         aria-label={saved ? `Remove ${name} from your saved figures` : `Save ${name} to your saved figures`}
         style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.92)', color: saved ? '#DC2626' : '#9AA5B4', cursor: 'pointer', lineHeight: 1 }}
       >
