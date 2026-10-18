@@ -156,7 +156,7 @@ describe('total line', () => {
     expect(t.indian).toBe(9);
     expect(t.estimate).toBe(5);
     expect(t.retired).toBe(3);
-    expect(t.line).toBe('Worth counts 14 of 17 sets: 9 at Indian prices, 5 estimated from US prices (rate of 18 Oct 2026). 3 are retired and not counted.');
+    expect(t.line).toBe('Worth counts 14 of 17 sets: 9 at Indian prices, 5 estimated from US prices. 3 are retired and not counted.');
     expect(t.inr).toBe(9000 + 5 * 880);
   });
   it('multiplies by copies owned for the money total', () => {
@@ -165,7 +165,7 @@ describe('total line', () => {
   });
   it('adds the unknown sentence only when there are unknown sets', () => {
     const t = worthTotal([item({ set: 'a', indianPriceInr: 1000 }), item({ set: 'b' })], RATE, () => false);
-    expect(t.line).toBe('Worth counts 1 of 2 sets: 1 at Indian price, 0 estimated from US prices. 1 has no price yet and not counted.');
+    expect(t.line).toBe('Worth counts 1 of 2 sets: 1 at Indian price, 0 estimated from US prices. 1 is worth not known yet and not counted.');
   });
   it('an empty collection gives an empty count line', () => {
     expect(worthTotal([], RATE, () => false).line).toBe('Worth counts 0 of 0 sets: 0 at Indian prices, 0 estimated from US prices.');

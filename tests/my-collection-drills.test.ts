@@ -95,11 +95,13 @@ describe('flags off: the page and the routes are absent', () => {
 });
 
 describe('no verified Indian price', () => {
-  it('the copy is "No Indian price yet", and the page shows it for an unpriced owned set', () => {
+  it('"No Indian price yet" is the wishlist copy only; an owned row with no price shows "Worth not known yet" (rule 4)', () => {
     expect(WISHLIST_NO_PRICE_LINE).toBe('No Indian price yet');
     const src = readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
-    expect(src).toContain("<OwnedWorthLine priceReady={priceState === 'ok'} rule={w.rule} line={w.line} />");
-    expect(readFileSync(join(root, 'src/app/my/PriceNotes.tsx'), 'utf8')).toContain("priceReady && rule === 'unknown' ? WISHLIST_NO_PRICE_LINE : line");
+    // Owned rows pass the rule's own line through; the wishlist row is the only place the no-price copy is written.
+    expect(src).toContain('<OwnedWorthLine line={w.line} />');
+    expect(src).toMatch(/<p className="mt-1 text-gray-500">\{WISHLIST_NO_PRICE_LINE\}<\/p>/);
+    expect(readFileSync(join(root, 'src/app/my/PriceNotes.tsx'), 'utf8')).not.toContain('WISHLIST_NO_PRICE_LINE');
   });
   it('the set is left out of the worth total', () => {
     const unpriced = worthInputFor({ set: '10307', qty: 2 }, undefined, true);

@@ -13,14 +13,14 @@ describe('a row estimate, as rendered', () => {
   it('says it is an estimate from the US list price, and gives the rate date', () => {
     const rate = usableRate({ rate: 88, asOf: '2026-10-16' }, NOW);
     const w = worthOf(usOnly('10307'), rate, false);
-    const out = text(renderToStaticMarkup(<OwnedWorthLine priceReady={true} rule={w.rule} line={w.line} />));
+    const out = text(renderToStaticMarkup(<OwnedWorthLine line={w.line} />));
     expect(out).toMatch(/^About ₹\d/);
     expect(out).toMatch(/estimated from the US list price \(rate of 16 Oct 2026\)$/);
   });
   it('a stale rate shows no estimate at all, so there is no date to print', () => {
     const rate = usableRate({ rate: 88, asOf: '2026-10-01' }, NOW);
     const w = worthOf(usOnly('10307'), rate, false);
-    const out = text(renderToStaticMarkup(<OwnedWorthLine priceReady={true} rule={w.rule} line={w.line} />));
+    const out = text(renderToStaticMarkup(<OwnedWorthLine line={w.line} />));
     expect(out).not.toMatch(/About ₹/);
     expect(out).not.toMatch(/rate of/);
   });
@@ -30,7 +30,8 @@ describe('the total, as rendered', () => {
   it('the sentence names the rate date when estimates are counted', () => {
     const rate = usableRate({ rate: 88, asOf: '2026-10-16' }, NOW);
     const t = worthTotal([usOnly('a'), usOnly('b')], rate, () => false);
-    expect(t.line).toMatch(/2 estimated from US prices \(rate of 16 Oct 2026\)\./);
+    expect(t.line).toBe('Worth counts 2 of 2 sets: 0 at Indian prices, 2 estimated from US prices.');
+    expect(t.rateNote).toMatch(/^Rate of 16 Oct 2026\. Estimates convert the US price/);
   });
   it('the sentence has no rate date when nothing is estimated', () => {
     const t = worthTotal([], usableRate({ rate: 88, asOf: '2026-10-16' }, NOW), () => false);
