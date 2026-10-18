@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import { trackEvent } from '@/lib/analytics';
 import {
   CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, addOwned, addWish, cleanCollection, cleanWishlist, loadCollection,
-  loadWishlist, removeWish, setOwnedQty, updateList, type SetRef,
+  loadWishlist, removeWish, setOwnedQty, trackCollectionEvent, updateList, type SetRef,
 } from '@/lib/my-collection';
 
 // Re-read when any button on the page, or another tab, changes the lists.
@@ -49,10 +48,10 @@ export function HeartButton({ size = 'sm', ...ref }: SetRef & { size?: 'sm' | 'l
     if (!out.ok || out.result === null) return; // storage refused: say nothing, so the page never claims a save
     if (out.result === 'limit') return setNote(VOICE.limitReached);
     if (out.result === 'removed') {
-      trackEvent('heart_remove', { page_type: 'sets_list', set_number: set });
+      trackCollectionEvent('heart_remove', { page_type: 'sets_list', set_number: set });
       setNote(VOICE.heartRemoved);
     } else if (out.result === 'added') {
-      trackEvent('heart_add', { page_type: 'sets_list', set_number: set });
+      trackCollectionEvent('heart_add', { page_type: 'sets_list', set_number: set });
       setNote(VOICE.heartAdded);
     }
   };
@@ -63,12 +62,12 @@ export function HeartButton({ size = 'sm', ...ref }: SetRef & { size?: 'sm' | 'l
       <button
         type="button"
         onClick={onClick}
-        aria-pressed={saved}
         aria-label={saved ? `Remove ${name} from your wishlist` : `Save ${name} to your wishlist`}
         className={`${dim} inline-flex items-center justify-center rounded-full bg-white/90 border border-border shadow-sm hover:border-primary transition-colors ${saved ? 'text-red-600' : 'text-gray-400'}`}
       >
         <span aria-hidden="true">{saved ? '♥' : '♡'}</span>
       </button>
+      {note && size !== 'lg' && <span role="status" className="sr-only">{note}</span>}
       {note && size === 'lg' && (
         <span role="status" className="absolute left-0 top-full mt-1 z-10 whitespace-nowrap text-xs text-gray-600 bg-white border border-border rounded px-2 py-1 shadow-sm">
           {note} <Link href="/my" className="underline">See your list</Link>
@@ -99,7 +98,7 @@ export function AddToCollectionButton(ref: SetRef) {
     if (!out.ok || out.result === null) return;
     if (out.result === 'limit') return setNote(VOICE.limitReached);
     if (out.result === 'added') {
-      trackEvent('owned_add', { page_type: 'set', set_number: set });
+      trackCollectionEvent('owned_add', { page_type: 'set', set_number: set });
       setNote(VOICE.ownedAdded);
     }
   };
@@ -117,9 +116,9 @@ export function AddToCollectionButton(ref: SetRef) {
   return (
     <span className="inline-flex items-center gap-2 text-sm">
       <span className="font-semibold">In My Collection</span>
-      <button type="button" aria-label="One fewer" onClick={() => change(qty - 1)} className="w-7 h-7 rounded border border-border">−</button>
+      <button type="button" aria-label={`One fewer copy of ${ref.name}`} onClick={() => change(qty - 1)} className="w-7 h-7 rounded border border-border">−</button>
       <span aria-live="polite">{qty}</span>
-      <button type="button" aria-label="One more" onClick={() => change(qty + 1)} className="w-7 h-7 rounded border border-border">+</button>
+      <button type="button" aria-label={`One more copy of ${ref.name}`} onClick={() => change(qty + 1)} className="w-7 h-7 rounded border border-border">+</button>
     </span>
   );
 }

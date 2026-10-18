@@ -7,6 +7,10 @@ import { PRICE_READ_CAP } from './my-collection';
 /** An estimate needs a rate stored at most this many days ago; older, estimates are hidden. */
 export const RATE_MAX_AGE_DAYS = 5;
 
+/** A rate outside this band (rupees per dollar) is never used. Same band as the job that stores the rate. */
+export const RATE_BAND_MIN = 70;
+export const RATE_BAND_MAX = 110;
+
 /** The stored rate: rupees per US dollar, and the date it was stored (YYYY-MM-DD). */
 export type StoredRate = { rate: number; asOf: string };
 
@@ -66,7 +70,7 @@ export function formatRs(n: number): string {
 
 /** The stored rate is usable only if it is present and no older than RATE_MAX_AGE_DAYS. */
 export function usableRate(stored: StoredRate | null, now: Date): StoredRate | null {
-  if (!stored || !Number.isFinite(stored.rate) || stored.rate <= 0) return null;
+  if (!stored || !Number.isFinite(stored.rate) || stored.rate < RATE_BAND_MIN || stored.rate > RATE_BAND_MAX) return null;
   const asOf = Date.parse(`${stored.asOf}T00:00:00Z`);
   const today = Date.parse(`${now.toISOString().slice(0, 10)}T00:00:00Z`);
   if (!Number.isFinite(asOf)) return null;
@@ -88,6 +92,12 @@ export type LastSeen = { priceInr: number; observedAt: string } | null;
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
+/** A stored rate date as the page shows it: "18 Oct 2026". Built from the parts, so it does not depend on the locale. */
+export function rateDateLabel(asOf: string): string {
+  const [y, m, d] = asOf.split('-').map(Number);
+  return `${d} ${MONTH_NAMES[m - 1].slice(0, 3)} ${y}`;
+}
+
 /**
  * The line for a retired set. With our own observed Indian price, a factual line: "Last seen in India at ₹X (month, year)".
  * Without one, only the approved line: no rupee figure, and no claim that it was launched.
@@ -108,7 +118,7 @@ export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boole
     return {
       rule: 'estimate',
       inr,
-      line: `About ₹${formatRs(inr)}, estimated from the US list price`,
+      line: `About ₹${formatRs(inr)}, estimated from the US list price (rate of ${rateDateLabel(rate.asOf)})`,
       note: ESTIMATE_NOTE,
     };
   }
@@ -151,6 +161,8 @@ export type WorthTotal = {
   storedEstimate: number;
   /** The sentence that says how the total is made up. */
   line: string;
+  /** The rate date and estimate note, next to the sentence. Empty when no estimate is counted. */
+  rateNote: string;
 };
 
 function plural(n: number, one: string, many: string) {
@@ -181,7 +193,9 @@ export function worthTotal(items: WorthItem[], rate: StoredRate | null, retiredO
   let line = `Worth counts ${counted} of ${sets} ${plural(sets, 'set', 'sets')}: ${indian} at Indian ${plural(indian, 'price', 'prices')}, ${estimate} estimated from US ${plural(estimate, 'price', 'prices')}.`;
   if (retired > 0) line += ` ${retired} ${plural(retired, 'is', 'are')} retired and not counted.`;
   if (storedEstimate > 0) line += ` ${storedEstimate} ${plural(storedEstimate, 'is', 'are')} worked out from the US price and not counted.`;
-  if (unknown > 0) line += ` ${unknown} ${plural(unknown, 'has', 'have')} no price yet and not counted.`;
+  if (unknown > 0) line += ` ${unknown} ${plural(unknown, 'is', 'are')} worth not known yet and not counted.`;
   if (capped) line += ` ${CAP_SENTENCE}`;
-  return { inr, sets, counted, indian, estimate, retired, unknown, storedEstimate, line };
+  // The rate date and the estimate note, shown on the line after the sentence. Only when estimates are counted.
+  const rateNote = estimate > 0 && rate ? `Rate of ${rateDateLabel(rate.asOf)}. ${ESTIMATE_NOTE}` : '';
+  return { inr, sets, counted, indian, estimate, retired, unknown, storedEstimate, line, rateNote };
 }

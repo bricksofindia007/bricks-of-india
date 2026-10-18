@@ -1,8 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { trackEvent } from '@/lib/analytics';
-import { VOICE, CHANGED_EVENT } from '@/lib/my-collection';
+import { VOICE, CHANGED_EVENT, trackCollectionEvent } from '@/lib/my-collection';
 import { loadFigures, saveFigures, addFigure, removeFigure } from '@/lib/cmf-figures';
 
 // Save heart for one collectible minifigure, by figure id, in this browser only. Shares the store with My Collection.
@@ -24,7 +23,7 @@ export function FigureHeart({ figureId, name }: { figureId: string; name: string
     const list = loadFigures();
     if (list.some((f) => f.id === figureId.toLowerCase())) {
       if (saveFigures(removeFigure(list, figureId))) {
-        trackEvent('heart_remove', { page_type: 'cmf_tracker' });
+        trackCollectionEvent('heart_remove', { page_type: 'cmf_tracker' });
         setNote(VOICE.heartRemoved);
       }
       return;
@@ -32,7 +31,7 @@ export function FigureHeart({ figureId, name }: { figureId: string; name: string
     const r = addFigure(list, figureId, new Date().toISOString());
     if (r.status === 'limit') return setNote(VOICE.limitReached);
     if (r.status === 'added' && saveFigures(r.list)) {
-      trackEvent('heart_add', { page_type: 'cmf_tracker' });
+      trackCollectionEvent('heart_add', { page_type: 'cmf_tracker' });
       setNote(VOICE.heartAdded);
     }
   };
@@ -42,7 +41,6 @@ export function FigureHeart({ figureId, name }: { figureId: string; name: string
       <button
         type="button"
         onClick={onClick}
-        aria-pressed={saved}
         aria-label={saved ? `Remove ${name} from your saved figures` : `Save ${name} to your saved figures`}
         style={{ width: 26, height: 26, borderRadius: '50%', border: '1px solid rgba(0,0,0,0.1)', background: 'rgba(255,255,255,0.92)', color: saved ? '#DC2626' : '#9AA5B4', cursor: 'pointer', lineHeight: 1 }}
       >

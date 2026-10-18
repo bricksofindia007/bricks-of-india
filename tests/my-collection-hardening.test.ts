@@ -137,7 +137,8 @@ describe('two tabs changing at once', () => {
 describe('the heart: keyboard and label', () => {
   it('the heart is a native button, so Enter and Space work without extra code', () => {
     const src = readFileSync(join(root, 'src/components/saved/SaveButtons.tsx'), 'utf8');
-    expect(src).toMatch(/<button\s+type="button"\s+onClick=\{onClick\}\s+aria-pressed=\{saved\}/);
+    expect(src).toMatch(/<button\s+type="button"\s+onClick=\{onClick\}/);
+    expect(src).not.toContain('aria-pressed={saved}');
   });
   it('the label says what a press will do: remove when saved, save when not', () => {
     const src = readFileSync(join(root, 'src/components/saved/SaveButtons.tsx'), 'utf8');

@@ -7,7 +7,7 @@ import type { LegoSet } from '@/lib/supabase';
 import { priceLabel, storeName, type SetPriceSummary } from '@/lib/price-summary';
 import { shownTheme } from '@/lib/theme-display';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
-import { HeartButton } from '@/components/saved/SaveButtons';
+import { HeartSlot } from '@/components/saved/CollectionSlots';
 
 interface SetCardProps {
   set: LegoSet;
@@ -52,7 +52,7 @@ export function SetCard({ set, bestPrice, priceCount, summary, trackAs }: SetCar
         </div>
         {FEATURE_FLAGS.myCollectionHearts && (
           <div className="absolute top-2 right-2">
-            <HeartButton set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
+            <HeartSlot enabled set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
           </div>
         )}
       </div>

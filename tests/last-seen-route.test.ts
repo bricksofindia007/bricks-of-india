@@ -140,7 +140,7 @@ describe('page-level: stored estimate only as a fallback, excluded from the tota
 
   it('a US price beats the stored estimate when both exist', () => {
     expect(worthOf(items[0], rate, false)).toMatchObject({ rule: 'estimate' });
-    expect(worthOf(items[0], rate, false).line).toBe('About ₹47,405, estimated from the US list price');
+    expect(worthOf(items[0], rate, false).line).toBe('About ₹47,405, estimated from the US list price (rate of 18 Oct 2026)');
   });
   it('with no US price, the stored estimate is shown with its source named', () => {
     expect(worthOf(items[1], rate, false).line).toBe('About ₹43,900, worked out from the US price');
@@ -157,6 +157,6 @@ describe('page-level: stored estimate only as a fallback, excluded from the tota
   it('the page source uses the same input builder for the rows and the total', () => {
     const src = readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
     expect(src).toContain('worthInputFor(o, prices.get(o.set), priceState === \'ok\')');
-    expect(src).toContain('worthTotal(worthItems, rate, (s) => unknownRetired.isRetired(s), capped)');
+    expect(src).toContain('worthTotal(worthItems, rate, isRetired, capped)');
   });
 });

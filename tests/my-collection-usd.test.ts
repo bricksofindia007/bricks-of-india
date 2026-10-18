@@ -35,7 +35,7 @@ describe('worthInputFor', () => {
 describe('the price route reads US prices without putting the price read at risk', () => {
   const src = readFileSync(join(root, 'src/app/api/saved-sets/route.ts'), 'utf8');
   it('reads us_price_usd from sets, in its own query', () => {
-    expect(src).toContain("from('sets').select('set_number, us_price_usd, lego_mrp_inr, mrp_verified')");
+    expect(src).toContain("from('sets').select('set_number, us_price_usd, lego_mrp_inr, mrp_verified, retired')");
   });
   it('a failed US read is logged and leaves US prices empty; it never returns an error', () => {
     expect(src).toMatch(/if \(us\.error\) console\.error\('\[my-collection\] US price read unavailable:', us\.error\.message\);/);

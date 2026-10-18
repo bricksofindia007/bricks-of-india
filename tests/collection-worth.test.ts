@@ -1,6 +1,8 @@
 // My Collection worth rules (spec section 4): the four rules, the stale rate, unknown retired status
 // and the total line. The rate and retired status are test doubles here.
 import { describe, it, expect } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import {
   worthOf, worthTotal, usableRate, formatRs, RETIRED_LINE, ESTIMATE_NOTE, WORTH_UNKNOWN_LINE, CAP_SENTENCE,
   RATE_MAX_AGE_DAYS, type StoredRate, type WorthItem,
@@ -25,7 +27,7 @@ describe('worth rule 2: US price estimate', () => {
     const w = worthOf(item({ usPriceUsd: 499 }), RATE, false);
     expect(w.rule).toBe('estimate');
     expect(w.inr).toBe(43912);
-    expect(w.line).toBe('About ₹43,912, estimated from the US list price');
+    expect(w.line).toBe('About ₹43,912, estimated from the US list price (rate of 18 Oct 2026)');
     expect(w.note).toBe(ESTIMATE_NOTE);
   });
   it('never names a store or offers a buy action', () => {
@@ -81,6 +83,66 @@ describe('stale or missing rate', () => {
   });
 });
 
+// The four rate states the page can be in. The read itself is not wired yet (waiting for T1's grant change),
+// so the page runs on the "no rate" state. Each state is tested here against the same rule the page uses.
+describe('the four exchange-rate states', () => {
+  const US_ONLY = () => item({ usPriceUsd: 499 });
+  it('rate present (dated today): the estimate is shown', () => {
+    const w = worthOf(US_ONLY(), usableRate({ rate: 88, asOf: '2026-10-18' }, NOW), false);
+    expect(w.rule).toBe('estimate');
+    expect(w.inr).not.toBeNull();
+  });
+  it('no rate: the estimate is hidden', () => {
+    const w = worthOf(US_ONLY(), usableRate(null, NOW), false);
+    expect(w.rule).toBe('unknown');
+    expect(w.inr).toBeNull();
+  });
+  it('rate 5 days old: still used, the estimate is shown', () => {
+    const w = worthOf(US_ONLY(), usableRate({ rate: 88, asOf: '2026-10-13' }, NOW), false);
+    expect(w.rule).toBe('estimate');
+    expect(w.inr).not.toBeNull();
+  });
+  it('rate over 5 days old: hidden, the estimate is not shown', () => {
+    const w = worthOf(US_ONLY(), usableRate({ rate: 88, asOf: '2026-10-12' }, NOW), false);
+    expect(w.rule).toBe('unknown');
+    expect(w.inr).toBeNull();
+  });
+});
+
+// Estimates stay hidden in both states: no rate at all, and a rate more than RATE_MAX_AGE_DAYS old.
+describe('estimates stay hidden without a usable rate', () => {
+  const usOnly = () => item({ usPriceUsd: 499 });
+  it('no rate: the row shows no estimate and no rupee figure', () => {
+    const w = worthOf(usOnly(), usableRate(null, NOW), false);
+    expect(w.rule).toBe('unknown');
+    expect(w.inr).toBeNull();
+    expect(w.line).not.toMatch(/About Rs|₹/);
+  });
+  it('a rate over 5 days old: the row shows no estimate and no rupee figure', () => {
+    const w = worthOf(usOnly(), usableRate({ rate: 88, asOf: '2026-10-12' }, NOW), false);
+    expect(w.rule).toBe('unknown');
+    expect(w.inr).toBeNull();
+    expect(w.line).not.toMatch(/About Rs|₹/);
+  });
+  it('a rate exactly 5 days old is still usable (the boundary is inclusive)', () => {
+    const w = worthOf(usOnly(), usableRate({ rate: 88, asOf: '2026-10-13' }, NOW), false);
+    expect(w.rule).toBe('estimate');
+    expect(w.inr).not.toBeNull();
+  });
+  it('the total counts neither state, with or without a rate date to show', () => {
+    for (const stored of [null, { rate: 88, asOf: '2026-10-12' }]) {
+      const t = worthTotal([usOnly()], usableRate(stored, NOW), () => false);
+      expect(t.inr ?? 0).toBe(0);
+      expect(t.line).not.toMatch(/₹/);
+    }
+  });
+  it('the page passes no rate when none is wired, so the hidden state is the one the page shows', () => {
+    const src = readFileSync(join(__dirname, '..', 'src/app/my/MyCollection.tsx'), 'utf8');
+    expect(src).toContain('const [storedRate, setStoredRate] = useState<StoredRate | null>(null);');
+    expect(src).toContain('usableRate(rateSourceOf(storedRate).getRate(), new Date())');
+  });
+});
+
 describe('total line', () => {
   it('counts rules 1 and 2 only, and states how it is made up', () => {
     const items: WorthItem[] = [
@@ -103,7 +165,7 @@ describe('total line', () => {
   });
   it('adds the unknown sentence only when there are unknown sets', () => {
     const t = worthTotal([item({ set: 'a', indianPriceInr: 1000 }), item({ set: 'b' })], RATE, () => false);
-    expect(t.line).toBe('Worth counts 1 of 2 sets: 1 at Indian price, 0 estimated from US prices. 1 has no price yet and not counted.');
+    expect(t.line).toBe('Worth counts 1 of 2 sets: 1 at Indian price, 0 estimated from US prices. 1 is worth not known yet and not counted.');
   });
   it('an empty collection gives an empty count line', () => {
     expect(worthTotal([], RATE, () => false).line).toBe('Worth counts 0 of 0 sets: 0 at Indian prices, 0 estimated from US prices.');
@@ -189,7 +251,7 @@ describe('summary strip: retired sets not valued', () => {
 describe('estimates: US list price x current rate first, the stored estimate only as a fallback', () => {
   it('the US-price estimate names its source in the same sentence', () => {
     const w = worthOf(item({ usPriceUsd: 499 }), RATE, false);
-    expect(w.line).toMatch(/^About ₹[\d,]+, estimated from the US list price$/);
+    expect(w.line).toMatch(/^About ₹[\d,]+, estimated from the US list price \(rate of 18 Oct 2026\)$/);
   });
   it('with no US price, the stored estimate is shown with its own source named', () => {
     const w = worthOf(item({ usPriceUsd: null, storedEstimateInr: 43900 }), RATE, false);
