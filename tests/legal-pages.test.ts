@@ -14,11 +14,13 @@ describe('owner text is verbatim', () => {
     expect(copy.AGE_BLOCKED_MESSAGE).toBe('Accounts are for adults only, for now. You can still browse everything on the site without one.');
   });
 
-  it('privacy has the nine sections in order', () => {
+  it('privacy has the eleven sections in order', () => {
     expect(copy.PRIVACY_SECTIONS.map((s) => s.lead)).toEqual([
       'Who we are.',
       'What we collect, and only if you make an account:',
       'What we collect from everyone, with or without an account:',
+      'ANALYTICS',
+      'EMAIL NEWSLETTER',
       'Why we use it:',
       'Who can see it.',
       'How long we keep it.',
@@ -63,6 +65,17 @@ describe('no placeholder or removed text', () => {
       expect(read(f)).not.toMatch(/HELD_DELETE_BACKUP_SENTENCE/);
     }
   });
+});
+
+describe('analytics and newsletter paragraphs match the live privacy page', () => {
+  const live = read('src/app/legal/privacy/page.tsx');
+  for (const lead of ['ANALYTICS', 'EMAIL NEWSLETTER']) {
+    it(`${lead} text is copied verbatim`, () => {
+      const section = copy.PRIVACY_SECTIONS.find((s) => s.lead === lead);
+      expect(section).toBeDefined();
+      expect(live).toContain(section!.text);
+    });
+  }
 });
 
 describe('alert email footer', () => {

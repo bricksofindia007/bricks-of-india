@@ -23,6 +23,15 @@ export const PRIVACY_SECTIONS: { lead: string; text: string }[] = [
     lead: 'What we collect from everyone, with or without an account:',
     text: 'basic visit information, such as which pages are opened, to see what is useful. This is anonymous and is not tied to your name or email.',
   },
+  // Carried over verbatim from the live privacy page (src/app/legal/privacy/page.tsx).
+  {
+    lead: 'ANALYTICS',
+    text: 'We use Google Analytics to collect visit statistics, such as pages viewed, session duration, device and browser type, and approximate location from your IP address. This data is used solely to improve the website.',
+  },
+  {
+    lead: 'EMAIL NEWSLETTER',
+    text: 'If you subscribe to our newsletter, we collect your email address. This is used only to send Bricks of India updates, deals, and LEGO® news. We do not sell, rent, or share your email address with third parties. You can unsubscribe at any time using the link in any email we send.',
+  },
   {
     lead: 'Why we use it:',
     text: 'to keep your wishlist and collection, and to email you the alerts you asked for (new releases, price drops, price rises); to fix problems and keep the site safe. We do not sell your data. We do not use it for advertising.',
