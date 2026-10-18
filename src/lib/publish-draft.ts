@@ -4,6 +4,10 @@ import { submitToIndexNow } from './indexnow';
 import { resolveDisclaimerVariant, disclaimerTextFor, addUnlistedDisclaimerLine, STORE_DISPLAY_NAME, type SourceRetailer } from './review-disclaimer';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AFFILIATE_NOTE } from './affiliate-disclosure';
+import { storeDisplayName } from './store-display-names';
+
+const TOYCRA = storeDisplayName('toycra');
+const LEGO_IN = storeDisplayName('mybrickhouse');
 
 /**
  * #387 (2026-09-27): the article-table insert failed. `code` is the Postgres
@@ -185,13 +189,13 @@ export function prePublishAutoFix(body: string, draft: { source_title?: string |
   const hasPrice = /₹[\d,]+/.test(c);
   const hasStore = /MyBrickHouse|lego\.in|Toycra/i.test(c);
   if (hasPrice && !hasStore) {
-    c = c.replace(/(₹[\d,]+[^.\n]*\.)/, '$1 Available at LEGO.in and Toycra (code ABHINAV12 takes 12% off full-price sets at Toycra, minimum order ₹500).');
+    c = c.replace(/(₹[\d,]+[^.\n]*\.)/, `$1 Available at ${LEGO_IN} and ${TOYCRA} (code ABHINAV12 takes 12% off full-price sets at ${TOYCRA}, minimum order ₹500).`);
   }
 
   const hasVerdict = /\b(BUY NOW|WAIT|IMPORT ONLY|AVOID)\b/.test(c);
   const hasSetNum = /\b\d{4,6}\b/.test(slug);
   if (hasPrice && !hasVerdict && hasSetNum) {
-    c = c.replace(/\s+$/, '') + '\n\n**Verdict: WAIT** — check prices at LEGO.in and Toycra before pulling the trigger.';
+    c = c.replace(/\s+$/, '') + `\n\n**Verdict: WAIT** — check prices at ${LEGO_IN} and ${TOYCRA} before pulling the trigger.`;
   }
 
   if (!/on that bombshell/i.test(c)) c = c.replace(/\s+$/, '') + '\n\n' + SIGNOFF_TEXT;
@@ -708,7 +712,7 @@ export type RetailerReviewSourceFields = {
 export function priceLineStores(source: RetailerReviewSourceFields): string {
   if (source.source_retailer !== 'both') return STORE_DISPLAY_NAME[source.source_retailer] ?? source.source_retailer;
   const f = source.featured_store;
-  if (!f) return 'the cheaper of LEGO.in and Toycra';
+  if (!f) return `the cheaper of ${LEGO_IN} and ${TOYCRA}`;
   const other: 'mybrickhouse' | 'toycra' = f === 'toycra' ? 'mybrickhouse' : 'toycra';
   if (source.other_price_inr == null) return STORE_DISPLAY_NAME[f];
   if (source.other_price_inr === source.source_price_inr && source.other_in_stock !== false) return STORE_DISPLAY_NAME.both;
