@@ -1,12 +1,13 @@
--- Rollback for 20261017260000_price_summary_window_30h. Run by hand, in one transaction, only when approved.
--- Restores the 12-hour freshness window of public.set_price_summary (the window before the 30-hour change).
+-- Rollback card 1 of 5 (release, after card 270000 if applied): undo migration 20261017260000.
+-- Paste into the Supabase SQL editor of the PRODUCTION project. The whole text is one transaction.
+-- Sets the freshness window back to 26 hours (the window that 20261017190000 set), then removes the migration's row.
 begin;
 CREATE OR REPLACE VIEW public.set_price_summary WITH (security_invoker = true) AS
 WITH cur AS (
   SELECT sp.set_id, sp.store_id, sp.price_inr, sp.compare_at_price_inr, sp.in_stock, sp.scraped_at
   FROM public.store_prices sp
   JOIN public.stores st ON st.id = sp.store_id AND st.display_enabled
-  WHERE sp.price_inr IS NOT NULL AND sp.scraped_at > (now() - '12:00:00'::interval)
+  WHERE sp.price_inr IS NOT NULL AND sp.scraped_at > (now() - '26:00:00'::interval)
 ), anchor_row AS (
   SELECT DISTINCT ON (c.set_id) c.set_id, c.store_id, c.price_inr, c.compare_at_price_inr AS ca, st.anchor_policy
   FROM cur c
@@ -65,5 +66,5 @@ FROM anchored a
 LEFT JOIN live l ON l.set_id = a.set_id
 LEFT JOIN best_stores b ON b.set_id = a.set_id
 WHERE a.anchor_mrp_inr IS NOT NULL OR l.best_price_inr IS NOT NULL;
-
+delete from supabase_migrations.schema_migrations where version = '20261017260000';
 commit;
