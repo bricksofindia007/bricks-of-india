@@ -1,0 +1,20 @@
+{
+  "_status": "PROPOSED: the call and token caps below are proposals for owner confirmation. The rupee price table is null until verified prices are sent; while null, only the call and token caps apply.",
+  "prices_last_checked": null,
+  "ai": {
+    "warn_fraction": 0.6,
+    "providers": {
+      "gemini":   { "daily_calls": 400, "daily_tokens": 2000000, "models": ["gemini-2.5-flash-lite", "gemini-2.5-flash"], "rupee_free": false },
+      "groq":     { "daily_calls": 300, "daily_tokens": 1000000, "models": ["openai/gpt-oss-120b", "qwen/qwen3.6-27b", "llama-3.3-70b-versatile"], "rupee_free": true },
+      "cerebras": { "daily_calls": 300, "daily_tokens": 1000000, "models": ["gpt-oss-120b", "llama3.1-8b"], "rupee_free": true }
+    },
+    "rupee_price_per_million_tokens": {
+      "gemini-2.5-flash-lite": null,
+      "gemini-2.5-flash": null
+    }
+  },
+  "supabase_egress_gb": { "alert": 3.5, "guard": 4.0, "stop": 4.6 },
+  "r2_class_a_ops_month": { "alert_fraction": 0.6, "stop": 900000 },
+  "brevo_emails_day": { "alert_fraction": 0.6, "stop": 270 },
+  "resend_emails_day": { "alert_fraction": 0.6, "stop": 90 }
+}
