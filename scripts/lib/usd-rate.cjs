@@ -36,4 +36,12 @@ function resolveRate({ fetched, stored, today }) {
   return { rate: null, source: 'none', alert: `${why}; stored rate is ${age} (limit ${STALE_DAYS} days); dependent writes skipped`, storeNew: false };
 }
 
-module.exports = { BAND_MIN, BAND_MAX, JUMP_MAX, STALE_DAYS, inBand, passesJump, resolveRate };
+// Reads a Frankfurter (ECB reference) response: { date: "YYYY-MM-DD", rates: { INR: number } }. Anything else is null.
+function parseFrankfurter(body) {
+  if (!body || typeof body !== "object") return null;
+  const date = typeof body.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(body.date) ? body.date : null;
+  const rate = body.rates && typeof body.rates.INR === "number" ? body.rates.INR : null;
+  return date && rate !== null ? { rate, date } : null;
+}
+
+module.exports = { BAND_MIN, BAND_MAX, JUMP_MAX, STALE_DAYS, inBand, passesJump, resolveRate, parseFrankfurter };
