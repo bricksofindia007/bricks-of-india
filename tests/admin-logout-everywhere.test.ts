@@ -90,8 +90,9 @@ describe('the button on the admin page', () => {
     expect(src).toMatch(/^'use client';/m);
     expect(src).toContain('useActionState<LogoutEverywhereState, FormData>(logoutEverywhere, null)');
     expect(src).toMatch(/\{children\}/);
-    expect(src).toMatch(/role="alert"[\s\S]*\{state\.error\}/);
-    expect(src).toContain('Log out everywhere');
+    expect(src).toContain('<LogoutEverywhereView');
+    expect(readFileSync(join(root, 'src/app/admin/pending/LogoutEverywhereView.tsx'), 'utf8')).toMatch(/role="alert"[\s\S]*\{state\.error\}/);
+    expect(readFileSync(join(root, 'src/app/admin/pending/LogoutEverywhereView.tsx'), 'utf8')).toContain('Log out everywhere');
   });
   it('is on the admin page with the signed field for its own action, inside the signed-in render', () => {
     const page = readFileSync(join(root, 'src/app/admin/pending/page.tsx'), 'utf8');
