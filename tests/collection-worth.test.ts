@@ -138,8 +138,8 @@ describe('estimates stay hidden without a usable rate', () => {
   });
   it('the page passes no rate when none is wired, so the hidden state is the one the page shows', () => {
     const src = readFileSync(join(__dirname, '..', 'src/app/my/MyCollection.tsx'), 'utf8');
-    expect(src).toContain('const noRate: RateSource = { getRate: () => null };');
-    expect(src).toContain('usableRate(noRate.getRate(), new Date())');
+    expect(src).toContain('const [storedRate, setStoredRate] = useState<StoredRate | null>(null);');
+    expect(src).toContain('usableRate(rateSourceOf(storedRate).getRate(), new Date())');
   });
 });
 

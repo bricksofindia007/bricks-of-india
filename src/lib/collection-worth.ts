@@ -7,6 +7,10 @@ import { PRICE_READ_CAP } from './my-collection';
 /** An estimate needs a rate stored at most this many days ago; older, estimates are hidden. */
 export const RATE_MAX_AGE_DAYS = 5;
 
+/** A rate outside this band (rupees per dollar) is never used. Same band as the job that stores the rate. */
+export const RATE_BAND_MIN = 70;
+export const RATE_BAND_MAX = 110;
+
 /** The stored rate: rupees per US dollar, and the date it was stored (YYYY-MM-DD). */
 export type StoredRate = { rate: number; asOf: string };
 
@@ -66,7 +70,7 @@ export function formatRs(n: number): string {
 
 /** The stored rate is usable only if it is present and no older than RATE_MAX_AGE_DAYS. */
 export function usableRate(stored: StoredRate | null, now: Date): StoredRate | null {
-  if (!stored || !Number.isFinite(stored.rate) || stored.rate <= 0) return null;
+  if (!stored || !Number.isFinite(stored.rate) || stored.rate < RATE_BAND_MIN || stored.rate > RATE_BAND_MAX) return null;
   const asOf = Date.parse(`${stored.asOf}T00:00:00Z`);
   const today = Date.parse(`${now.toISOString().slice(0, 10)}T00:00:00Z`);
   if (!Number.isFinite(asOf)) return null;

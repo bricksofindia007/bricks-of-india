@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getSecret } from '@/lib/get-secret';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import { isSetNumber, PRICE_READ_CAP } from '@/lib/my-collection';
+import { loadStoredRate } from '@/lib/usd-rate-reader';
 
 // Today's best price and store for the sets in a visitor's My Collection, one call per page view.
 // Returns the best price, its store ids, and store names. Nothing else. Names and pieces come from
@@ -86,5 +87,10 @@ export async function GET(request: NextRequest) {
     retired: retired.get(set) ?? null,
   }));
 
-  return NextResponse.json({ sets, store_names: storeNames }, { headers: { 'Cache-Control': 'private, max-age=300', Vary: 'Sec-Fetch-Site, Referer' } });
+  // The stored USD to INR rate, for estimates only. A failed or unset read is null: the page then shows no estimate.
+  let usdInr: Awaited<ReturnType<typeof loadStoredRate>> = null;
+  if (ids.length) {
+    try { usdInr = await loadStoredRate(); } catch (e) { console.error('[my-collection] rate read unavailable:', (e as Error).message); }
+  }
+  return NextResponse.json({ sets, store_names: storeNames, usd_inr: usdInr }, { headers: { 'Cache-Control': 'private, max-age=300', Vary: 'Sec-Fetch-Site, Referer' } });
 }
