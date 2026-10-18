@@ -5,6 +5,7 @@
 // a read may still go to the site.
 
 import site from '../.open-next/worker.js';
+export { DOQueueHandler, DOShardedTagCache } from '../.open-next/worker.js';
 import { failClosedResponse, isReadonly, readonlyGate, withNoindex } from '../src/lib/staging-readonly';
 
 export default {
