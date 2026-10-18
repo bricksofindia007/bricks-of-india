@@ -1,0 +1,4 @@
+{
+  "_note": "Count of hard-coded store display-name literals outside the allowed places (see tests/store-literal-ratchet.test.ts). May only go down. Recorded 18 Oct 2026.",
+  "count": 305
+}
