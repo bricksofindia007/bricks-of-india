@@ -83,6 +83,32 @@ describe('stale or missing rate', () => {
   });
 });
 
+// The four rate states the page can be in. The read itself is not wired yet (waiting for T1's grant change),
+// so the page runs on the "no rate" state. Each state is tested here against the same rule the page uses.
+describe('the four exchange-rate states', () => {
+  const US_ONLY = () => item({ usPriceUsd: 499 });
+  it('rate present (dated today): the estimate is shown', () => {
+    const w = worthOf(US_ONLY(), usableRate({ rate: 88, asOf: '2026-10-18' }, NOW), false);
+    expect(w.rule).toBe('estimate');
+    expect(w.inr).not.toBeNull();
+  });
+  it('no rate: the estimate is hidden', () => {
+    const w = worthOf(US_ONLY(), usableRate(null, NOW), false);
+    expect(w.rule).toBe('unknown');
+    expect(w.inr).toBeNull();
+  });
+  it('rate 5 days old: still used, the estimate is shown', () => {
+    const w = worthOf(US_ONLY(), usableRate({ rate: 88, asOf: '2026-10-13' }, NOW), false);
+    expect(w.rule).toBe('estimate');
+    expect(w.inr).not.toBeNull();
+  });
+  it('rate over 5 days old: hidden, the estimate is not shown', () => {
+    const w = worthOf(US_ONLY(), usableRate({ rate: 88, asOf: '2026-10-12' }, NOW), false);
+    expect(w.rule).toBe('unknown');
+    expect(w.inr).toBeNull();
+  });
+});
+
 // Estimates stay hidden in both states: no rate at all, and a rate more than RATE_MAX_AGE_DAYS old.
 describe('estimates stay hidden without a usable rate', () => {
   const usOnly = () => item({ usPriceUsd: 499 });
