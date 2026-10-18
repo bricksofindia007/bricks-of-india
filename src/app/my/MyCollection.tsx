@@ -175,10 +175,11 @@ export function MyCollection() {
       {priceState === 'failed' && <PricesUnavailable />}
 
       <div role="tablist" className="flex gap-2 mb-6">
-        <button role="tab" aria-selected={tab === 'wish'} onClick={() => setTab('wish')} className={`px-4 py-2 rounded-lg font-semibold ${tab === 'wish' ? 'bg-primary text-white' : 'border border-border'}`}>Wishlist ({wish.length})</button>
-        <button role="tab" aria-selected={tab === 'owned'} onClick={() => setTab('owned')} className={`px-4 py-2 rounded-lg font-semibold ${tab === 'owned' ? 'bg-primary text-white' : 'border border-border'}`}>My Collection ({owned.length})</button>
+        <button role="tab" id="tab-wish" aria-controls="collection-panel" aria-selected={tab === 'wish'} onClick={() => setTab('wish')} className={`px-4 py-2 rounded-lg font-semibold ${tab === 'wish' ? 'bg-primary text-white' : 'border border-border'}`}>Wishlist ({wish.length})</button>
+        <button role="tab" id="tab-owned" aria-controls="collection-panel" aria-selected={tab === 'owned'} onClick={() => setTab('owned')} className={`px-4 py-2 rounded-lg font-semibold ${tab === 'owned' ? 'bg-primary text-white' : 'border border-border'}`}>My Collection ({owned.length})</button>
       </div>
 
+      <div id="collection-panel" role="tabpanel" aria-labelledby={tab === 'wish' ? 'tab-wish' : 'tab-owned'}>
       {!ready && <Skeleton />}
 
       {ready && tab === 'wish' && (
@@ -205,7 +206,7 @@ export function MyCollection() {
                         </p>
                       ) : <p className="mt-1 text-gray-500">{WISHLIST_NO_PRICE_LINE}</p>)}
                       <div className="mt-2 flex gap-3 text-xs">
-                        <button type="button" onClick={() => removeFromWish(w.set)} className="underline text-gray-500">Remove</button>
+                        <button type="button" aria-label={`Remove ${w.name} from your wishlist`} onClick={() => removeFromWish(w.set)} className="underline text-gray-500">Remove</button>
                       </div>
                     </div>
                   </li>
@@ -252,6 +253,7 @@ export function MyCollection() {
           </>
         )
       )}
+      </div>
     </div>
   );
 }
