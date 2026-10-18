@@ -2,7 +2,7 @@
 
 import { requireAdmin, requireAdminForm } from '@/app/admin/require-admin';
 import { cookies } from 'next/headers';
-import { ADMIN_COOKIE, ADMIN_SESSION_SECONDS, adminPasswordMatches, createAdminSession, isValidAdminSession, revokeAdminSession } from '@/lib/admin-session';
+import { ADMIN_COOKIE, ADMIN_SESSION_SECONDS, adminPasswordMatches, createAdminSession, isValidAdminSession, revokeAdminSession, revokeAllAdminSessions } from '@/lib/admin-session';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
@@ -49,6 +49,22 @@ export async function logout(formData: FormData) {
   if (!adminFormTokenValid(formData.get('csrf'), token, 'logout')) redirect('/admin/pending');
   await revokeAdminSession(token);
   jar.delete(ADMIN_COOKIE);
+  redirect('/admin/pending');
+}
+
+export type LogoutEverywhereState = { error: string } | null;
+
+// Ends every admin session, this browser's included. The caller must be signed in first (a caller who is not
+// signed in gets the usual Unauthorized error). If the sessions could not be ended, the result says so: it is
+// never a success, and this browser stays signed in so the page can show the error.
+export async function logoutEverywhere(_previous: LogoutEverywhereState, formData: FormData): Promise<LogoutEverywhereState> {
+  await requireAdminForm(formData, 'logoutEverywhere');
+  try {
+    await revokeAllAdminSessions();
+  } catch {
+    return { error: 'Sessions could not be ended. Nothing has changed. Try again.' };
+  }
+  (await cookies()).delete(ADMIN_COOKIE);
   redirect('/admin/pending');
 }
 
