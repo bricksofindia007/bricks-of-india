@@ -308,8 +308,11 @@ export default async function AdminPendingPage(props: Props) {
           <Link href="/admin/pending/newsletter" style={{ fontSize: 12, color: 'rgba(255,255,255,0.6)', marginLeft: 16 }}>Newsletter →</Link>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <LogoutEverywhereButton />
+          <LogoutEverywhereButton>
+            <CsrfField action="logoutEverywhere" />
+          </LogoutEverywhereButton>
           <form action={logout} style={{ margin: 0 }}>
+            <CsrfField action="logout" />
             <button type="submit" style={{ padding: '6px 14px', background: 'transparent', color: 'rgba(255,255,255,0.7)', border: '1px solid rgba(255,255,255,0.3)', borderRadius: 8, fontSize: 12, cursor: 'pointer', fontFamily: 'inherit' }}>
               Log out
             </button>

@@ -50,6 +50,24 @@ describe('admin form fields', () => {
   });
 });
 
+describe('sign-out checks its signed field before it changes anything', () => {
+  const src = read('src/app/admin/pending/actions.ts');
+  const start = src.indexOf('export async function logout(formData: FormData)');
+  const body = src.slice(start, src.indexOf('\n}\n', start));
+  it('logout takes the form data and checks the field for the logout action', () => {
+    expect(body).toContain("adminFormTokenValid(formData.get('csrf'), token, 'logout')");
+  });
+  it('an unsigned sign-out redirects before revoking or clearing the cookie', () => {
+    const check = body.indexOf('adminFormTokenValid');
+    const early = body.indexOf("redirect('/admin/pending')");
+    const revoke = body.indexOf('revokeAdminSession(token)');
+    expect(check).toBeGreaterThan(0);
+    expect(early).toBeGreaterThan(check);
+    expect(revoke).toBeGreaterThan(early);
+    expect(body.indexOf('jar.delete')).toBeGreaterThan(early);
+  });
+});
+
 describe('every state-changing admin action checks its signed field, and its form renders the field', () => {
   const ACTIONS = {
     'src/app/admin/pending/actions.ts': ['approveDraft', 'rejectDraft', 'approveAll', 'generateArticle', 'publishDraft'],
@@ -63,8 +81,8 @@ describe('every state-changing admin action checks its signed field, and its for
     }
   }
   const FORMS = {
-    'src/app/admin/pending/page.tsx': ['approveDraft', 'rejectDraft', 'generateArticle', 'publishDraft', 'approveAll'],
-    'src/app/admin/pending/newsletter/page.tsx': ['approveNewsletterDraft', 'dismissNewsletterDraft'],
+    'src/app/admin/pending/page.tsx': ['approveDraft', 'rejectDraft', 'generateArticle', 'publishDraft', 'approveAll', 'logout'],
+    'src/app/admin/pending/newsletter/page.tsx': ['approveNewsletterDraft', 'dismissNewsletterDraft', 'logout'],
   };
   for (const [file, names] of Object.entries(FORMS)) {
     for (const name of names) {
