@@ -14,6 +14,7 @@ import {
 } from '@/lib/collection-worth';
 import { rateSourceOf } from '@/lib/usd-rate-reader';
 import { OwnedWorthLine, PricesUnavailable, TotalWorthValue, WishPrice } from './PriceNotes';
+import { nextTab } from './tab-keys';
 
 // The stored exchange rate arrives with the price read, server side. Missing, stale (over 5 days) or out-of-band rates
 // mean no estimate is shown. Retired status comes from the price read (sets.retired); it is unknown, and so never
@@ -173,9 +174,15 @@ export function MyCollection() {
 
       {priceState === 'failed' && <PricesUnavailable />}
 
-      <div role="tablist" className="flex gap-2 mb-6">
-        <button role="tab" id="tab-wish" aria-controls="collection-panel" aria-selected={tab === 'wish'} onClick={() => setTab('wish')} className={`px-4 py-2 rounded-lg font-semibold ${tab === 'wish' ? 'bg-primary text-white' : 'border border-border'}`}>Wishlist ({wish.length})</button>
-        <button role="tab" id="tab-owned" aria-controls="collection-panel" aria-selected={tab === 'owned'} onClick={() => setTab('owned')} className={`px-4 py-2 rounded-lg font-semibold ${tab === 'owned' ? 'bg-primary text-white' : 'border border-border'}`}>My Collection ({owned.length})</button>
+      <div role="tablist" className="flex gap-2 mb-6" onKeyDown={(e) => {
+          const next = nextTab(tab, e.key);
+          if (!next) return;
+          e.preventDefault();
+          setTab(next);
+          document.getElementById(`tab-${next}`)?.focus();
+        }}>
+        <button role="tab" id="tab-wish" tabIndex={tab === 'wish' ? 0 : -1} aria-controls="collection-panel" aria-selected={tab === 'wish'} onClick={() => setTab('wish')} className={`px-4 py-2 rounded-lg font-semibold ${tab === 'wish' ? 'bg-primary text-white' : 'border border-border'}`}>Wishlist ({wish.length})</button>
+        <button role="tab" id="tab-owned" tabIndex={tab === 'owned' ? 0 : -1} aria-controls="collection-panel" aria-selected={tab === 'owned'} onClick={() => setTab('owned')} className={`px-4 py-2 rounded-lg font-semibold ${tab === 'owned' ? 'bg-primary text-white' : 'border border-border'}`}>My Collection ({owned.length})</button>
       </div>
 
       <div id="collection-panel" role="tabpanel" aria-labelledby={tab === 'wish' ? 'tab-wish' : 'tab-owned'}>
@@ -195,7 +202,7 @@ export function MyCollection() {
                       <SetImage set={{ set_number: w.set, image_url: w.image_url ?? null, name: w.name } as never} className="object-contain p-1" />
                     </Link>
                     <div className="min-w-0 flex-1 text-sm">
-                      <p className="text-xs text-gray-400 font-price">{w.set}</p>
+                      <p className="text-xs text-gray-600 font-price">{w.set}</p>
                       <p className="font-bold text-dark leading-tight line-clamp-2">{w.name}</p>
                       {w.pieces != null && <p className="text-xs text-gray-500">{formatRs(w.pieces)} pieces</p>}
                       {priceState === 'loading' && <p className="mt-1 h-3 w-24 bg-surface rounded animate-pulse" />}
@@ -228,7 +235,7 @@ export function MyCollection() {
                       <SetImage set={{ set_number: o.set, image_url: o.image_url ?? null, name: o.name } as never} className="object-contain p-1" />
                     </Link>
                     <div className="min-w-0 flex-1 text-sm">
-                      <p className="text-xs text-gray-400 font-price">{o.set}</p>
+                      <p className="text-xs text-gray-600 font-price">{o.set}</p>
                       <p className="font-bold text-dark leading-tight line-clamp-2">{o.name}</p>
                       {o.pieces != null && <p className="text-xs text-gray-500">{formatRs(o.pieces)} pieces</p>}
                       {priceState === 'loading' && <p className="mt-1 h-3 w-24 bg-surface rounded animate-pulse" />}

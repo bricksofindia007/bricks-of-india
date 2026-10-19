@@ -349,7 +349,7 @@ export default async function SetPage(props: Props) {
               {set.pieces != null && set.pieces > 0 ? <Badge variant="grey">{set.pieces.toLocaleString()} pcs</Badge> : null}
             </div>
             <h1 className="font-heading text-dark text-4xl md:text-5xl leading-tight mb-2">{set.name}</h1>
-            <p className="text-gray-400 font-price text-sm mb-4">Set #{set.set_number}</p>
+            <p className="text-gray-600 font-price text-sm mb-4">Set #{set.set_number}</p>
             {FEATURE_FLAGS.myCollectionHearts && (
               <div className="flex flex-wrap items-center gap-3 mb-4">
                 <HeartSlot enabled size="lg" set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
