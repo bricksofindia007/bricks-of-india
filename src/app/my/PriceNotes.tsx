@@ -30,7 +30,7 @@ export function WishPrice({
   if (ids.some((id) => !storeNames[id])) return <p className="mt-1 text-gray-500">{VOICE.pricesUnavailable}</p>;
   return (
     <p className="mt-1">
-      <span className="font-price font-bold text-deal-green">₹{formatRs(price)}</span>
+      <span className="font-price font-bold text-green-700">₹{formatRs(price)}</span>
       {ids.length ? <> at {ids.map((id) => storeNames[id]).join(', ')}</> : null}
     </p>
   );

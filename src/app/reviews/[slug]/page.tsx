@@ -290,7 +290,7 @@ export default async function ReviewPage(props: Props) {
                     unoptimized
                   />
                   <h3 className="font-heading text-dark text-xl mb-1">{set.name}</h3>
-                  <p className="font-price text-gray-400 text-sm mb-3">Set #{set.set_number}</p>
+                  <p className="font-price text-gray-600 text-sm mb-3">Set #{set.set_number}</p>
 
                   {/* Store prices — always checked first (issue #78: store_prices
                       is the sole source of truth for whether a price shows, GWP
