@@ -201,7 +201,7 @@ describe('revoke all sessions', () => {
   it('the logout-everywhere action checks the caller first, revokes all, then clears the cookie', () => {
     const src = readFileSync(join(root, 'src/app/admin/pending/actions.ts'), 'utf8');
     const body = src.slice(src.indexOf('export async function logoutEverywhere'));
-    const first = body.indexOf('await requireAdmin()');
+    const first = body.indexOf('await requireAdminForm(');
     expect(first).toBeGreaterThan(-1);
     expect(first).toBeLessThan(body.indexOf('await revokeAllAdminSessions()'));
     expect(body.indexOf('await revokeAllAdminSessions()')).toBeLessThan(body.indexOf('.delete(ADMIN_COOKIE)'));
