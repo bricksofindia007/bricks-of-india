@@ -15,7 +15,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
-      NEXT_PUBLIC_SUPABASE_URL:       https://dry-run.invalid
+      NEXT_PUBLIC_SUPABASE_URL:       http://127.0.0.1:54321
       NEXT_PUBLIC_SUPABASE_ANON_KEY:  dry-run-anon-key
       SUPABASE_SERVICE_ROLE_KEY:      dry-run-placeholder
       NEXT_PUBLIC_SITE_URL:           https://bricksofindia.com
@@ -26,6 +26,12 @@ jobs:
         with:
           node-version: '22'
           cache: 'npm'
+      - name: Stub data API (answers every request with an empty result, no network)
+        run: |
+          node -e "require('http').createServer((q,s)=>{q.resume();q.on('end',()=>{s.writeHead(200,{'content-type':'application/json'});s.end(q.url.includes('count')?'0':'[]')})}).listen(54321,'127.0.0.1')" > stub.log 2>&1 &
+          sleep 2
+          curl -s -o /dev/null -w "stub status %{http_code}
+" http://127.0.0.1:54321/rest/v1/sets
       - run: npm ci
       - name: Next.js build
         run: npm run build
