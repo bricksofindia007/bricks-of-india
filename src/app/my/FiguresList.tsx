@@ -57,7 +57,7 @@ export function FiguresList() {
             <div className="min-w-0 flex-1 text-sm">
               <p className="font-bold text-dark leading-tight">{f.name}</p>
               <p className="text-xs text-gray-500">{f.series_name}</p>
-              <p className="text-xs text-gray-400 font-price">{f.figure_number}</p>
+              <p className="text-xs text-gray-600 font-price">{f.figure_number}</p>
               <button type="button" aria-label={`Remove ${f.name} from your saved figures`} onClick={() => remove(f.id)} className="mt-2 text-xs underline text-gray-500">Remove</button>
             </div>
           </li>
