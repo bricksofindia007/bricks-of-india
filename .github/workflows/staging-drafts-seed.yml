@@ -4,7 +4,9 @@ name: Staging drafts seed (staging only, manual)
 # Credential: environment secret STAGING_DB_URL in the staging-seed environment, which requires the owner's approval.
 # The job refuses any address that contains the production project reference, and prints counts only.
 on:
-  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/staging-drafts-seed.yml'
 
 permissions:
   contents: read
