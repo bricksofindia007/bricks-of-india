@@ -50,7 +50,8 @@ export const ROUTE_CADENCE: Record<string, Cadence> = {
 
   // detail pages
   '/sets/[slug]': { priced: SET_PAGE_REVALIDATE_SECONDS, unpriced: UNPRICED_SET_REVALIDATE_SECONDS },
-  '/themes/[theme]': THEME_PAGE_REVALIDATE_SECONDS,
+  // ?page= and ?sort= are read per request (as /sets is); the index it reads is cached at the price cadence.
+  '/themes/[theme]': DYNAMIC,
   '/news/[slug]': READ_REVALIDATE_SECONDS,
   '/reviews/[slug]': READ_REVALIDATE_SECONDS,
   '/guides/[slug]': READ_REVALIDATE_SECONDS,

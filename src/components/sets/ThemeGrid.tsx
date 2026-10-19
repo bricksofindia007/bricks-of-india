@@ -1,161 +1,93 @@
-'use client';
-
-import { useState, useMemo, useEffect } from 'react';
+import Link from 'next/link';
 import { SetCard } from './SetCard';
-
-type SortKey = 'price-asc' | 'price-desc' | 'year-desc' | 'year-asc' | 'pieces-desc';
-
-const SORT_OPTIONS: { value: SortKey; label: string }[] = [
-  { value: 'price-asc',   label: 'Price: Low to High' },
-  { value: 'price-desc',  label: 'Price: High to Low' },
-  { value: 'year-desc',   label: 'Newest First' },
-  { value: 'year-asc',    label: 'Oldest First' },
-  { value: 'pieces-desc', label: 'Most Pieces' },
-];
-
-const PAGE_SIZE = 48;
+import { ThemeSortSelect } from './ThemeSortSelect';
+import { themeHref, type ThemeSort } from '@/lib/theme-paging';
 
 interface ThemeGridProps {
+  slug: string;
+  /** The sets on this page, already sorted and sliced. */
   sets: any[];
+  /** Every set in the theme, not just this page. */
+  total: number;
+  page: number;
+  pages: number;
+  sort: ThemeSort;
 }
 
-export function ThemeGrid({ sets }: ThemeGridProps) {
-  const [sort, setSort] = useState<SortKey>('year-desc');
-  const [page, setPage] = useState(1);
+const PAGER_LINK = 'px-3 py-2 text-sm font-bold rounded-lg border border-border hover:bg-surface transition-colors';
+const PAGER_CURRENT = 'px-3 py-2 text-sm font-bold rounded-lg border bg-primary text-white border-primary';
+const PAGER_STEP ='px-4 py-2 text-sm font-bold rounded-lg border border-border hover:bg-surface transition-colors';
+const PAGER_OFF = 'px-4 py-2 text-sm font-bold rounded-lg border border-border opacity-40 cursor-not-allowed';
 
-  // Reset to page 1 whenever sort changes
-  useEffect(() => { setPage(1); }, [sort]);
+export function ThemeGrid({ slug, sets, total, page, pages, sort }: ThemeGridProps) {
+  const processed = sets.map((set) => {
+    const prices = (set.prices || []).filter((p: any) => p.is_active && p.price_inr);
+    const bestPrice = prices.sort((a: any, b: any) => a.price_inr - b.price_inr)[0] || null;
+    return { set, bestPrice, priceCount: prices.length };
+  });
 
-  const processed = useMemo(() => {
-    return sets.map((set) => {
-      const prices = (set.prices || []).filter((p: any) => p.is_active && p.price_inr);
-      const bestPrice = prices.sort((a: any, b: any) => a.price_inr - b.price_inr)[0] || null;
-      return { set, bestPrice, priceCount: prices.length };
-    });
-  }, [sets]);
-
-  const sorted = useMemo(() => {
-    const copy = [...processed];
-    switch (sort) {
-      case 'price-asc':
-        return copy.sort((a, b) => {
-          const ap = a.bestPrice?.price_inr ?? Infinity;
-          const bp = b.bestPrice?.price_inr ?? Infinity;
-          return ap - bp;
-        });
-      case 'price-desc':
-        return copy.sort((a, b) => {
-          const ap = a.bestPrice?.price_inr ?? 0;
-          const bp = b.bestPrice?.price_inr ?? 0;
-          return bp - ap;
-        });
-      case 'year-asc':
-        return copy.sort((a, b) => (a.set.year ?? 0) - (b.set.year ?? 0));
-      case 'year-desc':
-        return copy.sort((a, b) => (b.set.year ?? 0) - (a.set.year ?? 0));
-      case 'pieces-desc':
-        return copy.sort((a, b) => (b.set.num_parts ?? 0) - (a.set.num_parts ?? 0));
-      default:
-        return copy;
-    }
-  }, [processed, sort]);
-
-  const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-  const paginated = sorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-
-  // Page number range to show (up to 5 around current page)
-  const pageNumbers = useMemo(() => {
-    const delta = 2;
-    const range: number[] = [];
-    for (let i = Math.max(1, page - delta); i <= Math.min(totalPages, page + delta); i++) {
-      range.push(i);
-    }
-    return range;
-  }, [page, totalPages]);
+  // Page numbers shown: up to two either side of the current page, with the first and last always reachable.
+  const from = Math.max(1, page - 2);
+  const to = Math.min(pages, page + 2);
+  const numbers: number[] = [];
+  for (let n = from; n <= to; n++) numbers.push(n);
+  const href = (n: number) => themeHref(slug, { page: n, sort });
 
   return (
     <>
       {/* Toolbar */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
         <p className="text-text-secondary text-sm">
-          {sorted.length} set{sorted.length !== 1 ? 's' : ''} found
-          {totalPages > 1 && (
-            <span className="ml-1">— page {page} of {totalPages}</span>
-          )}
+          {total} set{total !== 1 ? 's' : ''} found
+          {pages > 1 && <span className="ml-1">— page {page} of {pages}</span>}
         </p>
-        <div className="flex items-center gap-2">
-          <label htmlFor="theme-sort" className="text-sm font-bold text-dark shrink-0">
-            Sort by:
-          </label>
-          <select
-            id="theme-sort"
-            value={sort}
-            onChange={(e) => setSort(e.target.value as SortKey)}
-            className="text-sm border border-border rounded-lg px-3 py-1.5 bg-white text-dark focus:outline-none focus:border-primary focus:ring-1 focus:ring-primary"
-          >
-            {SORT_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        <ThemeSortSelect slug={slug} sort={sort} />
       </div>
 
       {/* Grid */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 mb-10">
-        {paginated.map(({ set, bestPrice, priceCount }) => (
+        {processed.map(({ set, bestPrice, priceCount }) => (
           <SetCard key={set.id} set={set} bestPrice={bestPrice} priceCount={priceCount} summary={set.summary ?? null} />
         ))}
       </div>
 
-      {/* Pagination */}
-      {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 flex-wrap">
-          <button
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page === 1}
-            className="px-4 py-2 text-sm font-bold rounded-lg border border-border hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            Previous
-          </button>
+      {/* Pager: plain links, so every page can be reached without script. */}
+      {pages > 1 && (
+        <nav aria-label="Pages of sets" className="flex items-center justify-center gap-2 flex-wrap">
+          {page > 1 ? (
+            <Link href={href(page - 1)} rel="prev" className={PAGER_STEP}>Previous</Link>
+          ) : (
+            <span aria-disabled="true" className={PAGER_OFF}>Previous</span>
+          )}
 
-          {pageNumbers[0] > 1 && (
+          {from > 1 && (
             <>
-              <button onClick={() => setPage(1)} className="px-3 py-2 text-sm font-bold rounded-lg border border-border hover:bg-surface transition-colors">1</button>
-              {pageNumbers[0] > 2 && <span className="text-text-secondary px-1">...</span>}
+              <Link href={href(1)} className={PAGER_LINK}>1</Link>
+              {from > 2 && <span className="text-text-secondary px-1">...</span>}
             </>
           )}
 
-          {pageNumbers.map((n) => (
-            <button
-              key={n}
-              onClick={() => setPage(n)}
-              className={`px-3 py-2 text-sm font-bold rounded-lg border transition-colors ${
-                n === page
-                  ? 'bg-primary text-white border-primary'
-                  : 'border-border hover:bg-surface'
-              }`}
-            >
-              {n}
-            </button>
-          ))}
+          {numbers.map((n) =>
+            n === page ? (
+              <span key={n} aria-current="page" className={PAGER_CURRENT}>{n}</span>
+            ) : (
+              <Link key={n} href={href(n)} className={PAGER_LINK}>{n}</Link>
+            ),
+          )}
 
-          {pageNumbers[pageNumbers.length - 1] < totalPages && (
+          {to < pages && (
             <>
-              {pageNumbers[pageNumbers.length - 1] < totalPages - 1 && <span className="text-text-secondary px-1">...</span>}
-              <button onClick={() => setPage(totalPages)} className="px-3 py-2 text-sm font-bold rounded-lg border border-border hover:bg-surface transition-colors">{totalPages}</button>
+              {to < pages - 1 && <span className="text-text-secondary px-1">...</span>}
+              <Link href={href(pages)} className={PAGER_LINK}>{pages}</Link>
             </>
           )}
 
-          <button
-            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-            disabled={page === totalPages}
-            className="px-4 py-2 text-sm font-bold rounded-lg border border-border hover:bg-surface disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-          >
-            Next
-          </button>
-        </div>
+          {page < pages ? (
+            <Link href={href(page + 1)} rel="next" className={PAGER_STEP}>Next</Link>
+          ) : (
+            <span aria-disabled="true" className={PAGER_OFF}>Next</span>
+          )}
+        </nav>
       )}
     </>
   );
