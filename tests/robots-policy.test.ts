@@ -1,5 +1,5 @@
 // Crawl policy: no robots group disallows the script and image paths (blocking them stops rendering checks
-// from loading the page's resources). The private prefixes stay out of search through noindex headers.
+// from loading the page's resources). The private prefixes are listed, and they also carry noindex headers.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -36,9 +36,9 @@ describe('robots.txt', () => {
     expect(groups(robots).some((g) => g.agents.includes('*'))).toBe(true);
   });
 
-  it('does not list the private prefixes', () => {
+  it('lists the private prefixes in every block', () => {
     for (const p of ['/admin/', '/api/', '/pending/']) {
-      expect(robots).not.toMatch(new RegExp(`^Disallow: ${p.replace(/\//g, '\/')}$`, 'm'));
+      expect(robots).toMatch(new RegExp(`^Disallow: ${p.replace(/\//g, '\/')}$`, 'm'));
     }
   });
 });
