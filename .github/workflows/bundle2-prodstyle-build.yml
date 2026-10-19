@@ -1,0 +1,51 @@
+name: Bundle 2 production-style build (no deploy)
+
+# Production-style build of the combined Bundle 2 tree: the same build steps as the deploy, with no deploy and no
+# service key. Public values come only from the public URL and anon key repo secrets. Prints timings and page weight.
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      NEXT_PUBLIC_SUPABASE_URL:      ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_SITE_URL:          https://bricksofindia.com
+      NEXT_PUBLIC_GA_MEASUREMENT_ID: ""
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+          cache: 'npm'
+
+      - name: Install
+        run: npm ci
+
+      - name: Next.js build (timed)
+        run: |
+          start=$(date +%s)
+          npm run build
+          echo "next_build_seconds=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+        id: nextbuild
+
+      - name: OpenNext Cloudflare build (timed)
+        run: |
+          start=$(date +%s)
+          npx opennextjs-cloudflare build
+          echo "opennext_build_seconds=$(( $(date +%s) - start ))" >> "$GITHUB_OUTPUT"
+        id: opennext
+
+      - name: Heart code and set page weight (flag off by default)
+        run: node scripts/ci/heart-bundle-check.mjs .next
+
+      - name: Timings
+        run: |
+          echo "next build seconds: ${{ steps.nextbuild.outputs.next_build_seconds }}"
+          echo "opennext build seconds: ${{ steps.opennext.outputs.opennext_build_seconds }}"
