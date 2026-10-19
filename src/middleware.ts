@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
-import { themeRedirectTarget } from '@/lib/theme-redirect';
 
 // Issue #114: bricksofindia.com and www served plain http:// directly with no
 // redirect at all (confirmed live via curl, 2026-09-12 audit) -- Cloudflare's
@@ -25,8 +24,5 @@ export function middleware(request: NextRequest) {
     httpsUrl.protocol = 'https:';
     return NextResponse.redirect(httpsUrl, 308);
   }
-  // Old query-string theme addresses (?page=N, ?sort=X) go to the path form with the query removed (308).
-  const themeTarget = themeRedirectTarget(request.nextUrl.pathname, request.nextUrl.searchParams);
-  if (themeTarget) return NextResponse.redirect(new URL(themeTarget, request.url), 308);
   return NextResponse.next();
 }

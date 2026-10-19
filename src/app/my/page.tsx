@@ -1,11 +1,8 @@
-// Not routed. While myCollectionPage is off, /my must answer exactly like any unknown path (the site's branded 404).
-// A notFound() call inside a route page renders the bare error shell instead, so the page lives here, outside app/.
-// To switch the page on: move this file back to src/app/my/page.tsx and set myCollectionPage to true (one release decision).
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { buildMetadata } from '@/lib/metadata';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
-import { MyCollection } from '@/app/my/MyCollection';
+import { MyCollection } from './MyCollection';
 
 // My Collection: the visitor's wishlist and collection, saved in their browser. The page is the same
 // for everyone; the lists and their prices load in the browser. Not indexed, not in the sitemap.

@@ -13,7 +13,7 @@ vi.mock('next/navigation', () => ({ notFound: () => { throw new Error('NEXT_NOT_
 import { HeartButton, AddToCollectionButton } from '../src/components/saved/SaveButtons';
 import { PricesUnavailable } from '../src/app/my/PriceNotes';
 import { MyCollection } from '../src/app/my/MyCollection';
-import MyPage from '../src/unrouted/my/page';
+import MyPage from '../src/app/my/page';
 
 const root = join(__dirname, '..');
 const read = (f: string) => readFileSync(join(root, f), 'utf8');

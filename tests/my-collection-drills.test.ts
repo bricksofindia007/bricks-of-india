@@ -35,7 +35,7 @@ vi.mock('../src/lib/get-secret', () => ({ getSecret: () => 'reader-key' }));
 
 import { GET as savedSets } from '../src/app/api/saved-sets/route';
 import { GET as lastSeen } from '../src/app/api/last-seen-prices/route';
-import MyPage from '../src/unrouted/my/page';
+import MyPage from '../src/app/my/page';
 import { addOwned, addWish, cleanWishlist, MY_SETS_LIMIT, PRICE_READ_CAP, priceIds, VOICE, type OwnedItem, type WishItem } from '../src/lib/my-collection';
 import { worthInputFor, worthOf, worthTotal, usableRate, WISHLIST_NO_PRICE_LINE, RETIRED_LINE } from '../src/lib/collection-worth';
 
