@@ -1,5 +1,5 @@
-// Crawl policy and security headers: the private prefixes are kept out of search by a header,
-// not by robots.txt; the AI-crawler policy stays; HSTS is one year with no preload.
+// Crawl policy and security headers: the private prefixes are listed in robots.txt and also carry a noindex header;
+// the AI-crawler policy stays; HSTS is one year with no preload.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -11,10 +11,11 @@ const root = join(__dirname, '..');
 const robots = readFileSync(join(root, 'public/robots.txt'), 'utf8');
 
 describe('robots.txt', () => {
-  it('does not list the private prefixes (a header keeps them out of search)', () => {
-    expect(robots).not.toMatch(/^Disallow: \/admin\/$/m);
-    expect(robots).not.toMatch(/^Disallow: \/api\/$/m);
-    expect(robots).not.toMatch(/^Disallow: \/pending\/$/m);
+  it('lists the private prefixes (and the /api/img exception for social previews)', () => {
+    expect(robots).toMatch(/^Disallow: \/admin\/$/m);
+    expect(robots).toMatch(/^Disallow: \/api\/$/m);
+    expect(robots).toMatch(/^Disallow: \/pending\/$/m);
+    expect(robots).toMatch(/^Allow: \/api\/img$/m);
   });
 
   it('keeps the AI-crawler policy groups', () => {
