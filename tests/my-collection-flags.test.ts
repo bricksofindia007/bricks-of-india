@@ -23,7 +23,7 @@ describe('My Collection flags', () => {
 
 describe('flags off = no visible change', () => {
   it('the My Collection page is not found while its flag is off', () => {
-    const src = read('src/app/my/page.tsx');
+    const src = read('src/unrouted/my/page.tsx');
     expect(src).toMatch(/if \(!FEATURE_FLAGS\.myCollectionPage\) notFound\(\);/);
   });
   it('the price route answers 404 while its flag is off', () => {
@@ -36,7 +36,7 @@ describe('flags off = no visible change', () => {
     expect(read('src/app/sets/[slug]/page.tsx')).toMatch(/\{FEATURE_FLAGS\.myCollectionHearts && \(\s*<div className="flex flex-wrap items-center gap-3 mb-4">/);
   });
   it('no My Collection code path reads the old environment switch', () => {
-    for (const f of ['src/app/my/page.tsx', 'src/components/sets/SetCard.tsx', 'src/app/sets/[slug]/page.tsx', 'src/app/api/saved-sets/route.ts']) {
+    for (const f of ['src/unrouted/my/page.tsx', 'src/components/sets/SetCard.tsx', 'src/app/sets/[slug]/page.tsx', 'src/app/api/saved-sets/route.ts']) {
       expect(read(f)).not.toMatch(/NEXT_PUBLIC_BOI_SAVED_SETS/);
     }
   });

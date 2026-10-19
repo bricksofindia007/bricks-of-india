@@ -36,43 +36,6 @@ describe('route files', () => {
   });
 });
 
-describe('query-string links redirect to the path form (308)', () => {
-  type Rule = { source: string; has?: { type: string; key: string; value?: string }[]; destination: string; permanent: boolean };
-  const rules = (): Promise<Rule[]> =>
-    (import('../next.config.mjs') as Promise<{ default: { redirects: () => Promise<Rule[]> } }>)
-      .then((m) => m.default.redirects());
-
-  it('?page=N goes to /page/N, permanently', async () => {
-    const r = (await rules()).find((x) => x.destination === '/themes/:theme/page/:page');
-    expect(r).toBeTruthy();
-    expect(r!.permanent).toBe(true);
-    expect(r!.has?.[0]).toMatchObject({ type: 'query', key: 'page' });
-  });
-  it('?sort=X goes to /sort/X, permanently, for the four non-default sorts', async () => {
-    const r = (await rules()).find((x) => x.destination === '/themes/:theme/sort/:sort');
-    expect(r).toBeTruthy();
-    expect(r!.permanent).toBe(true);
-    expect(r!.has?.[0].value).toBe('(?<sort>price-asc|price-desc|year-asc|year-desc)');
-  });
-  it('a link with both parameters goes straight to the sorted page, and that rule comes first', async () => {
-    const list = await rules();
-    const both = list.findIndex((x) => x.destination === '/themes/:theme/sort/:sort/page/:page');
-    const sortOnly = list.findIndex((x) => x.destination === '/themes/:theme/sort/:sort');
-    const pageOnly = list.findIndex((x) => x.destination === '/themes/:theme/page/:page');
-    expect(both).toBeGreaterThanOrEqual(0);
-    expect(both).toBeLessThan(sortOnly);
-    expect(both).toBeLessThan(pageOnly);
-  });
-  it('page numbers the redirect takes are 2 and up; page 1 and 0 stay on the bare address', async () => {
-    const r = (await rules()).find((x) => x.destination === '/themes/:theme/page/:page');
-    const re = new RegExp(`^${r!.has![0].value}$`);
-    expect(re.test('2')).toBe(true);
-    expect(re.test('20')).toBe(true);
-    expect(re.test('1')).toBe(false);
-    expect(re.test('0')).toBe(false);
-  });
-});
-
 describe('metadata', () => {
   it('page one is indexed with the bare address as canonical', () => {
     const m = themeRouteMetadata('technic', 1, null);

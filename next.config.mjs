@@ -7,29 +7,7 @@ const nextConfig = {
   poweredByHeader: false,
   async redirects() {
     return [
-      // Theme pages moved from query strings to paths (Bundle 2 integration). Old links keep working with a 308.
-      // The sorted-and-paged rule comes first, so a link with both parameters lands on the sorted page directly.
-      {
-        source: '/themes/:theme',
-        has: [
-          { type: 'query', key: 'sort', value: '(?<sort>price-asc|price-desc|year-asc|year-desc)' },
-          { type: 'query', key: 'page', value: '(?<page>[2-9]|[1-9][0-9]+)' },
-        ],
-        destination: '/themes/:theme/sort/:sort/page/:page',
-        permanent: true,
-      },
-      {
-        source: '/themes/:theme',
-        has: [{ type: 'query', key: 'sort', value: '(?<sort>price-asc|price-desc|year-asc|year-desc)' }],
-        destination: '/themes/:theme/sort/:sort',
-        permanent: true,
-      },
-      {
-        source: '/themes/:theme',
-        has: [{ type: 'query', key: 'page', value: '(?<page>[2-9]|[1-9][0-9]+)' }],
-        destination: '/themes/:theme/page/:page',
-        permanent: true,
-      },
+      // Old query-string theme addresses (?page=, ?sort=) redirect in src/middleware.ts, which drops the query.
       // #213 (Wave 1 PR-H, 2026-09-26): the heat map is hidden pending a
       // rebuild -- its figures were hardcoded, not live Trends data.
       // Temporary (307), not permanent: the URL comes back after the rebuild.
