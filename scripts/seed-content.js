@@ -1091,7 +1091,7 @@ Q: Is now a good time to buy LEGO® in India?
 A: April is generally good — retailers are stocking 2026 sets and often have competitive prices on previous-year stock.
 
 Q: How often do LEGO® deals update in India?
-A: Our price comparison updates every 6 hours. The best deals change frequently.
+A: Our price comparison is checked daily. The best deals change frequently.
 
 Q: What is the biggest LEGO® discount available in India right now?
 A: Code ABHINAV12 at Toycra (12% off) is the most consistent significant discount available to all Indian buyers.

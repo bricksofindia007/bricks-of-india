@@ -110,7 +110,7 @@ What Indian fans can do in the meantime
 
 Exactly what they have always done. Compare prices carefully. Use every discount available. Buy with patience and intention rather than impulse.
 
-Check bricksofindia.com before every purchase — MyBrickHouse and Toycra on one page, updated every six hours. Use code ABHINAV12 at Toycra for 12% off above ₹500. The import premium is real and it is not going away soon.
+Check bricksofindia.com before every purchase — MyBrickHouse and Toycra on one page, checked daily. Use code ABHINAV12 at Toycra for 12% off above ₹500. The import premium is real and it is not going away soon.
 
 But the certified store is here. Fifty more are coming. The trajectory is right even if the pricing is not yet.
 
