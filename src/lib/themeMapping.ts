@@ -464,3 +464,16 @@ export function rawThemesFor(curatedSlug: string): string[] {
     .filter(([, v]) => v === curatedSlug)
     .map(([k]) => k);
 }
+
+// Themes whose name match is an exact list of raw theme names instead of a substring. A substring match took in
+// unrelated themes ("Activity Books with LEGO Parts" matched "Art" through "Parts").
+export const EXACT_NAME_MATCH: Record<string, string[]> = {
+  art: ['LEGO Art', 'Posters and Art Prints'],
+};
+
+/** Whether a raw theme value is in a curated theme's name match: the exact list where one is set, else a substring. */
+export function matchesThemeName(rawTheme: string, curatedName: string, curatedSlug: string): boolean {
+  const exact = EXACT_NAME_MATCH[curatedSlug];
+  if (exact) return exact.includes(rawTheme);
+  return rawTheme.toLowerCase().includes(curatedName.toLowerCase());
+}

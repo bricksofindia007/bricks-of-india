@@ -3,7 +3,7 @@
 import { unstable_cache } from 'next/cache';
 import { createServerClient } from '@/lib/supabase';
 import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
-import { rawThemesFor } from '@/lib/themeMapping';
+import { EXACT_NAME_MATCH, rawThemesFor } from '@/lib/themeMapping';
 import { fetchAllRows, mergeThemeRows } from '@/lib/theme-paging';
 
 export type ThemeIndexRow = { set_number: string; year: number | null };
@@ -23,13 +23,16 @@ export async function loadThemeIndex(themeName: string, slug: string): Promise<T
   const mapped = rawThemesFor(slug);
 
   // The order includes set_number as a tiebreak, so pages do not shift between reads when years tie.
+  const exact = EXACT_NAME_MATCH[slug];
   const [byName, mappedRows] = await Promise.all([
-    fetchAllRows<ThemeIndexRow>((from, to) =>
-      supabase.from('sets').select('set_number, year')
-        .ilike('theme', `%${themeName}%`)
+    fetchAllRows<ThemeIndexRow>((from, to) => {
+      const q = supabase.from('sets').select('set_number, year');
+      const named = exact ? q.in('theme', exact) : q.ilike('theme', `%${themeName}%`);
+      return named
         .order('year', { ascending: false })
         .order('set_number', { ascending: true })
-        .range(from, to)),
+        .range(from, to);
+    }),
     mapped.length > 0
       ? fetchAllRows<ThemeIndexRow>((from, to) =>
           supabase.from('sets').select('set_number, year')
