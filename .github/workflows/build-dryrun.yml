@@ -28,7 +28,7 @@ jobs:
           cache: 'npm'
       - name: Stub data API (answers every request with an empty result, no network)
         run: |
-          node -e "require('http').createServer((q,s)=>{q.resume();q.on('end',()=>{s.writeHead(200,{'content-type':'application/json'});s.end(q.url.includes('count')?'0':(String(q.headers.accept||'').includes('vnd.pgrst.object')?'null':'[]'))})}).listen(54321,'127.0.0.1')" > stub.log 2>&1 &
+          node -e "require('http').createServer((q,s)=>{q.resume();q.on('end',()=>{s.writeHead(200,{'content-type':'application/json'});s.end(String(q.headers.prefer||'').includes('count=')?'0':(String(q.headers.accept||'').includes('vnd.pgrst.object')?'null':'[]'))})}).listen(54321,'127.0.0.1')" > stub.log 2>&1 &
           sleep 2
           curl -s -o /dev/null -w 'stub status %{http_code}\n' http://127.0.0.1:54321/rest/v1/sets
       - run: npm ci
