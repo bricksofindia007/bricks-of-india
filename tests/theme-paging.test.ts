@@ -2,7 +2,7 @@
 // out-of-range page, the header total, the two-query merge, the sort rules, and the reads that page through every row.
 import { describe, it, expect } from 'vitest';
 import {
-  THEME_PAGE_SIZE, parseThemePage, parseThemeSort, pageCount, resolveThemePage, mergeThemeRows, sortThemeRows,
+  THEME_PAGE_SIZE, THEME_SORT_OPTIONS, parseThemePage, parseThemeSort, pageCount, resolveThemePage, mergeThemeRows, sortThemeRows,
   themeHref, canonicalThemePath, fetchAllRows,
 } from '../src/lib/theme-paging';
 
@@ -113,8 +113,16 @@ describe('the sort rules, as the grid had them', () => {
     const same = [{ set_number: 'p', year: 2024 }, { set_number: 'q', year: 2020 }];
     expect(sortThemeRows(same, 'price-asc', () => 100).map((r) => r.set_number)).toEqual(['p', 'q']);
   });
-  it('most pieces keeps the current order, because the set rows have no parts count', () => {
-    expect(sortThemeRows(data, 'pieces-desc', priceOf).map((r) => r.set_number)).toEqual(['x', 'y', 'z']);
+});
+
+describe('Most Pieces is not offered (no parts count exists on the set rows)', () => {
+  it('the sort options have no pieces option', () => {
+    expect(THEME_SORT_OPTIONS.map((o) => o.value)).not.toContain('pieces-desc');
+    expect(THEME_SORT_OPTIONS.map((o) => o.label)).not.toContain('Most Pieces');
+  });
+  it('an old link with ?sort=pieces-desc falls back to Newest First, as any unknown sort does', () => {
+    expect(parseThemeSort('pieces-desc')).toBe('year-desc');
+    expect(themeHref('technic', { sort: parseThemeSort('pieces-desc') })).toBe('/themes/technic');
   });
 });
 

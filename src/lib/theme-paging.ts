@@ -9,8 +9,9 @@ export const THEME_SORT_OPTIONS = [
   { value: 'price-desc', label: 'Price: High to Low' },
   { value: 'year-desc', label: 'Newest First' },
   { value: 'year-asc', label: 'Oldest First' },
-  { value: 'pieces-desc', label: 'Most Pieces' },
 ] as const;
+// "Most Pieces" is not offered: the set rows have no parts count, so the option could not sort anything. Old links
+// that still say pieces-desc fall back to Newest First, the same as any unknown sort.
 
 export type ThemeSort = (typeof THEME_SORT_OPTIONS)[number]['value'];
 
@@ -79,10 +80,6 @@ export function sortThemeRows<T extends IndexRow>(rows: T[], sort: ThemeSort, be
       return copy.sort((a, b) => (a.year ?? 0) - (b.year ?? 0));
     case 'year-desc':
       return copy.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
-    case 'pieces-desc':
-      // The set rows have no parts-count column, so every row compares as 0 and this keeps the current order. Kept as
-      // it was; see the release review note.
-      return copy.sort((a, b) => ((b as { num_parts?: number }).num_parts ?? 0) - ((a as { num_parts?: number }).num_parts ?? 0));
     default:
       return copy;
   }
