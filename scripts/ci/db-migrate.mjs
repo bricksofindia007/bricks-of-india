@@ -75,6 +75,29 @@ export function stripDollarQuoted(sql) {
   return sql.replace(/\$([A-Za-z_]\w*)?\$[\s\S]*?\$\1\$/g, '');
 }
 
+// A clause of an expect SQL is a bare count when it has no comparison: "position(x in content)" is a number, so it is
+// rejected inside an AND; "position(x in content) > 0" is a condition. Returns the bare clauses (empty = ok).
+export function bareExpectClauses(expectSql) {
+  const flat = expectSql.replace(/'(?:[^']|'')*'/g, "''");
+  const clauses = [];
+  let depth = 0;
+  let cur = '';
+  let i = 0;
+  while (i < flat.length) {
+    const ch = flat[i];
+    if (ch === '(') depth++;
+    if (ch === ')') depth--;
+    const and = depth === 0 ? /^\s+and\s+/i.exec(flat.slice(i)) : null;
+    if (and) { clauses.push(cur); cur = ''; i += and[0].length; continue; }
+    cur += ch;
+    i++;
+  }
+  clauses.push(cur);
+  return clauses
+    .filter((c) => !/(=|<|>|\blike\b|\bis\b|\bin\s*\(|\bexists\b|\bbetween\b)/i.test(c))
+    .map((c) => c.trim());
+}
+
 /** Lint one pending file; returns a list of problems (empty = ok). */
 export function lintFile(kind, name, sql) {
   const h = parseHeader(sql);
@@ -90,6 +113,7 @@ export function lintFile(kind, name, sql) {
       if (!e) errs.push(`${name}: data fixes need "-- boi:${k} <select returning one number> = <n>"`);
       else if (e.error) errs.push(`${name}: ${e.error}`);
       else if (e.sql.includes('$q$')) errs.push(`${name}: ${k} SQL may not contain $q$`);
+      else for (const c of bareExpectClauses(e.sql)) errs.push(`${name}: ${k} has a bare count (no comparison) in the clause: ${c}`);
     }
     if (h.backupTables.length === 0) errs.push(`${name}: data fixes must name the tables they change in "-- boi:backup-tables"`);
   }
