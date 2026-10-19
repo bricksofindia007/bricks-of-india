@@ -127,13 +127,14 @@ describe('Most Pieces is not offered (no parts count exists on the set rows)', (
 });
 
 describe('addresses', () => {
-  it('page 1 and the default sort have no query string; the sort is kept out of the canonical', () => {
+  it('pages and sorts have path addresses; the default sort is not repeated; the sort is kept out of the canonical', () => {
     expect(themeHref('technic')).toBe('/themes/technic');
     expect(themeHref('technic', { page: 1, sort: 'year-desc' })).toBe('/themes/technic');
-    expect(themeHref('technic', { page: 3 })).toBe('/themes/technic?page=3');
-    expect(themeHref('technic', { page: 2, sort: 'price-asc' })).toBe('/themes/technic?page=2&sort=price-asc');
+    expect(themeHref('technic', { page: 3 })).toBe('/themes/technic/page/3');
+    expect(themeHref('technic', { page: 2, sort: 'price-asc' })).toBe('/themes/technic/sort/price-asc/page/2');
+    expect(themeHref('technic', { sort: 'price-asc' })).toBe('/themes/technic/sort/price-asc');
     expect(canonicalThemePath('technic', 1)).toBe('/themes/technic');
-    expect(canonicalThemePath('technic', 4)).toBe('/themes/technic?page=4');
+    expect(canonicalThemePath('technic', 4)).toBe('/themes/technic/page/4');
   });
 });
 

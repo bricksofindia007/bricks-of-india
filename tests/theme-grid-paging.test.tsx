@@ -45,7 +45,7 @@ describe('exactly 200 sets', () => {
     expect(html).toContain('— page 5 of 5');
     expect(html).toContain('10199'); // the 200th set is on page 5
     expect(html).not.toContain('10191'); // index 191 is the last set of page 4, so it is not on page 5
-    expect(hrefs(html)).toContain('/themes/technic?page=4');
+    expect(hrefs(html)).toContain('/themes/technic/page/4');
     expect(html).toContain('<span aria-disabled="true"');
   });
 });
@@ -58,8 +58,8 @@ describe('over 200: the real totals, not the cap', () => {
     expect(html).toContain('— page 1 of 20');
     expect(html).toContain('10047'); // index 47, the last on page 1
     expect(html).not.toContain('10048');
-    expect(hrefs(html)).toContain('/themes/technic?page=2');
-    expect(hrefs(html)).toContain('/themes/technic?page=20'); // the last page is always reachable
+    expect(hrefs(html)).toContain('/themes/technic/page/2');
+    expect(hrefs(html)).toContain('/themes/technic/page/20'); // the last page is always reachable
   });
   it('City 1704: the header shows 1704, and there are 36 pages', () => {
     const html = render(1704, 1);
@@ -74,7 +74,7 @@ describe('the last page', () => {
     expect(html).toContain('10917');
     expect(html).toContain('10912');
     expect(html).not.toContain('10911');
-    expect(hrefs(html)).toContain('/themes/technic?page=19');
+    expect(hrefs(html)).toContain('/themes/technic/page/19');
     expect(html).toContain('<span aria-disabled="true"');
     expect(html).not.toContain('rel="next"');
   });
@@ -90,25 +90,26 @@ describe('an out-of-range page', () => {
     expect(resolveThemePage(918, '21')).toEqual({ ok: false, pages: 20 });
   });
   it('the page calls notFound on a refusal, and the metadata canonical is the page number, not the sort', () => {
-    const src = read('src/app/themes/[theme]/page.tsx');
-    expect(src).toMatch(/if \(!paging\.ok\) notFound\(\);/);
-    expect(src).toMatch(/path: canonicalThemePath\(params\.theme, page\)/);
-    expect(canonicalThemePath('technic', 21)).toBe('/themes/technic?page=21');
+    const loader = read('src/lib/theme-page-data.ts');
+    expect(loader).toMatch(/if \(!paging\.ok\) return null;/);
+    expect(read('src/app/themes/[theme]/page/[page]/page.tsx')).toMatch(/if \(!view\) notFound\(\);/);
+    expect(read('src/lib/theme-metadata.ts')).toMatch(/path: canonicalThemePath\(slug, page\)/);
+    expect(canonicalThemePath('technic', 21)).toBe('/themes/technic/page/21');
   });
 });
 
 describe('the pager and the sort', () => {
   it('pages keep the sort in their links; the default sort is left out', () => {
     const html = render(918, 2, 'price-asc');
-    expect(hrefs(html)).toContain('/themes/technic?page=3&amp;sort=price-asc');
+    expect(hrefs(html)).toContain('/themes/technic/sort/price-asc/page/3');
     const def = render(918, 2);
-    expect(hrefs(def)).toContain('/themes/technic?page=3');
+    expect(hrefs(def)).toContain('/themes/technic/page/3');
     expect(def).not.toContain('sort=');
   });
   it('the current page is marked, with no link to itself', () => {
     const html = render(918, 3);
     expect(html).toContain('aria-current="page"');
-    expect(hrefs(html)).not.toContain('/themes/technic?page=3');
+    expect(hrefs(html)).not.toContain('/themes/technic/page/3');
   });
 });
 
@@ -120,7 +121,7 @@ describe('the wiring', () => {
     expect(read('src/components/sets/ThemeSortSelect.tsx')).toContain("'use client'");
   });
   it('the page has no 200-row cap left', () => {
-    const src = read('src/app/themes/[theme]/page.tsx');
+    const src = read('src/lib/theme-page-data.ts') + read('src/lib/theme-index.ts');
     expect(src).not.toMatch(/\.limit\(200\)/);
     expect(src).not.toMatch(/\.slice\(0, 200\)/);
   });

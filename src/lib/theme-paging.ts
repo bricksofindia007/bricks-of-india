@@ -85,13 +85,14 @@ export function sortThemeRows<T extends IndexRow>(rows: T[], sort: ThemeSort, be
   }
 }
 
-/** The address of a theme page. Page 1 and the default sort have no query string. */
+/**
+ * The address of a theme page, in path form. The default sort is /themes/<slug>/page/<n> (page 1 is /themes/<slug>);
+ * any other sort is /themes/<slug>/sort/<sort>, with the same /page/<n> suffix for pages 2 and up.
+ */
 export function themeHref(slug: string, opts: { page?: number; sort?: ThemeSort } = {}): string {
-  const q = new URLSearchParams();
-  if (opts.page && opts.page > 1) q.set('page', String(opts.page));
-  if (opts.sort && opts.sort !== 'year-desc') q.set('sort', opts.sort);
-  const qs = q.toString();
-  return `/themes/${slug}${qs ? `?${qs}` : ''}`;
+  const page = opts.page && opts.page > 1 ? opts.page : 1;
+  const base = opts.sort && opts.sort !== 'year-desc' ? `/themes/${slug}/sort/${opts.sort}` : `/themes/${slug}`;
+  return page > 1 ? `${base}/page/${page}` : base;
 }
 
 /**
@@ -99,7 +100,7 @@ export function themeHref(slug: string, opts: { page?: number; sort?: ThemeSort 
  * 2 and up are not duplicates of page 1.
  */
 export function canonicalThemePath(slug: string, page: number): string {
-  return page > 1 ? `/themes/${slug}?page=${page}` : `/themes/${slug}`;
+  return page > 1 ? `/themes/${slug}/page/${page}` : `/themes/${slug}`;
 }
 
 /**
@@ -118,4 +119,9 @@ export async function fetchAllRows<T>(
     if (data.length < 1000) break;
   }
   return out;
+}
+
+/** Whether a raw path segment is one of the theme sort options (the sorted routes answer only these). */
+export function isThemeSort(raw: string): raw is ThemeSort {
+  return SORT_VALUES.has(raw);
 }
