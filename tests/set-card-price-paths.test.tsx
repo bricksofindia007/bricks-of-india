@@ -47,3 +47,14 @@ describe('path D: a fallback price with no summary at all', () => {
     expect(html).toContain('MRP: ');
   });
 });
+
+describe('path C, the whole card: a tie shows the same card as before, plus the Best Price badge', () => {
+  it('keeps the name, number, pieces, year and price, and adds no store-count wording', () => {
+    const html = render({ summary: summary({ best_store_ids: ['lego_in', 'toycra'], in_stock_store_count: 2 }) });
+    for (const s of ['Bugatti Chiron Pur Sport Hypercar', '42222', '771 pcs', '2026', '6,999', 'Best Price']) {
+      expect(html).toContain(s);
+    }
+    // The card never names a store count: no "2 stores" or "two stores" wording.
+    expect(html).not.toMatch(/\b(two|2|three|3)\s+stores?\b/i);
+  });
+});
