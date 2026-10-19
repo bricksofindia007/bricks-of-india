@@ -1,0 +1,40 @@
+name: Staging drafts seed (staging only, manual)
+
+# Puts the fixture drafts for the stale-backlog data fix on STAGING only. Never production.
+# Credential: environment secret STAGING_DB_URL in the staging-seed environment, which requires the owner's approval.
+# The job refuses any address that contains the production project reference, and prints counts only.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seed-staging:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: staging-seed
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Refuse anything but staging
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: |
+          if [ -z "$STAGING_DB_URL" ]; then echo "STAGING_DB_URL is not set"; exit 1; fi
+          if printf '%s' "$STAGING_DB_URL" | grep -q 'hqpaiarhmiocmjrzjhtw'; then echo "address is the production project; stopped"; exit 1; fi
+          echo "staging address check passed (value not printed)"
+
+      - name: Seed the fixture drafts
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client > /dev/null
+          psql "$STAGING_DB_URL" -X -q -v ON_ERROR_STOP=1 -f scripts/ci/seed-staging-stale-drafts.sql
+
+      - name: Count check (counts only)
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: |
+          psql "$STAGING_DB_URL" -X -At -v ON_ERROR_STOP=1 -c "select 'eligible_drafts|' || count(*) from public.pending_drafts where status = 'draft' and ((draft_format = 'news' and created_at < '2026-10-04 03:54:00+00') or (draft_format = 'review' and created_at < '2026-09-18 03:54:00+00'));"
+          psql "$STAGING_DB_URL" -X -At -v ON_ERROR_STOP=1 -c "select 'marker_rows|' || count(*) from public.pending_drafts where discard_reason = 'stale backlog';"
