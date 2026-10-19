@@ -17,7 +17,8 @@ export interface Env {
   BOI_SNAPSHOTS: KVNamespace;
   SNAPSHOT_HMAC_KEY?: string;
   BOI_SCHEDULER_DISPATCH_TOKEN?: string;
-  TARGET: string;            // 'production' | 'staging' (from wrangler vars)
+  TARGET: string;
+  SOCIAL_DISPATCH_ENABLED?: string; // "true" only from the owner's deploy; default "false"
   GITHUB_REPO: string;       // 'bricksofindia007/bricks-of-india'
 }
 
@@ -69,6 +70,28 @@ async function dispatch(env: Env, store: string, slot: string): Promise<void> {
   if (status < 200 || status >= 300) await env.BOI_SNAPSHOTS.put('meta:dispatch_fail', JSON.stringify(note));
 }
 
+// Social automation fallback to the GitHub cron (draft). It posts publicly, so it is OFF unless the
+// SOCIAL_DISPATCH_ENABLED var is "true" in this Worker's deployed config, which only the owner's deploy can set.
+// It uses the same guards as the scrape dispatch: token present, KV dispatch flag on, target production.
+const SOCIAL_CRON = '30 6 * * 1'; // 12:00 IST Monday, the same slot as social-automation.yml
+async function dispatchSocial(env: Env, slot: string): Promise<void> {
+  if (env.SOCIAL_DISPATCH_ENABLED !== 'true') return; // inert by default
+  const flags = ((await env.BOI_SNAPSHOTS.get('flag:v1', 'json')) ?? {}) as { dispatch_enabled?: boolean };
+  if (!env.BOI_SCHEDULER_DISPATCH_TOKEN || flags.dispatch_enabled !== true || env.TARGET !== 'production') return;
+  const url = `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/social-automation.yml/dispatches`;
+  let status = 0;
+  for (const waitS of [0, 30, 90]) {
+    if (waitS) await new Promise((r) => setTimeout(r, waitS * 1000));
+    const r = await fetch(url, { method: 'POST', headers: { authorization: `Bearer ${env.BOI_SCHEDULER_DISPATCH_TOKEN}`, accept: 'application/vnd.github+json', 'user-agent': VERSION, 'content-type': 'application/json' },
+      body: JSON.stringify({ ref: 'main' }) });
+    status = r.status;
+    if (r.ok) break;
+  }
+  const note = { slot, workflow: 'social-automation.yml', dispatched_at: new Date().toISOString(), http_status: status };
+  await env.BOI_SNAPSHOTS.put('meta:dispatch:social', JSON.stringify(note));
+  if (status < 200 || status >= 300) await env.BOI_SNAPSHOTS.put('meta:dispatch_fail', JSON.stringify(note));
+}
+
 export default {
   async fetch(req: Request, env: Env): Promise<Response> {
     const { pathname } = new URL(req.url);
@@ -81,5 +104,6 @@ export default {
     await env.BOI_SNAPSHOTS.put('meta:scheduler:heartbeat', JSON.stringify({ at: new Date().toISOString(), slot, cron: ev.cron, version: VERSION, target: env.TARGET }));
     const store = CRON_STORE[ev.cron];
     if (store) ctx.waitUntil(dispatch(env, store, slot));
+    if (ev.cron === SOCIAL_CRON) ctx.waitUntil(dispatchSocial(env, slot));
   },
 };
