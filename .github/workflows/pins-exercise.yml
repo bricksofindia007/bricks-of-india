@@ -1,22 +1,21 @@
 name: Pins exercise (throwaway)
 
-# Throwaway, dispatch-only. Runs the real Python code paths under one pin set. No secrets, no posting.
+# Throwaway. Runs the real Python code paths under one pin set. No secrets, no posting.
 # pins=current takes the requirements files from main; pins=proposed takes them from this branch.
 
 on:
-  workflow_dispatch:
-    inputs:
-      pins:
-        description: 'current or proposed'
-        type: choice
-        options: [current, proposed]
-        default: proposed
+  pull_request:
 
 permissions:
   contents: read
 
 jobs:
   exercise:
+    strategy:
+      fail-fast: false
+      matrix:
+        pins: [current, proposed]
+    name: exercise (${{ matrix.pins }} pins)
     runs-on: ubuntu-24.04
     timeout-minutes: 45
     steps:
@@ -25,7 +24,7 @@ jobs:
           fetch-depth: 0
       - name: Select the pin set
         run: |
-          if [ "${{ inputs.pins }}" = "current" ]; then
+          if [ "${{ matrix.pins }}" = "current" ]; then
             git checkout origin/main -- social-automation/requirements.txt scripts/video/requirements.txt scripts/shareables/requirements.txt
           fi
           grep -iE "^(pillow|requests|python-dotenv)" social-automation/requirements.txt scripts/shareables/requirements.txt
