@@ -1,0 +1,66 @@
+name: Pins artifacts (throwaway)
+
+# Throwaway, pull_request only. Writes the shorts overlay and placeholder under each pin set and
+# uploads them as artifacts, plus a side-by-side (old pins | new pins). No posting, no secrets.
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  render:
+    strategy:
+      fail-fast: false
+      matrix:
+        pins: [current, proposed]
+    name: render (${{ matrix.pins }} pins)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - name: Select the pin set
+        run: |
+          if [ "${{ matrix.pins }}" = "current" ]; then
+            git checkout origin/main -- social-automation/requirements.txt scripts/shareables/requirements.txt
+          fi
+          grep -iE "^(pillow|requests|python-dotenv)" social-automation/requirements.txt scripts/shareables/requirements.txt
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r social-automation/requirements.txt -r scripts/shareables/requirements.txt
+      - name: Render
+        run: python scripts/ci/pins_artifacts.py "out/${{ matrix.pins }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: renders-${{ matrix.pins }}
+          path: out/${{ matrix.pins }}
+          retention-days: 14
+
+  compare:
+    needs: render
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - uses: actions/download-artifact@v4
+        with:
+          path: renders
+      - name: Install Pillow and numpy (the comparison only)
+        run: python -m pip install pillow==12.3.0 numpy==1.26.4
+      - name: Side by side
+        run: python scripts/ci/pins_compare.py renders/renders-current renders/renders-proposed out/side-by-side
+      - uses: actions/upload-artifact@v4
+        with:
+          name: side-by-side-old-vs-new
+          path: out/side-by-side
+          retention-days: 14
