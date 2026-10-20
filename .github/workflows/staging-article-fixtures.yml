@@ -1,0 +1,41 @@
+name: Staging article fixtures (staging only, manual)
+
+# Adds fixture copies of three articles and one review on STAGING only, so the article and review data fixes can be
+# rehearsed. Never production. Existing rows are never changed.
+# Credential: environment secret STAGING_DB_URL in the staging-seed environment, which requires the owner's approval.
+# The job refuses any address that contains the production project reference, and prints counts only.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  seed-staging:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    environment: staging-seed
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Refuse anything but staging
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: |
+          if [ -z "$STAGING_DB_URL" ]; then echo "STAGING_DB_URL is not set"; exit 1; fi
+          if printf '%s' "$STAGING_DB_URL" | grep -q 'hqpaiarhmiocmjrzjhtw'; then echo "address is the production project; stopped"; exit 1; fi
+          echo "staging address check passed (value not printed)"
+
+      - name: Seed the fixture rows
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client > /dev/null
+          psql "$STAGING_DB_URL" -X -q -v ON_ERROR_STOP=1 -f scripts/ci/seed-staging-article-fixtures.sql
+
+      - name: Count check (counts only)
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+        run: |
+          psql "$STAGING_DB_URL" -X -At -v ON_ERROR_STOP=1 -c "select 'fixture_articles|' || count(*) from public.news_articles where excerpt = 'FIXTURE STAGING ONLY';"
+          psql "$STAGING_DB_URL" -X -At -v ON_ERROR_STOP=1 -c "select 'fixture_reviews|' || count(*) from public.reviews where excerpt = 'FIXTURE STAGING ONLY';"
