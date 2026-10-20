@@ -28,7 +28,7 @@ import { estimateCycleUsage } from './capacity-estimate.mjs';
 export const LIMITS = Object.freeze({
   storage: { alertMb: 700, blockMb: 800 },     // 1 GB Free-plan quota
   db:      { alertMb: 350, blockMb: 400 },     // 500 MB read-only limit
-  egress:  { alertGb: 3.5, blockGb: 4.0 },     // 5 GB Free-plan quota, projected to cycle end
+  egress:  { alertGb: 3.5, blockGb: 4.0, stopGb: 4.6 }, // 5 GB Free-plan quota, projected to cycle end. Same levels as config/spend-limits.json
 });
 
 /** Parse BOI_QUOTA_SIMULATE into { storage_mb?, db_mb?, egress_projected_gb? }. */
@@ -82,7 +82,13 @@ function decide(value, alertAt, blockAt, unit, what) {
 
 export const mayUpload = (u) => decide(u.storageMb, LIMITS.storage.alertMb, LIMITS.storage.blockMb, 'MB', 'storage');
 export const mayWriteNonEssential = (u) => decide(u.dbMb, LIMITS.db.alertMb, LIMITS.db.blockMb, 'MB', 'db');
-export const mayReadNonEssential = (u) => decide(u.egressProjectedGb, LIMITS.egress.alertGb, LIMITS.egress.blockGb, 'GB (projected)', 'egress');
+export const mayReadNonEssential = (u) => {
+  // Stop line: at or past 4.6 GB projected, nothing that reads is allowed, and the level says stop.
+  if (Number.isFinite(u.egressProjectedGb) && u.egressProjectedGb >= LIMITS.egress.stopGb) {
+    return { allowed: false, level: 'stop', reason: 'egress-stop', detail: `egress ${u.egressProjectedGb} GB (projected) >= ${LIMITS.egress.stopGb} GB stop` };
+  }
+  return decide(u.egressProjectedGb, LIMITS.egress.alertGb, LIMITS.egress.blockGb, 'GB (projected)', 'egress');
+};
 
 /** All three decisions, for logging and alerts. */
 export function alertLevels(u) {

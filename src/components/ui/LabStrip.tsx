@@ -37,7 +37,6 @@ function StripTile({ tool }: { tool: LabTool }) {
       <Link
         href={tool.href}
         className="block h-full hover:shadow-md transition-shadow rounded-2xl"
-        aria-label={`Open ${tool.name}`}
       >
         {inner}
       </Link>

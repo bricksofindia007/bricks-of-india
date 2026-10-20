@@ -6,11 +6,12 @@ import { FreshOnly } from '@/components/ui/FreshOnly';
 import type { LegoSet } from '@/lib/supabase';
 import { priceLabel, storeName, type SetPriceSummary } from '@/lib/price-summary';
 import { shownTheme } from '@/lib/theme-display';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import { HeartSlot } from '@/components/saved/CollectionSlots';
 
 interface SetCardProps {
   set: LegoSet;
-  // Shown when there is no fresh summary price (e.g. an in-stock row older
-  // outside the freshness window): displayed, never badged.
+  // Accepted from callers but not shown: a price on the card must name a store, and this fallback does not.
   bestPrice?: { price_inr: number | null; in_stock?: boolean | null; scraped_at?: string | null } | null;
   priceCount?: number;
   // PR-B: public.set_price_summary row. Carries the fresh in-stock best price,
@@ -22,10 +23,13 @@ interface SetCardProps {
   trackAs?: { pageType: string; storeId?: string | null; storeName?: string | null; position?: number };
 }
 
-export function SetCard({ set, bestPrice, priceCount, summary, trackAs }: SetCardProps) {
+export function SetCard({ set, priceCount, summary, trackAs }: SetCardProps) {
   const slug = `${set.set_number}-${slugify(set.name)}`;
-  const freshPrice = summary?.best_price_inr ?? null;
-  const shownPrice = freshPrice ?? bestPrice?.price_inr ?? null;
+  // A price is shown only when a store can be named for it. With no store recorded in the summary, or with no
+  // summary at all (the fallback price), the price is not shown and the MRP line stands in.
+  const storesKnown = (summary?.best_store_ids?.length ?? 0) > 0;
+  const freshPrice = storesKnown ? summary?.best_price_inr ?? null : null;
+  const shownPrice = freshPrice;
   const label = priceLabel(summary);
   // R2: the anchor wins over any other MRP.
   const mrp = summary?.anchor_mrp_inr ?? set.lego_mrp_inr;
@@ -48,11 +52,16 @@ export function SetCard({ set, bestPrice, priceCount, summary, trackAs }: SetCar
         <div className="absolute top-2 left-2">
           <Badge variant="grey">{shownTheme(set.theme) || 'LEGO'}</Badge>
         </div>
+        {FEATURE_FLAGS.myCollectionHearts && (
+          <div className="absolute top-2 right-2">
+            <HeartSlot enabled set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
+          </div>
+        )}
       </div>
 
       {/* Info */}
       <div className="p-3">
-        <p className="text-xs text-gray-400 font-price mb-1">{set.set_number}</p>
+        <p className="text-xs text-gray-600 font-price mb-1">{set.set_number}</p>
         <h3 className="font-bold text-dark text-sm leading-tight line-clamp-2 group-hover:text-primary transition-colors mb-2">
           {set.name}
         </h3>
@@ -71,7 +80,7 @@ export function SetCard({ set, bestPrice, priceCount, summary, trackAs }: SetCar
               <div className="flex flex-col gap-1">
                 <div className="flex items-center gap-1.5 flex-wrap">
                   <FreshOnly scrapedAt={summary?.best_scraped_at}>
-                    {label?.kind === 'best' && <BestPriceBadge />}
+                    {(label?.kind === 'best' || label?.kind === 'tie') && <BestPriceBadge />}
                     {label?.kind === 'only' && <OnlyAtBadge store={storeName(label.stores[0])} />}
                   </FreshOnly>
                   <span className={`font-price font-bold text-sm ${freshPrice ? 'text-deal-green' : 'text-dark'}`}>

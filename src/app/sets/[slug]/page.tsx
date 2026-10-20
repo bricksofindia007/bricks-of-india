@@ -17,6 +17,8 @@ import { resolveThemeSlug } from '@/lib/themeMapping';
 import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/Badge';
 import { priceLabel, normalise, type SetPriceSummary } from '@/lib/price-summary';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import { HeartSlot, CollectionSlot } from '@/components/saved/CollectionSlots';
 import { SetCard } from '@/components/sets/SetCard';
 import { SetImage } from '@/components/sets/SetImage';
 import { JsonLd } from '@/components/JsonLd';
@@ -347,7 +349,13 @@ export default async function SetPage(props: Props) {
               {set.pieces != null && set.pieces > 0 ? <Badge variant="grey">{set.pieces.toLocaleString()} pcs</Badge> : null}
             </div>
             <h1 className="font-heading text-dark text-4xl md:text-5xl leading-tight mb-2">{set.name}</h1>
-            <p className="text-gray-400 font-price text-sm mb-4">Set #{set.set_number}</p>
+            <p className="text-gray-600 font-price text-sm mb-4">Set #{set.set_number}</p>
+            {FEATURE_FLAGS.myCollectionHearts && (
+              <div className="flex flex-wrap items-center gap-3 mb-4">
+                <HeartSlot enabled size="lg" set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
+                <CollectionSlot enabled set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
+              </div>
+            )}
             <SaleSetLine setNumber={set.set_number} />
 
             {/* MRP (R2): the anchor and its source win over any other MRP. The

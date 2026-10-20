@@ -11,6 +11,11 @@
  */
 
 export const FEATURE_FLAGS = {
+  // Accounts (wishlist, sign-in, legal pages). Off until the accounts launch; the legal pages
+  // and footer links stay hidden while this is false. Mirrors config/feature_flags.py
+  // ("accounts_enabled"); keep both in sync by hand. Added 17 Oct 2026.
+  accountsEnabled: false,
+
   // Cerebras fallback (article pipeline's generate-with-failover.ts; see
   // also config/feature_flags.py's 'cerebras_fallback_enabled' for the
   // Python-side video pipelines). Added 2026-08-19: Cerebras has been
@@ -96,4 +101,11 @@ export const FEATURE_FLAGS = {
   // "USD x 1.35" estimate that turned spend thresholds into invented import prices.
   // ON 29 Sep 2026 (P11 item 2, Abhinav, Tier 2): this is the cause of invented import prices.
   gwpNoPriceContext: true,
+  // Spend guard pilot (AI daily caps). Off: the Groq provider makes no guard check and writes no counts.
+  aiSpendGuardPilot: false,
+
+  // My Collection (Bundle 2): hearts on set cards and set pages, and the My Collection page.
+  // Both off until launch. Mirrored in config/feature_flags.py; keep in sync.
+  myCollectionHearts: false,
+  myCollectionPage: false,
 } as const;

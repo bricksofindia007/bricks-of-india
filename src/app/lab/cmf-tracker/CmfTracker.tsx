@@ -3,6 +3,8 @@
 import { useState } from 'react';
 import type { SeriesData } from './page';
 import { abhinav12Price } from '@/lib/abhinav12';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import { FigureHeart } from './FigureHeart';
 
 // Store names come from the retailer registry via the server page (FP5.1).
 
@@ -159,7 +161,7 @@ export function CmfTracker({ seriesList, storeLabels }: { seriesList: SeriesData
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))', gap: 10 }}>
         {series.figures.map(fig => {
           const isOwned = ownedSet.has(fig.set_number);
-          return (
+          const cell = (
             <button
               key={fig.set_number}
               type="button"
@@ -202,6 +204,14 @@ export function CmfTracker({ seriesList, storeLabels }: { seriesList: SeriesData
               </div>
               <div style={{ fontSize: '0.6rem', color: '#9AA5B4' }}>#{fig.set_number}</div>
             </button>
+          );
+          // Flag off: the cell is unchanged. Flag on: the save heart sits beside it, saved by figure id.
+          if (!FEATURE_FLAGS.myCollectionHearts) return cell;
+          return (
+            <div key={fig.set_number} style={{ position: 'relative' }}>
+              {cell}
+              {fig.figure_id ? <FigureHeart figureId={fig.figure_id} name={fig.name} /> : null}
+            </div>
           );
         })}
       </div>

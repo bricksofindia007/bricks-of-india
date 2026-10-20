@@ -21,6 +21,9 @@ one-line diff -- not a side effect of an unrelated merge.
 """
 
 FEATURE_FLAGS = {
+    # Accounts (wishlist, sign-in, legal pages). Off until the accounts launch. Mirrors
+    # src/lib/feature-flags.ts (accountsEnabled); keep both in sync by hand. Added 17 Oct 2026.
+    "accounts_enabled": False,
     # VID-QP pre-TTS caption-length shadow-mode estimate (added 2026-08-16,
     # crashed 2026-08-17, shape bug fixed 2026-08-18 in
     # scripts/video/generate_quiet_panic_video.py's run_all_gates()).
@@ -118,4 +121,11 @@ FEATURE_FLAGS = {
     # whichever model is configured here, not just a live-model check.
     "p4_groq_fallback_enabled": False,
     "p4_groq_fallback_model": "openai/gpt-oss-120b",
+
+    # Spend guard pilot (AI daily caps). Off: the Groq provider makes no guard check and writes no counts.
+    "ai_spend_guard_pilot": False,
+    # My Collection (Bundle 2). Hearts on set cards and set pages; the My Collection page
+    # itself. Both off until the launch. Mirrored in src/lib/feature-flags.ts; keep in sync.
+    "my_collection_hearts": False,
+    "my_collection_page": False,
 }

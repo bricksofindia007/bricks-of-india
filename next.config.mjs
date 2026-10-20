@@ -7,6 +7,7 @@ const nextConfig = {
   poweredByHeader: false,
   async redirects() {
     return [
+      // Old query-string theme addresses (?page=, ?sort=) redirect in src/middleware.ts, which drops the query.
       // #213 (Wave 1 PR-H, 2026-09-26): the heat map is hidden pending a
       // rebuild -- its figures were hardcoded, not live Trends data.
       // Temporary (307), not permanent: the URL comes back after the rebuild.

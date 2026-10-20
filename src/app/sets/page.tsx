@@ -248,6 +248,7 @@ export default async function SetsPage(props: Props) {
             <div className="flex flex-col gap-1">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Theme</label>
               <select
+                aria-label="Filter by theme"
                 name="theme"
                 defaultValue={themeFilter}
                 className="border border-border rounded-lg px-3 py-2 text-sm bg-white font-body min-w-[150px]"
@@ -262,6 +263,7 @@ export default async function SetsPage(props: Props) {
             <div className="flex flex-col gap-1">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Sort by</label>
               <select
+                aria-label="Sort by"
                 name="sort"
                 defaultValue={sortKey}
                 className="border border-border rounded-lg px-3 py-2 text-sm bg-white font-body min-w-[170px]"
@@ -275,6 +277,7 @@ export default async function SetsPage(props: Props) {
             <div className="flex flex-col gap-1">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Price</label>
               <select
+                aria-label="Filter by price"
                 name="price"
                 defaultValue={searchParams.price || ''}
                 className="border border-border rounded-lg px-3 py-2 text-sm bg-white font-body min-w-[160px]"
