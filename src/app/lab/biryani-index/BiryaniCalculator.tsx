@@ -59,7 +59,7 @@ export function BiryaniCalculator() {
 
         {/* Output */}
         {isEmpty ? (
-          <p className="text-gray-600 font-body text-center py-16 text-lg">
+          <p className="text-gray-400 font-body text-center py-16 text-lg">
             Type in a price. We&apos;ll do the maths. You&apos;ll feel either better or worse.
             There is no in-between.
           </p>
@@ -91,7 +91,7 @@ export function BiryaniCalculator() {
         )}
 
         {/* Footer note */}
-        <p className="text-xs text-gray-600 text-center border-t border-border pt-6 font-body">
+        <p className="text-xs text-gray-400 text-center border-t border-border pt-6 font-body">
           Reference prices last updated April 2026. Mumbai-skewed. Your local prices may vary,
           your wallet&apos;s reaction will not. Do not show your CA.
         </p>

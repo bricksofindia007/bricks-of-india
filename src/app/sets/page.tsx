@@ -334,7 +334,7 @@ export default async function SetsPage(props: Props) {
         {sets.length === 0 ? (
           <div className="text-center py-20">
             <p className="font-heading text-dark text-3xl mb-2">NO SETS FOUND</p>
-            <p className="text-gray-600 font-body mb-4">Try loosening your filters.</p>
+            <p className="text-gray-400 font-body mb-4">Try loosening your filters.</p>
             <Link
               href="/sets"
               className="inline-block px-6 py-2 bg-dark text-white font-bold rounded-lg text-sm"
@@ -402,7 +402,7 @@ export default async function SetsPage(props: Props) {
       </div>
 
       <div className="max-w-site mx-auto px-4 pb-8">
-        <p className="text-xs text-gray-600 text-center border-t border-border pt-4">
+        <p className="text-xs text-gray-400 text-center border-t border-border pt-4">
           Always check the final price on the store&apos;s website before you buy.
           before purchase. LEGO® is a trademark of The LEGO Group which does not sponsor or
           endorse this site.

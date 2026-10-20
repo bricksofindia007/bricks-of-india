@@ -35,7 +35,7 @@ function FooterWordmark() {
           fontFamily: 'var(--font-fredoka)',
           fontWeight: 700,
           fontSize: '18px',
-          color: '#FFEB99',
+          color: 'var(--boi-saffron)',
           textShadow: outlineShadow,
           lineHeight: 1,
         }}
@@ -47,7 +47,7 @@ function FooterWordmark() {
           fontFamily: 'var(--font-fredoka)',
           fontWeight: 700,
           fontSize: '13px',
-          color: '#FFEB99',
+          color: 'var(--boi-saffron)',
           textShadow: outlineShadow,
           lineHeight: 1,
         }}
@@ -60,7 +60,7 @@ function FooterWordmark() {
 
 export function Footer() {
   return (
-    <footer style={{ background: 'var(--boi-blue)', color: '#FFEB99' }}>
+    <footer style={{ background: 'var(--boi-blue)', color: 'var(--boi-saffron)' }}>
       <div className="max-w-site mx-auto" style={{ padding: '48px 32px' }}>
         {/* 4-column grid desktop, 2-column tablet, stacked mobile */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-10 mb-10">
@@ -85,7 +85,7 @@ export function Footer() {
               style={{
                 fontFamily: 'var(--font-inter)',
                 fontSize: '14px',
-                color: '#FFF7DC',
+                color: 'rgba(255,247,220,0.85)',
                 lineHeight: 1.5,
               }}
             >
@@ -100,7 +100,7 @@ export function Footer() {
                 fontFamily: 'var(--font-fredoka)',
                 fontWeight: 700,
                 fontSize: '13px',
-                color: '#FFEB99',
+                color: 'var(--boi-saffron)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.08em',
                 marginBottom: '16px',
@@ -121,7 +121,7 @@ export function Footer() {
                 <li key={href}>
                   <Link
                     href={href}
-                    style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: '#FFF7DC' }}
+                    style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(255,247,220,0.85)' }}
                     className="hover:underline transition-colors"
                   >
                     {label}
@@ -138,7 +138,7 @@ export function Footer() {
                 fontFamily: 'var(--font-fredoka)',
                 fontWeight: 700,
                 fontSize: '13px',
-                color: '#FFEB99',
+                color: 'var(--boi-saffron)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.08em',
                 marginBottom: '16px',
@@ -158,7 +158,7 @@ export function Footer() {
                 <li key={href}>
                   <Link
                     href={href}
-                    style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: '#FFF7DC' }}
+                    style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(255,247,220,0.85)' }}
                     className="hover:underline transition-colors"
                   >
                     {label}
@@ -175,7 +175,7 @@ export function Footer() {
                 fontFamily: 'var(--font-fredoka)',
                 fontWeight: 700,
                 fontSize: '13px',
-                color: '#FFEB99',
+                color: 'var(--boi-saffron)',
                 textTransform: 'uppercase',
                 letterSpacing: '0.08em',
                 marginBottom: '16px',
@@ -189,7 +189,7 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 hover:text-white transition-colors"
-                style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: '#FFF7DC' }}
+                style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(255,247,220,0.85)' }}
               >
                 <YouTubeIcon />
                 @BricksofIndia
@@ -199,7 +199,7 @@ export function Footer() {
                 target="_blank"
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 hover:text-white transition-colors"
-                style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: '#FFF7DC' }}
+                style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(255,247,220,0.85)' }}
               >
                 <InstagramIcon />
                 @BricksofIndia
@@ -207,7 +207,7 @@ export function Footer() {
               <Link
                 href="/contact"
                 className="inline-flex items-center gap-2 hover:text-white transition-colors"
-                style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: '#FFF7DC' }}
+                style={{ fontFamily: 'var(--font-inter)', fontSize: '14px', color: 'rgba(255,247,220,0.85)' }}
               >
                 <MailIcon />
                 Contact
@@ -225,7 +225,7 @@ export function Footer() {
             style={{
               fontFamily: 'var(--font-inter)',
               fontSize: '12px',
-              color: '#FFF7DC',
+              color: 'rgba(255,247,220,0.65)',
               marginBottom: '4px',
             }}
           >
@@ -235,7 +235,7 @@ export function Footer() {
             style={{
               fontFamily: 'var(--font-inter)',
               fontSize: '12px',
-              color: '#FFF7DC',
+              color: 'rgba(255,247,220,0.5)',
             }}
           >
             LEGO® is a trademark of the LEGO Group. This site is not affiliated with or endorsed by the LEGO Group.

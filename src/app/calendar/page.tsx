@@ -54,7 +54,7 @@ export default function CalendarPage() {
                     <span className="text-3xl">🧱</span>
                     <div>
                       <p className="font-bold text-dark text-sm">{setName}</p>
-                      <p className="text-xs text-gray-600">India launch TBC</p>
+                      <p className="text-xs text-gray-400">India launch TBC</p>
                     </div>
                   </div>
                 ))}
@@ -64,7 +64,7 @@ export default function CalendarPage() {
         </div>
 
         <div className="mt-12 text-center bg-light-grey rounded-2xl p-8">
-          <p className="text-gray-600 font-body text-sm">
+          <p className="text-gray-400 font-body text-sm">
             Release dates are estimates based on global launches. India dates may vary.
             LEGO® is a trademark of The LEGO Group which does not sponsor or endorse this site.
           </p>

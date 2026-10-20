@@ -82,11 +82,11 @@ export async function YoutubeStrip() {
 
               {/* Info */}
               <div className="p-3">
-                <p className="text-xs text-gray-600 mb-1">{v.source_name}</p>
+                <p className="text-xs text-gray-400 mb-1">{v.source_name}</p>
                 <p className="font-bold text-dark text-xs leading-snug line-clamp-2 group-hover:text-primary transition-colors mb-1">
                   {v.title}
                 </p>
-                <p className="text-xs text-gray-600">{formatDate(v.published_at)}</p>
+                <p className="text-xs text-gray-400">{formatDate(v.published_at)}</p>
               </div>
             </a>
           ))}

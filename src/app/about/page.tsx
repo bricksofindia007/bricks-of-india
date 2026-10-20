@@ -107,7 +107,7 @@ export default function AboutPage() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-2 font-semibold px-5 py-2.5 rounded-xl transition-opacity hover:opacity-80"
                 style={{
-                  background: '#CC0000',
+                  background: '#FF0000',
                   color: '#fff',
                   fontFamily: 'var(--font-fredoka)',
                   fontSize: '1rem',
@@ -290,7 +290,7 @@ export default function AboutPage() {
                 rel="noopener noreferrer"
                 className="inline-flex items-center gap-3 font-bold px-6 py-4 rounded-xl transition-opacity hover:opacity-80 max-w-xs"
                 style={{
-                  background: '#CC0000',
+                  background: '#FF0000',
                   color: '#fff',
                   fontFamily: 'var(--font-fredoka)',
                   fontSize: '1.1rem',

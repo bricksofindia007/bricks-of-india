@@ -43,7 +43,7 @@ export default async function ReviewsPage() {
           <div className="text-center py-20">
             <Image src={MASCOTS.blue.phone} alt="Coming soon" width={150} height={150} className="mx-auto mb-4 object-contain" />
             <h2 className="font-heading text-dark text-3xl mb-2">REVIEWS LOADING</h2>
-            <p className="text-gray-600 font-body">We&apos;re building sets as fast as our wallets allow. Reviews coming soon.</p>
+            <p className="text-gray-400 font-body">We&apos;re building sets as fast as our wallets allow. Reviews coming soon.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

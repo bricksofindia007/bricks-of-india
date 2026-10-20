@@ -276,7 +276,7 @@ export default async function SetPage(props: Props) {
 
       {/* Breadcrumb */}
       <div className="max-w-site mx-auto px-4 py-3">
-        <nav className="text-sm text-gray-600 flex items-center gap-2">
+        <nav className="text-sm text-gray-400 flex items-center gap-2">
           <Link href="/" className="hover:text-accent-blue">Home</Link>
           <span>/</span>
           <Link href="/sets" className="hover:text-accent-blue">Sets</Link>
@@ -363,7 +363,7 @@ export default async function SetPage(props: Props) {
             {(anchorMrp || (set.lego_mrp_inr && set.mrp_verified)) && (
               <div className="bg-light-grey rounded-xl p-4 mb-6 flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs text-gray-600 uppercase tracking-wide font-bold">
+                  <p className="text-xs text-gray-400 uppercase tracking-wide font-bold">
                     MRP
                   </p>
                   <p className="font-price text-2xl font-bold text-dark">{formatPrice(anchorMrp ?? set.lego_mrp_inr!)}</p>
@@ -399,7 +399,7 @@ export default async function SetPage(props: Props) {
                     return (
                       <div key={store.id} className="px-5 py-4 flex items-center justify-between gap-3 flex-wrap">
                         <span className="font-bold text-dark">{store.name}</span>
-                        <span className="text-gray-600 text-sm">No listing found at {store.name}.</span>
+                        <span className="text-gray-400 text-sm">No listing found at {store.name}.</span>
                       </div>
                     );
                   }
@@ -420,7 +420,7 @@ export default async function SetPage(props: Props) {
                         <div className="flex items-center gap-3">
                           {sp.price_inr && isPriceFresh(sp.scraped_at) ? (
                             <span
-                              className={`font-price font-bold text-lg ${atBest ? 'text-green-700' : sp.in_stock ? 'text-dark' : 'text-gray-600'}`}
+                              className={`font-price font-bold text-lg ${atBest ? 'text-deal-green' : sp.in_stock ? 'text-dark' : 'text-gray-400'}`}
                               data-best-price={atBest ? sp.price_inr : undefined}
                             >
                               {formatPrice(sp.price_inr)}
@@ -430,7 +430,7 @@ export default async function SetPage(props: Props) {
                               See the price at {store.name} →
                             </TrackedLink>
                           ) : (
-                            <span className="text-gray-600 text-sm">Price unavailable</span>
+                            <span className="text-gray-400 text-sm">Price unavailable</span>
                           )}
                           {sp.in_stock && (
                             <TrackedLink
@@ -486,10 +486,10 @@ export default async function SetPage(props: Props) {
             </div>
 
             {/* Staleness indicator */}
-            {!lastUpdated && <p className="text-xs mb-4 text-gray-600">No retailer listing found.</p>}
+            {!lastUpdated && <p className="text-xs mb-4 text-gray-400">No retailer listing found.</p>}
 
             {/* Price disclaimer */}
-            <p className="text-xs text-gray-600 mb-6">
+            <p className="text-xs text-gray-400 mb-6">
               Always check the final price on the store&apos;s website before you buy.
               LEGO® is a trademark of The LEGO Group which does not sponsor or endorse this site.
             </p>
@@ -514,7 +514,7 @@ export default async function SetPage(props: Props) {
                     <h2 className="font-heading text-dark text-2xl mb-1">BRICKS OF INDIA VERDICT</h2>
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-primary text-lg">{'★'.repeat(review.rating)}{'☆'.repeat(5 - review.rating)}</span>
-                      <span className="text-sm text-gray-600">{`(${review.rating}/5)`}</span>
+                      <span className="text-sm text-gray-400">{`(${review.rating}/5)`}</span>
                     </div>
                     <p className="text-gray-600 font-body mb-3">{review.verdict}</p>
                     <Link href={`/reviews/${review.slug}`} className="text-accent-blue font-bold text-sm hover:underline">
@@ -580,7 +580,7 @@ export default async function SetPage(props: Props) {
                   <details key={i} className="border-2 border-border rounded-xl overflow-hidden group">
                     <summary className="px-4 py-3 font-bold text-dark cursor-pointer hover:bg-light-grey transition-colors flex items-center justify-between">
                       {faq.q}
-                      <span className="text-gray-600 group-open:rotate-180 transition-transform">▼</span>
+                      <span className="text-gray-400 group-open:rotate-180 transition-transform">▼</span>
                     </summary>
                     <div className="px-4 py-3 bg-light-grey text-gray-600 font-body text-sm leading-relaxed">
                       {faq.a}

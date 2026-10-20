@@ -49,7 +49,7 @@ export default async function BlogPage(props: { searchParams: Promise<{ category
           <div className="text-center py-20">
             <Image src={MASCOTS.blue.confused} alt="No posts" width={150} height={150} className="mx-auto mb-4 object-contain" />
             <h2 className="font-heading text-dark text-3xl mb-2">ARTICLES LOADING</h2>
-            <p className="text-gray-600 font-body">Content incoming. We&apos;re typing as fast as we can.</p>
+            <p className="text-gray-400 font-body">Content incoming. We&apos;re typing as fast as we can.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

@@ -36,7 +36,7 @@ export default function ThemesPage() {
 
       {/* Grid */}
       <div className="max-w-site mx-auto px-4 py-10">
-        <p className="text-sm text-gray-600 mb-6">{THEMES.length} themes</p>
+        <p className="text-sm text-gray-400 mb-6">{THEMES.length} themes</p>
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
           {THEMES.map((theme) => (
             <Link

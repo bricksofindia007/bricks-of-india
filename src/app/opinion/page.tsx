@@ -56,7 +56,7 @@ export default async function OpinionPage() {
       <div className="max-w-site mx-auto px-4 py-10">
         {!posts || posts.length === 0 ? (
           <div className="text-center py-20">
-            <p className="text-gray-600 font-body text-lg">Opinion pieces are being written. Check back soon.</p>
+            <p className="text-gray-400 font-body text-lg">Opinion pieces are being written. Check back soon.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

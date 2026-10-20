@@ -12,7 +12,7 @@ export default function AffiliateDisclosurePage() {
     <div className="bg-white min-h-screen">
       <div className="max-w-3xl mx-auto px-4 py-12">
         <h1 className="font-heading text-dark text-5xl mb-2">AFFILIATE DISCLOSURE</h1>
-        <p className="text-gray-600 text-sm mb-8">Last updated: September 2026</p>
+        <p className="text-gray-400 text-sm mb-8">Last updated: September 2026</p>
         <div className="font-body space-y-6 text-gray-600 leading-relaxed">
           <p>Bricks of India participates in affiliate programs. Some &quot;Buy Now&quot; links on this website may earn us a small commission at no extra cost to you. This helps keep the website running, and our own LEGO habit marginally less tragic.</p>
           <p>The Toycra ABHINAV12 discount code is part of an exclusive partnership with Toycra. When you use this code, you get 12% off full-price sets (it doesn&apos;t apply to items Toycra has already discounted) and we may receive a small commission. The commission does not affect the discount you receive — you still get the full 12% off.</p>

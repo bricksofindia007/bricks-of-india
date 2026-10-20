@@ -12,7 +12,7 @@ export default function PrivacyPage() {
     <div className="bg-white min-h-screen">
       <div className="max-w-3xl mx-auto px-4 py-12">
         <h1 className="font-heading text-dark text-5xl mb-2">PRIVACY POLICY</h1>
-        <p className="text-gray-600 text-sm mb-8">Last updated: October 2026</p>
+        <p className="text-gray-400 text-sm mb-8">Last updated: October 2026</p>
         <div className="font-body space-y-6 text-gray-600 leading-relaxed">
           <section><h2 className="font-heading text-dark text-2xl mb-3">ANALYTICS</h2><p>We use Google Analytics to collect visit statistics, such as pages viewed, session duration, device and browser type, and approximate location from your IP address. This data is used solely to improve the website.</p></section>
           <section><h2 className="font-heading text-dark text-2xl mb-3">COOKIES</h2><p>This website uses cookies for analytics and site functionality. You can disable cookies in your browser settings, though some site features may not function correctly.</p></section>

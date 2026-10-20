@@ -79,7 +79,7 @@ export default async function SpotlightPage(props: Props) {
 
       {/* Breadcrumb */}
       <div className="max-w-site mx-auto px-4 py-6">
-        <nav className="text-sm text-gray-600 flex items-center gap-2">
+        <nav className="text-sm text-gray-400 flex items-center gap-2">
           <Link href="/" className="hover:text-primary">Home</Link>
           <span>/</span>
           <Link href="/community" className="hover:text-primary">Community</Link>
@@ -141,7 +141,7 @@ export default async function SpotlightPage(props: Props) {
           </div>
         )}
 
-        <p className="text-xs text-gray-600 mt-4">
+        <p className="text-xs text-gray-400 mt-4">
           Published {formatDate(spotlight.published_at)}
         </p>
 

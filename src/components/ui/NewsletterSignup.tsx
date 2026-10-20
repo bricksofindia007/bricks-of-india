@@ -59,7 +59,7 @@ export function NewsletterSignup() {
             {status === 'success' ? (
               <div className="flex items-center gap-3 bg-deal-green/20 border border-deal-green rounded-xl px-6 py-4">
                 <span className="text-3xl">🎉</span>
-                <p className="text-green-700 font-bold text-lg">{message}</p>
+                <p className="text-deal-green font-bold text-lg">{message}</p>
               </div>
             ) : (
               <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-3 max-w-lg">
@@ -85,7 +85,7 @@ export function NewsletterSignup() {
               <p className="text-warning-orange text-sm mt-2">{message}</p>
             )}
 
-            <p className="text-gray-400 text-xs mt-3">
+            <p className="text-gray-500 text-xs mt-3">
               By subscribing, you agree to our{' '}
               <a href="/legal/privacy" className="underline hover:text-gray-300">Privacy Policy</a>.
               We don't sell data. We barely have time for our own wallets.

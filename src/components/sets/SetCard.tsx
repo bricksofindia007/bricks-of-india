@@ -67,7 +67,7 @@ export function SetCard({ set, priceCount, summary, trackAs }: SetCardProps) {
         </h3>
 
         {/* Meta */}
-        <div className="flex items-center gap-2 text-xs text-gray-600 mb-3">
+        <div className="flex items-center gap-2 text-xs text-gray-400 mb-3">
           {set.pieces != null && set.pieces > 0 ? <span>{set.pieces.toLocaleString()} pcs</span> : null}
           {set.year && <span>· {set.year}</span>}
           {set.age_range && <span>· {set.age_range}</span>}
@@ -83,7 +83,7 @@ export function SetCard({ set, priceCount, summary, trackAs }: SetCardProps) {
                     {(label?.kind === 'best' || label?.kind === 'tie') && <BestPriceBadge />}
                     {label?.kind === 'only' && <OnlyAtBadge store={storeName(label.stores[0])} />}
                   </FreshOnly>
-                  <span className={`font-price font-bold text-sm ${freshPrice ? 'text-green-700' : 'text-dark'}`}>
+                  <span className={`font-price font-bold text-sm ${freshPrice ? 'text-deal-green' : 'text-dark'}`}>
                     {formatPrice(shownPrice)}
                   </span>
                 </div>
@@ -98,7 +98,7 @@ export function SetCard({ set, priceCount, summary, trackAs }: SetCardProps) {
                 MRP: {formatPrice(mrp)}
               </span>
             ) : (
-              <span className="text-xs text-gray-600 italic">Price TBD</span>
+              <span className="text-xs text-gray-400 italic">Price TBD</span>
             )}
 
           </div>
