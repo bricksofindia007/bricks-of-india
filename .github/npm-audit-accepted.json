@@ -1,4 +1,12 @@
 {
-  "_comment": "Accepted high/critical npm advisories (plan X.4, re-checked at G-CLOSE). scripts/ci/npm-audit-check.mjs fails only on a high/critical advisory NOT listed here. Remove an entry once its fix ships. Emptied after the only two (extract-zip, via puppeteer-core) were removed with the unused browser packages: no production path reaches them.",
-  "accepted": {}
+  "_comment": "Accepted high/critical npm advisories. scripts/ci/npm-audit-check.mjs fails only on a high/critical advisory NOT listed here. Remove an entry once its fix ships. Each entry is a dated exception: see docs/security/npm-audit-exception-2026-10-20.md. Review by 2027-01-18.",
+  "accepted": {
+    "GHSA-vfj7-8cjw-p6xm": {
+      "package": "braces",
+      "reach": "build-time only (tailwindcss, eslint plugin); no production dependency; not shipped to visitors",
+      "granted": "2026-10-20",
+      "review_by": "2027-01-18",
+      "exception_doc": "docs/security/npm-audit-exception-2026-10-20.md"
+    }
+  }
 }

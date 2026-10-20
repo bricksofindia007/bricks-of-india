@@ -61,6 +61,7 @@
     "@supabase/storage-js": "2.103.0",
     "@supabase/functions-js": "2.103.0",
     "@types/react": "19.2.18",
-    "@types/react-dom": "19.2.7"
+    "@types/react-dom": "19.2.7",
+    "postcss-selector-parser": "7.1.6"
   }
 }
