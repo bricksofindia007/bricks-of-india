@@ -67,6 +67,9 @@ export const ROUTE_CADENCE: Record<string, Cadence> = {
   '/admin/pending/growth/[[...path]]': DYNAMIC,
   '/admin/pending/newsletter': DYNAMIC,
   '/api/img': DYNAMIC,
+  '/api/saved-sets': DYNAMIC,
+  '/api/last-seen-prices': DYNAMIC,
+  '/my': STATIC,
   '/api/sets/search': DYNAMIC,
   '/blog': DYNAMIC,
   '/brick-rush': DYNAMIC, // sale-hub short URL: a route handler that redirects to the article

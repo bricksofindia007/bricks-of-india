@@ -164,11 +164,11 @@ describe('the batch read', () => {
     expect(sb.from).toHaveLength(0);
   });
   it('one call per page view, never one per card: only the page calls the saved-sets route (no last-seen read, owner ruling)', () => {
-    const callers = srcFiles.filter((f) => /\/api\/saved-sets/.test(f.src)).map((f) => f.file);
+    const callers = srcFiles.filter((f) => f.file !== 'src/lib/route-cadence.ts' && /\/api\/saved-sets/.test(f.src)).map((f) => f.file);
     expect(callers.sort()).toEqual(['src/app/my/MyCollection.tsx']);
     const page = readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
     expect(page.match(/fetch\(`\/api\/saved-sets/g)).toHaveLength(1);
-    expect(srcFiles.some((f) => /\/api\/last-seen-prices/.test(f.src) && !/^src\/app\/api\//.test(f.file))).toBe(false);
+    expect(srcFiles.some((f) => /\/api\/last-seen-prices/.test(f.src) && !/^src\/app\/api\//.test(f.file) && f.file !== 'src/lib/route-cadence.ts')).toBe(false);
   });
   it('cards never fetch prices', () => {
     for (const f of srcFiles.filter((x) => /components\/sets\/|components\/saved\//.test(x.file))) {

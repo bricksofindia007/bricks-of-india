@@ -18,6 +18,7 @@
  */
 import fs from 'node:fs';
 import { ROUTE_CADENCE, STATIC, DYNAMIC, type Cadence } from '../../src/lib/route-cadence';
+import { EXPORT_CHECKED_ROUTES, exportProblems, sampleOk } from './revalidate-audit-rules';
 
 const BASE = (process.env.AUDIT_BASE ?? 'http://localhost:3000').replace(/\/$/, '');
 const YEAR = 31536000;
@@ -31,9 +32,11 @@ const CI_SAMPLES: Record<string, string[]> = {
   '/guides/[slug]': ['/guides/ci-fixture'],
   '/community/[slug]': ['/community/ci-fixture'],
   '/themes/[theme]': ['/themes/city'],
+  '/themes/[theme]/page/[page]': ['/themes/city/page/2'],
 };
 
 type Row = { route: string; kind: string; intended: string; effective: string; ok: boolean; note?: string };
+const readSource = (f: string): string | null => (fs.existsSync(f) ? fs.readFileSync(f, 'utf8') : null);
 const show = (v: number | false | string) => (v === false ? 'static (per deploy)' : typeof v === 'number' ? `${v} s (${v >= 86400 ? v / 86400 + ' d' : v / 3600 + ' h'})` : v);
 
 async function measure(path: string): Promise<{ status: number; seconds: number | false | null; header: string }> {
@@ -72,7 +75,14 @@ async function measure(path: string): Promise<{ status: number; seconds: number 
         if (!paths.length) { rows.push({ route: key, kind: 'ISR (per param)', intended: show(want(c, part)), effective: 'no sample', ok: false }); continue; }
         for (const p of paths) {
           const m = await measure(p);
-          const ok = m.status === 200 && m.seconds === want(c, part);
+          if (EXPORT_CHECKED_ROUTES[route]) {
+            // The stub has no theme data, so the sample's status is shown but not gated. The intended value is
+            // checked in the route files (see revalidate-audit-rules.ts).
+            const problems = exportProblems(route, want(c, part) as number, readSource);
+            rows.push({ route: key, kind: 'ISR (per param, export)', intended: show(want(c, part)), effective: problems.length ? problems.join('; ') : `export ${show(want(c, part) as number)}`, ok: problems.length === 0, note: `${p} -> ${m.status} (status not gated)` });
+            continue;
+          }
+          const ok = sampleOk(m.status, m.seconds, want(c, part) as number | false);
           rows.push({ route: key, kind: 'ISR (per param)', intended: show(want(c, part)), effective: m.seconds === null ? `unmeasured (${m.status} ${m.header || 'no cache-control'})` : show(m.seconds), ok, note: `${p} -> ${m.status}` });
         }
       }
