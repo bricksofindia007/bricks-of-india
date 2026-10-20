@@ -248,6 +248,7 @@ export default async function SetsPage(props: Props) {
             <div className="flex flex-col gap-1">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Theme</label>
               <select
+                aria-label="Filter by theme"
                 name="theme"
                 defaultValue={themeFilter}
                 className="border border-border rounded-lg px-3 py-2 text-sm bg-white font-body min-w-[150px]"
@@ -262,6 +263,7 @@ export default async function SetsPage(props: Props) {
             <div className="flex flex-col gap-1">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Sort by</label>
               <select
+                aria-label="Sort by"
                 name="sort"
                 defaultValue={sortKey}
                 className="border border-border rounded-lg px-3 py-2 text-sm bg-white font-body min-w-[170px]"
@@ -275,6 +277,7 @@ export default async function SetsPage(props: Props) {
             <div className="flex flex-col gap-1">
               <label className="text-xs font-bold text-gray-500 uppercase tracking-wide">Price</label>
               <select
+                aria-label="Filter by price"
                 name="price"
                 defaultValue={searchParams.price || ''}
                 className="border border-border rounded-lg px-3 py-2 text-sm bg-white font-body min-w-[160px]"
@@ -331,7 +334,7 @@ export default async function SetsPage(props: Props) {
         {sets.length === 0 ? (
           <div className="text-center py-20">
             <p className="font-heading text-dark text-3xl mb-2">NO SETS FOUND</p>
-            <p className="text-gray-400 font-body mb-4">Try loosening your filters.</p>
+            <p className="text-gray-600 font-body mb-4">Try loosening your filters.</p>
             <Link
               href="/sets"
               className="inline-block px-6 py-2 bg-dark text-white font-bold rounded-lg text-sm"
@@ -399,7 +402,7 @@ export default async function SetsPage(props: Props) {
       </div>
 
       <div className="max-w-site mx-auto px-4 pb-8">
-        <p className="text-xs text-gray-400 text-center border-t border-border pt-4">
+        <p className="text-xs text-gray-600 text-center border-t border-border pt-4">
           Always check the final price on the store&apos;s website before you buy.
           before purchase. LEGO® is a trademark of The LEGO Group which does not sponsor or
           endorse this site.

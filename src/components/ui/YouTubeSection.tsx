@@ -126,7 +126,7 @@ export function YouTubeSection({ videos }: YouTubeSectionProps) {
               href={BRAND.youtube}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-3 bg-[#FF0000] text-white font-bold px-8 py-4 rounded-xl hover:bg-red-700 transition-colors text-base"
+              className="inline-flex items-center gap-3 bg-[#CC0000] text-white font-bold px-8 py-4 rounded-xl hover:bg-red-700 transition-colors text-base"
             >
               <YouTubeIcon />
               Subscribe on YouTube

@@ -119,7 +119,7 @@ export default async function DealsPage() {
               className="mx-auto mb-4 object-contain"
             />
             <h2 className="font-heading text-dark text-3xl mb-2">NO DEALS RIGHT NOW</h2>
-            <p className="text-gray-400 font-body mb-4">
+            <p className="text-gray-600 font-body mb-4">
               No set is currently 10% or more below its MRP at a store that has it in stock.
               Check back soon.
             </p>
@@ -156,7 +156,7 @@ export default async function DealsPage() {
           </>
         )}
 
-        <p className="text-xs text-gray-400 text-center mt-8 border-t border-border pt-4">
+        <p className="text-xs text-gray-600 text-center mt-8 border-t border-border pt-4">
           Always check the final price on the store&apos;s website before you buy.
           LEGO® is a trademark of The LEGO Group which does not sponsor or endorse this site.
         </p>

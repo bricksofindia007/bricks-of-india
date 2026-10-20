@@ -180,7 +180,7 @@ export default async function ReviewPage(props: Props) {
       {/* Hero */}
       <div className="bg-dark py-12 px-4">
         <div className="max-w-site mx-auto">
-          <nav className="text-sm text-gray-400 flex items-center gap-2 mb-4">
+          <nav className="text-sm text-gray-600 flex items-center gap-2 mb-4">
             <Link href="/" className="hover:text-primary">Home</Link>
             <span>/</span>
             <Link href="/reviews" className="hover:text-primary">Reviews</Link>
@@ -191,7 +191,7 @@ export default async function ReviewPage(props: Props) {
             {stars != null && (
               <>
                 <span className="text-primary text-2xl">{stars}</span>
-                <span className="text-gray-400">{`(${review.rating}/5)`}</span>
+                <span className="text-gray-600">{`(${review.rating}/5)`}</span>
               </>
             )}
             {badge && (
@@ -299,7 +299,7 @@ export default async function ReviewPage(props: Props) {
                       we replace the per-store grid with an explanation instead of
                       a bare "Not listed" for every row. */}
                   <div className="border-t border-border pt-3 mb-3">
-                    <p className="text-xs text-gray-400 uppercase tracking-wide font-bold mb-2">Prices in India</p>
+                    <p className="text-xs text-gray-600 uppercase tracking-wide font-bold mb-2">Prices in India</p>
                     {!hasPrices && set.is_gwp ? (
                       <p className="text-sm text-dark">
                         This is a Gift-with-Purchase
@@ -332,7 +332,7 @@ export default async function ReviewPage(props: Props) {
                           return (
                             <div key={store.id} className="flex items-center justify-between">
                               <span className="text-sm text-dark">{store.name}</span>
-                              <span className="text-xs text-gray-400">Not listed</span>
+                              <span className="text-xs text-gray-600">Not listed</span>
                             </div>
                           );
                         }
@@ -342,7 +342,7 @@ export default async function ReviewPage(props: Props) {
                             <span className="text-sm text-dark">{store.name}</span>
                             <div className="flex items-center gap-2">
                               <span
-                                className={`font-price text-sm font-bold ${isBest ? 'text-deal-green' : 'text-dark'}`}
+                                className={`font-price text-sm font-bold ${isBest ? 'text-green-700' : 'text-dark'}`}
                                 data-best-price={isBest ? sp.price_inr : undefined}
                               >
                                 {formatPrice(sp.price_inr)}
@@ -359,7 +359,7 @@ export default async function ReviewPage(props: Props) {
                                   Buy →
                                 </TrackedLink>
                               ) : (
-                                <span className="text-xs text-gray-400">OOS</span>
+                                <span className="text-xs text-gray-600">OOS</span>
                               )}
                             </div>
                           </div>

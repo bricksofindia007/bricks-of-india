@@ -65,6 +65,7 @@ describe('address helpers', () => {
   });
   it('isThemeSort accepts the four sorts and the default, and nothing else', () => {
     for (const s of ['price-asc', 'price-desc', 'year-asc', 'year-desc']) expect(isThemeSort(s)).toBe(true);
-    for (const s of ['pieces-desc', 'nonsense', '']) expect(isThemeSort(s)).toBe(false);
+    expect(isThemeSort('pieces-desc')).toBe(true);
+    for (const s of ['nonsense', '']) expect(isThemeSort(s)).toBe(false);
   });
 });

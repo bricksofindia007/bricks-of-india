@@ -80,7 +80,7 @@ export default async function CorrectionsPage() {
         </div>
         {renameCount > 0 && renameDate && (
           <div className="border-2 border-border rounded-xl p-4 mb-6">
-            <p className="text-sm text-gray-400 mb-1">{fmt(renameDate)}</p>
+            <p className="text-sm text-gray-600 mb-1">{fmt(renameDate)}</p>
             <p className="font-body text-dark">MyBrickHouse&apos;s online store is now LEGO.in. We updated the store name on {renameCount.toLocaleString('en-US')} pages.</p>
           </div>
         )}
@@ -90,12 +90,12 @@ export default async function CorrectionsPage() {
           <ul className="space-y-4">
             {toItems(rows).map((it, i) => it.kind === 'one' ? (
               <li key={`${it.row.href}-${i}`} className="border-2 border-border rounded-xl p-4">
-                <p className="text-sm text-gray-400 mb-1">{fmt(it.row.date)} · <Link href={it.row.href} className="underline hover:no-underline">{it.row.title}</Link></p>
+                <p className="text-sm text-gray-600 mb-1">{fmt(it.row.date)} · <Link href={it.row.href} className="underline hover:no-underline">{it.row.title}</Link></p>
                 <p className="font-body text-dark"><Note parts={noteParts(it.row.text)} /></p>
               </li>
             ) : (
               <li key={`group-${it.date}-${i}`} className="border-2 border-border rounded-xl p-4">
-                <p className="text-sm text-gray-400 mb-1">{fmt(it.date)}</p>
+                <p className="text-sm text-gray-600 mb-1">{fmt(it.date)}</p>
                 <p className="font-body text-dark">{it.label}</p>
                 <details className="mt-2 text-sm">
                   <summary className="cursor-pointer text-gray-600">Show the {it.rows.length} pages</summary>

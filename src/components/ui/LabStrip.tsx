@@ -37,7 +37,6 @@ function StripTile({ tool }: { tool: LabTool }) {
       <Link
         href={tool.href}
         className="block h-full hover:shadow-md transition-shadow rounded-2xl"
-        aria-label={`Open ${tool.name}`}
       >
         {inner}
       </Link>
@@ -64,7 +63,7 @@ export function LabStrip() {
         <div className="mb-6 flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <span
             className="text-sm font-bold tracking-widest uppercase"
-            style={{ fontFamily: 'var(--font-fredoka)', color: 'var(--boi-saffron)' }}
+            style={{ fontFamily: 'var(--font-fredoka)', color: '#8A5A00' }}
           >
             THE LAB
           </span>

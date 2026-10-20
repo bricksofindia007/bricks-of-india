@@ -115,14 +115,26 @@ describe('the sort rules, as the grid had them', () => {
   });
 });
 
-describe('Most Pieces is not offered (no parts count exists on the set rows)', () => {
-  it('the sort options have no pieces option', () => {
-    expect(THEME_SORT_OPTIONS.map((o) => o.value)).not.toContain('pieces-desc');
-    expect(THEME_SORT_OPTIONS.map((o) => o.label)).not.toContain('Most Pieces');
+describe('Most Pieces: sets.pieces, most first, sets with no count last (as /sets orders them)', () => {
+  it('the option is offered under its label', () => {
+    expect(THEME_SORT_OPTIONS.map((o) => o.value)).toContain('pieces-desc');
+    expect(THEME_SORT_OPTIONS.map((o) => o.label)).toContain('Most Pieces');
   });
-  it('an old link with ?sort=pieces-desc falls back to Newest First, as any unknown sort does', () => {
-    expect(parseThemeSort('pieces-desc')).toBe('year-desc');
-    expect(themeHref('technic', { sort: parseThemeSort('pieces-desc') })).toBe('/themes/technic');
+  it('an old link with ?sort=pieces-desc keeps the sort', () => {
+    expect(parseThemeSort('pieces-desc')).toBe('pieces-desc');
+  });
+  it('orders by the pieces field, most first, with no-count sets last', () => {
+    const rows = [
+      { set_number: 'a', year: 2020, pieces: 100 },
+      { set_number: 'b', year: 2021, pieces: null },
+      { set_number: 'c', year: 2022, pieces: 900 },
+      { set_number: 'd', year: 2023, pieces: 300 },
+    ];
+    expect(sortThemeRows(rows, 'pieces-desc', () => null).map((r) => r.set_number)).toEqual(['c', 'd', 'a', 'b']);
+  });
+  it('equal counts keep their order (stable)', () => {
+    const rows = [{ set_number: 'x', year: 2020, pieces: 50 }, { set_number: 'y', year: 2021, pieces: 50 }];
+    expect(sortThemeRows(rows, 'pieces-desc', () => null).map((r) => r.set_number)).toEqual(['x', 'y']);
   });
 });
 

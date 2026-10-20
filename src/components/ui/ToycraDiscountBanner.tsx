@@ -42,7 +42,7 @@ export function ToycraDiscountBanner({ variant = 'full' }: ToycraDiscountBannerP
           {BRAND.toycraCode}
         </button>
         <span className="text-dark">takes {BRAND.toycraDiscount} off full-price sets at {TOYCRA}, minimum order {BRAND.toycraMinOrder}.</span>
-        {copied && <span className="text-deal-green text-xs font-bold">✓ Copied!</span>}
+        {copied && <span className="text-green-700 text-xs font-bold">✓ Copied!</span>}
         <SecondLine className="basis-full text-xs text-gray-500" />
       </div>
     );

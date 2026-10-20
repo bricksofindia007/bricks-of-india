@@ -30,7 +30,7 @@ export function ThemePageBody({ view }: { view: ThemeView }) {
       <div className="bg-primary-dark py-10 px-4">
         <div className="max-w-site mx-auto">
           {/* Breadcrumb */}
-          <nav className="flex items-center gap-1.5 text-sm text-white/50 mb-5 flex-wrap">
+          <nav className="flex items-center gap-1.5 text-sm text-white/75 mb-5 flex-wrap">
             <Link href="/" className="hover:text-white transition-colors">Home</Link>
             <span>/</span>
             <Link href="/#browse-themes" className="hover:text-white transition-colors">Themes</Link>

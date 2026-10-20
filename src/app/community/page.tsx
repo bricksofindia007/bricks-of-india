@@ -118,12 +118,12 @@ export default async function CommunityPage() {
                       {spotlight.builder_name}
                     </h3>
                     {spotlight.location && (
-                      <p className="text-sm text-gray-400 mb-2 font-body">📍 {spotlight.location}</p>
+                      <p className="text-sm text-gray-600 mb-2 font-body">📍 {spotlight.location}</p>
                     )}
                     {spotlight.bio && (
                       <p className="text-sm text-gray-600 font-body line-clamp-2">{spotlight.bio}</p>
                     )}
-                    <p className="text-xs text-gray-400 mt-3">{formatDate(spotlight.published_at)}</p>
+                    <p className="text-xs text-gray-600 mt-3">{formatDate(spotlight.published_at)}</p>
                   </div>
                 </Link>
               );

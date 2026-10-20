@@ -93,7 +93,7 @@ export default async function NewsArticlePage(props: Props) {
       )}
 
       <div className="max-w-site mx-auto px-4 py-6">
-        <nav className="text-sm text-gray-400 flex items-center gap-2 mb-4">
+        <nav className="text-sm text-gray-600 flex items-center gap-2 mb-4">
           <Link href="/" className="hover:text-accent-blue">Home</Link>
           <span>/</span>
           <Link href="/news" className="hover:text-accent-blue">News</Link>
@@ -118,7 +118,7 @@ export default async function NewsArticlePage(props: Props) {
 
         <div className="flex items-center gap-3 mb-4">
           <Badge variant="secondary">{article.category}</Badge>
-          <span className="text-gray-400 text-sm">{formatDate(article.published_at)}</span>
+          <span className="text-gray-600 text-sm">{formatDate(article.published_at)}</span>
         </div>
 
         <h1 className="font-heading text-dark text-5xl md:text-6xl mb-3">{article.title}</h1>

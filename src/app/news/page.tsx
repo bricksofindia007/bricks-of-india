@@ -87,7 +87,7 @@ export default async function NewsPage(props: { searchParams: Promise<{ category
           <div className="text-center py-20">
             <Image src={MASCOTS.blue.confused} alt="No articles" width={150} height={150} className="mx-auto mb-4 object-contain" />
             <h2 className="font-heading text-dark text-3xl mb-2">NEWS LOADING</h2>
-            <p className="text-gray-400 font-body">Articles are on their way. Faster than LEGO shipping, hopefully.</p>
+            <p className="text-gray-600 font-body">Articles are on their way. Faster than LEGO shipping, hopefully.</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">

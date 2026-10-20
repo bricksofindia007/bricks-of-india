@@ -9,9 +9,8 @@ export const THEME_SORT_OPTIONS = [
   { value: 'price-desc', label: 'Price: High to Low' },
   { value: 'year-desc', label: 'Newest First' },
   { value: 'year-asc', label: 'Oldest First' },
+  { value: 'pieces-desc', label: 'Most Pieces' },
 ] as const;
-// "Most Pieces" is not offered: the set rows have no parts count, so the option could not sort anything. Old links
-// that still say pieces-desc fall back to Newest First, the same as any unknown sort.
 
 export type ThemeSort = (typeof THEME_SORT_OPTIONS)[number]['value'];
 
@@ -45,7 +44,7 @@ export function resolveThemePage(total: number, rawPage: string | undefined): Th
   return { ok: true, page, pages, from, to: Math.min(total, from + THEME_PAGE_SIZE) };
 }
 
-type IndexRow = { set_number: string; year: number | null };
+type IndexRow = { set_number: string; year: number | null; pieces?: number | null };
 
 /**
  * The two populations, merged as before: the rows matching the theme name first, then the rows mapped to the theme.
@@ -80,6 +79,16 @@ export function sortThemeRows<T extends IndexRow>(rows: T[], sort: ThemeSort, be
       return copy.sort((a, b) => (a.year ?? 0) - (b.year ?? 0));
     case 'year-desc':
       return copy.sort((a, b) => (b.year ?? 0) - (a.year ?? 0));
+    case 'pieces-desc':
+      // The same field and order as /sets: sets.pieces, most first, sets with no count last.
+      return copy.sort((a, b) => {
+        const ap = a.pieces ?? null;
+        const bp = b.pieces ?? null;
+        if (ap === null && bp === null) return 0;
+        if (ap === null) return 1;
+        if (bp === null) return -1;
+        return bp - ap;
+      });
     default:
       return copy;
   }

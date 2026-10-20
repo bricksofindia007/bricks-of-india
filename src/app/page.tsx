@@ -322,7 +322,7 @@ export default async function HomePage() {
               <div className="max-w-xl">
                 <SearchBar pageType="home" size="lg" placeholder="Search by name or set number... go on then." />
               </div>
-              <p className="text-xs text-gray-400 mt-3">
+              <p className="text-xs text-gray-600 mt-3">
                 Prices may vary. Always verify on store website before purchase.
               </p>
             </div>

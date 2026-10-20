@@ -65,7 +65,7 @@ export default async function OpinionPostPage(props: Props) {
       <JsonLd data={buildArticleSchema({ ...post, url: `https://bricksofindia.com/opinion/${params.slug}` }, 'Article')} />
 
       <div className="max-w-site mx-auto px-4 py-6">
-        <nav className="text-sm text-gray-400 flex items-center gap-2 mb-4">
+        <nav className="text-sm text-gray-600 flex items-center gap-2 mb-4">
           <Link href="/" className="hover:text-accent-blue">Home</Link>
           <span>/</span>
           <Link href="/opinion" className="hover:text-accent-blue">Opinion</Link>
@@ -83,9 +83,9 @@ export default async function OpinionPostPage(props: Props) {
 
         <div className="flex items-center gap-3 mb-4">
           <Badge variant="blue">Opinion</Badge>
-          <span className="text-gray-400 text-sm">{formatDate(post.published_at)}</span>
-          <span className="text-gray-400 text-sm">·</span>
-          <span className="text-gray-400 text-sm">{readingTime(post.content)}</span>
+          <span className="text-gray-600 text-sm">{formatDate(post.published_at)}</span>
+          <span className="text-gray-600 text-sm">·</span>
+          <span className="text-gray-600 text-sm">{readingTime(post.content)}</span>
         </div>
 
         <h1 className="font-heading text-dark text-5xl md:text-6xl mb-3">{post.title}</h1>

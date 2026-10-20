@@ -325,7 +325,7 @@ export default async function ComparePage(props: Props) {
             <h2 className="font-heading text-dark text-3xl mb-2">
               {q || themeFilter || priceFilter ? 'NOTHING FOUND' : 'NO SETS TRACKED YET'}
             </h2>
-            <p className="text-gray-400 font-body">
+            <p className="text-gray-600 font-body">
               {q || themeFilter || priceFilter
                 ? 'Try a different search or filter.'
                 : 'Set inventory is updated regularly. Check back shortly.'}
@@ -384,7 +384,7 @@ export default async function ComparePage(props: Props) {
       </div>
 
       <div className="max-w-site mx-auto px-4 pb-8">
-        <p className="text-xs text-gray-400 text-center border-t border-border pt-4">
+        <p className="text-xs text-gray-600 text-center border-t border-border pt-4">
           Always check the final price on the store&apos;s website before you buy.
           LEGO® is a trademark of The LEGO Group which does not sponsor or endorse this site.
         </p>

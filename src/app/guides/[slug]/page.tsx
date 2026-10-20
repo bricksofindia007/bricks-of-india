@@ -54,7 +54,7 @@ export default async function GuideArticlePage(props: Props) {
 
       {/* Breadcrumb */}
       <div className="max-w-site mx-auto px-4 py-6">
-        <nav className="text-sm text-gray-400 flex items-center gap-2 mb-4">
+        <nav className="text-sm text-gray-600 flex items-center gap-2 mb-4">
           <Link href="/" className="hover:text-accent-blue">Home</Link>
           <span>/</span>
           <Link href="/guides" className="hover:text-accent-blue">Guides</Link>
@@ -76,9 +76,9 @@ export default async function GuideArticlePage(props: Props) {
               {guide.category}
             </span>
           )}
-          <span className="text-gray-400 text-sm">{formatDate(guide.published_at)}</span>
+          <span className="text-gray-600 text-sm">{formatDate(guide.published_at)}</span>
           {guide.read_time_minutes && (
-            <span className="text-gray-400 text-sm">{guide.read_time_minutes} min read</span>
+            <span className="text-gray-600 text-sm">{guide.read_time_minutes} min read</span>
           )}
         </div>
 
@@ -105,7 +105,7 @@ export default async function GuideArticlePage(props: Props) {
                     <span className="inline-block text-xs font-bold text-primary mb-2">{g.category}</span>
                   )}
                   <h3 className="font-bold text-dark text-sm leading-tight line-clamp-2 mb-1">{g.title}</h3>
-                  <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <div className="flex items-center gap-2 text-xs text-gray-600">
                     <span>{formatDate(g.published_at)}</span>
                     {g.read_time_minutes && <span>· {g.read_time_minutes} min</span>}
                   </div>
