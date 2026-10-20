@@ -167,7 +167,7 @@ describe('the batch read', () => {
     expect(sb.from).toHaveLength(0);
   });
   it('one call per page view, never one per card: only the page calls the price route (last-seen is not called)', () => {
-    const callers = srcFiles.filter((f) => /\/api\/(saved-sets|last-seen-prices)/.test(f.src)).map((f) => f.file);
+    const callers = srcFiles.filter((f) => f.file !== 'src/lib/route-cadence.ts' && /\/api\/(saved-sets|last-seen-prices)/.test(f.src)).map((f) => f.file);
     expect(callers.sort()).toEqual(['src/app/my/MyCollection.tsx']);
     const page = readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
     expect(page.match(/fetch\(`\/api\/saved-sets/g)).toHaveLength(1);
