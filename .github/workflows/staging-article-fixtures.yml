@@ -1,6 +1,6 @@
 name: Staging article fixtures (staging only, manual)
 
-# Adds fixture copies of three articles and one review on STAGING only, so the article and review data fixes can be
+# Adds fixture copies of three articles, one review and two sets (854338, 854335) on STAGING only, so the article and review data fixes can be
 # rehearsed. Never production. Existing rows are never changed.
 # Credential: environment secret STAGING_DB_URL in the staging-seed environment, which requires the owner's approval.
 # The job refuses any address that contains the production project reference, and prints counts only.
@@ -32,6 +32,7 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client > /dev/null
           psql "$STAGING_DB_URL" -X -q -v ON_ERROR_STOP=1 -f scripts/ci/seed-staging-article-fixtures.sql
+          psql "$STAGING_DB_URL" -X -q -v ON_ERROR_STOP=1 -f scripts/ci/seed-staging-set-fixtures.sql
 
       - name: Count check (counts only)
         env:
@@ -39,3 +40,4 @@ jobs:
         run: |
           psql "$STAGING_DB_URL" -X -At -v ON_ERROR_STOP=1 -c "select 'fixture_articles|' || count(*) from public.news_articles where excerpt = 'FIXTURE STAGING ONLY';"
           psql "$STAGING_DB_URL" -X -At -v ON_ERROR_STOP=1 -c "select 'fixture_reviews|' || count(*) from public.reviews where excerpt = 'FIXTURE STAGING ONLY';"
+          psql "$STAGING_DB_URL" -X -At -v ON_ERROR_STOP=1 -c "select 'fixture_sets|' || count(*) from public.sets where description = 'FIXTURE STAGING ONLY';"
