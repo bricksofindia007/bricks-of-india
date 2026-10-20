@@ -7,7 +7,11 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 
 const accepted = JSON.parse(readFileSync(new URL('../../.github/npm-audit-accepted.json', import.meta.url), 'utf8')).accepted;
-const r = spawnSync('npm', ['audit', '--json'], { encoding: 'utf8', shell: process.platform === 'win32', maxBuffer: 64 * 1024 * 1024 });
+// NPM_AUDIT_JSON_FILE replaces the live `npm audit` call: used by the dry run and tests/npm-audit-check.test.ts
+// to prove a NEW advisory still fails the check. CI never sets it.
+const r = process.env.NPM_AUDIT_JSON_FILE
+  ? { stdout: readFileSync(process.env.NPM_AUDIT_JSON_FILE, 'utf8'), stderr: '' }
+  : spawnSync('npm', ['audit', '--json'], { encoding: 'utf8', shell: process.platform === 'win32', maxBuffer: 64 * 1024 * 1024 });
 let report;
 try { report = JSON.parse(r.stdout); } catch { console.error('npm audit produced no JSON:', (r.stderr || '').slice(0, 500)); process.exit(1); }
 
