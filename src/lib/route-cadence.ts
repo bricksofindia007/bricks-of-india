@@ -20,6 +20,7 @@ export type Cadence = number | typeof STATIC | typeof DYNAMIC | { priced: number
 
 export const ROUTE_CADENCE: Record<string, Cadence> = {
   '/': READ_REVALIDATE_SECONDS,
+  '/_global-error': STATIC, // Next 16 exposes this route (global error boundary; no data reads)
   '/_not-found': STATIC,
   '/about': STATIC,
   '/bot': STATIC,
