@@ -1,4 +1,4 @@
-// Theme addresses: page one and /page/[n] are static (cached a day); sorted views are per request, noindex, and
+// Theme addresses: page one and /page/[n] are static (cached a day); sorted views are cached daily, noindex, and
 // canonical to the default-sort page of the same number. Old query-string links redirect (308) to the path form.
 import { describe, it, expect } from 'vitest';
 import { existsSync, readFileSync } from 'node:fs';
@@ -26,9 +26,14 @@ describe('route files', () => {
     expect(read('src/app/themes/[theme]/page/[page]/page.tsx')).toMatch(/export const revalidate = 86400;/);
     expect(read('src/app/themes/[theme]/page/[page]/page.tsx')).toMatch(/export const dynamicParams = true;/);
   });
-  it('sorted views are forced dynamic', () => {
-    expect(read('src/app/themes/[theme]/sort/[sort]/page.tsx')).toMatch(/export const dynamic = 'force-dynamic';/);
-    expect(read('src/app/themes/[theme]/sort/[sort]/page/[page]/page.tsx')).toMatch(/export const dynamic = 'force-dynamic';/);
+  it('sorted views are cached daily as ISR routes, with the static-params declaration that registers them', () => {
+    for (const f of ['src/app/themes/[theme]/sort/[sort]/page.tsx', 'src/app/themes/[theme]/sort/[sort]/page/[page]/page.tsx']) {
+      expect(read(f)).toMatch(/export const revalidate = 86400;/);
+      expect(read(f)).toMatch(/export const dynamicParams = true;/);
+      expect(read(f)).toContain('export async function generateStaticParams()');
+      expect(read(f)).toContain('return [];');
+      expect(read(f)).not.toMatch(/force-dynamic/);
+    }
   });
   it('a sort outside the options, and the default sort reached by its own path, are not served as a second list', () => {
     expect(read('src/app/themes/[theme]/sort/[sort]/page.tsx')).toMatch(/if \(!isThemeSort\(sort\)\) notFound\(\);/);
