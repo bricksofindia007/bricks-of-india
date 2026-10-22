@@ -108,4 +108,13 @@ export const FEATURE_FLAGS = {
   // Both off until launch. Mirrored in config/feature_flags.py; keep in sync.
   myCollectionHearts: false,
   myCollectionPage: false,
+
+  // Review policy page structure (queue item 14, 22 Oct 2026). Off: the route is a 404. The copy is not written yet;
+  // the page shows placeholders until the owner approves the wording. Mirrored in config/feature_flags.py; keep in sync.
+  reviewPolicyPage: false,
+
+  // Data deletion and age-rule page structure (queue item 4, 22 Oct 2026). Off: the routes are 404. Flow, copy and
+  // wording wait for the accounts launch (H2), owner review and Chat. Mirrored in config/feature_flags.py; keep in sync.
+  dataDeletionPage: false,
+  ageRulePage: false,
 } as const;

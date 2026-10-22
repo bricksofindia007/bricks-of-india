@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { getSecret } from '@/lib/get-secret';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import { isSetNumber, PRICE_READ_CAP } from '@/lib/my-collection';
-import { loadStoredRate } from '@/lib/usd-rate-reader';
+import { loadStoredRate } from '@/lib/usd-rate-server';
 
 // Today's best price and store for the sets in a visitor's My Collection, one call per page view.
 // Returns the best price, its store ids, and store names. Nothing else. Names and pieces come from

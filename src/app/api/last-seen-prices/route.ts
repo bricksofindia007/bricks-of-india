@@ -29,9 +29,11 @@ function siteOnly(req: NextRequest): boolean {
 }
 
 /** The read key. The function is granted to the server role only (see the migration). Without the key: unavailable. */
+// Server route: reads through the price function with the service-role key (the function is granted to service_role
+// only, migration 20261022180000). Without the key the route answers unavailable.
 function reader() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = getSecret('SUPABASE_PRICE_READER_KEY');
+  const key = getSecret('SUPABASE_SERVICE_ROLE_KEY');
   if (url && key) return createClient(url, key, { auth: { persistSession: false } });
   return null;
 }

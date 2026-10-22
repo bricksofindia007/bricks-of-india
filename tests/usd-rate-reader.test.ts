@@ -25,10 +25,16 @@ describe('stored rate reader', () => {
     expect(rateSourceOf(null).getRate()).toBeNull();
   });
 
-  it('the reader reads only the granted function: no table read, no server key', () => {
-    const src = readFileSync(join(root, 'src/lib/usd-rate-reader.ts'), 'utf8');
+  it('the server read calls only the granted function: no table read, service-role server client only', () => {
+    const src = readFileSync(join(root, 'src/lib/usd-rate-server.ts'), 'utf8');
     expect(src).toMatch(/\.rpc\('get_usd_inr_rate'\)/);
     expect(src).not.toMatch(/\.from\('usd_inr_rate'\)/);
-    expect(src).not.toMatch(/createServerClient|SERVICE_ROLE/);
+    expect(src).toMatch(/createServerClient\(\)/);
+  });
+
+  it('the client-safe module does not read the database', () => {
+    const src = readFileSync(join(root, 'src/lib/usd-rate-reader.ts'), 'utf8');
+    expect(src).not.toMatch(/\.rpc\(/);
+    expect(src).not.toMatch(/createServerClient|createPublicClient|SERVICE_ROLE/);
   });
 });

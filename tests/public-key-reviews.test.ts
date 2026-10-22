@@ -10,16 +10,16 @@ function codeOnly(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1');
 }
 
-describe('reviews page: public key only', () => {
+describe('reviews page: server-side price reads (service role, server only)', () => {
   const page = codeOnly(readFileSync(join(root, 'src/app/reviews/[slug]/page.tsx'), 'utf8'));
 
-  it('does not use the full-access client', () => {
-    expect(page).not.toMatch(/createServerClient/);
-    expect(page).not.toMatch(/SUPABASE_SERVICE_ROLE_KEY/);
+  it('reads through the server client (the price functions are service_role only since 20261022180000)', () => {
+    expect(page).toMatch(/createServerClient\(/);
+    expect(page).not.toMatch(/createPublicClient\(/);
   });
 
-  it('reads through the public-key client', () => {
-    expect(page).toMatch(/createPublicClient\(/);
+  it('does not name the service key in the page (the client helper reads it)', () => {
+    expect(page).not.toMatch(/SUPABASE_SERVICE_ROLE_KEY/);
   });
 
   it('reads prices only through the price functions, never a price table', () => {

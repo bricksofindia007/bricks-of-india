@@ -78,8 +78,8 @@ describe('public set search: negative tests (anonymous visitor)', () => {
   it('strips price rows from the response even if the database returns them', async () => {
     rows = [{ id: 1, set_number: '75419', name: 'Death Star', prices: [{ store_id: 'toycra', price_inr: 9999 }] }];
     const res = await GET(req('/api/sets/search?theme=star-wars') as never);
-    const body = (await res.json()) as { sets: Array<{ prices: unknown[] }> };
-    expect(body.sets[0].prices).toEqual([]);
+    const body = (await res.json()) as { sets: Array<Record<string, unknown>> };
+    expect(body.sets[0]).not.toHaveProperty('prices');
     expect(JSON.stringify(body)).not.toContain('9999');
   });
 

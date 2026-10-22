@@ -10,6 +10,7 @@ import { MASCOTS, THEMES } from '@/lib/brand'; // THEMES used as fallback only
 import { JsonLd } from '@/components/JsonLd';
 import { buildItemListSchema } from '@/lib/schemas';
 import { getPriceSummaries } from '@/lib/price-summary';
+import { orderSetsForDefault } from '@/lib/sets-default-order';
 import { SETS_PRICE_BANDS } from '@/lib/price-bands';
 
 export const metadata: Metadata = buildMetadata({
@@ -29,6 +30,29 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'price_desc', label: 'Price: High → Low' },
   { value: 'pieces',     label: 'Most Pieces' },
 ];
+
+const SORT_ALIASES: Record<string, SortKey> = { 'price-asc': 'price_asc', 'price-desc': 'price_desc' };
+
+// The default order's skeleton: every set's number, year and theme, newest first. Read in pages of 1,000 and cached
+// hourly (the same clock as the price read), so a page view does not scan the table.
+const getSetsDefaultOrder = unstable_cache(
+  async () => {
+    const supabase = createServerClient();
+    const rows: { set_number: string; year: number | null; theme: string | null }[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data } = await supabase
+        .from('sets').select('set_number, year, theme')
+        .order('year', { ascending: false }).order('set_number', { ascending: false })
+        .range(offset, offset + 999);
+      if (!data || data.length === 0) break;
+      rows.push(...(data as typeof rows));
+      if (data.length < 1000) break;
+    }
+    return rows;
+  },
+  ['sets-default-order'],
+  { revalidate: READ_REVALIDATE_SECONDS },
+);
 
 const PRICE_BANDS = SETS_PRICE_BANDS; // #381: defined in src/lib/price-bands.ts (label/bound test)
 
@@ -98,7 +122,8 @@ export default async function SetsPage(props: Props) {
   const supabase    = createServerClient();
   const pageNum     = Math.max(1, parseInt(searchParams.page || '1') || 1);
   const themeFilter = searchParams.theme || '';
-  const sortKey     = (searchParams.sort || 'newest') as SortKey;
+  // The theme pages spell the price sorts with hyphens (price-asc); accept those here too.
+  const sortKey     = (SORT_ALIASES[searchParams.sort || ''] ?? (searchParams.sort || 'newest')) as SortKey;
   const instockOnly = searchParams.instock === '1';
   const priceBand   = PRICE_BANDS[searchParams.price || ''] ?? null;
   const from        = (pageNum - 1) * PAGE_SIZE;
@@ -179,8 +204,24 @@ export default async function SetsPage(props: Props) {
       sets = pageIds.map(id => byNum.get(id)).filter(Boolean);
     }
 
+  } else if (sortKey === 'newest') {
+    // Default order: sets with an in-stock price first (newest first within each group), so page 1 is not only
+    // unpriced sets. The order comes from the hourly cache; this request only slices it.
+    const order = await getSetsDefaultOrder();
+    const ids = orderSetsForDefault(order, (n) => !!priceMap[n], themeFilter);
+    total = ids.length;
+    const pageIds = ids.slice(from, from + PAGE_SIZE);
+    if (pageIds.length > 0) {
+      const { data } = await supabase
+        .from('sets')
+        .select('id, set_number, name, theme, year, pieces, image_url, age_range, lego_mrp_inr, mrp_verified')
+        .in('set_number', pageIds);
+      const byNum = new Map((data ?? []).map((x: any) => [x.set_number, x]));
+      sets = pageIds.map((id) => byNum.get(id)).filter(Boolean);
+    }
+
   } else {
-    // DB sort: newest or pieces — Supabase handles ordering and pagination
+    // DB sort: pieces (or an unknown value) — Supabase handles ordering and pagination
     let q = supabase
       .from('sets')
       .select(

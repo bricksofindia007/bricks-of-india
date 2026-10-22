@@ -296,6 +296,22 @@ jobs:
       - name: TypeScript type check
         run: npx tsc --noEmit
 
+  # Queue item 13 (22 Oct 2026): no AI attribution in pull request text or commit messages. Public text, so the
+  # check prints the field or commit only, never the matched words. Pair with g19-public-text as a required check.
+  pr-text-attribution:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 3
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - name: Attribution check (pull request title, body and commits)
+        if: github.event_name == 'pull_request'
+        run: node scripts/ci/pr-text-check.mjs
+
   # G19 (CLAUDE.md, 1 Oct 2026): fail if public text reveals how the site works --
   # public text files (robots.txt rules only, llms.txt, manifest, brand guide) and the
   # user-visible strings in site code. The term list is the G19_TERMS secret, never in
