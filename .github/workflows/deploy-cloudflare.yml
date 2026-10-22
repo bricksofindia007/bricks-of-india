@@ -38,8 +38,34 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Production deploy gate (23 Oct 2026): the deploy job below only starts when every required check is green on the
+  # commit (the pull request head for a merge), and the staging measurement for the same code is recorded and passes
+  # (scripts/ci/deploy-gate.mjs). Read-only: no environment, no secrets beyond the run token.
+  deploy-gate:
+    name: Deploy gate (checks and measurement)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      checks: read
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - name: Evaluate the gate
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          DEPLOY_SHA: ${{ github.sha }}
+          ROLLBACK_TARGET: '34faed19'
+        run: node scripts/ci/deploy-gate.mjs
+
   deploy:
     name: Build and deploy (Next.js + OpenNext Cloudflare)
+    needs: deploy-gate
     runs-on: ubuntu-24.04
     # Approval gate (see header): nothing builds until the run is approved.
     environment: production
