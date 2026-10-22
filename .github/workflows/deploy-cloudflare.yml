@@ -29,9 +29,21 @@ name: Build & Deploy to Cloudflare Workers
 # everything the older runs would have deployed.
 
 on:
+  # Emergency override (23 Oct 2026): outage or security only. Skips the measurement rule of the deploy gate, never
+  # the required checks. The production environment approval on the deploy job still applies, and the reason is logged.
   # Manual only (B7, 4 Oct 2026): one bundled site deploy is started by hand after the release's
   # database changes; merges to main no longer start deploy runs.
   workflow_dispatch:
+    inputs:
+      emergency_class:
+        description: 'none, or outage / security for an emergency override (approval still required)'
+        type: choice
+        options: [none, outage, security]
+        default: none
+      emergency_reason:
+        description: 'Required with an override: what is broken or exposed (20+ characters)'
+        type: string
+        default: ''
 
 concurrency:
   group: deploy-cloudflare-production
@@ -61,6 +73,8 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
           DEPLOY_SHA: ${{ github.sha }}
           ROLLBACK_TARGET: '34faed19'
+          EMERGENCY_CLASS: ${{ inputs.emergency_class }}
+          EMERGENCY_REASON: ${{ inputs.emergency_reason }}
         run: node scripts/ci/deploy-gate.mjs
 
   deploy:
@@ -85,6 +99,14 @@ jobs:
       NEXT_PUBLIC_SITE_URL:           https://bricksofindia.com
       NEXT_PUBLIC_GA_MEASUREMENT_ID:  ${{ secrets.NEXT_PUBLIC_GA_MEASUREMENT_ID }}
     steps:
+      - name: Log the emergency override (approved in the production environment)
+        if: inputs.emergency_class != 'none'
+        env:
+          EMERGENCY_CLASS: ${{ inputs.emergency_class }}
+          EMERGENCY_REASON: ${{ inputs.emergency_reason }}
+        run: |
+          echo "EMERGENCY OVERRIDE (${EMERGENCY_CLASS}) approved in the production environment: ${EMERGENCY_REASON}" | tee -a "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/checkout@v5
 
       - uses: actions/setup-node@v6
