@@ -108,4 +108,8 @@ export const FEATURE_FLAGS = {
   // Both off until launch. Mirrored in config/feature_flags.py; keep in sync.
   myCollectionHearts: false,
   myCollectionPage: false,
+
+  // Review policy page structure (queue item 14, 22 Oct 2026). Off: the route is a 404. The copy is not written yet;
+  // the page shows placeholders until the owner approves the wording. Mirrored in config/feature_flags.py; keep in sync.
+  reviewPolicyPage: false,
 } as const;
