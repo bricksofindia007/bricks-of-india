@@ -26,11 +26,9 @@ describe('route files', () => {
     expect(read('src/app/themes/[theme]/page/[page]/page.tsx')).toMatch(/export const revalidate = 86400;/);
     expect(read('src/app/themes/[theme]/page/[page]/page.tsx')).toMatch(/export const dynamicParams = true;/);
   });
-  it('sorted views are cached daily, not rendered per request (queue item 1: per-request CPU)', () => {
-    expect(read('src/app/themes/[theme]/sort/[sort]/page.tsx')).toMatch(/export const revalidate = 86400;/);
-    expect(read('src/app/themes/[theme]/sort/[sort]/page.tsx')).not.toMatch(/force-dynamic/);
-    expect(read('src/app/themes/[theme]/sort/[sort]/page/[page]/page.tsx')).toMatch(/export const revalidate = 86400;/);
-    expect(read('src/app/themes/[theme]/sort/[sort]/page/[page]/page.tsx')).not.toMatch(/force-dynamic/);
+  it('sorted views are forced dynamic', () => {
+    expect(read('src/app/themes/[theme]/sort/[sort]/page.tsx')).toMatch(/export const dynamic = 'force-dynamic';/);
+    expect(read('src/app/themes/[theme]/sort/[sort]/page/[page]/page.tsx')).toMatch(/export const dynamic = 'force-dynamic';/);
   });
   it('a sort outside the options, and the default sort reached by its own path, are not served as a second list', () => {
     expect(read('src/app/themes/[theme]/sort/[sort]/page.tsx')).toMatch(/if \(!isThemeSort\(sort\)\) notFound\(\);/);

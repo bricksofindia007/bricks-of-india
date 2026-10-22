@@ -53,8 +53,8 @@ export const ROUTE_CADENCE: Record<string, Cadence> = {
   // Theme pages: page one and /page/[n] are static on the price cadence; sorted views are per request (noindex).
   '/themes/[theme]': THEME_PAGE_REVALIDATE_SECONDS,
   '/themes/[theme]/page/[page]': THEME_PAGE_REVALIDATE_SECONDS,
-  '/themes/[theme]/sort/[sort]': THEME_PAGE_REVALIDATE_SECONDS,
-  '/themes/[theme]/sort/[sort]/page/[page]': THEME_PAGE_REVALIDATE_SECONDS,
+  '/themes/[theme]/sort/[sort]': DYNAMIC,
+  '/themes/[theme]/sort/[sort]/page/[page]': DYNAMIC,
   '/news/[slug]': READ_REVALIDATE_SECONDS,
   '/reviews/[slug]': READ_REVALIDATE_SECONDS,
   '/guides/[slug]': READ_REVALIDATE_SECONDS,

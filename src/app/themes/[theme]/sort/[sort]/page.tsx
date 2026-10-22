@@ -5,8 +5,8 @@ import { themeRouteMetadata } from '@/lib/theme-metadata';
 import { isThemeSort, themeHref } from '@/lib/theme-paging';
 import { ThemePageBody } from '@/components/themes/ThemePageBody';
 
-// A sorted view, page one. Cached daily (not per request: the sort runs over the whole theme), noindex, canonical to the default-sort page.
-export const revalidate = 86400; // daily, like the default theme page; prices refresh hourly under it (queue item 1: CPU)
+// A sorted view, page one. Sorted views are rendered per request, noindex, and canonical to the default-sort page.
+export const dynamic = 'force-dynamic';
 
 interface Props {
   params: Promise<{ theme: string; sort: string }>;
