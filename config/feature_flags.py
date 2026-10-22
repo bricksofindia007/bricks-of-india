@@ -26,6 +26,9 @@ FEATURE_FLAGS = {
     "accounts_enabled": False,
     # Review policy page structure (queue item 14, 22 Oct 2026). Mirrors src/lib/feature-flags.ts (reviewPolicyPage).
     "review_policy_page": False,
+    # Data deletion and age-rule page structure (queue item 4, 22 Oct 2026). Mirrors src/lib/feature-flags.ts.
+    "data_deletion_page": False,
+    "age_rule_page": False,
     # VID-QP pre-TTS caption-length shadow-mode estimate (added 2026-08-16,
     # crashed 2026-08-17, shape bug fixed 2026-08-18 in
     # scripts/video/generate_quiet_panic_video.py's run_all_gates()).
