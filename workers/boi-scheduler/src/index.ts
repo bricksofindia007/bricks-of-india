@@ -12,6 +12,7 @@
 //  - The dispatcher is inert unless BOTH the BOI_SCHEDULER_DISPATCH_TOKEN secret exists AND
 //    flag:v1.dispatch_enabled is true (set only after Abhinav confirms the token, P5).
 import { verifyAndParse } from './auth';
+import { KEEPALIVE_CRON, runKeepAlive } from './keepalive';
 
 export interface Env {
   BOI_SNAPSHOTS: KVNamespace;
@@ -19,6 +20,8 @@ export interface Env {
   BOI_SCHEDULER_DISPATCH_TOKEN?: string;
   TARGET: string;            // 'production' | 'staging' (from wrangler vars)
   GITHUB_REPO: string;       // 'bricksofindia007/bricks-of-india'
+  STAGING_SUPABASE_URL?: string;              // staging only (keep-alive)
+  STAGING_SUPABASE_PUBLISHABLE_KEY?: string;  // staging only (keep-alive); a Worker secret
 }
 
 const VERSION = 'boi-scheduler/1';
@@ -81,5 +84,6 @@ export default {
     await env.BOI_SNAPSHOTS.put('meta:scheduler:heartbeat', JSON.stringify({ at: new Date().toISOString(), slot, cron: ev.cron, version: VERSION, target: env.TARGET }));
     const store = CRON_STORE[ev.cron];
     if (store) ctx.waitUntil(dispatch(env, store, slot));
+    if (ev.cron === KEEPALIVE_CRON) ctx.waitUntil(runKeepAlive(env));
   },
 };
