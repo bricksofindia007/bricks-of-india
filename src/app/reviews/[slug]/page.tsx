@@ -5,7 +5,7 @@ import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { ArticleMarkdown } from '@/components/content/ArticleMarkdown';
-import { createPublicClient, supabaseRead as supabase } from '@/lib/supabase';
+import { createServerClient, supabaseRead as supabase } from '@/lib/supabase';
 import { READ_REVALIDATE_SECONDS, bestInStock, badgeEligible } from '@/lib/price-freshness';
 import { formatDate, formatPrice, whatsappShareUrl, twitterShareUrl, socialCardImage } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
@@ -108,16 +108,16 @@ export default async function ReviewPage(props: Props) {
   let recentStockEventsAt: string[] = [];
   let priceSummary: ReviewDealSummary | null = null;
   if (set?.set_number) {
-    // Public key only: prices come through the price functions (migration 20261017200000).
-    const publicClient = createPublicClient({ revalidate: READ_REVALIDATE_SECONDS });
+    // Service-role server client (same as the set pages): the price functions are granted to service_role only (20261022180000).
+    const priceClient = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
     const since = new Date(Date.now() - RETIRED_IN_INDIA_DAYS * 864e5).toISOString();
     const [{ data: storePrices }, { data: historyRows }, summaries] = await Promise.all([
-      publicClient.rpc('get_set_prices', { p_set_number: set.set_number }),
+      priceClient.rpc('get_set_prices', { p_set_number: set.set_number }),
       // Item 0: stock activity in the last 14 days (India status input). The function returns the
       // newest 200 rows for the set (the function's cap); the window is applied here.
-      publicClient.rpc('get_price_history', { p_set_number: set.set_number, p_limit: 200 }),
+      priceClient.rpc('get_price_history', { p_set_number: set.set_number, p_limit: 200 }),
       // Same Deal/Hot tier the price box badges (WAIT discount line).
-      getReviewDealTiers(publicClient, [set.set_number]),
+      getReviewDealTiers(priceClient, [set.set_number]),
     ]);
     const history = ((historyRows ?? []) as { store_id: string; recorded_at: string }[]).filter((h) => h.recorded_at >= since);
     priceSummary = summaries.get(set.set_number) ?? null;

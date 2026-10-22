@@ -15,10 +15,10 @@ function getSupabase() {
   return createClient(url, key);
 }
 
-/** Price rows are not served by this endpoint. Set pages show prices. */
-function withoutPrices<T extends Record<string, unknown>>(row: T): Omit<T, 'prices'> & { prices: [] } {
+/** Price rows are not served by this endpoint, and the key is not sent at all. Set pages show prices. */
+function withoutPrices<T extends Record<string, unknown>>(row: T): Omit<T, 'prices'> {
   const { prices: _dropped, ...rest } = row;
-  return { ...rest, prices: [] };
+  return rest;
 }
 
 /** Strip Rebrickable variant suffix: "75192-1" → "75192" */
@@ -75,7 +75,6 @@ export async function GET(request: NextRequest) {
             lego_mrp_inr:  sup?.lego_mrp_inr ?? null,
             created_at:    '',
             updated_at:    '',
-            prices:        [],
           };
         });
 

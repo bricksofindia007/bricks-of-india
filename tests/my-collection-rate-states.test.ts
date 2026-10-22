@@ -9,6 +9,7 @@ import { NextRequest } from 'next/server';
 vi.hoisted(() => {
   process.env.NEXT_PUBLIC_SUPABASE_URL = 'https://abcdefghijklmnopqrst.supabase.co';
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY = 'anon-test-key';
+  process.env.SUPABASE_SERVICE_ROLE_KEY = 'service-test-key';
 });
 
 const flags = vi.hoisted(() => ({ myCollectionPage: true, myCollectionHearts: true }));
@@ -42,7 +43,8 @@ vi.mock('@supabase/supabase-js', () => ({
 
 import { GET } from '../src/app/api/saved-sets/route';
 import { usableRate, worthInputFor, worthOf, type StoredRate } from '../src/lib/collection-worth';
-import { loadStoredRate, toStoredRate, rateSourceOf } from '../src/lib/usd-rate-reader';
+import { toStoredRate, rateSourceOf } from '../src/lib/usd-rate-reader';
+import { loadStoredRate } from '../src/lib/usd-rate-server';
 
 const NOW = new Date('2026-10-18T06:00:00Z');
 const US_ONLY = () => worthInputFor({ set: '10307', qty: 1 }, { best_price_inr: null, us_price_usd: 499 }, true);
