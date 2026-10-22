@@ -381,9 +381,16 @@ async function main() {
 
   let result;
   try {
-    result = await model.generateContent({
-      contents         : [{ role: 'user', parts: [{ text: userPrompt }] }],
-      generationConfig : { temperature: 0.7, maxOutputTokens: 2000 },
+    const { guardedCall, runBudget, geminiUsage } = await import('../lib/ai-guard.mjs');
+    result = await guardedCall({
+      site: 'draft', model: MODEL_NAME, system: systemPrompt, user: userPrompt, budget: runBudget(),
+      invoke: async () => {
+        const r = await model.generateContent({
+          contents         : [{ role: 'user', parts: [{ text: userPrompt }] }],
+          generationConfig : { temperature: 0.7, maxOutputTokens: 2000 },
+        });
+        return { ...r, ...geminiUsage(r) };
+      },
     });
   } catch (err) {
     if (err.status === 429 || (err.message && err.message.includes('429'))) {

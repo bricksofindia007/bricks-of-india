@@ -134,13 +134,20 @@ ${feedback ? `- Previous attempt rejected: ${feedback}. Open with a genuinely di
 OPENING PARAGRAPH:
 ${firstPara}`;
 
-  const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_KEY}`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.9, maxOutputTokens: 500 } }),
+  const { guardedCall, runBudget } = await import('../lib/ai-guard.mjs');
+  const data = await guardedCall({
+    site: 'draft', model: MODEL, system: '', user: prompt, budget: runBudget(),
+    invoke: async () => {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_KEY}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { temperature: 0.9, maxOutputTokens: 500 } }),
+      });
+      if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 200)}`);
+      const body = await res.json();
+      return { ...body, inputTokens: body?.usageMetadata?.promptTokenCount, outputTokens: body?.usageMetadata?.candidatesTokenCount };
+    },
   });
-  if (!res.ok) throw new Error(`Gemini ${res.status}: ${(await res.text()).slice(0, 200)}`);
-  const data = await res.json();
   return (data?.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim().replace(/^```\w*\n?|```$/g, '').trim();
 }
 
