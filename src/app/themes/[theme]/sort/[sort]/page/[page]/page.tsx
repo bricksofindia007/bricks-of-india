@@ -6,7 +6,7 @@ import { isThemeSort, themeHref } from '@/lib/theme-paging';
 import { ThemePageBody } from '@/components/themes/ThemePageBody';
 
 // A sorted view, pages 2 and up. Rendered per request, noindex, and canonical to the default-sort page of the same number.
-export const dynamic = 'force-dynamic';
+export const revalidate = 86400; // daily, like the default theme page; prices refresh hourly under it (queue item 1: CPU)
 
 interface Props {
   params: Promise<{ theme: string; sort: string; page: string }>;
