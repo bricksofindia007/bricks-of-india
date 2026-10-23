@@ -37,13 +37,14 @@ export function samplesFrom(groups, per) {
   return out;
 }
 
-/** Pure. The <loc> entries of a sitemap, as paths on the given site. */
-export function pathsFromSitemap(xml, site) {
-  const base = site.replace(/\/$/, '');
+/**
+ * Pure. The <loc> entries of a sitemap, as paths. The host is ignored: a staging sitemap may list production addresses
+ * (it did on 23 Oct 2026), and the paths are what the load generator sends to its own site.
+ */
+export function pathsFromSitemap(xml) {
   return [...xml.matchAll(/<loc>([^<]+)<\/loc>/g)]
-    .map((m) => m[1].trim())
-    .filter((u) => u.startsWith(base))
-    .map((u) => u.slice(base.length) || '/');
+    .map((m) => { try { const u = new URL(m[1].trim()); return u.pathname + u.search; } catch { return null; } })
+    .filter((p) => p !== null);
 }
 
 async function main() {
@@ -53,7 +54,7 @@ async function main() {
   const per = Number(process.env.PER_TEMPLATE || 50);
   const res = await fetch(`${site.replace(/\/$/, '')}/sitemap.xml`, { redirect: 'manual' });
   if (!res.ok) { console.error(`sitemap HTTP ${res.status}`); return 1; }
-  const paths = pathsFromSitemap(await res.text(), site);
+  const paths = pathsFromSitemap(await res.text());
   const templates = profile.classes.map((c) => c.template);
   const samples = samplesFrom(groupPaths(paths, templates), per);
   const missing = templates.filter((t) => !samples[t]);

@@ -1,1 +1,293 @@
-{}
+{
+  "/": [
+    "/"
+  ],
+  "/about": [
+    "/about"
+  ],
+  "/bot": [
+    "/bot"
+  ],
+  "/contact": [
+    "/contact"
+  ],
+  "/lab": [
+    "/lab"
+  ],
+  "/lab/biryani-index": [
+    "/lab/biryani-index"
+  ],
+  "/legal/affiliate-disclosure": [
+    "/legal/affiliate-disclosure"
+  ],
+  "/legal/disclaimer": [
+    "/legal/disclaimer"
+  ],
+  "/legal/privacy": [
+    "/legal/privacy"
+  ],
+  "/legal/terms": [
+    "/legal/terms"
+  ],
+  "/themes": [
+    "/themes"
+  ],
+  "/deals": [
+    "/deals"
+  ],
+  "/corrections": [
+    "/corrections"
+  ],
+  "/lab/deals": [
+    "/lab/deals"
+  ],
+  "/lab/retiring-soon": [
+    "/lab/retiring-soon"
+  ],
+  "/lab/which-set": [
+    "/lab/which-set"
+  ],
+  "/minifig-hq": [
+    "/minifig-hq"
+  ],
+  "/reviews": [
+    "/reviews"
+  ],
+  "/community": [
+    "/community"
+  ],
+  "/sets/[slug]": [
+    "/sets/010423-the-majestic-horse",
+    "/sets/1000-mosaic-set",
+    "/sets/1000565740-marvel-avengers-xbox-one",
+    "/sets/1000565742-marvel-avengers-ps4",
+    "/sets/1000709806-dc-super-villains-ps4",
+    "/sets/1000746530-jurassic-world-nintendo-switch",
+    "/sets/10018247-castle-jibbitz",
+    "/sets/10018248-red-tile-2x2-jibbitz",
+    "/sets/10018249-spaceship-jibbitz",
+    "/sets/10018250-red-tile-1x1-jibbitz",
+    "/sets/10018251-yellow-tile-1x2-jibbitz",
+    "/sets/10018252-gaming-minifigure-jibbitz",
+    "/sets/10018253-headphones-jibbitz",
+    "/sets/10018255-dj-set-jibbitz",
+    "/sets/10018256-sailboat-jibbitz",
+    "/sets/10018257-sunflower-jibbitz",
+    "/sets/10018258-bumblebee-minifigure-jibbitz",
+    "/sets/10018259-white-flower-jibbitz",
+    "/sets/10018260-yellow-flower-bud-jibbitz",
+    "/sets/10018261-blue-tile-1x1-jibbitz",
+    "/sets/10019396-ninjago-kai-5-pack",
+    "/sets/10019397-ninjago-lloyd-5-pack",
+    "/sets/10019398-ninjago-zane-5-pack",
+    "/sets/10019399-ninjago-nya-5-pack",
+    "/sets/10019400-ninjago-jay-5-pack",
+    "/sets/10019401-ninjago-cole-5-pack",
+    "/sets/10019737-lt-grey-tile-1x2-jibbitz",
+    "/sets/10019738-dark-grey-tile-1x1-jibbitz",
+    "/sets/10019739-green-tile-1x1-jibbitz",
+    "/sets/10019740-purple-flower-jibbitz",
+    "/sets/10019741-ladybug-jibbitz",
+    "/sets/10019742-purple-flower-bud-jibbitz",
+    "/sets/10019743-dark-green-leaf-jibbitz",
+    "/sets/10019744-blue-flower-jibbitz",
+    "/sets/10019847-bright-green-leaf-jibbitz",
+    "/sets/10020070-vehicles-minifigure-jibbitz",
+    "/sets/10020078-vice-minifigure-jibbitz",
+    "/sets/10020082-vice-green-skateboard-jibbitz",
+    "/sets/10020218-ninjago-15th-anniversary-jibbitz",
+    "/sets/100311837-friends-juice-bar-shoulder-bag",
+    "/sets/100342004-friends-pink-gym-bag",
+    "/sets/100342008-ninjago-dragon-master-gym-bag",
+    "/sets/100342101-ninjago-green-lloyd-gym-bag",
+    "/sets/100342108-purple-gym-bag",
+    "/sets/100342208-navy-gym-bag",
+    "/sets/100342501-ninjago-elemental-master-of-energy-gym-bag",
+    "/sets/100342502-ninjago-dragon-energy-gym-bag",
+    "/sets/100342506-flowers-gym-bag",
+    "/sets/100342511-bricks-gym-bag",
+    "/sets/100342601-ninjago-spinjitzu-master-gym-bag"
+  ],
+  "/themes/[theme]": [
+    "/themes/architecture",
+    "/themes/art",
+    "/themes/bionicle",
+    "/themes/botanical",
+    "/themes/brickheadz",
+    "/themes/city",
+    "/themes/classic",
+    "/themes/creator",
+    "/themes/dc",
+    "/themes/disney",
+    "/themes/dots",
+    "/themes/dreamzzz",
+    "/themes/duplo",
+    "/themes/friends",
+    "/themes/harry-potter",
+    "/themes/icons",
+    "/themes/ideas",
+    "/themes/jurassic-world",
+    "/themes/legends-of-chima",
+    "/themes/marvel",
+    "/themes/minecraft",
+    "/themes/nexo-knights",
+    "/themes/ninjago",
+    "/themes/seasonal",
+    "/themes/special-releases",
+    "/themes/speed-champions",
+    "/themes/star-wars",
+    "/themes/super-mario",
+    "/themes/technic"
+  ],
+  "/news/[slug]": [
+    "/news/15-lego-roof-building-techniques-a-masterclass-in-plastic-ar",
+    "/news/20-years-online-nannan-zhang-reflects-on-lego-community-evol",
+    "/news/2026-lego-advent-calendars-spotted-on-amazon-indian-prices-u",
+    "/news/23000-pieces-18kg-spaceship-is-this-shiptember-marvel-worth-",
+    "/news/50-new-lego-sets-leaked-for-india-icons-star-wars-f1-more-pr",
+    "/news/50-new-lego-sets-leaked-for-india-icons-star-wars-f1-your-wa",
+    "/news/70s-lego-office-decor-returns-with-impressive-build-techniqu",
+    "/news/90s-lego-extreme-team-catamaran-fan-build-sparks-nostalgia-n",
+    "/news/a-red-pagoda-masterpiece-reimagined-ronin-returns-with-new-j",
+    "/news/afols-and-legos-is-your-moc-ready-for-a-clean-slate",
+    "/news/afols-with-kids-sharing-bricks-sharing-pain",
+    "/news/amazon-lego-sale-every-deal-reported-unconfirmed",
+    "/news/autistic-afols-share-their-lego-journey-coping-collecting-an",
+    "/news/axo-tron-returns-lego-space-meets-friends-in-new-fan-collab",
+    "/news/best-lego-deals-india-april-2026",
+    "/news/best-new-lego-sets-2026-so-far",
+    "/news/big-bike-energy-lego-set-11380-road-bike-rolls-in",
+    "/news/billund-airport-legos-gateway-to-the-world-no-set-number-yet",
+    "/news/bio-cup-2026-bionicle-meets-football-in-a-wild-fan-build",
+    "/news/bio-cup-blue-morpho-butterfly-build-hints-at-new-bionicle-po",
+    "/news/bio-cup-flame-tree-wizard-a-fiery-constraction-masterpiece",
+    "/news/bionicle-25th-anniversary-fan-builds-of-tahu-take-center-sta",
+    "/news/bionicles-tahu-celebrates-25-years-with-epic-fan-builds",
+    "/news/bionicles-tahu-celebrates-25-years-with-fan-creations",
+    "/news/black-falcons-friday-is-this-a-new-lego-set-or-just-a-fan-ce",
+    "/news/black-falcons-friday-more-lego-sets-on-the-horizon",
+    "/news/blockdeco-a-new-platform-elevating-lego-mocs-as-art",
+    "/news/blocks-magazine-issue-142-helicarrier-pokmon-and-disney-main",
+    "/news/blocks-magazine-issue-143-the-x-files-play-secrets-and-build",
+    "/news/bo-katans-gauntlet-starfighter-is-here-unofficially",
+    "/news/bossks-houndstooth-from-jabbas-sailbarge-set-75397-gets-a-cr",
+    "/news/brick-train-awards-2026-a-community-celebration-of-lego-trai",
+    "/news/brickit-magazine-issue-28-arrives-porco-rosso-moc-sewing-mac",
+    "/news/bricklink-designer-program-2028-wave-1-medieval-cathedral-de",
+    "/news/bricklink-designer-program-airport-terminal-your-city-needs-",
+    "/news/bricklink-designer-program-gets-a-makeover-in-2028",
+    "/news/bricklink-designer-program-series-6-second-chance-for-fan-fa",
+    "/news/bricklink-designer-program-series-8-preorder-deadline-looms-",
+    "/news/bricklink-designer-program-university-of-science-set-indian-",
+    "/news/bricknerd-explores-the-mystery-of-unknown-lego-parts",
+    "/news/brickset-weekly-roundup-most-read-lego-news-of-the-fortnight",
+    "/news/brickstickershop-offers-fabric-sails-upgrade-for-lego-brickl",
+    "/news/brickzonehub-launches-display-frame-for-lego-technic-mclaren",
+    "/news/buck-rogers-thunderfighter-fan-build-lands-online-will-lego-",
+    "/news/build-your-dream-lego-studio-instructions-available-now",
+    "/news/build-your-own-giant-lego-pine-tree-with-new-instructions",
+    "/news/build-your-own-mtron-mobile-moon-base-for-free-no-set-number",
+    "/news/building-minifig-scale-lego-pokmon-challenges-and-creative-s",
+    "/news/certified-store-india-charges-too-much",
+    "/news/cheapest-lego-in-the-world-india-comparison-coming-soon"
+  ],
+  "/reviews/[slug]": [
+    "/reviews/lego-101-dalmatians-puppy-43269-worth-12399",
+    "/reviews/lego-10316-rivendell-review",
+    "/reviews/lego-10326-natural-history-museum-review",
+    "/reviews/lego-2-fast-2-furious-nissan-skyline-gt-r-r34-car-42210-wort",
+    "/reviews/lego-40875-up-scaled-mrs-claus-minifigure-worth-5700",
+    "/reviews/lego-40896-the-x-files-scullys-lab-gwp-is-this-a-must-have",
+    "/reviews/lego-40912-sea-serpent-gwp-2026-worth-the-23300-price-tag",
+    "/reviews/lego-42172-mclaren-p1-review",
+    "/reviews/lego-42232-koenigsegg-sadairs-spear-megacar-worth-49999",
+    "/reviews/lego-43014-scuderia-ferrari-hp-charles-leclerc-helmet-worth-",
+    "/reviews/lego-72156-trainers-buggy-adventure-with-squirtle-a-squirtle",
+    "/reviews/lego-77059-timmy-tommys-fun-day-out-worth-5400",
+    "/reviews/lego-77254-ferrari-sf90-xx-stradale-worth-2999",
+    "/reviews/lego-77264-jaguar-f-type-project-7-land-rover-defender-class",
+    "/reviews/lego-77264-jaguar-project-7-land-rover-defender-worth-5999",
+    "/reviews/lego-acclamator-class-assault-ship-75404-worth-5449",
+    "/reviews/lego-airport-with-airplane-60502-worth-9999",
+    "/reviews/lego-alphabet-truck-10421-worth-3799",
+    "/reviews/lego-arcade-machine-40805-worth-4549",
+    "/reviews/lego-arcade-pinball-machine-11374-worth-30000",
+    "/reviews/lego-architecture-tower-bridge-21067-worth-29999",
+    "/reviews/lego-arctic-explorer-science-lab-truck-60471-worth-12299",
+    "/reviews/lego-arctic-polar-express-train-60470-worth-23900",
+    "/reviews/lego-arkham-asylum-76300-worth-31999",
+    "/reviews/lego-at-rt-attack-75444-worth-4999",
+    "/reviews/lego-audi-rs-q-e-tron-42160-worth-17999",
+    "/reviews/lego-autumn-cottage-garden-11372-worth-8999",
+    "/reviews/lego-avengers-tower-76269-worth-39199",
+    "/reviews/lego-batman-forever-batmobile-76304-worth-10999",
+    "/reviews/lego-batman-returns-batmobile-76355-is-21999-worth-it",
+    "/reviews/lego-beach-house-with-seals-42699-worth-4999",
+    "/reviews/lego-beauty-and-the-beast-castle-43263-worth-31199",
+    "/reviews/lego-beekeepers-house-and-flower-garden-42669-worth-10999",
+    "/reviews/lego-big-interactive-community-train-10428-worth-13749",
+    "/reviews/lego-blazes-horse-ranch-43304-worth-5499",
+    "/reviews/lego-bmw-m3-e30-77263-worth-2900",
+    "/reviews/lego-bmw-m3-e30-77263-worth-2999",
+    "/reviews/lego-boba-fett-75455-worth-17999",
+    "/reviews/lego-botanicals-10371-cozy-plants-is-it-worth-2200",
+    "/reviews/lego-build-a-minifigure-2026-halloween-haul-or-heartbreak",
+    "/reviews/lego-captain-jack-sparrows-pirate-ship-10365-worth-36499",
+    "/reviews/lego-chevrolet-corvette-stingray-42205-worth-6399",
+    "/reviews/lego-chopper-c1-10p-astromech-droid-75416-worth-12299",
+    "/reviews/lego-christmas-table-decoration-40743-worth-4549",
+    "/reviews/lego-city-dump-truck-front-end-loader-60494-worth-12999",
+    "/reviews/lego-city-police-train-heist-60508-19999-for-a-cat-and-mouse",
+    "/reviews/lego-classic-beach-tram-60506-worth-7499",
+    "/reviews/lego-coast-guard-rescue-boat-helicopter-60504-worth-11999",
+    "/reviews/lego-comic-book-and-game-store-42674-worth-9999",
+    "/reviews/lego-concorde-10318-worth-16299"
+  ],
+  "/guides/[slug]": [
+    "/guides/beginners-guide-lego-india-2026",
+    "/guides/best-lego-gifts-kids-india-2026",
+    "/guides/best-lego-sets-for-adults-india-2026",
+    "/guides/best-lego-sets-for-teenagers-in-india-2026-technic-speed-cha",
+    "/guides/best-lego-sets-under-1000-in-india-2026-the-budget-brick-hun",
+    "/guides/best-lego-sets-under-10000-in-india-2026",
+    "/guides/best-lego-sets-under-2000-india-2026",
+    "/guides/best-lego-sets-under-5000-india-2026",
+    "/guides/best-lego-star-wars-sets-india-2026",
+    "/guides/best-lego-technic-sets-india-2026",
+    "/guides/find-discontinued-lego-sets-india-2026",
+    "/guides/history-of-lego-in-india",
+    "/guides/how-to-buy-lego-india",
+    "/guides/how-to-store-display-lego-india",
+    "/guides/how-to-store-lego-collection-india",
+    "/guides/is-lego-worth-the-price-india",
+    "/guides/lego-creator-3-in-1-india-2026",
+    "/guides/lego-duplo-vs-lego-classic-which-bricks-are-right-for-your-t",
+    "/guides/lego-for-kids-vs-adults-india",
+    "/guides/lego-resale-market-india",
+    "/guides/lego-rewards-india-2026",
+    "/guides/lego-themes-explained-india",
+    "/guides/lego-vs-chinese-clones-india",
+    "/guides/lego-vs-fake-lego-how-to-spot-knockoff-india",
+    "/guides/new-lego-sets-india-2026-complete-list",
+    "/guides/what-is-lego-beginners-guide-india",
+    "/guides/where-to-buy-lego-india-2026"
+  ],
+  "/compare": [
+    "/compare"
+  ],
+  "/guides": [
+    "/guides"
+  ],
+  "/lab/budget-calculator": [
+    "/lab/budget-calculator"
+  ],
+  "/lab/price-drops": [
+    "/lab/price-drops"
+  ],
+  "/news": [
+    "/news"
+  ],
+  "/sets": [
+    "/sets"
+  ]
+}

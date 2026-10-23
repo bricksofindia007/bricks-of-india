@@ -17,5 +17,6 @@ assert.deepEqual(s['/sets/[slug]'], ['/sets/1-a']);
 assert.equal('/' in s, false, 'templates with no paths are omitted');
 
 const xml = '<urlset><url><loc>https://s.example/sets/1-a</loc></url><url><loc>https://other.example/x</loc></url><url><loc>https://s.example/compare</loc></url></urlset>';
-assert.deepEqual(pathsFromSitemap(xml, 'https://s.example'), ['/sets/1-a', '/compare']);
+assert.deepEqual(pathsFromSitemap(xml), ['/sets/1-a', '/x', '/compare'], 'the host is ignored: paths come from every entry, in document order');
+assert.deepEqual(pathsFromSitemap('<urlset><url><loc>https://a.example/sets/9?x=1</loc></url></urlset>'), ['/sets/9?x=1'], 'query strings are kept here and skipped when grouping');
 console.log('gen-samples checks passed');
