@@ -10,9 +10,13 @@
 // - Each user action fires once: attach trackEvent to one handler per control.
 // - Page views and in-site page changes are already sent by the GA snippet in the
 //   root layout; nothing here sends them.
+// - Failure behaviour: with the keyEvents flag off, the flagged events are dropped here
+//   and nothing is sent; the link itself is unchanged.
 //
 // Key-event candidates (marked in GA admin, not here): click_store_listing,
 // submit_newsletter_signup, submit_budget_calculator.
+
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
 
 export const PAGE_TYPES = [
   'home', 'set', 'review', 'news', 'guide', 'opinion', 'blog', 'deals', 'lab_deals',
@@ -44,7 +48,20 @@ const ALLOWED: Record<string, readonly string[]> = {
   heart_remove: ['page_type', 'set_number'],
   owned_add: ['page_type', 'set_number'],
   my_sets_view: ['page_type'],
+  // Link events for the key-event placements. Sent only while the keyEvents flag is on (see trackEvent).
+  click_youtube: ['page_type', 'location'],
+  click_instagram: ['page_type', 'location'],
+  click_meet_founder: ['page_type'],
 };
+
+// Closed list of places a YouTube or Instagram link can be tagged from.
+export const LINK_LOCATIONS = [
+  'footer_connect', 'home_instagram_block', 'home_video_section', 'about_hero',
+  'about_find_me', 'contact_social', 'video_strip',
+] as const;
+
+// Events that are sent only while FEATURE_FLAGS.keyEvents is on. Off means nothing is sent.
+const FLAGGED_EVENTS: readonly string[] = ['click_youtube', 'click_instagram', 'click_meet_founder'];
 
 const STORE_ID = /^[a-z0-9_]{1,40}$/;
 const STORE_NAME = /^[\p{L}\p{N} .&'-]{1,60}$/u;
@@ -66,6 +83,8 @@ export function sanitizeParams(name: string, raw: Record<string, unknown>): Reco
       if (typeof v === 'string' && STORE_NAME.test(v)) out[key] = v;
     } else if (key === 'set_number') {
       if (typeof v === 'string' && SET_NUMBER.test(v)) out[key] = v;
+    } else if (key === 'location') {
+      if ((LINK_LOCATIONS as readonly string[]).includes(String(v))) out[key] = String(v);
     } else if (key === 'budget_band') {
       if ((BUDGET_BANDS as readonly string[]).includes(String(v))) out[key] = String(v);
     } else if (key === 'destination_host') {
@@ -95,5 +114,6 @@ export function trackEvent(name: string, raw: Record<string, unknown> = {}): voi
   const gtag = (window as unknown as { gtag?: GtagFn }).gtag;
   if (typeof gtag !== 'function') return;
   if (!ALLOWED[name]) return;
+  if (FLAGGED_EVENTS.includes(name) && !FEATURE_FLAGS.keyEvents) return;
   gtag('event', name, sanitizeParams(name, raw));
 }

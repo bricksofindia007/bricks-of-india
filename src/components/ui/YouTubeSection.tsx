@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import { BRAND } from '@/lib/brand';
+import { TrackedLink } from '@/components/analytics/TrackedLink';
 
 function PlayIcon() {
   return (
@@ -122,7 +123,9 @@ export function YouTubeSection({ videos }: YouTubeSectionProps) {
           </div>
 
           <div className="text-center">
-            <a
+            <TrackedLink
+              event="click_youtube"
+              params={{ location: 'home_video_section' }}
               href={BRAND.youtube}
               target="_blank"
               rel="noopener noreferrer"
@@ -130,7 +133,7 @@ export function YouTubeSection({ videos }: YouTubeSectionProps) {
             >
               <YouTubeIcon />
               Subscribe on YouTube
-            </a>
+            </TrackedLink>
           </div>
         </div>
       </section>

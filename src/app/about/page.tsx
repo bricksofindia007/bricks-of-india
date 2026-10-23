@@ -6,6 +6,7 @@ import { JsonLd } from '@/components/JsonLd';
 import { personSchema } from '@/lib/schemas';
 import { BRAND, MASCOTS } from '@/lib/brand';
 import { TaglineChip, TaglineWink } from '@/components/ui/Taglines';
+import { TrackedLink } from '@/components/analytics/TrackedLink';
 
 export const metadata: Metadata = buildMetadata({
   title: 'About Abhinav Bhargav — Founder',
@@ -101,7 +102,9 @@ export default function AboutPage() {
               <TaglineChip />
             </div>
             <div className="flex flex-wrap gap-3">
-              <a
+              <TrackedLink
+                event="click_youtube"
+                params={{ location: 'about_hero' }}
                 href={BRAND.youtube}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -116,8 +119,10 @@ export default function AboutPage() {
               >
                 <YouTubeIcon />
                 Subscribe on YouTube
-              </a>
-              <a
+              </TrackedLink>
+              <TrackedLink
+                event="click_instagram"
+                params={{ location: 'about_hero' }}
                 href={BRAND.instagram}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -130,7 +135,7 @@ export default function AboutPage() {
               >
                 <InstagramIcon />
                 Instagram
-              </a>
+              </TrackedLink>
             </div>
           </div>
         </div>
@@ -284,7 +289,9 @@ export default function AboutPage() {
               Find me here
             </h2>
             <div className="flex flex-col gap-3">
-              <a
+              <TrackedLink
+                event="click_youtube"
+                params={{ location: 'about_find_me' }}
                 href={BRAND.youtube}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -298,8 +305,10 @@ export default function AboutPage() {
               >
                 <YouTubeIcon />
                 Subscribe — @BricksofIndia
-              </a>
-              <a
+              </TrackedLink>
+              <TrackedLink
+                event="click_instagram"
+                params={{ location: 'about_find_me' }}
                 href={BRAND.instagram}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -312,7 +321,7 @@ export default function AboutPage() {
               >
                 <InstagramIcon />
                 @BricksofIndia on Instagram
-              </a>
+              </TrackedLink>
               <Link
                 href="/contact"
                 className="inline-flex items-center gap-3 text-sm font-semibold px-5 py-3 rounded-xl transition-opacity hover:opacity-80 max-w-xs"

@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { BRAND } from '@/lib/brand';
+import { TrackedLink } from '@/components/analytics/TrackedLink';
 
 function YouTubeIcon() {
   return (
@@ -184,7 +185,9 @@ export function Footer() {
               Connect
             </h3>
             <div className="flex flex-col gap-3">
-              <a
+              <TrackedLink
+                event="click_youtube"
+                params={{ location: 'footer_connect' }}
                 href={BRAND.youtube}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -193,8 +196,10 @@ export function Footer() {
               >
                 <YouTubeIcon />
                 @BricksofIndia
-              </a>
-              <a
+              </TrackedLink>
+              <TrackedLink
+                event="click_instagram"
+                params={{ location: 'footer_connect' }}
                 href={BRAND.instagram}
                 target="_blank"
                 rel="noopener noreferrer"
@@ -203,7 +208,7 @@ export function Footer() {
               >
                 <InstagramIcon />
                 @BricksofIndia
-              </a>
+              </TrackedLink>
               <Link
                 href="/contact"
                 className="inline-flex items-center gap-2 hover:text-white transition-colors"
