@@ -16,12 +16,17 @@ describe('approved wording is exact', () => {
   });
   it('deletion heading and body', () => {
     expect(DELETION_COPY.heading).toBe('Delete your BOI account');
-    expect(DELETION_COPY.body).toBe('Changed your mind? No hard feelings, and no guilt trips. We keep it quick. What gets deleted: your account, your Collection, your Wishlist, your price alerts, and your email address from our sign-in records. How: sign in, open My BOI, choose Delete my account, and confirm with the code we email you. Done within [TIMELINE TO CONFIRM] days. Can’t sign in? Email us at [CONTACT ADDRESS TO CONFIRM] from the address on the account and we’ll sort it. Backups: our encrypted backups are overwritten on their normal schedule, so a copy can sit in an old backup for up to [BACKUP RETENTION TO CONFIRM] before it disappears. Newsletter only? The unsubscribe link in any email takes you off the list straight away.');
+    expect(DELETION_COPY.body).toBe('Changed your mind? No hard feelings, and no guilt trips. We keep it quick. What gets deleted: your account, your Collection, your Wishlist, your price alerts, and your email address from our sign-in records. How: sign in, open My BOI, choose Delete my account, and confirm with the code we email you. Done within 30 days. Can’t sign in? To delete your account or data, use our contact page and choose ‘Privacy request’. Backups: our encrypted backups are overwritten on their normal schedule, so a copy can sit in an old backup for up to within 13 months before it disappears. Newsletter only? The unsubscribe link in any email takes you off the list straight away.');
   });
-  it('brackets are kept as approved: exactly the three fields the owner must supply', () => {
-    expect(placeholdersIn(DELETION_COPY.body)).toEqual(['[TIMELINE TO CONFIRM]', '[CONTACT ADDRESS TO CONFIRM]', '[BACKUP RETENTION TO CONFIRM]']);
+  it('no bracketed field is left: all three gaps are filled (18 and 23 Oct approvals)', () => {
+    expect(placeholdersIn(DELETION_COPY.body)).toEqual([]);
     expect(placeholdersIn(AGE_RULE_COPY.body)).toEqual([]);
     expect(placeholdersIn(AGE_RULE_COPY.heading)).toEqual([]);
+  });
+  it('no email address appears in the public text', () => {
+    for (const t of [AGE_RULE_COPY.heading, AGE_RULE_COPY.body, AGE_RULE_COPY.signUpCheckbox, DELETION_COPY.heading, DELETION_COPY.body]) {
+      expect(t).not.toMatch(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/);
+    }
   });
 });
 
@@ -34,7 +39,10 @@ describe('flags and publishing', () => {
     expect(publishBlockers([...Object.values(DELETION_COPY)], false)).toEqual([]);
   });
   it('the test fails if bracketed text is present while the flag is on', () => {
-    expect(publishBlockers([DELETION_COPY.body], true)).toEqual(['[TIMELINE TO CONFIRM]', '[CONTACT ADDRESS TO CONFIRM]', '[BACKUP RETENTION TO CONFIRM]']);
+    expect(publishBlockers(['Done within [TIMELINE TO CONFIRM] days.'], true)).toEqual(['[TIMELINE TO CONFIRM]']);
+  });
+  it('the deletion page has no blockers with its flag on now that the gaps are filled', () => {
+    expect(publishBlockers([DELETION_COPY.heading, DELETION_COPY.body], true)).toEqual([]);
   });
   it('the age rule page has no blockers even with its flag on', () => {
     expect(publishBlockers([AGE_RULE_COPY.heading, AGE_RULE_COPY.body, AGE_RULE_COPY.signUpCheckbox], true)).toEqual([]);
