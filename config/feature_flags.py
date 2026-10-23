@@ -135,4 +135,6 @@ FEATURE_FLAGS = {
     "my_collection_page": False,
     # Key events for GA4 (23 Oct 2026). Off: nothing sent from src/lib/key-events.ts. Mirrors src/lib/feature-flags.ts.
     "key_events": False,
+    # Standee QR landing page and visit counter (23 Oct 2026). Off: page 404, counter route refuses. Mirrors src/lib/feature-flags.ts.
+    "standee_tracking": False,
 }

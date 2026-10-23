@@ -113,6 +113,10 @@ export const FEATURE_FLAGS = {
   // from src/lib/key-events.ts. Mirrored in config/feature_flags.py; keep in sync.
   keyEvents: false,
 
+  // Standee QR landing page and visit counter (23 Oct 2026). Off: the page is a 404 and the counter route refuses.
+  // Needs the staging-only table before any use. Mirrored in config/feature_flags.py; keep in sync.
+  standeeTracking: false,
+
   // Review policy page structure (queue item 14, 22 Oct 2026). Off: the route is a 404. The copy is not written yet;
   // the page shows placeholders until the owner approves the wording. Mirrored in config/feature_flags.py; keep in sync.
   reviewPolicyPage: false,
