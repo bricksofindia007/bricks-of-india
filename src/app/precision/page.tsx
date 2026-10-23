@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import Image from 'next/image';
-import Link from 'next/link';
 import { MASCOTS } from '@/lib/brand';
 import { PrecisionCta } from './PrecisionCta';
+import { MeetFounderLink } from './MeetFounderLink';
 import { YouTubeBadgeIcon, InstagramBadgeIcon, GlobeStudsIcon } from './icons';
 
 // Hidden QR-landing page -- discoverable only via direct QR scan. Deliberately
@@ -115,9 +115,9 @@ export default function PrecisionPage() {
         </PrecisionCta>
       </div>
       <p className="mt-6">
-        <Link href="/about" className="text-sm font-semibold text-primary hover:text-primary-dark">
+        <MeetFounderLink href="/about" className="text-sm font-semibold text-primary hover:text-primary-dark">
           Curious who's behind this? → Meet the founder
-        </Link>
+        </MeetFounderLink>
       </p>
       <p className="mt-10 border-t border-neutral-200 pt-5 text-xs leading-relaxed text-neutral-500">
         Side effects may include sudden urges to buy overpriced plastic.

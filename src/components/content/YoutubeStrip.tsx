@@ -1,6 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
 import { createServerClient } from '@/lib/supabase';
+import { TrackedLink } from '@/components/analytics/TrackedLink';
 
 const YOUTUBE_CHANNEL = 'https://www.youtube.com/@BricksofIndia';
 
@@ -42,14 +43,16 @@ export async function YoutubeStrip() {
       <div className="max-w-site mx-auto">
         <div className="flex items-center justify-between mb-6">
           <h2 className="font-heading text-dark text-4xl">LATEST VIDEOS</h2>
-          <a
+          <TrackedLink
+            event="click_youtube"
+            params={{ location: 'video_strip' }}
             href={YOUTUBE_CHANNEL}
             target="_blank"
             rel="noopener noreferrer"
             className="text-primary font-bold hover:underline text-sm shrink-0"
           >
             See all videos →
-          </a>
+          </TrackedLink>
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">

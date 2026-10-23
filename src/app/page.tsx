@@ -19,6 +19,7 @@ import { supabaseRead as supabase, createServerClient } from '@/lib/supabase';
 import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { getDeals } from '@/lib/price-summary';
 import { SaleBanner } from '@/components/sales/SaleBanner';
+import { TrackedLink } from '@/components/analytics/TrackedLink';
 
 export const revalidate = 86400; // re-fetch from Supabase at most once a day
 // Supabase reads here expire hourly via per-read `next.revalidate`
@@ -481,7 +482,9 @@ export default async function HomePage() {
             <h2 className="font-heading text-dark text-4xl mb-2">FOLLOW ON INSTAGRAM</h2>
             <p className="text-text-secondary font-body">Set photos, building updates, and unhinged LEGO opinions at 2am.</p>
           </div>
-          <a
+          <TrackedLink
+            event="click_instagram"
+            params={{ location: 'home_instagram_block' }}
             href={BRAND.instagram}
             target="_blank"
             rel="noopener noreferrer"
@@ -491,7 +494,7 @@ export default async function HomePage() {
               <path d="M12 2.2c3.2 0 3.6 0 4.8.1 3.2.1 4.7 1.7 4.8 4.8.1 1.2.1 1.6.1 4.8s0 3.6-.1 4.8c-.1 3.1-1.6 4.7-4.8 4.8-1.2.1-1.6.1-4.8.1s-3.6 0-4.8-.1C3.9 21.4 2.4 19.8 2.3 16.7 2.2 15.5 2.2 15.1 2.2 12s0-3.6.1-4.8C2.4 4.1 3.9 2.5 7.2 2.3 8.4 2.2 8.8 2.2 12 2.2zM12 0C8.7 0 8.3 0 7.1.1 2.7.3.3 2.7.1 7.1 0 8.3 0 8.7 0 12s0 3.7.1 4.9c.2 4.4 2.6 6.8 7 7 1.2.1 1.6.1 4.9.1s3.7 0 4.9-.1c4.4-.2 6.8-2.6 7-7 .1-1.2.1-1.6.1-4.9s0-3.7-.1-4.9C23.7 2.7 21.3.3 16.9.1 15.7 0 15.3 0 12 0zm0 5.8a6.2 6.2 0 100 12.4A6.2 6.2 0 0012 5.8zm0 10.2a4 4 0 110-8 4 4 0 010 8zm6.4-11.8a1.4 1.4 0 100 2.8 1.4 1.4 0 000-2.8z"/>
             </svg>
             @BricksofIndia
-          </a>
+          </TrackedLink>
         </div>
       </section>
 

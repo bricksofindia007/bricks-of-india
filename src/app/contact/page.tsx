@@ -6,6 +6,7 @@ import { useSearchParams } from 'next/navigation'
 import Image from 'next/image'
 import { MASCOTS, BRAND } from '@/lib/brand'
 import { submitContact, type ContactFormState } from '@/app/actions/contact'
+import { TrackedLink } from '@/components/analytics/TrackedLink'
 
 const initial: ContactFormState = { ok: false }
 
@@ -144,22 +145,26 @@ export default function ContactPage() {
           </Suspense>
 
           <div className="mt-8 flex gap-4">
-            <a
+            <TrackedLink
+              event="click_youtube"
+              params={{ location: 'contact_social' }}
               href={BRAND.youtube}
               target="_blank"
               rel="noopener noreferrer"
               className="text-accent-blue font-bold hover:underline text-sm"
             >
               YouTube
-            </a>
-            <a
+            </TrackedLink>
+            <TrackedLink
+              event="click_instagram"
+              params={{ location: 'contact_social' }}
               href={BRAND.instagram}
               target="_blank"
               rel="noopener noreferrer"
               className="text-accent-blue font-bold hover:underline text-sm"
             >
               Instagram
-            </a>
+            </TrackedLink>
           </div>
         </div>
       </div>

@@ -109,6 +109,10 @@ export const FEATURE_FLAGS = {
   myCollectionHearts: false,
   myCollectionPage: false,
 
+  // Link tags for YouTube and Instagram links (placements list, 23 Oct 2026). Off: the tags send nothing;
+  // the links are unchanged. Mirrored in config/feature_flags.py; keep in sync.
+  keyEvents: false,
+
   // Review policy page structure (queue item 14, 22 Oct 2026). Off: the route is a 404. The copy is not written yet;
   // the page shows placeholders until the owner approves the wording. Mirrored in config/feature_flags.py; keep in sync.
   reviewPolicyPage: false,
