@@ -16,7 +16,7 @@ describe('approved wording is exact', () => {
   });
   it('deletion heading and body', () => {
     expect(DELETION_COPY.heading).toBe('Delete your BOI account');
-    expect(DELETION_COPY.body).toBe('Changed your mind? No hard feelings, and no guilt trips. We keep it quick. What gets deleted: your account, your Collection, your Wishlist, your price alerts, and your email address from our sign-in records. How: sign in, open My BOI, choose Delete my account, and confirm with the code we email you. Done within 30 days. Can’t sign in? To delete your account or data, use our contact page and choose ‘Privacy request’. Backups: our encrypted backups are overwritten on their normal schedule, so a copy can sit in an old backup for up to within 13 months before it disappears. Newsletter only? The unsubscribe link in any email takes you off the list straight away.');
+    expect(DELETION_COPY.body).toBe('Changed your mind? No hard feelings, and no guilt trips. We keep it quick. What gets deleted: your account, your Collection, your Wishlist, your price alerts, and your email address from our sign-in records. How: sign in, open My BOI, choose Delete my account, and confirm with the code we email you. Done within 30 days. Can’t sign in? To delete your account or data, use our contact page and choose ‘Privacy request’. Copies held only as safety backups are removed within 13 months. Newsletter only? The unsubscribe link in any email takes you off the list straight away.');
   });
   it('no bracketed field is left: all three gaps are filled (18 and 23 Oct approvals)', () => {
     expect(placeholdersIn(DELETION_COPY.body)).toEqual([]);
