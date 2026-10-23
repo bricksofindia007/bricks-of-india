@@ -3,6 +3,8 @@
 import { Resend } from 'resend'
 import { z } from 'zod'
 import { CONTACT_EMAIL } from '@/lib/contact-email'
+import { FEATURE_FLAGS } from '@/lib/feature-flags'
+import { parseTopic, recipientFor } from '@/lib/contact-topic'
 
 const contactSchema = z.object({
   name:    z.string().min(2).max(100),
@@ -29,6 +31,8 @@ export async function submitContact(
     message: formData.get('message'),
     website: formData.get('website') ?? '',
   })
+  // Topic: a "Privacy request" tick (only shown while the flag is on) goes to the privacy mailbox.
+  const topic = parseTopic(formData.get('topic'))
 
   if (!parsed.success) {
     // Silent success on honeypot trip — don't tell the bot it failed
@@ -44,7 +48,7 @@ export async function submitContact(
     const resend = new Resend(process.env.RESEND_API_KEY)
     await resend.emails.send({
       from:    'Bricks of India <abhinav@bricksofindia.com>',
-      to:      CONTACT_EMAIL,
+      to:      recipientFor(topic, FEATURE_FLAGS.privacyRequestOption, CONTACT_EMAIL),
       replyTo: email,
       subject: `[Contact] ${subject}`,
       text:    `From: ${name} <${email}>\n\n${message}`,
