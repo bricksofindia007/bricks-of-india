@@ -433,6 +433,10 @@ const nextConfig = {
         ],
       },
     ];
+    // Staging only (BOI_STAGING=1): nothing on the staging site is indexed, whatever its address.
+    if (process.env.BOI_STAGING === '1') {
+      rules.push({ source: '/(.*)', headers: [{ key: 'X-Robots-Tag', value: 'noindex, nofollow' }] });
+    }
     return audit
       ? rules.map((r) => ({ ...r, headers: r.headers.filter((h) => h.key !== 'Cache-Control') })).filter((r) => r.headers.length)
       : rules;
