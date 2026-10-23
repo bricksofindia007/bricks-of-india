@@ -81,15 +81,41 @@ async function cmdCpu(env) {
   return { ...s, sample_hours: Number(((Date.parse(env.SAMPLE_END) - Date.parse(env.SAMPLE_START)) / 3600e3).toFixed(2)) };
 }
 
+/**
+ * Pure. The visible text of a page's body: the head (title and metadata), scripts, styles, comments and tags are removed,
+ * and build ids and timestamps are normalised. This is the page rule the owner approved on 23 Oct 2026 (visible text).
+ */
+export function visibleBody(html) {
+  return html
+    .replace(/<head[\s\S]*?<\/head>/gi, ' ')
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<!--[\s\S]*?-->/g, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/&nbsp;/g, ' ')
+    .replace(/&amp;/g, '&')
+    .replace(/&#39;|&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/g, 'TIMESTAMP')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/**
+ * Blocking page rule: the status is the same and the visible text is the same, in order.
+ * The raw markup comparison is returned as a report line only; it never blocks.
+ */
 async function cmdPages(env) {
   const out = [];
   for (const p of FIXED_URLS) {
     const [c, r] = await Promise.all([fetch(env.STAGING_SITE.replace(/\/$/, '') + p, { redirect: 'manual' }), fetch(env.ROLLBACK_SITE.replace(/\/$/, '') + p, { redirect: 'manual' })]);
     const [ct, rt] = [await c.text(), await r.text()];
-    const diff = c.status !== r.status ? { status: { candidate: c.status, rollback: r.status } } : firstDifference(normalisePage(ct), normalisePage(rt));
-    out.push({ path: p, candidate_status: c.status, rollback_status: r.status, same: !diff, difference: diff });
+    const text = c.status !== r.status ? { status: { candidate: c.status, rollback: r.status } } : firstDifference(visibleBody(ct), visibleBody(rt));
+    const markupSame = normalisePage(ct) === normalisePage(rt);
+    out.push({ path: p, candidate_status: c.status, rollback_status: r.status, same: !text, difference: text, markup_same: markupSame });
   }
-  return { compared: out.length, differences: out.filter((o) => !o.same), all: out };
+  const markupDiffering = out.filter((o) => !o.markup_same).length;
+  return { compared: out.length, differences: out.filter((o) => !o.same), markup_report: { pages_with_markup_differences: markupDiffering, blocking: false }, all: out };
 }
 
 async function cmdAssemble(env, cpu, pages) {
@@ -118,7 +144,8 @@ async function main() {
   if (cmd === 'cpu') { console.log(JSON.stringify(await cmdCpu(env), null, 2)); return 0; }
   if (cmd === 'pages') {
     const p = await cmdPages(env);
-    console.log(`compared ${p.compared} URLs; ${p.differences.length} differ`);
+    console.log(`compared ${p.compared} URLs on visible text; ${p.differences.length} differ (blocking)`);
+    console.log(`report only, not blocking: ${p.markup_report.pages_with_markup_differences} of ${p.compared} pages differ in raw markup`);
     for (const d of p.differences) console.log(`  DIFF ${d.path}: ${JSON.stringify(d.difference).slice(0, 300)}`);
     fs.writeFileSync(env.PAGES_OUT || 'pages-diff.json', JSON.stringify(p, null, 2));
     return 0;

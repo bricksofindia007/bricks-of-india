@@ -54,6 +54,26 @@ describe('firstDifference', () => {
   });
 });
 
+import { visibleBody } from '../scripts/release/measure-release.mjs';
+
+describe('page rule: visible text (approved 23 Oct 2026)', () => {
+  it('a different title or head does not change the visible text', () => {
+    const a = '<html><head><title>Compare | Bricks</title></head><body><h1>Compare sets</h1></body></html>';
+    const b = '<html><head><title>Something else</title><meta name="x" content="y"></head><body><h1>Compare sets</h1></body></html>';
+    expect(visibleBody(a)).toBe(visibleBody(b));
+  });
+  it('scripts, styles and comments are ignored', () => {
+    const a = '<body><!--marker--><script>var x=1</script><style>p{}</style><p>Price ₹2,999</p></body>';
+    expect(visibleBody(a)).toBe('Price ₹2,999');
+  });
+  it('a difference in body text is a difference', () => {
+    expect(visibleBody('<body><p>Price ₹2,999</p></body>')).not.toBe(visibleBody('<body><p>Price ₹3,999</p></body>'));
+  });
+  it('timestamps in the body do not count', () => {
+    expect(visibleBody('<p>Updated 2026-10-23T04:00:00Z</p>')).toBe(visibleBody('<p>Updated 2026-10-24T09:00:00Z</p>'));
+  });
+});
+
 describe('inputs', () => {
   it('the fixed URL list is non-empty and starts at the home page', () => {
     expect(FIXED_URLS[0]).toBe('/');
