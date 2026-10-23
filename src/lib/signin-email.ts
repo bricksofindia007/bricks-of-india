@@ -2,10 +2,15 @@
 // Storage and mail are injected, so the rules are tested with an in-memory store and a stub sender.
 // Off until the feature flag is on: with it off, nothing is stored, counted or sent.
 //
-// Failure behaviour (G14): any read or write error refuses the step with a generic message.
-// The send is counted before it goes out, so a crash cannot go over the daily cap. A clear refusal from the
+// Timing: the reply is decided from the format check alone. Everything else (account lookup, cooldown, daily count,
+// code, send) runs in a task handed to `schedule`, which the request handler runs after the reply is sent.
+// So the reply is identical for every address that passes the format check, with the 18+ box ticked or not, and
+// at the daily stop.
+//
+// Counting: the send is counted before it goes out, so a crash cannot go over the daily cap. A clear refusal from the
 // mail provider gives the count back once; an unclear outcome (a timeout, say) keeps it.
-// The message shown never says whether an address has an account.
+//
+// Failure behaviour (G14): any read or write error ends the task with no send. The visitor never sees it.
 import { createHmac, randomBytes, randomInt } from 'node:crypto';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 
@@ -16,12 +21,9 @@ export const CODE_COOLDOWN_MS = 60 * 1000;
 export const DAILY_SEND_STOP = 90;
 export const DAILY_SEND_WARN = 54;
 
-export const MSG_GENERIC = 'Something went wrong. Please try again.';
 export const MSG_CHECK_EMAIL = 'If this address can sign in, a code is on its way.';
 export const MSG_INVALID = 'Please enter a valid email address.';
-export const MSG_NOT_SENT = 'The code could not be sent. Please try again later.';
-export const MSG_AGE = 'Accounts are for adults only, for now. You can still browse everything on the site without one.';
-export const MSG_BUSY = 'Sign-in is busy right now. Please try again later.';
+export const MSG_GENERIC = 'Something went wrong. Please try again.';
 export const MSG_BAD_CODE = 'That code did not work. Check it, or ask for a new one.';
 
 /** Thrown by the mailer only when the provider clearly refuses the message. Any other error is an unclear outcome. */
@@ -40,7 +42,6 @@ export interface SignInStore {
   /** Give back a reserved send. Returns true only the first time for a given send id. */
   releaseSend(dayKey: string, sendId: string): Promise<boolean>;
   accountExists(emailHash: string): Promise<boolean>;
-  createAccount(emailHash: string, ageConfirmedAt: string): Promise<void>;
   lastCodeIssuedAt(emailHash: string): Promise<number | null>;
   insertCode(row: { id: string; emailHash: string; codeHash: string; expiresAt: number; issuedAt: number }): Promise<void>;
   /** The newest code for this address that is neither consumed nor expired, or null. */
@@ -63,9 +64,20 @@ export interface SignInDeps {
   enabled?: () => boolean;
 }
 
-export type IssueResult =
-  | { ok: true; message: string }
-  | { ok: false; message: string; reason: 'disabled' | 'busy' | 'error' | 'invalid' };
+export interface SignInInput {
+  rawEmail: string;
+  ageConfirmed: boolean;
+  now?: number;
+  id?: string;
+}
+
+export type Reply = { status: 200 | 400; body: { ok: boolean; message: string } };
+
+/** The reply for every address that passes the format check. */
+export const REPLY_OK: Reply = { status: 200, body: { ok: true, message: MSG_CHECK_EMAIL } };
+
+export type FinishOutcome =
+  | 'disabled' | 'cooldown' | 'busy' | 'no-box' | 'sent' | 'refused' | 'unclear' | 'counter-unreadable' | 'store-error';
 
 export type VerifyResult = { ok: true } | { ok: false; message: string };
 
@@ -99,31 +111,50 @@ function isEnabled(deps: SignInDeps): boolean {
 }
 
 /**
- * Issue a code. Every address that passes the format check gets the same result object, whether or not it has an
- * account. An address with no account and no 18+ box gets no code; it gets the same result all the same.
+ * Handle a sign-in request. Before the reply: the format check and nothing else. The reply is returned at once;
+ * the rest is handed to `schedule`, to run after the reply has been sent.
  */
-export async function issueSignInCode(
-  input: { rawEmail: string; ageConfirmed: boolean; now?: number; id?: string },
+export function beginSignIn(
+  input: SignInInput,
   deps: SignInDeps,
-): Promise<IssueResult> {
-  if (!isEnabled(deps)) return { ok: false, reason: 'disabled', message: MSG_GENERIC };
-  const now = input.now ?? Date.now();
+  schedule: (task: () => Promise<void>) => void,
+): Reply {
   const email = normaliseEmail(input.rawEmail);
-  if (!email) return { ok: false, reason: 'invalid', message: MSG_INVALID };
+  if (!email) return { status: 400, body: { ok: false, message: MSG_INVALID } };
+  if (!isEnabled(deps)) return REPLY_OK;
+  const now = input.now ?? Date.now();
+  schedule(async () => {
+    await finishSignIn({ email, ageConfirmed: input.ageConfirmed, now, id: input.id }, deps);
+  });
+  return REPLY_OK;
+}
 
+/**
+ * The work after the reply. Never throws. Returns what happened, for tests and logs; nothing here reaches the visitor.
+ */
+export async function finishSignIn(
+  input: { email: string; ageConfirmed: boolean; now: number; id?: string },
+  deps: SignInDeps,
+): Promise<FinishOutcome> {
+  if (!isEnabled(deps)) return 'disabled';
+  const { email, now } = input;
   try {
     const eh = emailHash(email, deps.hashKey);
     const exists = await deps.store.accountExists(eh);
     const last = await deps.store.lastCodeIssuedAt(eh);
-    if (last !== null && now - last < CODE_COOLDOWN_MS) return { ok: true, message: MSG_CHECK_EMAIL };
+    if (last !== null && now - last < CODE_COOLDOWN_MS) return 'cooldown';
 
     const day = dayKey(now);
-    // An unreadable counter throws here and nothing is sent.
-    const sent = await deps.store.readSendCount(day);
-    if (sent >= DAILY_SEND_STOP) return { ok: false, reason: 'busy', message: MSG_BUSY };
+    let sent: number;
+    try {
+      sent = await deps.store.readSendCount(day);
+    } catch {
+      return 'counter-unreadable';
+    }
+    if (sent >= DAILY_SEND_STOP) return 'busy';
 
-    // A new address needs the 18+ box. Without it, nothing is stored or sent, and the result is still MSG_CHECK_EMAIL.
-    if (!exists && !input.ageConfirmed) return { ok: true, message: MSG_CHECK_EMAIL };
+    // A new address needs the 18+ box. Without it, nothing is stored or sent.
+    if (!exists && !input.ageConfirmed) return 'no-box';
 
     const code = (deps.randomCode ?? newCode)();
     const id = input.id ?? randomBytes(16).toString('hex');
@@ -140,7 +171,7 @@ export async function issueSignInCode(
       await deps.store.reserveSend(day, id);
     } catch {
       await deps.store.consumeCode(id, now);
-      return { ok: false, reason: 'error', message: MSG_GENERIC };
+      return 'store-error';
     }
 
     try {
@@ -151,14 +182,14 @@ export async function issueSignInCode(
       if (err instanceof MailRefused) {
         // Clear refusal: the message never left, so the count is given back (once; the store enforces that).
         await deps.store.releaseSend(day, id);
-        return { ok: false, reason: 'error', message: MSG_NOT_SENT };
+        return 'refused';
       }
       // Unclear outcome: the count stays.
-      return { ok: false, reason: 'error', message: MSG_GENERIC };
+      return 'unclear';
     }
-    return { ok: true, message: MSG_CHECK_EMAIL };
+    return 'sent';
   } catch {
-    return { ok: false, reason: 'error', message: MSG_GENERIC };
+    return 'store-error';
   }
 }
 
