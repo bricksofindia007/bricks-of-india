@@ -2,6 +2,7 @@ import { MetadataRoute } from 'next';
 import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { THEMES } from '@/lib/brand';
+import { SITE_URL } from '@/lib/metadata';
 
 // Real bug, found in a Netlify credit-usage audit (2026-08-14): this route
 // had no revalidate export at all, so it was purely build-time static --
@@ -29,7 +30,7 @@ export const revalidate = 86400;
 // NOT fetchCache='default-cache', which cached them until the next deploy.
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const base = 'https://bricksofindia.com';
+  const base = SITE_URL; // the build's own address: production in production, the staging address in staging
   const supabase = createServerClient({ revalidate: 86400 });
 
   const staticPages = [

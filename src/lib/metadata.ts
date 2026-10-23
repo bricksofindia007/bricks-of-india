@@ -20,7 +20,8 @@ import type { Metadata } from 'next';
 //   - openGraph/twitter always carry an image (the site default unless a
 //     page-specific one is given)
 
-export const SITE_URL = 'https://bricksofindia.com';
+// The public site address. The production build uses the default; the staging build sets NEXT_PUBLIC_SITE_URL to its own address.
+export const SITE_URL = (process.env.NEXT_PUBLIC_SITE_URL || 'https://bricksofindia.com').replace(/\/$/, '');
 export const SITE_NAME = 'Bricks of India';
 export const DEFAULT_OG_IMAGE = {
   url: '/assets/og-image.jpg',
