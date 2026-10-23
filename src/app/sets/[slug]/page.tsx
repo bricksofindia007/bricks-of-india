@@ -18,6 +18,8 @@ import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/B
 import { priceLabel, normalise, type SetPriceSummary } from '@/lib/price-summary';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import { loadPriceHistoryPoints } from '@/lib/price-history-chart';
+import { PriceHistoryChart } from '@/components/sets/PriceHistoryChart';
 import { HeartSlot, CollectionSlot } from '@/components/saved/CollectionSlots';
 import { SetCard } from '@/components/sets/SetCard';
 import { SetImage } from '@/components/sets/SetImage';
@@ -180,6 +182,7 @@ export default async function SetPage(props: Props) {
   const pageData = await getSetPageData(params.slug);
   if (!pageData?.set) notFound();
   const set = pageData.set;
+  const historyPoints = FEATURE_FLAGS.priceHistoryChart ? await loadPriceHistoryPoints(createServerClient(), set.set_number) : null;
   // Same clock as the page: 6 h when priced, 14 days when not (see getStores).
   const stores = await getStores(pageData.store_prices?.length ? SET_PAGE_REVALIDATE_SECONDS : UNPRICED_SET_REVALIDATE_SECONDS);
   const TRACKED_STORES = stores.map((st) => ({ id: st.id, name: st.name, url: st.site_url }));
@@ -357,6 +360,7 @@ export default async function SetPage(props: Props) {
               </div>
             )}
             <SaleSetLine setNumber={set.set_number} />
+            {historyPoints && <PriceHistoryChart points={historyPoints} />}
 
             {/* MRP (R2): the anchor and its source win over any other MRP. The
                 US-price estimate shows only when there is no anchor at all. */}

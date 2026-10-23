@@ -133,4 +133,6 @@ FEATURE_FLAGS = {
     # itself. Both off until the launch. Mirrored in src/lib/feature-flags.ts; keep in sync.
     "my_collection_hearts": False,
     "my_collection_page": False,
+    # Price history chart on set pages (23 Oct 2026). Off: no chart and no history read. Mirrors src/lib/feature-flags.ts.
+    "price_history_chart": False,
 }

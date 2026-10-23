@@ -109,6 +109,10 @@ export const FEATURE_FLAGS = {
   myCollectionHearts: false,
   myCollectionPage: false,
 
+  // Price history chart on set pages (23 Oct 2026). Off: no chart and no history read. Uses existing
+  // price_history rows through the existing read function. Mirrored in config/feature_flags.py; keep in sync.
+  priceHistoryChart: false,
+
   // Review policy page structure (queue item 14, 22 Oct 2026). Off: the route is a 404. The copy is not written yet;
   // the page shows placeholders until the owner approves the wording. Mirrored in config/feature_flags.py; keep in sync.
   reviewPolicyPage: false,
