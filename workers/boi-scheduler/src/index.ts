@@ -14,6 +14,9 @@
 import { verifyAndParse } from './auth';
 import { FRESHNESS_CRON, runFreshnessWatchdog, sendAlertMail, type FreshnessEnv } from './freshness';
 import { KEEPALIVE_CRON, runKeepAlive } from './keepalive';
+import { LOADGEN_CRON, runMinute, type LoadgenEnv, type Profile, type Samples } from './loadgen';
+import profileJson from './load-profile.json';
+import samplesJson from './load-samples.json';
 
 export interface Env {
   BOI_SNAPSHOTS: KVNamespace;
@@ -27,6 +30,9 @@ export interface Env {
   ALERTS_ENABLED?: string;     // 'true' to send the freshness alert mail
   STAGING_SUPABASE_URL?: string;              // staging only (keep-alive)
   STAGING_SUPABASE_PUBLISHABLE_KEY?: string;  // staging only (keep-alive); a Worker secret
+  STAGING_SITE_URL?: string; // staging load generator only
+  LOADGEN_START?: string;    // staging load generator window (ISO time)
+  LOADGEN_END?: string;
 }
 
 const VERSION = 'boi-scheduler/1';
@@ -95,5 +101,9 @@ export default {
       ctx.waitUntil(runFreshnessWatchdog(fe, fetch, Date.now(), (s, t) => sendAlertMail(fe, s, t)));
     }
     if (ev.cron === KEEPALIVE_CRON) ctx.waitUntil(runKeepAlive(env));
+    // Staging load generator (23 Oct 2026): sends the load profile only inside the window, only on staging.
+    if (ev.cron === LOADGEN_CRON) {
+      ctx.waitUntil(runMinute(env as unknown as LoadgenEnv, profileJson as Profile, samplesJson as Samples, Date.now()));
+    }
   },
 };
