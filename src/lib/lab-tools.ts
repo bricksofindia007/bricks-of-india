@@ -1,3 +1,5 @@
+export type LabShare = { mode: "page_link" };
+
 export type LabTool = {
   id: string;
   name: string;
@@ -5,6 +7,7 @@ export type LabTool = {
   tagline: string;
   href: string | null;  // null = coming soon
   status: "live" | "coming_soon";
+  share: LabShare;   // required on every tool; see src/lib/share.ts
 };
 
 export const LAB_TOOLS: LabTool[] = [
@@ -15,6 +18,7 @@ export const LAB_TOOLS: LabTool[] = [
     tagline: "How many biryanis is this set? Find out and weep.",
     href: "/lab/biryani-index",
     status: "live",
+    share: { mode: "page_link" },
   },
   {
     id: "which-set-are-you",
@@ -23,6 +27,7 @@ export const LAB_TOOLS: LabTool[] = [
     tagline: "A short quiz that judges your taste and recommends a set.",
     href: "/lab/which-set",
     status: "live",
+    share: { mode: "page_link" },
   },
   {
     id: "price-drops",
@@ -31,6 +36,7 @@ export const LAB_TOOLS: LabTool[] = [
     tagline: "Today's steepest falls. Suspicious by nature.",
     href: "/lab/price-drops",
     status: "live",
+    share: { mode: "page_link" },
   },
   {
     id: "retirement-radar",
@@ -39,6 +45,7 @@ export const LAB_TOOLS: LabTool[] = [
     tagline: "Sets nearing end-of-life. The fear is the feature.",
     href: "/lab/retiring-soon",
     status: "live",
+    share: { mode: "page_link" },
   },
   // "heat-map" removed 2026-09-26 (#213, Wave 1 PR-H): its data was hardcoded
   // arrays with contradictory "Q1 2026"/"Q1 2025" labels, not live Trends
@@ -50,6 +57,7 @@ export const LAB_TOOLS: LabTool[] = [
     tagline: "Every set currently discounted across Indian stores.",
     href: "/lab/deals",
     status: "live",
+    share: { mode: "page_link" },
   },
   {
     id: "budget-calculator",
@@ -58,6 +66,7 @@ export const LAB_TOOLS: LabTool[] = [
     tagline: "Enter your budget. Get the best LEGO sets available in Indian stores right now.",
     href: "/lab/budget-calculator",
     status: "live",
+    share: { mode: "page_link" },
   },
   {
     id: "community",
@@ -66,6 +75,7 @@ export const LAB_TOOLS: LabTool[] = [
     tagline: "Spotlights, builds, and stories from Indian LEGO fans.",
     href: "/community",
     status: "live",
+    share: { mode: "page_link" },
   },
   {
     id: "portfolio",
@@ -74,5 +84,6 @@ export const LAB_TOOLS: LabTool[] = [
     tagline: "Track your collection's value. Show your CA. Or don't.",
     href: null,
     status: "coming_soon",
+    share: { mode: "page_link" },
   },
 ];

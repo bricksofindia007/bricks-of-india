@@ -17,6 +17,7 @@
 // submit_newsletter_signup, submit_budget_calculator.
 
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import { SHARE_CHANNELS, SHARE_TARGET_IDS } from '@/lib/share';
 
 export const PAGE_TYPES = [
   'home', 'set', 'review', 'news', 'guide', 'opinion', 'blog', 'deals', 'lab_deals',
@@ -52,6 +53,8 @@ const ALLOWED: Record<string, readonly string[]> = {
   click_youtube: ['page_type', 'location'],
   click_instagram: ['page_type', 'location'],
   click_meet_founder: ['page_type'],
+  // Share tap (share plan, 23 Oct 2026). Counts the tap, not a completed share. Sent only while shareEnabled is on.
+  click_share: ['page_type', 'tool', 'channel'],
 };
 
 // Closed list of places a YouTube or Instagram link can be tagged from.
@@ -85,6 +88,10 @@ export function sanitizeParams(name: string, raw: Record<string, unknown>): Reco
       if (typeof v === 'string' && SET_NUMBER.test(v)) out[key] = v;
     } else if (key === 'location') {
       if ((LINK_LOCATIONS as readonly string[]).includes(String(v))) out[key] = String(v);
+    } else if (key === 'tool') {
+      if ((SHARE_TARGET_IDS as readonly string[]).includes(String(v))) out[key] = String(v);
+    } else if (key === 'channel') {
+      if ((SHARE_CHANNELS as readonly string[]).includes(String(v))) out[key] = String(v);
     } else if (key === 'budget_band') {
       if ((BUDGET_BANDS as readonly string[]).includes(String(v))) out[key] = String(v);
     } else if (key === 'destination_host') {
@@ -115,5 +122,6 @@ export function trackEvent(name: string, raw: Record<string, unknown> = {}): voi
   if (typeof gtag !== 'function') return;
   if (!ALLOWED[name]) return;
   if (FLAGGED_EVENTS.includes(name) && !FEATURE_FLAGS.keyEvents) return;
+  if (name === 'click_share' && !FEATURE_FLAGS.shareEnabled) return;
   gtag('event', name, sanitizeParams(name, raw));
 }
