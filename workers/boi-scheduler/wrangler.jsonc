@@ -19,8 +19,8 @@
       "name": "boi-scheduler-staging",
       "vars": { "TARGET": "staging", "GITHUB_REPO": "bricksofindia007/bricks-of-india" },
       "kv_namespaces": [{ "binding": "BOI_SNAPSHOTS", "id": "0efa505226894c95b5e24d7ccd8612d1" }],
-      // crons disabled on staging except the keep-alive (23 Oct 2026, Mondays and Thursdays 06:17 UTC) and a drill (FP1.1 §8)
-      "triggers": { "crons": ["17 6 * * 1,4"] }
+      // Staging crons: the freshness watchdog (10 3 * * *, 23 Oct 2026) and the keep-alive (Mondays and Thursdays 06:17 UTC). Drills per FP1.1 §8.
+      "triggers": { "crons": ["10 3 * * *", "17 6 * * 1,4"] }
     }
   }
 }

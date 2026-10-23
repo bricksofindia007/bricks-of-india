@@ -6,7 +6,7 @@ Staging takes almost no real traffic, so a measurement cannot wait for visitors.
 - **CPU per request, median,** for the candidate commit's Worker on staging, from the Cloudflare Workers analytics (CPU time per invocation, all invocations in the window). The value is the one the gate compares with the 108 ms line.
 - **Error rate:** responses that are not 2xx or 3xx, over all requests in the window.
 - **Requests measured:** the count of invocations in the window.
-- **Page output:** the fixed URL list (below) is fetched from the candidate and from the rollback release (34faed19). The pages must match apart from build IDs and timestamps.
+- **Page output:** the fixed URL list (below) is fetched from the candidate and from the rollback release (34faed19). The page rule (approved 23 Oct 2026): each page must have the same status and the same visible text, in order. The visible text is the body text: the head (title and metadata), scripts, styles, comments and markup are not compared, and build IDs and timestamps are ignored. The raw markup difference is reported as a count only and does not block.
 
 ## Load profile (committed file: docs/release/gates/load-profile.json)
 - Built from production request logs for the last 7 days: route templates (for example `/sets/[slug]`, `/themes/[theme]/sort/[sort]`), each with its share of requests. Routes covering at least 90% of requests are listed. No IP addresses, no visitor identifiers, no query strings with personal data are stored.
