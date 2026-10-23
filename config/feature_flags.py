@@ -133,4 +133,6 @@ FEATURE_FLAGS = {
     # itself. Both off until the launch. Mirrored in src/lib/feature-flags.ts; keep in sync.
     "my_collection_hearts": False,
     "my_collection_page": False,
+    # Key events for GA4 (23 Oct 2026). Off: nothing sent from src/lib/key-events.ts. Mirrors src/lib/feature-flags.ts.
+    "key_events": False,
 }

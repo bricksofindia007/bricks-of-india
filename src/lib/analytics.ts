@@ -44,7 +44,16 @@ const ALLOWED: Record<string, readonly string[]> = {
   heart_remove: ['page_type', 'set_number'],
   owned_add: ['page_type', 'set_number'],
   my_sets_view: ['page_type'],
+  // Key events (23 Oct 2026). Sent only through trackKeyEvent in src/lib/key-events.ts, behind the keyEvents flag.
+  sign_up: ['page_type'],
+  add_to_collection: ['page_type', 'set_number'],
+  add_to_wishlist: ['page_type', 'set_number'],
+  alert_set: ['page_type', 'set_number'],
+  standee_visit: ['page_type', 'source'],
 };
+
+// Closed list of source tags for standee QR visits (a tag is sent only if it is on this list).
+export const STANDEE_SOURCES = ['standee_qr'] as const;
 
 const STORE_ID = /^[a-z0-9_]{1,40}$/;
 const STORE_NAME = /^[\p{L}\p{N} .&'-]{1,60}$/u;
@@ -66,6 +75,8 @@ export function sanitizeParams(name: string, raw: Record<string, unknown>): Reco
       if (typeof v === 'string' && STORE_NAME.test(v)) out[key] = v;
     } else if (key === 'set_number') {
       if (typeof v === 'string' && SET_NUMBER.test(v)) out[key] = v;
+    } else if (key === 'source') {
+      if (typeof v === 'string' && (STANDEE_SOURCES as readonly string[]).includes(v)) out[key] = v;
     } else if (key === 'budget_band') {
       if ((BUDGET_BANDS as readonly string[]).includes(String(v))) out[key] = String(v);
     } else if (key === 'destination_host') {
