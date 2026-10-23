@@ -1,6 +1,6 @@
 // Health check in the scheduler Worker (first slice): staging only, flag off by default, heartbeat written every run.
 import { describe, it, expect, vi } from 'vitest';
-import { runHealthCheck, healthGate, HEALTH_KEY, HEALTH_FLAG, type KvLike } from '../workers/boi-scheduler/src/health';
+import { runHealthCheck, healthGate, evaluateStaleness, HEALTH_KEY, HEALTH_FLAG, type KvLike } from '../workers/boi-scheduler/src/health';
 
 function kv() {
   const store = new Map<string, string>();
@@ -41,5 +41,22 @@ describe('runHealthCheck', () => {
     const { k, store } = kv();
     await runHealthCheck({ BOI_SNAPSHOTS: k, TARGET: 'production' }, { [HEALTH_FLAG]: true });
     expect(Object.keys(JSON.parse(store.get(HEALTH_KEY)!)).sort()).toEqual(['at', 'ok', 'ran', 'reason', 'target']);
+  });
+});
+
+describe('evaluateStaleness', () => {
+  const NOW = '2026-10-23T12:00:00.000Z';
+  it('fresh when inside the allowed age', () => {
+    const r = evaluateStaleness('2026-10-23T06:00:00.000Z', NOW, 24);
+    expect(r).toEqual({ ok: true, ageHours: 6, reason: 'fresh' });
+  });
+  it('stale when older than the allowed age', () => {
+    expect(evaluateStaleness('2026-10-20T12:00:00.000Z', NOW, 24).reason).toBe('stale');
+  });
+  it('a missing timestamp is never fresh', () => {
+    expect(evaluateStaleness(null, NOW, 24)).toEqual({ ok: false, ageHours: null, reason: 'no_timestamp' });
+  });
+  it('an unreadable timestamp is never fresh', () => {
+    expect(evaluateStaleness('not a date', NOW, 24)).toEqual({ ok: false, ageHours: null, reason: 'bad_timestamp' });
   });
 });

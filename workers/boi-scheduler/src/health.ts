@@ -46,3 +46,21 @@ export async function runHealthCheck(env: HealthEnv, flags: Record<string, unkno
   await env.BOI_SNAPSHOTS.put(HEALTH_KEY, JSON.stringify(healthRecord(result, nowIso, env.TARGET)));
   return result;
 }
+
+export interface StalenessResult {
+  ok: boolean;
+  ageHours: number | null;
+  reason: 'fresh' | 'stale' | 'no_timestamp' | 'bad_timestamp';
+}
+
+/** Pure: is a last-seen timestamp within the allowed age. Missing or unreadable input is never reported as fresh. */
+export function evaluateStaleness(lastIso: string | null | undefined, nowIso: string, maxHours: number): StalenessResult {
+  if (!lastIso) return { ok: false, ageHours: null, reason: 'no_timestamp' };
+  const last = Date.parse(lastIso);
+  const now = Date.parse(nowIso);
+  if (Number.isNaN(last) || Number.isNaN(now)) return { ok: false, ageHours: null, reason: 'bad_timestamp' };
+  const ageHours = Math.max(0, (now - last) / 3_600_000);
+  return ageHours <= maxHours
+    ? { ok: true, ageHours, reason: 'fresh' }
+    : { ok: false, ageHours, reason: 'stale' };
+}
