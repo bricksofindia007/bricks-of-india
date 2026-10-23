@@ -1,0 +1,33 @@
+name: Load profile (production route mix)
+
+# Manual, plus pushes to the branch that builds it. Reads 7 days of zone request counts (read-only) and writes the
+# route-class profile as an artifact. No IP addresses, visitor identifiers or query strings are read.
+on:
+  workflow_dispatch:
+  push:
+    branches: [t2/load-profile]
+
+permissions:
+  contents: read
+
+jobs:
+  profile:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - name: Build the profile (read-only analytics)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          ROUTE_TEMPLATES: scripts/load/route-templates.json
+          OUT: ${{ runner.temp }}/load-profile.json
+        run: node scripts/load/build-profile.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: load-profile
+          path: ${{ runner.temp }}/load-profile.json
+          retention-days: 30
