@@ -17,7 +17,7 @@ import type { NextRequest } from 'next/server';
 // connection Next itself sees (which may not reflect what the original
 // client actually used), while x-forwarded-proto is the standard signal for
 // what the client connected with.
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const proto = request.headers.get('x-forwarded-proto');
   if (proto === 'http') {
     const httpsUrl = new URL(request.url);

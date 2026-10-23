@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { cookies, type UnsafeUnwrappedCookies } from 'next/headers';
+import { cookies } from 'next/headers';
 import { ADMIN_COOKIE, isValidAdminSession } from '@/lib/admin-session';
 import { getSecret } from '@/lib/get-secret';
 import { BRAND } from '@/lib/brand';
@@ -37,7 +37,7 @@ import { BRAND } from '@/lib/brand';
 export const dynamic = 'force-dynamic';
 
 async function isAuthed(): Promise<boolean> {
-  return isValidAdminSession((cookies() as unknown as UnsafeUnwrappedCookies).get(ADMIN_COOKIE)?.value);
+  return isValidAdminSession((await cookies()).get(ADMIN_COOKIE)?.value);
 }
 
 async function proxy(request: NextRequest): Promise<Response> {

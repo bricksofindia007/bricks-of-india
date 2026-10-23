@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { CsrfField } from '@/app/admin/csrf-field';
 import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
-import { cookies, type UnsafeUnwrappedCookies } from 'next/headers';
+import { cookies } from 'next/headers';
 import { ADMIN_COOKIE, isValidAdminSession } from '@/lib/admin-session';
 import { createServerClient } from '@/lib/supabase';
 import { login, logout } from '../actions';
@@ -20,7 +20,7 @@ export const metadata: Metadata = buildMetadata({
 // matching the existing convention in this admin area (see
 // src/app/admin/pending/growth/[[...path]]/route.ts's own comment).
 async function isAuthed(): Promise<boolean> {
-  return isValidAdminSession((cookies() as unknown as UnsafeUnwrappedCookies).get(ADMIN_COOKIE)?.value);
+  return isValidAdminSession((await cookies()).get(ADMIN_COOKIE)?.value);
 }
 
 function LoginPage() {
