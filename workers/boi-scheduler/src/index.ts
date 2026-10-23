@@ -103,7 +103,8 @@ export default {
     if (ev.cron === KEEPALIVE_CRON) ctx.waitUntil(runKeepAlive(env));
     // Staging load generator (23 Oct 2026): sends the load profile only inside the window, only on staging.
     if (ev.cron === LOADGEN_CRON) {
-      ctx.waitUntil(runMinute(env as unknown as LoadgenEnv, profileJson as Profile, samplesJson as Samples, Date.now()));
+      const loadFlags = ((await env.BOI_SNAPSHOTS.get('flag:v1', 'json')) ?? {}) as { loadgen_enabled?: boolean };
+      ctx.waitUntil(runMinute({ ...(env as unknown as LoadgenEnv), LOADGEN_ENABLED: loadFlags.loadgen_enabled === true }, profileJson as Profile, samplesJson as Samples, Date.now()));
     }
   },
 };

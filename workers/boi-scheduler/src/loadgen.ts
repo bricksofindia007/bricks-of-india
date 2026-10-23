@@ -18,6 +18,7 @@ export interface LoadgenEnv {
   STAGING_SITE_URL?: string;     // e.g. the staging site address (a variable, not a secret)
   LOADGEN_START?: string;        // ISO time; the window opens here
   LOADGEN_END?: string;          // ISO time; the window closes here
+  LOADGEN_ENABLED?: boolean;     // the flag (flag:v1.loadgen_enabled); off unless exactly true, so nothing is sent
 }
 
 /** Pure. Seeded pseudo-random numbers in [0, 1) (mulberry32), so the same seed gives the same sequence. */
@@ -67,7 +68,7 @@ export function planMinute(profile: Profile, samples: Samples, seed: number, cou
   return { paths, skipped };
 }
 
-export interface MinuteResult { minute: string; planned: number; sent: number; ok: number; errors: number; skipped: number; state: 'sent' | 'closed' | 'refused' }
+export interface MinuteResult { minute: string; planned: number; sent: number; ok: number; errors: number; skipped: number; state: 'sent' | 'closed' | 'refused' | 'off' }
 
 /** Sends one minute's plan to the staging site and records the counts. Never sends outside the window or off staging. */
 export async function runMinute(
@@ -79,6 +80,12 @@ export async function runMinute(
   spacingMs = 60000 / PER_MINUTE,   // one request about every second; tests pass 0
 ): Promise<MinuteResult> {
   const minute = new Date(Math.floor(nowMs / 60000) * 60000).toISOString();
+  // Flag first: when off, no request is built or sent. The heartbeat still records the minute.
+  if (env.LOADGEN_ENABLED !== true) {
+    const r: MinuteResult = { minute, planned: 0, sent: 0, ok: 0, errors: 0, skipped: 0, state: 'off' };
+    await env.BOI_SNAPSHOTS.put(LOADGEN_KEY, JSON.stringify(r));
+    return r;
+  }
   const base = (env.STAGING_SITE_URL ?? '').replace(/\/$/, '');
   if (env.TARGET !== 'staging' || !base) {
     const r: MinuteResult = { minute, planned: 0, sent: 0, ok: 0, errors: 0, skipped: 0, state: 'refused' };

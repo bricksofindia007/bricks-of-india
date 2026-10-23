@@ -1,5 +1,5 @@
 // Staging load generator (workers/boi-scheduler/src/loadgen.ts): window, seeded choice, planning, and the send rules.
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { seededRandom, inWindow, pickTemplate, planMinute, runMinute, LOADGEN_KEY, PER_MINUTE, type Profile, type Samples } from '../workers/boi-scheduler/src/loadgen';
 
 const PROFILE: Profile = { classes: [
@@ -20,9 +20,9 @@ function store() {
   const m = new Map<string, string>();
   return { m, kv: { get: async (k: string) => m.get(k) ?? null, put: async (k: string, v: string) => { m.set(k, v); } } };
 }
-const env = (over: Partial<{ TARGET: string; STAGING_SITE_URL: string; LOADGEN_START: string; LOADGEN_END: string }> = {}) => {
+const env = (over: Partial<{ TARGET: string; STAGING_SITE_URL: string; LOADGEN_START: string; LOADGEN_END: string; LOADGEN_ENABLED: boolean }> = {}) => {
   const s = store();
-  return { s, e: { BOI_SNAPSHOTS: s.kv, TARGET: 'staging', STAGING_SITE_URL: 'https://staging.example', LOADGEN_START: START, LOADGEN_END: END, ...over } };
+  return { s, e: { BOI_SNAPSHOTS: s.kv, TARGET: 'staging', STAGING_SITE_URL: 'https://staging.example', LOADGEN_START: START, LOADGEN_END: END, LOADGEN_ENABLED: true, ...over } };
 };
 
 describe('window', () => {
@@ -132,5 +132,27 @@ describe('runMinute: send rules', () => {
     expect(r.sent).toBe(0);
     expect(r.skipped).toBe(PER_MINUTE);
     expect(calls).toBe(0);
+  });
+});
+
+describe('load generator flag (default off)', () => {
+  it('flag off: sends no request and records an off minute', async () => {
+    const store = new Map<string, string>();
+    const env = {
+      BOI_SNAPSHOTS: { get: async (k: string) => store.get(k) ?? null, put: async (k: string, v: string) => { store.set(k, v); } },
+      TARGET: 'staging',
+      STAGING_SITE_URL: 'https://staging.example',
+      LOADGEN_START: '2000-01-01T00:00:00Z',
+      LOADGEN_END: '2100-01-01T00:00:00Z',
+      LOADGEN_ENABLED: false,
+    };
+    const fetchSpy = vi.fn(async () => new Response('', { status: 200 }));
+    const profile = { classes: [{ template: '/', share: 1 }] };
+    const samples = { '/': ['/'] };
+    const r = await runMinute(env as any, profile, samples, Date.parse('2026-10-23T12:00:00Z'), fetchSpy as any, 0);
+    expect(r.state).toBe('off');
+    expect(r.sent).toBe(0);
+    expect(fetchSpy).not.toHaveBeenCalled();
+    expect(JSON.parse(store.get(LOADGEN_KEY)!).state).toBe('off');
   });
 });
