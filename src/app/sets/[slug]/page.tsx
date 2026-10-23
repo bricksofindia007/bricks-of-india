@@ -18,7 +18,7 @@ import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/B
 import { priceLabel, normalise, type SetPriceSummary } from '@/lib/price-summary';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
-import { loadPriceHistoryPoints } from '@/lib/price-history-chart';
+import { cheapestInStockSeries, fetchPriceHistoryRows, type ChartPoint } from '@/lib/price-history-chart';
 import { PriceHistoryChart } from '@/components/sets/PriceHistoryChart';
 import { HeartSlot, CollectionSlot } from '@/components/saved/CollectionSlots';
 import { SetCard } from '@/components/sets/SetCard';
@@ -177,12 +177,27 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
   };
 }
 
+// Daily cache, same clock and tag as the other set-page reads. A failed read throws inside the cache, so it is not
+// stored; the page then renders without the chart.
+async function historyChartFor(setNumber: string): Promise<ChartPoint[] | null> {
+  try {
+    const points = await unstable_cache(async () => {
+      const rows = await fetchPriceHistoryRows(createServerClient(), setNumber);
+      return cheapestInStockSeries(rows);
+    }, ['price_history_chart', setNumber], { revalidate: SET_PAGE_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
+    return points.length >= 2 ? points : null;
+  } catch {
+    console.error('[price-history] read failed; chart omitted');
+    return null;
+  }
+}
+
 export default async function SetPage(props: Props) {
   const params = await props.params;
   const pageData = await getSetPageData(params.slug);
   if (!pageData?.set) notFound();
   const set = pageData.set;
-  const historyPoints = FEATURE_FLAGS.priceHistoryChart ? await loadPriceHistoryPoints(createServerClient(), set.set_number) : null;
+  const historyPoints = FEATURE_FLAGS.priceHistoryChart ? await historyChartFor(set.set_number) : null;
   // Same clock as the page: 6 h when priced, 14 days when not (see getStores).
   const stores = await getStores(pageData.store_prices?.length ? SET_PAGE_REVALIDATE_SECONDS : UNPRICED_SET_REVALIDATE_SECONDS);
   const TRACKED_STORES = stores.map((st) => ({ id: st.id, name: st.name, url: st.site_url }));

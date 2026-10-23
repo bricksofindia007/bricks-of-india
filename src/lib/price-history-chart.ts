@@ -71,18 +71,20 @@ export function stepChartGeometry(points: ChartPoint[], width = 600, height = 16
 
 type RpcClient = { rpc: (fn: string, args: Record<string, unknown>) => PromiseLike<{ data: unknown; error: unknown }> };
 
+/** Rows for one set through the existing read function. Throws on an error result, so a failed read is never cached. */
+export async function fetchPriceHistoryRows(client: RpcClient, setNumber: string): Promise<HistoryRow[]> {
+  const { data, error } = await client.rpc('get_price_history', { p_set_number: setNumber, p_limit: 200 });
+  if (error) throw new Error('price history read failed');
+  return Array.isArray(data) ? (data as HistoryRow[]) : [];
+}
+
 /**
- * Loads the chart points for one set through the existing read function. Any failure (error result or exception)
- * returns null: the page renders without the chart. Logs a fixed message only, never values.
+ * Loads the chart points for one set. Any failure (error result or exception) returns null: the page renders without
+ * the chart. Logs a fixed message only, never values.
  */
 export async function loadPriceHistoryPoints(client: RpcClient, setNumber: string): Promise<ChartPoint[] | null> {
   try {
-    const { data, error } = await client.rpc('get_price_history', { p_set_number: setNumber, p_limit: 200 });
-    if (error) {
-      console.error('[price-history] read failed; chart omitted');
-      return null;
-    }
-    const points = cheapestInStockSeries(Array.isArray(data) ? (data as HistoryRow[]) : []);
+    const points = cheapestInStockSeries(await fetchPriceHistoryRows(client, setNumber));
     return points.length >= 2 ? points : null;
   } catch {
     console.error('[price-history] read failed; chart omitted');
