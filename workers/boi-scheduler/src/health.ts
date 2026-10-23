@@ -1,0 +1,48 @@
+// Health check in the scheduler Worker: first slice of the port of the scheduled health check.
+// Staging only, behind a flag that is off by default. No schedule is attached in this slice, so nothing runs.
+// The checks themselves are not ported yet. Until they are, a run records ok=false with reason "checks_not_ported"
+// so the heartbeat never reads as healthy when no check has run. No secret is written to the heartbeat or a response.
+
+export const HEALTH_KEY = 'meta:health:heartbeat';
+export const HEALTH_FLAG = 'health_check_enabled';
+
+export interface KvLike {
+  get(key: string): Promise<string | null>;
+  put(key: string, value: string): Promise<void>;
+}
+
+export interface HealthEnv {
+  BOI_SNAPSHOTS: KvLike;
+  TARGET: string;
+}
+
+export interface HealthResult {
+  ok: boolean;
+  ran: boolean;
+  reason: string;
+}
+
+/** Pure: whether this run may do anything. Staging only, and only when the flag is explicitly true. */
+export function healthGate(target: string, flags: Record<string, unknown>): { allowed: boolean; reason: string } {
+  if (target !== 'staging') return { allowed: false, reason: 'not_staging' };
+  if (flags[HEALTH_FLAG] !== true) return { allowed: false, reason: 'flag_off' };
+  return { allowed: true, reason: 'allowed' };
+}
+
+/** Pure: the heartbeat record. Carries no secret and no check output. */
+export function healthRecord(result: HealthResult, at: string, target: string) {
+  return { at, target, ok: result.ok, ran: result.ran, reason: result.reason };
+}
+
+export async function runHealthCheck(env: HealthEnv, flags: Record<string, unknown>, nowIso = new Date().toISOString()): Promise<HealthResult> {
+  const gate = healthGate(env.TARGET, flags);
+  let result: HealthResult;
+  if (!gate.allowed) {
+    result = { ok: false, ran: false, reason: gate.reason };
+  } else {
+    // Not ported yet. Recorded as not healthy on purpose.
+    result = { ok: false, ran: false, reason: 'checks_not_ported' };
+  }
+  await env.BOI_SNAPSHOTS.put(HEALTH_KEY, JSON.stringify(healthRecord(result, nowIso, env.TARGET)));
+  return result;
+}
