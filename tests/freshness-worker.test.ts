@@ -58,21 +58,21 @@ describe('evaluateFreshness', () => {
 
 describe('latestRun (read path)', () => {
   it('returns the newest completed run time', async () => {
-    const f = vi.fn(async () => new Response(JSON.stringify({ workflow_runs: [{ created_at: RECENT }] }), { status: 200 }));
+    const f = vi.fn(async (..._args: unknown[]) => new Response(JSON.stringify({ workflow_runs: [{ created_at: RECENT }] }), { status: 200 }));
     const { e } = env();
     expect(await latestRun('radar.yml', e, f as any)).toBe(RECENT);
     expect(String(f.mock.calls[0][0])).toContain('/repos/o/r/actions/workflows/radar.yml/runs?per_page=1&status=completed');
   });
   it('a workflow with no runs returns null', async () => {
-    const f = vi.fn(async () => new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 }));
+    const f = vi.fn(async (..._args: unknown[]) => new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 }));
     expect(await latestRun('radar.yml', env().e, f as any)).toBeNull();
   });
   it('an HTTP error throws, so the caller records a check error', async () => {
-    const f = vi.fn(async () => new Response('', { status: 503 }));
+    const f = vi.fn(async (..._args: unknown[]) => new Response('', { status: 503 }));
     await expect(latestRun('radar.yml', env().e, f as any)).rejects.toThrow('HTTP 503');
   });
   it('the read token is sent in the header, never in the URL', async () => {
-    const f = vi.fn(async () => new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 }));
+    const f = vi.fn(async (..._args: unknown[]) => new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 }));
     await latestRun('radar.yml', env().e, f as any);
     expect(String(f.mock.calls[0][0])).not.toContain('tok-TEST');
     expect((f.mock.calls[0][1] as any).headers.authorization).toBe('Bearer tok-TEST');
