@@ -15,7 +15,7 @@ export const MAX_VALUE_BYTES = 65_536;       // per value; the largest real valu
 // Writable key prefixes (P5 Step 5: set:, list:, meta:, flag:; plus cat: from Amendment A1, P6 2c).
 // Keys the Worker itself owns (nonces, its own heartbeat, dispatch notes) can't be written by clients.
 export const KEY_RE = /^(set|list|meta|flag|cat):[A-Za-z0-9:._-]{1,200}$/;
-export const RESERVED_RE = /^meta:(nonce|scheduler|dispatch)/;
+export const RESERVED_RE = /^meta:(nonce|scheduler|dispatch|keepalive)/;
 
 const enc = new TextEncoder();
 const hex = (buf: ArrayBuffer) => [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, '0')).join('');

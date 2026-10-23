@@ -13,6 +13,7 @@
 //    flag:v1.dispatch_enabled is true (set only after Abhinav confirms the token, P5).
 import { verifyAndParse } from './auth';
 import { FRESHNESS_CRON, runFreshnessWatchdog, sendAlertMail, type FreshnessEnv } from './freshness';
+import { KEEPALIVE_CRON, runKeepAlive } from './keepalive';
 
 export interface Env {
   BOI_SNAPSHOTS: KVNamespace;
@@ -24,6 +25,8 @@ export interface Env {
   RESEND_API_KEY?: string;     // freshness watchdog alert mail (secret)
   BRIEF_EMAIL?: string;        // freshness watchdog alert contact (secret)
   ALERTS_ENABLED?: string;     // 'true' to send the freshness alert mail
+  STAGING_SUPABASE_URL?: string;              // staging only (keep-alive)
+  STAGING_SUPABASE_PUBLISHABLE_KEY?: string;  // staging only (keep-alive); a Worker secret
 }
 
 const VERSION = 'boi-scheduler/1';
@@ -91,5 +94,6 @@ export default {
       const fe = env as unknown as FreshnessEnv;
       ctx.waitUntil(runFreshnessWatchdog(fe, fetch, Date.now(), (s, t) => sendAlertMail(fe, s, t)));
     }
+    if (ev.cron === KEEPALIVE_CRON) ctx.waitUntil(runKeepAlive(env));
   },
 };
