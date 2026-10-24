@@ -1,6 +1,6 @@
 // Checks for build-profile.mjs pure functions. Run: node scripts/load/build-profile.test.mjs
 import assert from 'node:assert/strict';
-import { templateToRegex, excluded, classify } from './build-profile.mjs';
+import { templateToRegex, excluded, classify, shapeOf, unmatchedShapes } from './build-profile.mjs';
 
 const T = ['/', '/sets/[slug]', '/themes/[theme]', '/themes/[theme]/sort/[sort]', '/themes/[theme]/sort/[sort]/page/[page]', '/reviews/[slug]', '/news/[slug]', '/compare', '/sets'];
 
@@ -30,4 +30,11 @@ assert.equal(r.classes.get('/sets/[slug]'), 100);
 assert.equal(r.classes.get('/themes/[theme]/sort/[sort]'), 40, 'sorted view goes to its own class, not the theme class');
 assert.equal(r.classes.get('/themes/[theme]'), 10);
 assert.equal(r.classifiedCount, 155, 'unknown paths are not classified');
+assert.equal(shapeOf('/sets/75192-ufo'), '/sets/[x]');
+assert.equal(shapeOf('/themes/city/sort/price-asc'), '/themes/city/sort/[x]');
+assert.equal(shapeOf('/'), '/');
+assert.equal(shapeOf('/sets/12345/'), '/sets/[x]/');
+const shapes = unmatchedShapes([...paths, { path: '/unknown/abc-123', count: 3 }, { path: '/unknown/xyz-999', count: 4 }], T, 20);
+assert.deepEqual(shapes, [{ shape: '/unknown/thing', requests: 7 }, { shape: '/unknown/[x]', requests: 7 }], 'unmatched paths are grouped by shape; ids become [x]; no full paths');
+assert.equal(unmatchedShapes(paths, T, 1).length, 1, 'limit applies');
 console.log('build-profile checks passed');

@@ -43,6 +43,28 @@ export function classify(paths, templates) {
   return { classes, excludedCount, classifiedCount };
 }
 
+/** Pure. The shape of a path with ids and slugs replaced: a plain lowercase word is kept, anything else becomes [x]. */
+export function shapeOf(path) {
+  const segs = path.split('/').map((s) => (s === '' || /^[a-z]{1,20}$/.test(s) ? s : '[x]'));
+  return segs.join('/') || '/';
+}
+
+/** Pure. Unmatched (not excluded, no template) paths grouped by shape: top `limit` by request count. No full paths are returned. */
+export function unmatchedShapes(paths, templates, limit = 20) {
+  const regexes = templates.map((t) => templateToRegex(t));
+  const byShape = new Map();
+  for (const { path, count } of paths) {
+    if (excluded(path)) continue;
+    if (regexes.some((re) => re.test(path))) continue;
+    const shape = shapeOf(path);
+    byShape.set(shape, (byShape.get(shape) ?? 0) + count);
+  }
+  return [...byShape.entries()]
+    .map(([shape, requests]) => ({ shape, requests }))
+    .sort((a, b) => b.requests - a.requests)
+    .slice(0, limit);
+}
+
 async function gql(token, query, variables) {
   const r = await fetch(GRAPHQL, {
     method: 'POST',
@@ -92,6 +114,7 @@ async function main() {
   const total = z.total[0]?.count ?? 0;
   const paths = z.top.map((g) => ({ path: g.dimensions.clientRequestPath, count: g.count }));
   const { classes, excludedCount, classifiedCount } = classify(paths, templates);
+  const unmatchedTop = unmatchedShapes(paths, templates, 20);
   const countable = total - excludedCount;
   const coverage = countable > 0 ? classifiedCount / countable : 0;
   const profile = {
@@ -103,9 +126,12 @@ async function main() {
       .map(([template, requests]) => ({ template, requests, share: Number((requests / countable).toFixed(6)) }))
       .sort((a, b) => b.requests - a.requests),
     method: 'Top 10,000 request paths of the zone, grouped by route template; assets, API, admin and feed paths excluded.',
+    unmatched_top: unmatchedTop.map((u) => ({ shape: u.shape, requests: u.requests, share: Number((u.requests / countable).toFixed(6)) })),
   };
   fs.writeFileSync(out, JSON.stringify(profile, null, 2) + '\n');
   console.log(`profile written: ${profile.classes.length} classes, coverage ${(coverage * 100).toFixed(1)}% of ${countable} counted requests`);
+  console.log('unmatched path shapes (top 20, share of counted requests):');
+  for (const u of profile.unmatched_top) console.log(`  ${u.shape}  requests=${u.requests}  share=${(u.share * 100).toFixed(2)}%`);
   if (coverage < COVERAGE_MIN) {
     console.error(`coverage below ${COVERAGE_MIN * 100}%: the profile is not usable`);
     return 1;
