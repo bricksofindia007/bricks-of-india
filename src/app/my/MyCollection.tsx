@@ -14,6 +14,7 @@ import {
 } from '@/lib/collection-worth';
 import { rateSourceOf } from '@/lib/usd-rate-reader';
 import { OwnedWorthLine, PricesUnavailable, TotalWorthValue, WishPrice } from './PriceNotes';
+import { CollectionShare } from '@/components/share/CollectionShare';
 import { nextTab } from './tab-keys';
 
 // The stored exchange rate arrives with the price read, server side. Missing, stale (over 5 days) or out-of-band rates
@@ -187,6 +188,8 @@ export function MyCollection() {
 
       <div id="collection-panel" role="tabpanel" aria-labelledby={tab === 'wish' ? 'tab-wish' : 'tab-owned'}>
       {!ready && <Skeleton />}
+      {ready && tab === 'wish' && <CollectionShare kind="wishlist" count={wish.length} />}
+      {ready && tab === 'owned' && <CollectionShare kind="collection" count={owned.length} />}
 
       {ready && tab === 'wish' && (
         wish.length === 0 ? (

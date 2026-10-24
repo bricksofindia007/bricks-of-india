@@ -8,6 +8,9 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { adminFormTokenValid } from '@/lib/admin-form';
 import { limitKey, loginBlocked, recordLoginFailure, clearLoginFailures } from '@/lib/login-limit';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import { getSecret } from '@/lib/get-secret';
+import { turnstileRequired, verifyTurnstile, TURNSTILE_SECRET_NAME } from '@/lib/turnstile';
 import { createServerClient } from '@/lib/supabase';
 import { generateBody } from '@/lib/generate-body';
 import { publishOneDraft } from '@/lib/publish-draft';
@@ -25,6 +28,16 @@ export async function login(formData: FormData) {
   const keys = await loginLimitKeys();
   // A blocked client gets the same answer as a wrong password, and the password is not checked.
   if (await loginBlocked(keys)) redirect('/admin/pending');
+  // Human check, only while the flag is on. A failed check counts as a failed attempt and the password is not checked.
+  if (turnstileRequired(FEATURE_FLAGS)) {
+    const h = await headers();
+    const ip = (h.get('cf-connecting-ip') ?? h.get('x-forwarded-for')?.split(',')[0] ?? 'unknown').trim();
+    const human = await verifyTurnstile(String(formData.get('cf-turnstile-response') ?? ''), ip, getSecret(TURNSTILE_SECRET_NAME));
+    if (!human) {
+      await recordLoginFailure(keys).catch((e) => console.error('[login-limit] failure not counted:', e?.message));
+      redirect('/admin/pending');
+    }
+  }
   if (adminPasswordMatches(pw)) {
     await clearLoginFailures(keys);
     // The cookie carries a random session token; the server stores only its hash. Never the password.

@@ -1,13 +1,13 @@
-// Sign-in attempt limit (in-app). After 10 failed attempts in 10 minutes for a key, the key is blocked for
-// 10 minutes. A key is a hash of the client address, and one for the account. While blocked, the password is
+// Sign-in attempt limit (in-app). After 5 failed attempts in 15 minutes for a key, the key is blocked for
+// 15 minutes (owner, 24 Oct 2026, 18:08 IST: "agreed to your recommendation on all"; the limit is the recommendation). A key is a hash of the client address, and one for the account. While blocked, the password is
 // not checked. If the counter cannot be read, sign-in is refused (fails closed). The response never says
 // that a limit was hit: the caller returns the same answer as a wrong password.
 import { createHash } from 'node:crypto';
 import { createServerClient } from './supabase';
 
-export const LOGIN_MAX_FAILURES = 10;
-export const LOGIN_WINDOW_MS = 10 * 60 * 1000;
-export const LOGIN_BLOCK_MS = 10 * 60 * 1000;
+export const LOGIN_MAX_FAILURES = 5;
+export const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+export const LOGIN_BLOCK_MS = 15 * 60 * 1000;
 
 export type AttemptRow = { failures: number; window_start: number; blocked_until: number | null };
 
