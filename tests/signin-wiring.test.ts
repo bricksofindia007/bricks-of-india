@@ -191,3 +191,11 @@ describe('the migration', () => {
     }
   });
 });
+
+describe('the sign-in form uses the approved age wording', () => {
+  it('the 18+ box label is the approved checkbox text, and no placeholder remains', () => {
+    const form = read('src/app/auth/SignInForm.tsx');
+    expect(form).toMatch(/\{AGE_RULE_COPY\.signUpCheckbox\}/);
+    expect(form).not.toMatch(/I am 18 or older/);
+  });
+});

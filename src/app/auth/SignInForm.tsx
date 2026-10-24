@@ -3,6 +3,7 @@
 // Sign-in form: email, the 18+ box for a new address, then the six-digit code. Labels are neutral placeholders until the
 // owner names words. Nothing is stored in the browser. Failure behaviour: any failed request shows the server's line.
 import { useState, type FormEvent } from 'react';
+import { AGE_RULE_COPY } from '@/lib/legal-copy';
 
 type Step = 'email' | 'code' | 'done';
 
@@ -63,7 +64,7 @@ export function SignInForm() {
       </label>
       <label className="flex items-center gap-2 text-sm">
         <input type="checkbox" checked={ageConfirmed} onChange={(e) => setAgeConfirmed(e.target.checked)} />
-        I am 18 or older
+        {AGE_RULE_COPY.signUpCheckbox}
       </label>
       <button type="submit" disabled={busy} className="rounded-full border px-4 py-2 text-sm font-semibold">Send code</button>
       {message && <p role="status" className="text-sm">{message}</p>}
