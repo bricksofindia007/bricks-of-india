@@ -124,3 +124,20 @@ export function checkRadarFreshness(fetchedAt: string | null | undefined, nowIso
   if (r.ok) return { ok: true, kind: 'fresh', failure: null, ageHours: r.ageHours };
   return { ok: false, kind: 'stale', failure: 'radar-stale', ageHours: r.ageHours };
 }
+
+// Store price freshness check (health check, check 5): stale after 26 hours. A failed or empty read is an infrastructure failure.
+export const PRICES_MAX_HOURS = 26;
+export interface PriceFreshnessResult {
+  ok: boolean;
+  kind: 'fresh' | 'stale' | 'infra';
+  failure: 'prices-stale' | 'prices-check-error' | null;
+  ageHours: number | null;
+}
+
+/** Pure: the store price freshness rule. Carries no price value. */
+export function checkPriceFreshness(scrapedAt: string | null | undefined, nowIso: string, queryFailed: boolean): PriceFreshnessResult {
+  if (queryFailed || !scrapedAt) return { ok: false, kind: 'infra', failure: 'prices-check-error', ageHours: null };
+  const r = evaluateStaleness(scrapedAt, nowIso, PRICES_MAX_HOURS);
+  if (r.ok) return { ok: true, kind: 'fresh', failure: null, ageHours: r.ageHours };
+  return { ok: false, kind: 'stale', failure: 'prices-stale', ageHours: r.ageHours };
+}
