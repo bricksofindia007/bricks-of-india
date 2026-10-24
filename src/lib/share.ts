@@ -23,6 +23,7 @@ export const SHARE_TEXT = {
   sheetTitle: 'Pick where to send it.',
   previewCaption: 'Can you feel it',
   copied: 'Awesomeness is loading',
+  collectionShared: 'Your list, shared. Take a bow',
   instagramFallback: 'Save the card, add it to your story. Time to make the world jealous',
   failureGeneral: 'That did not go through. Your list is still safe. Try again, or copy the link.',
   failureNoApp: 'Nothing opened. Copy the link and send it yourself.',

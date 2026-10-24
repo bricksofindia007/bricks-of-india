@@ -83,6 +83,34 @@ def _held(reason: str) -> dict:
     }
 
 
+def _stop_inr():
+    """The daily rupee stop from config/spend-limits.json (the same number the TypeScript guard uses)."""
+    import json
+    path = os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'config', 'spend-limits.json')
+    with open(path, encoding='utf-8') as f:
+        return float(json.load(f)['rupee_stop']['stop_inr'])
+
+
+def _day_cap_refusal():
+    """Option B (Chat, 23:50 IST): the workflow passes the day's AI total in as BOI_AI_DAY_RUPEES. At or past the
+    stop the judge refuses without calling the model. A missing value is not refused here (see the workflow step
+    and issue 147); the verdict itself still fails closed as before."""
+    raw = os.environ.get('BOI_AI_DAY_RUPEES', '').strip()
+    if not raw:
+        return None
+    try:
+        total = float(raw)
+    except ValueError:
+        return _held('daily AI total is not a number')
+    try:
+        stop = _stop_inr()
+    except Exception as e:  # unreadable config fails closed
+        return _held(f'spend limit unreadable: {type(e).__name__}')
+    if total >= stop:
+        return _held(f'daily AI spend Rs {total:g} is at or past the Rs {stop:g} stop')
+    return None
+
+
 def judge_coherence(full_text: str, post=None, api_key: str | None = None, timeout: int = 30,
                     prompt: str = JUDGE_PROMPT, max_tokens: int = 200) -> dict:
     """Returns a gate dict: {'pass': bool, 'detail': str} plus 'held': True
@@ -90,6 +118,9 @@ def judge_coherence(full_text: str, post=None, api_key: str | None = None, timeo
     (defaults to requests.post). `prompt` lets the article judge (Gate 14,
     scripts/article_coherence.py) reuse this exact fail-closed contract with
     its own instructions; the default is the VID-QP script prompt."""
+    cap = _day_cap_refusal()
+    if cap is not None:
+        return cap
     key = (api_key if api_key is not None else os.environ.get('GROQ_API_KEY', '')).strip().lstrip('﻿')
     if not key:
         return _held('GROQ_API_KEY not set')
