@@ -48,6 +48,9 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
         run: npm run build
       - name: OpenNext Cloudflare build
+        # The staging service key is needed here too: the sitemap is prerendered during this build.
+        env:
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}
         # 2026-10-21: the OpenNext build refuses the installed Next version (15.5.27) without this flag.
         # Remove when Next 16 ships (Stage B). Hard removal date: 2026-10-28 (tracker entry in boi-ops).
         run: npx opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
