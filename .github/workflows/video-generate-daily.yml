@@ -108,6 +108,7 @@ jobs:
       - name: Generate candidate video
         working-directory: scripts/video
         env:
+          AI_DAY_TOTAL_REQUIRED: '1'
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           GEMINI_SOCIAL_API_KEY: ${{ secrets.GEMINI_SOCIAL_API_KEY }}

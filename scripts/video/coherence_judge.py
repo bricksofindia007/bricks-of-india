@@ -97,6 +97,8 @@ def _day_cap_refusal():
     and issue 147); the verdict itself still fails closed as before."""
     raw = os.environ.get('BOI_AI_DAY_RUPEES', '').strip()
     if not raw:
+        if os.environ.get('AI_DAY_TOTAL_REQUIRED', '').strip() == '1':
+            return _held('daily AI total was not provided to this run')
         return None
     try:
         total = float(raw)

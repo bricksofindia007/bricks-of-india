@@ -36,3 +36,15 @@ def test_missing_value_is_not_refused_here(monkeypatch):
 def test_not_a_number_fails_closed(monkeypatch):
     monkeypatch.setenv('BOI_AI_DAY_RUPEES', 'abc')
     assert cj._day_cap_refusal()['held'] is True
+
+
+def test_required_but_missing_fails_closed(monkeypatch):
+    monkeypatch.delenv('BOI_AI_DAY_RUPEES', raising=False)
+    monkeypatch.setenv('AI_DAY_TOTAL_REQUIRED', '1')
+    assert cj._day_cap_refusal()['held'] is True
+
+
+def test_not_required_and_missing_only_warns(monkeypatch):
+    monkeypatch.delenv('BOI_AI_DAY_RUPEES', raising=False)
+    monkeypatch.delenv('AI_DAY_TOTAL_REQUIRED', raising=False)
+    assert cj._day_cap_refusal() is None

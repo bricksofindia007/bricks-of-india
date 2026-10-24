@@ -217,6 +217,7 @@ jobs:
         if: steps.validate.outputs.no_candidate != 'true'
         working-directory: scripts/video
         env:
+          AI_DAY_TOTAL_REQUIRED: '1'
           SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           ELEVENLABS_API_KEY_ASMR: ${{ secrets.ELEVENLABS_API_KEY_ASMR }}
