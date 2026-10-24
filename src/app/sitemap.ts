@@ -3,6 +3,7 @@ import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
 import { THEMES } from '@/lib/brand';
 import { SITE_URL } from '@/lib/metadata';
+import { hasIndianPrice } from '@/lib/indexing-price';
 
 // Real bug, found in a Netlify credit-usage audit (2026-08-14): this route
 // had no revalidate export at all, so it was purely build-time static --
@@ -102,8 +103,20 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     allSets.push(...data);
     if (data.length < PAGE) break;
   }
+  // E6 (draft): only sets with a store price above zero are listed. Others leave the sitemap.
+  const pricedSets = new Set<string>();
+  for (let offset = 0; ; offset += PAGE) {
+    const { data } = await supabase
+      .from('store_prices')
+      .select('set_id, price_inr')
+      .gt('price_inr', 0)
+      .range(offset, offset + PAGE - 1);
+    if (!data || data.length === 0) break;
+    for (const r of data) if (hasIndianPrice([r.price_inr])) pricedSets.add(r.set_id);
+    if (data.length < PAGE) break;
+  }
   // A1: set numbers containing "-" resolve to their own page again (src/lib/set-slug.ts), so all are listed.
-  const setPages = allSets.map((s) => ({
+  const setPages = allSets.filter((s) => pricedSets.has(s.set_number)).map((s) => ({
     url: `${base}/sets/${s.set_number}-${slugify(s.name)}`,
     lastModified: new Date(s.updated_at),
     changeFrequency: 'daily' as const,
