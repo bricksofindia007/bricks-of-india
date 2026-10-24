@@ -30,6 +30,14 @@ export function excluded(path) {
 // They form one class, so they count toward coverage at their observed share. The denominator is unchanged.
 export const NOT_FOUND_CLASS = '(not found)';
 
+/**
+ * Pure. How many requests of an UNMATCHED path are credited to the not-found class.
+ * Only responses of class 3xx and 4xx count. Unmatched 2xx and 5xx stay uncovered.
+ */
+export function notFoundCredit(entry) {
+  return (entry.classes?.['3xx'] ?? 0) + (entry.classes?.['4xx'] ?? 0);
+}
+
 /** Pure. Classes counted paths by the most specific matching template. */
 export function classify(paths, templates) {
   const ordered = [...templates].sort((a, b) => b.length - a.length);
@@ -37,12 +45,13 @@ export function classify(paths, templates) {
   const classes = new Map();
   let excludedCount = 0;
   let classifiedCount = 0;
-  for (const { path, count } of paths) {
+  for (const { path, count, classes: entryClasses } of paths) {
     if (excluded(path)) { excludedCount += count; continue; }
     const hit = regexes.find(([, re]) => re.test(path));
     if (!hit) {
-      classes.set(NOT_FOUND_CLASS, (classes.get(NOT_FOUND_CLASS) ?? 0) + count);
-      classifiedCount += count;
+      const credit = notFoundCredit({ path, count, classes: entryClasses });
+      classes.set(NOT_FOUND_CLASS, (classes.get(NOT_FOUND_CLASS) ?? 0) + credit);
+      classifiedCount += credit;
       continue;
     }
     classes.set(hit[0], (classes.get(hit[0]) ?? 0) + count);

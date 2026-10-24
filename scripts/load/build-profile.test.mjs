@@ -1,6 +1,6 @@
 // Checks for build-profile.mjs pure functions. Run: node scripts/load/build-profile.test.mjs
 import assert from 'node:assert/strict';
-import { templateToRegex, excluded, classify, shapeOf, unmatchedShapes, NOT_FOUND_CLASS, statusClass, aggregatePaths, unmatchedSummary, ROW_LIMIT, hourlySlices, combineSlices } from './build-profile.mjs';
+import { templateToRegex, excluded, classify, shapeOf, unmatchedShapes, NOT_FOUND_CLASS, statusClass, aggregatePaths, unmatchedSummary, ROW_LIMIT, hourlySlices, combineSlices, notFoundCredit } from './build-profile.mjs';
 
 const T = ['/', '/sets/[slug]', '/themes/[theme]', '/themes/[theme]/sort/[sort]', '/themes/[theme]/sort/[sort]/page/[page]', '/reviews/[slug]', '/news/[slug]', '/compare', '/sets'];
 
@@ -22,8 +22,20 @@ const paths = [
   { path: '/themes/city', count: 10 },
   { path: '/reviews/lego-x-1', count: 5 },
   { path: '/_next/static/x.js', count: 1000 },
-  { path: '/unknown/thing', count: 7 },
+  { path: '/unknown/thing', count: 7, classes: { '2xx': 0, '3xx': 0, '4xx': 7, '5xx': 0, other: 0 } },
 ];
+// Credit rule (classify): only unmatched 3xx and 4xx are credited to the not-found class.
+const creditCases = [
+  { path: '/unknown/moved', count: 4, classes: { '2xx': 0, '3xx': 4, '4xx': 0, '5xx': 0, other: 0 } },
+  { path: '/unknown/gone', count: 6, classes: { '2xx': 0, '3xx': 0, '4xx': 6, '5xx': 0, other: 0 } },
+  { path: '/unknown/ok', count: 5, classes: { '2xx': 5, '3xx': 0, '4xx': 0, '5xx': 0, other: 0 } },
+  { path: '/unknown/broken', count: 9, classes: { '2xx': 0, '3xx': 0, '4xx': 0, '5xx': 9, other: 0 } },
+];
+const rc = classify(creditCases, T);
+assert.equal(rc.classes.get(NOT_FOUND_CLASS), 10, 'only 3xx and 4xx are credited (4 + 6)');
+assert.equal(rc.classifiedCount, 10, 'unmatched 2xx and 5xx are not covered');
+assert.equal(notFoundCredit({ classes: { '2xx': 1, '3xx': 2, '4xx': 3, '5xx': 4 } }), 5);
+assert.equal(notFoundCredit({ path: '/x', count: 9 }), 0, 'an entry without a class split credits nothing');
 const r = classify(paths, T);
 assert.equal(r.excludedCount, 1000);
 assert.equal(r.classes.get('/sets/[slug]'), 100);
