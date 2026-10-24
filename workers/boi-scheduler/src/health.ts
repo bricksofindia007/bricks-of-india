@@ -141,3 +141,22 @@ export function checkPriceFreshness(scrapedAt: string | null | undefined, nowIso
   if (r.ok) return { ok: true, kind: 'fresh', failure: null, ageHours: r.ageHours };
   return { ok: false, kind: 'stale', failure: 'prices-stale', ageHours: r.ageHours };
 }
+
+// Pending drafts backlog (health check, check 7): alert above 50 approved drafts. A failed read is an infrastructure failure.
+// A missing count is treated as unreadable here. The script reads a missing count as zero, which would show no backlog.
+export const DRAFTS_BACKLOG_MAX = 50;
+export interface DraftsBacklogResult {
+  ok: boolean;
+  kind: 'ok' | 'backlog' | 'infra';
+  failure: 'drafts-backlog' | 'drafts-check-error' | null;
+  count: number | null;
+}
+
+/** Pure: the approved-drafts backlog rule. Carries no draft text. */
+export function checkDraftsBacklog(count: number | null | undefined, queryFailed: boolean): DraftsBacklogResult {
+  if (queryFailed || count === null || count === undefined || !Number.isFinite(count)) {
+    return { ok: false, kind: 'infra', failure: 'drafts-check-error', count: null };
+  }
+  if (count > DRAFTS_BACKLOG_MAX) return { ok: false, kind: 'backlog', failure: 'drafts-backlog', count };
+  return { ok: true, kind: 'ok', failure: null, count };
+}
