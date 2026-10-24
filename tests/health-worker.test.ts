@@ -79,7 +79,7 @@ describe('evaluateCapacity', () => {
   });
 });
 
-import { checkNewsFreshness, checkRadarFreshness } from '../workers/boi-scheduler/src/health';
+import { checkNewsFreshness, checkRadarFreshness, checkPriceFreshness } from '../workers/boi-scheduler/src/health';
 
 describe('checkNewsFreshness', () => {
   const NOW = '2026-10-24T12:00:00.000Z';
@@ -109,5 +109,19 @@ describe('checkRadarFreshness', () => {
   it('no signal row, or a failed read, is an infrastructure failure', () => {
     expect(checkRadarFreshness(null, NOW, false)).toMatchObject({ kind: 'infra', failure: 'radar-check-error' });
     expect(checkRadarFreshness('2026-10-24T11:00:00.000Z', NOW, true)).toMatchObject({ kind: 'infra', failure: 'radar-check-error' });
+  });
+});
+
+describe('checkPriceFreshness', () => {
+  const NOW = '2026-10-24T12:00:00.000Z';
+  it('fresh within 26 hours', () => {
+    expect(checkPriceFreshness('2026-10-24T01:00:00.000Z', NOW, false)).toEqual({ ok: true, kind: 'fresh', failure: null, ageHours: 11 });
+  });
+  it('stale after 26 hours, with the script failure name', () => {
+    expect(checkPriceFreshness('2026-10-23T09:00:00.000Z', NOW, false)).toMatchObject({ ok: false, kind: 'stale', failure: 'prices-stale' });
+  });
+  it('no row, or a failed read, is an infrastructure failure', () => {
+    expect(checkPriceFreshness(null, NOW, false)).toMatchObject({ kind: 'infra', failure: 'prices-check-error' });
+    expect(checkPriceFreshness('2026-10-24T11:00:00.000Z', NOW, true)).toMatchObject({ kind: 'infra', failure: 'prices-check-error' });
   });
 });
