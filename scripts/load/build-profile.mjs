@@ -73,6 +73,54 @@ export function unmatchedShapes(paths, templates, limit = 20) {
     .slice(0, limit);
 }
 
+export const ROW_LIMIT = 10000;
+
+/** Pure. Response class of an HTTP status: 2xx, 3xx, 4xx, 5xx, or other. */
+export function statusClass(code) {
+  const n = Number(code);
+  if (n >= 200 && n < 300) return '2xx';
+  if (n >= 300 && n < 400) return '3xx';
+  if (n >= 400 && n < 500) return '4xx';
+  if (n >= 500 && n < 600) return '5xx';
+  return 'other';
+}
+
+/** Pure. Rows of (path, status, count) to one entry per path, with its class split. */
+export function aggregatePaths(rows) {
+  const byPath = new Map();
+  for (const { path, status, count } of rows) {
+    let e = byPath.get(path);
+    if (!e) { e = { path, count: 0, classes: { '2xx': 0, '3xx': 0, '4xx': 0, '5xx': 0, other: 0 } }; byPath.set(path, e); }
+    e.count += count;
+    e.classes[statusClass(status)] += count;
+  }
+  return [...byPath.values()];
+}
+
+/** Pure. Unmatched shapes with their class split: top `limit`, and the rest as one total. No full paths. */
+export function unmatchedSummary(paths, templates, limit = 60) {
+  const regexes = templates.map((t) => templateToRegex(t));
+  const byShape = new Map();
+  for (const { path, count, classes } of paths) {
+    if (excluded(path)) continue;
+    if (regexes.some((re) => re.test(path))) continue;
+    const shape = shapeOf(path);
+    let e = byShape.get(shape);
+    if (!e) { e = { shape, requests: 0, classes: { '2xx': 0, '3xx': 0, '4xx': 0, '5xx': 0, other: 0 } }; byShape.set(shape, e); }
+    e.requests += count;
+    for (const k of Object.keys(e.classes)) e.classes[k] += (classes?.[k] ?? 0);
+  }
+  const all = [...byShape.values()].sort((a, b) => b.requests - a.requests);
+  const top = all.slice(0, limit);
+  const rest = all.slice(limit);
+  const otherRequests = rest.reduce((a, e) => a + e.requests, 0);
+  const classes = { '2xx': 0, '3xx': 0, '4xx': 0, '5xx': 0, other: 0 };
+  for (const e of all) for (const k of Object.keys(classes)) classes[k] += e.classes[k];
+  const otherClasses = { '2xx': 0, '3xx': 0, '4xx': 0, '5xx': 0, other: 0 };
+  for (const e of rest) for (const k of Object.keys(otherClasses)) otherClasses[k] += e.classes[k];
+  return { top, classes, others: { shapes: rest.length, requests: otherRequests, classes: otherClasses } };
+}
+
 async function gql(token, query, variables) {
   const r = await fetch(GRAPHQL, {
     method: 'POST',
@@ -116,13 +164,17 @@ async function main() {
   const data = await gql(token, `query P($zone: String!) {
     viewer { zones(filter: { zoneTag: $zone }) {
       total: httpRequestsAdaptiveGroups(limit: 1, filter: ${filter}) { count }
-      top: httpRequestsAdaptiveGroups(limit: 10000, orderBy: [count_DESC], filter: ${filter}) { count dimensions { clientRequestPath } }
+      top: httpRequestsAdaptiveGroups(limit: ${ROW_LIMIT}, orderBy: [count_DESC], filter: ${filter}) { count dimensions { clientRequestPath edgeResponseStatus } }
     } } }`, { zone: zone.zoneTag });
   const z = data.viewer.zones[0];
   const total = z.total[0]?.count ?? 0;
-  const paths = z.top.map((g) => ({ path: g.dimensions.clientRequestPath, count: g.count }));
+  const rows = z.top.map((g) => ({ path: g.dimensions.clientRequestPath, status: g.dimensions.edgeResponseStatus, count: g.count }));
+  const paths = aggregatePaths(rows);
+  const returned = rows.reduce((a, r) => a + r.count, 0);
+  const rowLimitHit = rows.length >= ROW_LIMIT;
+  const outside = Math.max(0, total - returned);
+  const summary = unmatchedSummary(paths, templates, 60);
   const { classes, excludedCount, classifiedCount } = classify(paths, templates);
-  const unmatchedTop = unmatchedShapes(paths, templates, 20);
   const countable = total - excludedCount;
   const coverage = countable > 0 ? classifiedCount / countable : 0;
   const profile = {
@@ -134,12 +186,21 @@ async function main() {
       .map(([template, requests]) => ({ template, requests, share: Number((requests / countable).toFixed(6)) }))
       .sort((a, b) => b.requests - a.requests),
     method: 'Top 10,000 request paths of the zone, grouped by route template; assets, API, admin and feed paths excluded.',
-    unmatched_top: unmatchedTop.map((u) => ({ shape: u.shape, requests: u.requests, share: Number((u.requests / countable).toFixed(6)) })),
+    unmatched_top: summary.top.map((u) => ({ shape: u.shape, requests: u.requests, share: Number((u.requests / countable).toFixed(6)), classes: u.classes })),
+    unmatched_classes: summary.classes,
+    unmatched_other: { shapes: summary.others.shapes, requests: summary.others.requests, share: Number((summary.others.requests / countable).toFixed(6)), classes: summary.others.classes },
+    analytics_rows: { returned: rows.length, row_limit: ROW_LIMIT, row_limit_hit: rowLimitHit, requests_outside_rows: outside, share_outside_rows: Number((outside / Math.max(total, 1)).toFixed(6)) },
   };
   fs.writeFileSync(out, JSON.stringify(profile, null, 2) + '\n');
   console.log(`profile written: ${profile.classes.length} classes, coverage ${(coverage * 100).toFixed(1)}% of ${countable} counted requests`);
-  console.log('unmatched path shapes (top 20, share of counted requests):');
-  for (const u of profile.unmatched_top) console.log(`  ${u.shape}  requests=${u.requests}  share=${(u.share * 100).toFixed(2)}%`);
+  const cls = (c) => `2xx=${c['2xx']} 3xx=${c['3xx']} 4xx=${c['4xx']} 5xx=${c['5xx']} other=${c.other}`;
+  console.log(`unmatched traffic by response class: ${cls(summary.classes)}`);
+  console.log('unmatched path shapes (top 60, share of counted requests, class split):');
+  for (const u of profile.unmatched_top) console.log(`  ${u.shape}  share=${(u.share * 100).toFixed(2)}%  requests=${u.requests}  ${cls(u.classes)}`);
+  const o = profile.unmatched_other;
+  console.log(`all other shapes: ${o.requests} requests, ${(o.share * 100).toFixed(2)}% (${o.shapes} shapes; ${cls(o.classes)})`);
+  const r = profile.analytics_rows;
+  console.log(`analytics rows: ${r.returned} returned of row limit ${r.row_limit}; row limit hit: ${r.row_limit_hit ? 'yes' : 'no'}; requests outside the returned rows: ${r.requests_outside_rows} (${(r.share_outside_rows * 100).toFixed(2)}% of total)`);
   if (coverage < COVERAGE_MIN) {
     console.error(`coverage below ${COVERAGE_MIN * 100}%: the profile is not usable`);
     return 1;

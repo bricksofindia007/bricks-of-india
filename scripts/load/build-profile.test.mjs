@@ -1,6 +1,6 @@
 // Checks for build-profile.mjs pure functions. Run: node scripts/load/build-profile.test.mjs
 import assert from 'node:assert/strict';
-import { templateToRegex, excluded, classify, shapeOf, unmatchedShapes, NOT_FOUND_CLASS } from './build-profile.mjs';
+import { templateToRegex, excluded, classify, shapeOf, unmatchedShapes, NOT_FOUND_CLASS, statusClass, aggregatePaths, unmatchedSummary, ROW_LIMIT } from './build-profile.mjs';
 
 const T = ['/', '/sets/[slug]', '/themes/[theme]', '/themes/[theme]/sort/[sort]', '/themes/[theme]/sort/[sort]/page/[page]', '/reviews/[slug]', '/news/[slug]', '/compare', '/sets'];
 
@@ -38,4 +38,18 @@ assert.equal(shapeOf('/sets/12345/'), '/sets/[x]/');
 const shapes = unmatchedShapes([...paths, { path: '/unknown/abc-123', count: 3 }, { path: '/unknown/xyz-999', count: 4 }], T, 20);
 assert.deepEqual(shapes, [{ shape: '/unknown/thing', requests: 7 }, { shape: '/unknown/[x]', requests: 7 }], 'unmatched paths are grouped by shape; ids become [x]; no full paths');
 assert.equal(unmatchedShapes(paths, T, 1).length, 1, 'limit applies');
+assert.equal(statusClass(200), '2xx');
+assert.equal(statusClass(301), '3xx');
+assert.equal(statusClass(404), '4xx');
+assert.equal(statusClass(503), '5xx');
+assert.equal(statusClass(undefined), 'other');
+const agg = aggregatePaths([{ path: '/x', status: 200, count: 5 }, { path: '/x', status: 404, count: 3 }, { path: '/y', status: 500, count: 2 }]);
+assert.deepEqual(agg.find((e) => e.path === '/x'), { path: '/x', count: 8, classes: { '2xx': 5, '3xx': 0, '4xx': 3, '5xx': 0, other: 0 } });
+assert.equal(agg.find((e) => e.path === '/y').classes['5xx'], 2);
+const summ = unmatchedSummary([...agg, { path: '/a-1', count: 4, classes: { '2xx': 0, '3xx': 0, '4xx': 4, '5xx': 0, other: 0 } }, { path: '/search', count: 9, classes: { '2xx': 0, '3xx': 0, '4xx': 9, '5xx': 0, other: 0 } }], T, 1);
+assert.equal(summ.top.length, 1);
+assert.equal(summ.top[0].shape, '/search', 'largest shape first');
+assert.equal(summ.others.requests, 14, 'everything below the top shape is the other total: /x 8 + /y 2 + /[x] 4');
+assert.equal(summ.others.shapes, 3);
+assert.equal(ROW_LIMIT, 10000);
 console.log('build-profile checks passed');
