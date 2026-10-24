@@ -186,3 +186,29 @@ describe('load generator settings come from the flag store', () => {
     expect(wrangler).not.toMatch(/STAGING_SITE_URL|LOADGEN_START|LOADGEN_END/);
   });
 });
+
+
+// Segment match, as in the profile builder: a bracketed segment matches one segment, anything else must be equal.
+function matchesTemplate(template: string, path: string): boolean {
+  if (template === '/') return path === '/';
+  const t = template.replace(/\/$/, '').split('/');
+  const p = path.replace(/\/$/, '').split('/');
+  if (t.length !== p.length) return false;
+  return t.every((seg, i) => (seg.startsWith('[') ? p[i].length > 0 : seg === p[i]));
+}
+
+describe('every profile class has sample paths', () => {
+  const root = join(__dirname, '..');
+  const profile = JSON.parse(readFileSync(join(root, 'docs/release/gates/load-profile.json'), 'utf8'));
+  const samples: Record<string, string[]> = JSON.parse(readFileSync(join(root, 'workers/boi-scheduler/src/load-samples.json'), 'utf8'));
+  it('no profile class is missing its samples', () => {
+    const missing = profile.classes.map((c: { template: string }) => c.template).filter((t: string) => !(samples[t]?.length > 0));
+    expect(missing).toEqual([]);
+  });
+  it('each sample path matches its class template (the not-found class uses made-up addresses)', () => {
+    for (const c of profile.classes as { template: string }[]) {
+      if (c.template === '(not found)') continue;
+      for (const p of samples[c.template]) expect(matchesTemplate(c.template, p), `${p} does not match ${c.template}`).toBe(true);
+    }
+  });
+});

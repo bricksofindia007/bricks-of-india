@@ -289,5 +289,118 @@
   ],
   "/sets": [
     "/sets"
+  ],
+  "(not found)": [
+    "/missing-page-001",
+    "/missing-page-002",
+    "/missing-page-003",
+    "/missing-page-004",
+    "/missing-page-005",
+    "/missing-page-006",
+    "/missing-page-007",
+    "/missing-page-008",
+    "/missing-page-009",
+    "/missing-page-010",
+    "/missing-page-011",
+    "/missing-page-012",
+    "/missing-page-013",
+    "/missing-page-014",
+    "/missing-page-015",
+    "/missing-page-016",
+    "/missing-page-017",
+    "/missing-page-018",
+    "/missing-page-019",
+    "/missing-page-020"
+  ],
+  "/cdn-cgi/rum": [
+    "/cdn-cgi/rum"
+  ],
+  "/themes/[theme]/page/[page]": [
+    "/themes/architecture/page/2",
+    "/themes/art/page/2",
+    "/themes/bionicle/page/2",
+    "/themes/botanical/page/2",
+    "/themes/brickheadz/page/2",
+    "/themes/city/page/2",
+    "/themes/classic/page/2",
+    "/themes/creator/page/2",
+    "/themes/dc/page/2",
+    "/themes/disney/page/2"
+  ],
+  "/blog/[slug]": [
+    "/blog/made-up-slug-01",
+    "/blog/made-up-slug-02",
+    "/blog/made-up-slug-03",
+    "/blog/made-up-slug-04",
+    "/blog/made-up-slug-05"
+  ],
+  "/blog": [
+    "/blog"
+  ],
+  "/precision": [
+    "/precision"
+  ],
+  "/opinion": [
+    "/opinion"
+  ],
+  "/opinion/[slug]": [
+    "/opinion/made-up-slug-01",
+    "/opinion/made-up-slug-02",
+    "/opinion/made-up-slug-03",
+    "/opinion/made-up-slug-04",
+    "/opinion/made-up-slug-05"
+  ],
+  "/lab/cmf-tracker": [
+    "/lab/cmf-tracker"
+  ],
+  "/themes/[theme]/sort/[sort]": [
+    "/themes/architecture/sort/price-asc",
+    "/themes/architecture/sort/price-desc",
+    "/themes/architecture/sort/year-desc",
+    "/themes/architecture/sort/year-asc",
+    "/themes/architecture/sort/pieces-desc",
+    "/themes/art/sort/price-asc",
+    "/themes/art/sort/price-desc",
+    "/themes/art/sort/year-desc",
+    "/themes/art/sort/year-asc",
+    "/themes/art/sort/pieces-desc",
+    "/themes/bionicle/sort/price-asc",
+    "/themes/bionicle/sort/price-desc",
+    "/themes/bionicle/sort/year-desc",
+    "/themes/bionicle/sort/year-asc",
+    "/themes/bionicle/sort/pieces-desc",
+    "/themes/botanical/sort/price-asc",
+    "/themes/botanical/sort/price-desc",
+    "/themes/botanical/sort/year-desc",
+    "/themes/botanical/sort/year-asc",
+    "/themes/botanical/sort/pieces-desc"
+  ],
+  "/brick-rush": [
+    "/brick-rush"
+  ],
+  "/calendar": [
+    "/calendar"
+  ],
+  "/sets/page/[page]": [
+    "/sets/page/2",
+    "/sets/page/3"
+  ],
+  "/my": [
+    "/my"
+  ],
+  "/themes/[theme]/sort/[sort]/page/[page]": [
+    "/themes/architecture/sort/price-asc/page/2",
+    "/themes/architecture/sort/price-desc/page/2",
+    "/themes/art/sort/price-asc/page/2",
+    "/themes/art/sort/price-desc/page/2"
+  ],
+  "/review-policy": [
+    "/review-policy"
+  ],
+  "/legal/data-deletion": [
+    "/legal/data-deletion"
+  ],
+  "/shareables": [
+    "/shareables"
   ]
 }
