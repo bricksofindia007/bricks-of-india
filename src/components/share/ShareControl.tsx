@@ -9,7 +9,6 @@ import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import { trackEvent } from '@/lib/analytics';
 import { SHARE_TEXT, channelLink, shareEnabled, type ShareChannel, type ShareTarget } from '@/lib/share';
 
-// Channel labels. Not yet owner-approved: flagged in the pull request.
 const LABELS: Record<ShareChannel, string> = {
   whatsapp: 'WhatsApp',
   facebook: 'Facebook',
