@@ -47,6 +47,7 @@
  * ─────────────────────────────────────────────────────────────────────────────
  */
 
+import { isStoreGap } from './lib/store-gap.mjs';
 import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
@@ -1452,14 +1453,7 @@ try {
 try {
   const { data: allPricedArticles } = await sb.from('news_articles')
     .select('slug, content').filter('content', 'not.is', null);
-  const NO_STORE_LANGUAGE_RE = /import.only|no official store price|no.+(official|indian).+price|not.+(officially|yet).+available.+india/i;
-  const missingStores = (allPricedArticles ?? []).filter(a => {
-    const c = a.content || '';
-    if (!/₹[\d,]+/.test(c)) return false;          // no price at all -- not in scope
-    if (/toycra/i.test(c) || /mybrickhouse/i.test(c)) return false;  // has at least one real store -- fine
-    if (NO_STORE_LANGUAGE_RE.test(c)) return false; // explicitly acknowledges import-only/no-store -- fine, honest
-    return true;  // has a ₹ figure, no store name, no acknowledgement -- genuine gap
-  });
+  const missingStores = (allPricedArticles ?? []).filter(a => isStoreGap(a.content));
   if (missingStores.length > 0) {
     alertFail('ContentIntegrity', `${missingStores.length} article(s) have price data but no store name and no import/no-price acknowledgement (full-table scan): ${missingStores.map(a => a.slug).join(', ')}`);
   } else {
