@@ -33,6 +33,8 @@ const CI_SAMPLES: Record<string, string[]> = {
   '/community/[slug]': ['/community/ci-fixture'],
   '/themes/[theme]': ['/themes/city'],
   '/themes/[theme]/page/[page]': ['/themes/city/page/2'],
+  '/themes/[theme]/sort/[sort]': ['/themes/city/sort/price-asc'],
+  '/themes/[theme]/sort/[sort]/page/[page]': ['/themes/city/sort/price-asc/page/2'],
 };
 
 type Row = { route: string; kind: string; intended: string; effective: string; ok: boolean; note?: string };
