@@ -32,10 +32,21 @@ export const supabaseRead = supabaseUrl
   : (null as any);
 
 /**
+ * Staging read-only mode (STAGING_READ_ONLY=1, set only in the staging Worker config). Server code
+ * then uses the public key and never reads the service-role key. Production never sets the flag,
+ * so production keeps requiring the service-role key. Checked before any key is read.
+ */
+export function stagingReadOnly(): boolean {
+  return process.env.STAGING_READ_ONLY === '1';
+}
+
+/**
  * Service-role client. Pass `{ revalidate }` on ISR routes so reads expire
  * (see revalidatingFetch); omit it for writes, actions and dynamic routes.
+ * In staging read-only mode this returns the public-key client instead.
  */
 export function createServerClient(opts?: { revalidate?: number }) {
+  if (stagingReadOnly()) return createPublicClient(opts);
   if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set — check Netlify environment variables');
   const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!serviceKey) {
