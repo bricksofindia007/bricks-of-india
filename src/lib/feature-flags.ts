@@ -132,4 +132,7 @@ export const FEATURE_FLAGS = {
   // Share control on Lab tools and Minifig HQ (share plan, 23 Oct 2026). Off: no control is shown and nothing is sent.
   // Mirrored in config/feature_flags.py (share_enabled); keep both in sync by hand.
   shareEnabled: false,
+
+  // Human check (Turnstile) on the admin sign-in form (owner, 24 Oct 2026). Off: no widget, no check. Mirrored in config/feature_flags.py (admin_turnstile); keep in sync.
+  adminTurnstile: false,
 } as const;

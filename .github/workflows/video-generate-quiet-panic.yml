@@ -203,6 +203,15 @@ jobs:
           print(f"Assembled candidate.json for {result['set_title']} (#{set_number}), price_inr={result['price_inr']}")
           PYEOF
 
+      - name: Day AI spend total for the judge's cap
+        timeout-minutes: 2
+        continue-on-error: true
+        working-directory: scripts/video
+        env:
+          SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: python day_ai_total.py
+
       - name: Render Quiet Panic video
         id: render
         if: steps.validate.outputs.no_candidate != 'true'

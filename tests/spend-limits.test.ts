@@ -1,4 +1,4 @@
-// Spend limits: the AI caps (warning at 60%, refusal at the cap), the rupee stop (Rs 6 warn, Rs 10 stop) with
+// Spend limits: the AI caps (warning at 60%, refusal at the cap), the rupee stop (Rs 8 warn, Rs 13 stop, Rs 100 absolute ceiling) with
 // per-model prices and the stored rate, and an alert test for each Supabase, R2, Brevo and Resend level.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -35,22 +35,28 @@ describe('AI daily caps', () => {
   });
 });
 
-describe('rupee stop: Rs 6 warn, Rs 10 stop', () => {
+describe('rupee stop: Rs 8 warn, Rs 13 stop, Rs 100 ceiling', () => {
   it('levels at the boundaries', () => {
-    expect(rupeeLevel(5.99)).toBe('ok');
-    expect(rupeeLevel(6)).toBe('warn');
-    expect(rupeeLevel(9.99)).toBe('warn');
-    expect(rupeeLevel(10)).toBe('stop');
+    expect(rupeeLevel(7.99)).toBe('ok');
+    expect(rupeeLevel(8)).toBe('warn');
+    expect(rupeeLevel(12.99)).toBe('warn');
+    expect(rupeeLevel(13)).toBe('stop');
   });
-  it('binds: refuses at Rs 10 even when calls and tokens are well under their caps', () => {
-    expect(aiCallDecision('gemini', { calls: 1, tokens: 1000, rupees: 10 })).toMatchObject({ allowed: false, level: 'stop', rupeeLevel: 'stop' });
+  it('binds: refuses at Rs 13 even when calls and tokens are well under their caps', () => {
+    expect(aiCallDecision('gemini', { calls: 1, tokens: 1000, rupees: 13 })).toMatchObject({ allowed: false, level: 'stop', rupeeLevel: 'stop' });
+    expect(aiCallDecision('gemini', { calls: 1, tokens: 1000, rupees: 14 })).toMatchObject({ allowed: false, level: 'stop' });
   });
-  it('warns at Rs 6 without refusing', () => {
-    expect(aiCallDecision('gemini', { calls: 1, tokens: 1000, rupees: 6 })).toMatchObject({ allowed: true, level: 'warn' });
+  it('refuses at the Rs 100 absolute ceiling, whatever the level', () => {
+    expect(aiCallDecision('gemini', { calls: 1, tokens: 1000, rupees: 100 })).toMatchObject({ allowed: false, level: 'stop', ceilingHit: true });
+    expect(aiCallDecision('gemini', { calls: 1, tokens: 1000, rupees: 99.9 })).toMatchObject({ ceilingHit: false });
   });
-  it('the config sets Rs 6 and Rs 10', () => {
-    expect(config.rupee_stop.warn_inr).toBe(6);
-    expect(config.rupee_stop.stop_inr).toBe(10);
+  it('warns at Rs 8 without refusing', () => {
+    expect(aiCallDecision('gemini', { calls: 1, tokens: 1000, rupees: 8 })).toMatchObject({ allowed: true, level: 'warn' });
+  });
+  it('the config sets Rs 8 and Rs 13, with a Rs 100 ceiling', () => {
+    expect(config.rupee_stop.warn_inr).toBe(8);
+    expect(config.rupee_stop.stop_inr).toBe(13);
+    expect(config.rupee_stop.absolute_ceiling_inr).toBe(100);
   });
 });
 

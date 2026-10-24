@@ -144,4 +144,6 @@ FEATURE_FLAGS = {
     # Share control on Lab tools and Minifig HQ (share plan, 23 Oct 2026). Off: no control, nothing sent.
     # Mirrored in src/lib/feature-flags.ts (shareEnabled); keep both in sync by hand.
     "share_enabled": False,
+    # Human check (Turnstile) on the admin sign-in form. Off. Mirrored in src/lib/feature-flags.ts (adminTurnstile); keep in sync.
+    "admin_turnstile": False,
 }
