@@ -1,9 +1,12 @@
 -- Account storage for collections and wishlists (pillar H, flag off). NOT APPLIED: staging rehearsal and review first (G7).
--- No email column yet: the sign-in identifier is an open question for Chat, so it is not decided here.
+-- The sign-in email lives in ONE server-only column, public.accounts.email (owner decision, 24 Oct 2026): lower-cased,
+-- unique, no other personal fields. Every saved row points to accounts.id and nothing else; no email appears anywhere else.
+-- Deleting an account row deletes everything that points to it (on delete cascade).
 -- Row level security is on for every table. No policy is created for anon or authenticated: only the service role reads or writes.
 
 create table if not exists public.accounts (
   id uuid primary key default gen_random_uuid(),
+  email text unique check (email = lower(email) and char_length(email) between 3 and 254),
   created_at timestamptz not null default now(),
   last_seen_at timestamptz,
   deleted_at timestamptz

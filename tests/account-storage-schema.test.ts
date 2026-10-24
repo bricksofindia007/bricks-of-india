@@ -19,8 +19,12 @@ describe('account storage migration', () => {
     expect(sql).toMatch(/grant select, insert, update, delete on public\.accounts, public\.saved_sets, public\.saved_figures to service_role/);
     expect(sql).not.toMatch(/to anon|to authenticated/);
   });
-  it('has no personal data column: no email, name or address', () => {
-    expect(sql).not.toMatch(/\b(email|phone|name|address)\b\s+text/i);
+  it('the only personal column is the sign-in email on accounts; no name, phone or address anywhere', () => {
+    const accounts = sql.slice(sql.indexOf('create table if not exists public.accounts'), sql.indexOf('alter table public.accounts'));
+    expect(accounts).toMatch(/email text unique check \(email = lower\(email\)/);
+    expect(sql).not.toMatch(/\b(name|phone|address)\b\s+text/i);
+    const saved = sql.slice(sql.indexOf('create table if not exists public.saved_sets'));
+    expect(saved).not.toMatch(/\bemail\b/i);
   });
   it('limits each list to 500 sets', () => {
     expect(sql).toMatch(/>= 500/);
