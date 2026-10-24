@@ -144,4 +144,6 @@ FEATURE_FLAGS = {
     # Share control on Lab tools and Minifig HQ (share plan, 23 Oct 2026). Off: no control, nothing sent.
     # Mirrored in src/lib/feature-flags.ts (shareEnabled); keep both in sync by hand.
     "share_enabled": False,
+    # Sitemap reads with the public client (B4). Off until anonymous read is confirmed. Mirrored in src/lib/feature-flags.ts (sitemapPublicClient).
+    "sitemap_public_client": False,
 }

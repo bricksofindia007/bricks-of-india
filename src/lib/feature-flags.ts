@@ -132,4 +132,7 @@ export const FEATURE_FLAGS = {
   // Share control on Lab tools and Minifig HQ (share plan, 23 Oct 2026). Off: no control is shown and nothing is sent.
   // Mirrored in config/feature_flags.py (share_enabled); keep both in sync by hand.
   shareEnabled: false,
+
+  // Sitemap reads with the public (anonymous) client instead of the service client. Off until anonymous read on the sets and store price tables is confirmed (B4). Mirrored in config/feature_flags.py (sitemap_public_client).
+  sitemapPublicClient: false,
 } as const;
