@@ -1,6 +1,6 @@
 // Staging load generator (workers/boi-scheduler/src/loadgen.ts): window, seeded choice, planning, and the send rules.
 import { describe, it, expect, vi } from 'vitest';
-import { seededRandom, inWindow, pickTemplate, planMinute, runMinute, loadgenSettings, LOADGEN_KEY, PER_MINUTE, type Profile, type Samples } from '../workers/boi-scheduler/src/loadgen';
+import { seededRandom, inWindow, pickTemplate, planMinute, runMinute, loadgenSettings, addOutcome, LOADGEN_COUNTS_KEY, LOADGEN_KEY, PER_MINUTE, type Profile, type Samples } from '../workers/boi-scheduler/src/loadgen';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -210,5 +210,39 @@ describe('every profile class has sample paths', () => {
       if (c.template === '(not found)') continue;
       for (const p of samples[c.template]) expect(matchesTemplate(c.template, p), `${p} does not match ${c.template}`).toBe(true);
     }
+  });
+});
+
+
+describe('per-class, per-status counts', () => {
+  it('addOutcome adds to the class and status, and starts again when the window changes', () => {
+    let c = addOutcome(null, '2026-10-25T00:00:00Z', '/a', '200');
+    c = addOutcome(c, '2026-10-25T00:00:00Z', '/a', '200');
+    c = addOutcome(c, '2026-10-25T00:00:00Z', '(not found)', '404');
+    expect(c.classes['/a']['200']).toBe(2);
+    expect(c.classes['(not found)']['404']).toBe(1);
+    const next = addOutcome(c, '2026-10-26T00:00:00Z', '/a', '500');
+    expect(next.classes['/a']).toEqual({ '500': 1 });
+  });
+  it('runMinute writes the counts to the flag store, per class and status', async () => {
+    const store = new Map<string, string>();
+    const env: any = {
+      BOI_SNAPSHOTS: {
+        get: async (k: string) => (store.has(k) ? JSON.parse(store.get(k)!) : null),
+        put: async (k: string, v: string) => { store.set(k, v); },
+      },
+      TARGET: 'staging', STAGING_SITE_URL: 'https://staging.example',
+      LOADGEN_START: '2000-01-01T00:00:00Z', LOADGEN_END: '2100-01-01T00:00:00Z', LOADGEN_ENABLED: true,
+    };
+    const profile = { classes: [{ template: '/a', share: 1 }, { template: '(not found)', share: 1 }] };
+    const samples = { '/a': ['/a1'], '(not found)': ['/missing-1'] };
+    const fetchImpl = vi.fn(async (url: string) => new Response('', { status: url.endsWith('/missing-1') ? 404 : 500 }));
+    await runMinute(env, profile, samples, Date.parse('2026-10-25T12:00:00Z'), fetchImpl as any, 0);
+    const counts = JSON.parse(store.get(LOADGEN_COUNTS_KEY)!);
+    expect(counts.since).toBe('2000-01-01T00:00:00Z');
+    expect(counts.classes['(not found)']).toEqual({ '404': expect.any(Number) });
+    expect(counts.classes['/a']).toEqual({ '500': expect.any(Number) });
+    const total = Object.values(counts.classes).flatMap((row: any) => Object.values(row) as number[]).reduce((a, b) => a + b, 0);
+    expect(total).toBe(60);
   });
 });
