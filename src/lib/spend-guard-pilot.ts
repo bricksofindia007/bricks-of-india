@@ -12,17 +12,19 @@ export function usageDay(now: Date = new Date()): string {
 
 export async function guardAiCall(provider: ProviderName, now: Date = new Date()): Promise<{ allowed: boolean; reason: string | null }> {
   if (!FEATURE_FLAGS.aiSpendGuardPilot) return { allowed: true, reason: null };
+  // One read for the day, all providers. Calls and tokens are counted for this provider; rupees are the TOTAL
+  // across every provider, because the rupee stop is one shared limit for the day.
   const { data, error } = await createServerClient()
     .from('ai_model_usage')
-    .select('calls, input_tokens, output_tokens, rupees')
-    .eq('day', usageDay(now))
-    .eq('provider', provider);
+    .select('provider, calls, input_tokens, output_tokens, rupees')
+    .eq('day', usageDay(now));
   if (error) return { allowed: false, reason: 'usage unreadable' };
   const used = { calls: 0, tokens: 0, rupees: 0 };
   for (const r of data ?? []) {
+    used.rupees += Number(r.rupees);
+    if (r.provider !== provider) continue;
     used.calls += Number(r.calls);
     used.tokens += Number(r.input_tokens) + Number(r.output_tokens);
-    used.rupees += Number(r.rupees);
   }
   const d = aiCallDecision(provider, used);
   return { allowed: d.allowed, reason: d.allowed ? null : `${provider} daily limit reached` };
