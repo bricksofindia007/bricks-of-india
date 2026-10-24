@@ -74,6 +74,28 @@ export function unmatchedShapes(paths, templates, limit = 20) {
 }
 
 export const ROW_LIMIT = 10000;
+export const SLICE_MS = 3600e3;
+
+/** Pure. Contiguous hourly slices covering [startMs, endMs). The last slice ends at endMs. */
+export function hourlySlices(startMs, endMs) {
+  const out = [];
+  for (let t = startMs; t < endMs; t += SLICE_MS) {
+    out.push({ start: new Date(t).toISOString(), end: new Date(Math.min(t + SLICE_MS, endMs)).toISOString() });
+  }
+  return out;
+}
+
+/**
+ * Pure. Combines slices. `totals` are the separate, ungrouped denominator per slice; `sliceRows` are the path rows per slice.
+ * The denominator never depends on the row limit. requests outside returned rows = total minus the sum of returned rows.
+ */
+export function combineSlices(totals, sliceRows, limit = ROW_LIMIT) {
+  const total = totals.reduce((a, b) => a + b, 0);
+  const rows = sliceRows.flat();
+  const slicesAtLimit = sliceRows.filter((r) => r.length >= limit).length;
+  const returned = rows.reduce((a, r) => a + r.count, 0);
+  return { total, rows, slices: sliceRows.length, slicesAtLimit, returned, outside: Math.max(0, total - returned) };
+}
 
 /** Pure. Response class of an HTTP status: 2xx, 3xx, 4xx, 5xx, or other. */
 export function statusClass(code) {
@@ -161,18 +183,29 @@ async function main() {
   const end = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const start = new Date(end.getTime() - 7 * 86400e3);
   const filter = `{ datetime_geq: "${start.toISOString()}", datetime_lt: "${end.toISOString()}" }`;
-  const data = await gql(token, `query P($zone: String!) {
-    viewer { zones(filter: { zoneTag: $zone }) {
-      total: httpRequestsAdaptiveGroups(limit: 1, filter: ${filter}) { count }
-      top: httpRequestsAdaptiveGroups(limit: ${ROW_LIMIT}, orderBy: [count_DESC], filter: ${filter}) { count dimensions { clientRequestPath edgeResponseStatus } }
-    } } }`, { zone: zone.zoneTag });
-  const z = data.viewer.zones[0];
-  const total = z.total[0]?.count ?? 0;
-  const rows = z.top.map((g) => ({ path: g.dimensions.clientRequestPath, status: g.dimensions.edgeResponseStatus, count: g.count }));
+  // One query per hourly slice for the paths (row-limited), and a separate ungrouped query per slice for the denominator.
+  const slices = hourlySlices(start.getTime(), end.getTime());
+  const totals = [];
+  const sliceRows = [];
+  for (const sl of slices) {
+    const f = `{ datetime_geq: "${sl.start}", datetime_lt: "${sl.end}" }`;
+    const t = await gql(token, `query T($zone: String!) {
+      viewer { zones(filter: { zoneTag: $zone }) {
+        total: httpRequestsAdaptiveGroups(limit: 1, filter: ${f}) { count }
+      } } }`, { zone: zone.zoneTag });
+    totals.push(t.viewer.zones[0].total[0]?.count ?? 0);
+    const d = await gql(token, `query P($zone: String!) {
+      viewer { zones(filter: { zoneTag: $zone }) {
+        top: httpRequestsAdaptiveGroups(limit: ${ROW_LIMIT}, orderBy: [count_DESC], filter: ${f}) { count dimensions { clientRequestPath edgeResponseStatus } }
+      } } }`, { zone: zone.zoneTag });
+    sliceRows.push(d.viewer.zones[0].top.map((g) => ({ path: g.dimensions.clientRequestPath, status: g.dimensions.edgeResponseStatus, count: g.count })));
+  }
+  const combined = combineSlices(totals, sliceRows, ROW_LIMIT);
+  const total = combined.total;
+  const rows = combined.rows;
   const paths = aggregatePaths(rows);
-  const returned = rows.reduce((a, r) => a + r.count, 0);
-  const rowLimitHit = rows.length >= ROW_LIMIT;
-  const outside = Math.max(0, total - returned);
+  const returned = combined.returned;
+  const outside = combined.outside;
   const summary = unmatchedSummary(paths, templates, 60);
   const { classes, excludedCount, classifiedCount } = classify(paths, templates);
   const countable = total - excludedCount;
@@ -189,7 +222,7 @@ async function main() {
     unmatched_top: summary.top.map((u) => ({ shape: u.shape, requests: u.requests, share: Number((u.requests / countable).toFixed(6)), classes: u.classes })),
     unmatched_classes: summary.classes,
     unmatched_other: { shapes: summary.others.shapes, requests: summary.others.requests, share: Number((summary.others.requests / countable).toFixed(6)), classes: summary.others.classes },
-    analytics_rows: { returned: rows.length, row_limit: ROW_LIMIT, row_limit_hit: rowLimitHit, requests_outside_rows: outside, share_outside_rows: Number((outside / Math.max(total, 1)).toFixed(6)) },
+    analytics_slices: { slices: combined.slices, slices_at_row_limit: combined.slicesAtLimit, row_limit: ROW_LIMIT, rows_returned: rows.length, requests_outside_rows: outside, share_outside_rows: Number((outside / Math.max(total, 1)).toFixed(6)) },
   };
   fs.writeFileSync(out, JSON.stringify(profile, null, 2) + '\n');
   console.log(`profile written: ${profile.classes.length} classes, coverage ${(coverage * 100).toFixed(1)}% of ${countable} counted requests`);
@@ -199,8 +232,8 @@ async function main() {
   for (const u of profile.unmatched_top) console.log(`  ${u.shape}  share=${(u.share * 100).toFixed(2)}%  requests=${u.requests}  ${cls(u.classes)}`);
   const o = profile.unmatched_other;
   console.log(`all other shapes: ${o.requests} requests, ${(o.share * 100).toFixed(2)}% (${o.shapes} shapes; ${cls(o.classes)})`);
-  const r = profile.analytics_rows;
-  console.log(`analytics rows: ${r.returned} returned of row limit ${r.row_limit}; row limit hit: ${r.row_limit_hit ? 'yes' : 'no'}; requests outside the returned rows: ${r.requests_outside_rows} (${(r.share_outside_rows * 100).toFixed(2)}% of total)`);
+  const r = profile.analytics_slices;
+  console.log(`analytics slices: ${r.slices}; slices at the row limit (${r.row_limit}): ${r.slices_at_row_limit}; requests outside returned rows: ${r.requests_outside_rows} (${(r.share_outside_rows * 100).toFixed(2)}% of total)`);
   if (coverage < COVERAGE_MIN) {
     console.error(`coverage below ${COVERAGE_MIN * 100}%: the profile is not usable`);
     return 1;

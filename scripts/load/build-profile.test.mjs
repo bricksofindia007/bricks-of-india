@@ -1,6 +1,6 @@
 // Checks for build-profile.mjs pure functions. Run: node scripts/load/build-profile.test.mjs
 import assert from 'node:assert/strict';
-import { templateToRegex, excluded, classify, shapeOf, unmatchedShapes, NOT_FOUND_CLASS, statusClass, aggregatePaths, unmatchedSummary, ROW_LIMIT } from './build-profile.mjs';
+import { templateToRegex, excluded, classify, shapeOf, unmatchedShapes, NOT_FOUND_CLASS, statusClass, aggregatePaths, unmatchedSummary, ROW_LIMIT, hourlySlices, combineSlices } from './build-profile.mjs';
 
 const T = ['/', '/sets/[slug]', '/themes/[theme]', '/themes/[theme]/sort/[sort]', '/themes/[theme]/sort/[sort]/page/[page]', '/reviews/[slug]', '/news/[slug]', '/compare', '/sets'];
 
@@ -52,4 +52,25 @@ assert.equal(summ.top[0].shape, '/search', 'largest shape first');
 assert.equal(summ.others.requests, 14, 'everything below the top shape is the other total: /x 8 + /y 2 + /[x] 4');
 assert.equal(summ.others.shapes, 3);
 assert.equal(ROW_LIMIT, 10000);
+const H0 = Date.parse('2026-10-17T00:00:00Z');
+const H7 = H0 + 7 * 24 * 3600e3;
+const hs = hourlySlices(H0, H7);
+assert.equal(hs.length, 168, 'seven days of hourly slices');
+assert.equal(hs[0].start, '2026-10-17T00:00:00.000Z');
+assert.equal(hs[167].end, '2026-10-24T00:00:00.000Z', 'the last slice ends at the window end');
+for (let i = 1; i < hs.length; i++) assert.equal(hs[i].start, hs[i - 1].end, 'slices are contiguous');
+assert.deepEqual(hourlySlices(H0, H0 + 90 * 60e3).map((s) => s.end), ['2026-10-17T01:00:00.000Z', '2026-10-17T01:30:00.000Z'], 'a partial last slice ends at the window end');
+const c = combineSlices([100, 200], [[{ path: '/a', status: 200, count: 60 }, { path: '/b', status: 404, count: 40 }], [{ path: '/a', status: 200, count: 150 }]], 2);
+assert.equal(c.total, 300, 'denominator is the sum of the separate totals');
+assert.equal(c.rows.length, 3, 'rows from every slice');
+assert.equal(c.returned, 250);
+assert.equal(c.outside, 50, 'requests outside returned rows = denominator minus returned');
+assert.equal(c.slices, 2);
+assert.equal(c.slicesAtLimit, 1, 'a slice whose rows reach the limit is counted');
+const c0 = combineSlices([50], [[{ path: '/a', status: 200, count: 50 }]], 10);
+assert.equal(c0.outside, 0, 'nothing outside when every request is returned');
+assert.equal(c0.slicesAtLimit, 0);
+const cNoRows = combineSlices([10, 20], [[], []], 10);
+assert.equal(cNoRows.total, 30, 'the denominator does not depend on the rows');
+assert.equal(cNoRows.outside, 30);
 console.log('build-profile checks passed');
