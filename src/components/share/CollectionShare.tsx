@@ -100,9 +100,9 @@ export function CollectionShare({ kind, count }: { kind: CardKind; count: number
           <p className="mt-2 text-xs italic text-neutral-500">{SHARE_TEXT.previewCaption}</p>
 
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" onClick={onShare} className="rounded-full border px-3 py-1 text-sm">Share</button>
+            <button type="button" onClick={onShare} className="rounded-full border px-3 py-1 text-sm">Share the card</button>
             <button type="button" onClick={onInstagram} className="rounded-full border px-3 py-1 text-sm">Instagram</button>
-            <button type="button" onClick={onSave} className="rounded-full border px-3 py-1 text-sm">Save</button>
+            <button type="button" onClick={onSave} className="rounded-full border px-3 py-1 text-sm">Save the card</button>
           </div>
 
           {note && <p role="status" className="mt-3 text-sm">{note}</p>}

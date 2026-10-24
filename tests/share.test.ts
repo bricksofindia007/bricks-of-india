@@ -89,7 +89,7 @@ describe('approved visible text', () => {
   });
   it('uses neutral words for lines not yet approved (issue 779)', () => {
     expect(SHARE_TEXT.sheetTitle).toBe('Share');
-    expect(SHARE_TEXT.failureNoApp).toBe('Could not open. Try again.');
+    expect(SHARE_TEXT.failureNoApp).toBe('Nothing opened. Copy the link and send it yourself.');
     expect(SHARE_TEXT.failureGeneral).toBe('Something went wrong. Try again.');
   });
 });

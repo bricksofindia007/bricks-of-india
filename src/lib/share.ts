@@ -27,7 +27,7 @@ export const SHARE_TEXT = {
   collectionShared: 'Your list, shared. Take a bow',
   instagramFallback: 'Save the card, add it to your story. Time to make the world jealous',
   failureGeneral: 'Something went wrong. Try again.',
-  failureNoApp: 'Could not open. Try again.',
+  failureNoApp: 'Nothing opened. Copy the link and send it yourself.',
 } as const;
 
 /** Pure: the control shows only when the share flag is explicitly true. */
