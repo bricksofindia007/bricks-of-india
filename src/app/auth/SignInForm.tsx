@@ -67,6 +67,7 @@ export function SignInForm() {
         {AGE_RULE_COPY.signUpCheckbox}
       </label>
       <button type="submit" disabled={busy} className="rounded-full border px-4 py-2 text-sm font-semibold">Send code</button>
+      <a href={`/auth/google/start?age=${ageConfirmed ? 1 : 0}`} className="block text-sm underline">Continue with Google</a>
       {message && <p role="status" className="text-sm">{message}</p>}
     </form>
   ) : (
