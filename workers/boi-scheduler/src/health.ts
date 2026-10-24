@@ -88,3 +88,21 @@ export function evaluateCapacity(dbMb: number, storageMb: number, limits: Capaci
   else if (storage !== 'ok') failures.push(`storage-size-${storage}`);
   return { db, storage, failures };
 }
+
+// News freshness check (health check, check 1): stale after 7 days. A failed read is an infrastructure failure,
+// reported as its own kind, never as staleness.
+export const NEWS_MAX_DAYS = 7;
+export interface NewsFreshnessResult {
+  ok: boolean;
+  kind: 'fresh' | 'stale' | 'infra';
+  failure: 'news-stale' | 'news-freshness-crashed' | null;
+  ageDays: number | null;
+}
+
+/** Pure: the news freshness rule. queryFailed means the read itself broke. */
+export function checkNewsFreshness(publishedAt: string | null | undefined, nowIso: string, queryFailed: boolean): NewsFreshnessResult {
+  if (queryFailed) return { ok: false, kind: 'infra', failure: 'news-freshness-crashed', ageDays: null };
+  const r = evaluateStaleness(publishedAt, nowIso, NEWS_MAX_DAYS * 24);
+  if (r.ok) return { ok: true, kind: 'fresh', failure: null, ageDays: r.ageHours === null ? null : r.ageHours / 24 };
+  return { ok: false, kind: 'stale', failure: 'news-stale', ageDays: r.ageHours === null ? null : r.ageHours / 24 };
+}

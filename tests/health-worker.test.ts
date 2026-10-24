@@ -78,3 +78,22 @@ describe('evaluateCapacity', () => {
     expect(r.failures).toEqual(['capacity-unreadable-db']);
   });
 });
+
+import { checkNewsFreshness } from '../workers/boi-scheduler/src/health';
+
+describe('checkNewsFreshness', () => {
+  const NOW = '2026-10-24T12:00:00.000Z';
+  it('fresh within 7 days', () => {
+    expect(checkNewsFreshness('2026-10-20T12:00:00.000Z', NOW, false)).toEqual({ ok: true, kind: 'fresh', failure: null, ageDays: 4 });
+  });
+  it('stale after 7 days, with the script failure name', () => {
+    const r = checkNewsFreshness('2026-10-10T12:00:00.000Z', NOW, false);
+    expect(r).toMatchObject({ ok: false, kind: 'stale', failure: 'news-stale' });
+  });
+  it('no article at all is stale, never fresh', () => {
+    expect(checkNewsFreshness(null, NOW, false)).toMatchObject({ ok: false, kind: 'stale', failure: 'news-stale' });
+  });
+  it('a failed read is an infrastructure failure, not staleness', () => {
+    expect(checkNewsFreshness('2026-10-24T11:00:00.000Z', NOW, true)).toEqual({ ok: false, kind: 'infra', failure: 'news-freshness-crashed', ageDays: null });
+  });
+});
