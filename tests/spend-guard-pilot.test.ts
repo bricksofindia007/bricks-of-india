@@ -72,7 +72,7 @@ describe('flag on', () => {
     expect(await guardAiCall('groq', NOW)).toEqual({ allowed: false, reason: 'groq daily limit reached' });
   });
   it('refuses at the rupee stop, even with calls and tokens under their caps', async () => {
-    db.rows = [{ calls: 3, input_tokens: 1000, output_tokens: 1000, rupees: 10 }];
+    db.rows = [{ calls: 3, input_tokens: 1000, output_tokens: 1000, rupees: 13 }];
     expect((await guardAiCall('groq', NOW)).allowed).toBe(false);
   });
   it('refuses at the daily token cap', async () => {
