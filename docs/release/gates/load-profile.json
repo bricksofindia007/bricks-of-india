@@ -6,7 +6,7 @@
   },
   "total_requests": 148953,
   "excluded_requests": 20248,
-  "coverage": 1,
+  "coverage": 0.999,
   "classes": [
     {
       "template": "/sets/[slug]",
@@ -15,8 +15,8 @@
     },
     {
       "template": "(not found)",
-      "requests": 15473,
-      "share": 0.120221
+      "requests": 15347,
+      "share": 0.119242
     },
     {
       "template": "/reviews/[slug]",
