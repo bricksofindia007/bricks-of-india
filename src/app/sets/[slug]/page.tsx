@@ -28,6 +28,7 @@ import { getStores, storeLabels } from '@/lib/stores';
 import { setNumberCandidates, pickSetNumber, slugMatchesSet } from '@/lib/set-slug';
 import { SaleSetLine } from '@/components/sales/SaleSetLine';
 import { shownTheme } from '@/lib/theme-display';
+import { hasIndianPrice } from '@/lib/indexing-price';
 // Durable-cache guard (2026-07-02): a revalidate must always be set, or
 // rendered pages persist across deploys. 14 days = UNPRICED_SET_REVALIDATE_SECONDS
 // (approved 10 Oct 2026; segment config must be a literal). A priced
@@ -146,8 +147,11 @@ const getSetPageData = cache(async (slug: string): Promise<SetPageData | null> =
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
   const params = await props.params;
-  const set = (await getSetPageData(params.slug))?.set;
+  const pageData = await getSetPageData(params.slug);
+  const set = pageData?.set;
   if (!set) return { title: 'Set Not Found' };
+  // E6: a set with no store price above zero is noindex, follow (same treatment as tier3).
+  const priced = hasIndianPrice((pageData?.store_prices ?? []).map((r: { price_inr?: number | null }) => r.price_inr));
   return {
     ...buildMetadata({
       title: `${set.name} (${set.set_number}) Price in India 2026`,
@@ -171,7 +175,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     // maintained and would silently get recomputed away from a manual
     // 'tier3' override on the next Rebrickable metadata resync -- see the
     // migration's own comment). Same follow:true treatment as tier3.
-    ...((set.index_tier === 'tier3' || set.noindex_override) && { robots: { index: false, follow: true } }),
+    ...((set.index_tier === 'tier3' || set.noindex_override || !priced) && { robots: { index: false, follow: true } }),
   };
 }
 
