@@ -55,5 +55,6 @@
   "/news",
   "/opinion/[slug]",
   "/sets",
-  "/sets/page/[page]"
+  "/sets/page/[page]",
+  "/cdn-cgi/rum"
 ]

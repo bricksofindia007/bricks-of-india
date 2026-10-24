@@ -26,6 +26,10 @@ export function excluded(path) {
     || /\.(jpg|jpeg|png|webp|gif|svg|ico|css|js|map|txt|xml|json|woff2?)$/i.test(path);
 }
 
+// Paths that match no template are answered by the site's not-found page (probes, scanners, unknown URLs).
+// They form one class, so they count toward coverage at their observed share. The denominator is unchanged.
+export const NOT_FOUND_CLASS = '(not found)';
+
 /** Pure. Classes counted paths by the most specific matching template. */
 export function classify(paths, templates) {
   const ordered = [...templates].sort((a, b) => b.length - a.length);
@@ -36,7 +40,11 @@ export function classify(paths, templates) {
   for (const { path, count } of paths) {
     if (excluded(path)) { excludedCount += count; continue; }
     const hit = regexes.find(([, re]) => re.test(path));
-    if (!hit) continue;
+    if (!hit) {
+      classes.set(NOT_FOUND_CLASS, (classes.get(NOT_FOUND_CLASS) ?? 0) + count);
+      classifiedCount += count;
+      continue;
+    }
     classes.set(hit[0], (classes.get(hit[0]) ?? 0) + count);
     classifiedCount += count;
   }

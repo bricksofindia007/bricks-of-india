@@ -1,6 +1,6 @@
 // Checks for build-profile.mjs pure functions. Run: node scripts/load/build-profile.test.mjs
 import assert from 'node:assert/strict';
-import { templateToRegex, excluded, classify, shapeOf, unmatchedShapes } from './build-profile.mjs';
+import { templateToRegex, excluded, classify, shapeOf, unmatchedShapes, NOT_FOUND_CLASS } from './build-profile.mjs';
 
 const T = ['/', '/sets/[slug]', '/themes/[theme]', '/themes/[theme]/sort/[sort]', '/themes/[theme]/sort/[sort]/page/[page]', '/reviews/[slug]', '/news/[slug]', '/compare', '/sets'];
 
@@ -29,7 +29,8 @@ assert.equal(r.excludedCount, 1000);
 assert.equal(r.classes.get('/sets/[slug]'), 100);
 assert.equal(r.classes.get('/themes/[theme]/sort/[sort]'), 40, 'sorted view goes to its own class, not the theme class');
 assert.equal(r.classes.get('/themes/[theme]'), 10);
-assert.equal(r.classifiedCount, 155, 'unknown paths are not classified');
+assert.equal(r.classes.get(NOT_FOUND_CLASS), 7, 'unmatched paths form the not-found class');
+assert.equal(r.classifiedCount, 162, 'the not-found class counts toward coverage; the denominator is unchanged');
 assert.equal(shapeOf('/sets/75192-ufo'), '/sets/[x]');
 assert.equal(shapeOf('/themes/city/sort/price-asc'), '/themes/city/sort/[x]');
 assert.equal(shapeOf('/'), '/');
