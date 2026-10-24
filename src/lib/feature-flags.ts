@@ -129,4 +129,7 @@ export const FEATURE_FLAGS = {
   // Contact form: "Privacy request" tick sends the message to the privacy mailbox (23 Oct 2026). Off: the tick is not shown
   // and every message goes to the general address. Mirrored in config/feature_flags.py; keep in sync.
   privacyRequestOption: false,
+  // Share control on Lab tools and Minifig HQ (share plan, 23 Oct 2026). Off: no control is shown and nothing is sent.
+  // Mirrored in config/feature_flags.py (share_enabled); keep both in sync by hand.
+  shareEnabled: false,
 } as const;

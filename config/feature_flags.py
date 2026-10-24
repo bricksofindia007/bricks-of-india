@@ -141,4 +141,7 @@ FEATURE_FLAGS = {
     # Sign-in by email code (owner Option A, 23 Oct 2026). Off: no code is issued, counted or sent.
     # Mirrored in src/lib/feature-flags.ts; keep in sync.
     "sign_in_by_email": False,
+    # Share control on Lab tools and Minifig HQ (share plan, 23 Oct 2026). Off: no control, nothing sent.
+    # Mirrored in src/lib/feature-flags.ts (shareEnabled); keep both in sync by hand.
+    "share_enabled": False,
 }
