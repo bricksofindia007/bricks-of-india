@@ -1,5 +1,6 @@
 import { MetadataRoute } from 'next';
-import { createServerClient } from '@/lib/supabase';
+import { createServerClient, createPublicClient } from '@/lib/supabase';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import { slugify } from '@/lib/utils';
 import { THEMES } from '@/lib/brand';
 import { SITE_URL } from '@/lib/metadata';
@@ -32,7 +33,8 @@ export const revalidate = 86400;
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const base = SITE_URL; // the build's own address: production in production, the staging address in staging
-  const supabase = createServerClient({ revalidate: 86400 });
+  // Public client (anonymous read) only when the flag is on. It is off until anonymous read on the two tables is confirmed.
+  const supabase = FEATURE_FLAGS.sitemapPublicClient ? createPublicClient({ revalidate: 86400 }) : createServerClient({ revalidate: 86400 });
 
   const staticPages = [
     // A7 (1 Oct 2026): the homepage exactly as Google inspects it ("https://bricksofindia.com/"),
