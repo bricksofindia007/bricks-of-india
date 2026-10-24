@@ -1,0 +1,28 @@
+name: Alert on scheduled runs that fail at start-up
+
+# Every six hours: any scheduled run in the last six hours that failed at start-up opens an issue.
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: read
+  issues: write
+
+jobs:
+  sweep:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - name: Check scheduled runs
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          LOOKBACK_HOURS: '6'
+        run: node scripts/ci/startup-failure-sweep.mjs
