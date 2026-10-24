@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import { trackEvent } from '@/lib/analytics';
-import { SHARE_TEXT, channelLink, shareEnabled, type ShareChannel, type ShareTarget } from '@/lib/share';
+import { SHARE_TEXT, VISIBLE_CHANNELS, channelLink, shareEnabled, type ShareChannel, type ShareTarget } from '@/lib/share';
 
 const LABELS: Record<ShareChannel, string> = {
   whatsapp: 'WhatsApp',
@@ -17,7 +17,7 @@ const LABELS: Record<ShareChannel, string> = {
   copy: 'Copy link',
 };
 
-const CHANNELS: ShareChannel[] = ['whatsapp', 'facebook', 'instagram', 'email', 'copy'];
+const CHANNELS = VISIBLE_CHANNELS;
 
 export function ShareControl({ target }: { target: ShareTarget }) {
   const [open, setOpen] = useState(false);

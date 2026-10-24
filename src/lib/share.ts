@@ -7,6 +7,9 @@ import { LAB_TOOLS } from '@/lib/lab-tools';
 export const SHARE_CHANNELS = ['whatsapp', 'facebook', 'instagram', 'email', 'copy'] as const;
 export type ShareChannel = (typeof SHARE_CHANNELS)[number];
 
+// Channels shown to the visitor. Instagram stays in SHARE_CHANNELS (registry and analytics) but is hidden until a card image exists.
+export const VISIBLE_CHANNELS: readonly ShareChannel[] = ['whatsapp', 'facebook', 'email', 'copy'];
+
 export type ShareTarget = {
   id: string;        // closed list: the analytics 'tool' parameter takes only these ids
   title: string;     // shared as the line of text

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { LAB_TOOLS } from '../src/lib/lab-tools';
 import {
-  SHARE_TARGETS, SHARE_TARGET_IDS, SHARE_TEXT, channelLink, shareEnabled, targetForPath,
+  SHARE_CHANNELS, SHARE_TARGETS, SHARE_TARGET_IDS, SHARE_TEXT, VISIBLE_CHANNELS, channelLink, shareEnabled, targetForPath,
 } from '../src/lib/share';
 import { FEATURE_FLAGS } from '../src/lib/feature-flags';
 import { sanitizeParams } from '../src/lib/analytics';
@@ -45,6 +45,19 @@ describe('registration', () => {
   it('finds a target by its page path, with or without a trailing slash', () => {
     expect(targetForPath('/minifig-hq')?.id).toBe('minifig-hq');
     expect(targetForPath('/lab/biryani-index/')?.id).toBe('biryani-index');
+  });
+});
+
+describe('visible channels', () => {
+  it('Instagram is hidden until a card image exists, but stays registered', () => {
+    expect(VISIBLE_CHANNELS).not.toContain('instagram');
+    expect(SHARE_CHANNELS).toContain('instagram');
+  });
+  it('the visible channels are the registered channels minus Instagram', () => {
+    expect([...VISIBLE_CHANNELS].sort()).toEqual(SHARE_CHANNELS.filter((c) => c !== 'instagram').sort());
+  });
+  it('analytics still accepts Instagram as a channel value', () => {
+    expect(sanitizeParams('click_share', { page_type: 'lab', tool: 'biryani-index', channel: 'instagram' }).channel).toBe('instagram');
   });
 });
 
