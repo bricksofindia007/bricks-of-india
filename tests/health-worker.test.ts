@@ -79,7 +79,7 @@ describe('evaluateCapacity', () => {
   });
 });
 
-import { checkNewsFreshness } from '../workers/boi-scheduler/src/health';
+import { checkNewsFreshness, checkRadarFreshness, checkPriceFreshness, checkDraftsBacklog } from '../workers/boi-scheduler/src/health';
 
 describe('checkNewsFreshness', () => {
   const NOW = '2026-10-24T12:00:00.000Z';
@@ -90,10 +90,52 @@ describe('checkNewsFreshness', () => {
     const r = checkNewsFreshness('2026-10-10T12:00:00.000Z', NOW, false);
     expect(r).toMatchObject({ ok: false, kind: 'stale', failure: 'news-stale' });
   });
-  it('no article at all is stale, never fresh', () => {
-    expect(checkNewsFreshness(null, NOW, false)).toMatchObject({ ok: false, kind: 'stale', failure: 'news-stale' });
+  it('no article row at all is an infrastructure failure, never fresh', () => {
+    expect(checkNewsFreshness(null, NOW, false)).toMatchObject({ ok: false, kind: 'infra', failure: 'news-freshness-crashed' });
   });
   it('a failed read is an infrastructure failure, not staleness', () => {
     expect(checkNewsFreshness('2026-10-24T11:00:00.000Z', NOW, true)).toEqual({ ok: false, kind: 'infra', failure: 'news-freshness-crashed', ageDays: null });
+  });
+});
+
+describe('checkRadarFreshness', () => {
+  const NOW = '2026-10-24T12:00:00.000Z';
+  it('fresh within 25 hours', () => {
+    expect(checkRadarFreshness('2026-10-24T06:00:00.000Z', NOW, false)).toEqual({ ok: true, kind: 'fresh', failure: null, ageHours: 6 });
+  });
+  it('stale after 25 hours, with the script failure name', () => {
+    expect(checkRadarFreshness('2026-10-22T12:00:00.000Z', NOW, false)).toMatchObject({ ok: false, kind: 'stale', failure: 'radar-stale' });
+  });
+  it('no signal row, or a failed read, is an infrastructure failure', () => {
+    expect(checkRadarFreshness(null, NOW, false)).toMatchObject({ kind: 'infra', failure: 'radar-check-error' });
+    expect(checkRadarFreshness('2026-10-24T11:00:00.000Z', NOW, true)).toMatchObject({ kind: 'infra', failure: 'radar-check-error' });
+  });
+});
+
+describe('checkPriceFreshness', () => {
+  const NOW = '2026-10-24T12:00:00.000Z';
+  it('fresh within 26 hours', () => {
+    expect(checkPriceFreshness('2026-10-24T01:00:00.000Z', NOW, false)).toEqual({ ok: true, kind: 'fresh', failure: null, ageHours: 11 });
+  });
+  it('stale after 26 hours, with the script failure name', () => {
+    expect(checkPriceFreshness('2026-10-23T09:00:00.000Z', NOW, false)).toMatchObject({ ok: false, kind: 'stale', failure: 'prices-stale' });
+  });
+  it('no row, or a failed read, is an infrastructure failure', () => {
+    expect(checkPriceFreshness(null, NOW, false)).toMatchObject({ kind: 'infra', failure: 'prices-check-error' });
+    expect(checkPriceFreshness('2026-10-24T11:00:00.000Z', NOW, true)).toMatchObject({ kind: 'infra', failure: 'prices-check-error' });
+  });
+});
+
+describe('checkDraftsBacklog', () => {
+  it('ok at or below 50', () => {
+    expect(checkDraftsBacklog(50, false)).toEqual({ ok: true, kind: 'ok', failure: null, count: 50 });
+  });
+  it('backlog above 50, with the script failure name', () => {
+    expect(checkDraftsBacklog(51, false)).toMatchObject({ ok: false, kind: 'backlog', failure: 'drafts-backlog', count: 51 });
+  });
+  it('a failed read, or a missing count, is an infrastructure failure, never ok', () => {
+    expect(checkDraftsBacklog(0, true)).toMatchObject({ kind: 'infra', failure: 'drafts-check-error' });
+    expect(checkDraftsBacklog(null, false)).toMatchObject({ kind: 'infra', failure: 'drafts-check-error' });
+    expect(checkDraftsBacklog(Number.NaN, false)).toMatchObject({ kind: 'infra', failure: 'drafts-check-error' });
   });
 });
