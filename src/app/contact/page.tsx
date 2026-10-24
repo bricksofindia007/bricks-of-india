@@ -7,6 +7,7 @@ import Image from 'next/image'
 import { MASCOTS, BRAND } from '@/lib/brand'
 import { submitContact, type ContactFormState } from '@/app/actions/contact'
 import { TrackedLink } from '@/components/analytics/TrackedLink'
+import { FEATURE_FLAGS } from '@/lib/feature-flags'
 
 const initial: ContactFormState = { ok: false }
 
@@ -93,6 +94,13 @@ function ContactForm() {
           placeholder="Partnership, spotlight pitch, technical issue..."
         />
       </div>
+
+      {FEATURE_FLAGS.privacyRequestOption && (
+        <label className="flex items-center gap-2 text-sm font-bold text-dark">
+          <input type="checkbox" name="topic" value="privacy" className="h-4 w-4" />
+          Privacy request
+        </label>
+      )}
 
       <div>
         <label className="block text-sm font-bold text-dark mb-1">Message</label>

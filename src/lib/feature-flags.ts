@@ -121,4 +121,8 @@ export const FEATURE_FLAGS = {
   // wording wait for the accounts launch (H2), owner review and Chat. Mirrored in config/feature_flags.py; keep in sync.
   dataDeletionPage: false,
   ageRulePage: false,
+
+  // Contact form: "Privacy request" tick sends the message to the privacy mailbox (23 Oct 2026). Off: the tick is not shown
+  // and every message goes to the general address. Mirrored in config/feature_flags.py; keep in sync.
+  privacyRequestOption: false,
 } as const;
