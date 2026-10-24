@@ -8,7 +8,7 @@ import { join } from 'node:path';
 const flags = vi.hoisted(() => ({ aiSpendGuardPilot: false }));
 vi.mock('../src/lib/feature-flags', () => ({ FEATURE_FLAGS: flags }));
 
-const db = vi.hoisted(() => ({ rows: [] as Array<{ calls: number; input_tokens: number; output_tokens: number; rupees: number }>, readError: false, reads: 0, rpcs: [] as unknown[] }));
+const db = vi.hoisted(() => ({ rows: [] as Array<{ provider: string; calls: number; input_tokens: number; output_tokens: number; rupees: number }>, readError: false, reads: 0, rpcs: [] as unknown[] }));
 vi.mock('../src/lib/supabase', () => ({
   createServerClient: () => ({
     from: () => {
@@ -46,7 +46,7 @@ beforeEach(() => {
 
 describe('flag off', () => {
   it('allows the call without reading the counter', async () => {
-    db.rows = [{ calls: cap, input_tokens: 0, output_tokens: 0, rupees: 0 }];
+    db.rows = [{ provider: 'groq', calls: cap, input_tokens: 0, output_tokens: 0, rupees: 0 }];
     expect(await guardAiCall('groq', NOW)).toEqual({ allowed: true, reason: null });
     expect(db.reads).toBe(0);
   });
@@ -61,22 +61,27 @@ describe('flag on', () => {
     flags.aiSpendGuardPilot = true;
   });
   it('allows a call under every cap', async () => {
-    db.rows = [{ calls: 10, input_tokens: 500, output_tokens: 500, rupees: 0.5 }];
+    db.rows = [{ provider: 'groq', calls: 10, input_tokens: 500, output_tokens: 500, rupees: 0.5 }];
     expect(await guardAiCall('groq', NOW)).toEqual({ allowed: true, reason: null });
   });
   it('sums the day\'s rows for the provider across models', async () => {
     db.rows = [
-      { calls: cap - 1, input_tokens: 10, output_tokens: 10, rupees: 0 },
-      { calls: 1, input_tokens: 10, output_tokens: 10, rupees: 0 },
+      { provider: 'groq', calls: cap - 1, input_tokens: 10, output_tokens: 10, rupees: 0 },
+      { provider: 'groq', calls: 1, input_tokens: 10, output_tokens: 10, rupees: 0 },
     ];
     expect(await guardAiCall('groq', NOW)).toEqual({ allowed: false, reason: 'groq daily limit reached' });
   });
-  it('refuses at the rupee stop, even with calls and tokens under their caps', async () => {
-    db.rows = [{ calls: 3, input_tokens: 1000, output_tokens: 1000, rupees: 10 }];
+  it('the rupee stop is the total across providers: a Groq call is refused when Gemini alone spent Rs 13', async () => {
+    flags.aiSpendGuardPilot = true;
+    db.rows = [{ provider: 'gemini', calls: 2, input_tokens: 100, output_tokens: 100, rupees: 13 }, { provider: 'groq', calls: 0, input_tokens: 0, output_tokens: 0, rupees: 0 }];
+    const r = await guardAiCall('groq', NOW);
+    expect(r.allowed).toBe(false);
+  });  it('refuses at the rupee stop, even with calls and tokens under their caps', async () => {
+    db.rows = [{ provider: 'groq', calls: 3, input_tokens: 1000, output_tokens: 1000, rupees: 13 }];
     expect((await guardAiCall('groq', NOW)).allowed).toBe(false);
   });
   it('refuses at the daily token cap', async () => {
-    db.rows = [{ calls: 1, input_tokens: config.ai.providers.groq.daily_tokens, output_tokens: 0, rupees: 0 }];
+    db.rows = [{ provider: 'groq', calls: 1, input_tokens: config.ai.providers.groq.daily_tokens, output_tokens: 0, rupees: 0 }];
     expect((await guardAiCall('groq', NOW)).allowed).toBe(false);
   });
   it('the day starts from zero: no rows means nothing used yet', async () => {

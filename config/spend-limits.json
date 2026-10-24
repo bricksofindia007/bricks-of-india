@@ -64,8 +64,9 @@
     "note": "Stored value used for rupee cost. Replace when the exchange-rate job is in place."
   },
   "rupee_stop": {
-    "warn_inr": 6,
-    "stop_inr": 10
+    "warn_inr": 8,
+    "stop_inr": 13,
+    "absolute_ceiling_inr": 100
   },
   "supabase_egress_gb": {
     "alert": 3.5,

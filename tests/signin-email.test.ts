@@ -46,7 +46,7 @@ function memStore() {
       sends.set(day, (sends.get(day) ?? 0) - 1);
       return true;
     },
-    async accountExists(eh: string) { calls.push('accountExists'); return accounts.has(eh); },
+    async accountExists(email: string) { calls.push('accountExists'); return accounts.has(email); },
     async lastCodeIssuedAt(eh: string) {
       calls.push('lastCodeIssuedAt');
       const rows = codes.filter((c) => c.emailHash === eh);
@@ -118,7 +118,7 @@ describe('flag', () => {
 
 describe('the reply is the same for every address', () => {
   it('known and unknown addresses, box ticked or not: identical status and body', async () => {
-    mem.store.accounts.add(emailHash('known@example.com', KEY));
+    mem.store.accounts.add('known@example.com');
     const cases = [
       { rawEmail: 'known@example.com', ageConfirmed: true },
       { rawEmail: 'known@example.com', ageConfirmed: false },
@@ -189,7 +189,7 @@ describe('who gets a code', () => {
     expect(mem.sends.size).toBe(0);
   });
   it('an existing account is sent a code without the box', async () => {
-    mem.store.accounts.add(emailHash('a@example.com', KEY));
+    mem.store.accounts.add('a@example.com');
     const { d, sent } = deps(mem.store);
     await request({ rawEmail: 'a@example.com', ageConfirmed: false, now: T0 }, d);
     expect(sent).toHaveLength(1);
