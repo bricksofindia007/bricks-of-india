@@ -63,6 +63,25 @@ export function errorRateFromResponses(responses) {
 }
 
 /**
+ * Pure. Turns the load generator's counts ({ since, classes: { class: { status|timeout|exception: n } } }) into one record
+ * per response, for errorRateFromResponses. The not-found class is the profile class '(not found)'.
+ */
+export function responsesFromCounts(counts) {
+  const out = [];
+  for (const [cls, row] of Object.entries(counts?.classes ?? {})) {
+    const pageClass = cls === '(not found)' ? 'not-found' : 'page';
+    for (const [key, n] of Object.entries(row)) {
+      for (let i = 0; i < n; i++) {
+        if (key === 'timeout') out.push({ status: 0, pageClass, timeout: true });
+        else if (key === 'exception') out.push({ status: 0, pageClass, exception: true });
+        else out.push({ status: Number(key), pageClass });
+      }
+    }
+  }
+  return out;
+}
+
+/**
  * Pure. Returns { ok, failures, overridden, log }.
  * @param {object} input
  * @param {string} input.sha

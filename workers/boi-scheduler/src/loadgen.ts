@@ -6,6 +6,20 @@
 
 export const LOADGEN_CRON = '* * * * *';
 export const LOADGEN_KEY = 'meta:loadgen:heartbeat';
+// Per-class, per-status counts for the measurement, kept in the flag store (the same KV namespace as flag:v1).
+export const LOADGEN_COUNTS_KEY = 'loadgen:counts';
+
+/** One response's outcome: an HTTP status, or 'timeout' or 'exception' when there was no response. */
+export type OutcomeKey = string;
+export interface ClassCounts { since: string; classes: Record<string, Record<OutcomeKey, number>> }
+
+/** Pure. Adds one outcome to the counts. A new window (different since) starts the counts again. */
+export function addOutcome(counts: ClassCounts | null, since: string, cls: string, key: OutcomeKey): ClassCounts {
+  const base: ClassCounts = counts && counts.since === since ? counts : { since, classes: {} };
+  const row = base.classes[cls] ?? {};
+  row[key] = (row[key] ?? 0) + 1;
+  return { since, classes: { ...base.classes, [cls]: row } };
+}
 export const PER_MINUTE = 60;
 export const REQUEST_TIMEOUT_MS = 15_000;
 
@@ -13,7 +27,7 @@ export interface Profile { classes: { template: string; share: number }[] }
 export type Samples = Record<string, string[]>;   // route template -> concrete paths on staging, from the staging sitemap
 
 export interface LoadgenEnv {
-  BOI_SNAPSHOTS: { get(k: string): Promise<string | null>; put(k: string, v: string): Promise<void> };
+  BOI_SNAPSHOTS: { get(k: string, type?: 'json'): Promise<any>; put(k: string, v: string): Promise<void> };
   TARGET: string;
   STAGING_SITE_URL?: string;     // e.g. the staging site address (a variable, not a secret)
   LOADGEN_START?: string;        // ISO time; the window opens here
@@ -69,17 +83,19 @@ export function pickTemplate(profile: Profile, samples: Samples, rand: () => num
 }
 
 /** Pure. The paths to request in one minute: PER_MINUTE picks from the profile, each with a seeded choice of sample path. */
-export function planMinute(profile: Profile, samples: Samples, seed: number, count = PER_MINUTE): { paths: string[]; skipped: number } {
+export function planMinute(profile: Profile, samples: Samples, seed: number, count = PER_MINUTE): { paths: string[]; classes: string[]; skipped: number } {
   const rand = seededRandom(seed);
   const paths: string[] = [];
+  const classes: string[] = [];
   let skipped = 0;
   for (let i = 0; i < count; i++) {
     const t = pickTemplate(profile, samples, rand);
     if (!t) { skipped++; continue; }
     const list = samples[t];
     paths.push(list[Math.floor(rand() * list.length)]);
+    classes.push(t);
   }
-  return { paths, skipped };
+  return { paths, classes, skipped };
 }
 
 export interface MinuteResult { minute: string; planned: number; sent: number; ok: number; errors: number; skipped: number; state: 'sent' | 'closed' | 'refused' | 'off' }
@@ -114,21 +130,31 @@ export async function runMinute(
   const seed = Math.floor(nowMs / 60000);
   const plan = planMinute(profile, samples, seed);
   let ok = 0, errors = 0;
+  const since = env.LOADGEN_START ?? '';
+  const outcomes: { cls: string; key: OutcomeKey }[] = [];
   // Spread the requests across the minute: one every 1000 ms / PER_MINUTE * 60 (about one per second).
   await Promise.all(plan.paths.map(async (p, i) => {
     await new Promise((res) => setTimeout(res, Math.floor(i * spacingMs)));
+    const cls = plan.classes[i];
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
     try {
       const res = await fetchImpl(base + p, { method: 'GET', redirect: 'manual', signal: controller.signal });
       await res.body?.cancel();
       if (res.status < 400) ok++; else errors++;
-    } catch {
+      outcomes.push({ cls, key: String(res.status) });
+    } catch (e) {
       errors++;  // the error text is not recorded: it can echo request details
+      const timedOut = (e as { name?: string })?.name === 'AbortError';
+      outcomes.push({ cls, key: timedOut ? 'timeout' : 'exception' });
     } finally {
       clearTimeout(timer);
     }
   }));
+  // Counts by class and status for this window, read and written back to the flag store.
+  let counts = (await env.BOI_SNAPSHOTS.get(LOADGEN_COUNTS_KEY, 'json')) as ClassCounts | null;
+  for (const o of outcomes) counts = addOutcome(counts, since, o.cls, o.key);
+  if (outcomes.length > 0) await env.BOI_SNAPSHOTS.put(LOADGEN_COUNTS_KEY, JSON.stringify(counts ?? { since, classes: {} }));
   const r: MinuteResult = { minute, planned: PER_MINUTE, sent: plan.paths.length, ok, errors, skipped: plan.skipped, state: 'sent' };
   await env.BOI_SNAPSHOTS.put(LOADGEN_KEY, JSON.stringify(r));
   return r;

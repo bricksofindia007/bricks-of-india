@@ -9,6 +9,7 @@
 // Read-only except for the output files. Prints counts and times only.
 import fs from 'node:fs';
 import crypto from 'node:crypto';
+import { isFailedResponse, errorRateFromResponses } from '../ci/deploy-gate.mjs';
 
 const GRAPHQL = 'https://api.cloudflare.com/client/v4/graphql';
 export const FIXED_URLS = ['/', '/sets', '/themes', '/themes/city', '/themes/city/sort/price-asc', '/compare', '/deals', '/reviews', '/news', '/lab/budget-calculator'];
@@ -118,16 +119,31 @@ async function cmdPages(env) {
   return { compared: out.length, differences: out.filter((o) => !o.same), markup_report: { pages_with_markup_differences: markupDiffering, blocking: false }, all: out };
 }
 
-async function cmdAssemble(env, cpu, pages) {
+// Reads the load generator's per-class, per-status counts from the flag store (KV). Read-only. Writes COUNTS_OUT.
+async function cmdCounts(env) {
+  const key = encodeURIComponent('loadgen:counts');
+  const url = `https://api.cloudflare.com/client/v4/accounts/${env.CLOUDFLARE_ACCOUNT_ID}/storage/kv/namespaces/${env.KV_NAMESPACE_ID}/values/${key}`;
+  const r = await fetch(url, { headers: { authorization: `Bearer ${env.CLOUDFLARE_API_TOKEN}` } });
+  if (!r.ok) throw new Error(`counts read failed: HTTP ${r.status}`);
+  const counts = await r.json();
+  if (counts.since !== env.WINDOW_START) throw new Error('counts are from a different window than WINDOW_START');
+  fs.writeFileSync(env.COUNTS_OUT || 'counts.json', JSON.stringify(counts, null, 2));
+  return counts;
+}
+
+async function cmdAssemble(env, cpu, pages, responses) {
   const profileSha = crypto.createHash('sha256').update(fs.readFileSync(env.LOAD_PROFILE)).digest('hex');
   const rows = JSON.parse(fs.readFileSync(env.ROW_COUNTS, 'utf8'));
+  const failed = responses.filter((r) => isFailedResponse(r)).length;
   const ev = {
     measured_sha: env.MEASURED_SHA,
     cpu_median_ms: cpu.cpu_median_ms,
     warmup_hours: 1,
     sample_hours: cpu.sample_hours,
-    requests_measured: cpu.requests,
-    error_rate: cpu.error_rate,
+    requests_measured: responses.length,
+    worker_requests: cpu.requests,
+    error_rate: errorRateFromResponses(responses),
+    response_summary: { total: responses.length, failed },
     load_profile_sha256: profileSha,
     staging_rows: rows.staging,
     production_rows: rows.production,
@@ -142,6 +158,7 @@ async function main() {
   const env = process.env;
   const cmd = process.argv[2];
   if (cmd === 'cpu') { console.log(JSON.stringify(await cmdCpu(env), null, 2)); return 0; }
+  if (cmd === 'counts') { const c = await cmdCounts(env); console.log(`counts: ${Object.keys(c.classes ?? {}).length} classes`); return 0; }
   if (cmd === 'pages') {
     const p = await cmdPages(env);
     console.log(`compared ${p.compared} URLs on visible text; ${p.differences.length} differ (blocking)`);
@@ -153,16 +170,18 @@ async function main() {
   if (cmd === 'assemble') {
     const cpu = JSON.parse(fs.readFileSync(env.CPU_OUT || 'cpu.json', 'utf8'));
     const pages = JSON.parse(fs.readFileSync(env.PAGES_OUT || 'pages-diff.json', 'utf8'));
-    const ev = await cmdAssemble(env, cpu, pages);
-    const { evaluateGate } = await import('../ci/deploy-gate.mjs');
-    const check = evaluateGate({ sha: ev.measured_sha, checkRuns: [], diffFiles: [], evidence: ev, rollbackTarget: ev.rollback_target, profileSha: ev.load_profile_sha256, override: null });
+    const counts = JSON.parse(fs.readFileSync(env.COUNTS_OUT || 'counts.json', 'utf8'));
+    const { evaluateGate, responsesFromCounts } = await import('../ci/deploy-gate.mjs');
+    const responses = responsesFromCounts(counts);
+    const ev = await cmdAssemble(env, cpu, pages, responses);
+    const check = evaluateGate({ sha: ev.measured_sha, checkRuns: [], diffFiles: [], evidence: ev, rollbackTarget: ev.rollback_target, profileSha: ev.load_profile_sha256, override: null, responses });
     // The gate's check-run rules are not evaluated here: only the measurement rules.
     const measurementFailures = check.failures.filter((f) => !f.startsWith('check '));
     console.log(measurementFailures.length ? `measurement NOT passing: ${measurementFailures.join('; ')}` : 'measurement passes the gate rules');
     fs.writeFileSync(env.GATE_OUT || 'docs/release/gates/current.json', JSON.stringify(ev, null, 2) + '\n');
     return measurementFailures.length ? 1 : 0;
   }
-  console.error('usage: measure-release.mjs cpu | pages | assemble');
+  console.error('usage: measure-release.mjs cpu | counts | pages | assemble');
   return 2;
 }
 

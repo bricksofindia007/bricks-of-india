@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   evaluateGate, resolveChecked, REQUIRED_CHECKS, CPU_LINE_MS, MIN_SAMPLE_HOURS, MIN_REQUESTS, MIN_REASON_CHARS,
-  isFailedResponse, errorRateFromResponses,
+  isFailedResponse, errorRateFromResponses, responsesFromCounts,
 } from '../scripts/ci/deploy-gate.mjs';
 
 const SHA = 'aaaaaaa1111111111111111111111111111111aa';
@@ -220,5 +220,23 @@ describe('failed requests (rule approved 24 Oct 2026, 12:23 IST)', () => {
     expect(evaluateGate(i).failures.join(' ')).toMatch(/error rate/);
     i.responses = Array.from({ length: 1000 }, (_, n) => ({ status: n < 4 ? 500 : 200, pageClass: 'page' as const }));   // 4 of 1000 = 0.4%
     expect(evaluateGate(i).failures.join(' ')).not.toMatch(/error rate/);
+  });
+});
+
+
+describe('counts become per-response records', () => {
+  it('a correct 404 on the not-found class is not counted; the other failures are', () => {
+    const counts = { since: 'x', classes: {
+      '(not found)': { '404': 5, '200': 2 },
+      '/a': { '200': 10, '404': 1, '500': 1, timeout: 1 },
+    } };
+    const responses = responsesFromCounts(counts);
+    expect(responses.length).toBe(20);
+    expect(responses.filter((r: any) => isFailedResponse(r)).length).toBe(5);
+    expect(errorRateFromResponses(responses)).toBe(0.25);
+  });
+  it('no counts gives no responses and no rate', () => {
+    expect(responsesFromCounts(null)).toEqual([]);
+    expect(errorRateFromResponses([])).toBeNull();
   });
 });
