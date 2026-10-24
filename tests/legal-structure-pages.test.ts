@@ -21,9 +21,10 @@ describe('legal structure pages', () => {
       expect(src).toMatch(/if \(!FEATURE_FLAGS\.\w+\) notFound\(\)/);
       expect(src).toMatch(/index: false/);
     });
-    it(`${p} carries no approved copy (placeholders only)`, () => {
+    it(`${p} renders its approved text from the copy module`, () => {
       const src = readFileSync(join(root, p), 'utf8');
-      expect(src).toMatch(/\[Copy pending/);
+      expect(src).toMatch(/from '@\/lib\/legal-copy'/);
+      expect(src).not.toMatch(/\[Copy pending/);
     });
   }
 });

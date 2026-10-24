@@ -1,9 +1,10 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import { AGE_RULE_COPY } from '@/lib/legal-copy';
 
-// Structure only (queue item 4). The 18+ rule wording comes from the owner and Chat; the guardian-consent path is
-// not built. Off until FEATURE_FLAGS.ageRulePage is true. Not indexed while it is a placeholder.
+// Approved wording (23 Oct 2026). Off until FEATURE_FLAGS.ageRulePage is true, and not to be switched on while the
+// approved text still has bracketed fields (tests/legal-approved-copy.test.ts). Not indexed.
 export const metadata: Metadata = {
   title: 'Age rule',
   robots: { index: false, follow: false },
@@ -13,9 +14,8 @@ export default function AgeRulePage() {
   if (!FEATURE_FLAGS.ageRulePage) notFound();
   return (
     <main className="mx-auto max-w-3xl px-4 py-12">
-      <h1 className="font-heading text-dark text-4xl mb-6">Age rule</h1>
-      <p className="text-dark/70 mb-4">[Copy pending: owner approval and Chat draft]</p>
-      <p className="text-dark/60">[Guardian-consent path not built: waits for the consent model (FP7.3)]</p>
+      <h1 className="font-heading text-dark text-4xl mb-6">{AGE_RULE_COPY.heading}</h1>
+      <p className="text-dark/80 leading-relaxed">{AGE_RULE_COPY.body}</p>
     </main>
   );
 }
