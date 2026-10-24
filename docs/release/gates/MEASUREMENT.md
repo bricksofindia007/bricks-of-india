@@ -14,7 +14,7 @@ Staging takes almost no real traffic, so a measurement cannot wait for visitors.
 - Concrete URLs are drawn from the staging database for each route, with a fixed random seed, so the same URLs are replayed every run.
 
 ## Window
-- Rate: constant 1 request per second, spread across each minute, from the staging load generator (the scheduler Worker's staging cron, enabled only for the window and disabled after it). 25 hours in total: the first hour is warm-up and is excluded from every number. The next 24 hours are the sample (about 86,400 requests).
+- Rate: constant 1 request per second, spread across each minute, from the staging load generator. The scheduler Worker's staging schedule entry is always present, but the generator sends requests only while its flag (`loadgen_enabled`) is on and the time is inside the window; otherwise each minute is recorded as idle (`off` or `closed`) and nothing is sent. 25 hours in total: the first hour is warm-up and is excluded from every number. The next 24 hours are the sample (about 86,400 requests).
 - `warmup_hours` = 1, `sample_hours` = 24, `requests_measured` = the sample count (must be at least 50,000).
 
 ## Representativeness check (run before the window starts; recorded in the measurement)
