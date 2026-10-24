@@ -14,3 +14,15 @@ describe('sitemap client flag', () => {
     expect(src).toMatch(/FEATURE_FLAGS\.sitemapPublicClient \? createPublicClient/);
   });
 });
+
+describe('the narrow priced-set source', () => {
+  const sql = readFileSync(join(__dirname, '..', 'supabase/migrations/20261024190000_priced_set_numbers.sql'), 'utf8');
+  it('returns only the set number: no price, store or product columns', () => {
+    expect(sql).toMatch(/returns table \(set_number text\)/);
+    expect(sql).not.toMatch(/price_inr\s*,|product_url|store_id|in_stock/);
+  });
+  it('is granted to anon only through the explicit grant, with a rollback file', () => {
+    expect(sql).toMatch(/grant execute on function public\.priced_set_numbers\(\) to anon, authenticated/);
+    expect(readFileSync(join(__dirname, '..', 'supabase/rollbacks/20261024190000_priced_set_numbers.rollback.sql'), 'utf8')).toMatch(/drop function if exists public\.priced_set_numbers/);
+  });
+});

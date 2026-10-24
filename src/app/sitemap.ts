@@ -107,15 +107,21 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   }
   // E6 (draft): only sets with a store price above zero are listed. Others leave the sitemap.
   const pricedSets = new Set<string>();
-  for (let offset = 0; ; offset += PAGE) {
-    const { data } = await supabase
-      .from('store_prices')
-      .select('set_id, price_inr')
-      .gt('price_inr', 0)
-      .range(offset, offset + PAGE - 1);
-    if (!data || data.length === 0) break;
-    for (const r of data) if (hasIndianPrice([r.price_inr])) pricedSets.add(r.set_id);
-    if (data.length < PAGE) break;
+  if (FEATURE_FLAGS.sitemapPublicClient) {
+    // Narrow source (migration 20261024190000_priced_set_numbers): only set numbers come back, never prices or stores.
+    const { data } = await supabase.rpc('priced_set_numbers');
+    for (const r of (data ?? []) as { set_number: string }[]) pricedSets.add(r.set_number);
+  } else {
+    for (let offset = 0; ; offset += PAGE) {
+      const { data } = await supabase
+        .from('store_prices')
+        .select('set_id, price_inr')
+        .gt('price_inr', 0)
+        .range(offset, offset + PAGE - 1);
+      if (!data || data.length === 0) break;
+      for (const r of data) if (hasIndianPrice([r.price_inr])) pricedSets.add(r.set_id);
+      if (data.length < PAGE) break;
+    }
   }
   // A1: set numbers containing "-" resolve to their own page again (src/lib/set-slug.ts), so all are listed.
   const setPages = allSets.filter((s) => pricedSets.has(s.set_number)).map((s) => ({
