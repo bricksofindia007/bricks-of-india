@@ -1,12 +1,13 @@
 -- Rollback for 20261017260000_price_summary_window_30h. Run by hand, in one transaction, only when approved.
--- Restores the 12-hour freshness window of public.set_price_summary (the window before the 30-hour change).
+-- Sets the freshness window of public.set_price_summary back to 26 hours (the window set by 20261017190000), then removes the migration ledger row.
+-- Expected after the rollback: the view definition contains 26:00:00 and not 30:00:00 (verify below, as a comment).
 begin;
 CREATE OR REPLACE VIEW public.set_price_summary WITH (security_invoker = true) AS
 WITH cur AS (
   SELECT sp.set_id, sp.store_id, sp.price_inr, sp.compare_at_price_inr, sp.in_stock, sp.scraped_at
   FROM public.store_prices sp
   JOIN public.stores st ON st.id = sp.store_id AND st.display_enabled
-  WHERE sp.price_inr IS NOT NULL AND sp.scraped_at > (now() - '12:00:00'::interval)
+  WHERE sp.price_inr IS NOT NULL AND sp.scraped_at > (now() - '26:00:00'::interval)
 ), anchor_row AS (
   SELECT DISTINCT ON (c.set_id) c.set_id, c.store_id, c.price_inr, c.compare_at_price_inr AS ca, st.anchor_policy
   FROM cur c
@@ -65,5 +66,7 @@ FROM anchored a
 LEFT JOIN live l ON l.set_id = a.set_id
 LEFT JOIN best_stores b ON b.set_id = a.set_id
 WHERE a.anchor_mrp_inr IS NOT NULL OR l.best_price_inr IS NOT NULL;
-
+delete from supabase_migrations.schema_migrations where version = '20261017260000';
 commit;
+-- Verify (expected: t)
+-- select pg_get_viewdef('public.set_price_summary'::regclass) like '%26:00:00%' and pg_get_viewdef('public.set_price_summary'::regclass) not like '%30:00:00%' as window_is_26h;
