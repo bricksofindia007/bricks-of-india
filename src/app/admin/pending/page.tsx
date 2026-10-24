@@ -10,6 +10,7 @@ import { GenerateBatchButton } from './GenerateBatchButton';
 import { LogoutEverywhereButton } from './LogoutEverywhereButton';
 import { PublishAllButton } from './PublishAllButton';
 import { DraftBodyExpander } from './DraftBodyExpander';
+import { TurnstileWidget } from '@/app/admin/turnstile-widget';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Bricks of India',
@@ -53,6 +54,7 @@ function LoginPage() {
         <h1 style={{ fontFamily: 'var(--font-fredoka)', fontSize: 24, fontWeight: 700, color: '#0F2D6B', marginBottom: 4 }}>BOI Admin</h1>
         <p style={{ fontSize: 13, color: '#6B7280', marginBottom: 24 }}>Pending Drafts</p>
         <form action={login}>
+          <TurnstileWidget />
           <input
             type="password" name="password" placeholder="Admin password" required autoFocus
             style={{ width: '100%', padding: '10px 12px', border: '2px solid #E4E7EB', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', boxSizing: 'border-box', marginBottom: 12, outline: 'none' }}
