@@ -21,10 +21,10 @@ export const CODE_COOLDOWN_MS = 60 * 1000;
 export const DAILY_SEND_STOP = 90;
 export const DAILY_SEND_WARN = 54;
 
-export const MSG_CHECK_EMAIL = 'If this address can sign in, a code is on its way.';
-export const MSG_INVALID = 'Please enter a valid email address.';
-export const MSG_GENERIC = 'Something went wrong. Please try again.';
-export const MSG_BAD_CODE = 'That code did not work. Check it, or ask for a new one.';
+export const MSG_CHECK_EMAIL = 'Check your inbox for a code.';
+export const MSG_INVALID = 'Enter a valid email address.';
+export const MSG_GENERIC = 'Something went wrong. Try again.';
+export const MSG_BAD_CODE = 'That code isn’t right. Check it, or ask for a new code.';
 
 /** Thrown by the mailer only when the provider clearly refuses the message. Any other error is an unclear outcome. */
 export class MailRefused extends Error {

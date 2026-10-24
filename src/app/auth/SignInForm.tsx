@@ -21,7 +21,7 @@ export function SignInForm() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
     });
-    return (await res.json().catch(() => ({ ok: false, message: 'Something went wrong. Please try again.' }))) as { ok: boolean; message?: string };
+    return (await res.json().catch(() => ({ ok: false, message: 'Something went wrong. Try again.' }))) as { ok: boolean; message?: string };
   }
 
   async function onEmail(e: FormEvent) {
@@ -33,7 +33,7 @@ export function SignInForm() {
       setMessage(r.message ?? null);
       if (r.ok) setStep('code');
     } catch {
-      setMessage('Something went wrong. Please try again.');
+      setMessage('Something went wrong. Try again.');
     } finally {
       setBusy(false);
     }
@@ -48,7 +48,7 @@ export function SignInForm() {
       if (r.ok) setStep('done');
       else setMessage(r.message ?? null);
     } catch {
-      setMessage('Something went wrong. Please try again.');
+      setMessage('Something went wrong. Try again.');
     } finally {
       setBusy(false);
     }

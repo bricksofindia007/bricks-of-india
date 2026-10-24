@@ -13,7 +13,7 @@ async function post(path: string, payload?: unknown): Promise<{ ok: boolean; mes
     headers: { 'Content-Type': 'application/json' },
     body: payload === undefined ? undefined : JSON.stringify(payload),
   });
-  return (await res.json().catch(() => ({ ok: false, message: 'Something went wrong. Please try again.' }))) as { ok: boolean; message?: string };
+  return (await res.json().catch(() => ({ ok: false, message: 'Something went wrong. Try again.' }))) as { ok: boolean; message?: string };
 }
 
 export function AccountDeleteForm() {
@@ -30,7 +30,7 @@ export function AccountDeleteForm() {
       setMessage(r.message ?? null);
       if (r.ok) setStep('code');
     } catch {
-      setMessage('Something went wrong. Please try again.');
+      setMessage('Something went wrong. Try again.');
     } finally {
       setBusy(false);
     }
@@ -44,7 +44,7 @@ export function AccountDeleteForm() {
       if (r.ok) setStep('done');
       else setMessage(r.message ?? null);
     } catch {
-      setMessage('Something went wrong. Please try again.');
+      setMessage('Something went wrong. Try again.');
     } finally {
       setBusy(false);
     }
