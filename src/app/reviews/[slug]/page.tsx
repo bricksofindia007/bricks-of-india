@@ -79,7 +79,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     path: `/reviews/${params.slug}`,
     image: socialCardImage(review.hero_image),
     ogTitle: `${productName} Review — Bricks of India`,
-    ogDescription: `${ratingBlurb}Honest verdict with live India price comparison.`,
+    ogDescription: `${ratingBlurb}Honest verdict with India price comparison.`,
     ogType: 'article',
   });
 }
