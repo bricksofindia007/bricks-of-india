@@ -48,4 +48,6 @@ jobs:
           RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
           BRIEF_EMAIL: ${{ secrets.BRIEF_EMAIL }}
           GH_DISPATCH_TOKEN: ${{ secrets.GH_DISPATCH_TOKEN }}
+          # growth_brief role (read-only, growth schema). Optional: unset shows "Unavailable" in the standee card.
+          GROWTH_BRIEF_DATABASE_URL: ${{ secrets.GROWTH_BRIEF_DATABASE_URL }}
         run: node scripts/morning-brief.mjs

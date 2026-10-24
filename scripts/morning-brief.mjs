@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { fetchStandeeData, summariseStandee, standeeLines } from './lib/standee.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
@@ -27,6 +28,8 @@ const RESEND_API_KEY = (process.env.RESEND_API_KEY    ?? '').replace(/^﻿/, '')
 const BRIEF_EMAIL    = (process.env.BRIEF_EMAIL       ?? '').replace(/^﻿/, '').trim();
 const GH_TOKEN       = (process.env.GH_DISPATCH_TOKEN ?? '').replace(/^﻿/, '').trim();
 const GH_REPO        = 'bricksofindia007/bricks-of-india';
+// Read-only role on the growth schema (standee numbers). Optional: without it the card says "Unavailable".
+const GROWTH_BRIEF_DB = (process.env.GROWTH_BRIEF_DATABASE_URL ?? '').replace(/^﻿/, '').trim();
 
 if (!SUPABASE_URL || !SERVICE_KEY) {
   console.error('Missing NEXT_PUBLIC_SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY');
@@ -179,9 +182,36 @@ function todaySignoff() {
   return SIGNOFFS[new Date().getDay() % SIGNOFFS.length];
 }
 
+// ── Section 6: Standee performance (growth engine data; never blocks the send) ──
+
+function istToday() {
+  return new Date().toLocaleDateString('en-CA', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
+}
+
+async function fetchStandee() {
+  if (!GROWTH_BRIEF_DB) return { error: 'GROWTH_BRIEF_DATABASE_URL not set' };
+  try {
+    const data = await fetchStandeeData(GROWTH_BRIEF_DB, { today: istToday() });
+    return summariseStandee(data);
+  } catch (e) {
+    // Log the error code only: pg messages can echo connection details.
+    return { error: `query failed (${e.code ?? e.name ?? 'unknown'})` };
+  }
+}
+
 // ── HTML builder ──────────────────────────────────────────────────────────────
 
-function buildHtml({ pipelines, freshness, pending, deadline, today }) {
+function standeeBody(standee) {
+  let lines;
+  try {
+    lines = standeeLines(standee);
+  } catch {
+    lines = ['Unavailable: could not render the standee summary.'];
+  }
+  return lines.map((l) => `<p style="margin:0 0 6px;font-size:13px;color:${NAVY};line-height:1.45;">${l}</p>`).join('');
+}
+
+function buildHtml({ pipelines, freshness, pending, deadline, standee, today }) {
   const scoreColor = HEALTH_SCORE >= 80 ? GREEN : HEALTH_SCORE >= 60 ? AMBER : RED;
 
   const s1 = card('1 &mdash; Health Score', `
@@ -262,7 +292,9 @@ function buildHtml({ pipelines, freshness, pending, deadline, today }) {
     `);
   }
 
-  const s6 = card('6 &mdash; Daily Dispatch', `
+  const s6 = card('6 &mdash; Standee Performance', standeeBody(standee));
+
+  const s7 = card('7 &mdash; Daily Dispatch', `
     <p style="margin:0;font-size:14px;color:${NAVY};font-style:italic;line-height:1.5;">
       &ldquo;${todaySignoff()}&rdquo;
     </p>
@@ -286,7 +318,7 @@ function buildHtml({ pipelines, freshness, pending, deadline, today }) {
       </td></tr>
       <tr><td style="background:#EBEBEB;padding:14px 0 0;">
         <table width="100%" cellpadding="0" cellspacing="0">
-          ${s1}${s2}${s3}${s4}${s5}${s6}
+          ${s1}${s2}${s3}${s4}${s5}${s6}${s7}
         </table>
       </td></tr>
       <tr><td style="background:#FFFFFF;border-radius:0 0 8px 8px;padding:14px 26px;
@@ -311,10 +343,11 @@ const today = new Date().toLocaleDateString('en-IN', {
 
 console.log('BRIEF-01: collecting data...');
 
-const [pipelines, freshness, pending] = await Promise.all([
+const [pipelines, freshness, pending, standee] = await Promise.all([
   fetchPipelineStatus(),
   fetchFreshness(),
   fetchPending(),
+  fetchStandee(),
 ]);
 
 const deadline = nextDeadline();
@@ -323,8 +356,9 @@ console.log('Pipelines:', pipelines.map(p => `${p.label}=${p.status}`).join(', '
 console.log('Freshness:', freshness.map(f => `${f.label}=${f.days != null ? f.days.toFixed(1) + 'd' : 'err'}`).join(', '));
 console.log(`Pending: approved=${pending.approved} draft=${pending.draft}`);
 console.log('Next deadline:', deadline ? `${deadline.label} in ${Math.ceil(deadline.daysLeft)}d` : 'none');
+console.log('Standee:', standee.error ? `unavailable (${standee.error})` : `latest=${standee.latest?.date ?? 'none'}`);
 
-const html = buildHtml({ pipelines, freshness, pending, deadline, today });
+const html = buildHtml({ pipelines, freshness, pending, deadline, standee, today });
 
 const res = await fetch('https://api.resend.com/emails', {
   method: 'POST',
