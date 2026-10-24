@@ -138,4 +138,7 @@ FEATURE_FLAGS = {
     # Link tags for YouTube and Instagram links (placements list, 23 Oct 2026). Off: the tags send
     # nothing; the links are unchanged. Mirrored in src/lib/feature-flags.ts; keep in sync.
     "key_events": False,
+    # Sign-in by email code (owner Option A, 23 Oct 2026). Off: no code is issued, counted or sent.
+    # Mirrored in src/lib/feature-flags.ts; keep in sync.
+    "sign_in_by_email": False,
 }
