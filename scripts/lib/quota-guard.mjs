@@ -120,3 +120,67 @@ export async function guardNonEssential(sb, jobName, needs, sendAlert) {
   }
   return { proceed: false, usage: u };
 }
+
+// ---------------------------------------------------------------------------
+// Counter guards (D2 and D13, 22 Oct 2026): request and send counters with a
+// stop line. Levels are shares of the cap: warn 60%, shed 80%, minimum 95%,
+// stop 100%. Each counter is an input here; a counter that can't be read
+// fails closed (no send, no request).
+//   shed:    non-essential sends and requests are refused
+//   minimum: only essential sends and requests are allowed
+//   stop:    nothing is allowed, essential or not
+// ---------------------------------------------------------------------------
+
+export const COUNTER_CAPS = Object.freeze({
+  r2ClassAMonth: { cap: 900000, unit: 'Class A ops this month', label: 'R2 Class A' },
+  brevoDay:      { cap: 270,    unit: 'Brevo sends today',       label: 'Brevo sends' },
+  resendDay:     { cap: 90,     unit: 'Resend sends today',      label: 'Resend sends' },
+});
+
+export const COUNTER_SHARES = Object.freeze({ warn: 0.6, shed: 0.8, minimum: 0.95 });
+
+/** Level for one counter value against its cap. */
+export function counterLevel(value, cap) {
+  if (!Number.isFinite(value) || !Number.isFinite(cap)) {
+    return { level: 'unreadable', ratio: null };
+  }
+  const ratio = value / cap;
+  if (value >= cap) return { level: 'stop', ratio };
+  if (ratio >= COUNTER_SHARES.minimum) return { level: 'minimum', ratio };
+  if (ratio >= COUNTER_SHARES.shed) return { level: 'shed', ratio };
+  if (ratio >= COUNTER_SHARES.warn) return { level: 'warning', ratio };
+  return { level: 'ok', ratio };
+}
+
+/** Decision for one counter. `essential` marks a send or request that must still go at shed. */
+export function mayUseCounter(name, value, { essential = false } = {}) {
+  const spec = COUNTER_CAPS[name];
+  if (!spec) throw new Error(`unknown counter: ${name}`);
+  const { level, ratio } = counterLevel(value, spec.cap);
+  const pct = ratio == null ? 'n/a' : `${Math.round(ratio * 100)}%`;
+  const detail = `${spec.label}: ${value ?? 'unreadable'} of ${spec.cap} (${pct})`;
+  if (level === 'unreadable') return { allowed: false, level: 'critical', reason: 'counter-unreadable', detail: `${spec.label} could not be read` };
+  if (level === 'stop') return { allowed: false, level: 'stop', reason: `${name}-stop`, detail };
+  if (level === 'minimum') return { allowed: essential, level: 'minimum', reason: `${name}-minimum`, detail };
+  if (level === 'shed') return { allowed: essential, level: 'shed', reason: `${name}-shed`, detail };
+  if (level === 'warning') return { allowed: true, level: 'warning', reason: `${name}-warning`, detail };
+  return { allowed: true, level: 'ok', reason: 'ok', detail };
+}
+
+/** Alert subject and body for a stop line or a refused send. Plain words, no internals. */
+export function counterAlert(name, decision) {
+  const spec = COUNTER_CAPS[name];
+  const subject = `BOI stop line: ${spec.label} (${decision.level})`;
+  const body = `${decision.detail}. Non-essential work is paused at this level; essential work is handled per level (shed: essential only; minimum: essential only; stop: all paused).`;
+  return { subject, body };
+}
+
+/** Weekly egress summary: subject and body only. The sender is the caller's existing alert path. */
+export function weeklyEgressEmail(usage, now = new Date()) {
+  const gb = usage?.egressProjectedGb;
+  const d = mayReadNonEssential(usage ?? {});
+  const shown = Number.isFinite(gb) ? `${gb.toFixed(2)} GB projected of 5 GB` : 'projection unavailable';
+  const subject = `BOI weekly egress: ${shown} (${d.level})`;
+  const body = `Week ending ${now.toISOString().slice(0, 10)}. Egress: ${shown}. Guard level: ${d.level}. ${d.detail}.`;
+  return { subject, body };
+}

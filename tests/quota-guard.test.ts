@@ -85,3 +85,59 @@ describe('egress projection shared vector', () => {
     expect(LIMITS.egress.blockGb).toBe(4.0);
   });
 });
+
+// D2 / D13 (22 Oct): counter stop lines, warn 60% / shed 80% / minimum 95%.
+import { mayUseCounter, counterAlert, weeklyEgressEmail, COUNTER_CAPS } from '../scripts/lib/quota-guard.mjs';
+
+describe('R2 Class A monthly: stop at 900,000', () => {
+  it.each([
+    [539999, 'ok'], [540000, 'warning'], [719999, 'warning'], [720000, 'shed'],
+    [854999, 'shed'], [855000, 'minimum'], [899999, 'minimum'], [900000, 'stop'],
+  ])('%s ops -> level=%s', (n, level) => {
+    expect(mayUseCounter('r2ClassAMonth', n).level).toBe(level);
+  });
+  it('stop refuses even essential work', () => {
+    expect(mayUseCounter('r2ClassAMonth', 900000, { essential: true }).allowed).toBe(false);
+  });
+});
+
+describe('Brevo sends per day: stop at 270', () => {
+  it.each([[161, 'ok'], [162, 'warning'], [216, 'shed'], [257, 'minimum'], [270, 'stop']])('%s sends -> level=%s', (n, level) => {
+    expect(mayUseCounter('brevoDay', n).level).toBe(level);
+  });
+  it('shed refuses non-essential sends and allows essential ones', () => {
+    expect(mayUseCounter('brevoDay', 216).allowed).toBe(false);
+    expect(mayUseCounter('brevoDay', 216, { essential: true }).allowed).toBe(true);
+  });
+  it('minimum allows only essential sends', () => {
+    expect(mayUseCounter('brevoDay', 257, { essential: true }).allowed).toBe(true);
+    expect(mayUseCounter('brevoDay', 257).allowed).toBe(false);
+  });
+});
+
+describe('Resend sends per day: cap at 90', () => {
+  it.each([[53, 'ok'], [54, 'warning'], [72, 'shed'], [86, 'minimum'], [90, 'stop']])('%s sends -> level=%s', (n, level) => {
+    expect(mayUseCounter('resendDay', n).level).toBe(level);
+  });
+});
+
+describe('unreadable counter fails closed', () => {
+  it('refuses when the count is missing, essential or not', () => {
+    expect(mayUseCounter('brevoDay', undefined).allowed).toBe(false);
+    expect(mayUseCounter('brevoDay', NaN, { essential: true }).allowed).toBe(false);
+  });
+});
+
+describe('alert and weekly egress email', () => {
+  it('stop-line alert names the counter and the level', () => {
+    const d = mayUseCounter('brevoDay', 270);
+    const a = counterAlert('brevoDay', d);
+    expect(a.subject).toBe('BOI stop line: Brevo sends (stop)');
+    expect(COUNTER_CAPS.brevoDay.cap).toBe(270);
+  });
+  it('weekly egress email carries the projection and the level', () => {
+    const e = weeklyEgressEmail({ storageMb: 427, dbMb: 181, egressProjectedGb: 3.85 }, new Date('2026-10-25T00:00:00Z'));
+    expect(e.subject).toBe('BOI weekly egress: 3.85 GB projected of 5 GB (warning)');
+    expect(e.body).toContain('Week ending 2026-10-25');
+  });
+});
