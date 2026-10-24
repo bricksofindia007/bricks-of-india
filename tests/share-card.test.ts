@@ -65,6 +65,11 @@ describe('the component is gated by the share flag', () => {
     expect(gate).toBeGreaterThan(0);
     expect(gate).toBeLessThan(src.indexOf('async function buildCard'));
   });
+  it('the Instagram path draws the story-format card and falls back to the approved line', () => {
+    const fn = src.slice(src.indexOf('async function onInstagram'), src.indexOf('async function onShare'));
+    expect(fn).toMatch(/buildCard\('story'\)/);
+    expect(fn).toMatch(/SHARE_TEXT\.instagramFallback/);
+  });
   it('sends nothing: no fetch, no beacon, no analytics call', () => {
     expect(src).not.toMatch(/fetch\(|sendBeacon|trackEvent|XMLHttpRequest/);
   });
