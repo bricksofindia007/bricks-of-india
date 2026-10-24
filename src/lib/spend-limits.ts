@@ -16,7 +16,7 @@ export function levelFor(used: number, cap: number, warnFraction: number): Level
 export type ProviderName = keyof typeof limits.ai.providers;
 export type ProviderUsage = { calls: number; tokens: number; rupees: number };
 
-/** Rupee spend for the day: warn at Rs 6, stop at Rs 10. */
+/** Rupee spend for the day: warn at the warning line, stop at the stop line (config/spend-limits.json). */
 export function rupeeLevel(inr: number): Level {
   const r = limits.rupee_stop;
   if (inr >= r.stop_inr) return 'stop';
@@ -35,9 +35,11 @@ export function aiCallDecision(provider: ProviderName, used: ProviderUsage) {
   const callLevel = levelFor(used.calls, p.daily_calls, w);
   const tokenLevel = levelFor(used.tokens, p.daily_tokens, w);
   const rupeeLvl = rupeeLevel(used.rupees);
+  // Absolute ceiling (owner's figure): reaching it means the stop was bypassed. Refuse regardless.
+  const ceilingHit = used.rupees >= limits.rupee_stop.absolute_ceiling_inr;
   const levels = [callLevel, tokenLevel, rupeeLvl];
-  const level: Level = levels.includes('stop') ? 'stop' : levels.includes('warn') ? 'warn' : 'ok';
-  return { allowed: level !== 'stop', level, callLevel, tokenLevel, rupeeLevel: rupeeLvl };
+  const level: Level = ceilingHit || levels.includes('stop') ? 'stop' : levels.includes('warn') ? 'warn' : 'ok';
+  return { allowed: level !== 'stop', level, callLevel, tokenLevel, rupeeLevel: rupeeLvl, ceilingHit };
 }
 
 /**

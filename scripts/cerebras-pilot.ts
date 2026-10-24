@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Cerebras pilot — 5 drafts generated via Cerebras Llama 3.3 70B using canonical BOI prompts.
  * No DB writes. No Resend alerts. No production side effects.
  *
@@ -27,6 +27,7 @@ import {
 import { lintDraft, type LintResult, type LintGateResult } from '../src/lib/lint';
 import { buildIndiaPriceContext } from './generate-approved-drafts';
 import { extractSetNumber } from '../src/lib/generate-body';
+import { guardAiCall, recordAiCall } from '../src/lib/spend-guard-pilot';
 
 // ── Env guards ────────────────────────────────────────────────────────────────
 
@@ -62,6 +63,9 @@ type CallFail = { ok: false; error: string };
 type CallResult = CallOk | CallFail;
 
 async function callCerebras(systemPrompt: string, userPrompt: string): Promise<CallResult> {
+  // Daily AI guard (shared across providers). Refused calls are not sent; successful calls are recorded.
+  const guard = await guardAiCall('cerebras');
+  if (!guard.allowed) return { ok: false, error: `Cerebras not called: ${guard.reason}` };
   const start   = Date.now();
   const payload = {
     model: CEREBRAS_MODEL,
@@ -96,6 +100,7 @@ async function callCerebras(systemPrompt: string, userPrompt: string): Promise<C
         choices: { message: { content: string } }[];
         usage?: { prompt_tokens?: number; completion_tokens?: number };
       };
+      await recordAiCall('cerebras', CEREBRAS_MODEL, json.usage?.prompt_tokens ?? 0, json.usage?.completion_tokens ?? 0);
       return {
         ok: true,
         raw: json.choices[0]?.message?.content ?? '',
