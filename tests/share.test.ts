@@ -87,10 +87,10 @@ describe('approved visible text', () => {
     expect(SHARE_TEXT.copied).toBe('Awesomeness is loading');
     expect(SHARE_TEXT.instagramFallback).toBe('Save the card, add it to your story. Time to make the world jealous');
   });
-  it('uses neutral words for lines not yet approved (issue 779)', () => {
-    expect(SHARE_TEXT.sheetTitle).toBe('Share');
-    expect(SHARE_TEXT.failureNoApp).toBe('Could not open. Try again.');
-    expect(SHARE_TEXT.failureGeneral).toBe('Something went wrong. Try again.');
+  it('uses the approved words for the sheet title and the failure lines', () => {
+    expect(SHARE_TEXT.sheetTitle).toBe('Pick where to send it.');
+    expect(SHARE_TEXT.failureNoApp).toBe('Nothing opened. Copy the link and send it yourself.');
+    expect(SHARE_TEXT.failureGeneral).toBe('That didn’t go through. Nothing’s lost. Try again, or copy the link.');
   });
 });
 
