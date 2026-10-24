@@ -1,0 +1,11 @@
+# Secret-scan rules for pull requests. Patterns only: no sensitive words, no names, no terms.
+# The scanner's built-in rules (keys, tokens, private keys, connection strings) stay on.
+# Allowlist entries are added only with a reason, one per line, reviewed in a pull request.
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Known placeholders that are not credentials"
+regexes = [
+  '''(?i)example[-_]?(key|token|secret)''',
+]
