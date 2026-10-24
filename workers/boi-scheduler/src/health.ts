@@ -64,3 +64,27 @@ export function evaluateStaleness(lastIso: string | null | undefined, nowIso: st
     ? { ok: true, ageHours, reason: 'fresh' }
     : { ok: false, ageHours, reason: 'stale' };
 }
+
+// Capacity check (first real check ported). Thresholds are inputs; the Worker does not read the database here.
+export interface CapacityLimits { dbWarnMb: number; dbCritMb: number; storageWarnMb: number; storageCritMb: number }
+export type CapacityLevel = 'ok' | 'warning' | 'critical' | 'unknown';
+export interface CapacityResult { db: CapacityLevel; storage: CapacityLevel; failures: string[] }
+
+function level(value: number, warn: number, crit: number): CapacityLevel {
+  if (!Number.isFinite(value)) return 'unknown';
+  if (value >= crit) return 'critical';
+  if (value >= warn) return 'warning';
+  return 'ok';
+}
+
+/** Pure: database and storage sizes against their warning and critical lines. An unreadable size is never reported as ok. */
+export function evaluateCapacity(dbMb: number, storageMb: number, limits: CapacityLimits): CapacityResult {
+  const db = level(dbMb, limits.dbWarnMb, limits.dbCritMb);
+  const storage = level(storageMb, limits.storageWarnMb, limits.storageCritMb);
+  const failures: string[] = [];
+  if (db === 'unknown') failures.push('capacity-unreadable-db');
+  else if (db !== 'ok') failures.push(`db-size-${db}`);
+  if (storage === 'unknown') failures.push('capacity-unreadable-storage');
+  else if (storage !== 'ok') failures.push(`storage-size-${storage}`);
+  return { db, storage, failures };
+}

@@ -60,3 +60,21 @@ describe('evaluateStaleness', () => {
     expect(evaluateStaleness('not a date', NOW, 24)).toEqual({ ok: false, ageHours: null, reason: 'bad_timestamp' });
   });
 });
+
+import { evaluateCapacity } from '../workers/boi-scheduler/src/health';
+
+describe('evaluateCapacity', () => {
+  const L = { dbWarnMb: 400, dbCritMb: 450, storageWarnMb: 800, storageCritMb: 900 };
+  it('ok below the warning lines', () => {
+    expect(evaluateCapacity(100, 100, L)).toEqual({ db: 'ok', storage: 'ok', failures: [] });
+  });
+  it('warning at the warning line, critical at the critical line', () => {
+    expect(evaluateCapacity(400, 800, L).failures).toEqual(['db-size-warning', 'storage-size-warning']);
+    expect(evaluateCapacity(450, 900, L).failures).toEqual(['db-size-critical', 'storage-size-critical']);
+  });
+  it('an unreadable size is never ok', () => {
+    const r = evaluateCapacity(Number.NaN, 100, L);
+    expect(r.db).toBe('unknown');
+    expect(r.failures).toEqual(['capacity-unreadable-db']);
+  });
+});
