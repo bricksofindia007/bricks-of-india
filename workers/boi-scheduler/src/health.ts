@@ -101,8 +101,26 @@ export interface NewsFreshnessResult {
 
 /** Pure: the news freshness rule. queryFailed means the read itself broke. */
 export function checkNewsFreshness(publishedAt: string | null | undefined, nowIso: string, queryFailed: boolean): NewsFreshnessResult {
-  if (queryFailed) return { ok: false, kind: 'infra', failure: 'news-freshness-crashed', ageDays: null };
+  // A failed read, or no row at all (the script's single-row read errors on zero rows), is an infrastructure failure.
+  if (queryFailed || !publishedAt) return { ok: false, kind: 'infra', failure: 'news-freshness-crashed', ageDays: null };
   const r = evaluateStaleness(publishedAt, nowIso, NEWS_MAX_DAYS * 24);
   if (r.ok) return { ok: true, kind: 'fresh', failure: null, ageDays: r.ageHours === null ? null : r.ageHours / 24 };
   return { ok: false, kind: 'stale', failure: 'news-stale', ageDays: r.ageHours === null ? null : r.ageHours / 24 };
+}
+
+// RADAR freshness check (health check, check 3): stale after 25 hours. A failed or empty read is an infrastructure failure.
+export const RADAR_MAX_HOURS = 25;
+export interface RadarFreshnessResult {
+  ok: boolean;
+  kind: 'fresh' | 'stale' | 'infra';
+  failure: 'radar-stale' | 'radar-check-error' | null;
+  ageHours: number | null;
+}
+
+/** Pure: the RADAR freshness rule. */
+export function checkRadarFreshness(fetchedAt: string | null | undefined, nowIso: string, queryFailed: boolean): RadarFreshnessResult {
+  if (queryFailed || !fetchedAt) return { ok: false, kind: 'infra', failure: 'radar-check-error', ageHours: null };
+  const r = evaluateStaleness(fetchedAt, nowIso, RADAR_MAX_HOURS);
+  if (r.ok) return { ok: true, kind: 'fresh', failure: null, ageHours: r.ageHours };
+  return { ok: false, kind: 'stale', failure: 'radar-stale', ageHours: r.ageHours };
 }
