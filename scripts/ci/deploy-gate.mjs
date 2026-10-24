@@ -43,6 +43,26 @@ export function resolveChecked(sha, prs) {
 }
 
 /**
+ * Pure. Whether one response is a failed request in the release check. Rule approved by Abhinav, 24 Oct 2026, 12:23 IST.
+ * A failure is a server error (5xx), a timeout, a Worker exception, or a status that does not match the page class.
+ * A page class expects 2xx or 3xx. The not-found class expects 404, so a correct 404 there is not a failure.
+ * @param {{status:number, pageClass:'page'|'not-found', timeout?:boolean, exception?:boolean}} r
+ */
+export function isFailedResponse(r) {
+  if (r.timeout === true || r.exception === true) return true;
+  if (r.status >= 500) return true;
+  if (r.pageClass === 'not-found') return r.status !== 404;
+  return !(r.status >= 200 && r.status < 400);
+}
+
+/** Pure. Failed requests over all requests, rounded like the measurement. Null when there are no requests. */
+export function errorRateFromResponses(responses) {
+  if (responses.length === 0) return null;
+  const failed = responses.filter((r) => isFailedResponse(r)).length;
+  return Number((failed / responses.length).toFixed(6));
+}
+
+/**
  * Pure. Returns { ok, failures, overridden, log }.
  * @param {object} input
  * @param {string} input.sha
@@ -52,6 +72,7 @@ export function resolveChecked(sha, prs) {
  * @param {string} input.rollbackTarget
  * @param {{class:string, reason:string}|null} [input.override]
  * @param {string} input.profileSha         SHA-256 of the committed load profile ('' if missing)
+ * @param {Array<object>} [input.responses] per-response records; when given, the error rate is counted from them with isFailedResponse
  */
 export function evaluateGate(input) {
   const failures = [];
@@ -86,7 +107,8 @@ export function evaluateGate(input) {
     if (typeof ev.sample_hours !== 'number' || ev.sample_hours < MIN_SAMPLE_HOURS) failures.push(`sample is under ${MIN_SAMPLE_HOURS} hours`);
     if (typeof ev.warmup_hours !== 'number' || ev.warmup_hours < MIN_WARMUP_HOURS) failures.push(`warm-up is under ${MIN_WARMUP_HOURS} hour (excluded from the sample)`);
     if (typeof ev.requests_measured !== 'number' || ev.requests_measured < MIN_REQUESTS) failures.push(`requests measured is under ${MIN_REQUESTS}`);
-    if (typeof ev.error_rate !== 'number' || ev.error_rate > MAX_ERROR_RATE) failures.push(`error rate is over ${MAX_ERROR_RATE * 100}%`);
+    const observedRate = Array.isArray(input.responses) ? errorRateFromResponses(input.responses) : ev.error_rate;
+    if (typeof observedRate !== 'number' || observedRate > MAX_ERROR_RATE) failures.push(`error rate is over ${MAX_ERROR_RATE * 100}%`);
     if (typeof ev.load_profile_sha256 !== 'string' || ev.load_profile_sha256 !== input.profileSha) failures.push('load profile does not match the committed profile');
     for (const t of PARITY_TABLES) {
       const s = ev.staging_rows?.[t], p = ev.production_rows?.[t];

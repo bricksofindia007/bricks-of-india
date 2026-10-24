@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   evaluateGate, resolveChecked, REQUIRED_CHECKS, CPU_LINE_MS, MIN_SAMPLE_HOURS, MIN_REQUESTS, MIN_REASON_CHARS,
+  isFailedResponse, errorRateFromResponses,
 } from '../scripts/ci/deploy-gate.mjs';
 
 const SHA = 'aaaaaaa1111111111111111111111111111111aa';
@@ -179,5 +180,45 @@ describe('resolveChecked: merge, squash and no pull request', () => {
   it('an unmerged pull request linked to the commit still gives its head', () => {
     const prs = [{ head_sha: HEAD, merged_at: null, merge_commit_sha: null }];
     expect(resolveChecked(SHA, prs)).toEqual({ checked: HEAD, source: 'pull_request' });
+  });
+});
+
+
+describe('failed requests (rule approved 24 Oct 2026, 12:23 IST)', () => {
+  it('404 on the not-found class is not a failure', () => {
+    expect(isFailedResponse({ status: 404, pageClass: 'not-found' })).toBe(false);
+  });
+  it('404 on a real page class is a failure', () => {
+    expect(isFailedResponse({ status: 404, pageClass: 'page' })).toBe(true);
+  });
+  it('200 on the not-found class is a failure', () => {
+    expect(isFailedResponse({ status: 200, pageClass: 'not-found' })).toBe(true);
+  });
+  it('5xx is a failure on any page class', () => {
+    expect(isFailedResponse({ status: 500, pageClass: 'page' })).toBe(true);
+    expect(isFailedResponse({ status: 503, pageClass: 'not-found' })).toBe(true);
+  });
+  it('a timeout or a Worker exception is a failure', () => {
+    expect(isFailedResponse({ status: 200, pageClass: 'page', timeout: true })).toBe(true);
+    expect(isFailedResponse({ status: 200, pageClass: 'page', exception: true })).toBe(true);
+  });
+  it('a normal page response is not a failure', () => {
+    expect(isFailedResponse({ status: 200, pageClass: 'page' })).toBe(false);
+    expect(isFailedResponse({ status: 301, pageClass: 'page' })).toBe(false);
+  });
+  it('the error rate is counted from responses, and no responses is not a rate', () => {
+    const many = Array.from({ length: 300 }, () => ({ status: 200, pageClass: 'page' as const }));
+    expect(errorRateFromResponses([...many, { status: 404, pageClass: 'not-found' }])).toBe(0);
+    expect(errorRateFromResponses([...many, { status: 500, pageClass: 'page' }])).toBe(0.003322);
+    expect(errorRateFromResponses([])).toBeNull();
+  });
+  it('evaluateGate uses the responses when they are given, and the limit is unchanged', () => {
+    const i: any = base();
+    i.evidence = { ...goodEvidence(), error_rate: 0 };
+    const bad = Array.from({ length: 100 }, (_, n) => ({ status: n < 2 ? 500 : 200, pageClass: 'page' as const }));
+    i.responses = bad;   // 2 of 100 = 2%, over 0.5%
+    expect(evaluateGate(i).failures.join(' ')).toMatch(/error rate/);
+    i.responses = Array.from({ length: 1000 }, (_, n) => ({ status: n < 4 ? 500 : 200, pageClass: 'page' as const }));   // 4 of 1000 = 0.4%
+    expect(evaluateGate(i).failures.join(' ')).not.toMatch(/error rate/);
   });
 });
