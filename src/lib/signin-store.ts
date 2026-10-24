@@ -135,3 +135,38 @@ export class SupabaseSignInStore implements SignInStore {
     if (error) fail('session not stored');
   }
 }
+
+/** The account behind a session token hash, if the session is live and the account is not deleted. Null otherwise. */
+export async function accountForSession(
+  db: Db,
+  tokenHash: string,
+  now: number,
+): Promise<{ id: string; email: string } | null> {
+  const { data: session, error: sErr } = await db
+    .from('account_sessions')
+    .select('account_id, expires_at, revoked_at')
+    .eq('token_hash', tokenHash)
+    .maybeSingle();
+  if (sErr) fail('session unreadable');
+  if (!session || session.revoked_at !== null || Date.parse(session.expires_at) <= now) return null;
+
+  const { data: account, error: aErr } = await db
+    .from('accounts')
+    .select('id, email')
+    .eq('id', session.account_id)
+    .is('deleted_at', null)
+    .maybeSingle();
+  if (aErr) fail('account unreadable');
+  return account ? { id: account.id as string, email: account.email as string } : null;
+}
+
+/**
+ * Deletes the account. Its saved sets, saved figures and sessions go with it (on delete cascade). Sign-in codes for the
+ * address are removed separately, by hash.
+ */
+export async function deleteAccountAndCodes(db: Db, accountId: string, emailHash: string): Promise<void> {
+  const { error: cErr } = await db.from('sign_in_codes').delete().eq('email_hash', emailHash);
+  if (cErr) fail('codes not removed');
+  const { error: aErr } = await db.from('accounts').delete().eq('id', accountId);
+  if (aErr) fail('account not removed');
+}

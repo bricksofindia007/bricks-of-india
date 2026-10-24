@@ -199,3 +199,96 @@ describe('the sign-in form uses the approved age wording', () => {
     expect(form).not.toMatch(/I am 18 or older/);
   });
 });
+
+// Account deletion: the approved text says a visitor signs in, opens My BOI, chooses Delete my account, and confirms with
+// the emailed code. These tests cover the server side and the page gate.
+import { accountForSession, deleteAccountAndCodes } from '../src/lib/signin-store';
+import { POST as postDeleteRequest } from '../src/app/account/delete/request/route';
+import { POST as postDeleteConfirm } from '../src/app/account/delete/confirm/route';
+
+// A fake client that answers each table from its own result, and records the calls made against it.
+function tableDb(tables: Record<string, { data?: unknown; error?: unknown }>) {
+  const calls: Array<[string, string, ...unknown[]]> = [];
+  const db = {
+    from(table: string) {
+      const value = { data: tables[table]?.data ?? null, error: tables[table]?.error ?? null };
+      const b: any = {};
+      for (const m of ['select', 'insert', 'update', 'delete', 'eq', 'is', 'gt', 'order', 'limit']) {
+        b[m] = (...args: unknown[]) => { calls.push([table, m, ...args]); return b; };
+      }
+      b.maybeSingle = () => Promise.resolve(value);
+      b.single = () => Promise.resolve(value);
+      b.then = (res: (v: unknown) => unknown, rej: (e: unknown) => unknown) => Promise.resolve(value).then(res, rej);
+      return b;
+    },
+  };
+  return { db: db as any, calls };
+}
+
+describe('account deletion: the session check', () => {
+  const future = new Date(Date.now() + 86_400_000).toISOString();
+  it('a live session returns the account', async () => {
+    const { db } = tableDb({
+      account_sessions: { data: { account_id: 'acc-1', expires_at: future, revoked_at: null } },
+      accounts: { data: { id: 'acc-1', email: 'reader@example.com' } },
+    });
+    expect(await accountForSession(db, 'h'.repeat(64), Date.now())).toEqual({ id: 'acc-1', email: 'reader@example.com' });
+  });
+  it('a revoked session returns nothing', async () => {
+    const { db } = tableDb({ account_sessions: { data: { account_id: 'acc-1', expires_at: future, revoked_at: new Date().toISOString() } } });
+    expect(await accountForSession(db, 'h'.repeat(64), Date.now())).toBeNull();
+  });
+  it('an expired session returns nothing', async () => {
+    const past = new Date(Date.now() - 1000).toISOString();
+    const { db } = tableDb({ account_sessions: { data: { account_id: 'acc-1', expires_at: past, revoked_at: null } } });
+    expect(await accountForSession(db, 'h'.repeat(64), Date.now())).toBeNull();
+  });
+  it('an unknown session returns nothing', async () => {
+    const { db } = tableDb({ account_sessions: { data: null } });
+    expect(await accountForSession(db, 'h'.repeat(64), Date.now())).toBeNull();
+  });
+});
+
+describe('account deletion: the delete itself', () => {
+  it('removes the sign-in codes for the address first, then the account', async () => {
+    const { db, calls } = tableDb({});
+    await deleteAccountAndCodes(db, 'acc-1', 'e'.repeat(64));
+    const order = calls.filter((c) => c[1] === 'delete').map((c) => c[0]);
+    expect(order).toEqual(['sign_in_codes', 'accounts']);
+    expect(calls).toContainEqual(['sign_in_codes', 'eq', 'email_hash', 'e'.repeat(64)]);
+    expect(calls).toContainEqual(['accounts', 'eq', 'id', 'acc-1']);
+  });
+  it('a failed code removal stops before the account is touched', async () => {
+    const { db, calls } = tableDb({ sign_in_codes: { error: { message: 'down' } } });
+    await expect(deleteAccountAndCodes(db, 'acc-1', 'e'.repeat(64))).rejects.toThrow();
+    expect(calls.some((c) => c[0] === 'accounts' && c[1] === 'delete')).toBe(false);
+  });
+});
+
+describe('account deletion: the routes and page', () => {
+  it('both routes answer 404 while sign-in is off', async () => {
+    const req = () => new Request('https://bricksofindia.com/account/delete', { method: 'POST', body: '{"code":"123456"}' }) as any;
+    expect((await postDeleteRequest(req())).status).toBe(404);
+    expect((await postDeleteConfirm(req())).status).toBe(404);
+  });
+  it('the request route takes no address from the client: it uses the session account only', () => {
+    const src = read('src/app/account/delete/request/route.ts');
+    expect(src).not.toMatch(/request\.json\(\)/);
+    expect(src).toMatch(/rawEmail: account\.email/);
+  });
+  it('the confirm route clears the cookie only on success, with the same path as the session', () => {
+    const src = read('src/app/account/delete/confirm/route.ts');
+    expect(src).toMatch(/res\.cookies\.set\(SESSION_COOKIE, '', \{ \.\.\.SESSION_COOKIE_OPTIONS, maxAge: 0 \}\)/);
+    expect(SESSION_COOKIE_OPTIONS.path).toBe('/account');
+  });
+  it('the page is closed while sign-in is off, and uses the approved words for its heading and button', () => {
+    const page = read('src/app/account/page.tsx');
+    expect(page).toMatch(/if \(!signInOn\(\)\) notFound\(\);/);
+    expect(page).toMatch(/My BOI/);
+    expect(read('src/app/account/AccountDeleteForm.tsx')).toMatch(/Delete my account/);
+  });
+  it('the deletion page flag stays off in both files', () => {
+    expect(FEATURE_FLAGS.dataDeletionPage).toBe(false);
+    expect(read('config/feature_flags.py')).toMatch(/"data_deletion_page": False/);
+  });
+});
