@@ -1,0 +1,25 @@
+name: Public-text check, weekly re-run
+
+# Runs the public-text check on the whole repository once a week, not only on pull requests.
+# The term list is the G19_TERMS secret, read at run time, never in the repo. The job prints file and line only.
+on:
+  schedule:
+    - cron: '20 4 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  g19-weekly:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      G19_TERMS: ${{ secrets.G19_TERMS }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - name: Public-text check (whole repository)
+        run: node scripts/ci/g19-check.mjs
