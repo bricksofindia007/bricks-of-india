@@ -34,6 +34,20 @@ export function seededRandom(seed: number): () => number {
 }
 
 /** Pure. The window is open for start <= now < end, and only if both times parse and end is after start. */
+/**
+ * Pure. The load generator's settings from the flag store (flag:v1). Closed unless loadgen_enabled is exactly true.
+ * The site address and window come only from the flag store. Missing or non-string values are left out, so nothing is sent.
+ */
+export function loadgenSettings(flags: Record<string, unknown>): Pick<LoadgenEnv, 'LOADGEN_ENABLED' | 'STAGING_SITE_URL' | 'LOADGEN_START' | 'LOADGEN_END'> {
+  const str = (v: unknown) => (typeof v === 'string' && v.length > 0 ? v : undefined);
+  return {
+    LOADGEN_ENABLED: flags.loadgen_enabled === true,
+    STAGING_SITE_URL: str(flags.loadgen_site_url),
+    LOADGEN_START: str(flags.loadgen_start),
+    LOADGEN_END: str(flags.loadgen_end),
+  };
+}
+
 export function inWindow(nowMs: number, startIso?: string, endIso?: string): boolean {
   const s = startIso ? Date.parse(startIso) : NaN;
   const e = endIso ? Date.parse(endIso) : NaN;

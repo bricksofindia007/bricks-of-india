@@ -1,6 +1,8 @@
 // Staging load generator (workers/boi-scheduler/src/loadgen.ts): window, seeded choice, planning, and the send rules.
 import { describe, it, expect, vi } from 'vitest';
-import { seededRandom, inWindow, pickTemplate, planMinute, runMinute, LOADGEN_KEY, PER_MINUTE, type Profile, type Samples } from '../workers/boi-scheduler/src/loadgen';
+import { seededRandom, inWindow, pickTemplate, planMinute, runMinute, loadgenSettings, LOADGEN_KEY, PER_MINUTE, type Profile, type Samples } from '../workers/boi-scheduler/src/loadgen';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 const PROFILE: Profile = { classes: [
   { template: '/sets/[slug]', share: 0.6 },
@@ -154,5 +156,33 @@ describe('load generator flag (default off)', () => {
     expect(r.sent).toBe(0);
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(JSON.parse(store.get(LOADGEN_KEY)!).state).toBe('off');
+  });
+});
+
+
+describe('load generator settings come from the flag store', () => {
+  const root = join(__dirname, '..');
+  it('closed by default: nothing enabled, no address, no window', () => {
+    expect(loadgenSettings({})).toEqual({ LOADGEN_ENABLED: false, STAGING_SITE_URL: undefined, LOADGEN_START: undefined, LOADGEN_END: undefined });
+  });
+  it('enabled only when the flag is exactly true', () => {
+    expect(loadgenSettings({ loadgen_enabled: 'true' }).LOADGEN_ENABLED).toBe(false);
+    expect(loadgenSettings({ loadgen_enabled: 1 }).LOADGEN_ENABLED).toBe(false);
+    expect(loadgenSettings({ loadgen_enabled: true }).LOADGEN_ENABLED).toBe(true);
+  });
+  it('reads the address and window from the flag store, and drops non-string values', () => {
+    const s = loadgenSettings({ loadgen_enabled: true, loadgen_site_url: 'https://staging.example', loadgen_start: '2026-10-25T00:00:00Z', loadgen_end: '2026-10-26T01:00:00Z' });
+    expect(s).toEqual({ LOADGEN_ENABLED: true, STAGING_SITE_URL: 'https://staging.example', LOADGEN_START: '2026-10-25T00:00:00Z', LOADGEN_END: '2026-10-26T01:00:00Z' });
+    expect(loadgenSettings({ loadgen_site_url: 42, loadgen_start: null, loadgen_end: '' })).toMatchObject({ STAGING_SITE_URL: undefined, LOADGEN_START: undefined, LOADGEN_END: undefined });
+  });
+  it('the Worker profile is the measured profile file (same content, with classes)', () => {
+    const measured = JSON.parse(readFileSync(join(root, 'docs/release/gates/load-profile.json'), 'utf8'));
+    const worker = JSON.parse(readFileSync(join(root, 'workers/boi-scheduler/src/load-profile.json'), 'utf8'));
+    expect(worker).toEqual(measured);
+    expect(worker.classes.length).toBeGreaterThan(0);
+  });
+  it('the Wrangler file commits no address or window', () => {
+    const wrangler = readFileSync(join(root, 'workers/boi-scheduler/wrangler.jsonc'), 'utf8');
+    expect(wrangler).not.toMatch(/STAGING_SITE_URL|LOADGEN_START|LOADGEN_END/);
   });
 });

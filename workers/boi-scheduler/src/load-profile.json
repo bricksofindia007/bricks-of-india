@@ -1,1 +1,1002 @@
-{ "classes": [] }
+{
+  "window": {
+    "start": "2026-10-17T00:00:00.000Z",
+    "end": "2026-10-24T00:00:00.000Z",
+    "days": 7
+  },
+  "total_requests": 148953,
+  "excluded_requests": 20248,
+  "coverage": 0.999,
+  "classes": [
+    {
+      "template": "/sets/[slug]",
+      "requests": 54229,
+      "share": 0.421343
+    },
+    {
+      "template": "(not found)",
+      "requests": 15347,
+      "share": 0.119242
+    },
+    {
+      "template": "/reviews/[slug]",
+      "requests": 6759,
+      "share": 0.052515
+    },
+    {
+      "template": "/news/[slug]",
+      "requests": 6669,
+      "share": 0.051816
+    },
+    {
+      "template": "/",
+      "requests": 6133,
+      "share": 0.047652
+    },
+    {
+      "template": "/deals",
+      "requests": 5359,
+      "share": 0.041638
+    },
+    {
+      "template": "/reviews",
+      "requests": 5103,
+      "share": 0.039649
+    },
+    {
+      "template": "/themes",
+      "requests": 5082,
+      "share": 0.039486
+    },
+    {
+      "template": "/news",
+      "requests": 4717,
+      "share": 0.03665
+    },
+    {
+      "template": "/compare",
+      "requests": 2674,
+      "share": 0.020776
+    },
+    {
+      "template": "/themes/[theme]",
+      "requests": 2332,
+      "share": 0.018119
+    },
+    {
+      "template": "/cdn-cgi/rum",
+      "requests": 1680,
+      "share": 0.013053
+    },
+    {
+      "template": "/sets",
+      "requests": 1553,
+      "share": 0.012066
+    },
+    {
+      "template": "/guides",
+      "requests": 1315,
+      "share": 0.010217
+    },
+    {
+      "template": "/about",
+      "requests": 1225,
+      "share": 0.009518
+    },
+    {
+      "template": "/minifig-hq",
+      "requests": 1167,
+      "share": 0.009067
+    },
+    {
+      "template": "/contact",
+      "requests": 1096,
+      "share": 0.008516
+    },
+    {
+      "template": "/lab",
+      "requests": 980,
+      "share": 0.007614
+    },
+    {
+      "template": "/legal/privacy",
+      "requests": 917,
+      "share": 0.007125
+    },
+    {
+      "template": "/legal/terms",
+      "requests": 898,
+      "share": 0.006977
+    },
+    {
+      "template": "/corrections",
+      "requests": 888,
+      "share": 0.006899
+    },
+    {
+      "template": "/legal/affiliate-disclosure",
+      "requests": 872,
+      "share": 0.006775
+    },
+    {
+      "template": "/guides/[slug]",
+      "requests": 689,
+      "share": 0.005353
+    },
+    {
+      "template": "/themes/[theme]/page/[page]",
+      "requests": 241,
+      "share": 0.001872
+    },
+    {
+      "template": "/community",
+      "requests": 118,
+      "share": 0.000917
+    },
+    {
+      "template": "/lab/budget-calculator",
+      "requests": 112,
+      "share": 0.00087
+    },
+    {
+      "template": "/lab/deals",
+      "requests": 87,
+      "share": 0.000676
+    },
+    {
+      "template": "/lab/price-drops",
+      "requests": 72,
+      "share": 0.000559
+    },
+    {
+      "template": "/lab/which-set",
+      "requests": 54,
+      "share": 0.00042
+    },
+    {
+      "template": "/lab/retiring-soon",
+      "requests": 37,
+      "share": 0.000287
+    },
+    {
+      "template": "/blog/[slug]",
+      "requests": 36,
+      "share": 0.00028
+    },
+    {
+      "template": "/blog",
+      "requests": 34,
+      "share": 0.000264
+    },
+    {
+      "template": "/lab/biryani-index",
+      "requests": 26,
+      "share": 0.000202
+    },
+    {
+      "template": "/precision",
+      "requests": 15,
+      "share": 0.000117
+    },
+    {
+      "template": "/bot",
+      "requests": 14,
+      "share": 0.000109
+    },
+    {
+      "template": "/opinion",
+      "requests": 11,
+      "share": 0.000085
+    },
+    {
+      "template": "/opinion/[slug]",
+      "requests": 6,
+      "share": 0.000047
+    },
+    {
+      "template": "/lab/cmf-tracker",
+      "requests": 6,
+      "share": 0.000047
+    },
+    {
+      "template": "/legal/disclaimer",
+      "requests": 6,
+      "share": 0.000047
+    },
+    {
+      "template": "/themes/[theme]/sort/[sort]",
+      "requests": 5,
+      "share": 0.000039
+    },
+    {
+      "template": "/brick-rush",
+      "requests": 5,
+      "share": 0.000039
+    },
+    {
+      "template": "/calendar",
+      "requests": 2,
+      "share": 0.000016
+    },
+    {
+      "template": "/sets/page/[page]",
+      "requests": 2,
+      "share": 0.000016
+    },
+    {
+      "template": "/my",
+      "requests": 2,
+      "share": 0.000016
+    },
+    {
+      "template": "/themes/[theme]/sort/[sort]/page/[page]",
+      "requests": 1,
+      "share": 0.000008
+    },
+    {
+      "template": "/review-policy",
+      "requests": 1,
+      "share": 0.000008
+    },
+    {
+      "template": "/legal/data-deletion",
+      "requests": 1,
+      "share": 0.000008
+    },
+    {
+      "template": "/shareables",
+      "requests": 1,
+      "share": 0.000008
+    }
+  ],
+  "method": "Top 10,000 request paths of the zone, grouped by route template; assets, API, admin and feed paths excluded.",
+  "unmatched_top": [
+    {
+      "shape": "/[x]",
+      "requests": 6636,
+      "share": 0.05156,
+      "classes": {
+        "2xx": 115,
+        "3xx": 1880,
+        "4xx": 4641,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/search",
+      "requests": 1198,
+      "share": 0.009308,
+      "classes": {
+        "2xx": 0,
+        "3xx": 1185,
+        "4xx": 13,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/[x]",
+      "requests": 918,
+      "share": 0.007133,
+      "classes": {
+        "2xx": 0,
+        "3xx": 261,
+        "4xx": 657,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/config/[x]",
+      "requests": 158,
+      "share": 0.001228,
+      "classes": {
+        "2xx": 0,
+        "3xx": 27,
+        "4xx": 131,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/uploads/[x]",
+      "requests": 114,
+      "share": 0.000886,
+      "classes": {
+        "2xx": 0,
+        "3xx": 50,
+        "4xx": 64,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/[x]/[x]",
+      "requests": 99,
+      "share": 0.000769,
+      "classes": {
+        "2xx": 0,
+        "3xx": 34,
+        "4xx": 65,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/config",
+      "requests": 95,
+      "share": 0.000738,
+      "classes": {
+        "2xx": 0,
+        "3xx": 5,
+        "4xx": 90,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/includes/[x]",
+      "requests": 88,
+      "share": 0.000684,
+      "classes": {
+        "2xx": 0,
+        "3xx": 45,
+        "4xx": 43,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/",
+      "requests": 83,
+      "share": 0.000645,
+      "classes": {
+        "2xx": 0,
+        "3xx": 58,
+        "4xx": 25,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/application/[x]",
+      "requests": 73,
+      "share": 0.000567,
+      "classes": {
+        "2xx": 0,
+        "3xx": 21,
+        "4xx": 52,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/dashboard",
+      "requests": 71,
+      "share": 0.000552,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 71,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/css/[x]",
+      "requests": 67,
+      "share": 0.000521,
+      "classes": {
+        "2xx": 0,
+        "3xx": 34,
+        "4xx": 33,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/login",
+      "requests": 65,
+      "share": 0.000505,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 65,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/app/[x]",
+      "requests": 64,
+      "share": 0.000497,
+      "classes": {
+        "2xx": 0,
+        "3xx": 22,
+        "4xx": 42,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/plugins/hellopress/[x]",
+      "requests": 54,
+      "share": 0.00042,
+      "classes": {
+        "2xx": 0,
+        "3xx": 22,
+        "4xx": 32,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/maint/[x]",
+      "requests": 45,
+      "share": 0.00035,
+      "classes": {
+        "2xx": 0,
+        "3xx": 22,
+        "4xx": 23,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/themes/[x]",
+      "requests": 42,
+      "share": 0.000326,
+      "classes": {
+        "2xx": 0,
+        "3xx": 13,
+        "4xx": 29,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/[x]/",
+      "requests": 42,
+      "share": 0.000326,
+      "classes": {
+        "2xx": 0,
+        "3xx": 42,
+        "4xx": 0,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/backend/[x]",
+      "requests": 41,
+      "share": 0.000319,
+      "classes": {
+        "2xx": 0,
+        "3xx": 1,
+        "4xx": 40,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/src/[x]",
+      "requests": 40,
+      "share": 0.000311,
+      "classes": {
+        "2xx": 0,
+        "3xx": 1,
+        "4xx": 39,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/phpinfo",
+      "requests": 39,
+      "share": 0.000303,
+      "classes": {
+        "2xx": 0,
+        "3xx": 3,
+        "4xx": 36,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/js/[x]",
+      "requests": 38,
+      "share": 0.000295,
+      "classes": {
+        "2xx": 0,
+        "3xx": 19,
+        "4xx": 19,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/old/[x]",
+      "requests": 36,
+      "share": 0.00028,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 36,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/test/[x]",
+      "requests": 35,
+      "share": 0.000272,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 35,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/core/[x]",
+      "requests": 35,
+      "share": 0.000272,
+      "classes": {
+        "2xx": 0,
+        "3xx": 1,
+        "4xx": 34,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/server/[x]",
+      "requests": 35,
+      "share": 0.000272,
+      "classes": {
+        "2xx": 0,
+        "3xx": 1,
+        "4xx": 34,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/frontend/[x]",
+      "requests": 34,
+      "share": 0.000264,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 34,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/app",
+      "requests": 34,
+      "share": 0.000264,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 34,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/public/[x]",
+      "requests": 33,
+      "share": 0.000256,
+      "classes": {
+        "2xx": 0,
+        "3xx": 1,
+        "4xx": 32,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/register",
+      "requests": 33,
+      "share": 0.000256,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 33,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/portal/[x]",
+      "requests": 33,
+      "share": 0.000256,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 33,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/settings",
+      "requests": 32,
+      "share": 0.000249,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 32,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/images/[x]",
+      "requests": 32,
+      "share": 0.000249,
+      "classes": {
+        "2xx": 0,
+        "3xx": 16,
+        "4xx": 16,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/images/[x]",
+      "requests": 32,
+      "share": 0.000249,
+      "classes": {
+        "2xx": 0,
+        "3xx": 16,
+        "4xx": 16,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/phpinfo",
+      "requests": 31,
+      "share": 0.000241,
+      "classes": {
+        "2xx": 0,
+        "3xx": 1,
+        "4xx": 30,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/dev/[x]",
+      "requests": 31,
+      "share": 0.000241,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 31,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/laravel/[x]",
+      "requests": 30,
+      "share": 0.000233,
+      "classes": {
+        "2xx": 0,
+        "3xx": 1,
+        "4xx": 29,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/staging/[x]",
+      "requests": 30,
+      "share": 0.000233,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 30,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/dashboard/[x]",
+      "requests": 30,
+      "share": 0.000233,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 30,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/credentials",
+      "requests": 29,
+      "share": 0.000225,
+      "classes": {
+        "2xx": 0,
+        "3xx": 3,
+        "4xx": 26,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/uploads/[x]",
+      "requests": 29,
+      "share": 0.000225,
+      "classes": {
+        "2xx": 0,
+        "3xx": 10,
+        "4xx": 19,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/workflows/[x]",
+      "requests": 27,
+      "share": 0.00021,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 27,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/ai/[x]",
+      "requests": 27,
+      "share": 0.00021,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 27,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/apps/[x]",
+      "requests": 27,
+      "share": 0.00021,
+      "classes": {
+        "2xx": 0,
+        "3xx": 1,
+        "4xx": 26,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "//[x]",
+      "requests": 26,
+      "share": 0.000202,
+      "classes": {
+        "2xx": 0,
+        "3xx": 26,
+        "4xx": 0,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/cms/[x]",
+      "requests": 26,
+      "share": 0.000202,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 26,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/css/colors/modern",
+      "requests": 25,
+      "share": 0.000194,
+      "classes": {
+        "2xx": 0,
+        "3xx": 14,
+        "4xx": 11,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/ipfs/[x]",
+      "requests": 25,
+      "share": 0.000194,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 25,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/web/[x]",
+      "requests": 25,
+      "share": 0.000194,
+      "classes": {
+        "2xx": 0,
+        "3xx": 2,
+        "4xx": 23,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/tmp/[x]",
+      "requests": 25,
+      "share": 0.000194,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 25,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/deploy/[x]",
+      "requests": 25,
+      "share": 0.000194,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 25,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/internal/[x]",
+      "requests": 25,
+      "share": 0.000194,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 25,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/functions/[x]",
+      "requests": 25,
+      "share": 0.000194,
+      "classes": {
+        "2xx": 0,
+        "3xx": 21,
+        "4xx": 4,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/utils/[x]",
+      "requests": 24,
+      "share": 0.000186,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 24,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/userfiles",
+      "requests": 24,
+      "share": 0.000186,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 24,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/languages/[x]",
+      "requests": 24,
+      "share": 0.000186,
+      "classes": {
+        "2xx": 0,
+        "3xx": 12,
+        "4xx": 12,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/laravel/app/[x]",
+      "requests": 23,
+      "share": 0.000179,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 23,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/shop/[x]",
+      "requests": 23,
+      "share": 0.000179,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 23,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/ssl/[x]",
+      "requests": 23,
+      "share": 0.000179,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 23,
+        "5xx": 0,
+        "other": 0
+      }
+    },
+    {
+      "shape": "/[x]/index",
+      "requests": 22,
+      "share": 0.000171,
+      "classes": {
+        "2xx": 0,
+        "3xx": 0,
+        "4xx": 22,
+        "5xx": 0,
+        "other": 0
+      }
+    }
+  ],
+  "unmatched_classes": {
+    "2xx": 126,
+    "3xx": 4748,
+    "4xx": 10599,
+    "5xx": 0,
+    "other": 0
+  },
+  "unmatched_other": {
+    "shapes": 686,
+    "requests": 4318,
+    "share": 0.03355,
+    "classes": {
+      "2xx": 11,
+      "3xx": 877,
+      "4xx": 3430,
+      "5xx": 0,
+      "other": 0
+    }
+  },
+  "analytics_slices": {
+    "slices": 168,
+    "slices_at_row_limit": 0,
+    "row_limit": 10000,
+    "rows_returned": 78918,
+    "requests_outside_rows": 0,
+    "share_outside_rows": 0
+  }
+}
