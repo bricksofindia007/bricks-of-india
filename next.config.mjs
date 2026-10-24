@@ -38,6 +38,11 @@ const nextConfig = {
         destination: '/reviews/lego-sagrada-famlia-21065-worth-76400',
         permanent: true,
       },
+      {
+        source: '/reviews/lego-ideas-21373-downton-abbey-worth-the-wait',
+        destination: '/reviews/lego-ideas-21373-downton-abbey-worth-33600',
+        permanent: true,
+      },
       // 24 Oct 2026: /themes/series-16-minifigures is a collectible minifig series, so it goes to Minifig HQ.
       {
         source: '/themes/series-16-minifigures',
