@@ -11,7 +11,7 @@
 // mail provider gives the count back once; an unclear outcome (a timeout, say) keeps it.
 //
 // Failure behaviour (G14): any read or write error ends the task with no send. The visitor never sees it.
-import { createHmac, randomBytes, randomInt } from 'node:crypto';
+import { createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 
 export const CODE_TTL_MS = 10 * 60 * 1000;
@@ -95,6 +95,17 @@ export function emailHash(email: string, key: string): string {
 /** Keyed hash of a code, bound to the address it was issued for. The plain code is never stored. */
 export function codeHash(code: string, email: string, key: string): string {
   return createHmac('sha256', key).update(`code:${email}:${code}`).digest('hex');
+}
+
+/**
+ * Compare two hex hashes in constant time. Unequal lengths are unequal, with no timing shortcut on the bytes.
+ * timingSafeEqual needs equal-length buffers, so the length check comes first.
+ */
+export function sameHash(a: string, b: string): boolean {
+  const x = Buffer.from(a, 'utf8');
+  const y = Buffer.from(b, 'utf8');
+  if (x.length !== y.length) return false;
+  return timingSafeEqual(x, y);
 }
 
 /** Six digits from a cryptographic source. */
@@ -209,7 +220,7 @@ export async function verifySignInCode(
     if (!row) return { ok: false, message: MSG_BAD_CODE };
 
     const attempts = row.attempts + 1;
-    const right = row.codeHash === codeHash(input.code, email, deps.hashKey);
+    const right = sameHash(row.codeHash, codeHash(input.code, email, deps.hashKey));
     if (right) {
       await deps.store.consumeCode(row.id, now);
       return { ok: true };

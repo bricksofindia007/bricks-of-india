@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { FEATURE_FLAGS } from '../src/lib/feature-flags';
 import {
-  beginSignIn, finishSignIn, verifySignInCode, emailHash, codeHash, dayKey, normaliseEmail, MailRefused, REPLY_OK,
+  beginSignIn, finishSignIn, verifySignInCode, emailHash, codeHash, dayKey, normaliseEmail, MailRefused, REPLY_OK, sameHash,
   CODE_TTL_MS, CODE_MAX_ATTEMPTS, CODE_COOLDOWN_MS, DAILY_SEND_STOP, DAILY_SEND_WARN, MSG_CHECK_EMAIL, MSG_INVALID,
   type SignInDeps, type SignInStore, type Reply,
 } from '../src/lib/signin-email';
@@ -335,6 +335,29 @@ describe('the request side uses the platform hook', () => {
     const src = readFileSync(join(__dirname, '..', 'src', 'lib', 'signin-request.ts'), 'utf8');
     expect(src).toMatch(/import \{ after \} from 'next\/server'/);
     expect(src).toMatch(/after\(task\)/);
+  });
+});
+
+describe('constant-time comparison of the code hash', () => {
+  it('equal hashes match; different hashes of the same length do not', () => {
+    const h = codeHash('123456', 'a@example.com', KEY);
+    expect(sameHash(h, codeHash('123456', 'a@example.com', KEY))).toBe(true);
+    expect(sameHash(h, codeHash('123457', 'a@example.com', KEY))).toBe(false);
+  });
+  it('different lengths never match, with no byte comparison', () => {
+    expect(sameHash('abcd', 'abcde')).toBe(false);
+    expect(sameHash('', 'x')).toBe(false);
+  });
+  it('the verify path uses the helper, not a plain string comparison', () => {
+    const src = readFileSync(join(__dirname, '..', 'src', 'lib', 'signin-email.ts'), 'utf8');
+    expect(src).toMatch(/const right = sameHash\(row\.codeHash, codeHash\(input\.code, email, deps\.hashKey\)\);/);
+    expect(src).not.toMatch(/row\.codeHash\s*===/);
+  });
+  it('a wrong code is still refused and a right code still accepted', async () => {
+    const { d } = deps(mem.store, { code: '777777' });
+    await request({ rawEmail: 'a@example.com', ageConfirmed: true, now: T0 }, d);
+    expect((await verifySignInCode({ rawEmail: 'a@example.com', code: '111111', now: T0 + 1000 }, d)).ok).toBe(false);
+    expect((await verifySignInCode({ rawEmail: 'a@example.com', code: '777777', now: T0 + 2000 }, d)).ok).toBe(true);
   });
 });
 
