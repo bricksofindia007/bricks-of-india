@@ -31,17 +31,10 @@ const nextConfig = {
         destination: '/news/lego-creator-40900-scary-haunted-tree-revealed-as-new-gift-w',
         permanent: true,
       },
-      // 24 Oct 2026: two theme addresses that were never curated theme pages and returned "Theme Not Found".
-      // series-16-minifigures is a collectible minifig series, so it goes to Minifig HQ.
-      // dinosaurs: proposed target /themes/jurassic-world, pending owner confirmation.
+      // 24 Oct 2026: /themes/series-16-minifigures is a collectible minifig series, so it goes to Minifig HQ.
       {
         source: '/themes/series-16-minifigures',
         destination: '/minifig-hq',
-        permanent: true,
-      },
-      {
-        source: '/themes/dinosaurs',
-        destination: '/themes/jurassic-world',
         permanent: true,
       },
       // 3 Oct 2026: two removed articles about set 5986 that Google still lists
