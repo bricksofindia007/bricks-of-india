@@ -1,8 +1,7 @@
 #!/usr/bin/env node
-// Read-only scan of issue and pull-request comments on this repository against the G19 term list.
-// The term list is the G19_TERMS secret, read at run time, never in the repo.
-// Output: a result file with comment id, url and a count only. It never prints or writes the matching
-// words or the comment text. The file is written to the scan directory for upload as a run artifact.
+// Read-only check of issue and pull-request comments on this repository.
+// Output: a result file with counts, ids and urls only. The file is written to the output directory
+// for upload as a run artifact.
 import fs from 'node:fs';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
@@ -11,7 +10,7 @@ const REPO = process.env.GITHUB_REPOSITORY;
 const OUT = process.env.SCAN_OUT ?? 'g19-comments-scan';
 const RAW = (process.env.G19_TERMS ?? '').replace(/^﻿/, '').trim();
 if (!REPO) { console.log('scan: GITHUB_REPOSITORY not set. Stopping.'); process.exit(1); }
-if (!RAW) { console.log('scan: the G19_TERMS secret is not available. Stopping.'); process.exit(1); }
+if (!RAW) { console.log('scan: settings are not available. Stopping.'); process.exit(1); }
 
 const cfg = JSON.parse(RAW);
 const APPROVED = new Set(JSON.parse(fs.readFileSync(path.join(process.cwd(), 'scripts/ci/g19-approved-public-sentences.json'), 'utf8')).map((e) => e.text));

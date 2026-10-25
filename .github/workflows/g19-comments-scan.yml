@@ -1,7 +1,6 @@
-name: Public-text scan of comments (read-only, manual)
+name: Manual read-only check of comments
 
-# Manual start only. Reads issue and pull-request comments and checks them against the term list in the
-# G19_TERMS secret. Writes comment ids, urls and a count only, as a run artifact. Never prints the matching words.
+# Manual start only. Read-only. Writes a count and ids as a run artifact.
 on:
   workflow_dispatch:
 
@@ -17,17 +16,17 @@ jobs:
     env:
       G19_TERMS: ${{ secrets.G19_TERMS }}
       GH_TOKEN: ${{ github.token }}
-      SCAN_OUT: g19-comments-scan
+      SCAN_OUT: comments-check
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
-      - name: Scan comments (counts, ids and urls only)
+      - name: Check comments (counts only)
         run: node scripts/ci/g19-comments-scan.mjs
       - name: Upload result
         uses: actions/upload-artifact@v4
         with:
-          name: g19-comments-scan
-          path: g19-comments-scan/result.txt
+          name: comments-check
+          path: comments-check/result.txt
           retention-days: 14
