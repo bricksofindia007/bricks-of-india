@@ -146,4 +146,7 @@ FEATURE_FLAGS = {
     "share_enabled": False,
     # Human check (Turnstile) on the admin sign-in form. Off. Mirrored in src/lib/feature-flags.ts (adminTurnstile); keep in sync.
     "admin_turnstile": False,
+    # Theme pages with no priced set: noindex, follow, left out of the sitemap (25 Oct 2026). Off: unchanged.
+    # Mirrored in src/lib/feature-flags.ts (thinThemeNoindex); keep in sync.
+    "thin_theme_noindex": False,
 }
