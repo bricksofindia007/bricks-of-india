@@ -1,0 +1,32 @@
+name: Manual read-only check of comments
+
+# Manual start only. Read-only. Writes a count and ids as a run artifact.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: read
+
+jobs:
+  scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      G19_TERMS: ${{ secrets.G19_TERMS }}
+      GH_TOKEN: ${{ github.token }}
+      SCAN_OUT: comments-check
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+      - name: Check comments (counts only)
+        run: node scripts/ci/g19-comments-scan.mjs
+      - name: Upload result
+        uses: actions/upload-artifact@v4
+        with:
+          name: comments-check
+          path: comments-check/result.txt
+          retention-days: 14
