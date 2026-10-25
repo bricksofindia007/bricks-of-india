@@ -135,4 +135,8 @@ export const FEATURE_FLAGS = {
 
   // Human check (Turnstile) on the admin sign-in form (owner, 24 Oct 2026). Off: no widget, no check. Mirrored in config/feature_flags.py (admin_turnstile); keep in sync.
   adminTurnstile: false,
+
+  // Theme pages with no priced set: noindex, follow, and left out of the sitemap (25 Oct 2026, order 1142). Off: every
+  // theme page is unchanged. Mirrored in config/feature_flags.py (thin_theme_noindex); keep in sync.
+  thinThemeNoindex: false,
 } as const;
