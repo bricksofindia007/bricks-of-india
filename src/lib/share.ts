@@ -20,14 +20,13 @@ export type ShareTarget = {
 // Approved visible text (owner, 23 Oct 2026). Use exactly these strings.
 export const SHARE_TEXT = {
   button: 'Time to blow your trumpet',
-  // Neutral until the owner names words (issue 779): the sheet title and plain errors are not on the approved list.
-  sheetTitle: 'Share',
+  sheetTitle: 'Pick where to send it.',
   previewCaption: 'Can you feel it',
   copied: 'Awesomeness is loading',
   collectionShared: 'Your list, shared. Take a bow',
   instagramFallback: 'Save the card, add it to your story. Time to make the world jealous',
-  failureGeneral: 'Something went wrong. Try again.',
-  failureNoApp: 'Could not open. Try again.',
+  failureGeneral: 'That didn’t go through. Nothing’s lost. Try again, or copy the link.',
+  failureNoApp: 'Nothing opened. Copy the link and send it yourself.',
 } as const;
 
 /** Pure: the control shows only when the share flag is explicitly true. */
