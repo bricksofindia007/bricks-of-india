@@ -84,4 +84,13 @@ export const ROUTE_CADENCE: Record<string, Cadence> = {
   '/opinion/[slug]': DYNAMIC,
   '/sets': DYNAMIC,
   '/sets/page/[page]': DYNAMIC,
+  // Sign-in and account routes (order 1312, 25 Oct 2026): read the session or take a form, so rendered per request.
+  '/account': DYNAMIC,
+  '/account/delete/confirm': DYNAMIC,
+  '/account/delete/request': DYNAMIC,
+  '/auth': DYNAMIC,
+  '/auth/code': DYNAMIC,
+  '/auth/google/callback': DYNAMIC,
+  '/auth/google/start': DYNAMIC,
+  '/auth/verify': DYNAMIC,
 };
