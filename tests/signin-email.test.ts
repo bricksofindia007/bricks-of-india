@@ -46,7 +46,7 @@ function memStore() {
       sends.set(day, (sends.get(day) ?? 0) - 1);
       return true;
     },
-    async accountExists(eh: string) { calls.push('accountExists'); return accounts.has(eh); },
+    async accountExists(email: string) { calls.push('accountExists'); return accounts.has(email); },
     async lastCodeIssuedAt(eh: string) {
       calls.push('lastCodeIssuedAt');
       const rows = codes.filter((c) => c.emailHash === eh);
@@ -61,8 +61,21 @@ function memStore() {
       const row = [...codes].reverse().find((c) => c.emailHash === eh && !c.consumed && c.expiresAt > now);
       return row ? { id: row.id, codeHash: row.codeHash, attempts: row.attempts } : null;
     },
-    async setAttempts(id: string, attempts: number) { calls.push('setAttempts'); const r = codes.find((c) => c.id === id); if (r) r.attempts = attempts; },
-    async consumeCode(id: string) { calls.push('consumeCode'); const r = codes.find((c) => c.id === id); if (r) r.consumed = true; },
+    // Each call's body runs without an await in the middle, so one call adds exactly one attempt, as the database does.
+    async bumpAttempts(id: string, now: number) {
+      calls.push('bumpAttempts');
+      const r = codes.find((c) => c.id === id && !c.consumed && c.expiresAt > now);
+      if (!r) return null;
+      r.attempts += 1;
+      return r.attempts;
+    },
+    async consumeCode(id: string) {
+      calls.push('consumeCode');
+      const r = codes.find((c) => c.id === id && !c.consumed);
+      if (!r) return false;
+      r.consumed = true;
+      return true;
+    },
   };
   return { store, sends, reservations, calls };
 }
@@ -118,7 +131,7 @@ describe('flag', () => {
 
 describe('the reply is the same for every address', () => {
   it('known and unknown addresses, box ticked or not: identical status and body', async () => {
-    mem.store.accounts.add(emailHash('known@example.com', KEY));
+    mem.store.accounts.add('known@example.com');
     const cases = [
       { rawEmail: 'known@example.com', ageConfirmed: true },
       { rawEmail: 'known@example.com', ageConfirmed: false },
@@ -189,7 +202,7 @@ describe('who gets a code', () => {
     expect(mem.sends.size).toBe(0);
   });
   it('an existing account is sent a code without the box', async () => {
-    mem.store.accounts.add(emailHash('a@example.com', KEY));
+    mem.store.accounts.add('a@example.com');
     const { d, sent } = deps(mem.store);
     await request({ rawEmail: 'a@example.com', ageConfirmed: false, now: T0 }, d);
     expect(sent).toHaveLength(1);
@@ -313,6 +326,25 @@ describe('verifying', () => {
       expect((await verifySignInCode({ rawEmail: 'a@example.com', code: '000000', now: T0 + 1000 }, d)).ok).toBe(false);
     }
     expect((await verifySignInCode({ rawEmail: 'a@example.com', code: '123456', now: T0 + 2000 }, d)).ok).toBe(false);
+  });
+  it('parallel wrong guesses cannot beat the five-attempt limit', async () => {
+    const d = await issued();
+    const wrong = Array.from({ length: 7 }, () =>
+      verifySignInCode({ rawEmail: 'a@example.com', code: '000000', now: T0 + 1000 }, d));
+    expect((await Promise.all(wrong)).every((r) => r.ok === false)).toBe(true);
+    // Guesses that were already in flight can still add to the count; anything past the limit is refused, so the count
+    // only needs to reach the limit and the code must be used up.
+    expect(mem.store.codes[0].attempts).toBeGreaterThanOrEqual(CODE_MAX_ATTEMPTS);
+    expect(mem.store.codes[0].consumed).toBe(true);
+    expect((await verifySignInCode({ rawEmail: 'a@example.com', code: '123456', now: T0 + 2000 }, d)).ok).toBe(false);
+  });
+  it('two parallel correct submissions: only the first is accepted', async () => {
+    const d = await issued();
+    const [a, b] = await Promise.all([
+      verifySignInCode({ rawEmail: 'a@example.com', code: '123456', now: T0 + 1000 }, d),
+      verifySignInCode({ rawEmail: 'a@example.com', code: '123456', now: T0 + 1000 }, d),
+    ]);
+    expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1);
   });
   it('a code bound to one address does not work for another', async () => {
     const d = await issued();

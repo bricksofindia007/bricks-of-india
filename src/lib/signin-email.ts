@@ -21,10 +21,10 @@ export const CODE_COOLDOWN_MS = 60 * 1000;
 export const DAILY_SEND_STOP = 90;
 export const DAILY_SEND_WARN = 54;
 
-export const MSG_CHECK_EMAIL = 'If this address can sign in, a code is on its way.';
-export const MSG_INVALID = 'Please enter a valid email address.';
-export const MSG_GENERIC = 'Something went wrong. Please try again.';
-export const MSG_BAD_CODE = 'That code did not work. Check it, or ask for a new one.';
+export const MSG_CHECK_EMAIL = 'Check your inbox for a code.';
+export const MSG_INVALID = 'Enter a valid email address.';
+export const MSG_GENERIC = 'Something went wrong. Try again.';
+export const MSG_BAD_CODE = 'That code isn’t right. Check it, or ask for a new code.';
 
 /** Thrown by the mailer only when the provider clearly refuses the message. Any other error is an unclear outcome. */
 export class MailRefused extends Error {
@@ -41,13 +41,19 @@ export interface SignInStore {
   reserveSend(dayKey: string, sendId: string): Promise<void>;
   /** Give back a reserved send. Returns true only the first time for a given send id. */
   releaseSend(dayKey: string, sendId: string): Promise<boolean>;
-  accountExists(emailHash: string): Promise<boolean>;
+  /** Whether an account exists for this normalised address. The address is in the accounts table only (owner decision, 24 Oct). */
+  accountExists(email: string): Promise<boolean>;
   lastCodeIssuedAt(emailHash: string): Promise<number | null>;
   insertCode(row: { id: string; emailHash: string; codeHash: string; expiresAt: number; issuedAt: number }): Promise<void>;
   /** The newest code for this address that is neither consumed nor expired, or null. */
   openCode(emailHash: string, now: number): Promise<{ id: string; codeHash: string; attempts: number } | null>;
-  setAttempts(id: string, attempts: number): Promise<void>;
-  consumeCode(id: string, now: number): Promise<void>;
+  /**
+   * Count one attempt on an open code, atomically: every call adds exactly one, even when calls run at the same time.
+   * Returns the new count, or null when the code is no longer open (consumed or expired).
+   */
+  bumpAttempts(id: string, now: number): Promise<number | null>;
+  /** Mark a code used. Returns true only for the call that used it; a second call returns false. */
+  consumeCode(id: string, now: number): Promise<boolean>;
 }
 
 export interface CodeMailer {
@@ -117,7 +123,7 @@ export function dayKey(now: number): string {
   return new Date(now).toISOString().slice(0, 10);
 }
 
-function isEnabled(deps: SignInDeps): boolean {
+function isEnabled(deps: Pick<SignInDeps, 'enabled'>): boolean {
   return deps.enabled ? deps.enabled() : FEATURE_FLAGS.signInByEmail;
 }
 
@@ -151,7 +157,7 @@ export async function finishSignIn(
   const { email, now } = input;
   try {
     const eh = emailHash(email, deps.hashKey);
-    const exists = await deps.store.accountExists(eh);
+    const exists = await deps.store.accountExists(email);
     const last = await deps.store.lastCodeIssuedAt(eh);
     if (last !== null && now - last < CODE_COOLDOWN_MS) return 'cooldown';
 
@@ -204,10 +210,14 @@ export async function finishSignIn(
   }
 }
 
-/** Check a code. Single use; at most five attempts; the fifth wrong attempt consumes the code. */
+/**
+ * Check a code. Single use; at most five attempts; the fifth wrong attempt consumes the code.
+ * Every guess counts, right or wrong, through one atomic step, so parallel guesses cannot read the same count.
+ * A correct guess is accepted only if the code is used by this call (the first of two parallel correct guesses wins).
+ */
 export async function verifySignInCode(
   input: { rawEmail: string; code: string; now?: number },
-  deps: SignInDeps,
+  deps: Pick<SignInDeps, 'store' | 'hashKey' | 'enabled'>,
 ): Promise<VerifyResult> {
   if (!isEnabled(deps)) return { ok: false, message: MSG_GENERIC };
   const now = input.now ?? Date.now();
@@ -219,18 +229,16 @@ export async function verifySignInCode(
     const row = await deps.store.openCode(eh, now);
     if (!row) return { ok: false, message: MSG_BAD_CODE };
 
-    const attempts = row.attempts + 1;
     const right = sameHash(row.codeHash, codeHash(input.code, email, deps.hashKey));
-    if (right) {
-      await deps.store.consumeCode(row.id, now);
-      return { ok: true };
+    const attempts = await deps.store.bumpAttempts(row.id, now);
+    if (attempts === null || attempts > CODE_MAX_ATTEMPTS) return { ok: false, message: MSG_BAD_CODE };
+
+    if (!right) {
+      if (attempts >= CODE_MAX_ATTEMPTS) await deps.store.consumeCode(row.id, now);
+      return { ok: false, message: MSG_BAD_CODE };
     }
-    if (attempts >= CODE_MAX_ATTEMPTS) {
-      await deps.store.consumeCode(row.id, now);
-    } else {
-      await deps.store.setAttempts(row.id, attempts);
-    }
-    return { ok: false, message: MSG_BAD_CODE };
+    const first = await deps.store.consumeCode(row.id, now);
+    return first ? { ok: true } : { ok: false, message: MSG_BAD_CODE };
   } catch {
     return { ok: false, message: MSG_GENERIC };
   }
