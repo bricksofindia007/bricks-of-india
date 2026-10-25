@@ -4,6 +4,7 @@ import { slugify } from '@/lib/utils';
 import { THEMES } from '@/lib/brand';
 import { SITE_URL } from '@/lib/metadata';
 import { hasIndianPrice } from '@/lib/indexing-price';
+import { themeIsThin } from '@/lib/theme-metadata';
 
 // Real bug, found in a Netlify credit-usage audit (2026-08-14): this route
 // had no revalidate export at all, so it was purely build-time static --
@@ -62,7 +63,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${base}/legal/privacy`, priority: 0.3 },
     { url: `${base}/legal/terms`, priority: 0.3 },
     { url: `${base}/corrections`, priority: 0.4 },
-    ...THEMES.map((t) => ({ url: `${base}/themes/${t.slug}`, priority: 0.7 })),
+    ...THEMES.filter((t) => !themeIsThin(t.slug)).map((t) => ({ url: `${base}/themes/${t.slug}`, priority: 0.7 })),
   ].map((p) => ({
     url: p.url,
     lastModified: new Date(),

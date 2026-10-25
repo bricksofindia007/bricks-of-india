@@ -83,12 +83,14 @@ describe('channel links', () => {
 describe('approved visible text', () => {
   it('uses the owner-approved strings exactly', () => {
     expect(SHARE_TEXT.button).toBe('Time to blow your trumpet');
-    expect(SHARE_TEXT.sheetTitle).toBe('Pick where to send it.');
     expect(SHARE_TEXT.previewCaption).toBe('Can you feel it');
     expect(SHARE_TEXT.copied).toBe('Awesomeness is loading');
     expect(SHARE_TEXT.instagramFallback).toBe('Save the card, add it to your story. Time to make the world jealous');
+  });
+  it('uses the approved words for the sheet title and the failure lines', () => {
+    expect(SHARE_TEXT.sheetTitle).toBe('Pick where to send it.');
     expect(SHARE_TEXT.failureNoApp).toBe('Nothing opened. Copy the link and send it yourself.');
-    expect(SHARE_TEXT.failureGeneral).toBe('That did not go through. Your list is still safe. Try again, or copy the link.');
+    expect(SHARE_TEXT.failureGeneral).toBe('That didn’t go through. Nothing’s lost. Try again, or copy the link.');
   });
 });
 
