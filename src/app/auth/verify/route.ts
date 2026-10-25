@@ -33,7 +33,8 @@ export async function POST(request: NextRequest) {
     const store = new SupabaseSignInStore();
     const accountId = (await store.findAccountId(email)) ?? (await store.createAccount(email));
     const token = newSessionToken();
-    await store.createSession(accountId, sessionTokenHash(token), Date.now() + SESSION_TTL_MS);
+    const signedInAt = Date.now();
+    await store.createSession(accountId, sessionTokenHash(token), signedInAt + SESSION_TTL_MS, signedInAt);
     const res = NextResponse.json({ ok: true }, { status: 200 });
     res.cookies.set(SESSION_COOKIE, token, SESSION_COOKIE_OPTIONS);
     return res;

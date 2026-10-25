@@ -59,7 +59,8 @@ export async function GET(request: NextRequest) {
     const accountId = existing ?? (await store.createAccount(identity.email));
 
     const token = newSessionToken();
-    await store.createSession(accountId, sessionTokenHash(token), Date.now() + SESSION_TTL_MS);
+    const signedInAt = Date.now();
+    await store.createSession(accountId, sessionTokenHash(token), signedInAt + SESSION_TTL_MS, signedInAt);
     const res = NextResponse.redirect(`${SITE_URL}/account`, 302);
     res.cookies.set(SESSION_COOKIE, token, SESSION_COOKIE_OPTIONS);
     res.cookies.set(GOOGLE_STATE_COOKIE, '', { httpOnly: true, secure: true, sameSite: 'lax', path: '/auth/google', maxAge: 0 });

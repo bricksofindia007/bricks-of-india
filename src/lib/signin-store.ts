@@ -93,18 +93,46 @@ export class SupabaseSignInStore implements SignInStore {
     return data ? { id: data.id, codeHash: data.code_hash, attempts: data.attempts } : null;
   }
 
-  async setAttempts(id: string, attempts: number): Promise<void> {
-    const { error } = await this.db.from('sign_in_codes').update({ attempts }).eq('id', id);
-    if (error) fail('attempts not stored');
+  /**
+   * Adds one attempt, only while the code is open. Compare-and-set: the update applies only if the count is still the
+   * one just read, so two guesses at the same time each add one (the loser reads again and retries).
+   */
+  async bumpAttempts(id: string, now: number): Promise<number | null> {
+    for (let i = 0; i < 10; i++) {
+      const { data, error } = await this.db
+        .from('sign_in_codes')
+        .select('attempts')
+        .eq('id', id)
+        .is('consumed_at', null)
+        .gt('expires_at', new Date(now).toISOString())
+        .maybeSingle();
+      if (error) fail('attempts unreadable');
+      if (!data) return null;
+      const current = Number(data.attempts);
+      const next = current + 1;
+      const { data: won, error: uErr } = await this.db
+        .from('sign_in_codes')
+        .update({ attempts: next })
+        .eq('id', id)
+        .eq('attempts', current)
+        .is('consumed_at', null)
+        .select('id');
+      if (uErr) fail('attempts not stored');
+      if ((won?.length ?? 0) === 1) return next;
+    }
+    return fail('attempts contended');
   }
 
-  async consumeCode(id: string, now: number): Promise<void> {
-    const { error } = await this.db
+  /** Marks the code used. True only when this call changed the row, so a second use of the same code is refused. */
+  async consumeCode(id: string, now: number): Promise<boolean> {
+    const { data, error } = await this.db
       .from('sign_in_codes')
       .update({ consumed_at: new Date(now).toISOString() })
       .eq('id', id)
-      .is('consumed_at', null);
+      .is('consumed_at', null)
+      .select('id');
     if (error) fail('code not consumed');
+    return (data?.length ?? 0) === 1;
   }
 
   /** The account id for this address, or null. Used when a code is checked, to decide whether to create an account. */
@@ -126,13 +154,22 @@ export class SupabaseSignInStore implements SignInStore {
     return data.id as string;
   }
 
-  async createSession(accountId: string, tokenHash: string, expiresAt: number): Promise<void> {
+  /**
+   * Stores a session and records the sign-in on the account (last_seen_at). Only a real sign-in calls this; a click on a
+   * warning email never does, because the 24-month deletion rule reads last_seen_at.
+   */
+  async createSession(accountId: string, tokenHash: string, expiresAt: number, seenAt: number): Promise<void> {
     const { error } = await this.db.from('account_sessions').insert({
       account_id: accountId,
       token_hash: tokenHash,
       expires_at: new Date(expiresAt).toISOString(),
     });
     if (error) fail('session not stored');
+    const { error: seenErr } = await this.db
+      .from('accounts')
+      .update({ last_seen_at: new Date(seenAt).toISOString() })
+      .eq('id', accountId);
+    if (seenErr) fail('sign-in not recorded');
   }
 }
 

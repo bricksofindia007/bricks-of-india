@@ -79,14 +79,24 @@ describe('the store', () => {
     const store = new SupabaseSignInStore(db);
     expect(await store.createAccount('new@example.com')).toBe('new-acc');
     expect(calls).toContainEqual(['insert', { email: 'new@example.com' }]);
-    await store.createSession('new-acc', 'h'.repeat(64), 5);
+    await store.createSession('new-acc', 'h'.repeat(64), 5, 7);
     const sessionInsert = calls.filter((c) => c[0] === 'insert').pop();
     expect(sessionInsert?.[1]).toMatchObject({ account_id: 'new-acc', token_hash: 'h'.repeat(64) });
+    // A real sign-in records the time on the account (the 24-month rule reads it).
+    expect(calls).toContainEqual(['update', { last_seen_at: new Date(7).toISOString() }]);
+    expect(calls).toContainEqual(['eq', 'id', 'new-acc']);
     expect(JSON.stringify(sessionInsert)).not.toMatch(/token"|"token"/);
   });
 });
 
 describe('the mailer', () => {
+  it('uses the approved subject and the "Didn\'t ask for this?" line, with the code and the expiry', () => {
+    const msg = signInMessage('123456');
+    expect(msg.subject).toBe('Your Bricks of India code');
+    expect(msg.text).toContain("Didn't ask for this? Ignore this email.");
+    expect(msg.text).toContain('123456');
+    expect(msg.text).toContain('10 minutes');
+  });
   it('posts one message from login@ with reply-to hello@, and the idempotency key', async () => {
     vi.stubEnv('RESEND_API_KEY', 'test-value');
     const fetchMock = vi.fn(async () => new Response('{}', { status: 200 }));

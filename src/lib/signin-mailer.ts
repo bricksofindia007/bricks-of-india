@@ -12,12 +12,13 @@ export const SIGN_IN_REPLY_TO = 'hello@bricksofindia.com';
 const ENDPOINT = 'https://api.resend.com/emails';
 const TIMEOUT_MS = 8000;
 
-// Placeholder wording (not approved). The owner's words for this email are not on the approved list yet (see the issue
-// for sign-in wording). The body carries the code and the expiry only: no address, no account detail.
+// Wording (order 1247, 25 Oct): the subject and the "Didn't ask for this?" line are the approved ones. The sentence that
+// gives the code and the 10-minute expiry is still the earlier placeholder: Chat has not sent its exact approved sentence
+// yet. The body carries the code and the expiry only: no address, no account detail.
 export function signInMessage(code: string): { subject: string; text: string } {
   return {
-    subject: 'Your sign-in code',
-    text: `Your sign-in code is ${code}. It expires in 10 minutes.`,
+    subject: 'Your Bricks of India code',
+    text: `Your sign-in code is ${code}. It expires in 10 minutes.\n\nDidn't ask for this? Ignore this email.`,
   };
 }
 

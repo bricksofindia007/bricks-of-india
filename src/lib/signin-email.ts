@@ -47,8 +47,13 @@ export interface SignInStore {
   insertCode(row: { id: string; emailHash: string; codeHash: string; expiresAt: number; issuedAt: number }): Promise<void>;
   /** The newest code for this address that is neither consumed nor expired, or null. */
   openCode(emailHash: string, now: number): Promise<{ id: string; codeHash: string; attempts: number } | null>;
-  setAttempts(id: string, attempts: number): Promise<void>;
-  consumeCode(id: string, now: number): Promise<void>;
+  /**
+   * Count one attempt on an open code, atomically: every call adds exactly one, even when calls run at the same time.
+   * Returns the new count, or null when the code is no longer open (consumed or expired).
+   */
+  bumpAttempts(id: string, now: number): Promise<number | null>;
+  /** Mark a code used. Returns true only for the call that used it; a second call returns false. */
+  consumeCode(id: string, now: number): Promise<boolean>;
 }
 
 export interface CodeMailer {
@@ -205,7 +210,11 @@ export async function finishSignIn(
   }
 }
 
-/** Check a code. Single use; at most five attempts; the fifth wrong attempt consumes the code. */
+/**
+ * Check a code. Single use; at most five attempts; the fifth wrong attempt consumes the code.
+ * Every guess counts, right or wrong, through one atomic step, so parallel guesses cannot read the same count.
+ * A correct guess is accepted only if the code is used by this call (the first of two parallel correct guesses wins).
+ */
 export async function verifySignInCode(
   input: { rawEmail: string; code: string; now?: number },
   deps: Pick<SignInDeps, 'store' | 'hashKey' | 'enabled'>,
@@ -220,18 +229,16 @@ export async function verifySignInCode(
     const row = await deps.store.openCode(eh, now);
     if (!row) return { ok: false, message: MSG_BAD_CODE };
 
-    const attempts = row.attempts + 1;
     const right = sameHash(row.codeHash, codeHash(input.code, email, deps.hashKey));
-    if (right) {
-      await deps.store.consumeCode(row.id, now);
-      return { ok: true };
+    const attempts = await deps.store.bumpAttempts(row.id, now);
+    if (attempts === null || attempts > CODE_MAX_ATTEMPTS) return { ok: false, message: MSG_BAD_CODE };
+
+    if (!right) {
+      if (attempts >= CODE_MAX_ATTEMPTS) await deps.store.consumeCode(row.id, now);
+      return { ok: false, message: MSG_BAD_CODE };
     }
-    if (attempts >= CODE_MAX_ATTEMPTS) {
-      await deps.store.consumeCode(row.id, now);
-    } else {
-      await deps.store.setAttempts(row.id, attempts);
-    }
-    return { ok: false, message: MSG_BAD_CODE };
+    const first = await deps.store.consumeCode(row.id, now);
+    return first ? { ok: true } : { ok: false, message: MSG_BAD_CODE };
   } catch {
     return { ok: false, message: MSG_GENERIC };
   }
