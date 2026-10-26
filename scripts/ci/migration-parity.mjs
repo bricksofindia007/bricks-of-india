@@ -36,6 +36,24 @@ export function compareParity(repo, prod, prAdded = []) {
   return { ok: prodOnly.length === 0 && unapplied.length === 0, prodOnly, pending, unapplied, repoCount: r.size, prodCount: p.size };
 }
 
+/**
+ * Parity after a SCOPE=fixes apply (order 0838, option 1). Passes only when (a) the target has nothing the repo lacks
+ * (prodOnly empty) and (b) the migrations still unapplied afterwards are EXACTLY the set that was pending and held at
+ * the start of the same run. Any other difference fails, with the reason. Pure.
+ */
+export function fixesScopeParity({ repo, prod, heldAtStart }) {
+  const par = compareParity(repo, prod);
+  const held = [...new Set(heldAtStart)].sort();
+  const unapplied = [...par.unapplied].sort();
+  const reasons = [];
+  if (par.prodOnly.length) reasons.push(`target has versions with no repo file: ${par.prodOnly.join(', ')}`);
+  const extra = unapplied.filter((v) => !held.includes(v));
+  const gone = held.filter((v) => !unapplied.includes(v));
+  if (extra.length) reasons.push(`unapplied but not held at the start of this run: ${extra.join(', ')}`);
+  if (gone.length) reasons.push(`held at the start of this run but applied now: ${gone.join(', ')}`);
+  return { ok: reasons.length === 0, reasons, prodOnly: par.prodOnly, unapplied, heldAtStart: held, repoCount: par.repoCount, prodCount: par.prodCount };
+}
+
 function arg(name, dflt) {
   const i = process.argv.indexOf(name);
   return i > -1 ? process.argv[i + 1] : dflt;
