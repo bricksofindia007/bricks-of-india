@@ -1,6 +1,7 @@
 import type { Provider, ProviderCallInput, ProviderCallResult } from './types';
 import { FEATURE_FLAGS } from '../feature-flags';
 import { guardAiCall, recordAiCall } from '../spend-guard-pilot';
+import { guardedCall, runBudget } from '../../../scripts/lib/ai-guard.mjs';
 
 // 2026-08-22 (qwen rollout evidence pass): default model swapped from the
 // now-decommissioned llama-3.3-70b-versatile (confirmed dead, live 404) to
@@ -50,6 +51,20 @@ export class GroqProvider implements Provider {
       body.reasoning_effort = 'low';
     }
 
+    // The per-run caps of the shared AI call guard (config/ai-limits.json) apply here as they do to Gemini. The model must
+    // be on the allowlist there, or the call is refused before anything is sent. One call is counted once; its retries are
+    // inside that one count.
+    return guardedCall({
+      site: 'draft',
+      model,
+      system: systemPrompt,
+      user: userPrompt,
+      budget: runBudget(),
+      invoke: () => this.send(model, body),
+    });
+  }
+
+  private async send(model: string, body: Record<string, unknown>): Promise<ProviderCallResult> {
     // 429 handling: added 2026-08-22 after a real 429 was hit live during
     // this rollout's article-pipeline sanity testing (Groq's org-level
     // 8,000 TPM cap, same as VID-QP's). One bounded retry, honoring the
