@@ -5,8 +5,15 @@ import { themeRouteMetadata } from '@/lib/theme-metadata';
 import { isThemeSort, themeHref } from '@/lib/theme-paging';
 import { ThemePageBody } from '@/components/themes/ThemePageBody';
 
-// A sorted view, pages 2 and up. Rendered per request, noindex, and canonical to the default-sort page of the same number.
-export const dynamic = 'force-dynamic';
+// A sorted view, pages 2 and up: noindex, canonical to the default-sort page of the same number.
+// Cached daily as an ISR route (queue 1, 23 Oct). generateStaticParams returns none, so each sorted page render on first request and then
+// stay cached, the same as the default-sort page. The declaration is what makes Next register the route for caching.
+export const revalidate = 86400;
+export const dynamicParams = true;
+export async function generateStaticParams() {
+  return [];
+}
+
 
 interface Props {
   params: Promise<{ theme: string; sort: string; page: string }>;
