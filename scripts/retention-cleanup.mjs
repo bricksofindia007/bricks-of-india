@@ -22,6 +22,7 @@
 //    content_fix_log keeps referencing them -- that's correct, not a bug.
 import { createClient } from '@supabase/supabase-js';
 import { rejectedDraftsFilter } from './lib/rejected-drafts.mjs';
+import { CLEANUP_RPC, isAbsentError } from './lib/sign-in-cleanup.mjs';
 
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 const DRY_RUN = process.argv.includes('--dry-run');
@@ -150,9 +151,24 @@ async function purgeRejectedDrafts() {
   console.log(`[rejected_drafts] deleted ${del.count ?? 0}`);
 }
 
+// Sign-in cleanup (issue 817): expired codes, past sends and old sessions. Skips cleanly while its function or tables do not
+// exist yet (an absent-object error, see scripts/lib/sign-in-cleanup.mjs). Any other error stops the run.
+async function signInCleanup() {
+  const { data, error } = await supabase.rpc(CLEANUP_RPC, { p_dry_run: DRY_RUN });
+  if (error) {
+    if (isAbsentError(error)) {
+      console.log('[sign_in_cleanup] skipped: the cleanup function or its tables are not in this database yet');
+      return;
+    }
+    throw new Error(`${CLEANUP_RPC} failed: ${error.message || JSON.stringify(error)}`);
+  }
+  console.log(`[sign_in_cleanup] ${JSON.stringify(data)}`);
+}
+
 async function main() {
   console.log(DRY_RUN ? '=== DRY RUN ===' : '=== LIVE RUN ===');
   await runRetention();
+  await signInCleanup();
   await purgeRejectedDrafts();
   await archiveContentQualityIssues();
 }
