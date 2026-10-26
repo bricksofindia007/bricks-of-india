@@ -24,7 +24,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
-import { compareParity, versionOf } from './migration-parity.mjs';
+import { compareParity, fixesScopeParity, versionOf } from './migration-parity.mjs';
 import { PROD_REF } from './prod-reference.mjs';
 
 // Staging safety check. Runs before any connection. A staging address must not contain the
@@ -176,7 +176,7 @@ const lit = (s) => `'${String(s).replace(/'/g, "''")}'`;
 async function main() {
   const TARGET = process.env.TARGET, MODE = process.env.MODE ?? 'plan', URL = process.env.DATABASE_URL;
   const SCOPE = process.env.SCOPE || 'all';
-  if (!['all', 'migrations'].includes(SCOPE)) throw new Error('SCOPE must be all or migrations');
+  if (!['all', 'migrations', 'fixes'].includes(SCOPE)) throw new Error('SCOPE must be all, migrations or fixes');
   const OUT = process.env.OUT_DIR ?? 'db-migrate-out', RUN_URL = process.env.RUN_URL ?? '';
   if (!['staging', 'production'].includes(TARGET)) throw new Error('TARGET must be staging or production');
   if (!URL) throw new Error(`DATABASE_URL not set -- the ${TARGET} environment secret MIGRATE_DB_URL is missing`);
@@ -203,6 +203,10 @@ async function main() {
   const fixes = listRepo(FIXES_DIR, 'fix');
   const p = plan({ migrations, fixes, appliedVersions, appliedFixes });
   let heldFixes = SCOPE === 'migrations' ? p.pendingFixes : [];
+  // SCOPE=fixes (order 0838): pending migrations are held, not linted and not applied. The parity rule at the end
+  // allows exactly this set to stay unapplied.
+  const heldMigrations = SCOPE === 'fixes' ? p.pendingMigrations : [];
+  if (SCOPE === 'fixes') p.pendingMigrations = [];
   let unauthorized = [], alreadyApplied = [];
   if (SCOPE === 'migrations') p.pendingFixes = [];
   else {
@@ -212,7 +216,7 @@ async function main() {
     p.pendingFixes = sel.apply;
   }
 
-  say(`## db-migrate: ${TARGET} (${MODE}${SCOPE === 'migrations' ? ', migrations only' : ''})`);
+  say(`## db-migrate: ${TARGET} (${MODE}${SCOPE === 'migrations' ? ', migrations only' : ''}${SCOPE === 'fixes' ? ', fixes only' : ''})`);
   say(`repo migrations ${migrations.length}, applied on ${TARGET} ${appliedVersions.length}; repo data fixes ${fixes.length}, applied ${appliedFixes.length}`);
   if (p.targetOnly.length) throw new Error(`${TARGET} has versions with no repo file (${p.targetOnly.join(', ')}) -- refusing to apply anything (G7)`);
   const items = [...p.pendingMigrations.map((f) => ({ kind: 'migration', name: f, file: path.join(MIGRATIONS_DIR, f) })),
@@ -222,6 +226,7 @@ async function main() {
   for (const it of items) { it.sql = fs.readFileSync(it.file, 'utf8'); it.header = parseHeader(it.sql); problems.push(...lintFile(it.kind, it.name, it.sql)); }
   say(`pending: ${items.length ? items.map((i) => `${i.kind} ${i.name}`).join('; ') : 'nothing'}`);
   if (heldFixes.length) say(`held (scope=migrations): ${heldFixes.map((f) => `fix ${f}`).join('; ')}`);
+  if (heldMigrations.length) say(`held (scope=fixes, not linted or applied): ${heldMigrations.map((f) => `migration ${f}`).join('; ')}`);
   if (unauthorized.length) say(`held (not in the fixes input, not authorized for this run): ${unauthorized.map((f) => `fix ${f}`).join('; ')}`);
   if (alreadyApplied.length) say(`already applied on ${TARGET} (skipped): ${alreadyApplied.map((f) => `fix ${f}`).join('; ')}`);
   if (problems.length) throw new Error(`lint:\n- ${problems.join('\n- ')}`);
@@ -286,7 +291,10 @@ async function main() {
   const after = r('select version from supabase_migrations.schema_migrations order by 1').split('\n').filter(Boolean);
   const par = compareParity(migrations.map(versionOf), after);
   evidence.parity = par;
-  const parityOk = MODE === 'plan' ? par.prodOnly.length === 0 : par.ok;
+  const fixesParity = SCOPE === 'fixes' ? fixesScopeParity({ repo: migrations.map(versionOf), prod: after, heldAtStart: heldMigrations.map(versionOf) }) : null;
+  if (fixesParity) evidence.fixes_scope_parity = fixesParity;
+  const parityOk = MODE === 'plan' ? par.prodOnly.length === 0 : (fixesParity ? fixesParity.ok : par.ok);
+  if (fixesParity && !fixesParity.ok) say(`parity (scope=fixes) reasons: ${fixesParity.reasons.join('; ')}`);
   say(parityOk ? `parity: PASS (repo ${par.repoCount} = ${TARGET} ${par.prodCount}${MODE === 'plan' && par.unapplied.length ? `; ${par.unapplied.length} pending` : ''})`
                : `parity: FAIL (target-only ${par.prodOnly.join(',') || '-'}; unapplied ${par.unapplied.join(',') || '-'})`);
   fs.writeFileSync(path.join(OUT, `evidence-${TARGET}.json`), JSON.stringify(evidence, null, 1));

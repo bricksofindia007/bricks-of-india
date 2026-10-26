@@ -25,9 +25,9 @@ on:
         options: [plan, apply]
         default: plan
       scope:
-        description: 'all = migrations + data fixes; migrations = migrations only, fixes stay pending (P12)'
+        description: 'all = migrations + data fixes; migrations = migrations only, fixes stay pending (P12); fixes = named fixes only, pending migrations stay held (parity allows exactly those)'
         type: choice
-        options: [all, migrations]
+        options: [all, migrations, fixes]
         default: all
       fixes:
         description: 'data fixes chat authorized for THIS run, comma-separated file names without .sql (e.g. 496-love-birds-g19,498-item0-retired-verdicts-a). Apply mode refuses if fixes are pending and this is empty; pending fixes not listed are held.'
