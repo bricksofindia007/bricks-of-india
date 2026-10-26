@@ -222,13 +222,17 @@ try {
   );
 }
 
+// Weekly social run (Mondays 12:00 IST) plus one day of margin, in hours. Used by Checks 6 and 6c.
+const SOCIAL_ATTEMPT_MAX_HOURS = 7 * 24 + 24;
+
 // ── Check 6: Instagram heartbeat ─────────────────────────────────────────────
 // Replaces the old hardcoded-expiry-date check (removed 2026-07-26 -- it never
 // tracked the real token, so once the constant's date passed it fired a false
 // "expiring soon" alert every single day forever, regardless of actual token
 // state). Reads the same social_automation_heartbeat table Check 6c already
 // uses for YouTube -- real success/failure signal instead of a guessed date.
-// Primary alert  (26h): last_attempt_at stale -> workflow itself hasn't run
+// Primary alert  (192h): last_attempt_at stale -> workflow itself hasn't run. The workflow runs weekly, Mondays 12:00 IST
+// (social-automation.yml), so the limit is one week plus one day.
 // Secondary alert (120h): last_success_at stale -> workflow runs but IG never succeeds.
 // Widened from 72h to 120h 2026-07-26: live posted_sets history showed real,
 // non-failure gaps up to 71.9h between eligible sets (the ~7-of-17-days gate),
@@ -252,11 +256,11 @@ try {
   } else {
     const igAttemptAge = (Date.now() - new Date(igHb.last_attempt_at).getTime()) / 3_600_000;
     console.log(`[6] Instagram heartbeat: last attempt ${igAttemptAge.toFixed(1)}h ago`);
-    if (igAttemptAge > 26) {
+    if (igAttemptAge > SOCIAL_ATTEMPT_MAX_HOURS) {
       failures.push('ig-heartbeat-stale');
       await sendAlert(
         '⚠️ BOI Health Alert — Instagram pipeline not attempting',
-        `social-automation.yml last ran ${igAttemptAge.toFixed(1)} hours ago.\n\nThreshold: 26 hours (runs daily at 12:00 IST).\n\nCheck GitHub Actions → social-automation.yml for failures or missed triggers.`
+        `social-automation.yml last ran ${igAttemptAge.toFixed(1)} hours ago.\n\nThreshold: 192 hours (runs weekly, Mondays at 12:00 IST, with one day of margin).\n\nCheck GitHub Actions → social-automation.yml for failures or missed triggers.`
       );
     } else if (igHb.last_success_at) {
       const igSuccessAge = (Date.now() - new Date(igHb.last_success_at).getTime()) / 3_600_000;
@@ -335,7 +339,7 @@ try {
 }
 
 // ── Check 6c: YouTube heartbeat ──────────────────────────────────────────────
-// Primary alert  (26h): last_attempt_at stale → workflow itself hasn't run
+// Primary alert  (192h): last_attempt_at stale → workflow itself hasn't run. Weekly run (Mondays 12:00 IST), one week plus one day.
 // Secondary alert (120h): last_success_at stale → workflow runs but YouTube never succeeds.
 // Widened from 72h to 120h 2026-07-26 -- same false-positive shape as Check 4
 // (shared eligibility-gated posting cadence with Instagram), see Check 6 note.
@@ -356,11 +360,11 @@ try {
   } else {
     const attemptAge = (Date.now() - new Date(hb.last_attempt_at).getTime()) / 3_600_000;
     console.log(`[6c] YouTube heartbeat: last attempt ${attemptAge.toFixed(1)}h ago`);
-    if (attemptAge > 26) {
+    if (attemptAge > SOCIAL_ATTEMPT_MAX_HOURS) {
       failures.push('yt-heartbeat-stale');
       await sendAlert(
         '⚠️ BOI Health Alert — YouTube pipeline not attempting',
-        `social-automation.yml last ran ${attemptAge.toFixed(1)} hours ago.\n\nThreshold: 26 hours (runs daily at 12:00 IST).\n\nCheck GitHub Actions → social-automation.yml for failures or missed triggers.`
+        `social-automation.yml last ran ${attemptAge.toFixed(1)} hours ago.\n\nThreshold: 192 hours (runs weekly, Mondays at 12:00 IST, with one day of margin).\n\nCheck GitHub Actions → social-automation.yml for failures or missed triggers.`
       );
     } else if (hb.last_success_at) {
       const successAge = (Date.now() - new Date(hb.last_success_at).getTime()) / 3_600_000;
