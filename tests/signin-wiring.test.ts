@@ -90,10 +90,10 @@ describe('the store', () => {
 });
 
 describe('the mailer', () => {
-  it('uses the approved subject and the "Didn\'t ask for this?" line, with the code and the expiry', () => {
+  it('uses the approved subject and the "Didn’t ask for this?" line (curly apostrophe), with the code and the expiry', () => {
     const msg = signInMessage('123456');
     expect(msg.subject).toBe('Your Bricks of India code');
-    expect(msg.text).toContain("Didn't ask for this? Ignore this email.");
+    expect(msg.text).toContain('Didn’t ask for this? Ignore this email.');
     expect(msg.text).toContain('123456');
     expect(msg.text).toContain('10 minutes');
   });
