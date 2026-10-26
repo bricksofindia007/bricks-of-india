@@ -27,6 +27,8 @@ export const MIN_REASON_CHARS = 20;
 export const REQUIRED_CHECKS = ['snapshot-tests', 'verify-no-email-in-client-bundle', 'g19-public-text', 'pr-text-attribution'];
 // Files that may differ between the measured commit and the deployed commit without re-measuring.
 const NON_CODE = [/^docs\//, /^logs\//];
+// Load-generator classes under this prefix are Cloudflare's own pages, not the site (see responsesFromCounts).
+export const EXCLUDED_CLASS_PREFIX = '/cdn-cgi/';
 
 /**
  * Pure. Chooses the commit whose checks count.
@@ -69,6 +71,9 @@ export function errorRateFromResponses(responses) {
 export function responsesFromCounts(counts) {
   const out = [];
   for (const [cls, row] of Object.entries(counts?.classes ?? {})) {
+    // Paths under /cdn-cgi/ are Cloudflare's own pages, not the site. Left out of both the failures and the requests
+    // (approved by Abhinav, 26 Oct 2026, 08:10 IST). The limits are unchanged.
+    if (cls.startsWith(EXCLUDED_CLASS_PREFIX)) continue;
     const pageClass = cls === '(not found)' ? 'not-found' : 'page';
     for (const [key, n] of Object.entries(row)) {
       for (let i = 0; i < n; i++) {
