@@ -33,6 +33,11 @@ on:
         description: 'data fixes chat authorized for THIS run, comma-separated file names without .sql (e.g. 496-love-birds-g19,498-item0-retired-verdicts-a). Apply mode refuses if fixes are pending and this is empty; pending fixes not listed are held.'
         type: string
         default: ''
+      target:
+        description: 'both = staging, then production (behind its approval), as before; staging = the test database only (the production job is skipped)'
+        type: choice
+        options: [both, staging]
+        default: both
 
 permissions:
   contents: read
@@ -68,7 +73,7 @@ jobs:
         run: node scripts/ci/db-migrate.mjs
 
   production:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' && inputs.target != 'staging'
     needs: staging
     runs-on: ubuntu-24.04
     environment: production-migrations
