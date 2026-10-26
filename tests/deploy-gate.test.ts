@@ -235,6 +235,15 @@ describe('counts become per-response records', () => {
     expect(responses.filter((r: any) => isFailedResponse(r)).length).toBe(5);
     expect(errorRateFromResponses(responses)).toBe(0.25);
   });
+  it('paths under /cdn-cgi/ are left out of both the failures and the requests', () => {
+    const counts = { since: 'x', classes: {
+      '/cdn-cgi/rum': { '404': 100, '500': 50, timeout: 50 },
+      '/a': { '200': 10, '500': 1 },
+    } };
+    const responses = responsesFromCounts(counts);
+    expect(responses.length).toBe(11);
+    expect(errorRateFromResponses(responses)).toBe(0.090909);
+  });
   it('no counts gives no responses and no rate', () => {
     expect(responsesFromCounts(null)).toEqual([]);
     expect(errorRateFromResponses([])).toBeNull();
