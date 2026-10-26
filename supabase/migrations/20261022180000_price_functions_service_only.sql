@@ -1,4 +1,5 @@
--- boi:issue B4 B12 (Bundle 3, queue item 2). NOT APPLIED: staging first, then production in a separate window.
+-- boi:issue 796
+-- (Bundle 3, queue item 2; issue 796 is the staging rehearsal for this migration). NOT APPLIED: staging first, then production in a separate window.
 -- Closes the five SECURITY DEFINER price functions that the anonymous and signed-in roles could call through the
 -- public API: get_set_prices, get_price_history, get_price_summary_for_set, get_last_seen_prices, get_usd_inr_rate.
 -- Execute is kept for service_role only. Every caller is server code (reviews page, last-seen route, rate reader,
