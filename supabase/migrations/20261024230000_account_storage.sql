@@ -1,3 +1,4 @@
+-- boi:issue 802
 -- Account storage for collections and wishlists (pillar H, flag off). NOT APPLIED: staging rehearsal and review first (G7).
 -- The sign-in email lives in ONE server-only column, public.accounts.email (owner decision, 24 Oct 2026): lower-cased,
 -- unique, no other personal fields. Every saved row points to accounts.id and nothing else; no email appears anywhere else.

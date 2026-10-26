@@ -1,3 +1,4 @@
+-- boi:issue 752
 -- Sign-in by emailed code and account sessions (pillar H, flag off). NOT APPLIED: staging rehearsal and review first (G7).
 -- Codes and sends are keyed by a keyed hash of the address, never the address itself. The address lives only in
 -- public.accounts.email (owner decision, 24 Oct 2026). A session is stored as a hash of its token; the token is only in the cookie.
