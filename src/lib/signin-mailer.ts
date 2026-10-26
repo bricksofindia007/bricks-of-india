@@ -18,7 +18,7 @@ const TIMEOUT_MS = 8000;
 export function signInMessage(code: string): { subject: string; text: string } {
   return {
     subject: 'Your Bricks of India code',
-    text: `Your sign-in code is ${code}. It expires in 10 minutes.\n\nDidn't ask for this? Ignore this email.`,
+    text: `Your sign-in code is ${code}. It expires in 10 minutes.\n\nDidn’t ask for this? Ignore this email.`,
   };
 }
 
