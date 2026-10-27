@@ -69,6 +69,7 @@ export const ROUTE_CADENCE: Record<string, Cadence> = {
   '/admin/pending': DYNAMIC,
   '/admin/pending/growth/[[...path]]': DYNAMIC,
   '/admin/pending/newsletter': DYNAMIC,
+  '/admin/visitors': DYNAMIC,
   '/api/img': DYNAMIC,
   '/api/saved-sets': DYNAMIC,
   '/api/last-seen-prices': DYNAMIC,
