@@ -1,13 +1,13 @@
 // The real rendered text of the My Collection notes, rendered on the server (react-dom/server, no DOM needed):
 // the "unavailable" banner, the owned-row worth lines (rule 4 "Worth not known yet", the estimate, the retired line,
-// the dated last-seen line). "No Indian price yet" is for wishlist rows only.
+// the dated last-seen line). "No Indian price yet. We\'re watching the shelves." is for wishlist rows only.
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { OwnedWorthLine, PricesUnavailable } from '../src/app/my/PriceNotes';
 import { retiredLine, worthOf, worthInputFor, usableRate, RETIRED_LINE, WORTH_UNKNOWN_LINE, WISHLIST_NO_PRICE_LINE } from '../src/lib/collection-worth';
 
 const NOW = new Date('2026-10-18T06:00:00Z');
-const text = (html: string) => html.replace(/<[^>]+>/g, '');
+const text = (html: string) => html.replace(/<[^>]+>/g, '').replace(/&#x27;/g, "'");
 
 describe('the "prices unavailable" banner, as rendered', () => {
   it('renders the approved line as an alert, with the names still shown by the page', () => {
@@ -25,7 +25,7 @@ describe('an owned row with no verified Indian price and no US price: rule 4', (
     expect(out).not.toContain(WISHLIST_NO_PRICE_LINE);
   });
   it('the no-price line is the wishlist copy, and is not an owned-row line', () => {
-    expect(WISHLIST_NO_PRICE_LINE).toBe('No Indian price yet');
+    expect(WISHLIST_NO_PRICE_LINE).toBe('No Indian price yet. We\'re watching the shelves.');
   });
 });
 

@@ -95,8 +95,8 @@ describe('flags off: the page and the routes are absent', () => {
 });
 
 describe('no verified Indian price', () => {
-  it('the copy is "No Indian price yet" for a wishlist row and "Worth not known yet" for an owned row (approved list, items 27 and 28)', () => {
-    expect(WISHLIST_NO_PRICE_LINE).toBe('No Indian price yet');
+  it('the copy is "No Indian price yet. We\'re watching the shelves." for a wishlist row and "Worth not known yet" for an owned row (approved list, items 27 and 28)', () => {
+    expect(WISHLIST_NO_PRICE_LINE).toBe('No Indian price yet. We\'re watching the shelves.');
     expect(WORTH_UNKNOWN_LINE).toBe('Worth not known yet');
     const src = readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
     expect(src).toContain('<OwnedWorthLine line={w.line} />');

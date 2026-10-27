@@ -95,8 +95,8 @@ describe('flags off: the page and the routes are absent', () => {
 });
 
 describe('no verified Indian price', () => {
-  it('"No Indian price yet" is the wishlist copy only; an owned row with no price shows "Worth not known yet" (rule 4)', () => {
-    expect(WISHLIST_NO_PRICE_LINE).toBe('No Indian price yet');
+  it('"No Indian price yet. We\'re watching the shelves." is the wishlist copy only; an owned row with no price shows "Worth not known yet" (rule 4)', () => {
+    expect(WISHLIST_NO_PRICE_LINE).toBe('No Indian price yet. We\'re watching the shelves.');
     const src = readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
     // Owned rows pass the rule's own line through; the wishlist row is the only place the no-price copy is written.
     expect(src).toContain('<OwnedWorthLine line={w.line} />');

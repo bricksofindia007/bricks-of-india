@@ -43,7 +43,7 @@ describe('worth rule 3: retired set, no figure', () => {
   it('shows only the retired line, with no number', () => {
     const w = worthOf(item({ usPriceUsd: 499 }), RATE, true);
     expect(w).toEqual({ rule: 'retired', inr: null, line: RETIRED_LINE, note: null });
-    expect(w.line).toBe('Retired and sought after. Resellers know what this is worth. Check the secondary market before you sell.');
+    expect(w.line).toBe('Retired. Collectors are fighting over it on resale markets, and we\'re not brave enough to price that.');
     expect(w.line).not.toMatch(/\d/);
   });
   it('a retired set with no US price is still retired, not unknown', () => {
