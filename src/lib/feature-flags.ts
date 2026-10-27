@@ -139,4 +139,8 @@ export const FEATURE_FLAGS = {
   // Theme pages with no priced set: noindex, follow, and left out of the sitemap (25 Oct 2026, order 1142). Off: every
   // theme page is unchanged. Mirrored in config/feature_flags.py (thin_theme_noindex); keep in sync.
   thinThemeNoindex: false,
+
+  // Owner-only daily visit totals (order 0050, issue 822). Off: the owner page is a 404 and nothing is written.
+  // Never shown publicly. Mirrored in config/feature_flags.py (visitor_counter); keep in sync.
+  visitorCounter: false,
 } as const;

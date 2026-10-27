@@ -149,4 +149,7 @@ FEATURE_FLAGS = {
     # Theme pages with no priced set: noindex, follow, left out of the sitemap (25 Oct 2026). Off: unchanged.
     # Mirrored in src/lib/feature-flags.ts (thinThemeNoindex); keep in sync.
     "thin_theme_noindex": False,
+    # Owner-only daily visit totals (order 0050, issue 822). Off: owner page is 404 and nothing is written.
+    # Never shown publicly. Mirrored in src/lib/feature-flags.ts (visitorCounter); keep in sync.
+    "visitor_counter": False,
 }
