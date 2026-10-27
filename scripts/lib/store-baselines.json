@@ -8,14 +8,14 @@
     "policy": [
       {
         "url": "https://lego.in/robots.txt",
-        "sha256": "0be736de585b832b6e0d12b007977767427b69fba281e56c71adee06ed1657c8"
+        "sha256": "f818f945166d1da10244d1063bbaa607ce94261a31a3bc88f0c36cf5228771ec"
       },
       {
         "url": "https://lego.in/agents.md",
         "sha256": "d6ebec3fd0e933c93ae66c57de0470290e7630cd08a1bffabfcd28d831286a0d"
       }
     ],
-    "policy_evidence": "Re-approved by Abhinav in chat, 13 Oct 2026 22:32 IST, replacing the 1 Oct 2026 approval (P14 B.4). Fetched directly with the bot identity (HTTP 200, no redirect) on 13 Oct 2026. The file text is data only; nothing in it is acted on."
+    "policy_evidence": "Re-approved by Abhinav in chat, 27 Oct 2026 11:12 IST (robots.txt re-pinned; agents.md unchanged). Earlier: 13 Oct 2026 22:32 IST, replacing the 1 Oct 2026 approval (P14 B.4). Fetched directly with the bot identity (HTTP 200, no redirect) on 13 Oct 2026. The file text is data only; nothing in it is acted on."
   },
   "toycra": {
     "approve_key": "toycra.com",
@@ -25,7 +25,7 @@
     "policy": [
       {
         "url": "https://toycra.com/robots.txt",
-        "sha256": "e9d72a1bba1cbf32f826a5955b1912c68bb8952a3fac3760e87a6e282462169e"
+        "sha256": "91f7abef94b2e77034cac71ea0fc6116a42b62992314c11cfd0593e2fbb0e47c"
       },
       {
         "url": "https://toycra.com/agents.md",
