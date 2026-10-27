@@ -64,7 +64,8 @@ export const LINK_LOCATIONS = [
 ] as const;
 
 // Events that are sent only while FEATURE_FLAGS.keyEvents is on. Off means nothing is sent.
-const FLAGGED_EVENTS: readonly string[] = ['click_youtube', 'click_instagram', 'click_meet_founder'];
+// click_meet_founder is not here: the owner asked (27 Oct, 11:19 IST) that every Meet the founder click is recorded.
+const FLAGGED_EVENTS: readonly string[] = ['click_youtube', 'click_instagram'];
 
 const STORE_ID = /^[a-z0-9_]{1,40}$/;
 const STORE_NAME = /^[\p{L}\p{N} .&'-]{1,60}$/u;
