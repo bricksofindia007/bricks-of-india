@@ -33,7 +33,7 @@ describe('visit_daily migration', () => {
   });
   it('ends with a self-check that fails the migration if RLS is off or a browser role has a grant', () => {
     expect(migration).toMatch(/relrowsecurity/);
-    expect(migration).toMatch(/grantee in \('anon', 'authenticated', 'public'\)/);
+    expect(migration).toMatch(/upper\(grantee\) in \('ANON', 'AUTHENTICATED', 'PUBLIC'\)/);
     expect(migration).toMatch(/raise exception 'visit_daily: row level security is not on'/);
   });
   it('the rollback removes only the table', () => {

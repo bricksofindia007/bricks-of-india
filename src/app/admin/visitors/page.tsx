@@ -43,7 +43,7 @@ export default async function VisitorsPage() {
     <main style={{ maxWidth: 720, margin: '0 auto', padding: '32px 16px', fontFamily: 'system-ui, sans-serif' }}>
       <h1 style={{ fontSize: 22 }}>Daily views, last 30 days</h1>
       <p style={{ color: '#444' }}>
-        Totals per page group, from the existing traffic reader. Counts include bots as the source counts them. No
+        Totals per page group. Counts include bots as the source counts them. No
         visitor is identified. {error ? 'The totals could not be read.' : ''}
       </p>
       <table style={{ width: '100%', borderCollapse: 'collapse' }}>

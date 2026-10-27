@@ -27,7 +27,7 @@ begin
   if exists (
     select 1 from information_schema.role_table_grants
     where table_schema = 'public' and table_name = 'visit_daily'
-      and grantee in ('anon', 'authenticated', 'public')
+      and upper(grantee) in ('ANON', 'AUTHENTICATED', 'PUBLIC')
   ) then
     raise exception 'visit_daily: anon, authenticated or public has a grant';
   end if;
