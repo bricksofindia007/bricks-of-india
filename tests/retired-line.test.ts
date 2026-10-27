@@ -9,7 +9,7 @@ const seen: LastSeen = { priceInr: 12999, observedAt: '2026-03-14T09:00:00Z' };
 
 describe('(a) the approved "sought after" fallback has no number', () => {
   it('the fallback text contains no digit and is the approved wording', () => {
-    expect(RETIRED_LINE).toBe('Retired and sought after. Resellers know what this is worth. Check the secondary market before you sell.');
+    expect(RETIRED_LINE).toBe('Retired. Collectors are fighting over it on resale markets, and we\'re not brave enough to price that.');
     expect(RETIRED_LINE).not.toMatch(/\d/);
     expect(RETIRED_LINE).not.toMatch(/₹/);
   });

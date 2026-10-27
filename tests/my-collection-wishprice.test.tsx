@@ -4,7 +4,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { WishPrice } from '../src/app/my/PriceNotes';
 import { VOICE } from '../src/lib/my-collection';
 
-const text = (html: string) => html.replace(/<[^>]+>/g, '');
+const text = (html: string) => html.replace(/<[^>]+>/g, '').replace(/&#x27;/g, "'");
 const NAMES = { lego_in: 'LEGO.in', toycra: 'Toycra' };
 
 describe('the wishlist price line, as rendered', () => {
@@ -28,9 +28,9 @@ describe('the wishlist price line, as rendered', () => {
     expect(text(html)).toBe(VOICE.pricesUnavailable);
     expect(html).not.toContain('toycra');
   });
-  it('no price: "No Indian price yet", as before', () => {
+  it('no price: "No Indian price yet. We\'re watching the shelves.", as before', () => {
     const html = renderToStaticMarkup(<WishPrice priceReady={true} price={null} storeIds={null} storeNames={{}} />);
-    expect(text(html)).toBe('No Indian price yet');
+    expect(text(html)).toBe('No Indian price yet. We\'re watching the shelves.');
   });
   it('a price with no store recorded shows the price alone', () => {
     const html = renderToStaticMarkup(<WishPrice priceReady={true} price={41199} storeIds={null} storeNames={{}} />);

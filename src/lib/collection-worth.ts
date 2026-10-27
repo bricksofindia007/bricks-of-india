@@ -28,11 +28,11 @@ export interface RetiredSource {
 export const CAP_SENTENCE = `Worth counts your newest ${PRICE_READ_CAP} sets.`;
 
 export const RETIRED_LINE =
-  'Retired and sought after. Resellers know what this is worth. Check the secondary market before you sell.';
+  'Retired. Collectors are fighting over it on resale markets, and we\'re not brave enough to price that.';
 export const ESTIMATE_NOTE =
   'Estimates convert the US price and can differ from what Indian shops charge. Not a valuation.';
 export const WORTH_UNKNOWN_LINE = 'Worth not known yet';
-export const WISHLIST_NO_PRICE_LINE = 'No Indian price yet';
+export const WISHLIST_NO_PRICE_LINE = 'No Indian price yet. We\'re watching the shelves.';
 
 export type WorthRule = 'indian' | 'estimate' | 'stored-estimate' | 'retired' | 'unknown';
 
