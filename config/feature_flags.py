@@ -152,4 +152,7 @@ FEATURE_FLAGS = {
     # Owner-only daily visit totals (order 0050, issue 822). Off: owner page is 404 and nothing is written.
     # Never shown publicly. Mirrored in src/lib/feature-flags.ts (visitorCounter); keep in sync.
     "visitor_counter": False,
+    # Price history chart on set pages, with the "lowest in 90 days" marker (H5, order 0060). Off: no read, no chart.
+    # Mirrored in src/lib/feature-flags.ts (priceHistoryChart); keep in sync.
+    "price_history_chart": False,
 }
