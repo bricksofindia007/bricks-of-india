@@ -33,9 +33,8 @@ jobs:
           SUBJECT: ${{ github.event.head_commit.message }}
           DRAFT: ${{ github.event.pull_request.draft }}
         run: |
-          if [ "$EVENT" = "push" ] && printf '%s' "$SUBJECT" | head -1 | grep -qE '\(#[0-9]+\)$'; then
-            echo "push is a merged pull request: already checked"; { echo "code=false"; echo "merged=true"; } >> "$GITHUB_OUTPUT"; exit 0
-          fi
+          # The merged-pull-request shortcut is removed (order 0060, item 2): a push whose subject ends in (#N) used to skip
+          # every code check, so a squash merge of code ran no tests on main. Every push now computes code the same way.
           echo "merged=false" >> "$GITHUB_OUTPUT"
           if [ "$DRAFT" = "true" ]; then
             echo "draft pull request: full checks run when it is marked ready"; echo "code=false" >> "$GITHUB_OUTPUT"; exit 0
