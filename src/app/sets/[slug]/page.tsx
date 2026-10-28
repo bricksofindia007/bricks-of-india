@@ -20,6 +20,7 @@ import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import { HeartSlot, CollectionSlot } from '@/components/saved/CollectionSlots';
 import { SetCard } from '@/components/sets/SetCard';
+import { PriceHistoryChart } from '@/components/sets/PriceHistoryChart';
 import { SetImage } from '@/components/sets/SetImage';
 import { JsonLd } from '@/components/JsonLd';
 import { FreshOnly } from '@/components/ui/FreshOnly';
@@ -69,7 +70,29 @@ type SetPageData = {
   related_summaries: SetPriceSummary[];
   // When this data was read (ISO). Shown as "as of {time}" (FP1.6 §2 wording).
   as_of: string;
+  // H5 (flag priceHistoryChart, off): the set's price_history rows, read only while the flag is on.
+  priceHistory?: { store_id: string; price_inr: number | null; in_stock: boolean | null; recorded_at: string }[] | null;
 };
+
+// H5: the set's change rows from price_history (server read, cached on the priced-side clock). Paged, so no 1000-row cap.
+const readPriceHistory = (setNumber: string) =>
+  unstable_cache(async () => {
+    const sb = createServerClient();
+    const PAGE = 1000;
+    const out: { store_id: string; price_inr: number | null; in_stock: boolean | null; recorded_at: string }[] = [];
+    for (let page = 0; page < 20; page++) {
+      const { data, error } = await sb
+        .from('price_history')
+        .select('store_id, price_inr, in_stock, recorded_at')
+        .eq('set_id', setNumber)
+        .order('recorded_at', { ascending: true })
+        .range(page * PAGE, page * PAGE + PAGE - 1);
+      if (error) throw error;  // thrown results are never cached
+      out.push(...(data ?? []));
+      if (!data || data.length < PAGE) break;
+    }
+    return { rows: out, at: new Date().toISOString() };
+  }, ['set_price_history', setNumber], { revalidate: SET_PAGE_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
 
 const readRpc = (setNumber: string, slug: string) =>
   unstable_cache(async () => {
@@ -114,6 +137,10 @@ const getSetPageData = cache(async (slug: string): Promise<SetPageData | null> =
   if (d.set && d.store_prices?.length) {
     const p = await readPriceSide(setNumber);
     d.store_prices = p.store_prices; d.summary = p.summary; d.as_of = p.at;
+  }
+  // H5: the history read happens only while the flag is on (off: no query at all).
+  if (FEATURE_FLAGS.priceHistoryChart && d.set && d.store_prices?.length) {
+    d.priceHistory = (await readPriceHistory(setNumber)).rows;
   }
   if (d.set) return d;
 
@@ -378,6 +405,16 @@ export default async function SetPage(props: Props) {
                   </FreshOnly>
                 ) : <span className="text-3xl">🏷️</span>}
               </div>
+            )}
+
+            {/* ── PRICE HISTORY (H5, flag off) ──────────────────────────────── */}
+            {FEATURE_FLAGS.priceHistoryChart && pageData.priceHistory && pageData.priceHistory.length > 0 && (
+              <PriceHistoryChart
+                rows={pageData.priceHistory}
+                currents={pageData.store_prices.map((r: any) => ({ store_id: r.store_id, price_inr: r.price_inr ?? null, in_stock: r.in_stock ?? null, scraped_at: r.scraped_at }))}
+                storeNames={STORE_NAMES}
+                nowMs={Date.now()}
+              />
             )}
 
             {/* ── PRICE COMPARISON TABLE ────────────────────────────────────── */}
