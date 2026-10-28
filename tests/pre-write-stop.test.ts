@@ -32,8 +32,9 @@ describe('baseline file', () => {
   it('matches the evidence: 873 products, 842 available, full policy hashes', () => {
     expect(baseline.approved_products).toBe(873);
     expect(baseline.approved_available).toBe(842);
+    // robots.txt was re-approved on 27 Oct (#825, owner approval 11:12 IST); agents.md is unchanged since 13 Oct.
     expect(baseline.policy.map((p: any) => p.sha256)).toEqual([
-      '0be736de585b832b6e0d12b007977767427b69fba281e56c71adee06ed1657c8',
+      'f818f945166d1da10244d1063bbaa607ce94261a31a3bc88f0c36cf5228771ec',
       'd6ebec3fd0e933c93ae66c57de0470290e7630cd08a1bffabfcd28d831286a0d',
     ]);
     expect(feedStats(good).available_products).toBe(842);
