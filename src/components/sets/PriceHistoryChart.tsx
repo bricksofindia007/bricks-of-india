@@ -2,7 +2,7 @@
 // Shows one step line per store over the span the stored history covers (at most 90 days). Renders nothing when
 // there is no priced history. The marker and the since-label follow the rules in src/lib/price-history-view.ts.
 
-import { buildStoreHistories, dateLabel, WINDOW_DAYS, type HistoryRow, type StoreHistory } from '@/lib/price-history-view';
+import { buildStoreHistories, dateLabel, WINDOW_DAYS, type CurrentPrice, type HistoryRow, type StoreHistory } from '@/lib/price-history-view';
 import { PRICE_HISTORY_STRINGS, fill } from '@/lib/price-history-strings';
 
 // Indian digit grouping without a locale call (Netlify's ICU lacks en-IN). Local copy: the worth rules stay in My Collection.
@@ -24,14 +24,16 @@ const COLOURS = ['#1f2937', '#2563eb', '#16a34a', '#d97706', '#9333ea'];
 
 export function PriceHistoryChart({
   rows,
+  currents,
   storeNames,
   nowMs,
 }: {
   rows: HistoryRow[];
+  currents: CurrentPrice[];
   storeNames: Record<string, string>;
   nowMs: number;
 }) {
-  const stores: StoreHistory[] = buildStoreHistories(rows, nowMs, WINDOW_DAYS).filter((s) => s.segments.length > 0);
+  const stores: StoreHistory[] = buildStoreHistories(rows, currents, nowMs, WINDOW_DAYS).filter((s) => s.segments.length > 0);
   if (stores.length === 0) return null;
 
   const from = Math.min(...stores.map((s) => s.spanFrom));

@@ -409,7 +409,12 @@ export default async function SetPage(props: Props) {
 
             {/* ── PRICE HISTORY (H5, flag off) ──────────────────────────────── */}
             {FEATURE_FLAGS.priceHistoryChart && pageData.priceHistory && pageData.priceHistory.length > 0 && (
-              <PriceHistoryChart rows={pageData.priceHistory} storeNames={STORE_NAMES} nowMs={Date.now()} />
+              <PriceHistoryChart
+                rows={pageData.priceHistory}
+                currents={pageData.store_prices.map((r: any) => ({ store_id: r.store_id, price_inr: r.price_inr ?? null, in_stock: r.in_stock ?? null, scraped_at: r.scraped_at }))}
+                storeNames={STORE_NAMES}
+                nowMs={Date.now()}
+              />
             )}
 
             {/* ── PRICE COMPARISON TABLE ────────────────────────────────────── */}
