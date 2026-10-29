@@ -10,6 +10,14 @@ describe('isStoreGap (article price store-name rule)', () => {
     expect(isStoreGap('The LEGO set is listed at ₹12,499 on Amazon.')).toBe(false);
   });
 
+  it('passes an article that names the official LEGO India store', () => {
+    expect(isStoreGap('The set is listed at ₹2,499 at the official LEGO India store.')).toBe(false);
+  });
+
+  it('still fails an article that names only LEGO India, not a store', () => {
+    expect(isStoreGap('LEGO India launched the set at ₹2,499 this month.')).toBe(true);
+  });
+
   it('still passes an article that names Toycra or MyBrickHouse', () => {
     expect(isStoreGap('Priced at ₹17,999 at Toycra.')).toBe(false);
     expect(isStoreGap('Priced at ₹17,999 at MyBrickHouse.')).toBe(false);
