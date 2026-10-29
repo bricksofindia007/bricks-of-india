@@ -14,7 +14,7 @@ export const WATCHLIST: Record<string, [number, number]> = {
   'catalogue-audit.yml': [7 * 24, 2],
   'code-audit.yml': [7 * 24, 2],
   'health-check.yml': [24, 2],
-  'social-automation.yml': [24, 2],
+  'social-automation.yml': [8 * 24, 1],
   'scrape-prices.yml': [26, 1],
   'generate-drafts.yml': [24, 2],
   'radar.yml': [24, 2],
