@@ -7,6 +7,7 @@ import { Menu, X, Search, ChevronDown } from 'lucide-react';
 import { TricolourStripe } from '@/components/ui/TricolourStripe';
 import { LAB_TOOLS } from '@/lib/lab-tools';
 import { BRAND } from '@/lib/brand';
+import { trackEvent } from '@/lib/analytics';
 
 const NAV_LINKS = [
   { href: '/sets',       label: 'Sets'       },
@@ -29,7 +30,7 @@ function Wordmark({ size = 'md' }: { size?: 'sm' | 'md' }) {
     '2px 2px 0 var(--boi-navy), -1px -1px 0 var(--boi-navy), 1px -1px 0 var(--boi-navy), -1px 1px 0 var(--boi-navy)';
 
   return (
-    <Link href="/" className="shrink-0 block" style={{ lineHeight: 0.9 }}>
+    <Link href="/" className="shrink-0 block" style={{ lineHeight: 0.9 }} onClick={() => trackEvent('click_logo', { location: 'nav_logo' })}>
       <div
         style={{
           fontFamily: 'var(--font-fredoka)',
