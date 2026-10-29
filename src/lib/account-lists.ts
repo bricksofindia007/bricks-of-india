@@ -5,6 +5,7 @@
 import type { createServerClient } from '@/lib/supabase';
 import { accountForSession } from '@/lib/signin-store';
 import { sessionTokenHash } from '@/lib/account-session';
+import { mergeOnSignIn } from '@/lib/account-merge';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -45,7 +46,7 @@ export async function readAccountLists(db: Db, accountId: string): Promise<Lists
  * Adds a set to one of the account's lists. A set already on the list is a no-op (ok). A full list answers "limit".
  * The 500 limit is also enforced by the database trigger (held migration 20261024230000); this check maps its refusal.
  */
-export async function addAccountSet(db: Db, accountId: string, list: ListName, setNumber: string, qty: number, now: number): Promise<ListResult> {
+export async function addAccountSet(db: Db, accountId: string, list: ListName, setNumber: string, qty: number, addedAt: string): Promise<ListResult> {
   if (!SET_RE.test(setNumber)) return { status: 'invalid' };
   const existing = await db
     .from('saved_sets')
@@ -61,7 +62,7 @@ export async function addAccountSet(db: Db, accountId: string, list: ListName, s
     list,
     set_number: setNumber,
     qty: list === 'collection' ? Math.max(1, Math.min(999, qty)) : 1,
-    added_at: new Date(now).toISOString(),
+    added_at: addedAt,
   });
   if (!error) return { status: 'ok' };
   if (error.code === 'P0001' || /list is full/.test(error.message ?? '')) return { status: 'limit' };
@@ -114,7 +115,83 @@ export async function handleListsRequest(
   if (!isListName(req.list) || typeof req.set !== 'string') return { status: 'invalid' };
   if (req.method === 'POST') {
     const qty = typeof req.qty === 'number' && Number.isInteger(req.qty) ? req.qty : 1;
-    return addAccountSet(db, account.id, req.list, req.set, qty, now);
+    return addAccountSet(db, account.id, req.list, req.set, qty, new Date(now).toISOString());
   }
   return removeAccountSet(db, account.id, req.list, req.set);
+}
+
+// ---- P3: first sign-in merge (order 0210 item 2 rule, in account-merge.ts) ----
+
+export type BrowserItem = { set: string; added_at: string; qty?: number };
+export type BrowserLists = Record<ListName, BrowserItem[]>;
+export type MergeResult = { status: ListStatus; dropped?: Record<ListName, number> };
+
+const isBrowserItem = (v: unknown): v is BrowserItem =>
+  !!v && typeof v === 'object' && typeof (v as BrowserItem).set === 'string' && SET_RE.test((v as BrowserItem).set)
+  && typeof (v as BrowserItem).added_at === 'string' && Number.isFinite(Date.parse((v as BrowserItem).added_at));
+
+/**
+ * Joins the browser lists to the account's lists once, on first sign-in. Only browser-only sets are written, and only
+ * those that survive the limit (newest kept). Running it again adds nothing new (idempotent). Nothing is written on a
+ * failed read, and the browser lists are not changed here.
+ */
+export async function mergeBrowserLists(db: Db, accountId: string, browser: BrowserLists): Promise<MergeResult> {
+  let account: Lists;
+  try {
+    account = await readAccountLists(db, accountId);
+  } catch {
+    return { status: 'unavailable' };
+  }
+  const dropped: Record<ListName, number> = { wishlist: 0, collection: 0 };
+  for (const list of LISTS) {
+    const seen = new Set<string>();
+    const incoming: BrowserItem[] = [];
+    for (const item of Array.isArray(browser[list]) ? browser[list] : []) {
+      if (!isBrowserItem(item) || seen.has(item.set)) continue;
+      seen.add(item.set);
+      incoming.push(item);
+    }
+    const onAccount = new Set(account[list].map((i) => i.set));
+    const merged = mergeOnSignIn(
+      account[list].map((i) => ({ set: i.set, added_at: i.added_at })),
+      incoming.map((i) => ({ set: i.set, added_at: i.added_at })),
+    );
+    dropped[list] = merged.dropped;
+    // Over the limit the newest are kept, so the account's own older rows outside that set are removed first (the
+    // rule drops them). Removing first keeps the list under the database limit for the writes that follow.
+    const kept = new Set(merged.list.map((r) => r.set));
+    for (const a of account[list]) {
+      if (kept.has(a.set)) continue;
+      const r = await removeAccountSet(db, accountId, list, a.set);
+      if (r.status === 'unavailable') return { status: 'unavailable' };
+    }
+    const byBrowser = new Map(incoming.map((i) => [i.set, i]));
+    for (const row of merged.list) {
+      if (onAccount.has(row.set)) continue;
+      const src = byBrowser.get(row.set);
+      if (!src) continue;
+      const r = await addAccountSet(db, accountId, list, row.set, src.qty ?? 1, src.added_at);
+      if (r.status === 'unavailable') return { status: 'unavailable' };
+      if (r.status === 'limit') dropped[list] += 1;
+    }
+  }
+  return { status: 'ok', dropped };
+}
+
+/** The merge request: signed-in only. The account comes from the session; the body is the browser's two lists. */
+export async function handleMergeRequest(db: Db, token: string | undefined, body: unknown, now: number): Promise<MergeResult> {
+  if (!token) return { status: 'signed-out' };
+  let account: { id: string } | null;
+  try {
+    account = await accountForSession(db, sessionTokenHash(token), now);
+  } catch {
+    return { status: 'unavailable' };
+  }
+  if (!account) return { status: 'signed-out' };
+  const b = (body ?? {}) as Partial<Record<ListName, unknown>>;
+  const browser: BrowserLists = {
+    wishlist: Array.isArray(b.wishlist) ? (b.wishlist as BrowserItem[]) : [],
+    collection: Array.isArray(b.collection) ? (b.collection as BrowserItem[]) : [],
+  };
+  return mergeBrowserLists(db, account.id, browser);
 }
