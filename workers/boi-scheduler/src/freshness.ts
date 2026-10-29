@@ -1,5 +1,5 @@
 // Freshness watchdog, ported from .github/workflows/workflow-freshness-watchdog.yml (23 Oct 2026, addendum 2, job 2 of 4).
-// Checks that each watched scheduled workflow has a completed run within its expected interval, and emails the alert
+// Checks that each watched scheduled workflow has a successful run within its expected interval, and emails the alert
 // contact when one has gone stale or cannot be checked. Staging first; the Actions copy stays until the Worker run is proven.
 // Failure behaviour (G14): a failed read of one workflow is reported as a check error (not as stale, not as fresh).
 // The read token is never written to the heartbeat, a log line, or an email. Writes its own heartbeat (G13).
@@ -50,11 +50,11 @@ export function evaluateFreshness(latest: Record<string, string | null | { error
   for (const [file, [hours, mult]] of Object.entries(watch)) {
     const v = latest[file];
     if (v && typeof v === 'object') { errors.push({ file, kind: 'error', reason: v.error.slice(0, 200) }); continue; }
-    if (v === null || v === undefined) { stale.push({ file, kind: 'no-runs', reason: 'no completed runs found at all' }); continue; }
+    if (v === null || v === undefined) { stale.push({ file, kind: 'no-runs', reason: 'no successful run found' }); continue; }
     const ageH = (nowMs - Date.parse(v)) / 3600000;
     const limit = hours * mult;
     if (!Number.isFinite(ageH)) { errors.push({ file, kind: 'error', reason: 'run time could not be read' }); continue; }
-    if (ageH > limit) stale.push({ file, kind: 'stale', reason: `last run ${ageH.toFixed(1)} h ago, expected within about ${limit} h (${hours} h interval x${mult})` });
+    if (ageH > limit) stale.push({ file, kind: 'stale', reason: `last successful run ${ageH.toFixed(1)} h ago, expected within about ${limit} h (${hours} h interval x${mult})` });
   }
   return { stale, errors };
 }
@@ -73,9 +73,12 @@ export function alertBody(result: FreshnessResult, repo: string): { subject: str
   return { subject, text: lines.join('\n') };
 }
 
-/** One read of one workflow's latest completed run. Throws on HTTP or network failure. */
+/**
+ * One read of one workflow's latest successful run. A run counts only when its conclusion is success:
+ * failed, cancelled and timed-out runs are not fresh. Throws on HTTP or network failure.
+ */
 export async function latestRun(file: string, env: FreshnessEnv, fetchImpl: typeof fetch = fetch): Promise<string | null> {
-  const url = `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/${file}/runs?per_page=1&status=completed`;
+  const url = `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/${file}/runs?per_page=5&status=success`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), READ_TIMEOUT_MS);
   try {
@@ -84,9 +87,9 @@ export async function latestRun(file: string, env: FreshnessEnv, fetchImpl: type
       signal: controller.signal,
     });
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
-    const j = (await res.json()) as { workflow_runs?: { created_at: string }[] };
-    const runs = j.workflow_runs ?? [];
-    return runs.length ? runs[0].created_at : null;
+    const j = (await res.json()) as { workflow_runs?: { created_at: string; conclusion?: string | null }[] };
+    const success = (j.workflow_runs ?? []).find((r) => r.conclusion === 'success');
+    return success ? success.created_at : null;
   } finally {
     clearTimeout(timer);
   }
