@@ -20,6 +20,7 @@ export const VOICE = {
   ownedAdded: 'Yours now. Own it proudly.',
   guestWishlistNote: 'Saved on this device. Sign up and your wishlist goes where you go.',
   guestCollectionNote: 'Own it? Prove it. Sign up and start your shelf.',
+  guestAddNote: 'Your shelf needs an account. Sign up free and start filling it.',
   wishlistEmpty: 'Nothing saved yet. Your wallet admires your patience.',
   collectionEmpty: 'No sets here yet. Tell us what you own and we will be impressed.',
   limitReached: 'That is a proper collection. Remove one to add another.',

@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import { useAccountSession } from '@/components/saved/AccountSession';
 import {
   CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, addOwned, addWish, cleanCollection, cleanWishlist, loadCollection,
   loadWishlist, removeWish, setOwnedQty, trackCollectionEvent, updateList, type SetRef,
@@ -81,6 +83,9 @@ export function HeartButton({ size = 'sm', ...ref }: SetRef & { size?: 'sm' | 'l
 export function AddToCollectionButton(ref: SetRef) {
   const { set } = ref;
   const { ready } = useLists();
+  // A signed-out visitor is asked to sign up (accounts on). Nothing is added to the browser list for them.
+  const session = useAccountSession();
+  const askForAccount = FEATURE_FLAGS.accountsEnabled && session === 'signed-out';
   const [note, setNote] = useState<string | null>(null);
   const qty = ready ? (loadCollection().find((o) => o.set === set)?.qty ?? 0) : 0;
 
@@ -89,6 +94,7 @@ export function AddToCollectionButton(ref: SetRef) {
   };
 
   const add = () => {
+    if (askForAccount) return;
     const now = new Date().toISOString();
     const out = updateList(COLLECTION_KEY, cleanCollection, (list) => {
       const r = addOwned(list, ref, now);
@@ -103,6 +109,9 @@ export function AddToCollectionButton(ref: SetRef) {
     }
   };
 
+  if (qty === 0 && askForAccount) {
+    return <span className="text-sm text-gray-600">{VOICE.guestAddNote}</span>;
+  }
   if (qty === 0) {
     return (
       <span className="inline-flex flex-col gap-1">
