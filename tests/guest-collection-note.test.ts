@@ -14,7 +14,7 @@ describe('the guest collection line', () => {
   });
 
   it('shows on the collection tab only for a signed-out visitor, and only while accounts are on', () => {
-    expect(page).toMatch(/\{ready && tab === 'owned' && FEATURE_FLAGS\.accountsEnabled && session === 'signed-out' && \(\s*<p[^>]*>\{VOICE\.guestCollectionNote\}<\/p>\s*\)\}/);
+    expect(page).toMatch(/\{ready && tab === 'owned' && FEATURE_FLAGS\.accountsEnabled && session === 'signed-out' && \(\s*<p[^>]*><Link href="\/auth" className="underline">\{VOICE\.guestCollectionNote\}<\/Link><\/p>\s*\)\}/);
   });
 
   it('the wishlist line is still there, unchanged', () => {
