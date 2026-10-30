@@ -61,3 +61,7 @@ export function createAccountClient(fetcher: Fetcher) {
     remove: (list: string, set: string) => send('DELETE', list, set),
   };
 }
+
+/** The browser's fetch, shaped for the account client. Same origin, so the page's own session cookie goes with it. */
+export const browserFetcher: Fetcher = (url, init) =>
+  fetch(url, init as RequestInit).then((r) => ({ status: r.status, json: () => r.json() }));

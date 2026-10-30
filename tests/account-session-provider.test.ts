@@ -3,11 +3,11 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { sessionStatusFromHttp, applyLocalChange } from '../src/components/saved/AccountSession';
+import { sessionStatusFromHttp, applyLocalChange } from '../src/components/account/AccountSession';
 import type { Lists } from '../src/lib/account-lists';
 
 const root = join(__dirname, '..');
-const src = readFileSync(join(root, 'src/components/saved/AccountSession.tsx'), 'utf8');
+const src = readFileSync(join(root, 'src/components/account/AccountSession.tsx'), 'utf8');
 
 describe('session status from the server', () => {
   it('200 is signed in; 401 and 404 are signed out; anything else is unavailable', () => {
