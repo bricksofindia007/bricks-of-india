@@ -25,7 +25,8 @@ async function run(request: NextRequest, req: ListsRequest): Promise<ListResult>
 
 export async function GET(request: NextRequest) {
   if (!signInOn()) return new NextResponse(null, { status: 404 });
-  return reply(await run(request, { method: 'GET' }));
+  // ?names=1 adds each set's name and image (the My Collection page asks for it; the set page does not).
+  return reply(await run(request, { method: 'GET', names: request.nextUrl.searchParams.get('names') === '1' }));
 }
 
 export async function POST(request: NextRequest) {

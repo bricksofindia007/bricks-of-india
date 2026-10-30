@@ -13,7 +13,17 @@ const SET_RE = /^[0-9]{3,7}(-[0-9]{1,2})?$/;
 
 export type ListName = 'wishlist' | 'collection';
 export const LISTS: readonly ListName[] = ['wishlist', 'collection'];
-export type ListRow = { set: string; qty: number; added_at: string };
+/** A saved set. The names fields come from the sets table only when the read asks for names (the My Collection page). */
+export type ListRow = {
+  set: string;
+  qty: number;
+  added_at: string;
+  name?: string | null;
+  image_url?: string | null;
+  pieces?: number | null;
+  theme?: string | null;
+  year?: number | null;
+};
 export type Lists = Record<ListName, ListRow[]>;
 
 export type ListStatus = 'ok' | 'limit' | 'invalid' | 'signed-out' | 'unavailable';
@@ -24,8 +34,12 @@ export function isListName(v: unknown): v is ListName {
   return typeof v === 'string' && (LISTS as readonly string[]).includes(v);
 }
 
-/** The account's two lists. Throws when the read fails (the caller answers "unavailable"). */
-export async function readAccountLists(db: Db, accountId: string): Promise<Lists> {
+/**
+ * The account's two lists. Throws when a read fails (the caller answers "unavailable"). With names, each row also gets
+ * the set's name, image, pieces, theme and year from the sets table; a failed names read throws too, so the page falls
+ * back to the browser lists rather than showing bare numbers.
+ */
+export async function readAccountLists(db: Db, accountId: string, withNames = false): Promise<Lists> {
   const { data, error } = await db
     .from('saved_sets')
     .select('list, set_number, qty, added_at')
@@ -35,6 +49,27 @@ export async function readAccountLists(db: Db, accountId: string): Promise<Lists
   for (const r of (data ?? []) as { list: string; set_number: string; qty: number; added_at: string }[]) {
     if (!isListName(r.list)) continue;
     lists[r.list].push({ set: r.set_number, qty: r.qty, added_at: r.added_at });
+  }
+  if (withNames) {
+    const numbers = [...new Set([...lists.wishlist, ...lists.collection].map((i) => i.set))];
+    if (numbers.length > 0) {
+      const { data: sets, error: sErr } = await db
+        .from('sets')
+        .select('set_number, name, image_url, pieces, theme, year')
+        .in('set_number', numbers);
+      if (sErr) throw new Error('names unreadable');
+      const byNumber = new Map(((sets ?? []) as { set_number: string; name: string; image_url: string | null; pieces: number | null; theme: string | null; year: number | null }[]).map((s) => [s.set_number, s]));
+      for (const list of LISTS) {
+        for (const row of lists[list]) {
+          const s = byNumber.get(row.set);
+          row.name = s?.name ?? null;
+          row.image_url = s?.image_url ?? null;
+          row.pieces = s?.pieces ?? null;
+          row.theme = s?.theme ?? null;
+          row.year = s?.year ?? null;
+        }
+      }
+    }
   }
   lists.wishlist.sort((a, b) => (a.added_at < b.added_at ? 1 : -1));
   lists.collection.sort((a, b) => (a.added_at < b.added_at ? 1 : -1));
@@ -81,7 +116,7 @@ export async function removeAccountSet(db: Db, accountId: string, list: ListName
 }
 
 export type ListsRequest =
-  | { method: 'GET' }
+  | { method: 'GET'; names?: boolean }
   | { method: 'POST'; list: unknown; set: unknown; qty?: unknown }
   | { method: 'DELETE'; list: unknown; set: unknown };
 
@@ -106,7 +141,7 @@ export async function handleListsRequest(
 
   if (req.method === 'GET') {
     try {
-      return { status: 'ok', lists: await readAccountLists(db, account.id) };
+      return { status: 'ok', lists: await readAccountLists(db, account.id, req.names === true) };
     } catch {
       return { status: 'unavailable' };
     }
