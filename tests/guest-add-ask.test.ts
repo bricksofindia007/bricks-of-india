@@ -32,6 +32,6 @@ describe('the guest add line', () => {
 
 describe('the set page supplies the shared session read to the heart and the add button', () => {
   it('the slots are inside the provider, enabled only while accounts are on', () => {
-    expect(setPage).toMatch(/<AccountSessionProvider enabled=\{FEATURE_FLAGS\.accountsEnabled\}>[\s\S]*<HeartSlot[\s\S]*<CollectionSlot[\s\S]*<\/AccountSessionProvider>/);
+    expect(setPage).toMatch(/<AccountSessionProvider enabled=\{FEATURE_FLAGS\.accountsEnabled && FEATURE_FLAGS\.myCollectionHearts\}>[\s\S]*<HeartSlot[\s\S]*<CollectionSlot[\s\S]*<\/AccountSessionProvider>/);
   });
 });

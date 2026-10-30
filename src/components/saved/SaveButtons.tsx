@@ -3,8 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
-import { useAccountLists } from '@/components/saved/AccountSession';
-import { createAccountClient, saveTarget, type Fetcher } from '@/lib/account-client';
+import { useAccountLists } from '@/components/account/AccountSession';
+import { browserFetcher, createAccountClient, saveTarget } from '@/lib/account-client';
 import {
   CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, addOwned, addWish, cleanCollection, cleanWishlist, loadCollection,
   loadWishlist, removeWish, setOwnedQty, trackCollectionEvent, updateList, type SetRef,
@@ -25,9 +25,7 @@ function NoteText({ text }: { text: string }) {
 }
 
 // The account client talks to the lists route with the page's own cookie (same origin).
-const defaultFetcher: Fetcher = (url, init) =>
-  fetch(url, init as RequestInit).then((r) => ({ status: r.status, json: () => r.json() }));
-const accountClient = createAccountClient(defaultFetcher);
+const accountClient = createAccountClient(browserFetcher);
 
 // Re-read when any button on the page, or another tab, changes the lists.
 function useLists() {

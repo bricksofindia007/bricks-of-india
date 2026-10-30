@@ -8,14 +8,12 @@ import { slugify } from '@/lib/utils';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import type { LastSeen } from '@/lib/collection-worth';
 import { lastSeenMap, retiredIdsForLastSeen } from '@/lib/last-seen-page';
-import { AccountSessionProvider, useAccountLists, useAccountSession } from '@/components/saved/AccountSession';
-import { createAccountClient, type Fetcher } from '@/lib/account-client';
+import { AccountSessionProvider, useAccountLists, useAccountSession } from '@/components/account/AccountSession';
+import { browserFetcher, createAccountClient } from '@/lib/account-client';
 import type { ListRow } from '@/lib/account-lists';
 
 // The account's copy of the lists: the same routes as the hearts, so the page and the hearts agree.
-const accountFetcher: Fetcher = (url, init) =>
-  fetch(url, init as RequestInit).then((r) => ({ status: r.status, json: () => r.json() }));
-const accountClient = createAccountClient(accountFetcher);
+const accountClient = createAccountClient(browserFetcher);
 
 const accountWish = (r: ListRow): WishItem => ({
   set: r.set, name: r.name ?? r.set, image_url: r.image_url ?? null, pieces: r.pieces ?? null, theme: r.theme ?? null, year: r.year ?? null, added_at: r.added_at,
