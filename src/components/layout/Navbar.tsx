@@ -7,6 +7,7 @@ import { Menu, X, Search, ChevronDown } from 'lucide-react';
 import { TricolourStripe } from '@/components/ui/TricolourStripe';
 import { LAB_TOOLS } from '@/lib/lab-tools';
 import { BRAND } from '@/lib/brand';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
 
 const NAV_LINKS = [
   { href: '/sets',       label: 'Sets'       },
@@ -218,6 +219,21 @@ export function Navbar() {
                 </Link>
               );
             })()}
+
+            {/* My Collection: shown only while the page is live (decision D-2026-10-30-01). */}
+            {FEATURE_FLAGS.myCollectionPage && (
+              <Link
+                href="/my"
+                style={{
+                  ...navLinkStyle,
+                  textDecoration: pathname === '/my' ? `underline 2px var(--boi-red)` : 'none',
+                  textUnderlineOffset: '3px',
+                }}
+                className="px-3 py-1.5 rounded-lg transition-all hover:underline hover:decoration-[var(--boi-red)] hover:decoration-2 hover:underline-offset-4"
+              >
+                My Collection
+              </Link>
+            )}
           </nav>
 
           {/* Right — CTA (desktop: text button, mobile: magnifying glass icon) */}
@@ -345,6 +361,16 @@ export function Navbar() {
             >
               About
             </Link>
+            {FEATURE_FLAGS.myCollectionPage && (
+              <Link
+                href="/my"
+                onClick={() => setMobileOpen(false)}
+                style={{ fontFamily: 'var(--font-inter)', fontWeight: 600, color: 'var(--boi-navy)' }}
+                className="px-4 py-3 rounded-lg hover:bg-surface transition-colors text-sm"
+              >
+                My Collection
+              </Link>
+            )}
           </nav>
         </div>
       )}
