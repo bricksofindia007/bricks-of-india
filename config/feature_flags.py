@@ -135,6 +135,7 @@ FEATURE_FLAGS = {
     # itself. Both off until the launch. Mirrored in src/lib/feature-flags.ts; keep in sync.
     "my_collection_hearts": False,
     "my_collection_page": False,
+    "my_collection_figures": False,
     # Link tags for YouTube and Instagram links (placements list, 23 Oct 2026). Off: the tags send
     # nothing; the links are unchanged. Mirrored in src/lib/feature-flags.ts; keep in sync.
     "key_events": False,
