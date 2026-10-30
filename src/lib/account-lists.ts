@@ -5,7 +5,6 @@
 import type { createServerClient } from '@/lib/supabase';
 import { accountForSession } from '@/lib/signin-store';
 import { sessionTokenHash } from '@/lib/account-session';
-import { mergeOnSignIn } from '@/lib/account-merge';
 
 type Db = ReturnType<typeof createServerClient>;
 
@@ -130,10 +129,28 @@ const isBrowserItem = (v: unknown): v is BrowserItem =>
   !!v && typeof v === 'object' && typeof (v as BrowserItem).set === 'string' && SET_RE.test((v as BrowserItem).set)
   && typeof (v as BrowserItem).added_at === 'string' && Number.isFinite(Date.parse((v as BrowserItem).added_at));
 
+/** A merge body larger than this (in characters) is refused before it is read. */
+export const MERGE_BODY_MAX = 60_000;
+/** At most this many items are read from each browser list; the rest are ignored. */
+export const MERGE_ITEMS_MAX = 500;
+
+/** The body as text to a value, or null when it is too big or not JSON. */
+export function parseMergeBody(text: string): unknown | null {
+  if (text.length > MERGE_BODY_MAX) return null;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+const cleanQty = (q: unknown): number => (typeof q === 'number' && Number.isInteger(q) && q >= 1 && q <= 999 ? q : 1);
+
 /**
- * Joins the browser lists to the account's lists once, on first sign-in. Only browser-only sets are written, and only
- * those that survive the limit (newest kept). Running it again adds nothing new (idempotent). Nothing is written on a
- * failed read, and the browser lists are not changed here.
+ * Joins the browser lists to the account's lists, once, on first sign-in (order 0280 decision 1).
+ * Never deletes from the account: the account copy is the record. Browser-only sets are added newest first, and only
+ * while the list has room under the limit; the rest are not added and only counted. One batch write per list.
+ * Running it again adds nothing new (idempotent). A failed read or write answers unavailable.
  */
 export async function mergeBrowserLists(db: Db, accountId: string, browser: BrowserLists): Promise<MergeResult> {
   let account: Lists;
@@ -144,36 +161,38 @@ export async function mergeBrowserLists(db: Db, accountId: string, browser: Brow
   }
   const dropped: Record<ListName, number> = { wishlist: 0, collection: 0 };
   for (const list of LISTS) {
-    const seen = new Set<string>();
-    const incoming: BrowserItem[] = [];
-    for (const item of Array.isArray(browser[list]) ? browser[list] : []) {
-      if (!isBrowserItem(item) || seen.has(item.set)) continue;
-      seen.add(item.set);
-      incoming.push(item);
-    }
     const onAccount = new Set(account[list].map((i) => i.set));
-    const merged = mergeOnSignIn(
-      account[list].map((i) => ({ set: i.set, added_at: i.added_at })),
-      incoming.map((i) => ({ set: i.set, added_at: i.added_at })),
+    let room = LIST_LIMIT - account[list].length;
+    const seen = new Map<string, BrowserItem>();
+    const sent = Array.isArray(browser[list]) ? browser[list].slice(0, MERGE_ITEMS_MAX) : [];
+    for (const item of sent) {
+      if (!isBrowserItem(item) || seen.has(item.set) || onAccount.has(item.set)) continue;
+      seen.set(item.set, item);
+    }
+    const candidates = [...seen.values()].sort((a, b) => {
+      if (a.added_at !== b.added_at) return a.added_at < b.added_at ? 1 : -1;
+      return a.set < b.set ? -1 : a.set > b.set ? 1 : 0;
+    });
+    const rows: BrowserItem[] = [];
+    for (const item of candidates) {
+      if (room > 0) {
+        rows.push(item);
+        room -= 1;
+      } else {
+        dropped[list] += 1;
+      }
+    }
+    if (rows.length === 0) continue;
+    const { error } = await db.from('saved_sets').insert(
+      rows.map((i) => ({
+        account_id: accountId,
+        list,
+        set_number: i.set,
+        qty: list === 'collection' ? cleanQty(i.qty) : 1,
+        added_at: i.added_at,
+      })),
     );
-    dropped[list] = merged.dropped;
-    // Over the limit the newest are kept, so the account's own older rows outside that set are removed first (the
-    // rule drops them). Removing first keeps the list under the database limit for the writes that follow.
-    const kept = new Set(merged.list.map((r) => r.set));
-    for (const a of account[list]) {
-      if (kept.has(a.set)) continue;
-      const r = await removeAccountSet(db, accountId, list, a.set);
-      if (r.status === 'unavailable') return { status: 'unavailable' };
-    }
-    const byBrowser = new Map(incoming.map((i) => [i.set, i]));
-    for (const row of merged.list) {
-      if (onAccount.has(row.set)) continue;
-      const src = byBrowser.get(row.set);
-      if (!src) continue;
-      const r = await addAccountSet(db, accountId, list, row.set, src.qty ?? 1, src.added_at);
-      if (r.status === 'unavailable') return { status: 'unavailable' };
-      if (r.status === 'limit') dropped[list] += 1;
-    }
+    if (error) return { status: 'unavailable' };
   }
   return { status: 'ok', dropped };
 }

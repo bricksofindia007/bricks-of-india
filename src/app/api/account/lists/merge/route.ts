@@ -4,7 +4,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { signInOn } from '@/lib/signin-gate';
 import { SESSION_COOKIE } from '@/lib/account-session';
 import { createServerClient } from '@/lib/supabase';
-import { handleMergeRequest, type MergeResult } from '@/lib/account-lists';
+import { handleMergeRequest, parseMergeBody, type MergeResult } from '@/lib/account-lists';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +12,8 @@ const CODE: Record<MergeResult['status'], number> = { ok: 200, invalid: 400, 'si
 
 export async function POST(request: NextRequest) {
   if (!signInOn()) return new NextResponse(null, { status: 404 });
-  const body = await request.json().catch(() => null);
+  // A body over the size limit is refused before it is parsed (parseMergeBody returns null for it).
+  const body = parseMergeBody(await request.text());
   if (!body || typeof body !== 'object') {
     return NextResponse.json({ status: 'invalid' }, { status: 400, headers: { 'cache-control': 'no-store' } });
   }
