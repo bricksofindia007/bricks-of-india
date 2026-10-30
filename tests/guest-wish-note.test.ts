@@ -20,7 +20,7 @@ describe('the guest wishlist line', () => {
 
 describe('the page reads the session once, through the shared provider', () => {
   it('the exported page wraps its view in the provider, enabled only while accounts are on', () => {
-    expect(page).toMatch(/<AccountSessionProvider enabled=\{FEATURE_FLAGS\.accountsEnabled\}>\s*<MyCollectionView \/>\s*<\/AccountSessionProvider>/);
+    expect(page).toMatch(/<AccountSessionProvider enabled=\{FEATURE_FLAGS\.accountsEnabled\} withNames>\s*<MyCollectionView \/>\s*<\/AccountSessionProvider>/);
   });
 
   it('the view reads the session status', () => {
