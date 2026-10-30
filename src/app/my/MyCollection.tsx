@@ -6,7 +6,19 @@ import Link from 'next/link';
 import { SetImage } from '@/components/sets/SetImage';
 import { slugify } from '@/lib/utils';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
-import { AccountSessionProvider, useAccountSession } from '@/components/saved/AccountSession';
+import { AccountSessionProvider, useAccountLists, useAccountSession } from '@/components/saved/AccountSession';
+import { createAccountClient, type Fetcher } from '@/lib/account-client';
+import type { ListRow } from '@/lib/account-lists';
+
+// The account's copy of the lists: the same routes as the hearts, so the page and the hearts agree.
+const accountFetcher: Fetcher = (url, init) =>
+  fetch(url, init as RequestInit).then((r) => ({ status: r.status, json: () => r.json() }));
+const accountClient = createAccountClient(accountFetcher);
+
+const accountWish = (r: ListRow): WishItem => ({
+  set: r.set, name: r.name ?? r.set, image_url: r.image_url ?? null, pieces: r.pieces ?? null, theme: r.theme ?? null, year: r.year ?? null, added_at: r.added_at,
+});
+const accountOwned = (r: ListRow): OwnedItem => ({ ...accountWish(r), qty: r.qty });
 import {
   CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, cleanCollection, cleanWishlist, loadCollection, loadWishlist, pageOf,
   priceIds, removeWish, setOwnedQty, trackCollectionEvent, updateList, type OwnedItem, type WishItem,
@@ -65,7 +77,7 @@ function Pager({ page, pages, onChange }: { page: number; pages: number; onChang
 // The page reads the session once (through the shared provider), and only while accounts are on.
 export function MyCollection() {
   return (
-    <AccountSessionProvider enabled={FEATURE_FLAGS.accountsEnabled}>
+    <AccountSessionProvider enabled={FEATURE_FLAGS.accountsEnabled} withNames>
       <MyCollectionView />
     </AccountSessionProvider>
   );
@@ -73,6 +85,9 @@ export function MyCollection() {
 
 function MyCollectionView() {
   const session = useAccountSession();
+  const acct = useAccountLists();
+  // Signed in (accounts on): the page's lists are the account's. Otherwise the browser's lists, as before.
+  const signedIn = FEATURE_FLAGS.accountsEnabled && acct?.status === 'signed-in';
   const [ready, setReady] = useState(false);
   const [wish, setWish] = useState<WishItem[]>([]);
   const [owned, setOwned] = useState<OwnedItem[]>([]);
@@ -87,6 +102,7 @@ function MyCollectionView() {
 
   // Load the lists from this browser and follow changes made elsewhere on the page or in another tab.
   useEffect(() => {
+    if (signedIn) return;
     const load = () => { setWish(loadWishlist()); setOwned(loadCollection()); };
     load();
     setReady(true);
@@ -94,7 +110,15 @@ function MyCollectionView() {
     window.addEventListener(CHANGED_EVENT, load);
     window.addEventListener('storage', load);
     return () => { window.removeEventListener(CHANGED_EVENT, load); window.removeEventListener('storage', load); };
-  }, []);
+  }, [signedIn]);
+
+  // Signed in: the account's lists, with names from the same read. Each save is applied to the shared lists at once.
+  useEffect(() => {
+    if (!signedIn || !acct?.lists) return;
+    setWish(acct.lists.wishlist.map(accountWish));
+    setOwned(acct.lists.collection.map(accountOwned));
+    setReady(true);
+  }, [signedIn, acct?.lists]);
 
   // One batched price read per page view, capped. A failure keeps names and pieces and says so.
   const ids = useMemo(() => priceIds(wish, owned).join(','), [wish, owned]);
@@ -131,6 +155,12 @@ function MyCollectionView() {
 
   // Each change reads the stored list at the moment of writing (not the page state), so another tab's change is kept.
   const removeFromWish = (set: string) => {
+    if (signedIn) {
+      void accountClient.remove('wishlist', set).then((r) => {
+        if (r.status === 'ok') acct?.changeLocal('wishlist', set, null);
+      });
+      return;
+    }
     const out = updateList(WISHLIST_KEY, cleanWishlist, (list) => ({
       list: removeWish(list, set), result: null, changed: list.some((w) => w.set === set),
     }));
@@ -264,11 +294,15 @@ function MyCollectionView() {
                       {priceState === 'loading' && <p className="mt-1 h-3 w-24 bg-surface rounded animate-pulse" />}
                       {priceState !== 'loading' && <OwnedWorthLine line={w.line} />}
                       {w.note && <p className="mt-1 text-xs text-gray-500">{w.note}</p>}
-                      <div className="mt-2 flex items-center gap-2 text-xs">
-                        <button type="button" aria-label={`One fewer ${o.name}`} onClick={() => changeQty(o.set, o.qty - 1)} className="w-7 h-7 rounded border border-border">−</button>
-                        <span aria-live="polite">{o.qty}</span>
-                        <button type="button" aria-label={`One more ${o.name}`} onClick={() => changeQty(o.set, o.qty + 1)} className="w-7 h-7 rounded border border-border">+</button>
-                      </div>
+                      {signedIn ? (
+                        <div className="mt-2 text-xs"><span aria-live="polite">{o.qty}</span></div>
+                      ) : (
+                        <div className="mt-2 flex items-center gap-2 text-xs">
+                          <button type="button" aria-label={`One fewer ${o.name}`} onClick={() => changeQty(o.set, o.qty - 1)} className="w-7 h-7 rounded border border-border">−</button>
+                          <span aria-live="polite">{o.qty}</span>
+                          <button type="button" aria-label={`One more ${o.name}`} onClick={() => changeQty(o.set, o.qty + 1)} className="w-7 h-7 rounded border border-border">+</button>
+                        </div>
+                      )}
                     </div>
                   </li>
                 );
