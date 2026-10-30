@@ -1,8 +1,9 @@
-// P3 (order 0230): the first sign-in merge, against an in-memory stub of the database. No database is used.
-// The stub is the same small model as tests/account-lists.test.ts (kept separate so each PR stands alone).
+// P3 (order 0230, changed by order 0280 decision 1): the first sign-in merge, against an in-memory stub of the database.
+// The merge never deletes from the account. Browser-only sets are added newest first while the list has room, in one
+// batch write per list. No database is used; the stub models the primary key and the 500 limit trigger.
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
-import { handleMergeRequest, mergeBrowserLists, LIST_LIMIT } from '../src/lib/account-lists';
+import { handleMergeRequest, mergeBrowserLists, parseMergeBody, LIST_LIMIT, MERGE_BODY_MAX, MERGE_ITEMS_MAX } from '../src/lib/account-lists';
 
 type Row = Record<string, any>;
 type Tables = { account_sessions: Row[]; accounts: Row[]; saved_sets: Row[] };
@@ -11,8 +12,9 @@ const FUTURE = '2026-11-30T00:00:00Z';
 const hash = (t: string) => createHash('sha256').update(t).digest('hex');
 
 function makeDb(tables: Tables, opts: { failTable?: string; failWrites?: boolean } = {}) {
+  const writes: string[] = [];
   const from = (name: keyof Tables) => {
-    const q: { op: 'select' | 'insert' | 'delete'; filters: [string, any][]; single: boolean; row?: Row } = { op: 'select', filters: [], single: false };
+    const q: { op: 'select' | 'insert' | 'delete'; filters: [string, any][]; single: boolean; row?: any } = { op: 'select', filters: [], single: false };
     const run = (): { data: any; error: any } => {
       if (opts.failTable === name) return { data: null, error: { message: 'boom' } };
       if (opts.failWrites && q.op !== 'select' && name === 'saved_sets') return { data: null, error: { message: 'boom' } };
@@ -22,17 +24,25 @@ function makeDb(tables: Tables, opts: { failTable?: string; failWrites?: boolean
         const out = rows.filter(match);
         return { data: q.single ? out[0] ?? null : out, error: null };
       }
+      writes.push(`${q.op}:${name}`);
       if (q.op === 'insert') {
-        const r = { ...q.row! };
+        // A batch is all or nothing, like one statement: check every row first, then insert.
+        const incoming: Row[] = Array.isArray(q.row) ? q.row : [q.row];
         if (name === 'saved_sets') {
-          if (rows.some((x) => x.account_id === r.account_id && x.list === r.list && x.set_number === r.set_number)) {
-            return { data: null, error: { code: '23505', message: 'duplicate key' } };
+          const keys = new Set<string>();
+          for (const r of incoming) {
+            const k = `${r.account_id}|${r.list}|${r.set_number}`;
+            if (keys.has(k) || rows.some((x) => x.account_id === r.account_id && x.list === r.list && x.set_number === r.set_number)) {
+              return { data: null, error: { code: '23505', message: 'duplicate key' } };
+            }
+            keys.add(k);
           }
-          if (rows.filter((x) => x.account_id === r.account_id && x.list === r.list).length >= LIST_LIMIT) {
-            return { data: null, error: { code: 'P0001', message: 'list is full' } };
+          for (const r of incoming) {
+            const count = rows.filter((x) => x.account_id === r.account_id && x.list === r.list).length;
+            if (count >= LIST_LIMIT) return { data: null, error: { code: 'P0001', message: 'list is full' } };
           }
         }
-        rows.push(r);
+        rows.push(...incoming.map((r) => ({ ...r })));
         return { data: null, error: null };
       }
       const keep = rows.filter((r) => !match(r));
@@ -44,13 +54,13 @@ function makeDb(tables: Tables, opts: { failTable?: string; failWrites?: boolean
       eq: (c: string, v: any) => { q.filters.push([c, v]); return b; },
       is: (c: string, v: any) => { q.filters.push([c, v]); return b; },
       maybeSingle: () => { q.single = true; return b; },
-      insert: (row: Row) => { q.op = 'insert'; q.row = row; return b; },
+      insert: (row: any) => { q.op = 'insert'; q.row = row; return b; },
       delete: () => { q.op = 'delete'; return b; },
       then: (ok: (v: any) => any, bad?: (e: any) => any) => Promise.resolve().then(run).then(ok, bad),
     };
     return b;
   };
-  return { db: { from } as any };
+  return { db: { from } as any, writes };
 }
 
 function seed(saved: Row[] = []): Tables {
@@ -69,7 +79,7 @@ const browser = (set: string, day: number, qty?: number) => ({ set, added_at: at
 const rowsOf = (t: Tables, account: string, list: string) => t.saved_sets.filter((r) => r.account_id === account && r.list === list);
 
 describe('first sign-in: the browser lists join the account', () => {
-  it('browser-only sets are written with their own added_at', async () => {
+  it('browser-only sets are written with their own added_at and copies', async () => {
     const t = seed([acct('90001', 1)]);
     const { db } = makeDb(t);
     const r = await mergeBrowserLists(db, 'acct-A', { wishlist: [browser('90002', 5)], collection: [browser('90003', 6, 2)] });
@@ -109,38 +119,99 @@ describe('first sign-in: the browser lists join the account', () => {
   });
 });
 
-describe('the 500 limit on the merge', () => {
-  it('over the limit, the newest are kept: older account rows outside them are removed, browser rows fill in', async () => {
+describe('the merge never deletes from the account', () => {
+  it('over the limit, every account row stays, and only what fits is added', async () => {
     const old = Array.from({ length: LIST_LIMIT - 1 }, (_, i) => acct(String(10000 + i), 1));
     const t = seed(old);
-    const { db } = makeDb(t);
+    const before = rowsOf(t, 'acct-A', 'wishlist').map((x) => x.set_number).sort();
+    const { db, writes } = makeDb(t);
     const r = await mergeBrowserLists(db, 'acct-A', { wishlist: [browser('20001', 20), browser('20002', 21), browser('20003', 22)], collection: [] });
     expect(r.status).toBe('ok');
-    expect(rowsOf(t, 'acct-A', 'wishlist')).toHaveLength(LIST_LIMIT);
+    const after = rowsOf(t, 'acct-A', 'wishlist').map((x) => x.set_number);
+    expect(after).toEqual(expect.arrayContaining(before));
+    expect(after).toHaveLength(LIST_LIMIT);
+    expect(writes.some((w) => w.startsWith('delete'))).toBe(false);
+    expect(r.dropped?.wishlist).toBe(2);
+  });
+});
+
+describe('the 500 limit on the merge', () => {
+  it('room is the space left: the newest browser set that fits is added first', async () => {
+    const t = seed(Array.from({ length: LIST_LIMIT - 2 }, (_, i) => acct(String(10000 + i), 1)));
+    const { db } = makeDb(t);
+    const r = await mergeBrowserLists(db, 'acct-A', {
+      wishlist: [browser('20001', 5), browser('20002', 9), browser('20003', 7)],
+      collection: [],
+    });
     const sets = rowsOf(t, 'acct-A', 'wishlist').map((x) => x.set_number);
-    expect(sets).toEqual(expect.arrayContaining(['20001', '20002', '20003']));
-    expect(r.dropped?.wishlist).toBe(LIST_LIMIT - 1 + 3 - LIST_LIMIT);
+    expect(sets).toContain('20002');
+    expect(sets).toContain('20003');
+    expect(sets).not.toContain('20001');
+    expect(r.dropped?.wishlist).toBe(1);
   });
 
-  it('a full account list with older browser sets adds none of them', async () => {
-    const full = Array.from({ length: LIST_LIMIT }, (_, i) => acct(String(10000 + i), 20));
-    const t = seed(full);
+  it('a full account list adds none of the browser sets, and each one is counted', async () => {
+    const t = seed(Array.from({ length: LIST_LIMIT }, (_, i) => acct(String(10000 + i), 20)));
     const { db } = makeDb(t);
-    const r = await mergeBrowserLists(db, 'acct-A', { wishlist: [browser('20009', 1)], collection: [] });
-    expect(r.status).toBe('ok');
+    const r = await mergeBrowserLists(db, 'acct-A', { wishlist: [browser('20009', 1), browser('20010', 2)], collection: [] });
     expect(rowsOf(t, 'acct-A', 'wishlist')).toHaveLength(LIST_LIMIT);
-    expect(rowsOf(t, 'acct-A', 'wishlist').some((x) => x.set_number === '20009')).toBe(false);
-    expect(r.dropped?.wishlist).toBe(1);
+    expect(r.dropped?.wishlist).toBe(2);
+  });
+
+  it('the limit is per list: a full wishlist does not block the collection', async () => {
+    const t = seed(Array.from({ length: LIST_LIMIT }, (_, i) => acct(String(10000 + i), 20)));
+    const { db } = makeDb(t);
+    const r = await mergeBrowserLists(db, 'acct-A', { wishlist: [], collection: [browser('30001', 3, 1)] });
+    expect(rowsOf(t, 'acct-A', 'collection').map((x) => x.set_number)).toEqual(['30001']);
+    expect(r.dropped?.collection).toBe(0);
+  });
+});
+
+describe('batching and what is read', () => {
+  it('one batch write per list that has something to add', async () => {
+    const t = seed();
+    const { db, writes } = makeDb(t);
+    await mergeBrowserLists(db, 'acct-A', { wishlist: [browser('90001', 1)], collection: [browser('90002', 2)] });
+    expect(writes.filter((w) => w === 'insert:saved_sets')).toHaveLength(2);
+  });
+
+  it('nothing to add means no write at all', async () => {
+    const t = seed([acct('90001', 1)]);
+    const { db, writes } = makeDb(t);
+    await mergeBrowserLists(db, 'acct-A', { wishlist: [browser('90001', 1)], collection: [] });
+    expect(writes).toEqual([]);
+  });
+
+  it('at most 500 items are read from each browser list; the rest are ignored', async () => {
+    const t = seed();
+    const { db } = makeDb(t);
+    const big = Array.from({ length: MERGE_ITEMS_MAX + 100 }, (_, i) => browser(String(10000 + i), 1));
+    const r = await mergeBrowserLists(db, 'acct-A', { wishlist: big, collection: [] });
+    expect(rowsOf(t, 'acct-A', 'wishlist')).toHaveLength(MERGE_ITEMS_MAX);
+    expect(rowsOf(t, 'acct-A', 'wishlist').some((x) => x.set_number === String(10000 + MERGE_ITEMS_MAX))).toBe(false);
+    expect(r.dropped?.wishlist).toBe(0);
+  });
+
+  it('a body over the size limit is refused before it is parsed', () => {
+    const big = JSON.stringify({ wishlist: [], pad: 'x'.repeat(MERGE_BODY_MAX) });
+    expect(big.length).toBeGreaterThan(MERGE_BODY_MAX);
+    expect(parseMergeBody(big)).toBeNull();
+  });
+
+  it('a body that is not JSON is refused; a small JSON body is parsed', () => {
+    expect(parseMergeBody('{not json')).toBeNull();
+    expect(parseMergeBody('{"wishlist":[]}')).toEqual({ wishlist: [] });
   });
 });
 
 describe('signed out, failed reads and other accounts', () => {
   it('no session: signed-out and nothing is written', async () => {
     const t = seed();
-    const { db } = makeDb(t);
+    const { db, writes } = makeDb(t);
     const r = await handleMergeRequest(db, undefined, { wishlist: [browser('90001', 1)] }, NOW);
     expect(r.status).toBe('signed-out');
     expect(t.saved_sets).toHaveLength(0);
+    expect(writes).toEqual([]);
   });
 
   it('a failed read writes nothing and answers unavailable', async () => {
@@ -151,11 +222,12 @@ describe('signed out, failed reads and other accounts', () => {
     expect(t.saved_sets).toHaveLength(0);
   });
 
-  it('a failed write answers unavailable (a retry completes the merge, since it is safe to repeat)', async () => {
+  it('a failed write answers unavailable, and the batch wrote nothing', async () => {
     const t = seed();
     const { db } = makeDb(t, { failWrites: true });
     const r = await mergeBrowserLists(db, 'acct-A', { wishlist: [browser('90001', 1)], collection: [] });
     expect(r.status).toBe('unavailable');
+    expect(t.saved_sets).toHaveLength(0);
   });
 
   it("the merge writes only to the session account; account B's rows are never touched", async () => {
