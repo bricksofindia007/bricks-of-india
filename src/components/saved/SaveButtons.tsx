@@ -7,6 +7,20 @@ import {
   loadWishlist, removeWish, setOwnedQty, trackCollectionEvent, updateList, type SetRef,
 } from '@/lib/my-collection';
 
+/** A note shown to the visitor. The shelf-full line links "Contact us" to the contact page (D-2026-10-30-04). */
+function NoteText({ text }: { text: string }) {
+  const link = 'Contact us';
+  const at = text.indexOf(link);
+  if (text !== VOICE.limitReached || at < 0) return <>{text}</>;
+  return (
+    <>
+      {text.slice(0, at)}
+      <Link href="/contact" className="underline">{link}</Link>
+      {text.slice(at + link.length)}
+    </>
+  );
+}
+
 // Re-read when any button on the page, or another tab, changes the lists.
 function useLists() {
   const [, setTick] = useState(0);
@@ -67,10 +81,10 @@ export function HeartButton({ size = 'sm', ...ref }: SetRef & { size?: 'sm' | 'l
       >
         <span aria-hidden="true">{saved ? '♥' : '♡'}</span>
       </button>
-      {note && size !== 'lg' && <span role="status" className="sr-only">{note}</span>}
+      {note && size !== 'lg' && <span role="status" className="sr-only"><NoteText text={note} /></span>}
       {note && size === 'lg' && (
         <span role="status" className="absolute left-0 top-full mt-1 z-10 whitespace-nowrap text-xs text-gray-600 bg-white border border-border rounded px-2 py-1 shadow-sm">
-          {note} <Link href="/my" className="underline">See your list</Link>
+          <NoteText text={note} /> <Link href="/my" className="underline">See your list</Link>
         </span>
       )}
     </span>
@@ -109,7 +123,7 @@ export function AddToCollectionButton(ref: SetRef) {
         <button type="button" onClick={add} className="text-sm font-semibold px-3 py-2 rounded-lg border border-border hover:border-primary">
           Add to my collection
         </button>
-        {note && <span role="status" className="text-xs text-gray-600">{note}</span>}
+        {note && <span role="status" className="text-xs text-gray-600"><NoteText text={note} /></span>}
       </span>
     );
   }

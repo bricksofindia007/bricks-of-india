@@ -12,7 +12,7 @@ describe('the "prices unavailable" banner, as rendered', () => {
   it('renders the approved line as an alert, with the names still shown by the page', () => {
     const html = renderToStaticMarkup(<PricesUnavailable />);
     expect(html).toContain('role="alert"');
-    expect(text(html)).toBe('Prices are unavailable right now. Names and pieces are still shown.');
+    expect(text(html)).toBe('Prices are taking a coffee break. Your sets are still here, safe and sound.');
   });
 });
 
@@ -45,7 +45,7 @@ describe('the retired line, as rendered', () => {
     const seen = { priceInr: 12999, observedAt: '2026-03-14T09:00:00Z' };
     const w = worthOf(worthInputFor({ set: '10307', qty: 1 }, { best_price_inr: null, us_price_usd: 499 }, true), null, true, seen);
     const out = text(renderToStaticMarkup(<OwnedWorthLine line={w.line} />));
-    expect(out).toBe('Last seen in India at ₹12,999 (March 2026)');
+    expect(out).toBe('Retired. Last seen in India at ₹12,999 (March 2026). Good luck finding one.');
     expect(retiredLine(seen)).toBe(out);
   });
   it('a set that is not retired never renders the retired line', () => {

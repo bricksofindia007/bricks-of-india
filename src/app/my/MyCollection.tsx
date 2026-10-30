@@ -183,10 +183,10 @@ export function MyCollection() {
         </div>
         <div className="border border-border rounded-lg p-3">
           <dt className="text-gray-500">Total worth</dt>
-          <dd className="font-bold text-dark text-lg"><TotalWorthValue loading={priceState === 'loading'} inr={total.inr} estimates={total.estimate} /></dd>
+          <dd className="font-bold text-dark text-lg"><TotalWorthValue loading={priceState === 'loading'} inr={total.inr} /></dd>
         </div>
         <div className="border border-border rounded-lg p-3">
-          <dt className="text-gray-500">Retired, not valued</dt>
+          <dt className="text-gray-500">Priceless</dt>
           <dd className="font-bold text-dark text-lg">{total.retired}</dd>
         </div>
       </dl>

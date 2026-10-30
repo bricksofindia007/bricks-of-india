@@ -13,7 +13,7 @@ describe('one retired set', () => {
     const w = worthOf(item('90001'), null, true, seen);
     expect(w.rule).toBe('last-seen');
     expect(w.inr).toBe(4999);
-    expect(w.line).toMatch(/^Last seen in India at ₹4,999 \(May 2026\)$/);
+    expect(w.line).toMatch(/^Retired\. Last seen in India at ₹4,999 \(May 2026\)\. Good luck finding one\.$/);
   });
 
   it('without a last seen price: not counted, the approved retired line', () => {
@@ -43,7 +43,7 @@ describe('the total', () => {
     expect(t.indian).toBe(1);
     expect(t.counted).toBe(1);
     expect(t.retired).toBe(0);
-    expect(t.line).toBe('Worth counts 1 of 1 set: 1 at Indian price, 0 estimated from US prices.');
+    expect(t.line).toBe('1 sets on your shelf. Worth about ₹9,998. Your wallet has questions.');
   });
 
   it('a retired set without a last seen price is not counted; the retired count and the line carry it', () => {
@@ -51,7 +51,7 @@ describe('the total', () => {
     expect(t.inr).toBe(0);
     expect(t.retired).toBe(1);
     expect(t.counted).toBe(0);
-    expect(t.line).toBe('Worth counts 0 of 1 set: 0 at Indian prices, 0 estimated from US prices. 1 is retired and not counted.');
+    expect(t.line).toBe('1 sets on your shelf. Worth about ₹0. Your wallet has questions.');
   });
 
   it('a mix: the coverage numbers follow (seen counted, unseen retired not)', () => {
@@ -61,7 +61,7 @@ describe('the total', () => {
     expect(t.sets).toBe(3);
     expect(t.inr).toBe(4999);
     expect(t.retired).toBe(2);
-    expect(t.line).toBe('Worth counts 1 of 3 sets: 1 at Indian price, 0 estimated from US prices. 2 are retired and not counted.');
+    expect(t.line).toBe('3 sets on your shelf. Worth about ₹4,999. Your wallet has questions.');
   });
 
   it('a retired set with a last seen price is not in the retired count (the tile counts only unvalued sets)', () => {
@@ -71,7 +71,7 @@ describe('the total', () => {
 
   it('with no retired sets the line is as before', () => {
     const t = worthTotal([item('90001')], null, no, false);
-    expect(t.line).toBe('Worth counts 0 of 1 set: 0 at Indian prices, 0 estimated from US prices. 1 is worth not known yet and not counted.');
+    expect(t.line).toBe('1 sets on your shelf. Worth about ₹0. Your wallet has questions.');
   });
 
   it('the default (no last seen lookup) keeps the old behaviour for retired sets', () => {
