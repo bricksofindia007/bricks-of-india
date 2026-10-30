@@ -132,7 +132,7 @@ export function MyCollection() {
   // The price read covers the newest sets only; a collection set it leaves out is capped out of the total.
   const pricedIds = new Set(priceIds(wish, owned));
   const capped = owned.some((o) => !pricedIds.has(o.set));
-  const total = worthTotal(worthItems, rate, isRetired, capped);
+  const total = worthTotal(worthItems, rate, isRetired, capped, (s) => lastSeen.get(s) ?? null);
   const pieces = owned.reduce((n, o) => n + (o.pieces ?? 0) * o.qty, 0);
   const piecesMissing = owned.some((o) => o.pieces == null);
 

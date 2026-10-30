@@ -34,7 +34,8 @@ export const ESTIMATE_NOTE =
 export const WORTH_UNKNOWN_LINE = 'Worth not known yet';
 export const WISHLIST_NO_PRICE_LINE = 'No Indian price yet. We\'re watching the shelves.';
 
-export type WorthRule = 'indian' | 'estimate' | 'stored-estimate' | 'retired' | 'unknown';
+/** 'last-seen': a retired set with a last seen Indian price; counted in the total at that price (decision D-2026-10-30-01). */
+export type WorthRule = 'indian' | 'estimate' | 'stored-estimate' | 'retired' | 'last-seen' | 'unknown';
 
 /** Stored rupee estimate (a converted list price). A fallback only: never counted in the total. */
 export const STORED_ESTIMATE_NOTE = 'Estimates can differ from what Indian shops charge. Not a valuation.';
@@ -126,6 +127,9 @@ export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boole
     const inr = Math.round(item.storedEstimateInr);
     return { rule: 'stored-estimate', inr, line: `About ₹${formatRs(inr)}, worked out from the US price`, note: STORED_ESTIMATE_NOTE };
   }
+  if (retired === true && lastSeen && Number.isFinite(lastSeen.priceInr) && lastSeen.priceInr > 0) {
+    return { rule: 'last-seen', inr: lastSeen.priceInr, line: retiredLine(lastSeen), note: null };
+  }
   if (retired === true) return { rule: 'retired', inr: null, line: retiredLine(lastSeen), note: null };
   return { rule: 'unknown', inr: null, line: WORTH_UNKNOWN_LINE, note: null };
 }
@@ -155,7 +159,10 @@ export type WorthTotal = {
   counted: number;
   indian: number;
   estimate: number;
+  /** Retired sets with no rupee value: the only retired sets the total line and the tile count. */
   retired: number;
+  /** How many of the Indian prices above are last seen prices of retired sets (already in indian). */
+  lastSeen: number;
   unknown: number;
   /** Sets whose only figure is the stored estimate: shown, not counted. */
   storedEstimate: number;
@@ -173,21 +180,31 @@ function plural(n: number, one: string, many: string) {
  * The total line. Total = rules 1 and 2 only. It always states how it is made up, e.g.
  * "Worth counts 14 of 17 sets: 9 at Indian prices, 5 estimated from US prices. 3 are retired and not counted."
  */
-export function worthTotal(items: WorthItem[], rate: StoredRate | null, retiredOf: (set: string) => boolean | null, capped = false): WorthTotal {
+export function worthTotal(
+  items: WorthItem[],
+  rate: StoredRate | null,
+  retiredOf: (set: string) => boolean | null,
+  capped = false,
+  lastSeenOf: (set: string) => LastSeen = () => null,
+): WorthTotal {
   let inr = 0;
-  let indian = 0;
+  let indianNow = 0;
+  let lastSeenCount = 0;
   let estimate = 0;
   let retired = 0;
   let unknown = 0;
   let storedEstimate = 0;
   for (const it of items) {
-    const w = worthOf(it, rate, retiredOf(it.set));
-    if (w.rule === 'indian') { indian++; inr += (w.inr ?? 0) * it.qty; }
+    const w = worthOf(it, rate, retiredOf(it.set), lastSeenOf(it.set));
+    if (w.rule === 'indian') { indianNow++; inr += (w.inr ?? 0) * it.qty; }
+    else if (w.rule === 'last-seen') { lastSeenCount++; inr += (w.inr ?? 0) * it.qty; }
     else if (w.rule === 'estimate') { estimate++; inr += (w.inr ?? 0) * it.qty; }
     else if (w.rule === 'retired') retired++;
     else if (w.rule === 'stored-estimate') storedEstimate++;
     else unknown++;
   }
+  // A last seen Indian price is a rupee price, so it is counted with the Indian prices (the sentence keeps its words).
+  const indian = indianNow + lastSeenCount;
   const sets = items.length;
   const counted = indian + estimate;
   let line = `Worth counts ${counted} of ${sets} ${plural(sets, 'set', 'sets')}: ${indian} at Indian ${plural(indian, 'price', 'prices')}, ${estimate} estimated from US ${plural(estimate, 'price', 'prices')}.`;
@@ -197,5 +214,5 @@ export function worthTotal(items: WorthItem[], rate: StoredRate | null, retiredO
   if (capped) line += ` ${CAP_SENTENCE}`;
   // The rate date and the estimate note, shown on the line after the sentence. Only when estimates are counted.
   const rateNote = estimate > 0 && rate ? `Rate of ${rateDateLabel(rate.asOf)}. ${ESTIMATE_NOTE}` : '';
-  return { inr, sets, counted, indian, estimate, retired, unknown, storedEstimate, line, rateNote };
+  return { inr, sets, counted, indian, lastSeen: lastSeenCount, estimate, retired, unknown, storedEstimate, line, rateNote };
 }
