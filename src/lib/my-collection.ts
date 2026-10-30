@@ -20,8 +20,10 @@ export const VOICE = {
   ownedAdded: 'Yours now. Own it proudly.',
   wishlistEmpty: 'Nothing saved yet. Your wallet admires your patience.',
   collectionEmpty: 'No sets here yet. Tell us what you own and we will be impressed.',
-  limitReached: 'That is a proper collection. Remove one to add another.',
-  pricesUnavailable: 'Prices are unavailable right now. Names and pieces are still shown.',
+  // Line 6 (D-2026-10-30-04): shelf full. "Contact us" links to the contact page (see SaveButtons).
+  limitReached: 'Your shelf is full. Impressive. Contact us and we will open a bank for you.',
+  // Line 5 (D-2026-10-30-04): prices not loading.
+  pricesUnavailable: 'Prices are taking a coffee break. Your sets are still here, safe and sound.',
 } as const;
 
 /** What the page knows about a set when the visitor taps. Names and pieces only; never a price history. */

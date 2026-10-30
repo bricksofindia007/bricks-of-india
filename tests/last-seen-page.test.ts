@@ -41,7 +41,7 @@ describe('the last seen map', () => {
 
   it('the row text is the existing last seen line, with month and year', () => {
     const m = lastSeenMap([{ set_number: '90001', price_inr: 4999, observed_at: '2026-05-14T10:00:00Z' }]);
-    expect(retiredLine(m.get('90001') ?? null)).toMatch(/^Last seen in India at ₹4,999 \(May 2026\)$/);
+    expect(retiredLine(m.get('90001') ?? null)).toMatch(/^Retired\. Last seen in India at ₹4,999 \(May 2026\)\. Good luck finding one\.$/);
   });
 });
 
