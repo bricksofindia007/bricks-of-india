@@ -11,7 +11,7 @@ const RATE = { rate: 88, asOf: '2026-10-18' };
 describe('worthInputFor', () => {
   it('takes the US price from the price read', () => {
     const w = worthInputFor({ set: '10307', qty: 2 }, { best_price_inr: null, us_price_usd: 499 }, true);
-    expect(w).toEqual({ set: '10307', indianPriceInr: null, usPriceUsd: 499, qty: 2, storedEstimateInr: null });
+    expect(w).toEqual({ set: '10307', indianPriceInr: null, usPriceUsd: 499, qty: 2, storedEstimateInr: null, listPriceInr: null });
     expect(worthOf(w, RATE, false).rule).toBe('estimate');
   });
   it('a loaded Indian price still wins (rule 1)', () => {
@@ -24,7 +24,7 @@ describe('worthInputFor', () => {
     expect(w.usPriceUsd).toBeNull();
   });
   it('a set with no price row has no value', () => {
-    expect(worthInputFor({ set: '10307', qty: 1 }, undefined, true)).toEqual({ set: '10307', indianPriceInr: null, usPriceUsd: null, qty: 1, storedEstimateInr: null });
+    expect(worthInputFor({ set: '10307', qty: 1 }, undefined, true)).toEqual({ set: '10307', indianPriceInr: null, usPriceUsd: null, qty: 1, storedEstimateInr: null, listPriceInr: null });
   });
   it('a retired set with a US price shows the retired line, not an estimate', () => {
     const w = worthInputFor({ set: '10307', qty: 1 }, { best_price_inr: null, us_price_usd: 499 }, true);
