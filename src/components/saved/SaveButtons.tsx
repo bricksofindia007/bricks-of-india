@@ -112,7 +112,7 @@ export function AddToCollectionButton(ref: SetRef) {
   };
 
   if (qty === 0 && askForAccount) {
-    return <span className="text-sm text-gray-600">{VOICE.guestAddNote}</span>;
+    return <span className="text-sm text-gray-600"><Link href="/auth" className="underline">{VOICE.guestAddNote}</Link></span>;
   }
   if (qty === 0) {
     return (
