@@ -18,6 +18,7 @@ export const VOICE = {
   heartAdded: 'Saved. Your wallet has been notified.',
   heartRemoved: 'Removed. Your wallet is relieved.',
   ownedAdded: 'Yours now. Own it proudly.',
+  heartPrompt: 'Want it? Save it to your wishlist.',
   wishlistEmpty: 'Nothing saved yet. Your wallet admires your patience.',
   collectionEmpty: 'Your shelf is empty. Your wallet is suspiciously calm.',
   limitReached: 'That is a proper collection. Remove one to add another.',
