@@ -792,7 +792,7 @@ class VerdictReasonMissingError(PreTTSValidationError):
     fix."""
 
 
-def check_word_budget(segments: list, price_inr) -> dict:
+def check_word_budget(segments: list, price_inr, extra_total_words: int = 0) -> dict:
     """Pre-TTS validation, zero ElevenLabs cost either way. Mirrors the
     {'pass', 'detail'} gate-dict shape used throughout generate_quiet_
     panic_video.py's post-render gates -- same philosophy, just against
@@ -831,6 +831,10 @@ def check_word_budget(segments: list, price_inr) -> dict:
     # tightens anything.
     price_segment_cap = max(PER_SEGMENT_WORD_CAP, price_phrase_words)
     effective_total_cap = TOTAL_WORD_CAP + max(0, price_phrase_words - PER_SEGMENT_WORD_CAP)
+    # Explicit, bounded relaxation for one reviewed run (order 0400 item 3). The default is 0, which leaves the cap unchanged.
+    if not isinstance(extra_total_words, int) or isinstance(extra_total_words, bool) or not 0 <= extra_total_words <= 3:
+        raise ValueError('extra_total_words must be a whole number from 0 to 3')
+    effective_total_cap += extra_total_words
 
     over_cap = []
     for i, wc in segment_words:

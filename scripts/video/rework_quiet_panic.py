@@ -285,6 +285,60 @@ def rework_one_by_id(sb, row_id: str) -> int:
     return 0 if _notify_if_pending(result, row) else 1
 
 
+# Default extra words for the literal mode. 0 keeps the spoken cap at its normal value (order 0400 item 3).
+LITERAL_DEFAULT_EXTRA_WORDS = 0
+
+
+def rework_literal_by_id(sb, row_id: str, segments_file: str, verdict_text: str, extra_words: int = LITERAL_DEFAULT_EXTRA_WORDS) -> int:
+    """Literal rework for one row: the original spoken segments are kept word for word, and only the verdict text
+    is replaced by the row's rejection reason. No script-generation model call. The word cap is the normal one plus
+    extra_words (default 0). The verdict text is an explicit input (never the row's rejection reason). Marks the original
+    row reworked only when the new row is made."""
+    import rework_literal as rl
+    if not (verdict_text or '').strip().lower().startswith('verdict:'):
+        print('ERROR: literal mode needs a verdict text that starts with "Verdict:" (literal_verdict input).', file=sys.stderr)
+        return 1
+    res = sb.table('quiet_panic_posts').select('*').eq('id', row_id).limit(1).execute()
+    if not res.data:
+        print(f'ERROR: no quiet_panic_posts row with id {row_id}', file=sys.stderr)
+        return 1
+    row = res.data[0]
+    try:
+        segments = rl.replace_verdict(rl.load_segments(segments_file), verdict_text)
+        rl.check_literal_budget(segments, row['price_inr'], extra_total_words=extra_words)
+    except Exception as e:
+        print(f'ERROR: literal check refused for {row_id}: {type(e).__name__}: {e}', file=sys.stderr)
+        return 1
+
+    meta_res = (
+        sb.table('sets')
+        .select('theme,pieces,image_url')
+        .eq('set_number', row['set_number'])
+        .limit(1)
+        .execute()
+    )
+    meta = meta_res.data[0] if meta_res.data else {}
+    candidate = {
+        'set_number': row['set_number'],
+        'set_title': row['set_title'],
+        'price_inr': row['price_inr'],
+        'pieces': meta.get('pieces'),
+        'theme': meta.get('theme'),
+        'image_url': meta.get('image_url', ''),
+        'segments': segments,
+    }
+    print(f"--- Literal rework: {row_id} ({row['set_title']}, set {row['set_number']}); extra words allowed {extra_words} ---")
+    try:
+        result = gqpv.process_candidate(candidate, reworked_from=row['id'])
+        print(f"  Literal rework -> new row {result['post_id']} (status={result['status']})")
+    except Exception as e:
+        print(f'ERROR: literal rework failed for {row_id}: {e}', file=sys.stderr)
+        return 1
+
+    sb.table('quiet_panic_posts').update({'reworked': True}).eq('id', row_id).execute()
+    return 0 if _notify_if_pending(result, row) else 1
+
+
 def send_review_email_for_existing(sb, row_id: str) -> int:
     """--send-review-email: (re)send the rework ready-for-review email for an
     EXISTING reworked row, from its stored data. Used to verify #179's email
@@ -312,10 +366,16 @@ def main():
     parser.add_argument('--poll-and-rework', action='store_true', help='Poll quiet_panic_posts for rejected rows with a reason and rework them.')
     parser.add_argument('--send-review-email', default=None, metavar='ROW_ID', help='(Re)send the rework ready-for-review email for an existing reworked row (issue #179 verification/backfill). Generates nothing.')
     parser.add_argument('--row-id', default=None, help='Targeted rework for one specific quiet_panic_posts row id, bypassing the escalation-gated queue fetch. Manual use only -- not called by the scheduled poller.')
+    parser.add_argument('--literal-segments', default=None, metavar='FILE', help='With --row-id: literal rework from this segments file (original spoken segments, verdict replaced). No model call.')
+    parser.add_argument('--literal-extra-words', type=int, default=LITERAL_DEFAULT_EXTRA_WORDS, help='Extra spoken words allowed for the literal run (0 to 3; default 0).')
+    parser.add_argument('--literal-verdict', default='', help='With --literal-segments: the verdict line, starting with Verdict:. Required in literal mode.')
     args = parser.parse_args()
 
     if args.send_review_email:
         sys.exit(send_review_email_for_existing(gqpv.get_supabase(), args.send_review_email))
+    if args.row_id and args.literal_segments:
+        sb = gqpv.get_supabase()
+        sys.exit(rework_literal_by_id(sb, args.row_id, args.literal_segments, args.literal_verdict, args.literal_extra_words))
     if args.row_id:
         sb = gqpv.get_supabase()
         sys.exit(rework_one_by_id(sb, args.row_id))
