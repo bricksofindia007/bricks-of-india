@@ -143,4 +143,8 @@ export const FEATURE_FLAGS = {
   // Owner-only daily visit totals (order 0050, issue 822). Off: the owner page is a 404 and nothing is written.
   // Never shown publicly. Mirrored in config/feature_flags.py (visitor_counter); keep in sync.
   visitorCounter: false,
+
+  // Price history chart on set pages, with the "lowest in 90 days" marker (H5, order 0060). Off: no read, no chart.
+  // Mirrored in config/feature_flags.py (price_history_chart); keep in sync.
+  priceHistoryChart: false,
 } as const;
