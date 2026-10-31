@@ -138,9 +138,11 @@ export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boole
     // The word About stays before an estimated figure; the approved estimate line goes under it (note).
     return { rule: 'estimate', inr, line: `About ₹${formatRs(inr)}`, note: ESTIMATE_NOTE };
   }
+  // Unverified LEGO India figure (lego_mrp_inr with mrp_verified not true): a US-based estimate. It is counted, and the
+  // approved estimate line goes under it (D-2026-10-31-03 item 3).
   if (retired !== true && item.storedEstimateInr != null && item.storedEstimateInr > 0) {
     const inr = Math.round(item.storedEstimateInr);
-    return { rule: 'stored-estimate', inr, line: `About ₹${formatRs(inr)}`, note: null };
+    return { rule: 'stored-estimate', inr, line: `About ₹${formatRs(inr)}`, note: ESTIMATE_NOTE };
   }
   if (retired === true && lastSeen && Number.isFinite(lastSeen.priceInr) && lastSeen.priceInr > 0) {
     return { rule: 'last-seen', inr: lastSeen.priceInr, line: retiredLine(lastSeen), note: null };
@@ -185,8 +187,6 @@ export type WorthTotal = {
   /** How many of the Indian prices above are last seen prices of retired sets (already in indian). */
   lastSeen: number;
   unknown: number;
-  /** Sets whose only figure is the stored estimate: shown, not counted. */
-  storedEstimate: number;
   /** The sentence that says how the total is made up. */
   line: string;
   /** The rate date and estimate note, next to the sentence. Empty when no estimate is counted. */
@@ -214,7 +214,6 @@ export function worthTotal(
   let estimate = 0;
   let retired = 0;
   let unknown = 0;
-  let storedEstimate = 0;
   let pre2020 = 0;
   for (const it of items) {
     const w = worthOf(it, rate, retiredOf(it.set), lastSeenOf(it.set));
@@ -223,7 +222,7 @@ export function worthTotal(
     else if (w.rule === 'estimate') { estimate++; inr += (w.inr ?? 0) * it.qty; }
     else if (w.rule === 'retired') retired++;
     else if (w.rule === 'pre-2020') pre2020++;
-    else if (w.rule === 'stored-estimate') storedEstimate++;
+    else if (w.rule === 'stored-estimate') { estimate++; inr += (w.inr ?? 0) * it.qty; }
     else unknown++;
   }
   // A last seen Indian price is a rupee price, so it is counted with the Indian prices (the sentence keeps its words).
@@ -235,5 +234,5 @@ export function worthTotal(
   let line = `${sets} ${plural(sets, 'set', 'sets')} on your shelf. Worth about ₹${formatRs(inr)}. Your wallet has questions.`;
   if (capped) line += ` ${CAP_SENTENCE}`;
   const rateNote = '';
-  return { inr, sets, counted, indian, lastSeen: lastSeenCount, estimate, retired, pre2020, unknown, storedEstimate, line, rateNote };
+  return { inr, sets, counted, indian, lastSeen: lastSeenCount, estimate, retired, pre2020, unknown, line, rateNote };
 }

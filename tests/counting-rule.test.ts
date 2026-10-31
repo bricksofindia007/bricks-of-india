@@ -78,6 +78,6 @@ describe('the page and the route pass the list price through', () => {
   it('the route returns list_price_inr for every set that has a LEGO India list price', () => {
     const route = readFileSync(join(root, 'src/app/api/saved-sets/route.ts'), 'utf8');
     expect(route).toContain('list_price_inr: listPrice.get(set) ?? null');
-    expect(route).toMatch(/if \(r\.lego_mrp_inr != null\) listPrice\.set\(r\.set_number, Number\(r\.lego_mrp_inr\)\);/);
+    expect(route).toMatch(/if \(r\.lego_mrp_inr != null && r\.mrp_verified === true\) listPrice\.set\(r\.set_number, Number\(r\.lego_mrp_inr\)\);/);
   });
 });

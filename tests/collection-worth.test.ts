@@ -267,11 +267,13 @@ describe('estimates: US list price x current rate first, the stored estimate onl
   it('a retired set never uses the stored estimate', () => {
     expect(worthOf(item({ storedEstimateInr: 43900 }), RATE, true).rule).toBe('retired');
   });
-  it('the stored estimate is shown but not counted in the money total', () => {
+  it('the unverified stored estimate is counted in the money total as an estimate, with the estimate line', () => {
     const t = worthTotal([item({ set: 'a', storedEstimateInr: 43900 })], RATE, () => false);
-    expect(t.inr).toBe(0);
-    expect(t.storedEstimate).toBe(1);
-    expect(t.line).toMatch(/Worth about ₹0\./);
+    expect(t.inr).toBe(43900);
+    expect(t.estimate).toBe(1);
+    expect(t.counted).toBe(1);
+    expect(t.line).toMatch(/Worth about ₹43,900\./);
+    expect(worthOf(item({ storedEstimateInr: 43900 }), RATE, false).note).toBe(ESTIMATE_NOTE);
   });
   it('a zero or missing stored estimate is not used', () => {
     expect(worthOf(item({ storedEstimateInr: 0 }), RATE, false).rule).toBe('unknown');
