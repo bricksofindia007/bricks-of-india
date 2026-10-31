@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
-import { useAccountSession } from '@/components/saved/AccountSession';
+import { useAccountLists } from '@/components/account/AccountSession';
+import { browserFetcher, createAccountClient, saveTarget } from '@/lib/account-client';
 import {
   CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, addOwned, addWish, cleanCollection, cleanWishlist, loadCollection,
   loadWishlist, removeWish, setOwnedQty, trackCollectionEvent, updateList, type SetRef,
@@ -23,6 +24,9 @@ function NoteText({ text }: { text: string }) {
   );
 }
 
+// The account client talks to the lists route with the page's own cookie (same origin).
+const accountClient = createAccountClient(browserFetcher);
+
 // Re-read when any button on the page, or another tab, changes the lists.
 function useLists() {
   const [, setTick] = useState(0);
@@ -37,12 +41,21 @@ function useLists() {
   return { ready };
 }
 
-/** Heart on a set card or set page. Saved in this browser only. */
+/**
+ * Heart on a set card or set page. With accounts on and a shared read on the page: a signed-in visitor saves to the
+ * account; a signed-out visitor saves to this browser; an unknown or unavailable session saves nothing and is not
+ * clickable. Without a shared read (accounts off, or a page without it) it saves to this browser, as before.
+ */
 export function HeartButton({ size = 'sm', ...ref }: SetRef & { size?: 'sm' | 'lg' }) {
   const { set, name } = ref;
   const { ready } = useLists();
+  const acct = useAccountLists();
   const [note, setNote] = useState<string | null>(null);
-  const saved = ready && loadWishlist().some((w) => w.set === set);
+  const accountOn = FEATURE_FLAGS.accountsEnabled && acct !== null;
+  const target = accountOn ? saveTarget(acct.status) : 'browser';
+  const saved = target === 'account'
+    ? (acct?.lists?.wishlist.some((w) => w.set === set) ?? false)
+    : ready && loadWishlist().some((w) => w.set === set);
 
   useEffect(() => {
     if (!note) return;
@@ -50,9 +63,27 @@ export function HeartButton({ size = 'sm', ...ref }: SetRef & { size?: 'sm' | 'l
     return () => clearTimeout(t);
   }, [note]);
 
+  const onAccountClick = async () => {
+    const now = new Date().toISOString();
+    const r = saved ? await accountClient.remove('wishlist', set) : await accountClient.add('wishlist', set);
+    if (r.status === 'limit') return setNote(VOICE.limitReached);
+    if (r.status !== 'ok') return; // unavailable or signed out: say nothing, claim nothing
+    if (saved) {
+      acct?.changeLocal('wishlist', set, null);
+      trackCollectionEvent('heart_remove', { page_type: 'sets_list', set_number: set });
+      setNote(VOICE.heartRemoved);
+    } else {
+      acct?.changeLocal('wishlist', set, { set, qty: 1, added_at: now, name });
+      trackCollectionEvent('heart_add', { page_type: 'sets_list', set_number: set });
+      setNote(VOICE.heartAdded);
+    }
+  };
+
   const onClick = (e: React.MouseEvent) => {
     e.preventDefault(); // the card around it is a link
     e.stopPropagation();
+    if (target === 'none') return;
+    if (target === 'account') { void onAccountClick(); return; }
     // Read, change and write in one step, so another tab's change is kept.
     const now = new Date().toISOString();
     const out = updateList(WISHLIST_KEY, cleanWishlist, (list) => {
@@ -78,9 +109,10 @@ export function HeartButton({ size = 'sm', ...ref }: SetRef & { size?: 'sm' | 'l
       <button
         type="button"
         onClick={onClick}
-        aria-label={saved ? `Remove ${name} from your wishlist` : `Save ${name} to your wishlist`}
+        disabled={target === 'none'}
         title={saved ? undefined : VOICE.heartPrompt}
-        className={`${dim} inline-flex items-center justify-center rounded-full bg-white/90 border border-border shadow-sm hover:border-primary transition-colors ${saved ? 'text-red-600' : 'text-gray-400'}`}
+        aria-label={saved ? `Remove ${name} from your wishlist` : `Save ${name} to your wishlist`}
+        className={`${dim} inline-flex items-center justify-center rounded-full bg-white/90 border border-border shadow-sm hover:border-primary transition-colors ${saved ? 'text-red-600' : 'text-gray-400'} disabled:opacity-50`}
       >
         <span aria-hidden="true">{saved ? '♥' : '♡'}</span>
       </button>
@@ -95,22 +127,41 @@ export function HeartButton({ size = 'sm', ...ref }: SetRef & { size?: 'sm' | 'l
   );
 }
 
-/** "Add to my collection" on a set page, with copies once it is there. */
+/**
+ * "Add to my collection" on a set page, with copies once it is there. With accounts on: a signed-in visitor adds to the
+ * account; a signed-out visitor is asked to sign up (nothing added); an unknown or unavailable session shows nothing.
+ * The copy counter is for the browser list only: the account has no quantity change yet, so an account copy shows
+ * "In My Collection" without a counter.
+ */
 export function AddToCollectionButton(ref: SetRef) {
   const { set } = ref;
   const { ready } = useLists();
-  // A signed-out visitor is asked to sign up (accounts on). Nothing is added to the browser list for them.
-  const session = useAccountSession();
-  const askForAccount = FEATURE_FLAGS.accountsEnabled && session === 'signed-out';
+  const acct = useAccountLists();
   const [note, setNote] = useState<string | null>(null);
-  const qty = ready ? (loadCollection().find((o) => o.set === set)?.qty ?? 0) : 0;
+  const accountOn = FEATURE_FLAGS.accountsEnabled && acct !== null;
+  const target = accountOn ? saveTarget(acct.status) : 'browser';
+  const askForAccount = target === 'browser' && accountOn; // signed out, accounts on
+  const qty = target === 'account'
+    ? (acct?.lists?.collection.find((o) => o.set === set)?.qty ?? 0)
+    : ready ? (loadCollection().find((o) => o.set === set)?.qty ?? 0) : 0;
 
   const change = (q: number) => {
     updateList(COLLECTION_KEY, cleanCollection, (list) => ({ list: setOwnedQty(list, set, q), result: null, changed: true }));
   };
 
+  const addOnAccount = async () => {
+    const now = new Date().toISOString();
+    const r = await accountClient.add('collection', set, 1);
+    if (r.status === 'limit') return setNote(VOICE.limitReached);
+    if (r.status !== 'ok') return;
+    acct?.changeLocal('collection', set, { set, qty: 1, added_at: now, name: ref.name });
+    trackCollectionEvent('owned_add', { page_type: 'set', set_number: set });
+    setNote(VOICE.ownedAdded);
+  };
+
   const add = () => {
-    if (askForAccount) return;
+    if (askForAccount || target === 'none') return;
+    if (target === 'account') { void addOnAccount(); return; }
     const now = new Date().toISOString();
     const out = updateList(COLLECTION_KEY, cleanCollection, (list) => {
       const r = addOwned(list, ref, now);
@@ -125,6 +176,7 @@ export function AddToCollectionButton(ref: SetRef) {
     }
   };
 
+  if (target === 'none') return null; // unknown or unavailable: nothing clickable, nothing claimed
   if (qty === 0 && askForAccount) {
     return <span className="text-sm text-gray-600"><Link href="/auth" className="underline">{VOICE.guestAddNote}</Link></span>;
   }
@@ -137,6 +189,9 @@ export function AddToCollectionButton(ref: SetRef) {
         {note && <span role="status" className="text-xs text-gray-600"><NoteText text={note} /></span>}
       </span>
     );
+  }
+  if (target === 'account') {
+    return <span className="inline-flex items-center gap-2 text-sm"><span className="font-semibold">In My Collection</span></span>;
   }
   return (
     <span className="inline-flex items-center gap-2 text-sm">
