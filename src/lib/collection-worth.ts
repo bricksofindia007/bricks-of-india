@@ -35,7 +35,8 @@ export const WORTH_UNKNOWN_LINE = 'Worth not known yet';
 export const WISHLIST_NO_PRICE_LINE = 'No Indian price yet. We\'re watching the shelves.';
 
 /** 'last-seen': a retired set with a last seen Indian price; counted in the total at that price (decision D-2026-10-30-01). */
-export type WorthRule = 'indian' | 'estimate' | 'stored-estimate' | 'retired' | 'last-seen' | 'unknown';
+/** 'list-price': the LEGO India list price (lego_mrp_inr), counted at its rupee value (D-2026-10-30-03). */
+export type WorthRule = 'indian' | 'list-price' | 'estimate' | 'stored-estimate' | 'retired' | 'last-seen' | 'unknown';
 
 /** Stored rupee estimate (a converted list price). A fallback only: never counted in the total. */
 export const STORED_ESTIMATE_NOTE = 'Estimates can differ from what Indian shops charge. Not a valuation.';
@@ -50,6 +51,8 @@ export type WorthItem = {
   qty: number;
   /** The stored rupee estimate for the set, used only when there is no US price. Optional; null when none. */
   storedEstimateInr?: number | null;
+  /** The LEGO India list price (lego_mrp_inr), used when there is no store price and the set is not retired. Optional. */
+  listPriceInr?: number | null;
 };
 
 export type WorthResult = {
@@ -114,6 +117,12 @@ export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boole
   if (item.indianPriceInr != null) {
     return { rule: 'indian', inr: item.indianPriceInr, line: `₹${formatRs(item.indianPriceInr)}`, note: null };
   }
+  // Order of value (D-2026-10-30-03): store price, else LEGO India list price, else US price, else no value.
+  // A retired set never uses the list price: it shows its last seen price, or Priceless.
+  if (retired !== true && item.listPriceInr != null && item.listPriceInr > 0) {
+    const inr = Math.round(item.listPriceInr);
+    return { rule: 'list-price', inr, line: `₹${formatRs(inr)}`, note: null };
+  }
   if (retired !== true && item.usPriceUsd != null && rate) {
     const inr = Math.round(item.usPriceUsd * rate.rate);
     return {
@@ -140,7 +149,7 @@ export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boole
  */
 export function worthInputFor(
   owned: { set: string; qty: number },
-  price: { best_price_inr: number | null; us_price_usd: number | null; stored_estimate_inr?: number | null } | undefined,
+  price: { best_price_inr: number | null; us_price_usd: number | null; stored_estimate_inr?: number | null; list_price_inr?: number | null } | undefined,
   pricesLoaded: boolean,
 ): WorthItem {
   return {
@@ -149,6 +158,7 @@ export function worthInputFor(
     usPriceUsd: pricesLoaded ? (price?.us_price_usd ?? null) : null,
     qty: owned.qty,
     storedEstimateInr: pricesLoaded ? (price?.stored_estimate_inr ?? null) : null,
+    listPriceInr: pricesLoaded ? (price?.list_price_inr ?? null) : null,
   };
 }
 
@@ -196,7 +206,7 @@ export function worthTotal(
   let storedEstimate = 0;
   for (const it of items) {
     const w = worthOf(it, rate, retiredOf(it.set), lastSeenOf(it.set));
-    if (w.rule === 'indian') { indianNow++; inr += (w.inr ?? 0) * it.qty; }
+    if (w.rule === 'indian' || w.rule === 'list-price') { indianNow++; inr += (w.inr ?? 0) * it.qty; }
     else if (w.rule === 'last-seen') { lastSeenCount++; inr += (w.inr ?? 0) * it.qty; }
     else if (w.rule === 'estimate') { estimate++; inr += (w.inr ?? 0) * it.qty; }
     else if (w.rule === 'retired') retired++;

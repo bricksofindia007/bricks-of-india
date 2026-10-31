@@ -31,6 +31,7 @@ type Price = {
   best_store_ids: string[] | null;
   us_price_usd: number | null;
   stored_estimate_inr: number | null;
+  list_price_inr: number | null;
   retired: boolean | null;
 };
 type Tab = 'wish' | 'owned';
