@@ -43,7 +43,7 @@ describe('the total', () => {
     expect(t.indian).toBe(1);
     expect(t.counted).toBe(1);
     expect(t.retired).toBe(0);
-    expect(t.line).toBe('1 sets on your shelf. Worth about ₹9,998. Your wallet has questions.');
+    expect(t.line).toBe('1 set on your shelf. Worth about ₹9,998. Your wallet has questions.');
   });
 
   it('a retired set without a last seen price is not counted; the retired count and the line carry it', () => {
@@ -51,7 +51,7 @@ describe('the total', () => {
     expect(t.inr).toBe(0);
     expect(t.retired).toBe(1);
     expect(t.counted).toBe(0);
-    expect(t.line).toBe('1 sets on your shelf. Worth about ₹0. Your wallet has questions.');
+    expect(t.line).toBe('1 set on your shelf. Worth about ₹0. Your wallet has questions.');
   });
 
   it('a mix: the coverage numbers follow (seen counted, unseen retired not)', () => {
@@ -71,7 +71,7 @@ describe('the total', () => {
 
   it('with no retired sets the line is as before', () => {
     const t = worthTotal([item('90001')], null, no, false);
-    expect(t.line).toBe('1 sets on your shelf. Worth about ₹0. Your wallet has questions.');
+    expect(t.line).toBe('1 set on your shelf. Worth about ₹0. Your wallet has questions.');
   });
 
   it('the default (no last seen lookup) keeps the old behaviour for retired sets', () => {
