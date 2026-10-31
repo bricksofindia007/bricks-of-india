@@ -4,6 +4,7 @@
 // owner names words. Nothing is stored in the browser. Failure behaviour: any failed request shows the server's line.
 import { useState, type FormEvent } from 'react';
 import { AGE_RULE_COPY } from '@/lib/legal-copy';
+import { loadCollection, loadWishlist } from '@/lib/my-collection';
 
 type Step = 'email' | 'code' | 'done';
 
@@ -39,13 +40,30 @@ export function SignInForm() {
     }
   }
 
+  // First sign-in: the browser lists join the account, once (the merge is safe to repeat). A failure shows nothing new,
+  // and the browser lists are kept as they are.
+  async function joinBrowserLists() {
+    try {
+      await fetch('/api/account/lists/merge', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ wishlist: loadWishlist(), collection: loadCollection() }),
+      });
+    } catch {
+      // keep the browser lists
+    }
+  }
+
   async function onCode(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setMessage(null);
     try {
       const r = await post('/auth/verify', { email, code });
-      if (r.ok) setStep('done');
+      if (r.ok) {
+        await joinBrowserLists();
+        setStep('done');
+      }
       else setMessage(r.message ?? null);
     } catch {
       setMessage('Something went wrong. Try again.');
