@@ -6,6 +6,8 @@ import Link from 'next/link';
 import { SetImage } from '@/components/sets/SetImage';
 import { slugify } from '@/lib/utils';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import type { LastSeen } from '@/lib/collection-worth';
+import { lastSeenMap, retiredIdsForLastSeen } from '@/lib/last-seen-page';
 import {
   CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, cleanCollection, cleanWishlist, loadCollection, loadWishlist, pageOf,
   priceIds, removeWish, setOwnedQty, trackCollectionEvent, updateList, type OwnedItem, type WishItem,
@@ -107,6 +109,23 @@ export function MyCollection() {
 
   // Retired status is known only after the price read succeeds. Unknown counts as not retired, so no retired line is guessed.
   const isRetired = (set: string): boolean | null => (priceState === 'ok' ? prices.get(set)?.retired ?? null : null);
+
+  // Retired owned sets show their last seen price on the row. One batched read, only for those sets. A failure keeps the
+  // approved retired line. The total does not change (the last seen price is not added to it).
+  const [lastSeen, setLastSeen] = useState<Map<string, NonNullable<LastSeen>>>(new Map());
+  const retiredIds = useMemo(() => retiredIdsForLastSeen(owned, isRetired), [owned, priceState, prices]);
+  const retiredKey = retiredIds.join(',');
+  useEffect(() => {
+    if (!ready || retiredKey === '') { setLastSeen(new Map()); return; }
+    let live = true;
+    fetch(`/api/last-seen-prices?ids=${encodeURIComponent(retiredKey)}`)
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then((j: { prices?: { set_number: string; price_inr: number; observed_at: string }[] }) => {
+        if (live) setLastSeen(lastSeenMap(j.prices ?? []));
+      })
+      .catch(() => { if (live) setLastSeen(new Map()); });
+    return () => { live = false; };
+  }, [ready, retiredKey]);
 
   const rate = usableRate(rateSourceOf(storedRate).getRate(), new Date());
   const worthItems: WorthItem[] = owned.map((o) => worthInputFor(o, prices.get(o.set), priceState === 'ok'));
@@ -235,7 +254,7 @@ export function MyCollection() {
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {ownedPaged.rows.map((o) => {
                 const p = prices.get(o.set);
-                const w = worthOf(worthInputFor(o, p, priceState === 'ok'), rate, isRetired(o.set));
+                const w = worthOf(worthInputFor(o, p, priceState === 'ok'), rate, isRetired(o.set), lastSeen.get(o.set) ?? null);
                 return (
                   <li key={o.set} className="border border-border rounded-xl p-3 flex gap-3">
                     <Link href={`/sets/${o.set}-${slugify(o.name)}`} className="w-20 h-20 shrink-0 relative bg-surface rounded">
