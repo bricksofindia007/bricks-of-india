@@ -1,3 +1,4 @@
+-- boi:issue 877
 -- Read access for the backup login to the migration ledger, so the nightly backup can carry it.
 -- The backup login (backup_reader) has no USAGE on schema supabase_migrations and no SELECT on its two ledger tables.
 -- This adds exactly that: USAGE on the schema and SELECT on schema_migrations and data_fix_log. Nothing else, no other role.
