@@ -1,6 +1,6 @@
-// My Collection and the last-seen price: by owner ruling, retired sets show only the approved "sought after" line.
-// The page shows no price and no date for a retired set, and does not call the last-seen route. The route and the
-// function stay in the tree (their own tests live with them). These tests check the page and the rule it uses.
+// My Collection and the last-seen price. Updated for order 0280 item 5 and D-2026-10-30-01: a retired set with a last seen
+// price shows it on its row and counts in the total at that price; a retired set without one shows the approved line.
+// The page makes one batched last-seen read, for retired owned sets only.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,20 +18,20 @@ describe('a retired set on My Collection', () => {
     expect(w.line).not.toMatch(/\d|₹|Last seen/);
     expect(w.inr).toBeNull();
   });
-  it('the total never adds a retired set', () => {
+  it('the total adds a retired set at its last seen price (order 0300, D-2026-10-30-01)', () => {
     const src = page();
-    expect(src).toContain('worthTotal(worthItems, rate, isRetired, capped)');
+    expect(src).toContain('worthTotal(worthItems, rate, isRetired, capped, (s) => lastSeen.get(s) ?? null)');
   });
 });
 
 describe('the page does not use the last-seen price', () => {
-  it('the page does not call the last-seen route', () => {
-    expect(page()).not.toContain('/api/last-seen-prices');
+  it('the page calls the last-seen route once, for retired owned sets (order 0280 item 5)', () => {
+    expect(page().match(/\/api\/last-seen-prices/g)).toHaveLength(1);
   });
-  it('the page holds no last-seen state and passes no last-seen value to the worth rules', () => {
+  it('the page holds last-seen state for retired sets and passes it to the worth rules', () => {
     const src = page();
-    expect(src).not.toMatch(/lastSeen|LastSeen|setLastSeen|retiredIds/);
-    expect(src).toMatch(/worthOf\(worthInputFor\(o, p, priceState === 'ok'\), rate, isRetired\(o\.set\)\);/);
+    expect(src).toMatch(/setLastSeen/);
+    expect(src).toMatch(/worthOf\(worthInputFor\(o, p, priceState === 'ok'\), rate, isRetired\(o\.set\), lastSeen\.get\(o\.set\) \?\? null\);/);
   });
   it('the page does not read the INR MRP column, and shows no set-level price for a retired set', () => {
     const src = page();

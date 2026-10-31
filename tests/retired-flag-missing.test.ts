@@ -84,7 +84,8 @@ describe('the route reports an unknown retired flag as null, and the page never 
     // The page passes isRetired to the worth rules; it returns the stored flag only after the read succeeds, and null otherwise.
     const src = readFileSync(join(__dirname, '..', 'src/app/my/MyCollection.tsx'), 'utf8');
     expect(src).toContain("const isRetired = (set: string): boolean | null => (priceState === 'ok' ? prices.get(set)?.retired ?? null : null);");
-    expect(src).toContain("worthOf(worthInputFor(o, p, priceState === 'ok'), rate, isRetired(o.set));");
-    expect(src).not.toContain('lastSeen');
+    expect(src).toContain("worthOf(worthInputFor(o, p, priceState === 'ok'), rate, isRetired(o.set), lastSeen.get(o.set) ?? null);");
+    // The last-seen value is passed only for a set the page has already marked retired (isRetired is exactly true there).
+    expect(src).toContain('retiredIdsForLastSeen(owned, isRetired)');
   });
 });

@@ -52,8 +52,8 @@ describe('the page wiring', () => {
     expect(src).toMatch(/worthOf\(worthInputFor\(o, p, priceState === 'ok'\), rate, isRetired\(o\.set\), lastSeen\.get\(o\.set\) \?\? null\)/);
   });
 
-  it('the total call is unchanged: no last seen price goes into the total', () => {
-    expect(src).toMatch(/const total = worthTotal\(worthItems, rate, isRetired, capped\);/);
+  it('the total gets the last seen price for each retired set (the total counts it)', () => {
+    expect(src).toMatch(/const total = worthTotal\(worthItems, rate, isRetired, capped, \(s\) => lastSeen\.get\(s\) \?\? null\);/);
   });
 
   it('the read is one batched request for retired sets, through the existing route', () => {
