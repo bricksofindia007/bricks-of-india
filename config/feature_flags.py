@@ -23,6 +23,8 @@ one-line diff -- not a side effect of an unrelated merge.
 FEATURE_FLAGS = {
     # Set page US-price estimate (order 0380 item 4). Mirrors src/lib/feature-flags.ts (setPageUsEstimate). Off.
     "set_page_us_estimate": False,
+    # Set page Priceless line (order 0420). Mirrors src/lib/feature-flags.ts (setPagePriceless). Off.
+    "set_page_priceless": False,
     # Accounts (wishlist, sign-in, legal pages). Off until the accounts launch. Mirrors
     # src/lib/feature-flags.ts (accountsEnabled); keep both in sync by hand. Added 17 Oct 2026.
     "accounts_enabled": False,

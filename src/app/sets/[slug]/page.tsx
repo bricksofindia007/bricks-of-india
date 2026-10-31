@@ -21,6 +21,7 @@ import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import { HeartSlot, CollectionSlot } from '@/components/saved/CollectionSlots';
 import { loadStoredRate } from '@/lib/usd-rate-server';
 import { setPageEstimate } from '@/lib/set-page-estimate';
+import { setPagePricelessLine } from '@/lib/set-page-priceless';
 import { SetCard } from '@/components/sets/SetCard';
 import { SetImage } from '@/components/sets/SetImage';
 import { JsonLd } from '@/components/JsonLd';
@@ -219,6 +220,10 @@ export default async function SetPage(props: Props) {
   // Estimate from the US price (switch off): the rate is read once per 6 h, not per visitor. A failed read means no estimate.
   const usEstimate = FEATURE_FLAGS.setPageUsEstimate
     ? setPageEstimate(set, activePrices.length > 0, await readUsdRate())
+    : null;
+  // Priceless line (order 0420, switch off): only where the page shows no value and no US estimate exists.
+  const priceless = FEATURE_FLAGS.setPagePriceless
+    ? setPagePricelessLine(set, activePrices.length > 0, setPageEstimate(set, activePrices.length > 0, await readUsdRate()) != null)
     : null;
 
   // PR-B: locked rules R2-R6 from public.set_price_summary -- the MRP anchor
@@ -506,6 +511,9 @@ export default async function SetPage(props: Props) {
                 </div>
               </div>
             </div>
+
+            {/* Priceless line (order 0420, switch off): under the existing text. Nothing else on the page changes. */}
+            {priceless && <p className="text-sm text-gray-600 mb-4">{priceless}</p>}
 
             {/* Staleness indicator */}
             {!lastUpdated && <p className="text-xs mb-4 text-gray-400">No retailer listing found.</p>}
