@@ -41,6 +41,18 @@ describe('sets that show something today keep exactly what they show (no line ad
   it('a set with a verified LEGO India price', () => {
     expect(setPagePricelessLine({ ...base, retired: true, lego_mrp_inr: 9999, mrp_verified: true }, false, false)).toBeNull();
   });
+  it('a retired set with an unverified LEGO India figure: no Priceless (the figure is a value, an estimate on My Collection)', () => {
+    expect(setPagePricelessLine({ ...base, retired: true, lego_mrp_inr: 9999, mrp_verified: false }, false, false)).toBeNull();
+  });
+  it('a pre-2020 set with an unverified LEGO India figure: no Priceless', () => {
+    expect(setPagePricelessLine({ ...base, year: 2019, lego_mrp_inr: 9999, mrp_verified: false }, false, false)).toBeNull();
+  });
+  it('a retired set with no figure at all: Priceless', () => {
+    expect(setPagePricelessLine({ ...base, retired: true, lego_mrp_inr: null, mrp_verified: null }, false, false)).toBe(RETIRED_LINE);
+  });
+  it('a pre-2020 set with no figure at all: Priceless', () => {
+    expect(setPagePricelessLine({ ...base, year: 2019, lego_mrp_inr: null, mrp_verified: null }, false, false)).toBe(RETIRED_LINE);
+  });
   it('a current set (2020 or later, not retired) with no price', () => {
     expect(setPagePricelessLine({ ...base, year: 2020 }, false, false)).toBeNull();
     expect(setPagePricelessLine({ ...base, year: 2025 }, false, false)).toBeNull();

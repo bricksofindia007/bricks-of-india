@@ -13,7 +13,8 @@ export type PricelessInput = {
 
 export function setPagePricelessLine(set: PricelessInput, hasStorePrice: boolean, hasUsEstimate: boolean): string | null {
   if (hasStorePrice || hasUsEstimate) return null;
-  if (set.lego_mrp_inr != null && set.mrp_verified === true) return null;
+  // Any LEGO India figure, verified or not, is a value (My Collection counts it as an estimate): the page shows no Priceless.
+  if (set.lego_mrp_inr != null) return null;
   if (set.retired === true || isPre2020Set(set.year ?? null)) return RETIRED_LINE;
   return null;
 }
