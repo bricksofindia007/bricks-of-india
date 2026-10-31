@@ -17,7 +17,7 @@ describe('the guest add line', () => {
 
   it('the add button shows the line instead of the button, for a signed-out visitor while accounts are on', () => {
     expect(addButton).toMatch(/const askForAccount = FEATURE_FLAGS\.accountsEnabled && session === 'signed-out';/);
-    expect(addButton).toMatch(/if \(qty === 0 && askForAccount\) \{\s*return <span[^>]*>\{VOICE\.guestAddNote\}<\/span>;\s*\}/);
+    expect(addButton).toMatch(/if \(qty === 0 && askForAccount\) \{\s*return <span[^>]*><Link href="\/auth" className="underline">\{VOICE\.guestAddNote\}<\/Link><\/span>;\s*\}/);
   });
 
   it('nothing is added for a signed-out visitor: add() returns first', () => {
