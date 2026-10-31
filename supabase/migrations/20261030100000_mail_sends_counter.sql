@@ -1,5 +1,5 @@
--- boi:issue 186
--- Mail-send counter (issue 186): one row per mail attempt, written BEFORE the provider call, so a crash cannot go over the daily cap.
+-- boi:issue 879
+-- Mail-send counter (issue 879): one row per mail attempt, written BEFORE the provider call, so a crash cannot go over the daily cap.
 -- Holds route codes and a day only: no address, no name and no message text are stored.
 -- Row level security is on. No policy is created for anon or authenticated: only the service role reads or writes (G8).
 -- NOT APPLIED: staging rehearsal and owner review first (G7).
