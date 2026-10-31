@@ -19,7 +19,7 @@
 
 const fs = require('fs');
 const { createClient } = require('@supabase/supabase-js');
-const { collectUsd, usdFromSet, usdRows, batches } = require('./lib/mrp-usd.cjs');
+const { collectUsd, usdFromSet, usdRows, batches, writeUsOnly } = require('./lib/mrp-usd.cjs');
 
 // Load .env.local, falling back to process.env (CI: secrets come from
 // GitHub Actions env, no .env.local file exists there). Fixed 2026-08-16
@@ -59,6 +59,8 @@ if (!env.NEXT_PUBLIC_SUPABASE_URL || !env.SUPABASE_SERVICE_ROLE_KEY) {
 }
 
 const DRY_RUN    = process.argv.includes('--dry-run');
+// US-only: the year sweep and the US price function only. No list price, no retirement dates, no single-set lookups.
+const US_ONLY    = process.argv.includes('--us-only');
 const START_YEAR = 2020;
 const END_YEAR   = 2027;
 const PAGE_SIZE  = 500;
@@ -224,8 +226,15 @@ async function run() {
 
   // Phase 1.5 — targeted lookup for pre-START_YEAR sets that are currently
   // listed (see file header comment)
-  const oldListedSets = await fillPreYearListedSets(bricksetPrices, bricksetExitDates, rate, bricksetUsd);
+  const oldListedSets = US_ONLY ? [] : await fillPreYearListedSets(bricksetPrices, bricksetExitDates, rate, bricksetUsd);
   console.log(`Brickset map (after Phase 1.5): ${Object.keys(bricksetPrices).length} sets with USD retail price`);
+
+  if (US_ONLY) {
+    const r = await writeUsOnly(bricksetUsd, (name, args) => sb.rpc(name, args));
+    console.log(`
+US-only: ${r.rows} sets with a positive US price from the 2020-2027 sweep${DRY_RUN ? ' (dry run, not written)' : `: ${r.ok} rows written${r.failed ? `, ${r.failed} in failed batches` : ''}`}.`);
+    return;
+  }
 
   // Phase 2 — load DB sets needing MRP: the year-scoped sweep's targets,
   // plus the pre-START_YEAR listed sets Phase 1.5 just checked (whether or

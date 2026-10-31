@@ -29,6 +29,11 @@ on:
         required: false
         default: 'false'
         type: boolean
+      us_only:
+        description: 'US-only: the year sweep and the US price only (no list price, no retirement dates). Default off.'
+        required: false
+        default: false
+        type: boolean
 
 jobs:
   # FP6.4 quota gate (P4 Step 2): non-essential workflow -- pauses when a
@@ -72,7 +77,7 @@ jobs:
       - name: Run populate-mrp.js
         id: populate
         continue-on-error: true
-        run: node scripts/populate-mrp.js ${{ inputs.dry_run == true && '--dry-run' || '' }}
+        run: node scripts/populate-mrp.js ${{ inputs.dry_run == true && '--dry-run' || '' }} ${{ inputs.us_only == true && '--us-only' || '' }}
 
       # Same reusable failure-alert pattern as mrp-refresh.yml/
       # reviews-weekly-refresh.yml -- see scripts/workflow-failure-notify.mjs.
