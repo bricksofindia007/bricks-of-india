@@ -33,6 +33,11 @@ on:
         required: false
         type: string
         default: ''
+      literal_verdict:
+        description: 'OPTIONAL (literal mode only): the verdict line, starting with Verdict:. Required when literal_segments_file is set.'
+        required: false
+        type: string
+        default: ''
       literal_extra_words:
         description: 'OPTIONAL (literal mode only): extra spoken words allowed for this run, 0 to 3. Default 0.'
         required: false
@@ -136,11 +141,12 @@ jobs:
           ROW_ID: ${{ github.event.inputs.row_id }}
           LITERAL_SEGMENTS_FILE: ${{ github.event.inputs.literal_segments_file }}
           LITERAL_EXTRA_WORDS: ${{ github.event.inputs.literal_extra_words }}
+          LITERAL_VERDICT: ${{ github.event.inputs.literal_verdict }}
         run: |
           if [ -n "$SEND_REVIEW_EMAIL_ROW_ID" ]; then
             python rework_quiet_panic.py --send-review-email "$SEND_REVIEW_EMAIL_ROW_ID"
           elif [ -n "$ROW_ID" ] && [ -n "$LITERAL_SEGMENTS_FILE" ]; then
-            python rework_quiet_panic.py --row-id "$ROW_ID" --literal-segments "$LITERAL_SEGMENTS_FILE" --literal-extra-words "$LITERAL_EXTRA_WORDS"
+            python rework_quiet_panic.py --row-id "$ROW_ID" --literal-segments "$LITERAL_SEGMENTS_FILE" --literal-verdict "$LITERAL_VERDICT" --literal-extra-words "$LITERAL_EXTRA_WORDS"
           elif [ -n "$ROW_ID" ]; then
             python rework_quiet_panic.py --row-id "${{ github.event.inputs.row_id }}"
           else

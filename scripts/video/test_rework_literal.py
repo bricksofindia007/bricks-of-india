@@ -132,5 +132,46 @@ class DefaultsTest(unittest.TestCase):
         self.assertEqual(rq.LITERAL_DEFAULT_EXTRA_WORDS, 0)
 
 
+class ExplicitVerdictTest(unittest.TestCase):
+    """The verdict comes only from the explicit input. The row's rejection reason is an instruction, never the verdict."""
+
+    # A rejection-reason sentence of the kind row 45 carries: an instruction to the reworker, not the verdict line.
+    REJECTION_REASON = 'Rework the verdict line only. Change the last line from Snow to Naked trees look sad.'
+
+    def setUp(self):
+        self.original = rl.load_segments(SEGMENTS_FILE)
+
+    def test_the_rejection_reason_is_refused_as_the_verdict(self):
+        with self.assertRaises(ValueError):
+            rl.replace_verdict(self.original, self.REJECTION_REASON)
+
+    def test_an_empty_verdict_is_refused(self):
+        with self.assertRaises(ValueError):
+            rl.replace_verdict(self.original, '')
+        with self.assertRaises(ValueError):
+            rl.replace_verdict(self.original, '   ')
+
+    def test_the_rework_entry_point_refuses_an_empty_or_non_verdict_text_before_any_database_call(self):
+        import rework_quiet_panic as rq
+        db = mock.Mock(side_effect=AssertionError('the database was called'))
+        for bad in ('', '   ', self.REJECTION_REASON):
+            self.assertEqual(rq.rework_literal_by_id(db, 'row', str(SEGMENTS_FILE), bad, 3), 1)
+        db.assert_not_called()
+
+    def test_the_owner_line_gives_nineteen_and_passes_only_with_extra_three(self):
+        owner = 'Verdict: buy it. Naked trees look sad.'
+        new = rl.replace_verdict(self.original, owner)
+        self.assertEqual(voice_words(new), 19)
+        with self.assertRaises(qpg.WordBudgetExceededError):
+            rl.check_literal_budget(new, PRICE_INR)
+        self.assertTrue(rl.check_literal_budget(new, PRICE_INR, extra_total_words=3)['pass'])
+
+    def test_the_cli_verdict_defaults_to_empty(self):
+        import rework_quiet_panic as rq
+        import argparse
+        self.assertTrue(callable(rq.main))
+        self.assertEqual(rq.LITERAL_DEFAULT_EXTRA_WORDS, 0)
+
+
 if __name__ == '__main__':
     unittest.main()

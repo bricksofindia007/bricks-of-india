@@ -289,18 +289,22 @@ def rework_one_by_id(sb, row_id: str) -> int:
 LITERAL_DEFAULT_EXTRA_WORDS = 0
 
 
-def rework_literal_by_id(sb, row_id: str, segments_file: str, extra_words: int = LITERAL_DEFAULT_EXTRA_WORDS) -> int:
+def rework_literal_by_id(sb, row_id: str, segments_file: str, verdict_text: str, extra_words: int = LITERAL_DEFAULT_EXTRA_WORDS) -> int:
     """Literal rework for one row: the original spoken segments are kept word for word, and only the verdict text
     is replaced by the row's rejection reason. No script-generation model call. The word cap is the normal one plus
-    extra_words (default 0). Marks the original row reworked only when the new row is made."""
+    extra_words (default 0). The verdict text is an explicit input (never the row's rejection reason). Marks the original
+    row reworked only when the new row is made."""
     import rework_literal as rl
+    if not (verdict_text or '').strip().lower().startswith('verdict:'):
+        print('ERROR: literal mode needs a verdict text that starts with "Verdict:" (literal_verdict input).', file=sys.stderr)
+        return 1
     res = sb.table('quiet_panic_posts').select('*').eq('id', row_id).limit(1).execute()
     if not res.data:
         print(f'ERROR: no quiet_panic_posts row with id {row_id}', file=sys.stderr)
         return 1
     row = res.data[0]
     try:
-        segments = rl.replace_verdict(rl.load_segments(segments_file), row.get('rejection_reason') or '')
+        segments = rl.replace_verdict(rl.load_segments(segments_file), verdict_text)
         rl.check_literal_budget(segments, row['price_inr'], extra_total_words=extra_words)
     except Exception as e:
         print(f'ERROR: literal check refused for {row_id}: {type(e).__name__}: {e}', file=sys.stderr)
@@ -364,13 +368,14 @@ def main():
     parser.add_argument('--row-id', default=None, help='Targeted rework for one specific quiet_panic_posts row id, bypassing the escalation-gated queue fetch. Manual use only -- not called by the scheduled poller.')
     parser.add_argument('--literal-segments', default=None, metavar='FILE', help='With --row-id: literal rework from this segments file (original spoken segments, verdict replaced). No model call.')
     parser.add_argument('--literal-extra-words', type=int, default=LITERAL_DEFAULT_EXTRA_WORDS, help='Extra spoken words allowed for the literal run (0 to 3; default 0).')
+    parser.add_argument('--literal-verdict', default='', help='With --literal-segments: the verdict line, starting with Verdict:. Required in literal mode.')
     args = parser.parse_args()
 
     if args.send_review_email:
         sys.exit(send_review_email_for_existing(gqpv.get_supabase(), args.send_review_email))
     if args.row_id and args.literal_segments:
         sb = gqpv.get_supabase()
-        sys.exit(rework_literal_by_id(sb, args.row_id, args.literal_segments, args.literal_extra_words))
+        sys.exit(rework_literal_by_id(sb, args.row_id, args.literal_segments, args.literal_verdict, args.literal_extra_words))
     if args.row_id:
         sb = gqpv.get_supabase()
         sys.exit(rework_one_by_id(sb, args.row_id))
