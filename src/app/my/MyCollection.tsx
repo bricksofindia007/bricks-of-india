@@ -8,6 +8,7 @@ import { slugify } from '@/lib/utils';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import type { LastSeen } from '@/lib/collection-worth';
 import { lastSeenMap, retiredIdsForLastSeen } from '@/lib/last-seen-page';
+import { AccountSessionProvider, useAccountSession } from '@/components/saved/AccountSession';
 import {
   CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, cleanCollection, cleanWishlist, loadCollection, loadWishlist, pageOf,
   priceIds, removeWish, setOwnedQty, trackCollectionEvent, updateList, type OwnedItem, type WishItem,
@@ -63,7 +64,17 @@ function Pager({ page, pages, onChange }: { page: number; pages: number; onChang
   );
 }
 
+// The page reads the session once (through the shared provider), and only while accounts are on.
 export function MyCollection() {
+  return (
+    <AccountSessionProvider enabled={FEATURE_FLAGS.accountsEnabled}>
+      <MyCollectionView />
+    </AccountSessionProvider>
+  );
+}
+
+function MyCollectionView() {
+  const session = useAccountSession();
   const [ready, setReady] = useState(false);
   const [wish, setWish] = useState<WishItem[]>([]);
   const [owned, setOwned] = useState<OwnedItem[]>([]);
@@ -213,6 +224,10 @@ export function MyCollection() {
       {!ready && <Skeleton />}
       {ready && tab === 'wish' && <CollectionShare kind="wishlist" count={wish.length} />}
       {ready && tab === 'owned' && <CollectionShare kind="collection" count={owned.length} />}
+
+      {ready && tab === 'wish' && FEATURE_FLAGS.accountsEnabled && session === 'signed-out' && (
+        <p className="text-sm text-gray-600 mb-4">{VOICE.guestWishlistNote}</p>
+      )}
 
       {ready && tab === 'wish' && (
         wish.length === 0 ? (
