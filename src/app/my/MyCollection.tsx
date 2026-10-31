@@ -262,7 +262,7 @@ function MyCollectionView() {
       )}
 
       {ready && tab === 'owned' && FEATURE_FLAGS.accountsEnabled && session === 'signed-out' && (
-        <p className="text-sm text-gray-600 mb-4">{VOICE.guestCollectionNote}</p>
+        <p className="text-sm text-gray-600 mb-4"><Link href="/auth" className="underline">{VOICE.guestCollectionNote}</Link></p>
       )}
 
       {ready && tab === 'owned' && (
