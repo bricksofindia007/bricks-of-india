@@ -16,7 +16,7 @@ describe('retired line with a last-seen price', () => {
       { priceInr: 41199, observedAt: '2026-08-14T10:00:00Z' });
     // Order 0300 (D-2026-10-30-01): a last seen price is counted in the total at that price.
     expect(w.rule).toBe('last-seen');
-    expect(w.line).toBe('Last seen in India at ₹41,199 (August 2026)');
+    expect(w.line).toBe('Retired. Last seen in India at ₹41,199 (August 2026). Good luck finding one.');
     expect(w.inr).toBe(41199);
   });
   it('without a last-seen price, the approved retired line', () => {

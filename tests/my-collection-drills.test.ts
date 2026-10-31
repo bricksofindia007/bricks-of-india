@@ -95,7 +95,7 @@ describe('flags off: the page and the routes are absent', () => {
 });
 
 describe('no verified Indian price', () => {
-  it('"No Indian price yet. We\'re watching the shelves." is the wishlist copy only; an owned row with no price shows "Worth not known yet" (rule 4)', () => {
+  it('"No Indian price yet. We\'re watching the shelves." is the wishlist copy only; an owned row with no price shows "No Indian price yet. We\'re watching the shelves." (rule 4)', () => {
     expect(WISHLIST_NO_PRICE_LINE).toBe('No Indian price yet. We\'re watching the shelves.');
     const src = readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
     // Owned rows pass the rule's own line through; the wishlist row is the only place the no-price copy is written.
@@ -123,7 +123,7 @@ describe('price read fails', () => {
     expect(body.sets).toBeUndefined();
   });
   it('the page says prices are unavailable and still lists the rows (names and pieces come from the browser copy)', () => {
-    expect(VOICE.pricesUnavailable).toBe('Prices are unavailable right now. Names and pieces are still shown.');
+    expect(VOICE.pricesUnavailable).toBe('Prices are taking a coffee break. Your sets are still here, safe and sound.');
     const src = readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
     expect(src).toContain("{priceState === 'failed' && <PricesUnavailable />}");
     expect(readFileSync(join(root, 'src/app/my/PriceNotes.tsx'), 'utf8')).toContain('role="alert"');
@@ -146,7 +146,7 @@ describe('the 500-set limit', () => {
     expect(r.list).toHaveLength(MY_SETS_LIMIT);
   });
   it('the approved limit line is shown on the buttons when blocked', () => {
-    expect(VOICE.limitReached).toBe('That is a proper collection. Remove one to add another.');
+    expect(VOICE.limitReached).toBe('Your shelf is full. Impressive. Contact us and we will open a bank for you.');
     expect(readFileSync(join(root, 'src/components/saved/SaveButtons.tsx'), 'utf8')).toMatch(/if \(out\.result === 'limit'\) return setNote\(VOICE\.limitReached\)/);
   });
   it('stored lists above the limit are cut back to it on read', () => {

@@ -40,11 +40,11 @@ describe('the heart and the add button have names a screen reader can use', () =
 describe('alerts and the status regions', () => {
   it('the unavailable banner is an alert', () => {
     const html = renderToStaticMarkup(<PricesUnavailable />);
-    expect(html).toMatch(/<p role="alert"[^>]*>Prices are unavailable right now\. Names and pieces are still shown\.<\/p>/);
+    expect(html).toMatch(/<p role="alert"[^>]*>Prices are taking a coffee break\. Your sets are still here, safe and sound\.<\/p>/);
   });
   it('the small heart reports its feedback in a status region, even though it is not visible', () => {
     const src = read('src/components/saved/SaveButtons.tsx');
-    expect(src).toContain('<span role="status" className="sr-only">{note}</span>');
+    expect(src).toContain('<span role="status" className="sr-only"><NoteText text={note} /></span>');
   });
   it('the large heart keeps its visible status region', () => {
     const src = read('src/components/saved/SaveButtons.tsx');
@@ -71,7 +71,7 @@ describe('the My Collection page structure', () => {
   });
   it('the summary is a description list with a label per figure', () => {
     expect(html).toMatch(/<dl[^>]*>/);
-    for (const label of ['Sets saved', 'Sets in collection', 'Total pieces', 'Total worth', 'Retired, not valued']) {
+    for (const label of ['Sets saved', 'Sets in collection', 'Total pieces', 'Total worth', 'Priceless']) {
       expect(html).toContain(`>${label}</dt>`);
     }
   });

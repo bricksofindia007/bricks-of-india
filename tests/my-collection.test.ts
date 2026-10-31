@@ -116,6 +116,6 @@ describe('voice lines are exact', () => {
     expect(VOICE.ownedAdded).toBe('Yours now. Own it proudly.');
     expect(VOICE.wishlistEmpty).toBe('Nothing saved yet. Your wallet admires your patience.');
     expect(VOICE.collectionEmpty).toBe('Your shelf is empty. Your wallet is suspiciously calm.');
-    expect(VOICE.limitReached).toBe('That is a proper collection. Remove one to add another.');
+    expect(VOICE.limitReached).toBe('Your shelf is full. Impressive. Contact us and we will open a bank for you.');
   });
 });
