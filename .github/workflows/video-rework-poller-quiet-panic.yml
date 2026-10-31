@@ -28,6 +28,16 @@ on:
         description: 'OPTIONAL: target one specific quiet_panic_posts row id directly (bypasses the escalation-gated queue fetch -- see rework_quiet_panic.py::rework_one_by_id()). Leave blank for the normal poll-and-rework behavior. Scheduled cron runs never set this -- unaffected either way.'
         required: false
         type: string
+      literal_segments_file:
+        description: 'OPTIONAL (with row_id only): repository path of the original segments file for a literal rework (no model call). Leave blank for the normal rework.'
+        required: false
+        type: string
+        default: ''
+      literal_extra_words:
+        description: 'OPTIONAL (literal mode only): extra spoken words allowed for this run, 0 to 3. Default 0.'
+        required: false
+        type: string
+        default: '0'
       send_review_email_row_id:
         description: 'OPTIONAL (issue #179): (re)send the ready-for-review email for this EXISTING reworked quiet_panic_posts row id and do nothing else -- no rework, no generation. Leave blank for normal behavior. Scheduled cron runs never set this.'
         required: false
@@ -122,10 +132,16 @@ jobs:
           # this input -- github.event.inputs is empty/absent on schedule
           # triggers, so FORCE_PROVIDER is unset (falsy) on every cron run.
           FORCE_PROVIDER: ${{ github.event.inputs.force_provider }}
+          SEND_REVIEW_EMAIL_ROW_ID: ${{ github.event.inputs.send_review_email_row_id }}
+          ROW_ID: ${{ github.event.inputs.row_id }}
+          LITERAL_SEGMENTS_FILE: ${{ github.event.inputs.literal_segments_file }}
+          LITERAL_EXTRA_WORDS: ${{ github.event.inputs.literal_extra_words }}
         run: |
-          if [ -n "${{ github.event.inputs.send_review_email_row_id }}" ]; then
-            python rework_quiet_panic.py --send-review-email "${{ github.event.inputs.send_review_email_row_id }}"
-          elif [ -n "${{ github.event.inputs.row_id }}" ]; then
+          if [ -n "$SEND_REVIEW_EMAIL_ROW_ID" ]; then
+            python rework_quiet_panic.py --send-review-email "$SEND_REVIEW_EMAIL_ROW_ID"
+          elif [ -n "$ROW_ID" ] && [ -n "$LITERAL_SEGMENTS_FILE" ]; then
+            python rework_quiet_panic.py --row-id "$ROW_ID" --literal-segments "$LITERAL_SEGMENTS_FILE" --literal-extra-words "$LITERAL_EXTRA_WORDS"
+          elif [ -n "$ROW_ID" ]; then
             python rework_quiet_panic.py --row-id "${{ github.event.inputs.row_id }}"
           else
             python rework_quiet_panic.py --poll-and-rework
