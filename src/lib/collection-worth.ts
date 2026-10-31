@@ -38,7 +38,14 @@ export const WORTH_UNKNOWN_LINE = WISHLIST_NO_PRICE_LINE;
 
 /** 'last-seen': a retired set with a last seen Indian price; counted in the total at that price (decision D-2026-10-30-01). */
 /** 'list-price': the LEGO India list price (lego_mrp_inr), counted at its rupee value (D-2026-10-30-03). */
-export type WorthRule = 'indian' | 'list-price' | 'estimate' | 'stored-estimate' | 'retired' | 'last-seen' | 'unknown';
+/** 'pre-2020': a set from before the cutoff year with no rupee value; shows line 3, not counted (D-2026-10-30-09). */
+export type WorthRule = 'indian' | 'list-price' | 'estimate' | 'stored-estimate' | 'retired' | 'last-seen' | 'pre-2020' | 'unknown';
+
+/** Sets released before this year get no US price pull, and with no rupee value they show line 3 (D-2026-10-30-09). One place for the year test. */
+export const PRE_2020_CUTOFF_YEAR = 2020;
+export function isPre2020Set(year: number | null | undefined): boolean {
+  return year != null && Number.isFinite(year) && year < PRE_2020_CUTOFF_YEAR;
+}
 
 
 export type WorthItem = {
@@ -53,6 +60,8 @@ export type WorthItem = {
   storedEstimateInr?: number | null;
   /** The LEGO India list price (lego_mrp_inr), used when there is no store price and the set is not retired. Optional. */
   listPriceInr?: number | null;
+  /** The set's release year, or null when unknown. Used only for the pre-2020 rule. */
+  year?: number | null;
 };
 
 export type WorthResult = {
@@ -137,6 +146,7 @@ export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boole
     return { rule: 'last-seen', inr: lastSeen.priceInr, line: retiredLine(lastSeen), note: null };
   }
   if (retired === true) return { rule: 'retired', inr: null, line: retiredLine(lastSeen), note: null };
+  if (isPre2020Set(item.year)) return { rule: 'pre-2020', inr: null, line: RETIRED_LINE, note: null };
   return { rule: 'unknown', inr: null, line: WORTH_UNKNOWN_LINE, note: null };
 }
 
@@ -146,7 +156,7 @@ export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boole
  */
 export function worthInputFor(
   owned: { set: string; qty: number },
-  price: { best_price_inr: number | null; us_price_usd: number | null; stored_estimate_inr?: number | null; list_price_inr?: number | null } | undefined,
+  price: { best_price_inr: number | null; us_price_usd: number | null; stored_estimate_inr?: number | null; list_price_inr?: number | null; year?: number | null } | undefined,
   pricesLoaded: boolean,
 ): WorthItem {
   return {
@@ -156,6 +166,8 @@ export function worthInputFor(
     qty: owned.qty,
     storedEstimateInr: pricesLoaded ? (price?.stored_estimate_inr ?? null) : null,
     listPriceInr: pricesLoaded ? (price?.list_price_inr ?? null) : null,
+    // Only with prices loaded: a pre-2020 set is shown as Priceless only once its price read is known.
+    year: pricesLoaded ? (price?.year ?? null) : null,
   };
 }
 
@@ -168,6 +180,8 @@ export type WorthTotal = {
   estimate: number;
   /** Retired sets with no rupee value: the only retired sets the total line and the tile count. */
   retired: number;
+  /** Sets before the cutoff year with no rupee value: line 3, not counted, not in the retired count. */
+  pre2020: number;
   /** How many of the Indian prices above are last seen prices of retired sets (already in indian). */
   lastSeen: number;
   unknown: number;
@@ -201,12 +215,14 @@ export function worthTotal(
   let retired = 0;
   let unknown = 0;
   let storedEstimate = 0;
+  let pre2020 = 0;
   for (const it of items) {
     const w = worthOf(it, rate, retiredOf(it.set), lastSeenOf(it.set));
     if (w.rule === 'indian' || w.rule === 'list-price') { indianNow++; inr += (w.inr ?? 0) * it.qty; }
     else if (w.rule === 'last-seen') { lastSeenCount++; inr += (w.inr ?? 0) * it.qty; }
     else if (w.rule === 'estimate') { estimate++; inr += (w.inr ?? 0) * it.qty; }
     else if (w.rule === 'retired') retired++;
+    else if (w.rule === 'pre-2020') pre2020++;
     else if (w.rule === 'stored-estimate') storedEstimate++;
     else unknown++;
   }
@@ -219,5 +235,5 @@ export function worthTotal(
   let line = `${sets} sets on your shelf. Worth about ₹${formatRs(inr)}. Your wallet has questions.`;
   if (capped) line += ` ${CAP_SENTENCE}`;
   const rateNote = '';
-  return { inr, sets, counted, indian, lastSeen: lastSeenCount, estimate, retired, unknown, storedEstimate, line, rateNote };
+  return { inr, sets, counted, indian, lastSeen: lastSeenCount, estimate, retired, pre2020, unknown, storedEstimate, line, rateNote };
 }
