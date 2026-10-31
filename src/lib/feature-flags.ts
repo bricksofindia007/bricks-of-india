@@ -113,6 +113,8 @@ export const FEATURE_FLAGS = {
   // Set page estimate (order 0380 item 4, D-2026-10-30-10): "About ₹X" and the estimate line on a set with no store price,
   // no LEGO India list price, not retired, and a US price with a usable rate. Off until the owner says go.
   setPageUsEstimate: false,
+  // Set page Priceless line (order 0420, D-2026-10-31-04): approved line 3 under the existing text, for retired or pre-2020 sets with no price. Off.
+  setPagePriceless: false,
 
   // Link tags for YouTube and Instagram links (placements list, 23 Oct 2026). Off: the tags send nothing;
   // the links are unchanged. Mirrored in config/feature_flags.py; keep in sync.
