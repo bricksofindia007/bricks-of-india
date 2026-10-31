@@ -127,5 +127,19 @@ class NormalRun(unittest.TestCase):
         self.assertEqual(budget['maxCalls'], 10)
 
 
+class AlertRequestTest(unittest.TestCase):
+    def test_alert_request_carries_an_explicit_user_agent(self):
+        headers = g.alert_headers('test-value')
+        self.assertTrue(headers.get('User-Agent'))
+        self.assertEqual(headers.get('Content-Type'), 'application/json')
+        self.assertTrue(headers.get('Authorization', '').startswith('Bearer '))
+
+    def test_no_mail_is_sent_in_test_mode(self):
+        import unittest.mock as mock
+        with mock.patch.object(g.urllib.request, 'urlopen') as opened:
+            g._send_alert('subject', 'body')
+        opened.assert_not_called()
+
+
 if __name__ == '__main__':
     unittest.main()
