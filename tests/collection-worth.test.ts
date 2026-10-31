@@ -180,7 +180,7 @@ describe('total line', () => {
 describe('the newest-150 read cap in the total', () => {
   it('adds "Worth counts your newest 150 sets." when the read left sets out', () => {
     const t = worthTotal([item({ set: 'a', indianPriceInr: 1000 })], RATE, () => false, true);
-    expect(t.line).toBe('1 sets on your shelf. Worth about ₹1,000. Your wallet has questions. Worth counts your newest 150 sets.');
+    expect(t.line).toBe('1 set on your shelf. Worth about ₹1,000. Your wallet has questions. Worth counts your newest 150 sets.');
   });
   it('no cap sentence when every set was priced', () => {
     expect(worthTotal([item({ set: 'a', indianPriceInr: 1000 })], RATE, () => false).line).not.toMatch(/newest 150/);
@@ -234,7 +234,7 @@ describe('retired sets: a factual last-seen line, or only the approved line', ()
     const t = worthTotal([item({ set: 'r', indianPriceInr: null, usPriceUsd: 499 })], RATE, () => true);
     expect(t.inr).toBe(0);
     expect(t.retired).toBe(1);
-    expect(t.line).toBe('1 sets on your shelf. Worth about ₹0. Your wallet has questions.');
+    expect(t.line).toBe('1 set on your shelf. Worth about ₹0. Your wallet has questions.');
   });
 });
 

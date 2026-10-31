@@ -232,7 +232,7 @@ export function worthTotal(
   const counted = indian + estimate;
   // Line 1 (D-2026-10-30-04): the total. Its tails (retired, worked out, not known) are gone; the approved estimate line
   // sits on the rows, not here. The cap sentence stays as it is (R1) and follows line 1.
-  let line = `${sets} sets on your shelf. Worth about ₹${formatRs(inr)}. Your wallet has questions.`;
+  let line = `${sets} ${plural(sets, 'set', 'sets')} on your shelf. Worth about ₹${formatRs(inr)}. Your wallet has questions.`;
   if (capped) line += ` ${CAP_SENTENCE}`;
   const rateNote = '';
   return { inr, sets, counted, indian, lastSeen: lastSeenCount, estimate, retired, pre2020, unknown, storedEstimate, line, rateNote };

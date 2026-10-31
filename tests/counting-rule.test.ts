@@ -57,7 +57,7 @@ describe('the total counts the list price', () => {
     expect(t.inr).toBe(9999 * 2);
     expect(t.counted).toBe(1);
     expect(t.indian).toBe(1);
-    expect(t.line).toBe('1 sets on your shelf. Worth about ₹19,998. Your wallet has questions.');
+    expect(t.line).toBe('1 set on your shelf. Worth about ₹19,998. Your wallet has questions.');
   });
 
   it('a set with nothing is not counted', () => {
