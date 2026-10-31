@@ -37,8 +37,14 @@ describe('no estimate', () => {
   it('a set with a store price never gets one', () => {
     expect(setPageEstimate(set(), true, RATE, NOW)).toBeNull();
   });
-  it('a set with a LEGO India list price never gets one', () => {
-    expect(setPageEstimate(set({ lego_mrp_inr: 9999 }), false, RATE, NOW)).toBeNull();
+  it('a set with a verified LEGO India list price never gets one', () => {
+    expect(setPageEstimate(set({ lego_mrp_inr: 9999, mrp_verified: true }), false, RATE, NOW)).toBeNull();
+  });
+  it('an unverified LEGO India figure is an estimate: the estimate line shows with the US price, not the figure', () => {
+    expect(setPageEstimate(set({ lego_mrp_inr: 9999, mrp_verified: false }), false, RATE, NOW)?.text).toBe('About ₹8,800');
+  });
+  it('with no US price, an unverified LEGO India figure shows as the estimate', () => {
+    expect(setPageEstimate(set({ us_price_usd: null, lego_mrp_inr: 9999, mrp_verified: false }), false, null, NOW)).toEqual({ text: 'About ₹9,999', note: ESTIMATE_NOTE });
   });
   it('a retired set gets none', () => {
     expect(setPageEstimate(set({ retired: true }), false, RATE, NOW)).toBeNull();

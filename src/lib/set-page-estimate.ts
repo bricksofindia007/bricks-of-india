@@ -8,6 +8,7 @@ export type SetPageEstimateInput = {
   set_number: string;
   us_price_usd?: number | string | null;
   lego_mrp_inr?: number | string | null;
+  mrp_verified?: boolean | null;
   retired?: boolean | null;
   year?: number | null;
 };
@@ -16,21 +17,22 @@ export type SetPageEstimate = { text: string; note: string };
 
 export function setPageEstimate(set: SetPageEstimateInput, hasStorePrice: boolean, rate: StoredRate | null, now = new Date()): SetPageEstimate | null {
   if (hasStorePrice) return null;
-  const usable = usableRate(rate, now);
-  if (!usable) return null;
+  const lego = set.lego_mrp_inr == null ? null : Number(set.lego_mrp_inr);
+  const verified = set.mrp_verified === true;
   const w = worthOf(
     {
       set: set.set_number,
       indianPriceInr: null,
       usPriceUsd: set.us_price_usd == null ? null : Number(set.us_price_usd),
       qty: 1,
-      listPriceInr: set.lego_mrp_inr == null ? null : Number(set.lego_mrp_inr),
+      listPriceInr: verified ? lego : null,
+      storedEstimateInr: verified ? null : lego,
       year: set.year ?? null,
     },
-    usable,
+    usableRate(rate, now),
     set.retired == null ? null : set.retired,
     null,
   );
-  if (w.rule !== 'estimate' || w.inr == null || !w.note) return null;
+  if ((w.rule !== 'estimate' && w.rule !== 'stored-estimate') || w.inr == null || !w.note) return null;
   return { text: `About ₹${formatRs(w.inr)}`, note: ESTIMATE_NOTE };
 }

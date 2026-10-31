@@ -145,9 +145,9 @@ describe('page-level: stored estimate only as a fallback, excluded from the tota
   it('with no US price, the stored estimate is shown with its source named', () => {
     expect(worthOf(items[1], rate, false).line).toBe('About ₹43,900');
   });
-  it('the total excludes the stored estimate and says so', () => {
+  it('the total counts the unverified stored estimate for B as an estimate (2 copies), and A once', () => {
     const t = worthTotal(items, rate, () => false);
-    expect(t.inr).toBe(47405); // only the US-price estimate for A, once
+    expect(t.inr).toBe(47405 + 43900 * 2); // A: US-price estimate once; B: stored estimate times 2 copies
     expect(t.line).toMatch(/^3 sets on your shelf\. Worth about ₹/);
   });
   it('the page passes the stored estimate from the price row only when the prices loaded', () => {

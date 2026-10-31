@@ -77,8 +77,9 @@ export async function GET(request: NextRequest) {
       retired.set(r.set_number, r.retired === true);
       if (r.year != null) year.set(r.set_number, Number(r.year));
       if (r.us_price_usd != null) usd.set(r.set_number, Number(r.us_price_usd));
-      if (r.lego_mrp_inr != null && r.mrp_verified === false) stored.set(r.set_number, Number(r.lego_mrp_inr));
-      if (r.lego_mrp_inr != null) listPrice.set(r.set_number, Number(r.lego_mrp_inr));
+      // Verified LEGO India price (mrp_verified true) is the list price. An unverified one is a US-based estimate.
+      if (r.lego_mrp_inr != null && r.mrp_verified === true) listPrice.set(r.set_number, Number(r.lego_mrp_inr));
+      if (r.lego_mrp_inr != null && r.mrp_verified !== true) stored.set(r.set_number, Number(r.lego_mrp_inr));
     }
     // Store names come from the store list, not from this file. If that read fails, the ids are shown as they are.
     const reg = await sb.from('stores').select('id, name').eq('display_enabled', true);
