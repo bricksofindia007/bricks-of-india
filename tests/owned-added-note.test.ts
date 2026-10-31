@@ -18,7 +18,7 @@ describe('AddToCollectionButton confirmation', () => {
 
   it('the add-to-collection view still renders the status line', () => {
     const addView = src.slice(start, copies);
-    expect(addView).toMatch(/\{note && <span role="status"[^>]*>\{note\}<\/span>\}/);
+    expect(addView).toMatch(/\{note && <span role="status"[^>]*>(\{note\}|<NoteText text=\{note\} \/>)<\/span>\}/);
   });
 
   it('the confirmation text is the approved line, unchanged', () => {
