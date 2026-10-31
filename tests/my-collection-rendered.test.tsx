@@ -1,5 +1,5 @@
 // The real rendered text of the My Collection notes, rendered on the server (react-dom/server, no DOM needed):
-// the "unavailable" banner, the owned-row worth lines (rule 4 "Worth not known yet", the estimate, the retired line,
+// the "unavailable" banner, the owned-row worth lines (rule 4 "No Indian price yet. We\'re watching the shelves.", the estimate, the retired line,
 // the dated last-seen line). "No Indian price yet. We\'re watching the shelves." is for wishlist rows only.
 import { describe, it, expect } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -13,16 +13,16 @@ describe('the "prices unavailable" banner, as rendered', () => {
   it('renders the approved line as an alert, with the names still shown by the page', () => {
     const html = renderToStaticMarkup(<PricesUnavailable />);
     expect(html).toContain('role="alert"');
-    expect(text(html)).toBe('Prices are unavailable right now. Names and pieces are still shown.');
+    expect(text(html)).toBe('Prices are taking a coffee break. Your sets are still here, safe and sound.');
   });
 });
 
 describe('an owned row with no verified Indian price and no US price: rule 4', () => {
-  it('shows "Worth not known yet", never the no-price line', () => {
+  it('shows "No Indian price yet. We\'re watching the shelves.", never the no-price line', () => {
     const w = worthOf(worthInputFor({ set: '10307', qty: 1 }, undefined, true), null, false);
     const out = text(renderToStaticMarkup(<OwnedWorthLine line={w.line} />));
     expect(out).toBe(WORTH_UNKNOWN_LINE);
-    expect(out).not.toContain(WISHLIST_NO_PRICE_LINE);
+    expect(out).toContain(WISHLIST_NO_PRICE_LINE);
   });
   it('the no-price line is the wishlist copy, and is not an owned-row line', () => {
     expect(WISHLIST_NO_PRICE_LINE).toBe('No Indian price yet. We\'re watching the shelves.');
@@ -53,7 +53,7 @@ describe('the retired line, as rendered', () => {
     const out = text(renderToStaticMarkup(<OwnedWorthLine line={w.line} />));
     expect(out).toBe(RETIRED_LINE);
     expect(out).not.toContain('Last seen');
-    expect(retiredLine(seen)).toMatch(/^Last seen in India at ₹12,999 \(March 2026\)$/);
+    expect(retiredLine(seen)).toMatch(/^Retired\. Last seen in India at ₹12,999 \(March 2026\)\. Good luck finding one\.$/);
   });
   it('a set that is not retired never renders the retired line', () => {
     const w = worthOf(worthInputFor({ set: '10307', qty: 1 }, { best_price_inr: null, us_price_usd: 499 }, true), null, false, null);

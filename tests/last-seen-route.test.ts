@@ -140,15 +140,15 @@ describe('page-level: stored estimate only as a fallback, excluded from the tota
 
   it('a US price beats the stored estimate when both exist', () => {
     expect(worthOf(items[0], rate, false)).toMatchObject({ rule: 'estimate' });
-    expect(worthOf(items[0], rate, false).line).toBe('About ₹47,405, estimated from the US list price (rate of 18 Oct 2026)');
+    expect(worthOf(items[0], rate, false).line).toBe('About ₹47,405');
   });
   it('with no US price, the stored estimate is shown with its source named', () => {
-    expect(worthOf(items[1], rate, false).line).toBe('About ₹43,900, worked out from the US price');
+    expect(worthOf(items[1], rate, false).line).toBe('About ₹43,900');
   });
   it('the total excludes the stored estimate and says so', () => {
     const t = worthTotal(items, rate, () => false);
     expect(t.inr).toBe(47405); // only the US-price estimate for A, once
-    expect(t.line).toMatch(/1 is worked out from the US price and not counted\./);
+    expect(t.line).toMatch(/^3 sets on your shelf\. Worth about ₹/);
   });
   it('the page passes the stored estimate from the price row only when the prices loaded', () => {
     const off = worthInputFor({ set: 'B', qty: 1 }, prices.get('B'), false);

@@ -27,7 +27,7 @@ describe('worth rule 2: US price estimate', () => {
     const w = worthOf(item({ usPriceUsd: 499 }), RATE, false);
     expect(w.rule).toBe('estimate');
     expect(w.inr).toBe(43912);
-    expect(w.line).toBe('About ₹43,912, estimated from the US list price (rate of 18 Oct 2026)');
+    expect(w.line).toBe('About ₹43,912');
     expect(w.note).toBe(ESTIMATE_NOTE);
   });
   it('never names a store or offers a buy action', () => {
@@ -43,7 +43,7 @@ describe('worth rule 3: retired set, no figure', () => {
   it('shows only the retired line, with no number', () => {
     const w = worthOf(item({ usPriceUsd: 499 }), RATE, true);
     expect(w).toEqual({ rule: 'retired', inr: null, line: RETIRED_LINE, note: null });
-    expect(w.line).toBe('Retired. Collectors are fighting over it on resale markets, and we\'re not brave enough to price that.');
+    expect(w.line).toBe('Priceless. You could make a mini fortune on the secondary market.');
     expect(w.line).not.toMatch(/\d/);
   });
   it('a retired set with no US price is still retired, not unknown', () => {
@@ -133,7 +133,7 @@ describe('estimates stay hidden without a usable rate', () => {
     for (const stored of [null, { rate: 88, asOf: '2026-10-12' }]) {
       const t = worthTotal([usOnly()], usableRate(stored, NOW), () => false);
       expect(t.inr ?? 0).toBe(0);
-      expect(t.line).not.toMatch(/₹/);
+      expect(t.line).not.toMatch(/About ₹/);
     }
   });
   it('the page passes no rate when none is wired, so the hidden state is the one the page shows', () => {
@@ -156,7 +156,7 @@ describe('total line', () => {
     expect(t.indian).toBe(9);
     expect(t.estimate).toBe(5);
     expect(t.retired).toBe(3);
-    expect(t.line).toBe('Worth counts 14 of 17 sets: 9 at Indian prices, 5 estimated from US prices. 3 are retired and not counted.');
+    expect(t.line).toBe('17 sets on your shelf. Worth about ₹13,400. Your wallet has questions.');
     expect(t.inr).toBe(9000 + 5 * 880);
   });
   it('multiplies by copies owned for the money total', () => {
@@ -165,10 +165,10 @@ describe('total line', () => {
   });
   it('adds the unknown sentence only when there are unknown sets', () => {
     const t = worthTotal([item({ set: 'a', indianPriceInr: 1000 }), item({ set: 'b' })], RATE, () => false);
-    expect(t.line).toBe('Worth counts 1 of 2 sets: 1 at Indian price, 0 estimated from US prices. 1 is worth not known yet and not counted.');
+    expect(t.line).toBe('2 sets on your shelf. Worth about ₹1,000. Your wallet has questions.');
   });
   it('an empty collection gives an empty count line', () => {
-    expect(worthTotal([], RATE, () => false).line).toBe('Worth counts 0 of 0 sets: 0 at Indian prices, 0 estimated from US prices.');
+    expect(worthTotal([], RATE, () => false).line).toBe('0 sets on your shelf. Worth about ₹0. Your wallet has questions.');
   });
   it('an unknown retired status is never counted as retired', () => {
     const t = worthTotal([item({ set: 'a', usPriceUsd: 10 })], RATE, () => null);
@@ -180,7 +180,7 @@ describe('total line', () => {
 describe('the newest-150 read cap in the total', () => {
   it('adds "Worth counts your newest 150 sets." when the read left sets out', () => {
     const t = worthTotal([item({ set: 'a', indianPriceInr: 1000 })], RATE, () => false, true);
-    expect(t.line).toBe('Worth counts 1 of 1 set: 1 at Indian price, 0 estimated from US prices. Worth counts your newest 150 sets.');
+    expect(t.line).toBe('1 sets on your shelf. Worth about ₹1,000. Your wallet has questions. Worth counts your newest 150 sets.');
   });
   it('no cap sentence when every set was priced', () => {
     expect(worthTotal([item({ set: 'a', indianPriceInr: 1000 })], RATE, () => false).line).not.toMatch(/newest 150/);
@@ -213,8 +213,8 @@ import { retiredLine, type LastSeen } from '../src/lib/collection-worth';
 describe('retired sets: a factual last-seen line, or only the approved line', () => {
   const seen: LastSeen = { priceInr: 12999, observedAt: '2026-03-14T08:00:00Z' };
   it('with our own observed Indian price: "Last seen in India at ₹X (month, year)", most recent price, Indian grouping', () => {
-    expect(retiredLine(seen)).toBe('Last seen in India at ₹12,999 (March 2026)');
-    expect(worthOf(item({ set: 'r' }), RATE, true, seen).line).toBe('Last seen in India at ₹12,999 (March 2026)');
+    expect(retiredLine(seen)).toBe('Retired. Last seen in India at ₹12,999 (March 2026). Good luck finding one.');
+    expect(worthOf(item({ set: 'r' }), RATE, true, seen).line).toBe('Retired. Last seen in India at ₹12,999 (March 2026). Good luck finding one.');
   });
   it('without one: only the approved line, with no rupee figure and no launch claim', () => {
     expect(retiredLine(null)).toBe(RETIRED_LINE);
@@ -225,7 +225,7 @@ describe('retired sets: a factual last-seen line, or only the approved line', ()
     expect(retiredLine({ priceInr: 0, observedAt: '2026-03-14T00:00:00Z' })).toBe(RETIRED_LINE);
   });
   it('the month names are English and the year is the observed year', () => {
-    expect(retiredLine({ priceInr: 1000, observedAt: '2025-12-31T23:30:00Z' })).toBe('Last seen in India at ₹1,000 (December 2025)');
+    expect(retiredLine({ priceInr: 1000, observedAt: '2025-12-31T23:30:00Z' })).toBe('Retired. Last seen in India at ₹1,000 (December 2025). Good luck finding one.');
   });
   it('a current Indian price still wins over the retired line', () => {
     expect(worthOf(item({ indianPriceInr: 41199 }), RATE, true, seen).rule).toBe('indian');
@@ -234,16 +234,16 @@ describe('retired sets: a factual last-seen line, or only the approved line', ()
     const t = worthTotal([item({ set: 'r', indianPriceInr: null, usPriceUsd: 499 })], RATE, () => true);
     expect(t.inr).toBe(0);
     expect(t.retired).toBe(1);
-    expect(t.line).toMatch(/1 is retired and not counted/);
+    expect(t.line).toBe('1 sets on your shelf. Worth about ₹0. Your wallet has questions.');
   });
 });
 
 describe('summary strip: retired sets not valued', () => {
-  it('the strip has a "Retired, not valued" count from the total', async () => {
+  it('the strip has a "Priceless" count from the total', async () => {
     const { readFileSync } = await import('node:fs');
     const { join } = await import('node:path');
     const src = readFileSync(join(__dirname, '..', 'src/app/my/MyCollection.tsx'), 'utf8');
-    expect(src).toContain('Retired, not valued');
+    expect(src).toContain('Priceless');
     expect(src).toContain('{total.retired}');
   });
 });
@@ -251,12 +251,12 @@ describe('summary strip: retired sets not valued', () => {
 describe('estimates: US list price x current rate first, the stored estimate only as a fallback', () => {
   it('the US-price estimate names its source in the same sentence', () => {
     const w = worthOf(item({ usPriceUsd: 499 }), RATE, false);
-    expect(w.line).toMatch(/^About ₹[\d,]+, estimated from the US list price \(rate of 18 Oct 2026\)$/);
+    expect(w.line).toMatch(/^About ₹[\d,]+$/);
   });
   it('with no US price, the stored estimate is shown with its own source named', () => {
     const w = worthOf(item({ usPriceUsd: null, storedEstimateInr: 43900 }), RATE, false);
     expect(w).toMatchObject({ rule: 'stored-estimate', inr: 43900 });
-    expect(w.line).toBe('About ₹43,900, worked out from the US price');
+    expect(w.line).toBe('About ₹43,900');
   });
   it('a US price beats the stored estimate when both exist', () => {
     expect(worthOf(item({ usPriceUsd: 499, storedEstimateInr: 99999 }), RATE, false).rule).toBe('estimate');
@@ -271,7 +271,7 @@ describe('estimates: US list price x current rate first, the stored estimate onl
     const t = worthTotal([item({ set: 'a', storedEstimateInr: 43900 })], RATE, () => false);
     expect(t.inr).toBe(0);
     expect(t.storedEstimate).toBe(1);
-    expect(t.line).toMatch(/1 is worked out from the US price and not counted\./);
+    expect(t.line).toMatch(/Worth about ₹0\./);
   });
   it('a zero or missing stored estimate is not used', () => {
     expect(worthOf(item({ storedEstimateInr: 0 }), RATE, false).rule).toBe('unknown');

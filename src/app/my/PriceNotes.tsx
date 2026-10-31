@@ -36,16 +36,11 @@ export function WishPrice({
   );
 }
 
-/** The page's total worth figure. Any estimate in it is labelled, so no rupee figure is shown without its source. */
-export function TotalWorthValue({ loading, inr, estimates }: { loading: boolean; inr: number; estimates: number }) {
+/** The page's total worth figure. Small print is removed (owner, 30 Oct); the estimate line sits on the rows. */
+export function TotalWorthValue({ loading, inr }: { loading: boolean; inr: number }) {
   if (loading) return <>…</>;
   if (inr <= 0) return <>—</>;
-  return (
-    <>
-      ₹{formatRs(inr)}
-      {estimates > 0 && <span className="block text-xs font-normal text-gray-600">includes estimates from US prices</span>}
-    </>
-  );
+  return <>₹{formatRs(inr)}</>;
 }
 
 /**
