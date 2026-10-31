@@ -21,6 +21,7 @@ export const VOICE = {
   heartPrompt: 'Want it? Save it to your wishlist.',
   guestWishlistNote: 'Saved on this device. Sign up and your wishlist goes where you go.',
   guestCollectionNote: 'Own it? Prove it. Sign up and start your shelf.',
+  guestAddNote: 'Your shelf needs an account. Sign up free and start filling it.',
   wishlistEmpty: 'Nothing saved yet. Your wallet admires your patience.',
   collectionEmpty: 'Your shelf is empty. Your wallet is suspiciously calm.',
   limitReached: 'That is a proper collection. Remove one to add another.',
