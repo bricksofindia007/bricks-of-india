@@ -214,3 +214,18 @@ export async function handleMergeRequest(db: Db, token: string | undefined, body
   };
   return mergeBrowserLists(db, account.id, browser);
 }
+
+// ---- P4: sign-out. Ends this session only. Saved sets and the browser lists are not touched. ----
+
+/**
+ * Revokes the session behind the cookie. No cookie: nothing to end, ok. A failed revoke answers unavailable, so the
+ * caller keeps the cookie (the session is still live, and the answer must not claim a sign-out).
+ */
+export async function handleSignOut(db: Db, token: string | undefined, now: number): Promise<{ status: 'ok' | 'unavailable' }> {
+  if (!token) return { status: 'ok' };
+  const { error } = await db
+    .from('account_sessions')
+    .update({ revoked_at: new Date(now).toISOString() })
+    .eq('token_hash', sessionTokenHash(token));
+  return error ? { status: 'unavailable' } : { status: 'ok' };
+}
