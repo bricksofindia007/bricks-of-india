@@ -110,6 +110,9 @@ export const FEATURE_FLAGS = {
   myCollectionPage: false,
   // The Minifigures tab on My Collection. Off at launch (owner decision D-2026-10-29-04: sets only). The code is kept.
   myCollectionFigures: false,
+  // Set page estimate (order 0380 item 4, D-2026-10-30-10): "About ₹X" and the estimate line on a set with no store price,
+  // no LEGO India list price, not retired, and a US price with a usable rate. Off until the owner says go.
+  setPageUsEstimate: false,
 
   // Link tags for YouTube and Instagram links (placements list, 23 Oct 2026). Off: the tags send nothing;
   // the links are unchanged. Mirrored in config/feature_flags.py; keep in sync.

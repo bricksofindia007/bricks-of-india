@@ -25,6 +25,9 @@ interface SetCardProps {
 
 export function SetCard({ set, priceCount, summary, trackAs }: SetCardProps) {
   const slug = `${set.set_number}-${slugify(set.name)}`;
+  // While accounts are on, a card heart is hidden: cards have no shared account read, so a signed-in tap would save to
+  // this browser, where My Collection does not show it (D-2026-10-30-10, item 3). The set page and My Collection keep it.
+  const showHeart = FEATURE_FLAGS.myCollectionHearts && !FEATURE_FLAGS.accountsEnabled;
   // A price is shown only when a store can be named for it. With no store recorded in the summary, or with no
   // summary at all (the fallback price), the price is not shown and the MRP line stands in.
   const storesKnown = (summary?.best_store_ids?.length ?? 0) > 0;
@@ -52,7 +55,7 @@ export function SetCard({ set, priceCount, summary, trackAs }: SetCardProps) {
         <div className="absolute top-2 left-2">
           <Badge variant="grey">{shownTheme(set.theme) || 'LEGO'}</Badge>
         </div>
-        {FEATURE_FLAGS.myCollectionHearts && (
+        {showHeart && (
           <div className="absolute top-2 right-2">
             <HeartSlot enabled set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
           </div>

@@ -20,6 +20,8 @@ import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import { HeartSlot, CollectionSlot } from '@/components/saved/CollectionSlots';
 import { AccountSessionProvider } from '@/components/saved/AccountSession';
+import { loadStoredRate } from '@/lib/usd-rate-server';
+import { setPageEstimate } from '@/lib/set-page-estimate';
 import { SetCard } from '@/components/sets/SetCard';
 import { PriceHistoryChart } from '@/components/sets/PriceHistoryChart';
 import { SetImage } from '@/components/sets/SetImage';
@@ -114,6 +116,10 @@ const readPriceSide = (setNumber: string) =>
     if (sum.error) throw sum.error;
     return { store_prices: sp.data ?? [], summary: (sum.data ? normalise(sum.data) : null) as SetPriceSummary | null, at: new Date().toISOString() };
   }, ['set_price_side', setNumber], { revalidate: SET_PAGE_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
+
+// The stored USD to INR rate for the set page estimate, cached like the price side (6 h).
+const readUsdRate = () =>
+  unstable_cache(async () => loadStoredRate(), ['set_page_usd_rate'], { revalidate: SET_PAGE_REVALIDATE_SECONDS })();
 
 // A1: which catalogue set a slug names, when its first "-" segment isn't it (set numbers that
 // contain "-"). One extra read, only on that path; the normal page costs nothing more.
@@ -238,6 +244,10 @@ export default async function SetPage(props: Props) {
     .filter((sp): sp is any => sp?.price_inr != null);
   const bestStorePrice = bestInStock(activePrices);
   const hasPrices = bestStorePrice != null;
+  // Estimate from the US price (switch off): the rate is read once per 6 h, not per visitor. A failed read means no estimate.
+  const usEstimate = FEATURE_FLAGS.setPageUsEstimate
+    ? setPageEstimate(set, activePrices.length > 0, await readUsdRate())
+    : null;
 
   // PR-B: locked rules R2-R6 from public.set_price_summary -- the MRP anchor
   // and its source, the deal tier, and which store(s) hold the fresh
@@ -418,6 +428,14 @@ export default async function SetPage(props: Props) {
                 storeNames={STORE_NAMES}
                 nowMs={Date.now()}
               />
+            )}
+
+            {/* Set page estimate (order 0380 item 4): behind setPageUsEstimate (off). Shown only with no store price. */}
+            {usEstimate && (
+              <div className="mb-6">
+                <p className="font-price text-2xl font-bold text-dark">{usEstimate.text}</p>
+                <p className="mt-1 text-xs text-gray-500">{usEstimate.note}</p>
+              </div>
             )}
 
             {/* ── PRICE COMPARISON TABLE ────────────────────────────────────── */}

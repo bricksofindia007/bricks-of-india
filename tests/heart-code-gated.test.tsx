@@ -38,7 +38,8 @@ describe('the pages pass the flag in, and import only the slot', () => {
     const src = read('src/components/sets/SetCard.tsx');
     expect(src).toContain("import { HeartSlot } from '@/components/saved/CollectionSlots';");
     expect(src).not.toContain('SaveButtons');
-    expect(src).toMatch(/\{FEATURE_FLAGS\.myCollectionHearts && \(/);
+    expect(src).toMatch(/const showHeart = FEATURE_FLAGS\.myCollectionHearts && !FEATURE_FLAGS\.accountsEnabled;/);
+    expect(src).toMatch(/\{showHeart && \(/);
   });
   it('the set page imports the slots, not the button module, and gates them on the flag', () => {
     const src = read('src/app/sets/[slug]/page.tsx');
