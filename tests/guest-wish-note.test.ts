@@ -14,7 +14,7 @@ describe('the guest wishlist line', () => {
   });
 
   it('shows on the wishlist tab only for a signed-out visitor, and only while accounts are on', () => {
-    expect(page).toMatch(/\{ready && tab === 'wish' && FEATURE_FLAGS\.accountsEnabled && session === 'signed-out' && \(\s*<p[^>]*>\{VOICE\.guestWishlistNote\}<\/p>\s*\)\}/);
+    expect(page).toMatch(/\{ready && tab === 'wish' && FEATURE_FLAGS\.accountsEnabled && session === 'signed-out' && \(\s*<p[^>]*><Link href="\/auth" className="underline">\{VOICE\.guestWishlistNote\}<\/Link><\/p>\s*\)\}/);
   });
 });
 

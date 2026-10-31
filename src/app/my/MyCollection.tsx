@@ -226,7 +226,7 @@ function MyCollectionView() {
       {ready && tab === 'owned' && <CollectionShare kind="collection" count={owned.length} />}
 
       {ready && tab === 'wish' && FEATURE_FLAGS.accountsEnabled && session === 'signed-out' && (
-        <p className="text-sm text-gray-600 mb-4">{VOICE.guestWishlistNote}</p>
+        <p className="text-sm text-gray-600 mb-4"><Link href="/auth" className="underline">{VOICE.guestWishlistNote}</Link></p>
       )}
 
       {ready && tab === 'wish' && (
