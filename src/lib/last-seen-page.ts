@@ -1,7 +1,7 @@
-// The My Collection page's last-seen read for retired sets (order 0280 item 2c). Pure helpers. The route is
-// src/app/api/last-seen-prices (off while the My Collection flag is off). The total does not change: a last seen
-// price is shown on the row only (owner decides the total later).
-import type { LastSeen } from '@/lib/collection-worth';
+// The My Collection page's last-seen read for retired sets (order 0280 item 2c). Pure helpers. The read is made by the
+// page only, and is off while the My Collection switch is off. The total counts a last seen price (order 0300).
+// The row shape is defined here so this helper does not depend on the worth rules module.
+type LastSeen = { priceInr: number; observedAt: string } | null;
 
 /** The route takes at most this many sets per call (PRICE_READ_CAP). */
 export const LAST_SEEN_BATCH = 150;
