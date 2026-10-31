@@ -19,7 +19,12 @@ import { priceLabel, normalise, type SetPriceSummary } from '@/lib/price-summary
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import { HeartSlot, CollectionSlot } from '@/components/saved/CollectionSlots';
+import { AccountSessionProvider } from '@/components/account/AccountSession';
+import { loadStoredRate } from '@/lib/usd-rate-server';
+import { setPageEstimate } from '@/lib/set-page-estimate';
+import { setPagePricelessLine } from '@/lib/set-page-priceless';
 import { SetCard } from '@/components/sets/SetCard';
+import { PriceHistoryChart } from '@/components/sets/PriceHistoryChart';
 import { SetImage } from '@/components/sets/SetImage';
 import { JsonLd } from '@/components/JsonLd';
 import { FreshOnly } from '@/components/ui/FreshOnly';
@@ -69,7 +74,29 @@ type SetPageData = {
   related_summaries: SetPriceSummary[];
   // When this data was read (ISO). Shown as "as of {time}" (FP1.6 §2 wording).
   as_of: string;
+  // H5 (flag priceHistoryChart, off): the set's price_history rows, read only while the flag is on.
+  priceHistory?: { store_id: string; price_inr: number | null; in_stock: boolean | null; recorded_at: string }[] | null;
 };
+
+// H5: the set's change rows from price_history (server read, cached on the priced-side clock). Paged, so no 1000-row cap.
+const readPriceHistory = (setNumber: string) =>
+  unstable_cache(async () => {
+    const sb = createServerClient();
+    const PAGE = 1000;
+    const out: { store_id: string; price_inr: number | null; in_stock: boolean | null; recorded_at: string }[] = [];
+    for (let page = 0; page < 20; page++) {
+      const { data, error } = await sb
+        .from('price_history')
+        .select('store_id, price_inr, in_stock, recorded_at')
+        .eq('set_id', setNumber)
+        .order('recorded_at', { ascending: true })
+        .range(page * PAGE, page * PAGE + PAGE - 1);
+      if (error) throw error;  // thrown results are never cached
+      out.push(...(data ?? []));
+      if (!data || data.length < PAGE) break;
+    }
+    return { rows: out, at: new Date().toISOString() };
+  }, ['set_price_history', setNumber], { revalidate: SET_PAGE_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
 
 const readRpc = (setNumber: string, slug: string) =>
   unstable_cache(async () => {
@@ -90,6 +117,10 @@ const readPriceSide = (setNumber: string) =>
     if (sum.error) throw sum.error;
     return { store_prices: sp.data ?? [], summary: (sum.data ? normalise(sum.data) : null) as SetPriceSummary | null, at: new Date().toISOString() };
   }, ['set_price_side', setNumber], { revalidate: SET_PAGE_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
+
+// The stored USD to INR rate for the set page estimate, cached like the price side (6 h).
+const readUsdRate = () =>
+  unstable_cache(async () => loadStoredRate(), ['set_page_usd_rate'], { revalidate: SET_PAGE_REVALIDATE_SECONDS })();
 
 // A1: which catalogue set a slug names, when its first "-" segment isn't it (set numbers that
 // contain "-"). One extra read, only on that path; the normal page costs nothing more.
@@ -114,6 +145,10 @@ const getSetPageData = cache(async (slug: string): Promise<SetPageData | null> =
   if (d.set && d.store_prices?.length) {
     const p = await readPriceSide(setNumber);
     d.store_prices = p.store_prices; d.summary = p.summary; d.as_of = p.at;
+  }
+  // H5: the history read happens only while the flag is on (off: no query at all).
+  if (FEATURE_FLAGS.priceHistoryChart && d.set && d.store_prices?.length) {
+    d.priceHistory = (await readPriceHistory(setNumber)).rows;
   }
   if (d.set) return d;
 
@@ -210,6 +245,14 @@ export default async function SetPage(props: Props) {
     .filter((sp): sp is any => sp?.price_inr != null);
   const bestStorePrice = bestInStock(activePrices);
   const hasPrices = bestStorePrice != null;
+  // Estimate from the US price (switch off): the rate is read once per 6 h, not per visitor. A failed read means no estimate.
+  const usEstimate = FEATURE_FLAGS.setPageUsEstimate
+    ? setPageEstimate(set, activePrices.length > 0, await readUsdRate())
+    : null;
+  // Priceless line (order 0420, switch off): only where the page shows no value and no US estimate exists.
+  const priceless = FEATURE_FLAGS.setPagePriceless
+    ? setPagePricelessLine(set, activePrices.length > 0, setPageEstimate(set, activePrices.length > 0, await readUsdRate()) != null)
+    : null;
 
   // PR-B: locked rules R2-R6 from public.set_price_summary -- the MRP anchor
   // and its source, the deal tier, and which store(s) hold the fresh
@@ -354,12 +397,15 @@ export default async function SetPage(props: Props) {
             </div>
             <h1 className="font-heading text-dark text-4xl md:text-5xl leading-tight mb-2">{set.name}</h1>
             <p className="text-gray-600 font-price text-sm mb-4">Set #{set.set_number}</p>
-            {FEATURE_FLAGS.myCollectionHearts && (
-              <div className="flex flex-wrap items-center gap-3 mb-4">
-                <HeartSlot enabled size="lg" set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
-                <CollectionSlot enabled set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
-              </div>
-            )}
+            {/* The shared session read runs only when the hearts are shown and accounts are on (no request otherwise). */}
+            <AccountSessionProvider enabled={FEATURE_FLAGS.accountsEnabled && FEATURE_FLAGS.myCollectionHearts}>
+              {FEATURE_FLAGS.myCollectionHearts && (
+                <div className="flex flex-wrap items-center gap-3 mb-4">
+                  <HeartSlot enabled size="lg" set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
+                  <CollectionSlot enabled set={set.set_number} name={set.name} image_url={set.image_url} pieces={set.pieces} theme={set.theme} year={set.year} />
+                </div>
+              )}
+            </AccountSessionProvider>
             <SaleSetLine setNumber={set.set_number} />
 
             {/* MRP (R2): the anchor and its source win over any other MRP. The
@@ -377,6 +423,24 @@ export default async function SetPage(props: Props) {
                     <DealBadge tier={summary.deal_tier} pct={summary.discount_pct} />
                   </FreshOnly>
                 ) : <span className="text-3xl">🏷️</span>}
+              </div>
+            )}
+
+            {/* ── PRICE HISTORY (H5, flag off) ──────────────────────────────── */}
+            {FEATURE_FLAGS.priceHistoryChart && pageData.priceHistory && pageData.priceHistory.length > 0 && (
+              <PriceHistoryChart
+                rows={pageData.priceHistory}
+                currents={pageData.store_prices.map((r: any) => ({ store_id: r.store_id, price_inr: r.price_inr ?? null, in_stock: r.in_stock ?? null, scraped_at: r.scraped_at }))}
+                storeNames={STORE_NAMES}
+                nowMs={Date.now()}
+              />
+            )}
+
+            {/* Set page estimate (order 0380 item 4): behind setPageUsEstimate (off). Shown only with no store price. */}
+            {usEstimate && (
+              <div className="mb-6">
+                <p className="font-price text-2xl font-bold text-dark">{usEstimate.text}</p>
+                <p className="mt-1 text-xs text-gray-500">{usEstimate.note}</p>
               </div>
             )}
 
@@ -488,6 +552,9 @@ export default async function SetPage(props: Props) {
                 </div>
               </div>
             </div>
+
+            {/* Priceless line (order 0420, switch off): under the existing text. Nothing else on the page changes. */}
+            {priceless && <p className="text-sm text-gray-600 mb-4">{priceless}</p>}
 
             {/* Staleness indicator */}
             {!lastUpdated && <p className="text-xs mb-4 text-gray-400">No retailer listing found.</p>}

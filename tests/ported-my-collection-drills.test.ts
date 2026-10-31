@@ -95,9 +95,9 @@ describe('flags off: the page and the routes are absent', () => {
 });
 
 describe('no verified Indian price', () => {
-  it('the copy is "No Indian price yet. We\'re watching the shelves." for a wishlist row and "Worth not known yet" for an owned row (approved list, items 27 and 28)', () => {
+  it('the copy is "No Indian price yet. We\'re watching the shelves." for a wishlist row and "No Indian price yet. We\'re watching the shelves." for an owned row (approved list, items 27 and 28)', () => {
     expect(WISHLIST_NO_PRICE_LINE).toBe('No Indian price yet. We\'re watching the shelves.');
-    expect(WORTH_UNKNOWN_LINE).toBe('Worth not known yet');
+    expect(WORTH_UNKNOWN_LINE).toBe('No Indian price yet. We\'re watching the shelves.');
     const src = readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
     expect(src).toContain('<OwnedWorthLine line={w.line} />');
     expect(readFileSync(join(root, 'src/app/my/PriceNotes.tsx'), 'utf8')).toContain('WISHLIST_NO_PRICE_LINE');
@@ -120,7 +120,7 @@ describe('price read fails', () => {
     expect(body.sets).toBeUndefined();
   });
   it('the page says prices are unavailable and still lists the rows (names and pieces come from the browser copy)', () => {
-    expect(VOICE.pricesUnavailable).toBe('Prices are unavailable right now. Names and pieces are still shown.');
+    expect(VOICE.pricesUnavailable).toBe('Prices are taking a coffee break. Your sets are still here, safe and sound.');
     const src = readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
     expect(src).toContain("{priceState === 'failed' && <PricesUnavailable />}");
     expect(readFileSync(join(root, 'src/app/my/PriceNotes.tsx'), 'utf8')).toContain('role="alert"');
@@ -143,7 +143,7 @@ describe('the 500-set limit', () => {
     expect(r.list).toHaveLength(MY_SETS_LIMIT);
   });
   it('the approved limit line is shown on the buttons when blocked', () => {
-    expect(VOICE.limitReached).toBe('That is a proper collection. Remove one to add another.');
+    expect(VOICE.limitReached).toBe('Your shelf is full. Impressive. Contact us and we will open a bank for you.');
     expect(readFileSync(join(root, 'src/components/saved/SaveButtons.tsx'), 'utf8')).toMatch(/if \(out\.result === 'limit'\) return setNote\(VOICE\.limitReached\)/);
   });
   it('stored lists above the limit are cut back to it on read', () => {
@@ -163,12 +163,13 @@ describe('the batch read', () => {
     expect(res.status).toBe(400);
     expect(sb.from).toHaveLength(0);
   });
-  it('one call per page view, never one per card: only the page calls the saved-sets route (no last-seen read, owner ruling)', () => {
+  it('one call per page view, never one per card: only the page calls the saved-sets route and the last-seen route (order 0280 item 5)', () => {
     const callers = srcFiles.filter((f) => f.file !== 'src/lib/route-cadence.ts' && /\/api\/saved-sets/.test(f.src)).map((f) => f.file);
     expect(callers.sort()).toEqual(['src/app/my/MyCollection.tsx']);
     const page = readFileSync(join(root, 'src/app/my/MyCollection.tsx'), 'utf8');
     expect(page.match(/fetch\(`\/api\/saved-sets/g)).toHaveLength(1);
-    expect(srcFiles.some((f) => /\/api\/last-seen-prices/.test(f.src) && !/^src\/app\/api\//.test(f.file) && f.file !== 'src/lib/route-cadence.ts')).toBe(false);
+    const lastSeenCallers = srcFiles.filter((f) => /\/api\/last-seen-prices/.test(f.src) && !/^src\/app\/api\//.test(f.file) && f.file !== 'src/lib/route-cadence.ts').map((f) => f.file);
+    expect(lastSeenCallers).toEqual(['src/app/my/MyCollection.tsx']);
   });
   it('cards never fetch prices', () => {
     for (const f of srcFiles.filter((x) => /components\/sets\/|components\/saved\//.test(x.file))) {

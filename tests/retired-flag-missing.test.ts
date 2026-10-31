@@ -1,5 +1,5 @@
 // A set with no stored retired flag (the flag is unknown) never shows the retired line. It falls to the estimate
-// when there is a US price and a usable rate, and otherwise to "Worth not known yet".
+// when there is a US price and a usable rate, and otherwise to "No Indian price yet. We\'re watching the shelves.".
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { NextRequest } from 'next/server';
 import { readFileSync } from 'node:fs';
@@ -52,14 +52,14 @@ describe('a set with no stored retired flag, at the worth rules', () => {
     expect(w.rule).toBe('estimate');
     expect(w.line).not.toBe(RETIRED_LINE);
   });
-  it('no US price: "Worth not known yet", never the retired line, even with a last-seen price', () => {
+  it('no US price: "No Indian price yet. We\'re watching the shelves.", never the retired line, even with a last-seen price', () => {
     const item = worthInputFor({ set: '10307', qty: 1 }, { best_price_inr: null, us_price_usd: null }, true);
     const w = worthOf(item, RATE, null, SEEN);
     expect(w.rule).toBe('unknown');
     expect(w.line).toBe(WORTH_UNKNOWN_LINE);
     expect(w.line).not.toBe(RETIRED_LINE);
   });
-  it('a US price but no usable rate: "Worth not known yet", never the retired line', () => {
+  it('a US price but no usable rate: "No Indian price yet. We\'re watching the shelves.", never the retired line', () => {
     const item = worthInputFor({ set: '10307', qty: 1 }, { best_price_inr: null, us_price_usd: 499 }, true);
     const w = worthOf(item, null, null, SEEN);
     expect(w.rule).toBe('unknown');
@@ -84,7 +84,8 @@ describe('the route reports an unknown retired flag as null, and the page never 
     // The page passes isRetired to the worth rules; it returns the stored flag only after the read succeeds, and null otherwise.
     const src = readFileSync(join(__dirname, '..', 'src/app/my/MyCollection.tsx'), 'utf8');
     expect(src).toContain("const isRetired = (set: string): boolean | null => (priceState === 'ok' ? prices.get(set)?.retired ?? null : null);");
-    expect(src).toContain("worthOf(worthInputFor(o, p, priceState === 'ok'), rate, isRetired(o.set));");
-    expect(src).not.toContain('lastSeen');
+    expect(src).toContain("worthOf(worthInputFor(o, p, priceState === 'ok'), rate, isRetired(o.set), lastSeen.get(o.set) ?? null);");
+    // The last-seen value is passed only for a set the page has already marked retired (isRetired is exactly true there).
+    expect(src).toContain('retiredIdsForLastSeen(owned, isRetired)');
   });
 });

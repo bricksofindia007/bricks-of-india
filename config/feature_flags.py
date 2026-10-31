@@ -21,6 +21,10 @@ one-line diff -- not a side effect of an unrelated merge.
 """
 
 FEATURE_FLAGS = {
+    # Set page US-price estimate (order 0380 item 4). Mirrors src/lib/feature-flags.ts (setPageUsEstimate). Off.
+    "set_page_us_estimate": False,
+    # Set page Priceless line (order 0420). Mirrors src/lib/feature-flags.ts (setPagePriceless). Off.
+    "set_page_priceless": False,
     # Accounts (wishlist, sign-in, legal pages). Off until the accounts launch. Mirrors
     # src/lib/feature-flags.ts (accountsEnabled); keep both in sync by hand. Added 17 Oct 2026.
     "accounts_enabled": False,
@@ -135,6 +139,7 @@ FEATURE_FLAGS = {
     # itself. Both off until the launch. Mirrored in src/lib/feature-flags.ts; keep in sync.
     "my_collection_hearts": False,
     "my_collection_page": False,
+    "my_collection_figures": False,
     # Link tags for YouTube and Instagram links (placements list, 23 Oct 2026). Off: the tags send
     # nothing; the links are unchanged. Mirrored in src/lib/feature-flags.ts; keep in sync.
     "key_events": False,
@@ -152,4 +157,7 @@ FEATURE_FLAGS = {
     # Owner-only daily visit totals (order 0050, issue 822). Off: owner page is 404 and nothing is written.
     # Never shown publicly. Mirrored in src/lib/feature-flags.ts (visitorCounter); keep in sync.
     "visitor_counter": False,
+    # Price history chart on set pages, with the "lowest in 90 days" marker (H5, order 0060). Off: no read, no chart.
+    # Mirrored in src/lib/feature-flags.ts (priceHistoryChart); keep in sync.
+    "price_history_chart": False,
 }

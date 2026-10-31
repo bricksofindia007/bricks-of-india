@@ -30,7 +30,9 @@ describe('flags off = no visible change', () => {
     expect(read('src/app/api/saved-sets/route.ts')).toMatch(/if \(!FEATURE_FLAGS\.myCollectionPage\) return new NextResponse\(null, \{ status: 404 \}\);/);
   });
   it('the set card heart is gated by the hearts flag', () => {
-    expect(read('src/components/sets/SetCard.tsx')).toMatch(/\{FEATURE_FLAGS\.myCollectionHearts && \(/);
+    const card = read('src/components/sets/SetCard.tsx');
+    expect(card).toMatch(/const showHeart = FEATURE_FLAGS\.myCollectionHearts && !FEATURE_FLAGS\.accountsEnabled;/);
+    expect(card).toMatch(/\{showHeart && \(/);
   });
   it('the set page hearts and add button are gated by the hearts flag', () => {
     expect(read('src/app/sets/[slug]/page.tsx')).toMatch(/\{FEATURE_FLAGS\.myCollectionHearts && \(\s*<div className="flex flex-wrap items-center gap-3 mb-4">/);

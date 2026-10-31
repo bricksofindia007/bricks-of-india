@@ -14,9 +14,10 @@ describe('retired line with a last-seen price', () => {
   it('shows the last seen Indian price and its month', () => {
     const w = worthOf({ set: '10307', indianPriceInr: null, usPriceUsd: 499, qty: 1, storedEstimateInr: null }, RATE, true,
       { priceInr: 41199, observedAt: '2026-08-14T10:00:00Z' });
-    expect(w.rule).toBe('retired');
-    expect(w.line).toBe('Last seen in India at ₹41,199 (August 2026)');
-    expect(w.inr).toBeNull();
+    // Order 0300 (D-2026-10-30-01): a last seen price is counted in the total at that price.
+    expect(w.rule).toBe('last-seen');
+    expect(w.line).toBe('Retired. Last seen in India at ₹41,199 (August 2026). Good luck finding one.');
+    expect(w.inr).toBe(41199);
   });
   it('without a last-seen price, the approved retired line', () => {
     const w = worthOf({ set: '10307', indianPriceInr: null, usPriceUsd: 499, qty: 1, storedEstimateInr: null }, RATE, true, null);
@@ -34,13 +35,14 @@ describe('retired line with a last-seen price', () => {
 });
 
 describe('the page', () => {
-  it('reads no last-seen prices: retired sets show only the approved line (owner ruling)', () => {
+  it('reads last-seen prices for retired owned sets only, in one batched read (order 0280 item 5)', () => {
     const src = page();
-    expect(src).not.toContain('/api/last-seen-prices');
+    expect(src).toContain('/api/last-seen-prices?ids=');
+    expect(src).toContain('retiredIdsForLastSeen(owned, isRetired)');
     expect(src).toMatch(/const isRetired = \(set: string\): boolean \| null => \(priceState === 'ok' \? prices\.get\(set\)\?\.retired \?\? null : null\)/);
   });
-  it('never fetches last-seen prices, for a set that is not retired or while the price read is pending', () => {
-    expect(page()).not.toMatch(/last-seen|setLastSeen/);
+  it('the last-seen read waits for the page and its retired list (never a guess for a set that is not retired)', () => {
+    expect(page()).toMatch(/if \(!ready \|\| retiredKey === ''\)/);
   });
   it('a retired set with no last-seen value keeps the approved retired line', () => {
     expect(retiredLine(null)).toBe(RETIRED_LINE);
@@ -50,7 +52,7 @@ describe('the page', () => {
   });
   it('each row is worked out from its own price and retired status, and the page never reads the INR MRP column', () => {
     const src = page();
-    expect(src).toContain('worthOf(worthInputFor(o, p, priceState === \'ok\'), rate, isRetired(o.set))');
+    expect(src).toContain('worthOf(worthInputFor(o, p, priceState === \'ok\'), rate, isRetired(o.set), lastSeen.get(o.set) ?? null)');
     expect(src).not.toMatch(/lego_mrp_inr/);
   });
 });

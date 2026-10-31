@@ -5,6 +5,20 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { SetImage } from '@/components/sets/SetImage';
 import { slugify } from '@/lib/utils';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import type { LastSeen } from '@/lib/collection-worth';
+import { lastSeenMap, retiredIdsForLastSeen } from '@/lib/last-seen-page';
+import { AccountSessionProvider, useAccountLists, useAccountSession } from '@/components/account/AccountSession';
+import { browserFetcher, createAccountClient } from '@/lib/account-client';
+import type { ListRow } from '@/lib/account-lists';
+
+// The account's copy of the lists: the same routes as the hearts, so the page and the hearts agree.
+const accountClient = createAccountClient(browserFetcher);
+
+const accountWish = (r: ListRow): WishItem => ({
+  set: r.set, name: r.name ?? r.set, image_url: r.image_url ?? null, pieces: r.pieces ?? null, theme: r.theme ?? null, year: r.year ?? null, added_at: r.added_at,
+});
+const accountOwned = (r: ListRow): OwnedItem => ({ ...accountWish(r), qty: r.qty });
 import {
   CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, cleanCollection, cleanWishlist, loadCollection, loadWishlist, pageOf,
   priceIds, removeWish, setOwnedQty, trackCollectionEvent, updateList, type OwnedItem, type WishItem,
@@ -27,6 +41,8 @@ type Price = {
   best_store_ids: string[] | null;
   us_price_usd: number | null;
   stored_estimate_inr: number | null;
+  list_price_inr: number | null;
+  year: number | null;
   retired: boolean | null;
 };
 type Tab = 'wish' | 'owned';
@@ -60,7 +76,20 @@ function Pager({ page, pages, onChange }: { page: number; pages: number; onChang
   );
 }
 
+// The page reads the session once (through the shared provider), and only while accounts are on.
 export function MyCollection() {
+  return (
+    <AccountSessionProvider enabled={FEATURE_FLAGS.accountsEnabled} withNames>
+      <MyCollectionView />
+    </AccountSessionProvider>
+  );
+}
+
+function MyCollectionView() {
+  const session = useAccountSession();
+  const acct = useAccountLists();
+  // Signed in (accounts on): the page's lists are the account's. Otherwise the browser's lists, as before.
+  const signedIn = FEATURE_FLAGS.accountsEnabled && acct?.status === 'signed-in';
   const [ready, setReady] = useState(false);
   const [wish, setWish] = useState<WishItem[]>([]);
   const [owned, setOwned] = useState<OwnedItem[]>([]);
@@ -75,6 +104,7 @@ export function MyCollection() {
 
   // Load the lists from this browser and follow changes made elsewhere on the page or in another tab.
   useEffect(() => {
+    if (signedIn) return;
     const load = () => { setWish(loadWishlist()); setOwned(loadCollection()); };
     load();
     setReady(true);
@@ -82,7 +112,15 @@ export function MyCollection() {
     window.addEventListener(CHANGED_EVENT, load);
     window.addEventListener('storage', load);
     return () => { window.removeEventListener(CHANGED_EVENT, load); window.removeEventListener('storage', load); };
-  }, []);
+  }, [signedIn]);
+
+  // Signed in: the account's lists, with names from the same read. Each save is applied to the shared lists at once.
+  useEffect(() => {
+    if (!signedIn || !acct?.lists) return;
+    setWish(acct.lists.wishlist.map(accountWish));
+    setOwned(acct.lists.collection.map(accountOwned));
+    setReady(true);
+  }, [signedIn, acct?.lists]);
 
   // One batched price read per page view, capped. A failure keeps names and pieces and says so.
   const ids = useMemo(() => priceIds(wish, owned).join(','), [wish, owned]);
@@ -107,18 +145,41 @@ export function MyCollection() {
   // Retired status is known only after the price read succeeds. Unknown counts as not retired, so no retired line is guessed.
   const isRetired = (set: string): boolean | null => (priceState === 'ok' ? prices.get(set)?.retired ?? null : null);
 
+  // Retired owned sets show their last seen price on the row. One batched read, only for those sets. A failure keeps the
+  // approved retired line. The total does not change (the last seen price is not added to it).
+  const [lastSeen, setLastSeen] = useState<Map<string, NonNullable<LastSeen>>>(new Map());
+  const retiredIds = useMemo(() => retiredIdsForLastSeen(owned, isRetired), [owned, priceState, prices]);
+  const retiredKey = retiredIds.join(',');
+  useEffect(() => {
+    if (!ready || retiredKey === '') { setLastSeen(new Map()); return; }
+    let live = true;
+    fetch(`/api/last-seen-prices?ids=${encodeURIComponent(retiredKey)}`)
+      .then((r) => { if (!r.ok) throw new Error(String(r.status)); return r.json(); })
+      .then((j: { prices?: { set_number: string; price_inr: number; observed_at: string }[] }) => {
+        if (live) setLastSeen(lastSeenMap(j.prices ?? []));
+      })
+      .catch(() => { if (live) setLastSeen(new Map()); });
+    return () => { live = false; };
+  }, [ready, retiredKey]);
+
   const rate = usableRate(rateSourceOf(storedRate).getRate(), new Date());
   const worthItems: WorthItem[] = owned.map((o) => worthInputFor(o, prices.get(o.set), priceState === 'ok'));
   // The price read covers the newest sets only; a collection set it leaves out is capped out of the total.
   const pricedIds = new Set(priceIds(wish, owned));
   const capped = owned.some((o) => !pricedIds.has(o.set));
-  const total = worthTotal(worthItems, rate, isRetired, capped);
+  const total = worthTotal(worthItems, rate, isRetired, capped, (s) => lastSeen.get(s) ?? null);
   const pieces = owned.reduce((n, o) => n + (o.pieces ?? 0) * o.qty, 0);
   const piecesMissing = owned.some((o) => o.pieces == null);
 
 
   // Each change reads the stored list at the moment of writing (not the page state), so another tab's change is kept.
   const removeFromWish = (set: string) => {
+    if (signedIn) {
+      void accountClient.remove('wishlist', set).then((r) => {
+        if (r.status === 'ok') acct?.changeLocal('wishlist', set, null);
+      });
+      return;
+    }
     const out = updateList(WISHLIST_KEY, cleanWishlist, (list) => ({
       list: removeWish(list, set), result: null, changed: list.some((w) => w.set === set),
     }));
@@ -133,11 +194,14 @@ export function MyCollection() {
   const filterBar = (
     <div role="group" aria-label="Show" className="flex gap-2 mb-6">
       <button type="button" aria-pressed={kind === 'sets'} onClick={() => setKind('sets')} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${kind === 'sets' ? 'bg-primary text-white' : 'border border-border'}`}>Sets</button>
-      <button type="button" aria-pressed={kind === 'figures'} onClick={() => setKind('figures')} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${kind === 'figures' ? 'bg-primary text-white' : 'border border-border'}`}>Minifigures</button>
+      {FEATURE_FLAGS.myCollectionFigures && (
+        <button type="button" aria-pressed={kind === 'figures'} onClick={() => setKind('figures')} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${kind === 'figures' ? 'bg-primary text-white' : 'border border-border'}`}>Minifigures</button>
+      )}
     </div>
   );
 
-  if (kind === 'figures') {
+  // The Minifigures view is reachable only while its flag is on; with the flag off the sets view is always shown.
+  if (kind === 'figures' && FEATURE_FLAGS.myCollectionFigures) {
     return (
       <div>
         {filterBar}
@@ -159,10 +223,10 @@ export function MyCollection() {
         </div>
         <div className="border border-border rounded-lg p-3">
           <dt className="text-gray-500">Total worth</dt>
-          <dd className="font-bold text-dark text-lg"><TotalWorthValue loading={priceState === 'loading'} inr={total.inr} estimates={total.estimate} /></dd>
+          <dd className="font-bold text-dark text-lg"><TotalWorthValue loading={priceState === 'loading'} inr={total.inr} /></dd>
         </div>
         <div className="border border-border rounded-lg p-3">
-          <dt className="text-gray-500">Retired, not valued</dt>
+          <dt className="text-gray-500">Priceless</dt>
           <dd className="font-bold text-dark text-lg">{total.retired}</dd>
         </div>
       </dl>
@@ -190,6 +254,10 @@ export function MyCollection() {
       {!ready && <Skeleton />}
       {ready && tab === 'wish' && <CollectionShare kind="wishlist" count={wish.length} />}
       {ready && tab === 'owned' && <CollectionShare kind="collection" count={owned.length} />}
+
+      {ready && tab === 'wish' && FEATURE_FLAGS.accountsEnabled && session === 'signed-out' && (
+        <p className="text-sm text-gray-600 mb-4"><Link href="/auth" className="underline">{VOICE.guestWishlistNote}</Link></p>
+      )}
 
       {ready && tab === 'wish' && (
         wish.length === 0 ? (
@@ -223,6 +291,10 @@ export function MyCollection() {
         )
       )}
 
+      {ready && tab === 'owned' && FEATURE_FLAGS.accountsEnabled && session === 'signed-out' && (
+        <p className="text-sm text-gray-600 mb-4"><Link href="/auth" className="underline">{VOICE.guestCollectionNote}</Link></p>
+      )}
+
       {ready && tab === 'owned' && (
         owned.length === 0 ? (
           <p className="text-gray-600">{VOICE.collectionEmpty}</p>
@@ -231,7 +303,7 @@ export function MyCollection() {
             <ul className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               {ownedPaged.rows.map((o) => {
                 const p = prices.get(o.set);
-                const w = worthOf(worthInputFor(o, p, priceState === 'ok'), rate, isRetired(o.set));
+                const w = worthOf(worthInputFor(o, p, priceState === 'ok'), rate, isRetired(o.set), lastSeen.get(o.set) ?? null);
                 return (
                   <li key={o.set} className="border border-border rounded-xl p-3 flex gap-3">
                     <Link href={`/sets/${o.set}-${slugify(o.name)}`} className="w-20 h-20 shrink-0 relative bg-surface rounded">
@@ -244,11 +316,15 @@ export function MyCollection() {
                       {priceState === 'loading' && <p className="mt-1 h-3 w-24 bg-surface rounded animate-pulse" />}
                       {priceState !== 'loading' && <OwnedWorthLine line={w.line} />}
                       {w.note && <p className="mt-1 text-xs text-gray-500">{w.note}</p>}
-                      <div className="mt-2 flex items-center gap-2 text-xs">
-                        <button type="button" aria-label={`One fewer ${o.name}`} onClick={() => changeQty(o.set, o.qty - 1)} className="w-7 h-7 rounded border border-border">−</button>
-                        <span aria-live="polite">{o.qty}</span>
-                        <button type="button" aria-label={`One more ${o.name}`} onClick={() => changeQty(o.set, o.qty + 1)} className="w-7 h-7 rounded border border-border">+</button>
-                      </div>
+                      {signedIn ? (
+                        <div className="mt-2 text-xs"><span aria-live="polite">{o.qty}</span></div>
+                      ) : (
+                        <div className="mt-2 flex items-center gap-2 text-xs">
+                          <button type="button" aria-label={`One fewer ${o.name}`} onClick={() => changeQty(o.set, o.qty - 1)} className="w-7 h-7 rounded border border-border">−</button>
+                          <span aria-live="polite">{o.qty}</span>
+                          <button type="button" aria-label={`One more ${o.name}`} onClick={() => changeQty(o.set, o.qty + 1)} className="w-7 h-7 rounded border border-border">+</button>
+                        </div>
+                      )}
                     </div>
                   </li>
                 );

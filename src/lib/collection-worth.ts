@@ -27,17 +27,26 @@ export interface RetiredSource {
 /** Added to the total when the price read left some collection sets out (the read is capped). */
 export const CAP_SENTENCE = `Worth counts your newest ${PRICE_READ_CAP} sets.`;
 
-export const RETIRED_LINE =
-  'Retired. Collectors are fighting over it on resale markets, and we\'re not brave enough to price that.';
-export const ESTIMATE_NOTE =
-  'Estimates convert the US price and can differ from what Indian shops charge. Not a valuation.';
-export const WORTH_UNKNOWN_LINE = 'Worth not known yet';
+// The owner's approved lines (D-2026-10-30-04 and -05). One constant each; copied, not retyped.
+/** Line 3: a retired set with no value. Replaces the 27 Oct retired line (owner, 30 Oct). */
+export const RETIRED_LINE = 'Priceless. You could make a mini fortune on the secondary market.';
+/** The estimate line (D-2026-10-30-05): shown only on sets whose price is an estimate from the US price. */
+export const ESTIMATE_NOTE = 'Not sold in India through regular retailers. This is an estimated price based on US prices, so your actual buying price may vary. Customs may have opinions, which might make your wallet teary eyed.';
+/** Line 4: no price yet. Used on owned rows and on wishlist rows. */
 export const WISHLIST_NO_PRICE_LINE = 'No Indian price yet. We\'re watching the shelves.';
+export const WORTH_UNKNOWN_LINE = WISHLIST_NO_PRICE_LINE;
 
-export type WorthRule = 'indian' | 'estimate' | 'stored-estimate' | 'retired' | 'unknown';
+/** 'last-seen': a retired set with a last seen Indian price; counted in the total at that price (decision D-2026-10-30-01). */
+/** 'list-price': the LEGO India list price (lego_mrp_inr), counted at its rupee value (D-2026-10-30-03). */
+/** 'pre-2020': a set from before the cutoff year with no rupee value; shows line 3, not counted (D-2026-10-30-09). */
+export type WorthRule = 'indian' | 'list-price' | 'estimate' | 'stored-estimate' | 'retired' | 'last-seen' | 'pre-2020' | 'unknown';
 
-/** Stored rupee estimate (a converted list price). A fallback only: never counted in the total. */
-export const STORED_ESTIMATE_NOTE = 'Estimates can differ from what Indian shops charge. Not a valuation.';
+/** Sets released before this year get no US price pull, and with no rupee value they show line 3 (D-2026-10-30-09). One place for the year test. */
+export const PRE_2020_CUTOFF_YEAR = 2020;
+export function isPre2020Set(year: number | null | undefined): boolean {
+  return year != null && Number.isFinite(year) && year < PRE_2020_CUTOFF_YEAR;
+}
+
 
 export type WorthItem = {
   set: string;
@@ -49,6 +58,10 @@ export type WorthItem = {
   qty: number;
   /** The stored rupee estimate for the set, used only when there is no US price. Optional; null when none. */
   storedEstimateInr?: number | null;
+  /** The LEGO India list price (lego_mrp_inr), used when there is no store price and the set is not retired. Optional. */
+  listPriceInr?: number | null;
+  /** The set's release year, or null when unknown. Used only for the pre-2020 rule. */
+  year?: number | null;
 };
 
 export type WorthResult = {
@@ -106,27 +119,36 @@ export function retiredLine(lastSeen: LastSeen): string {
   if (!lastSeen) return RETIRED_LINE;
   const d = new Date(lastSeen.observedAt);
   if (!Number.isFinite(d.getTime()) || !Number.isFinite(lastSeen.priceInr) || lastSeen.priceInr <= 0) return RETIRED_LINE;
-  return `Last seen in India at ₹${formatRs(lastSeen.priceInr)} (${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()})`;
+  // Line 2 (D-2026-10-30-04): the retired line with a last seen price.
+  return `Retired. Last seen in India at ₹${formatRs(lastSeen.priceInr)} (${MONTH_NAMES[d.getUTCMonth()]} ${d.getUTCFullYear()}). Good luck finding one.`;
 }
 
 export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boolean | null, lastSeen: LastSeen = null): WorthResult {
   if (item.indianPriceInr != null) {
     return { rule: 'indian', inr: item.indianPriceInr, line: `₹${formatRs(item.indianPriceInr)}`, note: null };
   }
+  // Order of value (D-2026-10-30-03): store price, else LEGO India list price, else US price, else no value.
+  // A retired set never uses the list price: it shows its last seen price, or Priceless.
+  if (retired !== true && item.listPriceInr != null && item.listPriceInr > 0) {
+    const inr = Math.round(item.listPriceInr);
+    return { rule: 'list-price', inr, line: `₹${formatRs(inr)}`, note: null };
+  }
   if (retired !== true && item.usPriceUsd != null && rate) {
     const inr = Math.round(item.usPriceUsd * rate.rate);
-    return {
-      rule: 'estimate',
-      inr,
-      line: `About ₹${formatRs(inr)}, estimated from the US list price (rate of ${rateDateLabel(rate.asOf)})`,
-      note: ESTIMATE_NOTE,
-    };
+    // The word About stays before an estimated figure; the approved estimate line goes under it (note).
+    return { rule: 'estimate', inr, line: `About ₹${formatRs(inr)}`, note: ESTIMATE_NOTE };
   }
+  // Unverified LEGO India figure (lego_mrp_inr with mrp_verified not true): a US-based estimate. It is counted, and the
+  // approved estimate line goes under it (D-2026-10-31-03 item 3).
   if (retired !== true && item.storedEstimateInr != null && item.storedEstimateInr > 0) {
     const inr = Math.round(item.storedEstimateInr);
-    return { rule: 'stored-estimate', inr, line: `About ₹${formatRs(inr)}, worked out from the US price`, note: STORED_ESTIMATE_NOTE };
+    return { rule: 'stored-estimate', inr, line: `About ₹${formatRs(inr)}`, note: ESTIMATE_NOTE };
+  }
+  if (retired === true && lastSeen && Number.isFinite(lastSeen.priceInr) && lastSeen.priceInr > 0) {
+    return { rule: 'last-seen', inr: lastSeen.priceInr, line: retiredLine(lastSeen), note: null };
   }
   if (retired === true) return { rule: 'retired', inr: null, line: retiredLine(lastSeen), note: null };
+  if (isPre2020Set(item.year)) return { rule: 'pre-2020', inr: null, line: RETIRED_LINE, note: null };
   return { rule: 'unknown', inr: null, line: WORTH_UNKNOWN_LINE, note: null };
 }
 
@@ -136,7 +158,7 @@ export function worthOf(item: WorthItem, rate: StoredRate | null, retired: boole
  */
 export function worthInputFor(
   owned: { set: string; qty: number },
-  price: { best_price_inr: number | null; us_price_usd: number | null; stored_estimate_inr?: number | null } | undefined,
+  price: { best_price_inr: number | null; us_price_usd: number | null; stored_estimate_inr?: number | null; list_price_inr?: number | null; year?: number | null } | undefined,
   pricesLoaded: boolean,
 ): WorthItem {
   return {
@@ -145,6 +167,9 @@ export function worthInputFor(
     usPriceUsd: pricesLoaded ? (price?.us_price_usd ?? null) : null,
     qty: owned.qty,
     storedEstimateInr: pricesLoaded ? (price?.stored_estimate_inr ?? null) : null,
+    listPriceInr: pricesLoaded ? (price?.list_price_inr ?? null) : null,
+    // Only with prices loaded: a pre-2020 set is shown as Priceless only once its price read is known.
+    year: pricesLoaded ? (price?.year ?? null) : null,
   };
 }
 
@@ -155,10 +180,13 @@ export type WorthTotal = {
   counted: number;
   indian: number;
   estimate: number;
+  /** Retired sets with no rupee value: the only retired sets the total line and the tile count. */
   retired: number;
+  /** Sets before the cutoff year with no rupee value: line 3, not counted, not in the retired count. */
+  pre2020: number;
+  /** How many of the Indian prices above are last seen prices of retired sets (already in indian). */
+  lastSeen: number;
   unknown: number;
-  /** Sets whose only figure is the stored estimate: shown, not counted. */
-  storedEstimate: number;
   /** The sentence that says how the total is made up. */
   line: string;
   /** The rate date and estimate note, next to the sentence. Empty when no estimate is counted. */
@@ -173,29 +201,38 @@ function plural(n: number, one: string, many: string) {
  * The total line. Total = rules 1 and 2 only. It always states how it is made up, e.g.
  * "Worth counts 14 of 17 sets: 9 at Indian prices, 5 estimated from US prices. 3 are retired and not counted."
  */
-export function worthTotal(items: WorthItem[], rate: StoredRate | null, retiredOf: (set: string) => boolean | null, capped = false): WorthTotal {
+export function worthTotal(
+  items: WorthItem[],
+  rate: StoredRate | null,
+  retiredOf: (set: string) => boolean | null,
+  capped = false,
+  lastSeenOf: (set: string) => LastSeen = () => null,
+): WorthTotal {
   let inr = 0;
-  let indian = 0;
+  let indianNow = 0;
+  let lastSeenCount = 0;
   let estimate = 0;
   let retired = 0;
   let unknown = 0;
-  let storedEstimate = 0;
+  let pre2020 = 0;
   for (const it of items) {
-    const w = worthOf(it, rate, retiredOf(it.set));
-    if (w.rule === 'indian') { indian++; inr += (w.inr ?? 0) * it.qty; }
+    const w = worthOf(it, rate, retiredOf(it.set), lastSeenOf(it.set));
+    if (w.rule === 'indian' || w.rule === 'list-price') { indianNow++; inr += (w.inr ?? 0) * it.qty; }
+    else if (w.rule === 'last-seen') { lastSeenCount++; inr += (w.inr ?? 0) * it.qty; }
     else if (w.rule === 'estimate') { estimate++; inr += (w.inr ?? 0) * it.qty; }
     else if (w.rule === 'retired') retired++;
-    else if (w.rule === 'stored-estimate') storedEstimate++;
+    else if (w.rule === 'pre-2020') pre2020++;
+    else if (w.rule === 'stored-estimate') { estimate++; inr += (w.inr ?? 0) * it.qty; }
     else unknown++;
   }
+  // A last seen Indian price is a rupee price, so it is counted with the Indian prices (the sentence keeps its words).
+  const indian = indianNow + lastSeenCount;
   const sets = items.length;
   const counted = indian + estimate;
-  let line = `Worth counts ${counted} of ${sets} ${plural(sets, 'set', 'sets')}: ${indian} at Indian ${plural(indian, 'price', 'prices')}, ${estimate} estimated from US ${plural(estimate, 'price', 'prices')}.`;
-  if (retired > 0) line += ` ${retired} ${plural(retired, 'is', 'are')} retired and not counted.`;
-  if (storedEstimate > 0) line += ` ${storedEstimate} ${plural(storedEstimate, 'is', 'are')} worked out from the US price and not counted.`;
-  if (unknown > 0) line += ` ${unknown} ${plural(unknown, 'is', 'are')} worth not known yet and not counted.`;
+  // Line 1 (D-2026-10-30-04): the total. Its tails (retired, worked out, not known) are gone; the approved estimate line
+  // sits on the rows, not here. The cap sentence stays as it is (R1) and follows line 1.
+  let line = `${sets} ${plural(sets, 'set', 'sets')} on your shelf. Worth about ₹${formatRs(inr)}. Your wallet has questions.`;
   if (capped) line += ` ${CAP_SENTENCE}`;
-  // The rate date and the estimate note, shown on the line after the sentence. Only when estimates are counted.
-  const rateNote = estimate > 0 && rate ? `Rate of ${rateDateLabel(rate.asOf)}. ${ESTIMATE_NOTE}` : '';
-  return { inr, sets, counted, indian, estimate, retired, unknown, storedEstimate, line, rateNote };
+  const rateNote = '';
+  return { inr, sets, counted, indian, lastSeen: lastSeenCount, estimate, retired, pre2020, unknown, line, rateNote };
 }
