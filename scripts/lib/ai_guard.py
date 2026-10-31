@@ -26,6 +26,11 @@ def estimate_tokens(text: str) -> int:
     return math.ceil(len(text or '') / CONFIG['charsPerToken'])
 
 
+def alert_headers(key: str) -> dict:
+    """Request headers for the alert mail. The User-Agent is set explicitly: the default client identity is refused by the mail provider."""
+    return {'Authorization': f'Bearer {key}', 'Content-Type': 'application/json', 'User-Agent': 'BOI-Alert/1.0'}
+
+
 def _send_alert(subject: str, body: str) -> None:
     """Same rules as scripts/lib/alert.mjs: real send only in GitHub Actions or when forced."""
     key = os.environ.get('RESEND_API_KEY', '').lstrip('﻿').strip()
@@ -45,7 +50,7 @@ def _send_alert(subject: str, body: str) -> None:
         'html': f'<pre style="font-family:monospace;font-size:14px;">{body}</pre>',
     }).encode('utf-8')
     req = urllib.request.Request('https://api.resend.com/emails', data=payload, method='POST',
-                                 headers={'Authorization': f'Bearer {key}', 'Content-Type': 'application/json'})
+                                 headers=alert_headers(key))
     with urllib.request.urlopen(req, timeout=30) as resp:
         print(f'[alert] Email sent (status {resp.status})', file=sys.stderr)
 
