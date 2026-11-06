@@ -4,7 +4,7 @@ import { strayFixFiles } from '../scripts/ci/db-migrate.mjs';
 
 describe('seed-staging (P12, #443)', () => {
   it('allowlist is exactly the four public-content tables; sets syncs only the columns fixes change', () => {
-    expect(TABLES.map((t) => [t.table, t.mode])).toEqual([['sets', 'columns'], ['news_articles', 'replace'], ['reviews', 'replace'], ['guides', 'replace'], ['price_history', 'replace'], ['store_prices', 'replace']]);
+    expect(TABLES.map((t) => [t.table, t.mode])).toEqual([['sets', 'columns'], ['news_articles', 'replace'], ['guides', 'replace'], ['price_history', 'replace'], ['store_prices', 'replace'], ['reviews', 'replace']]);
     expect(TABLES[0].columns).toEqual(['is_gwp', 'gwp_parent_set_number', 'pieces', 'theme', 'lego_mrp_inr', 'mrp_verified', 'mrp_review_reason']);
   });
   it('knows the production ref it must refuse to write to', () => {
@@ -31,6 +31,29 @@ describe('seed-staging (P12, #443)', () => {
     expect(on).toBeGreaterThan(load);
     expect(on).toBeLessThan(sql.indexOf('raise exception'));
     expect(buildLoadSql([t('guides')])).not.toContain('disable trigger');
+  });
+  it('order 0900: store_prices is loaded before reviews, so the review publish gate never sees empty store_prices', () => {
+    const plan = TABLES.map((t) => ({ table: t.table, mode: t.mode, cols: t.columns ?? ['id'], fpCols: t.columns ?? ['id'], file: 'x.csv', prodFp: '1 abc' }));
+    const sql = buildLoadSql(plan);
+    const storeLoad = sql.indexOf('insert into public.store_prices');
+    const reviewLoad = sql.indexOf('insert into public.reviews');
+    expect(storeLoad).toBeGreaterThan(-1);
+    expect(reviewLoad).toBeGreaterThan(-1);
+    expect(storeLoad).toBeLessThan(reviewLoad);
+    // the review rows are copied from the temp table only after store_prices has been reloaded in this transaction
+    expect(sql.indexOf('create temp table seed_reviews')).toBeLessThan(storeLoad);
+  });
+  it('order 0900: the review publish gate is never disabled or re-enabled by the load', () => {
+    const plan = TABLES.map((t) => ({ table: t.table, mode: t.mode, cols: t.columns ?? ['id'], fpCols: t.columns ?? ['id'], file: 'x.csv', prodFp: '1 abc' }));
+    const sql = buildLoadSql(plan);
+    expect(sql).not.toMatch(/review_publish_gate/);
+    expect(sql).not.toMatch(/disable trigger review/i);
+  });
+  it('order 0900: a load with reviews only still builds the same transaction shape (no store_prices, no trigger changes)', () => {
+    const sql = buildLoadSql([{ table: 'reviews', mode: 'replace', cols: ['id'], fpCols: ['id'], file: 'x.csv', prodFp: '1 abc' }]);
+    expect(sql.startsWith('begin;')).toBe(true);
+    expect(sql).toContain('commit;');
+    expect(sql).not.toContain('disable trigger');
   });
   it('fingerprint covers every listed column, null-safe, in id order', () => {
     const f = fingerprintSql('news_articles', ['id', 'content']);
