@@ -34,6 +34,7 @@ jobs:
 
       - name: Newest price per store must be under 36 hours old
         id: age
+        continue-on-error: true
         run: node scripts/store-age-check.mjs
 
       - name: Send failure alert
@@ -46,3 +47,10 @@ jobs:
           STEP_OUTCOMES:  '{"Newest price per store must be under 36 hours old": "${{ steps.age.outcome }}"}'
           EXTRA_DETAIL:   'A store has had no new price for more than 36 hours. Check the scrape runs for that store and the store site.'
         run: node scripts/workflow-failure-notify.mjs
+
+      # The age step continues on error so the alert above still runs. This last step makes the run red.
+      - name: Fail the run when a store is too old
+        if: steps.age.outcome == 'failure'
+        run: |
+          echo "::error::a store has no price newer than 36 hours; alert email already sent"
+          exit 1
