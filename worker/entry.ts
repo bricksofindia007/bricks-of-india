@@ -5,7 +5,7 @@
 import generated from "../.open-next/worker.js";
 // @ts-ignore: same generated file as above
 export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "../.open-next/worker.js";
-import { EDGE_CACHE_VAR, EDGE_TTL_OVERRIDE_VAR, handleWithEdgeCache, type EdgeStore } from "./edge-cache";
+import { EDGE_CACHE_VAR, EDGE_TTL_OVERRIDE_VAR, EDGE_IGNORE_ORIGIN_NO_STORE_VAR, handleWithEdgeCache, type EdgeStore } from "./edge-cache";
 
 type Env = Record<string, string | undefined>;
 type Ctx = { waitUntil(p: Promise<unknown>): void };
@@ -24,6 +24,8 @@ export default {
       {
         enabled: env[EDGE_CACHE_VAR] === "1",
         ttlOverride: Number.isFinite(override) && override > 0 ? override : undefined,
+        // Order 0720: only the no-storage configs set this (per-request render is our design, not a visitor signal).
+        ignoreOriginNoStore: env[EDGE_IGNORE_ORIGIN_NO_STORE_VAR] === "1",
       },
     );
   },

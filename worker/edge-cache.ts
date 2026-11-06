@@ -138,7 +138,14 @@ export type EdgeStore = {
 
 export type Origin = (request: Request) => Promise<Response>;
 
-export type EdgeOptions = { enabled: boolean; ttlOverride?: number };
+/**
+ * Worker variable (order 0720). Set only by the no-storage configs (wrangler.staging.jsonc now; wrangler.jsonc at cutover).
+ * On those builds every route renders per request, so the origin answers private, no-store on pages that are the same for
+ * every visitor. When "1", such an HTML 200 page is stored anyway. Every other refusal still applies.
+ */
+export const EDGE_IGNORE_ORIGIN_NO_STORE_VAR = 'BOI_EDGE_IGNORE_ORIGIN_NO_STORE';
+
+export type EdgeOptions = { enabled: boolean; ttlOverride?: number; ignoreOriginNoStore?: boolean };
 
 function withHeader(response: Response, name: string, value: string): Response {
   const copy = new Response(response.body, response);
@@ -189,7 +196,7 @@ export async function handleWithEdgeCache(
   const hit = await store.match(key);
   if (hit) return visitorCopy(hit, pathname, 'hit');
   const response = await origin(request);
-  if (storeRefusal(pathname, response.status, response.headers, isSetsList)) {
+  if (storeRefusal(pathname, response.status, response.headers, isSetsList || options.ignoreOriginNoStore === true)) {
     return withHeader(response, 'x-boi-edge-cache', 'bypass');
   }
   waitUntil(store.put(key, storedCopy(response.clone(), ttl)));
