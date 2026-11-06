@@ -101,5 +101,5 @@
   "images": {
     "binding": "IMAGES"
   },
-  "vars": { "BOI_EDGE_CACHE": "1" }
+  "vars": { "BOI_EDGE_CACHE": "1", "BOI_EDGE_IGNORE_ORIGIN_NO_STORE": "1" }
 }
