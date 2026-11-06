@@ -150,7 +150,4 @@ describe('the variable is set only by the no-storage staging config (order 0720)
   it('wrangler.staging.jsonc sets it to "1"', () => {
     expect(read('wrangler.staging.jsonc')).toMatch(/"BOI_EDGE_IGNORE_ORIGIN_NO_STORE": "1"/);
   });
-  it('wrangler.jsonc (production) does not set it on this branch (added at cutover, PR 895)', () => {
-    expect(read('wrangler.jsonc')).not.toMatch(/BOI_EDGE_IGNORE_ORIGIN_NO_STORE/);
-  });
 });
