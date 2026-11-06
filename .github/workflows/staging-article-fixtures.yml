@@ -55,4 +55,7 @@ jobs:
         run: |
           psql "$STAGING_DB_URL" -X -At -v ON_ERROR_STOP=1 -c "select 'fixture_articles|' || count(*) from public.news_articles where excerpt = 'FIXTURE STAGING ONLY';"
           psql "$STAGING_DB_URL" -X -At -v ON_ERROR_STOP=1 -c "select 'fixture_reviews|' || count(*) from public.reviews where excerpt = 'FIXTURE STAGING ONLY';"
+          psql "$STAGING_DB_URL" -X -At -v ON_ERROR_STOP=1 -c "select 'total_sets|' || count(*) from public.sets;"
+          psql "$STAGING_DB_URL" -X -At -v ON_ERROR_STOP=1 -c "select 'total_store_prices|' || count(*) from public.store_prices;"
+          psql "$STAGING_DB_URL" -X -At -v ON_ERROR_STOP=1 -c "select 'total_price_history|' || count(*) from public.price_history;"
           psql "$STAGING_DB_URL" -X -At -v ON_ERROR_STOP=1 -c "select 'fixture_sets|' || count(*) from public.sets where description = 'FIXTURE STAGING ONLY';"
