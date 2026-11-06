@@ -1,6 +1,6 @@
 {
   // Staging Worker for bricks-of-india. Own name, own R2 bucket, own Durable Object classes.
-  // No KV: production does not bind KV. No custom route, no production bindings.
+  // No KV: production does not bind KV. One custom hostname only (staging-edge, order 0580); no production bindings.
   // Deployed only by .github/workflows/deploy-cloudflare-staging.yml (manual dispatch).
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "bricks-of-india-staging",
@@ -9,6 +9,10 @@
   "compatibility_date": "2026-09-09",
   "compatibility_flags": ["global_fetch_strictly_public"],
   "workers_dev": true,
+  // Custom hostname for the staging Worker (order 0580). Cloudflare creates the DNS record in the account's zone.
+  "routes": [
+    { "pattern": "staging-edge.bricksofindia.com", "custom_domain": true }
+  ],
   "assets": {
     "directory": ".open-next/assets",
     "binding": "ASSETS"
