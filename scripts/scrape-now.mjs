@@ -25,7 +25,7 @@ import { STORES, withRetry, fetchAllProducts, extractSetNumber, parseProduct, is
 import { getSecret } from '../src/lib/get-secret';
 import { mkdirSync, writeFileSync, appendFileSync } from 'fs';
 import { createHash } from 'crypto';
-import { loadBaselines, checkPolicy, feedStats, planStoreWrite, planReconcile, approvalFromEnv } from './lib/pre-write-stop.mjs';
+import { loadBaselines, checkPolicy, feedStats, planStoreWrite, planReconcile, approvalFromEnv, explainHold } from './lib/pre-write-stop.mjs';
 import { sendAlert } from './lib/alert.mjs';
 import { createWriteStream } from 'fs';
 
@@ -318,10 +318,10 @@ async function main() {
       if (plan.held) {
         heldStores.push(store.id);
         if (!DRY_RUN) {
-          await sendAlert(`[BOI] Pre-write stop: ${store.name} held (${store.domain}), nothing written`,
+          const held = explainHold(store.name, plan.reasons, baseline.approve_key);
+          await sendAlert(held.subject,
             [`Store: ${store.name} (${store.id}), feed ${store.domain}${store.path}`, `Run: ${process.env.GITHUB_SERVER_URL ?? ''}/${process.env.GITHUB_REPOSITORY ?? ''}/actions/runs/${process.env.GITHUB_RUN_ID ?? 'local'}`,
-              '', 'Reasons:', ...plan.reasons.map((r) => `  - ${r}`), '', `Metrics: ${JSON.stringify(plan.metrics)}`,
-              '', 'To approve one run: dispatch scrape-prices.yml with approve_store=' + baseline.approve_key + ' and approve_available=<expected available count>.'].join('\n'));
+              '', `What happened: ${held.cause}`, `What to do: ${held.action}`, '', 'Technical detail (for the reviewer):', ...plan.reasons.map((r) => `  - ${r}`), `  - metrics: ${JSON.stringify(plan.metrics)}`].join('\n'));
         }
         summary.push({ store: store.name, fetched: allProducts.length, parsed: parsed.length, matched: allMatched.length, dupes: dupesRemoved, upserted: 0, history: 0, unmatched: unmatched.length, held: plan.reasons });
         console.log('');
