@@ -1,7 +1,9 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "bricks-of-india",
-  "main": ".open-next/worker.js",
+  // Wrapper entry (order 0520): runs the generated OpenNext worker behind the edge cache. With BOI_EDGE_CACHE "0" (below)
+  // it passes every request straight through, so production behaves as before.
+  "main": "worker/entry.ts",
   // Set to today's date rather than pinned to the documented-template
   // minimum -- Cloudflare's guidance is to use the latest date to maximize
   // compatibility. This also clears two dates relevant to this exact
@@ -98,5 +100,6 @@
   // implemented here since there is nothing to configure it against yet.
   "images": {
     "binding": "IMAGES"
-  }
+  },
+  "vars": { "BOI_EDGE_CACHE": "0" }
 }

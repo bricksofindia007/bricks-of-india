@@ -4,7 +4,8 @@
   // Deployed only by .github/workflows/deploy-cloudflare-staging.yml (manual dispatch).
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "bricks-of-india-staging",
-  "main": ".open-next/worker.js",
+  // Wrapper entry (order 0520): see wrangler.jsonc. Staging turns the edge cache on.
+  "main": "worker/entry.ts",
   "compatibility_date": "2026-09-09",
   "compatibility_flags": ["global_fetch_strictly_public"],
   "workers_dev": true,
@@ -36,5 +37,5 @@
       "new_sqlite_classes": ["DOQueueHandler", "DOShardedTagCache"]
     }
   ],
-  "vars": { "DEPLOY_TARGET": "staging" }
+  "vars": { "DEPLOY_TARGET": "staging", "BOI_EDGE_CACHE": "1" }
 }
