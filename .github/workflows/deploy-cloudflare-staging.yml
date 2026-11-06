@@ -26,7 +26,7 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_PUBLISHABLE_KEY }}
       # The staging build names its own address (sitemap, canonical links) and is kept out of search (BOI_STAGING).
-      NEXT_PUBLIC_SITE_URL: https://bricks-of-india-staging.bricksofindia007.workers.dev
+      NEXT_PUBLIC_SITE_URL: https://staging-edge.bricksofindia.com
       BOI_STAGING: '1'
     steps:
       - uses: actions/checkout@v5
