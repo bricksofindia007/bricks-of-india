@@ -1,10 +1,8 @@
 // Worker entry (order 0520, option C). Wrangler deploys this file. It runs the generated OpenNext worker and puts the edge
 // cache (worker/edge-cache.ts) in front of it, switched on only by the BOI_EDGE_CACHE variable.
-// The Durable Object classes are re-exported because the bindings in wrangler.jsonc still name them.
+// The Durable Object classes are no longer exported here: production has no Durable Object bindings (order 0600 item 3).
 // @ts-ignore: .open-next/worker.js is produced by `opennextjs-cloudflare build` before wrangler runs
 import generated from "../.open-next/worker.js";
-// @ts-ignore: same generated file as above
-export { DOQueueHandler, DOShardedTagCache, BucketCachePurge } from "../.open-next/worker.js";
 import { EDGE_CACHE_VAR, EDGE_TTL_OVERRIDE_VAR, handleWithEdgeCache, type EdgeStore } from "./edge-cache";
 
 type Env = Record<string, string | undefined>;

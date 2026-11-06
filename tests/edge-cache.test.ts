@@ -302,10 +302,19 @@ describe('production is off, and the build flag for the no-storage build exists'
     expect(cfg).toMatch(/process\.env\.BOI_STAGING === "1"/);
     expect(cfg).toMatch(/incrementalCache: r2IncrementalCache/);
   });
-  it('the Worker entry wraps the generated worker and re-exports the Durable Object classes the bindings name', () => {
+  it('the Worker entry wraps the generated worker and no longer exports the Durable Object classes (cleanup, order 0600)', () => {
     const entry = read('worker/entry.ts');
     expect(entry).toMatch(/import generated from "\.\.\/\.open-next\/worker\.js"/);
-    expect(entry).toMatch(/export \{ DOQueueHandler, DOShardedTagCache, BucketCachePurge \}/);
+    expect(entry).not.toMatch(/DOQueueHandler|DOShardedTagCache|BucketCachePurge/);
     expect(entry).toMatch(/env\[EDGE_CACHE_VAR\] === "1"/);
+  });
+  it('both configs have no Durable Object or R2 bindings, and a migration deletes the two classes', () => {
+    for (const f of ['wrangler.jsonc', 'wrangler.staging.jsonc']) {
+      const cfg = read(f);
+      expect(cfg).not.toMatch(/"durable_objects"/);
+      expect(cfg).not.toMatch(/"r2_buckets"/);
+      expect(cfg).toMatch(/"tag": "v2",\s*"deleted_classes": \["DOQueueHandler", "DOShardedTagCache"\]/);
+      expect(cfg).toMatch(/"tag": "v1",\s*"new_sqlite_classes": \["DOQueueHandler", "DOShardedTagCache"\]/);
+    }
   });
 });
