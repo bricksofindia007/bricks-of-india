@@ -2820,11 +2820,13 @@ def main() -> None:
             vid = video_post["id"]
             print(f"\n--- Publishing {vid} (story #{video_post.get('story_number')}, {video_post['set_title']}) ---")
 
-            # P23: the stored price must match the current in-stock price for
-            # this store. A mismatch, an out-of-stock item or no listing holds
-            # the row (publish_blocked + a plain note giving both prices).
-            # Nothing else is changed, and nothing is posted.
-            verdict = price_check.check_row(sb, video_post)
+            # P23 (order 0960): the stored price must match the price at its store
+            # OR the set's MRP. Stock status never blocks a post. The row is held
+            # only when the stored price matches neither, or nothing can be compared
+            # (publish_blocked + a plain note naming the stored, store and MRP
+            # prices). Nothing else is changed, and nothing is posted.
+            mrp = price_check.fetch_mrp(sb, video_post.get("set_number"))
+            verdict = price_check.check_row(sb, video_post, mrp)
             if verdict["decision"] == "block":
                 print(f"PRICE CHECK: {vid} not posted: {verdict['note']}")
                 price_check.hold(sb, video_post, verdict)
