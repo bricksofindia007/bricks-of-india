@@ -124,9 +124,9 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     allSets.push(...data);
     if (data.length < PAGE) break;
   }
-  // E6, behind FEATURE_FLAGS.sitemapPricedOnly (off): when on, only sets with a store price above zero are listed.
+  // E6, behind FEATURE_FLAGS.unpricedSetsHidden (off): when on, only sets with a store price above zero are listed.
   // When off (live behaviour) every set is listed and the prices are not read.
-  const listed = FEATURE_FLAGS.sitemapPricedOnly ? await pricedOnly(supabase, allSets) : allSets;
+  const listed = FEATURE_FLAGS.unpricedSetsHidden ? await pricedOnly(supabase, allSets) : allSets;
   // A1: set numbers containing "-" resolve to their own page again (src/lib/set-slug.ts), so all are listed.
   const setPages = listed.map((s) => ({
     url: `${base}/sets/${s.set_number}-${slugify(s.name)}`,

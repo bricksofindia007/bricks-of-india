@@ -1,4 +1,4 @@
-// Order 0840: the sitemap's priced-set rule sits behind FEATURE_FLAGS.sitemapPricedOnly, which is off. Off = the live
+// Order 0840: the sitemap's priced-set rule sits behind FEATURE_FLAGS.unpricedSetsHidden, which is off. Off = the live
 // sitemap (every set listed, no price read). On = only sets with a store price above zero.
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -38,7 +38,7 @@ async function sitemapWithFlag(flag: boolean) {
   vi.resetModules();
   const { db, calls } = fakeDb();
   vi.doMock('@/lib/supabase', () => ({ createServerClient: () => db }));
-  vi.doMock('@/lib/feature-flags', () => ({ FEATURE_FLAGS: { sitemapPricedOnly: flag, thinThemeNoindex: false } }));
+  vi.doMock('@/lib/feature-flags', () => ({ FEATURE_FLAGS: { unpricedSetsHidden: flag, thinThemeNoindex: false } }));
   const mod = await import('../src/app/sitemap');
   const entries = await mod.default();
   const setUrls = entries.map((e) => e.url).filter((u) => u.includes('/sets/10'));
@@ -76,13 +76,13 @@ describe('sitemap: priced-set rule behind its flag (order 0840)', () => {
 
 describe('the flag is declared off in both flag files, under matching names', () => {
   it('config/feature_flags.py', () => {
-    expect(read('config/feature_flags.py')).toMatch(/"sitemap_priced_only": False,/);
+    expect(read('config/feature_flags.py')).toMatch(/"unpriced_sets_hidden": False,/);
   });
   it('src/lib/feature-flags.ts', () => {
-    expect(read('src/lib/feature-flags.ts')).toMatch(/sitemapPricedOnly: false,/);
+    expect(read('src/lib/feature-flags.ts')).toMatch(/unpricedSetsHidden: false,/);
   });
   it('the sitemap reads the flag and the price read is inside the guard', () => {
     const src = read('src/app/sitemap.ts');
-    expect(src).toMatch(/FEATURE_FLAGS\.sitemapPricedOnly \? await pricedOnly\(supabase, allSets\) : allSets/);
+    expect(src).toMatch(/FEATURE_FLAGS\.unpricedSetsHidden \? await pricedOnly\(supabase, allSets\) : allSets/);
   });
 });

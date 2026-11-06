@@ -152,7 +152,8 @@ FEATURE_FLAGS = {
     # Owner-only daily visit totals (order 0050, issue 822). Off: owner page is 404 and nothing is written.
     # Never shown publicly. Mirrored in src/lib/feature-flags.ts (visitorCounter); keep in sync.
     "visitor_counter": False,
-    # Sitemap lists only sets with a store price (order 0840). Off: every set is listed, as on the live site. Mirrored in
-    # src/lib/feature-flags.ts (sitemapPricedOnly); keep in sync.
-    "sitemap_priced_only": False,
+    # One switch for "unpriced sets hidden from search" (orders 0840, 0870): the sitemap lists only sets with a store price,
+    # and set pages without a price are noindex. Off = the live site. Mirrored in src/lib/feature-flags.ts (unpricedSetsHidden).
+    "unpriced_sets_hidden": False,
+    # The two duplicate-review redirects are switched in config/review-redirect-switch.json (next.config.mjs reads it).
 }
