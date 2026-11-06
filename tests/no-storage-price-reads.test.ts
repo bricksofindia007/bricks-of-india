@@ -56,24 +56,19 @@ describe('the price reads use it', () => {
   it('the sets list store-price read goes through storedCache; the default order skeleton stays cached', () => {
     const list = read('src/app/sets/page.tsx');
     expect(list).toMatch(/const getAllSetsStorePrices = storedCache\(/);
-    expect(list).toMatch(/const getSetsDefaultOrder = unstable_cache\(/);
+    expect(list).toMatch(/const getSetsDefaultOrder = storedCache\(/);
   });
   it('the lab price-drops read goes through storedCache', () => {
     expect(read('src/app/lab/price-drops/page.tsx')).toMatch(/const getPriceDropsData = storedCache\(/);
   });
-  it('the price pages use the price window and render per request on the no-storage build', () => {
+  it('the price pages carry the price window (the per-request rule is in the root layout, order 0710)', () => {
     for (const f of ['src/app/page.tsx', 'src/app/deals/page.tsx', 'src/app/lab/deals/page.tsx', 'src/app/reviews/[slug]/page.tsx']) {
-      const src = read(f);
-      expect(src).toContain('createServerClient({ revalidate: PRICE_READ_REVALIDATE_SECONDS })');
-      expect(src).toContain('renderPerRequestOnNoStorageBuild();');
-    }
-    for (const f of ['src/app/sets/page.tsx', 'src/app/lab/price-drops/page.tsx']) {
-      expect(read(f)).toContain('renderPerRequestOnNoStorageBuild();');
+      expect(read(f), f).toContain('createServerClient({ revalidate: PRICE_READ_REVALIDATE_SECONDS })');
     }
   });
-  it('the shared Supabase fetch wrapper is unchanged (no build-wide no-store)', () => {
+  it('the shared Supabase fetch wrapper keeps the production window; no-store only on the flag (order 0710)', () => {
     const sb = read('src/lib/supabase.ts');
-    expect(sb).toContain('fetch(input, { ...init, next: { revalidate: seconds } } as RequestInit)');
-    expect(sb).not.toMatch(/no-store/);
+    expect(sb).toContain('const window = NO_STORAGE_BUILD ? 0 : seconds;');
+    expect(sb).toContain('next: { revalidate: window }');
   });
 });

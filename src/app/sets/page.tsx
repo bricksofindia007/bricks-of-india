@@ -1,10 +1,8 @@
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
-import { renderPerRequestOnNoStorageBuild } from '@/lib/no-storage-render';
 import { PRICE_READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import Link from 'next/link';
 import Image from 'next/image';
-import { unstable_cache } from 'next/cache';
 import { storedCache } from '@/lib/no-storage-render';
 import { createServerClient } from '@/lib/supabase';
 import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
@@ -38,7 +36,7 @@ const SORT_ALIASES: Record<string, SortKey> = { 'price-asc': 'price_asc', 'price
 
 // The default order's skeleton: every set's number, year and theme, newest first. Read in pages of 1,000 and cached
 // hourly (the same clock as the price read), so a page view does not scan the table.
-const getSetsDefaultOrder = unstable_cache(
+const getSetsDefaultOrder = storedCache(
   async () => {
     const supabase = createServerClient();
     const rows: { set_number: string; year: number | null; theme: string | null }[] = [];
@@ -121,7 +119,6 @@ const getAllSetsStorePrices = storedCache(
 );
 
 export default async function SetsPage(props: Props) {
-  renderPerRequestOnNoStorageBuild(); // order 0620: no-storage build renders per request
   const searchParams = await props.searchParams;
   const supabase    = createServerClient();
   const pageNum     = Math.max(1, parseInt(searchParams.page || '1') || 1);

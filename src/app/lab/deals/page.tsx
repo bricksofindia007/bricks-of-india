@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
-import { renderPerRequestOnNoStorageBuild } from '@/lib/no-storage-render';
 import { PRICE_READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
@@ -40,7 +39,6 @@ interface DealRow {
 }
 
 export default async function DealsPage() {
-  renderPerRequestOnNoStorageBuild(); // order 0620: no-storage build renders per request
   // FP5.1: store names come from the retailer registry (src/lib/stores.ts).
   const STORE_LABELS = storeLabels(await getStores());
   const supabase = createServerClient({ revalidate: PRICE_READ_REVALIDATE_SECONDS });

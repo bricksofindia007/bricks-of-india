@@ -28,3 +28,11 @@ export function storedCache<A extends unknown[], R>(
   if (NO_STORAGE_BUILD) return fn;
   return unstable_cache(fn, keyParts, options);
 }
+
+/**
+ * Order 0710: generateStaticParams for a route. On the no-storage build it returns one probe param and nothing else, so no
+ * page is prerendered (build-time data is never served) and the build marks the route dynamic. Elsewhere: the real list.
+ */
+export function staticParamsForBuild<T>(real: T[], probe: T): T[] {
+  return NO_STORAGE_BUILD ? [probe] : real;
+}

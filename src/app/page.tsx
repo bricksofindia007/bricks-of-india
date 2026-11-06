@@ -1,6 +1,5 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import { renderPerRequestOnNoStorageBuild } from '@/lib/no-storage-render';
 import { PRICE_READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
@@ -137,7 +136,6 @@ async function getHomepageData() {
 }
 
 export default async function HomePage() {
-  renderPerRequestOnNoStorageBuild(); // order 0620: no-storage build renders per request
   const { sets, dealSummaries, reviews, news, guides, featuredVideos, setsCount, newsCount, reviewsCount, dealCount, cmfCount } = await getHomepageData();
 
   return (

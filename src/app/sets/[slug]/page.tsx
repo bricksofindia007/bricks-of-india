@@ -1,3 +1,4 @@
+import { staticParamsForBuild } from '@/lib/no-storage-render';
 import Image from 'next/image';
 import Link from 'next/link';
 import { TrackedLink } from '@/components/analytics/TrackedLink';
@@ -41,7 +42,7 @@ export const revalidate = 1209600;
 // Tagged set:<n> for FP1.6's revalidateTag.
 
 export async function generateStaticParams() {
-  return [];
+  return staticParamsForBuild<{ slug: string }>([], { slug: 'no-storage-build-probe' });
 }
 
 interface Props {

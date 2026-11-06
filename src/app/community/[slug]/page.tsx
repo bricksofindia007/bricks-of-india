@@ -1,3 +1,4 @@
+import { staticParamsForBuild } from '@/lib/no-storage-render';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
@@ -23,7 +24,7 @@ export const revalidate = 86400;
 // correctness/consistency fix more than an active cost saver right now —
 // but it closes the gap before the section gets seeded.
 export async function generateStaticParams() {
-  return [];
+  return staticParamsForBuild<{ slug: string }>([], { slug: 'no-storage-build-probe' });
 }
 
 interface Props { params: Promise<{ slug: string }> }

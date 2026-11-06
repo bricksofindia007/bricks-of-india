@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import { READ_REVALIDATE_SECONDS } from './price-freshness';
+import { READ_REVALIDATE_SECONDS, NO_STORAGE_BUILD } from './price-freshness';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? '';
@@ -12,8 +12,10 @@ if (!supabaseUrl || !supabaseAnonKey) {
 
 // Only initialise the anon client if the URL is present.
 // createClient('', ...) throws synchronously and crashes the module.
+// Order 0710: on the no-storage build the plain client also goes through the no-store wrapper. A default fetch would take
+// the route segment's revalidate (86400) and be held in the Data Cache. Production: unchanged (default fetch).
 export const supabase = supabaseUrl
-  ? createClient(supabaseUrl, supabaseAnonKey)
+  ? createClient(supabaseUrl, supabaseAnonKey, NO_STORAGE_BUILD ? { global: { fetch: revalidatingFetch(0) } } : undefined)
   : (null as any);
 
 // Per-read Data Cache lifetime for ISR routes (PR-A, 2026-09-26). Replaces
@@ -22,8 +24,10 @@ export const supabase = supabaseUrl
 // hourly ISR regeneration re-rendered the page from week-old prices. With an
 // explicit revalidate the read is still cached (route stays ISR, #105) but
 // expires on the same hourly clock as the page.
+// Order 0710: on the no-storage build every database read is no-store (window 0); the edge copy is the only cache there.
 function revalidatingFetch(seconds: number): typeof fetch {
-  return (input, init) => fetch(input, { ...init, next: { revalidate: seconds } } as RequestInit);
+  const window = NO_STORAGE_BUILD ? 0 : seconds;
+  return (input, init) => fetch(input, { ...init, next: { revalidate: window } } as RequestInit);
 }
 
 /** Anon client for ISR routes: every read expires after READ_REVALIDATE_SECONDS. */
@@ -41,8 +45,8 @@ export function createServerClient(opts?: { revalidate?: number }) {
   if (!serviceKey) {
     throw new Error('SUPABASE_SERVICE_ROLE_KEY required for server client — refusing to fall back to anon key');
   }
-  return opts?.revalidate != null
-    ? createClient(supabaseUrl, serviceKey, { global: { fetch: revalidatingFetch(opts.revalidate) } })
+  return opts?.revalidate != null || NO_STORAGE_BUILD
+    ? createClient(supabaseUrl, serviceKey, { global: { fetch: revalidatingFetch(opts?.revalidate ?? 0) } })
     : createClient(supabaseUrl, serviceKey);
 }
 
@@ -53,8 +57,8 @@ export function createServerClient(opts?: { revalidate?: number }) {
 export function createPublicClient(opts?: { revalidate?: number }) {
   if (!supabaseUrl) throw new Error('NEXT_PUBLIC_SUPABASE_URL is not set — check Netlify environment variables');
   if (!supabaseAnonKey) throw new Error('NEXT_PUBLIC_SUPABASE_ANON_KEY is not set — refusing to use any other key');
-  return opts?.revalidate != null
-    ? createClient(supabaseUrl, supabaseAnonKey, { global: { fetch: revalidatingFetch(opts.revalidate) } })
+  return opts?.revalidate != null || NO_STORAGE_BUILD
+    ? createClient(supabaseUrl, supabaseAnonKey, { global: { fetch: revalidatingFetch(opts?.revalidate ?? 0) } })
     : createClient(supabaseUrl, supabaseAnonKey);
 }
 

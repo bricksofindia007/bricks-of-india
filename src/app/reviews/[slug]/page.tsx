@@ -1,6 +1,6 @@
+import { staticParamsForBuild } from '@/lib/no-storage-render';
 import Image from 'next/image';
 import Link from 'next/link';
-import { renderPerRequestOnNoStorageBuild } from '@/lib/no-storage-render';
 import { PRICE_READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { AFFILIATE_NOTE } from '@/lib/affiliate-disclosure';
 import type { Metadata } from 'next';
@@ -38,7 +38,7 @@ export const revalidate = 86400;
 // reviews rows, no per-review traffic-ranking data to justify a bounded
 // static list (same reasoning as /sets/[slug]).
 export async function generateStaticParams() {
-  return [];
+  return staticParamsForBuild<{ slug: string }>([], { slug: 'no-storage-build-probe' });
 }
 
 interface Props { params: Promise<{ slug: string }> }
@@ -87,7 +87,6 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 }
 
 export default async function ReviewPage(props: Props) {
-  renderPerRequestOnNoStorageBuild(); // order 0620: no-storage build renders per request
   const stores = await getStores();
   const TRACKED_STORES = stores.map((st) => ({ id: st.id, name: st.name }));
   const STORE_NAMES = storeLabels(stores);
