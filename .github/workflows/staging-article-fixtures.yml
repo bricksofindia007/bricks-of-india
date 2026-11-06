@@ -1,14 +1,14 @@
 name: Staging article fixtures (staging only, manual)
 
-# Adds fixture copies of three articles, one review and two sets (854338, 854335) on STAGING only, so the article and review data fixes can be
-# rehearsed. Never production. Existing rows are never changed.
+# Adds fixture articles (new ones each run, run time in the title), one review (skipped if present) and one fixture set (900902) on STAGING only.
+# Never production. Existing rows are never changed.
 # Credential: environment secret STAGING_DB_URL in the staging-seed environment, which requires the owner's approval.
 # The job refuses any address that contains the production project reference, and prints counts only.
 on:
   workflow_dispatch:
     inputs:
       price_inr:
-        description: 'Optional, staging only: price in rupees (digits) for fixture set 854335 at one store. Empty = no price step.'
+        description: 'Optional, staging only: price in rupees (digits) for fixture set 900902 at one store. Empty = no price step.'
         required: false
         default: ''
         type: string
