@@ -19,6 +19,7 @@ import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/B
 import { priceLabel, normalise, type SetPriceSummary } from '@/lib/price-summary';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import { setRobotsNoindex } from '@/lib/indexing-price';
 import { HeartSlot, CollectionSlot } from '@/components/saved/CollectionSlots';
 import { SetCard } from '@/components/sets/SetCard';
 import { SetImage } from '@/components/sets/SetImage';
@@ -176,7 +177,7 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     // maintained and would silently get recomputed away from a manual
     // 'tier3' override on the next Rebrickable metadata resync -- see the
     // migration's own comment). Same follow:true treatment as tier3.
-    ...((set.index_tier === 'tier3' || set.noindex_override || !priced) && { robots: { index: false, follow: true } }),
+    ...(setRobotsNoindex(set, priced, FEATURE_FLAGS.unpricedSetsHidden) && { robots: { index: false, follow: true } }),
   };
 }
 

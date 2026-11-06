@@ -1,4 +1,10 @@
+import fs from 'node:fs';
+
 /** @type {import('next').NextConfig} */
+// Switch for the two duplicate-review redirects (order 0870). Off until the owner signs them off (G16). Read here because
+// this file cannot import the TypeScript flags.
+const REVIEW_DUPLICATE_REDIRECTS =
+  JSON.parse(fs.readFileSync(new URL('./config/review-redirect-switch.json', import.meta.url), 'utf8')).review_duplicate_redirects === true;
 // 2026-08-23: no-op comment, diagnostic commit testing whether Netlify's
 // native git integration deploys independently of deploy.yml's netlify-cli
 // step.
@@ -33,6 +39,7 @@ const nextConfig = {
       },
       // 24 Oct 2026: a duplicate review of the same set. The page with the stronger content is the one kept (owner's
       // provisional choice). Shipped only after the impressions check (owner).
+      ...(REVIEW_DUPLICATE_REDIRECTS ? [
       {
         source: '/reviews/lego-sagrada-famlia-21065-worth-76400-2',
         destination: '/reviews/lego-sagrada-famlia-21065-worth-76400',
@@ -43,6 +50,7 @@ const nextConfig = {
         destination: '/reviews/lego-ideas-21373-downton-abbey-worth-33600',
         permanent: true,
       },
+      ] : []),
       // 24 Oct 2026: /themes/series-16-minifigures is a collectible minifig series, so it goes to Minifig HQ.
       {
         source: '/themes/series-16-minifigures',

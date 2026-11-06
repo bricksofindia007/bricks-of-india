@@ -143,4 +143,7 @@ export const FEATURE_FLAGS = {
   // Owner-only daily visit totals (order 0050, issue 822). Off: the owner page is a 404 and nothing is written.
   // Never shown publicly. Mirrored in config/feature_flags.py (visitor_counter); keep in sync.
   visitorCounter: false,
+  // One switch for "unpriced sets hidden from search" (orders 0840, 0870): the sitemap lists only sets with a store price,
+  // and set pages without a price are noindex. Off = the live site. Mirrored in config/feature_flags.py (unpriced_sets_hidden).
+  unpricedSetsHidden: false,
 } as const;
