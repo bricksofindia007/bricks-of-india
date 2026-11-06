@@ -35,3 +35,21 @@ describe('robots on the production build', () => {
     expect(read('.github/workflows/deploy-cloudflare.yml')).not.toMatch(/robots-staging\.txt/);
   });
 });
+
+// Order 0850: the workflow must parse as YAML. An unquoted colon-space inside a step name broke the whole file once.
+import { parse as parseYaml } from 'yaml';
+
+describe('workflow files parse as YAML', () => {
+  it('deploy-cloudflare-staging.yml parses, and the robots step is a named step with a run', () => {
+    const wf = parseYaml(read('.github/workflows/deploy-cloudflare-staging.yml'));
+    const steps: { name?: string; run?: string }[] = wf.jobs['deploy-staging'].steps;
+    const robots = steps.find((s) => s.run === 'cp scripts/ci/robots-staging.txt public/robots.txt');
+    expect(robots, 'robots step').toBeDefined();
+    expect(robots!.name).toBe('Staging robots, keep crawlers out (staging build only)');
+  });
+  it('deploy-cloudflare.yml (production) parses and has no robots copy', () => {
+    const wf = parseYaml(read('.github/workflows/deploy-cloudflare.yml'));
+    expect(wf.jobs).toBeDefined();
+    expect(JSON.stringify(wf)).not.toMatch(/robots-staging/);
+  });
+});

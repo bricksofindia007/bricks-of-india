@@ -45,7 +45,7 @@ jobs:
         run: |
           if printf '%s' "$STAGING_SUPABASE_URL" | grep -q 'hqpaiarhmiocmjrzjhtw'; then echo "staging URL is the production project; stopped"; exit 1; fi
           node -e 'const k=process.env.STAGING_SUPABASE_SERVICE_ROLE_KEY||""; let r=""; try { r=JSON.parse(Buffer.from(k.split(".")[1]||"","base64url").toString()).ref||""; } catch (e) {} if (r==="hqpaiarhmiocmjrzjhtw") { console.log("service key is for the production project; stopped"); process.exit(1); } if (!r) { console.log("service key has no project ref; stopped"); process.exit(1); } console.log("staging project checks passed (values not printed)");'
-      - name: Staging robots: keep crawlers out (staging build only)
+      - name: Staging robots, keep crawlers out (staging build only)
         # Order 0830: staging's robots.txt tells every crawler to stay out. Production's public/robots.txt is not touched.
         run: cp scripts/ci/robots-staging.txt public/robots.txt
       - name: Next.js build (public values only; staging service key for the sitemap prerender)
