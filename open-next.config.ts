@@ -32,13 +32,24 @@ import { purgeCache } from "@opennextjs/cloudflare/overrides/cache-purge/index";
 //     high enough to hit Cache-API rate limits, which doesn't apply here
 //     (see wrangler.jsonc's matching comment for why NEXT_CACHE_DO_PURGE/
 //     BucketCachePurge was deliberately not added).
-export default defineCloudflareConfig({
-  incrementalCache: r2IncrementalCache,
-  queue: doQueue,
-  tagCache: doShardedTagCache({ baseShardSize: 12 }),
-  cachePurge: purgeCache({ type: "direct" }),
-  // Serve cached pages straight from the cache with the refresh time stored alongside each
-  // page (3 Oct 2026). Without this, pages made on demand were marked stale almost at once
-  // and rebuilt on nearly every visit.
-  enableCacheInterception: true,
-});
+// The staging build (BOI_STAGING=1, set only in deploy-cloudflare-staging.yml) keeps no page
+// cache, queue, tag cache or purge storage. Staging pages render when someone visits them.
+// Omitted overrides take OpenNext's "dummy" defaults, so nothing is written to R2 or the
+// Durable Objects. Production is unchanged.
+const STAGING = process.env.BOI_STAGING === "1";
+
+export default STAGING
+  ? defineCloudflareConfig({
+      // Same cache-interception setting as production: it only matters when a cache exists.
+      enableCacheInterception: false,
+    })
+  : defineCloudflareConfig({
+      incrementalCache: r2IncrementalCache,
+      queue: doQueue,
+      tagCache: doShardedTagCache({ baseShardSize: 12 }),
+      cachePurge: purgeCache({ type: "direct" }),
+      // Serve cached pages straight from the cache with the refresh time stored alongside each
+      // page (3 Oct 2026). Without this, pages made on demand were marked stale almost at once
+      // and rebuilt on nearly every visit.
+      enableCacheInterception: true,
+    });
