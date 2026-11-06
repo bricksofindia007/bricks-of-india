@@ -143,4 +143,7 @@ export const FEATURE_FLAGS = {
   // Owner-only daily visit totals (order 0050, issue 822). Off: the owner page is a 404 and nothing is written.
   // Never shown publicly. Mirrored in config/feature_flags.py (visitor_counter); keep in sync.
   visitorCounter: false,
+  // Sitemap lists only sets with a store price (order 0840). Off: every set is listed, as on the live site.
+  // Mirrored in config/feature_flags.py (sitemap_priced_only); keep in sync.
+  sitemapPricedOnly: false,
 } as const;
