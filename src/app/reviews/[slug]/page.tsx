@@ -1,5 +1,7 @@
+import { staticParamsForBuild } from '@/lib/no-storage-render';
 import Image from 'next/image';
 import Link from 'next/link';
+import { PRICE_READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { AFFILIATE_NOTE } from '@/lib/affiliate-disclosure';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
@@ -36,7 +38,7 @@ export const revalidate = 86400;
 // reviews rows, no per-review traffic-ranking data to justify a bounded
 // static list (same reasoning as /sets/[slug]).
 export async function generateStaticParams() {
-  return [];
+  return staticParamsForBuild<{ slug: string }>([], { slug: 'no-storage-build-probe' });
 }
 
 interface Props { params: Promise<{ slug: string }> }
@@ -108,8 +110,8 @@ export default async function ReviewPage(props: Props) {
   let recentStockEventsAt: string[] = [];
   let priceSummary: ReviewDealSummary | null = null;
   if (set?.set_number) {
-    // Public key only: prices come through the price functions (migration 20261017200000).
-    const publicClient = createPublicClient({ revalidate: READ_REVALIDATE_SECONDS });
+    // Public key only: prices come through the price functions (migration 20261017200000). Price window: cost fix (order 0810).
+    const publicClient = createPublicClient({ revalidate: PRICE_READ_REVALIDATE_SECONDS });
     const since = new Date(Date.now() - RETIRED_IN_INDIA_DAYS * 864e5).toISOString();
     const [{ data: storePrices }, { data: historyRows }, summaries] = await Promise.all([
       publicClient.rpc('get_set_prices', { p_set_number: set.set_number }),

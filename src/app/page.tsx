@@ -1,5 +1,6 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { PRICE_READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { SearchBar } from '@/components/ui/SearchBar';
@@ -33,7 +34,7 @@ export const metadata: Metadata = buildMetadata({
 });
 
 async function getHomepageData() {
-  const svc = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
+  const svc = createServerClient({ revalidate: PRICE_READ_REVALIDATE_SECONDS });
 
   // PR-B: "LATEST DEALS" shows real deals -- the 8 biggest discounts from
   // public.set_price_summary (locked rules R2/R3), not merely in-stock sets.

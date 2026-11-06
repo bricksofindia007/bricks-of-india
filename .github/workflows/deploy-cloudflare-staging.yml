@@ -25,6 +25,11 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_PUBLISHABLE_KEY }}
+      # The staging build names its own address (sitemap, canonical links) and is kept out of search (BOI_STAGING).
+      NEXT_PUBLIC_SITE_URL: https://staging-edge.bricksofindia.com
+      BOI_STAGING: '1'
+      # Build-time flag read by the app code (order 0620): inlined by Next, so the staging build renders the no-storage price path.
+      NEXT_PUBLIC_BOI_NO_STORAGE: '1'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v6

@@ -1,8 +1,9 @@
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
+import { PRICE_READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import Link from 'next/link';
 import Image from 'next/image';
-import { unstable_cache } from 'next/cache';
+import { storedCache } from '@/lib/no-storage-render';
 import { createServerClient } from '@/lib/supabase';
 import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { SetCard } from '@/components/sets/SetCard';
@@ -29,6 +30,29 @@ const SORT_OPTIONS: { value: SortKey; label: string }[] = [
   { value: 'price_desc', label: 'Price: High → Low' },
   { value: 'pieces',     label: 'Most Pieces' },
 ];
+
+const SORT_ALIASES: Record<string, SortKey> = { 'price-asc': 'price_asc', 'price-desc': 'price_desc' };
+
+// The default order's skeleton: every set's number, year and theme, newest first. Read in pages of 1,000 and cached
+// hourly (the same clock as the price read), so a page view does not scan the table.
+const getSetsDefaultOrder = storedCache(
+  async () => {
+    const supabase = createServerClient();
+    const rows: { set_number: string; year: number | null; theme: string | null }[] = [];
+    for (let offset = 0; ; offset += 1000) {
+      const { data } = await supabase
+        .from('sets').select('set_number, year, theme')
+        .order('year', { ascending: false }).order('set_number', { ascending: false })
+        .range(offset, offset + 999);
+      if (!data || data.length === 0) break;
+      rows.push(...(data as typeof rows));
+      if (data.length < 1000) break;
+    }
+    return rows;
+  },
+  ['sets-default-order'],
+  { revalidate: READ_REVALIDATE_SECONDS },
+);
 
 const PRICE_BANDS = SETS_PRICE_BANDS; // #381: defined in src/lib/price-bands.ts (label/bound test)
 
@@ -74,7 +98,7 @@ type PriceRow = {
   set_id: string; price_inr: number;
   in_stock: boolean; store_id: string; product_url: string | null; scraped_at: string;
 };
-const getAllSetsStorePrices = unstable_cache(
+const getAllSetsStorePrices = storedCache(
   async (): Promise<PriceRow[]> => {
     const supabase = createServerClient();
     const allPrices: PriceRow[] = [];
@@ -90,7 +114,7 @@ const getAllSetsStorePrices = unstable_cache(
     return allPrices;
   },
   ['sets-page-all-store-prices'],
-  { revalidate: READ_REVALIDATE_SECONDS }, // PR-A: hourly, same clock as every other price read (was 6h, which stacked on the 6h scrape gap)
+  { revalidate: READ_REVALIDATE_SECONDS }, // Same clock as every other price read: 24 h on the current build, 1 h on the no-storage build (order 0620)
 );
 
 export default async function SetsPage(props: Props) {
