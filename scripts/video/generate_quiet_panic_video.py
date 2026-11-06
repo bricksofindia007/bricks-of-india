@@ -1232,6 +1232,10 @@ def _set_pieces(set_number: str):
         return None
 
 
+class DurationGateStop(RuntimeError):
+    """Raised before any image, audio or video work when the length gate fails (order 0760): the run stops here."""
+
+
 def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_image_url: str, segments: list) -> dict:
     """The actual render pipeline (TTS -> gates -> images -> audio mix ->
     video assembly -> Storage upload), factored out of process_candidate()
@@ -1300,6 +1304,10 @@ def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_i
                                         'pieces': _set_pieces(set_number)})
     for name, result in gate_results.items():
         print(f'  GATE {name}: {"PASS" if result["pass"] else "FAIL"} -- {result["detail"]}')
+    # Order 0760: a length outside the window stops the run before any image, audio or video work (the gate still
+    # counts; its window is unchanged). Other gates keep the render-and-block behaviour below.
+    if not gate_results['duration']['pass']:
+        raise DurationGateStop(f"duration gate failed, not rendering: {gate_results['duration']['detail']}")
     all_passed = all(r['pass'] for r in gate_results.values())
     # #365: failed ONLY because the coherence judge couldn't give a verdict
     # (fail-closed). Not a rejection: the render is still uploaded so a
