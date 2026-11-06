@@ -1,0 +1,48 @@
+name: Store price age (daily, read-only)
+
+# Order 0560, permanent fix 3b. Separate from the scrape: reads the newest price per store and
+# fails when one is older than the limit in scripts/store-age-check.mjs. The failure mail comes
+# from the existing workflow-failure-notify step. Read-only; uses the public anon key (no new key).
+on:
+  schedule:
+    - cron: '40 3 * * *'   # daily 03:40 UTC, after the scrape window
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: store-age-daily
+  cancel-in-progress: false
+
+jobs:
+  age:
+    name: Check price age per store
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '22'
+
+      - name: Newest price per store must be under 36 hours old
+        id: age
+        run: node scripts/store-age-check.mjs
+
+      - name: Send failure alert
+        if: steps.age.outcome == 'failure'
+        continue-on-error: true
+        env:
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          BRIEF_EMAIL:    ${{ secrets.BRIEF_EMAIL }}
+          WORKFLOW_NAME:  store-age-daily
+          STEP_OUTCOMES:  '{"Newest price per store must be under 36 hours old": "${{ steps.age.outcome }}"}'
+          EXTRA_DETAIL:   'A store has had no new price for more than 36 hours. Check the scrape runs for that store and the store site.'
+        run: node scripts/workflow-failure-notify.mjs
