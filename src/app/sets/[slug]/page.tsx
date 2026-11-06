@@ -18,7 +18,6 @@ import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/B
 import { priceLabel, normalise, type SetPriceSummary } from '@/lib/price-summary';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
-import { renderPerRequestOnNoStorageBuild } from '@/lib/no-storage-render';
 import { HeartSlot, CollectionSlot } from '@/components/saved/CollectionSlots';
 import { SetCard } from '@/components/sets/SetCard';
 import { SetImage } from '@/components/sets/SetImage';
@@ -147,7 +146,6 @@ const getSetPageData = cache(async (slug: string): Promise<SetPageData | null> =
 });
 
 export async function generateMetadata(props: Props): Promise<Metadata> {
-  renderPerRequestOnNoStorageBuild(); // order 0620
   const params = await props.params;
   const pageData = await getSetPageData(params.slug);
   const set = pageData?.set;
@@ -182,7 +180,9 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
 }
 
 export default async function SetPage(props: Props) {
-  renderPerRequestOnNoStorageBuild(); // order 0620: no-storage build renders per request (edge copy only)
+  // Order 0650 item 3: no unstable_noStore here. This route is ISR (revalidate 1209600, no static params), and noStore
+  // throws DYNAMIC_SERVER_USAGE in that render (500 on the no-storage build). The price reads are not cached on that
+  // build (storedCache), and the dummy incremental cache keeps nothing, so each miss reads the source again.
   const params = await props.params;
   const pageData = await getSetPageData(params.slug);
   if (!pageData?.set) notFound();

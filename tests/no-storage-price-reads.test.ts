@@ -46,12 +46,12 @@ describe('storedCache', () => {
 });
 
 describe('the price reads use it', () => {
-  it('the set page price reads go through storedCache, and the page calls the per-request render on the no-storage build', () => {
+  it('the set page price reads go through storedCache, and the page does not call unstable_noStore (ISR route: it throws there)', () => {
     const page = read('src/app/sets/[slug]/page.tsx');
     expect(page).toMatch(/storedCache\(async \(\) => \{/);
     expect(page.split('storedCache(async () => {').length - 1).toBe(3);
     expect(page).not.toMatch(/unstable_cache\(async/);
-    expect(page).toMatch(/renderPerRequestOnNoStorageBuild\(\);/);
+    expect(page).not.toMatch(/renderPerRequestOnNoStorageBuild/);
   });
   it('the sets list store-price read goes through storedCache; the default order skeleton stays cached', () => {
     const list = read('src/app/sets/page.tsx');
