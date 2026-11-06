@@ -1,3 +1,4 @@
+import { staticParamsForBuild } from '@/lib/no-storage-render';
 import type { Metadata } from 'next';
 import { notFound, permanentRedirect } from 'next/navigation';
 import { loadThemeView } from '@/lib/theme-page-data';
@@ -14,7 +15,7 @@ interface Props {
 }
 
 export async function generateStaticParams() {
-  return [];
+  return staticParamsForBuild<{ theme: string; page: string }>([], { theme: 'no-storage-build-probe', page: '1' });
 }
 
 /** Only plain positive whole numbers are pages. Anything else is not a page. */

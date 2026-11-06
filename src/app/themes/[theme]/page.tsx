@@ -1,3 +1,4 @@
+import { staticParamsForBuild } from '@/lib/no-storage-render';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { THEMES } from '@/lib/brand';
@@ -14,7 +15,7 @@ interface Props {
 }
 
 export async function generateStaticParams() {
-  return THEMES.map((t) => ({ theme: t.slug }));
+  return staticParamsForBuild<{ theme: string }>(THEMES.map((t) => ({ theme: t.slug })), { theme: 'no-storage-build-probe' });
 }
 
 export async function generateMetadata(props: Props): Promise<Metadata> {

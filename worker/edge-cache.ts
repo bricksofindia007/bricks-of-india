@@ -75,6 +75,33 @@ export function canonicalCacheUrl(input: string): string {
   return out.toString();
 }
 
+/**
+ * The /sets list (order 0620 item 2): stored for anonymous visitors only when every query key and value is one the page
+ * accepts (src/app/sets/page.tsx). Anything else bypasses, as before. Values that are not in the list below are bypassed,
+ * never guessed. Theme names are matched by slug format here; a theme name with spaces is bypassed (safe, not cached).
+ */
+export const SETS_LIST_PARAMS: Record<string, (value: string) => boolean> = {
+  page: (v) => /^[1-9]\d*$/.test(v) && Number(v) <= SETS_LIST_MAX_CACHED_PAGE,
+  theme: (v) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v),
+  sort: (v) => ['newest', 'price_asc', 'price_desc', 'pieces', 'price-asc', 'price-desc'].includes(v),
+  instock: (v) => v === '1',
+  price: (v) => ['under2k', '2k5k', '5k10k', '10k'].includes(v),
+};
+/** Highest page number stored for the list (48 sets a page). Pages above it bypass. */
+export const SETS_LIST_MAX_CACHED_PAGE = 50;
+
+/** True when the /sets list query is one the page accepts: each key is known, appears once, and has an accepted value. */
+export function setsListQueryAllowed(search: URLSearchParams): boolean {
+  const seen = new Set<string>();
+  for (const [key, value] of search.entries()) {
+    if (TRACKING_PARAM.test(key)) continue;
+    const check = SETS_LIST_PARAMS[key];
+    if (!check || seen.has(key) || !check(value)) return false;
+    seen.add(key);
+  }
+  return true;
+}
+
 /** Why this request must not use the cache, or null when it may. */
 export function bypassReason(method: string, pathname: string, headers: Headers): string | null {
   if (method !== 'GET') return 'method';
@@ -87,7 +114,7 @@ export function bypassReason(method: string, pathname: string, headers: Headers)
 
 /** Why this response must not be stored, or null when it may. Only a 200 page with no cookie, not private, that is HTML
  *  (or the sitemap or robots file), and whose Vary holds only the tokens above. */
-export function storeRefusal(pathname: string, status: number, headers: Headers): string | null {
+export function storeRefusal(pathname: string, status: number, headers: Headers, ignoreOriginNoStore = false): string | null {
   if (status !== 200) return 'status';
   if (headers.has('set-cookie')) return 'set-cookie';
   const type = (headers.get('content-type') ?? '').toLowerCase();
@@ -95,7 +122,10 @@ export function storeRefusal(pathname: string, status: number, headers: Headers)
   const typeOk = type.startsWith('text/html') || allowedNonHtml.some((t) => type.startsWith(t));
   if (!typeOk) return 'not-html';
   const cacheControl = (headers.get('cache-control') ?? '').toLowerCase();
-  if (cacheControl.includes('private') || cacheControl.includes('no-store')) return 'private';
+  // The /sets list is rendered per request on the no-storage build (its origin headers say private, no-store from
+  // unstable_noStore). Its output does not depend on the visitor: signed-in requests bypass and set-cookie refuses.
+  // So for an allowlisted list request those origin headers are ignored (order 0620 item 2).
+  if (!ignoreOriginNoStore && (cacheControl.includes('private') || cacheControl.includes('no-store'))) return 'private';
   const vary = (headers.get('vary') ?? '').split(',').map((v) => v.trim().toLowerCase()).filter(Boolean);
   if (vary.some((v) => v === '*' || !ALLOWED_VARY_TOKENS.has(v))) return 'vary';
   return null;
@@ -108,7 +138,14 @@ export type EdgeStore = {
 
 export type Origin = (request: Request) => Promise<Response>;
 
-export type EdgeOptions = { enabled: boolean; ttlOverride?: number };
+/**
+ * Worker variable (order 0720). Set only by the no-storage configs (wrangler.staging.jsonc now; wrangler.jsonc at cutover).
+ * On those builds every route renders per request, so the origin answers private, no-store on pages that are the same for
+ * every visitor. When "1", such an HTML 200 page is stored anyway. Every other refusal still applies.
+ */
+export const EDGE_IGNORE_ORIGIN_NO_STORE_VAR = 'BOI_EDGE_IGNORE_ORIGIN_NO_STORE';
+
+export type EdgeOptions = { enabled: boolean; ttlOverride?: number; ignoreOriginNoStore?: boolean };
 
 function withHeader(response: Response, name: string, value: string): Response {
   const copy = new Response(response.body, response);
@@ -147,6 +184,10 @@ export async function handleWithEdgeCache(
   if (!options.enabled) return origin(request);
   const url = new URL(request.url);
   const pathname = url.pathname;
+  const isSetsList = pathname === '/sets';
+  if (isSetsList && !setsListQueryAllowed(url.searchParams)) {
+    return withHeader(await origin(request), 'x-boi-edge-cache', 'bypass');
+  }
   if (bypassReason(request.method, pathname, request.headers)) {
     return withHeader(await origin(request), 'x-boi-edge-cache', 'bypass');
   }
@@ -155,7 +196,7 @@ export async function handleWithEdgeCache(
   const hit = await store.match(key);
   if (hit) return visitorCopy(hit, pathname, 'hit');
   const response = await origin(request);
-  if (storeRefusal(pathname, response.status, response.headers)) {
+  if (storeRefusal(pathname, response.status, response.headers, isSetsList || options.ignoreOriginNoStore === true)) {
     return withHeader(response, 'x-boi-edge-cache', 'bypass');
   }
   waitUntil(store.put(key, storedCopy(response.clone(), ttl)));
