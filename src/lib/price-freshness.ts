@@ -13,28 +13,44 @@ export const SCRAPE_INTERVAL_HOURS = 24;
 export const PRICE_STALE_HOURS = SCRAPE_INTERVAL_HOURS + 2; // one interval plus a margin; the health check uses the same window
 
 /**
- * Data-cache lifetime for every Supabase read on an ISR route (per-read
- * `next.revalidate`, see src/lib/supabase.ts). Route-segment `revalidate`
- * exports must be literals, so those say 3600 and point here.
+ * The no-storage build (staging, and production after cutover) sets BOI_STAGING=1 or BOI_PRODUCTION_NO_STORAGE=1 at build
+ * time. Only that build changes the windows below (order 0620). The current production build keeps its values.
  */
-export const READ_REVALIDATE_SECONDS = 86400;
+// Must be a literal process.env.NEXT_PUBLIC_* expression: Next replaces it at build time. A plain BOI_* variable is read at
+// run time from the Worker's own variables, where the build flag is absent (measured locally, order 0620, t2-r59).
+// Set NEXT_PUBLIC_BOI_NO_STORAGE=1 in the no-storage build (staging, and production at cutover) with BOI_STAGING / BOI_PRODUCTION_NO_STORAGE.
+export const NO_STORAGE_BUILD = process.env.NEXT_PUBLIC_BOI_NO_STORAGE === '1';
 
 /**
- * Set pages only (/sets/[slug]): refreshed at most once per interval, the same
- * as the scrape interval above. Many set URLs are crawlable and each read is
- * billed, so a set page never refreshes more often than its data changes.
- * "Updated X ago" is computed from scraped_at in the browser, so a cached page
- * never claims to be fresher than its data.
+ * The longest a price may sit in memory on the no-storage build. Worst case for a shown price: 1 h edge copy + 1 h in memory
+ * + 24 h scrape = 26 h, under the 48 h limit (order 0620, Chat decision).
  */
-export const SET_PAGE_REVALIDATE_SECONDS = 86400;
+// A local proof build may set NEXT_PUBLIC_BOI_PRICE_MEMORY_OVERRIDE_SECONDS (build time) to watch the expiry in minutes.
+// Production builds never set it, so the value there is one hour (tests/price-memory-windows.test.ts pins that default).
+const OVERRIDE_SECONDS = Number(process.env.NEXT_PUBLIC_BOI_PRICE_MEMORY_OVERRIDE_SECONDS);
+/** Window for price reads on the page routes that show prices (home, deals, lab deals, reviews, sets list, price drops).
+ * No-storage build: 0 = no data cache at all (the route also renders per request). Elsewhere: the normal read window. */
+export const PRICE_READ_REVALIDATE_SECONDS = NO_STORAGE_BUILD ? 0 : 86400;
+
+export const NO_STORAGE_PRICE_MEMORY_SECONDS = OVERRIDE_SECONDS > 0 ? OVERRIDE_SECONDS : 60 * 60;
 
 /**
- * Unpriced set pages: the set_page_data read and the route segment live 14
- * days. A priced page makes a second small read of its offers on the interval
- * above, and Next takes the lowest revalidate in a render, so priced pages
- * still refresh on the interval above.
+ * Data-cache lifetime for every Supabase read on an ISR route (per-read `next.revalidate`, see src/lib/supabase.ts).
+ * Route-segment `revalidate` exports must be literals, so those keep their values (see the notes on each route).
  */
-export const UNPRICED_SET_REVALIDATE_SECONDS = 1209600;
+export const READ_REVALIDATE_SECONDS = NO_STORAGE_BUILD ? NO_STORAGE_PRICE_MEMORY_SECONDS : 86400;
+
+/**
+ * Set pages (/sets/[slug]): the price read is refreshed at most once per window. On the no-storage build the window is one
+ * hour, so a price changed in the store shows within the edge copy time plus one hour.
+ */
+export const SET_PAGE_REVALIDATE_SECONDS = NO_STORAGE_BUILD ? NO_STORAGE_PRICE_MEMORY_SECONDS : 86400;
+
+/**
+ * Set data read (set_page_data, which also returns prices): 14 days on the current production build, so unpriced sets stay
+ * cheap to render. On the no-storage build it is one hour, so a set that gains its first price shows within the same bound.
+ */
+export const UNPRICED_SET_REVALIDATE_SECONDS = NO_STORAGE_BUILD ? NO_STORAGE_PRICE_MEMORY_SECONDS : 1209600;
 
 /** "28 Sep, 22:30 IST": the data time shown in "No listing found at {store} as of {time}". */
 export function formatIst(iso: string): string {

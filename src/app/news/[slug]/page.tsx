@@ -1,3 +1,4 @@
+import { staticParamsForBuild } from '@/lib/no-storage-render';
 import { ImageWithFallback } from '@/components/ui/ImageWithFallback';
 import Link from 'next/link';
 import { rebrickableResized } from '@/lib/set-image';
@@ -40,7 +41,7 @@ export const revalidate = 86400;
 // `revalidate` seconds after that -- real ISR, not a behavior change for
 // visitors, just for the Function invocation count.
 export async function generateStaticParams() {
-  return [];
+  return staticParamsForBuild<{ slug: string }>([], { slug: 'no-storage-build-probe' });
 }
 
 interface Props { params: Promise<{ slug: string }> }

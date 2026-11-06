@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import type { Metadata } from 'next';
+import { PRICE_READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
 import { slugify } from '@/lib/utils';
@@ -40,7 +41,7 @@ interface DealRow {
 export default async function DealsPage() {
   // FP5.1: store names come from the retailer registry (src/lib/stores.ts).
   const STORE_LABELS = storeLabels(await getStores());
-  const supabase = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
+  const supabase = createServerClient({ revalidate: PRICE_READ_REVALIDATE_SECONDS });
 
   // PR-B: same locked rules as /deals (public.set_price_summary): a deal is a
   // fresh in-stock listed price >= 10% below the R2 MRP anchor. Replaces a

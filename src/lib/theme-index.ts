@@ -1,7 +1,7 @@
 // The whole list of a theme's sets, read a page at a time, with each set's lowest in-stock price. It is the input to
 // the theme page's sort and paging, so it covers every set in the theme, not the first 200 of them.
-import { unstable_cache } from 'next/cache';
 import { createServerClient } from '@/lib/supabase';
+import { storedCache } from '@/lib/no-storage-render';
 import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { EXACT_NAME_MATCH, rawThemesFor } from '@/lib/themeMapping';
 import { fetchAllRows, mergeThemeRows } from '@/lib/theme-paging';
@@ -66,7 +66,7 @@ export async function loadThemeIndex(themeName: string, slug: string): Promise<T
 
 /** The cached index for a theme. Re-read at the price cadence, so a request does not re-read the whole theme. */
 export function getThemeIndex(themeName: string, slug: string): Promise<ThemeIndex> {
-  return unstable_cache(
+  return storedCache(
     () => loadThemeIndex(themeName, slug),
     ['theme-index', slug],
     { revalidate: READ_REVALIDATE_SECONDS },

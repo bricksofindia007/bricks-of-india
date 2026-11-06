@@ -1,3 +1,4 @@
+import { staticParamsForBuild } from '@/lib/no-storage-render';
 import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
@@ -19,7 +20,7 @@ interface Props { params: Promise<{ slug: string }> }
 
 export async function generateStaticParams() {
   const { data } = await supabase.from('guides').select('slug');
-  return (data ?? []).map((g: { slug: string }) => ({ slug: g.slug }));
+  return staticParamsForBuild<{ slug: string }>((data ?? []).map((g: { slug: string }) => ({ slug: g.slug })), { slug: 'no-storage-build-probe' });
 }
 
 export async function generateMetadata(props: Props): Promise<Metadata> {

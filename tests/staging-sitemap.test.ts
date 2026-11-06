@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const root = join(__dirname, '..');
-const STAGING = 'https://bricks-of-india-staging.bricksofindia007.workers.dev';
+const STAGING = 'https://staging-edge.bricksofindia.com';
 
 afterEach(() => {
   vi.unstubAllEnvs();

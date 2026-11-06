@@ -1,5 +1,7 @@
+import { staticParamsForBuild } from '@/lib/no-storage-render';
 import Image from 'next/image';
 import Link from 'next/link';
+import { PRICE_READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { AFFILIATE_NOTE } from '@/lib/affiliate-disclosure';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
@@ -36,7 +38,7 @@ export const revalidate = 86400;
 // reviews rows, no per-review traffic-ranking data to justify a bounded
 // static list (same reasoning as /sets/[slug]).
 export async function generateStaticParams() {
-  return [];
+  return staticParamsForBuild<{ slug: string }>([], { slug: 'no-storage-build-probe' });
 }
 
 interface Props { params: Promise<{ slug: string }> }
@@ -109,7 +111,7 @@ export default async function ReviewPage(props: Props) {
   let priceSummary: ReviewDealSummary | null = null;
   if (set?.set_number) {
     // Service-role server client (same as the set pages): the price functions are granted to service_role only (20261022180000).
-    const priceClient = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
+    const priceClient = createServerClient({ revalidate: PRICE_READ_REVALIDATE_SECONDS });
     const since = new Date(Date.now() - RETIRED_IN_INDIA_DAYS * 864e5).toISOString();
     const [{ data: storePrices }, { data: historyRows }, summaries] = await Promise.all([
       priceClient.rpc('get_set_prices', { p_set_number: set.set_number }),
