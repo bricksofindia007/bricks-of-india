@@ -22,6 +22,9 @@ import { spawnSync } from 'node:child_process';
 import { PROD_REF } from './prod-reference.mjs';
 export { PROD_REF };
 export const HISTORY_TRIGGER = 'trg_price_history_on_change';
+// Staging-only price-proof rows (set 900902, written by seed-staging-price-fixture.sql) carry this marker. They are not
+// on production, so the store_prices reload keeps them and the production fingerprint ignores them (order 0780).
+export const FIXTURE_MARKER = 'FIXTURE STAGING ONLY';
 // mode 'replace' = truncate + reload every column.
 // mode 'columns' = UPDATE only the listed columns on rows staging already has (by id); no inserts, and
 //   no other column is touched, so staging's own catalogue / price pipeline data stays as it is (P12 q3).
@@ -130,16 +133,23 @@ export function buildLoadSql(plan) {
   }
   for (const t of plan.filter((p) => p.mode === 'columns')) lines.push(columnsUpdateSql(t.table, t.cols));
   const replace = plan.filter((p) => p.mode === 'replace');
+  // Keep the staging-only price-proof rows before the reload truncates store_prices (order 0780).
+  const keepPrices = replace.find((p) => p.table === 'store_prices');
+  if (keepPrices) lines.push(`create temp table keep_store_prices on commit drop as select ${keepPrices.cols.map(q).join(', ')} from public.store_prices where product_url = '${FIXTURE_MARKER}';`);
   if (replace.length) lines.push(`truncate ${replace.map((p) => `public.${p.table}`).join(', ')};`);
   // Loading store_prices would fire its price-history trigger and add a history row per store price, so
   // price_history would no longer equal production (seed 37176409045, 4 Oct). Off for this transaction only.
   const quiet = replace.some((p) => p.table === 'store_prices') ? HISTORY_TRIGGER : null;
   if (quiet) lines.push(`alter table public.store_prices disable trigger ${quiet};`);
   for (const t of replace) lines.push(replaceSql(t.table, t.cols));
+  if (keepPrices) lines.push(`insert into public.store_prices (${keepPrices.cols.map(q).join(', ')}) select ${keepPrices.cols.map(q).join(', ')} from keep_store_prices;`);
   if (quiet) lines.push(`alter table public.store_prices enable trigger ${quiet};`);
   lines.push(`select setval(pg_get_serial_sequence('public.guides', 'id'), coalesce(max(id), 1)) from public.guides;`);
   const checks = plan.map((t) => {
-    if (t.mode !== 'columns') return `  if (${fingerprintSql(t.table, t.fpCols)}) <> '${t.prodFp}' then raise exception 'seed mismatch on ${t.table}'; end if;`;
+    if (t.mode !== 'columns') {
+      const where = t.table === 'store_prices' ? `where product_url <> '${FIXTURE_MARKER}'` : '';
+      return `  if (${fingerprintSql(t.table, t.fpCols, where)}) <> '${t.prodFp}' then raise exception 'seed mismatch on ${t.table}'; end if;`;
+    }
     // the loaded copy must equal production (CSV integrity), and staging must equal that copy on the ids both have
     const both = (other) => `where id in (select id from ${other})`;
     return [
@@ -148,7 +158,10 @@ export function buildLoadSql(plan) {
     ].join('\n');
   });
   lines.push(`do $$ begin\n${checks.join('\n')}\nend $$;`);
-  lines.push(...plan.map((t) => `select '${t.table}|' || (select count(*) from public.${t.table});`));
+  lines.push(...plan.map((t) => t.table === 'store_prices'
+    ? `select 'store_prices|' || (select count(*) from public.store_prices where product_url <> '${FIXTURE_MARKER}');`
+    : `select '${t.table}|' || (select count(*) from public.${t.table});`));
+  if (keepPrices) lines.push(`select 'store_prices:fixture_kept|' || (select count(*) from keep_store_prices);`);
   lines.push(...plan.filter((t) => t.mode === 'columns').map((t) =>
     `select '${t.table}:not_on_staging|' || (select count(*) from seed_${t.table} s where not exists (select 1 from public.${t.table} x where x.id = s.id));`));
   lines.push('commit;');
