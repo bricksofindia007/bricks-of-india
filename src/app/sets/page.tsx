@@ -1,8 +1,11 @@
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
+import { renderPerRequestOnNoStorageBuild } from '@/lib/no-storage-render';
+import { PRICE_READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import Link from 'next/link';
 import Image from 'next/image';
 import { unstable_cache } from 'next/cache';
+import { storedCache } from '@/lib/no-storage-render';
 import { createServerClient } from '@/lib/supabase';
 import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { SetCard } from '@/components/sets/SetCard';
@@ -98,7 +101,7 @@ type PriceRow = {
   set_id: string; price_inr: number;
   in_stock: boolean; store_id: string; product_url: string | null; scraped_at: string;
 };
-const getAllSetsStorePrices = unstable_cache(
+const getAllSetsStorePrices = storedCache(
   async (): Promise<PriceRow[]> => {
     const supabase = createServerClient();
     const allPrices: PriceRow[] = [];
@@ -114,10 +117,11 @@ const getAllSetsStorePrices = unstable_cache(
     return allPrices;
   },
   ['sets-page-all-store-prices'],
-  { revalidate: READ_REVALIDATE_SECONDS }, // PR-A: hourly, same clock as every other price read (was 6h, which stacked on the 6h scrape gap)
+  { revalidate: READ_REVALIDATE_SECONDS }, // Same clock as every other price read: 24 h on the current build, 1 h on the no-storage build (order 0620)
 );
 
 export default async function SetsPage(props: Props) {
+  renderPerRequestOnNoStorageBuild(); // order 0620: no-storage build renders per request
   const searchParams = await props.searchParams;
   const supabase    = createServerClient();
   const pageNum     = Math.max(1, parseInt(searchParams.page || '1') || 1);

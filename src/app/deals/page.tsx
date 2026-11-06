@@ -1,5 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { renderPerRequestOnNoStorageBuild } from '@/lib/no-storage-render';
+import { PRICE_READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
 import { createServerClient } from '@/lib/supabase';
@@ -33,7 +35,8 @@ export const revalidate = 86400; // = READ_REVALIDATE_SECONDS (segment config mu
 // returned 1,000 of each, so the averages were computed from a fragment --
 // plus an MSRP x 1.35 "fallback" that called above-MRP prices deals.
 export default async function DealsPage() {
-  const supabase = createServerClient({ revalidate: READ_REVALIDATE_SECONDS });
+  renderPerRequestOnNoStorageBuild(); // order 0620: no-storage build renders per request
+  const supabase = createServerClient({ revalidate: PRICE_READ_REVALIDATE_SECONDS });
   const deals = await getDeals(supabase);
 
   const setsById = new Map<string, any>();
