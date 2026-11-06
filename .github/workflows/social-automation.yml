@@ -28,8 +28,9 @@ jobs:
       G19_TERMS: ${{ secrets.G19_TERMS }}  # G19 term list (never in the repo); gates fail closed without it
     # 10 most recent runs: 6m52s-8m57s (gh run list
     # --workflow=social-automation.yml --limit 10, 2026-08-18). ~2x observed
-    # max.
-    timeout-minutes: 18
+    # max. Raised 18 -> 30 on 7 Nov 2026 (order 0970): on 2 Nov the system
+    # package install step (apt) ran 19 minutes and the job was cancelled at its limit.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v5
 
