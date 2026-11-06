@@ -1,0 +1,12 @@
+[
+  { "version": "20261022180000", "pr": "#792", "held_by": "order 1115 (26 Oct), item 3", "reason": "price functions: merged, held, not applied to production" },
+  { "version": "20261024230000", "pr": "#774", "held_by": "order 1115 (26 Oct), item 1", "reason": "account storage: merged, held, not applied to production" },
+  { "version": "20261025010000", "pr": "#785", "held_by": "order 1115 (26 Oct), item 2", "reason": "sign-in codes: merged, held, not applied to production (depends on account storage)" },
+  { "version": "20261026110000", "pr": "#811", "held_by": "order 1115 (26 Oct), item 5", "reason": "backup login read access, two tables: merged, held, not applied to production" },
+  { "version": "20261026120000", "pr": "#814", "held_by": "order 1115 (26 Oct), item 6", "reason": "table size, read-only function: merged, held, not applied to production" },
+  { "version": "20261026130000", "pr": "#818", "held_by": "order 1115 (26 Oct), item 7", "reason": "sign-in cleanup: merged, held, not applied to production (depends on sign-in codes)" },
+  { "version": "20261026140000", "pr": "#821", "held_by": "order 1115 (26 Oct), item 8", "reason": "backup login read access to the boi_backups schema: draft, held, not applied to production" },
+  { "version": "20261027120000", "pr": "#823", "held_by": "freeze list (27 Oct), item 9", "reason": "visit totals (owner-only, flag off): merged, held, not applied to production" },
+  { "version": "20261027130000", "pr": "#829", "held_by": "freeze list (27 Oct), item 10", "reason": "revoke execute on the saved sets limit function: merged, held, not applied to production" },
+  { "version": "20261029100000", "pr": "none recorded", "held_by": "bundle 1 plan (29 Oct), lint #686", "reason": "backup login ledger read: merged, held out of bundle 1 (missing issue header), not applied to production" }
+]

@@ -27,13 +27,32 @@ export function repoVersions(dir) {
     .filter(Boolean);
 }
 
-export function compareParity(repo, prod, prAdded = []) {
-  const r = new Set(repo), p = new Set(prod), added = new Set(prAdded);
+/**
+ * held: versions merged on purpose and not applied yet (scripts/ci/migration-held.json, order 0760). A held version
+ * that is still unapplied is reported, not failed. A held entry that is now applied in production, or has no repo
+ * file, fails until the entry is removed, so the list cannot go stale. A NEW unapplied migration still fails.
+ * With held = [] the result is exactly as before.
+ */
+export function compareParity(repo, prod, prAdded = [], held = []) {
+  const r = new Set(repo), p = new Set(prod), added = new Set(prAdded), heldSet = new Set(held);
   const prodOnly = [...p].filter((v) => !r.has(v)).sort();
   const repoOnly = [...r].filter((v) => !p.has(v)).sort();
   const pending = repoOnly.filter((v) => added.has(v));
-  const unapplied = repoOnly.filter((v) => !added.has(v));
-  return { ok: prodOnly.length === 0 && unapplied.length === 0, prodOnly, pending, unapplied, repoCount: r.size, prodCount: p.size };
+  const heldUnapplied = repoOnly.filter((v) => heldSet.has(v) && !added.has(v));
+  const unapplied = repoOnly.filter((v) => !added.has(v) && !heldSet.has(v));
+  const staleHeld = [...heldSet].filter((v) => p.has(v) || !r.has(v)).sort();
+  return { ok: prodOnly.length === 0 && unapplied.length === 0 && staleHeld.length === 0, prodOnly, pending, unapplied, heldUnapplied, staleHeld, repoCount: r.size, prodCount: p.size };
+}
+
+/** Reads and checks the held list. Every entry needs a 14-digit version, a reason and who held it. Throws otherwise. */
+export function loadHeld(file) {
+  const list = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (!Array.isArray(list)) throw new Error(`${file}: must be a JSON array`);
+  for (const e of list) {
+    if (!/^\d{14}$/.test(e.version || '')) throw new Error(`${file}: bad version ${JSON.stringify(e.version)}`);
+    if (!e.reason || !e.held_by) throw new Error(`${file}: ${e.version} needs reason and held_by`);
+  }
+  return list.map((e) => e.version);
 }
 
 /**
@@ -66,10 +85,14 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
   if (!prodFile || !fs.existsSync(prodFile)) { console.error('FAIL: no production version list (--prod) -- parity NOT checked'); process.exit(2); }
   const prod = fs.readFileSync(prodFile, 'utf8').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   if (prod.length === 0 || prod.some((v) => !/^\d{14}$/.test(v))) { console.error('FAIL: production version list empty or malformed -- parity NOT checked'); process.exit(2); }
-  const res = compareParity(repoVersions(dir), prod, prAdded);
-  console.log(`repo: ${res.repoCount} migration file(s) in ${dir}; production: ${res.prodCount} schema_migrations row(s)`);
+  const heldFile = arg('--held', 'scripts/ci/migration-held.json');
+  const held = fs.existsSync(heldFile) ? loadHeld(heldFile) : [];
+  const res = compareParity(repoVersions(dir), prod, prAdded, held);
+  console.log(`repo: ${res.repoCount} migration file(s) in ${dir}; production: ${res.prodCount} schema_migrations row(s); held: ${held.length}`);
   for (const v of res.prodOnly) console.log(`FAIL production-only: ${v} is applied in production with no repo file (G7)`);
   for (const v of res.unapplied) console.log(`FAIL repo-only: ${v} has a repo file but is not applied in production`);
+  for (const v of res.heldUnapplied) console.log(`HELD: ${v} is merged, not applied in production, on the held list (${heldFile})`);
+  for (const v of res.staleHeld) console.log(`FAIL held-stale: ${v} is on the held list but is applied in production or has no repo file -- remove its entry`);
   for (const v of res.pending) console.log(`PENDING: ${v} is added by this PR and not yet applied (apply staging first, then production, before merge)`);
   console.log(res.ok ? 'PASS: repo and production migration history match' : 'FAIL: migration drift');
   process.exit(res.ok ? 0 : 1);
