@@ -40,7 +40,7 @@ const STAGING = process.env.BOI_STAGING === "1";
 
 export default STAGING
   ? defineCloudflareConfig({
-      // Same cache-interception setting as production: it only matters when a cache exists.
+      // No page cache on staging, so there is nothing for cache interception to serve. Off.
       enableCacheInterception: false,
     })
   : defineCloudflareConfig({
