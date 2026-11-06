@@ -288,7 +288,8 @@ describe('a publish still refreshes the page it should', () => {
 
 describe('production is off, and the build flag for the no-storage build exists', () => {
   it('the production Worker variable is "0"; staging turns the cache on', () => {
-    expect(read('wrangler.jsonc')).toMatch(/"BOI_EDGE_CACHE": "0"/);
+    // Cutover (order 0570 item 2): production is switched on together with the build flag in deploy-cloudflare.yml.
+    expect(read('wrangler.jsonc')).toMatch(/"BOI_EDGE_CACHE": "1"/);
     expect(read('wrangler.staging.jsonc')).toMatch(/"BOI_EDGE_CACHE": "1"/);
   });
   it('both configs point at the wrapper entry', () => {
