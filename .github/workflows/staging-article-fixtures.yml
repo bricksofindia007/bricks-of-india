@@ -1,11 +1,17 @@
 name: Staging article fixtures (staging only, manual)
 
-# Adds fixture copies of three articles, one review and two sets (854338, 854335) on STAGING only, so the article and review data fixes can be
-# rehearsed. Never production. Existing rows are never changed.
+# Adds fixture articles (new ones each run, run time in the title), one review (skipped if present) and one fixture set (900902) on STAGING only.
+# Never production. Existing rows are never changed.
 # Credential: environment secret STAGING_DB_URL in the staging-seed environment, which requires the owner's approval.
 # The job refuses any address that contains the production project reference, and prints counts only.
 on:
   workflow_dispatch:
+    inputs:
+      price_inr:
+        description: 'Optional, staging only: price in rupees (digits) for fixture set 900902 at one store. Empty = no price step.'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -33,6 +39,15 @@ jobs:
           sudo apt-get update -qq && sudo apt-get install -y -qq postgresql-client > /dev/null
           psql "$STAGING_DB_URL" -X -q -v ON_ERROR_STOP=1 -f scripts/ci/seed-staging-article-fixtures.sql
           psql "$STAGING_DB_URL" -X -q -v ON_ERROR_STOP=1 -f scripts/ci/seed-staging-set-fixtures.sql
+
+      - name: Price fixture (only when price_inr is given)
+        if: inputs.price_inr != ''
+        env:
+          STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+          PRICE_INR: ${{ inputs.price_inr }}
+        run: |
+          case "$PRICE_INR" in ''|*[!0-9]*) echo "price_inr must be digits only"; exit 1 ;; esac
+          psql "$STAGING_DB_URL" -X -q -v ON_ERROR_STOP=1 -v price="$PRICE_INR" -f scripts/ci/seed-staging-price-fixture.sql
 
       - name: Count check (counts only)
         env:

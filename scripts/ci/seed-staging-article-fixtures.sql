@@ -1,7 +1,7 @@
 -- Staging only. Adds fixture copies of three articles and one review, so the article data fixes (339) and the review
 -- link fix (165) can be rehearsed with their real assertions on a database that may not hold them.
 --
--- * Inserts a row only where the slug is absent. An existing row is never changed or deleted.
+-- * The article rows get a new slug and title each run (run time in both), so each run adds visible rows. Nothing is changed.
 -- * Every fixture row carries the marker 'FIXTURE STAGING ONLY' in excerpt, so it can be found and removed.
 -- * The article text contains only the sentences the fixes anchor on, plus fixture wording. Nothing else is copied.
 -- * Refuses to run unless sets 1701 and 11385 both exist, because the review fixture links to them.
@@ -19,18 +19,10 @@ begin
 end $$;
 
 insert into public.news_articles (title, slug, content, category, excerpt)
-select 'Fixture article (staging only)',
-       'the-lego-donkey-kong-arcade-2000-now-playable-by-machine',
+select 'Fixture article (staging only) ' || to_char(now() at time zone 'UTC', 'HH24:MI:SS') || ' UTC',
+       'fixture-article-a-' || to_char(now() at time zone 'UTC', 'YYYYMMDDHH24MISS'),
        'Fixture article. Staging only. ₹17,999 at both MyBrickHouse and Toycra when we wrote this.',
-       'New Sets', 'FIXTURE STAGING ONLY'
-where not exists (select 1 from public.news_articles where slug = 'the-lego-donkey-kong-arcade-2000-now-playable-by-machine');
-
-insert into public.news_articles (title, slug, content, category, excerpt)
-select 'Fixture article (staging only)',
-       'flipkart-big-billion-days-lego-44-sets-checked',
-       E'Fixture article. Staging only.\n\nFixture paragraph. the MCL39 is the one where the strikethrough is working harder than the discount.\n\n| Set | Flipkart | Flipkart MRP | Cheapest elsewhere | Verdict |\n|---|---|---|---|---|\n| Fixture | - | - | - | - |',
-       'New Sets', 'FIXTURE STAGING ONLY'
-where not exists (select 1 from public.news_articles where slug = 'flipkart-big-billion-days-lego-44-sets-checked');
+       'New Sets', 'FIXTURE STAGING ONLY';
 
 insert into public.reviews (set_id, title, slug, content, verdict, rating, excerpt)
 select (select id from public.sets where set_number = '1701' limit 1),
