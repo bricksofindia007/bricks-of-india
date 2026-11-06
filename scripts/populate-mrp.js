@@ -230,7 +230,7 @@ async function run() {
   console.log(`Brickset map (after Phase 1.5): ${Object.keys(bricksetPrices).length} sets with USD retail price`);
 
   if (US_ONLY) {
-    const r = await writeUsOnly(bricksetUsd, (name, args) => sb.rpc(name, args));
+    const r = await writeUsOnly(bricksetUsd, (name, args) => sb.rpc(name, args), DRY_RUN);
     console.log(`
 US-only: ${r.rows} sets with a positive US price from the 2020-2027 sweep${DRY_RUN ? ' (dry run, not written)' : `: ${r.ok} rows written${r.failed ? `, ${r.failed} in failed batches` : ''}`}.`);
     return;

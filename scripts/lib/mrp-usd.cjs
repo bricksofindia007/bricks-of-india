@@ -43,9 +43,11 @@ function positiveUsdRows(usdByNumber) {
  * US-only write: one call per batch to the US price function, positive values only.
  * `rpc(name, args)` must return a promise of { data, error } (the Supabase client's rpc). Failed batches are counted,
  * never retried row by row, and nothing else is written. Returns { ok, failed, rows }.
+ * dryRun: makes no call at all; ok and failed stay 0 and rows is the count that would be written.
  */
-async function writeUsOnly(usdByNumber, rpc) {
+async function writeUsOnly(usdByNumber, rpc, dryRun = false) {
   const rows = positiveUsdRows(usdByNumber);
+  if (dryRun) return { ok: 0, failed: 0, rows: rows.length };
   let ok = 0, failed = 0;
   for (const chunk of batches(rows)) {
     const { data, error } = await rpc('sets_bulk_us_price', { p_rows: chunk });

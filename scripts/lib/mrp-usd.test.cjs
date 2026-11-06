@@ -17,6 +17,15 @@ test('an empty map writes nothing and makes no call', async () => {
   assert.deepEqual(r, { ok: 0, failed: 0, rows: 0 });
 });
 
+test('dry run makes no call at all, and reports the rows it would write', async () => {
+  const many = {};
+  for (let i = 0; i < WRITE_BATCH + 3; i++) many[String(10000 + i)] = 10 + i;
+  let calls = 0;
+  const r = await writeUsOnly(many, async () => { calls++; return { data: 0, error: null }; }, true);
+  assert.equal(calls, 0, 'a dry run must not call the write function');
+  assert.deepEqual(r, { ok: 0, failed: 0, rows: WRITE_BATCH + 3 });
+});
+
 test('writes go only through the US price function, one call per batch', async () => {
   const many = {};
   for (let i = 0; i < WRITE_BATCH + 3; i++) many[String(10000 + i)] = 10 + i;
