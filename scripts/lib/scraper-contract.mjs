@@ -36,6 +36,20 @@ export const sha256 = (s) => createHash('sha256').update(String(s ?? '')).digest
  * (null agents hash = "no agents.md expected"). Returns { ok, changed[], hashes }.
  * On ok=false the caller aborts the run BEFORE any write and alerts.
  */
+/**
+ * The policy hashes a store is checked against. The APPROVED baseline (store-baselines.json, the same file the
+ * write stop reads) wins. The stores row is used only for a store with no baseline entry. Reading the row first
+ * printed a false "CHANGED" whenever the row was out of date with the approved file (order 0890 item 10).
+ */
+export function expectedPolicy(storeId, cfg, baselines) {
+  const entries = baselines?.[storeId]?.policy;
+  if (Array.isArray(entries) && entries.length > 0) {
+    const hashOf = (suffix) => entries.find((e) => String(e.url ?? '').endsWith(suffix))?.sha256 ?? null;
+    return { robots_sha256: hashOf('/robots.txt'), agents_sha256: hashOf('/agents.md') };
+  }
+  return { robots_sha256: cfg?.robots_sha256 ?? null, agents_sha256: cfg?.agents_sha256 ?? null };
+}
+
 export async function checkPolicy(domain, expected, get) {
   const hashes = {};
   const changed = [];
