@@ -20,7 +20,7 @@
  *   3.  HeroImages       — batched, throttled GET all news_articles.hero_image
  *                          URLs, one narrow retry on a transient 403
  *   4.  Lighthouse       — perf/a11y/SEO on homepage + /sets
- *   5.  Staleness        — store_prices MAX(scraped_at) per store ≤ 8h
+ *   5.  Staleness        — store_prices MAX(scraped_at) per store ≤ 36h (order 0760; same window as the store-age check)
  *   6.  RowCounts        — all major table counts (trend log)
  *   7.  DataIntegrity    — related prices join · store coverage · India content ·
  *                          lab pages · sets filter routes · RPC themes
@@ -372,7 +372,8 @@ for (const url of LIGHTHOUSE_URLS) {
   }
 }
 
-// ── Check 5: Store prices staleness (> 8 hours = alert) ──────────────────────
+// ── Check 5: Store prices staleness (> 36 hours = alert, order 0760) ──────────────────────
+const STALE_HOURS = 36;
 
 log('Staleness', 'Checking store_prices MAX(scraped_at) per store');
 const stores = ['mybrickhouse', 'toycra'];
@@ -390,8 +391,8 @@ for (const store of stores) {
     }
     const ageHours = (Date.now() - new Date(data[0].scraped_at).getTime()) / 3_600_000;
     log('Staleness', `  ${store}: last scraped ${ageHours.toFixed(1)}h ago`);
-    if (ageHours > 8) {
-      alertFail('Staleness', `${store} prices stale — last scraped ${ageHours.toFixed(1)}h ago (threshold: 8h)`);
+    if (ageHours > STALE_HOURS) {
+      alertFail('Staleness', `${store} prices stale — last scraped ${ageHours.toFixed(1)}h ago (threshold: ${STALE_HOURS}h)`);
     }
   } catch (e) {
     log('Staleness', `  ${store}: error — ${e.message}`);
