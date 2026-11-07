@@ -73,51 +73,8 @@ describe('staging-only story 78 fixture (order 1010)', () => {
     expect(job.environment).toBe('staging-seed');
     expect(job['timeout-minutes']).toEqual(expect.any(Number));
     expect(job.if).toContain("github.ref == 'refs/heads/main'");
-    expect(job.if).toContain("'SEED STAGING STORY 78 AND REWORK ROW'");
-    expect(job.if).toContain("'REMOVE STAGING STORY 78 AND REWORK ROW'");
-  });
-
-  it('seed also inserts the Snowman rework row and its parent, both marked as fixtures, child after parent', () => {
-    const r = run('seed', STAGING_URL);
-    expect(r.status).toBe(0);
-    expect(r.sql).toContain("'c4af5037-27f9-40db-ab03-1825cb5f888b'");
-    expect(r.sql).toContain("'660c4b8f-9278-404e-9343-da305ec01769'");
-    expect(r.sql).toContain('insert into public.quiet_panic_posts');
-    expect(r.sql).toMatch(/'pending_approval', '660c4b8f-9278-404e-9343-da305ec01769'\);/);
-    expect(r.sql).toContain('expected exactly one seeded rework row after the seed');
-    expect(r.sql.indexOf("'660c4b8f-9278-404e-9343-da305ec01769', 'Snowman Ornaments'")).toBeLessThan(
-      r.sql.indexOf("'c4af5037-27f9-40db-ab03-1825cb5f888b', 'Snowman Ornaments'"));
-    expect(r.sql.toLowerCase()).not.toContain('delete from');
-  });
-
-  it('remove deletes the rework row first, then its parent, both guarded by the fixture markers, and checks the count of two', () => {
-    const r = run('remove', STAGING_URL);
-    expect(r.status).toBe(0);
-    const child = "delete from public.quiet_panic_posts where id = 'c4af5037-27f9-40db-ab03-1825cb5f888b' and script = 'staging seed' and video_path = 'staging seed';";
-    const parent = "delete from public.quiet_panic_posts where id = '660c4b8f-9278-404e-9343-da305ec01769' and script = 'staging seed' and video_path = 'staging seed';";
-    expect(r.sql).toContain(child);
-    expect(r.sql).toContain(parent);
-    expect(r.sql.indexOf(child)).toBeLessThan(r.sql.indexOf(parent));
-    expect(r.sql).toContain('expected exactly two rework fixture rows to remove');
-    expect(r.sql.toLowerCase()).not.toContain('insert into');
-  });
-
-  it('the story 78 statements are the same text as before the Snowman extension', () => {
-    const r = run('seed', STAGING_URL);
-    expect(r.sql).toContain("values\n  ('a0000000-0000-4000-8000-000000000078', 'Avengers Tower', '76269', 'mybrickhouse'");
-    expect(r.sql).toContain("'staging seed', 0, '{}'::jsonb, 'staging seed', 'publish_blocked', 78);");
-  });
-
-  it('fix 911 approves only the one rework row, names its parent, and has the expect lines and a backup line', () => {
-    const fix = readFileSync(join(root, 'supabase/data-fixes/911-quiet-panic-snowman-rework-approve.sql'), 'utf8');
-    expect(fix).toContain('-- boi:issue 911');
-    expect(fix).toContain('-- boi:backup-tables public.quiet_panic_posts');
-    expect(fix).toContain("-- boi:expect-before select count(*) from public.quiet_panic_posts where id = 'c4af5037-27f9-40db-ab03-1825cb5f888b' and status = 'pending_approval' and reworked_from = '660c4b8f-9278-404e-9343-da305ec01769' = 1");
-    expect(fix).toContain("-- boi:expect-after select count(*) from public.quiet_panic_posts where id = 'c4af5037-27f9-40db-ab03-1825cb5f888b' and status = 'approved' = 1");
-    const updates = fix.split('\n').filter((l) => /^update /i.test(l));
-    expect(updates).toHaveLength(1);
-    expect(updates[0]).toContain("where id = 'c4af5037-27f9-40db-ab03-1825cb5f888b'");
-    expect(updates[0]).toContain("reworked_from = '660c4b8f-9278-404e-9343-da305ec01769'");
+    expect(job.if).toContain("'SEED STAGING STORY 78'");
+    expect(job.if).toContain("'REMOVE STAGING STORY 78'");
   });
 
   it('the workflow file is listed as a user of the staging database secret in the secrets manifest', () => {

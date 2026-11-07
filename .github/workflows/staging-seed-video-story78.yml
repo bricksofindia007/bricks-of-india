@@ -3,7 +3,7 @@
 # The row is a fixture and is removed with mode remove when the rehearsal is over. Production is never touched.
 # Failure behaviour (G14): any error rolls the transaction back; staging keeps its rows.
 # Budget (G2): manual only, one staging write per run, no production read.
-name: 'Staging: seed or remove the story 78 video row and the rework row (manual)'
+name: 'Staging: seed or remove the story 78 video row (manual)'
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ on:
           - seed
           - remove
       confirm:
-        description: 'Type SEED STAGING STORY 78 AND REWORK ROW (mode seed) or REMOVE STAGING STORY 78 AND REWORK ROW (mode remove). Any other text stops the run before any step.'
+        description: 'Type SEED STAGING STORY 78 (mode seed) or REMOVE STAGING STORY 78 (mode remove). Any other text stops the run before any step.'
         required: true
         type: string
 
@@ -31,8 +31,8 @@ jobs:
   seed:
     if: >-
       github.ref == 'refs/heads/main' &&
-      ((inputs.mode == 'seed' && inputs.confirm == 'SEED STAGING STORY 78 AND REWORK ROW') ||
-       (inputs.mode == 'remove' && inputs.confirm == 'REMOVE STAGING STORY 78 AND REWORK ROW'))
+      ((inputs.mode == 'seed' && inputs.confirm == 'SEED STAGING STORY 78') ||
+       (inputs.mode == 'remove' && inputs.confirm == 'REMOVE STAGING STORY 78'))
     runs-on: ubuntu-24.04
     environment: staging-seed
     timeout-minutes: 10
