@@ -7,11 +7,13 @@
 // Prints counts and names of failures only.
 const URL = process.env.SUPABASE_URL, KEY = process.env.SUPABASE_PUBLIC_KEY;
 if (!URL || !KEY) { console.error('SUPABASE_URL / SUPABASE_PUBLIC_KEY missing'); process.exit(2); }
+// store_prices and price_history: anon SELECT revoked by 20261017270000_revoke_anon_price_table_reads.sql (17 Oct).
+// Public pages read prices through the RPCs (get_price_history etc.), so the tables are now closed to the public key.
 export const CLOSED = ['stores', 'price_snapshots', 'v_scan_batch_health', 'pending_drafts', 'pending_drafts_lint_results_backup_20260620',
   'raw_signals', 'generator_runs', 'content_quality_issues', 'content_quality_issues_archive', 'content_fix_log', 'content_image_registry',
   'content_rejections', 'content_rejection_reminders', 'image_repair_queue', 'opinion_cadence_log', 'catalog_coverage_trend', 'posted_sets',
-  'posted_lego_sets', 'quiet_panic_posts', 'video_posts', 'social_automation_heartbeat', 'newsletter_subscribers'];
-export const OPEN = ['sets', 'reviews', 'news_articles', 'guides', 'store_prices', 'price_history', 'featured_videos', 'cmf_figures', 'v_published_articles_public'];
+  'posted_lego_sets', 'quiet_panic_posts', 'video_posts', 'social_automation_heartbeat', 'newsletter_subscribers', 'store_prices', 'price_history'];
+export const OPEN = ['sets', 'reviews', 'news_articles', 'guides', 'featured_videos', 'cmf_figures', 'v_published_articles_public'];
 const WRITE_PROBE = ['sets', 'reviews', 'news_articles', 'store_prices', 'stores'];
 const h = { apikey: KEY, Authorization: `Bearer ${KEY}` };
 const get = async (t) => { const r = await fetch(`${URL}/rest/v1/${t}?select=*&limit=1`, { headers: h }); return { status: r.status, body: await r.text() }; };
