@@ -31,4 +31,30 @@ function batches(rows, size = WRITE_BATCH) {
   return out;
 }
 
-module.exports = { WRITE_BATCH, usdFromSet, collectUsd, usdRows, batches };
+/** Only the rows with a real, positive dollar price (a null, zero, negative or non-numeric value is dropped). */
+function positiveUsdRows(usdByNumber) {
+  return usdRows(usdByNumber).filter(({ set_number, us_price_usd }) => {
+    const n = Number(us_price_usd);
+    return set_number && us_price_usd !== null && us_price_usd !== '' && Number.isFinite(n) && n > 0;
+  });
+}
+
+/**
+ * US-only write: one call per batch to the US price function, positive values only.
+ * `rpc(name, args)` must return a promise of { data, error } (the Supabase client's rpc). Failed batches are counted,
+ * never retried row by row, and nothing else is written. Returns { ok, failed, rows }.
+ * dryRun: makes no call at all; ok and failed stay 0 and rows is the count that would be written.
+ */
+async function writeUsOnly(usdByNumber, rpc, dryRun = false) {
+  const rows = positiveUsdRows(usdByNumber);
+  if (dryRun) return { ok: 0, failed: 0, rows: rows.length };
+  let ok = 0, failed = 0;
+  for (const chunk of batches(rows)) {
+    const { data, error } = await rpc('sets_bulk_us_price', { p_rows: chunk });
+    if (error) failed += chunk.length;
+    else ok += Number(data ?? 0);
+  }
+  return { ok, failed, rows: rows.length };
+}
+
+module.exports = { WRITE_BATCH, usdFromSet, collectUsd, usdRows, batches, positiveUsdRows, writeUsOnly };
