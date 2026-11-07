@@ -25,14 +25,19 @@ export interface DispatchEnv {
   GITHUB_REPO: string;
 }
 
-/** The production cron expressions (UTC) and what each one dispatches. Slots are read from scripts/video/cadence.py. */
+/**
+ * The production cron expressions (UTC) and what each one dispatches. Each key is the cron string exactly as it is
+ * configured in wrangler.jsonc, because index.ts looks the entry up by the event's cron. Day names are used because
+ * Cloudflare numbers the days 1 = Sunday to 7 = Saturday and rejects 0 (cron syntax, Cloudflare Workers docs).
+ * Slots are read from scripts/video/cadence.py.
+ */
 export const VIDEO_DISPATCH: Record<string, { file: string; name: string }> = {
   // VID-P4 slot opens 19:30 IST on Wed, Fri, Sun. Dispatch 19:35 IST (14:05 UTC); retry 20:35 IST (15:05 UTC).
-  '5 14 * * 0,3,5': { file: 'video-publish-poller.yml', name: 'vidp4-slot' },
-  '5 15 * * 0,3,5': { file: 'video-publish-poller.yml', name: 'vidp4-retry' },
+  '5 14 * * SUN,WED,FRI': { file: 'video-publish-poller.yml', name: 'vidp4-slot' },
+  '5 15 * * SUN,WED,FRI': { file: 'video-publish-poller.yml', name: 'vidp4-retry' },
   // VID-QP slot opens 00:00 IST on Tue, Thu, Sat (Mon, Wed, Fri in UTC). Dispatch 00:05 IST (18:35 UTC); retry 01:05 IST (19:35 UTC).
-  '35 18 * * 1,3,5': { file: 'video-publish-poller-quiet-panic.yml', name: 'vidqp-slot' },
-  '35 19 * * 1,3,5': { file: 'video-publish-poller-quiet-panic.yml', name: 'vidqp-retry' },
+  '35 18 * * MON,WED,FRI': { file: 'video-publish-poller-quiet-panic.yml', name: 'vidqp-slot' },
+  '35 19 * * MON,WED,FRI': { file: 'video-publish-poller-quiet-panic.yml', name: 'vidqp-retry' },
 };
 
 /**
@@ -65,4 +70,74 @@ export async function dispatchWorkflow(
   await env.BOI_SNAPSHOTS.put(`meta:dispatch:${noteName}`, JSON.stringify(note));
   if (status < 200 || status >= 300) await env.BOI_SNAPSHOTS.put('meta:dispatch_fail', JSON.stringify(note));
   return status;
+}
+
+/** The scrape crons (UTC) and the retailer each one scrapes (FP5.9). */
+export const SCRAPE_STORE_BY_CRON: Record<string, string> = { '0 3 * * *': 'mybrickhouse', '5 3 * * *': 'toycra' };
+
+// Cloudflare cron day-of-week: 1 = Sunday to 7 = Saturday, or SUN to SAT (Cloudflare Workers cron triggers docs).
+// JavaScript getUTCDay numbering is 0 = Sunday, so a number n maps to n - 1.
+const DAY_NAME_JS: Record<string, number> = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
+
+function cronDays(field: string): number[] {
+  return field.split(',').map((part) => {
+    const named = DAY_NAME_JS[part.toUpperCase()];
+    if (named !== undefined) return named;
+    const n = Number(part);
+    if (!Number.isInteger(n) || n < 1 || n > 7) throw new Error(`unsupported day-of-week "${part}"`);
+    return n - 1;
+  });
+}
+
+const has = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
+
+/** "weekday hour minute" (UTC, JavaScript numbering) -> the production cron text that fires then. Built from the tables. */
+export const TIME_INDEX: Record<string, string> = (() => {
+  const index: Record<string, string> = {};
+  for (const cron of [...Object.keys(SCRAPE_STORE_BY_CRON), ...Object.keys(VIDEO_DISPATCH)]) {
+    const [minute, hour, , , dow] = cron.split(' ');
+    const days = dow === '*' ? [0, 1, 2, 3, 4, 5, 6] : cronDays(dow);
+    for (const day of days) {
+      const k = `${day} ${Number(hour)} ${Number(minute)}`;
+      if (has(index, k) && index[k] !== cron) throw new Error(`two crons fire at the same time: ${index[k]} and ${cron}`);
+      index[k] = cron;
+    }
+  }
+  return index;
+})();
+
+/**
+ * Which table entry this event belongs to (order 1000). An exact match on the cron text wins. Otherwise the event's
+ * scheduled time is matched against the table. 'none' means nothing is configured for that time: do nothing.
+ */
+export function resolveCron(
+  cron: string,
+  scheduledMs: number,
+  ownCrons: readonly string[] = [],
+): { match: 'exact' | 'fallback' | 'none'; key: string | null } {
+  if (has(VIDEO_DISPATCH, cron) || has(SCRAPE_STORE_BY_CRON, cron)) return { match: 'exact', key: cron };
+  // The Worker's own non-dispatch crons (freshness, keep-alive, load) never fall back to the time table (order 1010).
+  if (ownCrons.includes(cron)) return { match: 'none', key: null };
+  const d = new Date(scheduledMs);
+  const key = has(TIME_INDEX, `${d.getUTCDay()} ${d.getUTCHours()} ${d.getUTCMinutes()}`)
+    ? TIME_INDEX[`${d.getUTCDay()} ${d.getUTCHours()} ${d.getUTCMinutes()}`]
+    : null;
+  return key ? { match: 'fallback', key } : { match: 'none', key: null };
+}
+
+/** What one scheduled event does: which scrape and which video entry to dispatch, and how the match was made. */
+export function planScheduled(cron: string, scheduledMs: number, ownCrons: readonly string[] = []): {
+  match: 'exact' | 'fallback' | 'none';
+  resolved_cron: string | null;
+  store: string | null;
+  video: { file: string; name: string } | null;
+} {
+  const r = resolveCron(cron, scheduledMs, ownCrons);
+  if (!r.key) return { match: r.match, resolved_cron: null, store: null, video: null };
+  return {
+    match: r.match,
+    resolved_cron: r.key,
+    store: has(SCRAPE_STORE_BY_CRON, r.key) ? SCRAPE_STORE_BY_CRON[r.key] : null,
+    video: has(VIDEO_DISPATCH, r.key) ? VIDEO_DISPATCH[r.key] : null,
+  };
 }

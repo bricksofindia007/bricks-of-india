@@ -12,7 +12,7 @@
 //  - The dispatcher is inert unless BOTH the BOI_SCHEDULER_DISPATCH_TOKEN secret exists AND
 //    flag:v1.dispatch_enabled is true (set only after Abhinav confirms the token, P5).
 import { verifyAndParse } from './auth';
-import { VIDEO_DISPATCH, dispatchWorkflow } from './dispatch';
+import { dispatchWorkflow, planScheduled } from './dispatch';
 import { FRESHNESS_CRON, runFreshnessWatchdog, sendAlertMail, type FreshnessEnv } from './freshness';
 import { KEEPALIVE_CRON, runKeepAlive } from './keepalive';
 import { LOADGEN_CRON, loadgenSettings, runMinute, type LoadgenEnv, type Profile, type Samples } from './loadgen';
@@ -34,8 +34,6 @@ export interface Env {
 }
 
 const VERSION = 'boi-scheduler/1';
-// FP5.9: one cron per retailer, offset so they don't pile up. The cron expression maps to the store.
-const CRON_STORE: Record<string, string> = { '0 3 * * *': 'mybrickhouse', '5 3 * * *': 'toycra' };
 const NONCE_TTL_S = 600;
 
 const json = (status: number, body: unknown) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json', 'x-robots-tag': 'noindex' } });
@@ -78,12 +76,16 @@ export default {
   },
   async scheduled(ev: ScheduledController, env: Env, ctx: ExecutionContext): Promise<void> {
     const slot = new Date(ev.scheduledTime).toISOString();
-    await env.BOI_SNAPSHOTS.put('meta:scheduler:heartbeat', JSON.stringify({ at: new Date().toISOString(), slot, cron: ev.cron, version: VERSION, target: env.TARGET }));
-    const store = CRON_STORE[ev.cron];
-    if (store) ctx.waitUntil(dispatch(env, store, slot));
+    // Order 1000: the cron text is matched first; if it is not a table key, the scheduled time is matched instead.
+    // The heartbeat records which way it matched and the cron text received, so a fallback is visible in /health.
+    const plan = planScheduled(ev.cron, ev.scheduledTime, [FRESHNESS_CRON, KEEPALIVE_CRON, LOADGEN_CRON]);
+    await env.BOI_SNAPSHOTS.put('meta:scheduler:heartbeat', JSON.stringify({
+      at: new Date().toISOString(), slot, cron: ev.cron, version: VERSION, target: env.TARGET,
+      match: plan.match, resolved_cron: plan.resolved_cron,
+    }));
+    if (plan.store) ctx.waitUntil(dispatch(env, plan.store, slot));
     // Video publish pollers at their slot times, and once more an hour later (order 0970).
-    const video = VIDEO_DISPATCH[ev.cron];
-    if (video) ctx.waitUntil(dispatchWorkflow(env, video.file, {}, video.name, slot));
+    if (plan.video) ctx.waitUntil(dispatchWorkflow(env, plan.video.file, {}, plan.video.name, slot));
     // Freshness watchdog (23 Oct 2026): staging first; the Actions copy stays until the Worker run is proven.
     if (ev.cron === FRESHNESS_CRON) {
       const fe = env as unknown as FreshnessEnv;
