@@ -30,9 +30,13 @@ on:
     - cron: '30 3 * * 2,4,6'   # VID-QP posting days: Tue/Thu/Sat, 09:00 IST
   workflow_dispatch:
     inputs:
+      source:
+        description: 'Set by the scheduler Worker; leave empty for a manual run (the same-day guard applies only to scheduled and Worker runs)'
+        required: false
+        type: string
       set_number:
         description: 'LEGO set number to render (must be in-stock/priced at MyBrickHouse or Toycra, and not already claimed in quiet_panic_posts -- see select_quiet_panic_candidate.py)'
-        required: true
+        required: false
         type: string
       segments_json:
         description: 'OPTIONAL: hand-authored segment script as a JSON array (text/target_duration/voice/sfx_tag per segment), same schema as briefs/VID-QP-01.md section 6. Leave blank to auto-generate via script-gen (fresh mode) instead.'
@@ -61,9 +65,29 @@ jobs:
       needs: 'read,write,upload'
     secrets: inherit
 
-  generate:
+  same-day:
     needs: [quota-gate]
     if: needs.quota-gate.outputs.proceed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/ci/same-day-guard.mjs video-generate-quiet-panic.yml "$GITHUB_RUN_ID" "${{ github.event_name }}" "${{ inputs.source }}" >> "$GITHUB_OUTPUT"
+
+  generate:
+    needs: [quota-gate, same-day]
+    if: needs.quota-gate.outputs.proceed == 'true' && needs.same-day.outputs.run == 'true'
     runs-on: ubuntu-24.04
     env:
       G19_TERMS: ${{ secrets.G19_TERMS }}  # G19 term list (never in the repo); gates fail closed without it
