@@ -1,0 +1,38 @@
+# Daily check of this repo's own Instagram token (IG_ACCESS_TOKEN).
+# Reads days left from Meta's debug_token. The run fails when the token is rejected
+# or under 10 days from expiry; that failed run is the only notice (no email is sent).
+# Makes no refresh (ig-token-refresh.yml still rotates). No token values are printed.
+#
+# Each run records its result in the IG_TOKEN_CHECK_HEARTBEAT repo variable.
+#
+# Secrets used: IG_ACCESS_TOKEN, FB_APP_ID, FB_APP_SECRET (existing), and
+# ADMIN_PAT (existing; needs variables write for the heartbeat).
+
+name: ig-token-daily-check
+
+on:
+  schedule:
+    - cron: '45 5 * * *'   # daily 05:45 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Check the token and write the heartbeat
+        env:
+          IG_ACCESS_TOKEN: ${{ secrets.IG_ACCESS_TOKEN }}
+          FB_APP_ID: ${{ secrets.FB_APP_ID }}
+          FB_APP_SECRET: ${{ secrets.FB_APP_SECRET }}
+          GH_TOKEN: ${{ secrets.ADMIN_PAT }}
+        run: python scripts/ci/ig_token_check.py
