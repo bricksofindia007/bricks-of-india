@@ -57,5 +57,13 @@
   "requestScope": {
     "maxCalls": 5,
     "maxInputTokens": 60000
+  },
+  "elevenlabs": {
+    "_doc": "Per-run character budget for voice generation (scripts/lib/ai_guard.py charge_characters). Set from real run data; a run with no entry is refused.",
+    "perRun": {
+      "generate_quiet_panic_video.py": {
+        "maxCharacters": 115
+      }
+    }
   }
 }

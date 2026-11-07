@@ -26,7 +26,7 @@ import random
 import re
 import sys
 sys.path.insert(0, str(__import__("pathlib").Path(__file__).resolve().parents[1] / "lib"))
-from ai_guard import AiLimitError, gemini_generate, run_budget  # noqa: E402  (safety limits on every Gemini call)
+from ai_guard import AiLimitError, gemini_generate, guarded_call, run_budget  # noqa: E402  (safety limits on every model call)
 import time
 from pathlib import Path
 from typing import NamedTuple
@@ -1009,28 +1009,41 @@ def _call_groq(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
     elif model.startswith('openai/gpt-oss'):
         body['reasoning_effort'] = 'low'
 
-    for attempt in (1, 2):
+    # Every HTTP attempt goes through the shared call guard (config/ai-limits.json) and counts against this run's
+    # call and input-token caps, the same as the Gemini call. A refusal raises AiLimitError before anything is sent.
+    def _post(attempt_body):
         resp = requests.post(
             'https://api.groq.com/openai/v1/chat/completions',
             headers={'Authorization': f'Bearer {GROQ_API_KEY}', 'Content-Type': 'application/json'},
-            json=body,
+            json=attempt_body,
             timeout=60,
         )
         if resp.status_code == 429:
+            return {'rate_limited': True, 'retry_after': resp.headers.get('Retry-After'), 'text': '',
+                    'inputTokens': None, 'outputTokens': None}
+        resp.raise_for_status()
+        data = resp.json()
+        usage = data.get('usage', {})
+        return {'rate_limited': False, 'retry_after': None,
+                'text': data['choices'][0]['message']['content'] or '',
+                'inputTokens': usage.get('prompt_tokens'), 'outputTokens': usage.get('completion_tokens')}
+
+    for attempt in (1, 2):
+        res = guarded_call(
+            site='video-qp', model=model, system=system_prompt, user=task_prompt,
+            invoke=lambda: _post(body), budget=run_budget(),
+        )
+        if res['rate_limited']:
             if attempt == 2:
                 raise RuntimeError('Groq rate-limited (429) after one retry.')
-            retry_after = resp.headers.get('Retry-After')
+            retry_after = res['retry_after']
             delay = float(retry_after) + 1.0 if retry_after else 20.0
             print(f'WARN: Groq 429, retrying once after {delay:.1f}s...', file=sys.stderr)
             time.sleep(delay)
             continue
-        resp.raise_for_status()
-        data = resp.json()
-        content = data['choices'][0]['message']['content']
-        if not content or not content.strip():
+        if not res['text'].strip():
             raise RuntimeError('Groq returned empty content.')
-        usage = data.get('usage', {})
-        return ScriptGenCallResult(content.strip(), 'groq', usage.get('prompt_tokens'), usage.get('completion_tokens'))
+        return ScriptGenCallResult(res['text'].strip(), 'groq', res['inputTokens'], res['outputTokens'])
     raise RuntimeError('Groq call failed: unreachable retry exhaustion.')  # pragma: no cover
 
 
@@ -1135,6 +1148,8 @@ def generate_quiet_panic_script(candidate: dict, revision_context: dict = None) 
             )
             try:
                 call_result = _call_groq(trimmed_system_prompt, task_prompt)
+            except AiLimitError:
+                raise  # a safety-limit refusal fails the run; it is never sent to a fallback
             except Exception as e:
                 print(f'WARN: Groq script-gen failed ({e}), falling back.', file=sys.stderr)
 
