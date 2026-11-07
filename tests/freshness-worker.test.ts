@@ -57,11 +57,23 @@ describe('evaluateFreshness', () => {
 });
 
 describe('latestRun (read path)', () => {
-  it('returns the newest completed run time', async () => {
-    const f = vi.fn(async (..._args: unknown[]) => new Response(JSON.stringify({ workflow_runs: [{ created_at: RECENT }] }), { status: 200 }));
+  it('returns the newest successful run time', async () => {
+    const f = vi.fn(async (..._args: unknown[]) => new Response(JSON.stringify({ workflow_runs: [{ created_at: RECENT, conclusion: 'success' }] }), { status: 200 }));
     const { e } = env();
     expect(await latestRun('radar.yml', e, f as any)).toBe(RECENT);
-    expect(String(f.mock.calls[0][0])).toContain('/repos/o/r/actions/workflows/radar.yml/runs?per_page=1&status=completed');
+    expect(String(f.mock.calls[0][0])).toContain('/repos/o/r/actions/workflows/radar.yml/runs?per_page=5&status=success');
+  });
+  it('a failed run is not fresh: a workflow whose only recent run failed returns null', async () => {
+    const f = vi.fn(async (..._args: unknown[]) => new Response(JSON.stringify({ workflow_runs: [{ created_at: RECENT, conclusion: 'failure' }] }), { status: 200 }));
+    expect(await latestRun('code-audit.yml', env().e, f as any)).toBeNull();
+  });
+  it('a cancelled or timed-out run is not fresh either', async () => {
+    const f = vi.fn(async (..._args: unknown[]) => new Response(JSON.stringify({ workflow_runs: [{ created_at: RECENT, conclusion: 'cancelled' }, { created_at: RECENT, conclusion: 'timed_out' }] }), { status: 200 }));
+    expect(await latestRun('code-audit.yml', env().e, f as any)).toBeNull();
+  });
+  it('skips a newer failure and uses the first success behind it', async () => {
+    const f = vi.fn(async (..._args: unknown[]) => new Response(JSON.stringify({ workflow_runs: [{ created_at: RECENT, conclusion: 'failure' }, { created_at: OLD, conclusion: 'success' }] }), { status: 200 }));
+    expect(await latestRun('code-audit.yml', env().e, f as any)).toBe(OLD);
   });
   it('a workflow with no runs returns null', async () => {
     const f = vi.fn(async (..._args: unknown[]) => new Response(JSON.stringify({ workflow_runs: [] }), { status: 200 }));
@@ -82,7 +94,7 @@ describe('latestRun (read path)', () => {
 describe('runFreshnessWatchdog', () => {
   it('healthy: writes a heartbeat and sends no mail', async () => {
     const { s, e } = env({ ALERTS_ENABLED: 'true' });
-    const f = vi.fn(async () => new Response(JSON.stringify({ workflow_runs: [{ created_at: RECENT }] }), { status: 200 }));
+    const f = vi.fn(async () => new Response(JSON.stringify({ workflow_runs: [{ created_at: RECENT, conclusion: 'success' }] }), { status: 200 }));
     const sent: string[] = [];
     const r = await runFreshnessWatchdog(e, f as any, NOW, async (s2) => { sent.push(s2); });
     expect(r.ok).toBe(true);
@@ -115,12 +127,27 @@ describe('runFreshnessWatchdog', () => {
 
   it('a stale workflow sends one mail that names it, and does not contain the read token', async () => {
     const { e } = env({ ALERTS_ENABLED: 'true' });
-    const f = vi.fn(async (url: string) => new Response(JSON.stringify({ workflow_runs: [{ created_at: url.includes('health-check') ? OLD : RECENT }] }), { status: 200 }));
+    const f = vi.fn(async (url: string) => new Response(JSON.stringify({ workflow_runs: [{ created_at: url.includes('health-check') ? OLD : RECENT, conclusion: 'success' }] }), { status: 200 }));
     const sent: { subject: string; text: string }[] = [];
     await runFreshnessWatchdog(e, f as any, NOW, async (subject, text) => { sent.push({ subject, text }); });
     expect(sent).toHaveLength(1);
     expect(sent[0].text).toContain('health-check.yml');
     expect(sent[0].text).not.toContain('tok-TEST');
+  });
+
+  it('a workflow with no successful run is stale and named in the mail', async () => {
+    const { e } = env({ ALERTS_ENABLED: 'true' });
+    const f = vi.fn(async (url: string) => new Response(JSON.stringify({ workflow_runs: url.includes('code-audit') ? [] : [{ created_at: RECENT, conclusion: 'success' }] }), { status: 200 }));
+    const sent: { subject: string; text: string }[] = [];
+    const r = await runFreshnessWatchdog(e, f as any, NOW, async (subject, text) => { sent.push({ subject, text }); });
+    expect(r.stale).toEqual([expect.objectContaining({ file: 'code-audit.yml', kind: 'no-runs' })]);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].text).toContain('code-audit.yml');
+  });
+
+  it('the stale reason says it is the last successful run', async () => {
+    const r = evaluateFreshness({ ...allRecent(), 'health-check.yml': OLD }, NOW);
+    expect(r.stale[0].reason).toMatch(/last successful run/);
   });
 
   it('the heartbeat never contains the token', async () => {
