@@ -42,6 +42,19 @@ export function cardFileName(kind: CardKind, format: CardFormat): string {
   return `${kind === 'collection' ? 'my-collection' : 'my-wishlist'}-${format}.png`;
 }
 
+/**
+ * Pure: the card for a Lab tool (the Instagram button in the Lab share sheet). It shows the tool's own name and the
+ * site name only. No count and no line: the card adds no words of its own (the card wording is a question for the owner).
+ */
+export function labCardCopy(toolName: string): CardCopy {
+  return { kind: 'collection', heading: toolName, count: '', line: '', footer: 'bricksofindia.com' };
+}
+
+/** Pure: a file name for a Lab tool's saved card. Uses the tool's id only. */
+export function labCardFileName(toolId: string, format: CardFormat): string {
+  return `${toolId}-${format}.png`;
+}
+
 /** The minimal canvas surface the drawing needs. Lets the drawing be tested without a browser. */
 export type CardCanvas = Pick<CanvasRenderingContext2D, 'fillStyle' | 'font' | 'textAlign' | 'fillRect' | 'fillText'>;
 
@@ -55,10 +68,14 @@ export function drawShareCard(ctx: CardCanvas, format: CardFormat, copy: CardCop
   ctx.textAlign = 'center';
   ctx.font = 'bold 96px sans-serif';
   ctx.fillText(copy.heading, width / 2, mid - 120);
-  ctx.font = '64px sans-serif';
-  ctx.fillText(copy.count, width / 2, mid);
-  ctx.font = 'italic 56px sans-serif';
-  ctx.fillText(copy.line, width / 2, mid + 120);
+  if (copy.count) {
+    ctx.font = '64px sans-serif';
+    ctx.fillText(copy.count, width / 2, mid);
+  }
+  if (copy.line) {
+    ctx.font = 'italic 56px sans-serif';
+    ctx.fillText(copy.line, width / 2, mid + 120);
+  }
   ctx.font = '40px sans-serif';
   ctx.fillText(copy.footer, width / 2, height - 80);
 }

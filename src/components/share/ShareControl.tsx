@@ -8,6 +8,7 @@ import { useState } from 'react';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import { trackEvent } from '@/lib/analytics';
 import { SHARE_TEXT, VISIBLE_CHANNELS, channelLink, shareEnabled, type ShareChannel, type ShareTarget } from '@/lib/share';
+import { CARD_SIZES, drawShareCard, labCardCopy, labCardFileName } from '@/lib/share-card';
 
 const LABELS: Record<ShareChannel, string> = {
   whatsapp: 'WhatsApp',
@@ -28,6 +29,41 @@ export function ShareControl({ target }: { target: ShareTarget }) {
   // Server render has no window; the sheet only opens on the client, so the path is enough there.
   const url = typeof window === 'undefined' ? target.path : `${window.location.origin}${target.path}`;
 
+  // Instagram has no link form, so the story-size card goes out as an image.
+  // 1. Where the phone can share a file (navigator.share with files): the phone's share sheet opens with the card.
+  // 2. Otherwise: the card is downloaded, the approved line is shown, and Instagram's web address opens in a new tab.
+  // A cancelled share is not a failure. A failed draw shows the general line. Nothing is sent by the site.
+  async function onInstagram() {
+    try {
+      const canvas = document.createElement('canvas');
+      const { width, height } = CARD_SIZES.story;
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) throw new Error('no canvas');
+      drawShareCard(ctx, 'story', labCardCopy(target.title));
+      const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob((b) => resolve(b), 'image/png'));
+      if (!blob) throw new Error('no blob');
+      const name = labCardFileName(target.id, 'story');
+      const file = new File([blob], name, { type: 'image/png' });
+      if (typeof navigator.share === 'function' && navigator.canShare?.({ files: [file] })) {
+        await navigator.share({ files: [file], title: target.title });
+        return;
+      }
+      const a = document.createElement('a');
+      const objectUrl = URL.createObjectURL(blob);
+      a.href = objectUrl;
+      a.download = name;
+      a.click();
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      const w = window.open('https://www.instagram.com/', '_blank');
+      if (w) w.opener = null;
+      setNote(SHARE_TEXT.instagramFallback);
+    } catch (err) {
+      if ((err as Error).name !== 'AbortError') setNote(SHARE_TEXT.failureGeneral);
+    }
+  }
+
   async function onChannel(channel: ShareChannel) {
     // One tap, one event. Counts the tap, not a completed share.
     trackEvent('click_share', { page_type: target.pageType, tool: target.id, channel });
@@ -43,8 +79,7 @@ export function ShareControl({ target }: { target: ShareTarget }) {
       return;
     }
     if (channel === 'instagram') {
-      // No image yet, so the phone share sheet is not offered. Show the approved fallback.
-      setNote(SHARE_TEXT.instagramFallback);
+      await onInstagram();
       return;
     }
     const link = channelLink(channel, target.title, url);
