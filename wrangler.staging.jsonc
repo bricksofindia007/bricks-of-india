@@ -19,22 +19,15 @@
       "service": "bricks-of-india-staging"
     }
   ],
-  "r2_buckets": [
-    {
-      "binding": "NEXT_INC_CACHE_R2_BUCKET",
-      "bucket_name": "bricksofindia-next-cache-staging"
-    }
-  ],
-  "durable_objects": {
-    "bindings": [
-      { "name": "NEXT_CACHE_DO_QUEUE", "class_name": "DOQueueHandler" },
-      { "name": "NEXT_TAG_CACHE_DO_SHARDED", "class_name": "DOShardedTagCache" }
-    ]
-  },
+  // Storage removed with the cleanup (order 0600 item 3), same as production. The v2 migration deletes the two classes.
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": ["DOQueueHandler", "DOShardedTagCache"]
+    },
+    {
+      "tag": "v2",
+      "deleted_classes": ["DOQueueHandler", "DOShardedTagCache"]
     }
   ],
   "vars": { "DEPLOY_TARGET": "staging", "BOI_EDGE_CACHE": "1" }

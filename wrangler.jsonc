@@ -31,47 +31,18 @@
       "service": "bricks-of-india"
     }
   ],
-  "r2_buckets": [
-    {
-      // OpenNext's fixed binding-name convention for its R2 incremental
-      // cache override -- not a free choice, must match what
-      // open-next.config.ts's r2-incremental-cache override expects.
-      "binding": "NEXT_INC_CACHE_R2_BUCKET",
-      "bucket_name": "bricksofindia-next-cache"
-    }
-  ],
-  // Two Durable Object classes, both from OpenNext's own binding-name/
-  // class-name convention (opennext.js.org/cloudflare/caching), matched in
-  // open-next.config.ts's queue/tagCache overrides:
-  //   - DOQueueHandler: required for the site's Time-Based (ISR) revalidation
-  //     on the 7 live ISR routes. Its absence is what this binding fixes --
-  //     without it, OpenNext falls back to a no-op DummyQueue that throws
-  //     `FatalError: Dummy queue is not implemented` the moment a stale ISR
-  //     page tries to actually revalidate in the background (confirmed live
-  //     via wrangler tail against the first preview deploy).
-  //   - DOShardedTagCache: required for On-Demand revalidation specifically
-  //     (revalidateTag/revalidatePath/res.revalidate) per the docs' own
-  //     inline comment next to this binding -- covers admin/pending/
-  //     actions.ts's revalidatePath() calls on every publish/approve action
-  //     (the same code path WORKER_SELF_REFERENCE above was already added
-  //     for).
-  // NEXT_CACHE_DO_PURGE/BucketCachePurge (the docs' third, optional DO) is
-  // deliberately NOT added -- it only buffers Cache-API purge requests
-  // through an intermediary Durable Object to dodge purge-API rate limits
-  // at higher traffic. open-next.config.ts uses cachePurge: purgeCache({
-  // type: "direct" }) instead, which calls the Cache API directly with no
-  // extra binding -- the right fit for this site's publish volume (one
-  // admin, occasional manual approvals), not a corner cut.
-  "durable_objects": {
-    "bindings": [
-      { "name": "NEXT_CACHE_DO_QUEUE", "class_name": "DOQueueHandler" },
-      { "name": "NEXT_TAG_CACHE_DO_SHARDED", "class_name": "DOShardedTagCache" }
-    ]
-  },
+  // Storage removed (order 0600 item 3): no R2 page copies, no Durable Object queue or tag cache. The R2 bucket
+  // contents and the Durable Object data are kept by Cloudflare until cleaned up separately.
+  // v2 deletes the two classes. This is irreversible: their stored data is removed, and a Worker version from before
+  // this migration cannot be deployed again without the classes (see the cleanup draft's notes in boi-ops).
   "migrations": [
     {
       "tag": "v1",
       "new_sqlite_classes": ["DOQueueHandler", "DOShardedTagCache"]
+    },
+    {
+      "tag": "v2",
+      "deleted_classes": ["DOQueueHandler", "DOShardedTagCache"]
     }
   ],
   // Cloudflare Images binding -- routes next/image's default optimizer
