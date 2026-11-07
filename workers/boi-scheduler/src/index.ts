@@ -78,7 +78,7 @@ export default {
     const slot = new Date(ev.scheduledTime).toISOString();
     // Order 1000: the cron text is matched first; if it is not a table key, the scheduled time is matched instead.
     // The heartbeat records which way it matched and the cron text received, so a fallback is visible in /health.
-    const plan = planScheduled(ev.cron, ev.scheduledTime);
+    const plan = planScheduled(ev.cron, ev.scheduledTime, [FRESHNESS_CRON, KEEPALIVE_CRON, LOADGEN_CRON]);
     await env.BOI_SNAPSHOTS.put('meta:scheduler:heartbeat', JSON.stringify({
       at: new Date().toISOString(), slot, cron: ev.cron, version: VERSION, target: env.TARGET,
       match: plan.match, resolved_cron: plan.resolved_cron,

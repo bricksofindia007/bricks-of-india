@@ -110,8 +110,14 @@ export const TIME_INDEX: Record<string, string> = (() => {
  * Which table entry this event belongs to (order 1000). An exact match on the cron text wins. Otherwise the event's
  * scheduled time is matched against the table. 'none' means nothing is configured for that time: do nothing.
  */
-export function resolveCron(cron: string, scheduledMs: number): { match: 'exact' | 'fallback' | 'none'; key: string | null } {
+export function resolveCron(
+  cron: string,
+  scheduledMs: number,
+  ownCrons: readonly string[] = [],
+): { match: 'exact' | 'fallback' | 'none'; key: string | null } {
   if (has(VIDEO_DISPATCH, cron) || has(SCRAPE_STORE_BY_CRON, cron)) return { match: 'exact', key: cron };
+  // The Worker's own non-dispatch crons (freshness, keep-alive, load) never fall back to the time table (order 1010).
+  if (ownCrons.includes(cron)) return { match: 'none', key: null };
   const d = new Date(scheduledMs);
   const key = has(TIME_INDEX, `${d.getUTCDay()} ${d.getUTCHours()} ${d.getUTCMinutes()}`)
     ? TIME_INDEX[`${d.getUTCDay()} ${d.getUTCHours()} ${d.getUTCMinutes()}`]
@@ -120,13 +126,13 @@ export function resolveCron(cron: string, scheduledMs: number): { match: 'exact'
 }
 
 /** What one scheduled event does: which scrape and which video entry to dispatch, and how the match was made. */
-export function planScheduled(cron: string, scheduledMs: number): {
+export function planScheduled(cron: string, scheduledMs: number, ownCrons: readonly string[] = []): {
   match: 'exact' | 'fallback' | 'none';
   resolved_cron: string | null;
   store: string | null;
   video: { file: string; name: string } | null;
 } {
-  const r = resolveCron(cron, scheduledMs);
+  const r = resolveCron(cron, scheduledMs, ownCrons);
   if (!r.key) return { match: r.match, resolved_cron: null, store: null, video: null };
   return {
     match: r.match,

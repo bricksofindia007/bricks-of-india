@@ -295,3 +295,27 @@ describe('planScheduled: what each event dispatches and what the heartbeat recor
     expect(planScheduled('something-new', SUN_1200)).toEqual({ match: 'none', resolved_cron: null, store: null, video: null });
   });
 });
+
+// Order 1010: the Worker's own non-dispatch crons never reach the time fallback, so a video or scrape can't be dispatched
+// by a freshness, keep-alive or load tick that happens to fall on a table time.
+const OWN_CRONS = ['10 3 * * *', '17 6 * * 1,4', '* * * * *'];
+
+describe('own crons never fall back to the time table (order 1010)', () => {
+  it('the load cron "* * * * *" at a video time plans nothing', () => {
+    expect(planScheduled('* * * * *', SUN_1405, OWN_CRONS)).toEqual({ match: 'none', resolved_cron: null, store: null, video: null });
+  });
+
+  it('the freshness cron "10 3 * * *" at a video time plans nothing', () => {
+    expect(planScheduled('10 3 * * *', SUN_1405, OWN_CRONS)).toEqual({ match: 'none', resolved_cron: null, store: null, video: null });
+  });
+
+  it('the same texts still fall back when they are not the Worker\'s own crons, so the guard is the only thing that stops them', () => {
+    expect(planScheduled('* * * * *', SUN_1405).match).toBe('fallback');
+  });
+
+  it('the list used here equals the constants in the Worker modules', () => {
+    expect(read('workers/boi-scheduler/src/freshness.ts')).toContain(`FRESHNESS_CRON = '${OWN_CRONS[0]}'`);
+    expect(read('workers/boi-scheduler/src/keepalive.ts')).toContain(`KEEPALIVE_CRON = '${OWN_CRONS[1]}'`);
+    expect(read('workers/boi-scheduler/src/loadgen.ts')).toContain(`LOADGEN_CRON = '${OWN_CRONS[2]}'`);
+  });
+});
