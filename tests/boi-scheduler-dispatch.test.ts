@@ -13,13 +13,44 @@ const read = (f: string) => readFileSync(join(root, f), 'utf8');
 const wrangler = JSON.parse(read('workers/boi-scheduler/wrangler.jsonc').split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n'));
 const SCRAPE_CRONS = ['0 3 * * *', '5 3 * * *'];
 
+// Cloudflare cron day-of-week (developers.cloudflare.com/workers/configuration/cron-triggers/): 1 = Sunday to
+// 7 = Saturday, or the three-letter names. 0 is not a day. Returns the problems with a cron string; [] means it passes.
+const CF_DAY_NAMES = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
+function cronProblems(expr: string): string[] {
+  const f = expr.trim().split(/\s+/);
+  if (f.length !== 5) return ['expected five fields'];
+  const problems: string[] = [];
+  const check = (field: string, lo: number, hi: number, label: string) => {
+    for (const item of field.split(',')) {
+      for (const part of item.split('-')) {
+        if (part === '*') continue;
+        if (!/^\d+$/.test(part) || Number(part) < lo || Number(part) > hi) problems.push(`${label} ${part} is outside ${lo}-${hi}`);
+      }
+    }
+  };
+  check(f[0], 0, 59, 'minute');
+  check(f[1], 0, 23, 'hour');
+  check(f[2], 1, 31, 'day of month');
+  check(f[3], 1, 12, 'month');
+  for (const item of f[4].split(',')) {
+    for (const part of item.split('-')) {
+      if (part === '*' || CF_DAY_NAMES.includes(part.toUpperCase())) continue;
+      if (part === '0') problems.push('day-of-week 0 is not a day: Sunday is 1 or SUN (Cloudflare numbers 1 = Sunday to 7 = Saturday)');
+      else if (!/^[1-7]$/.test(part)) problems.push(`day-of-week ${part} is not a name or a number 1-7`);
+    }
+  }
+  return problems;
+}
+
 // IST = UTC + 5h30. Minutes of the day in IST for a UTC cron (hour, minute).
 const istMinute = (cron: string) => {
   const [m, h] = cron.split(' ').map(Number);
   return (h * 60 + m + 330) % 1440;
 };
 const hhmm = (minutes: number) => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
-const utcDays = (cron: string) => cron.split(' ')[4].split(',').map(Number);
+// JavaScript getUTCDay numbering (0 = Sunday) for the day names in a cron string.
+const JS_DAY: Record<string, number> = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
+const utcDays = (cron: string) => cron.split(' ')[4].split(',').map((d) => JS_DAY[d]);
 
 class FakeKv {
   store = new Map<string, string>();
@@ -86,21 +117,21 @@ describe('slot arithmetic matches the video slots (order 0970)', () => {
   });
 
   it('VID-P4 dispatches 5 minutes after the 19:30 IST slot, and again 60 minutes later', () => {
-    expect(hhmm(istMinute('5 14 * * 0,3,5'))).toBe('19:35');
-    expect(hhmm(istMinute('5 15 * * 0,3,5'))).toBe('20:35');
+    expect(hhmm(istMinute('5 14 * * SUN,WED,FRI'))).toBe('19:35');
+    expect(hhmm(istMinute('5 15 * * SUN,WED,FRI'))).toBe('20:35');
   });
 
   it('VID-QP dispatches 5 minutes after the 00:00 IST slot, and again 60 minutes later', () => {
-    expect(hhmm(istMinute('35 18 * * 1,3,5'))).toBe('00:05');
-    expect(hhmm(istMinute('35 19 * * 1,3,5'))).toBe('01:05');
+    expect(hhmm(istMinute('35 18 * * MON,WED,FRI'))).toBe('00:05');
+    expect(hhmm(istMinute('35 19 * * MON,WED,FRI'))).toBe('01:05');
   });
 
   it('the VID-P4 UTC days are the IST slot days (Sun, Wed, Fri), the same calendar day', () => {
-    expect(utcDays('5 14 * * 0,3,5')).toEqual([0, 3, 5]); // JS: 0 Sun, 3 Wed, 5 Fri
+    expect(utcDays('5 14 * * SUN,WED,FRI')).toEqual([0, 3, 5]); // JS: 0 Sun, 3 Wed, 5 Fri
   });
 
   it('the VID-QP UTC days are the day before the IST slot days (Tue, Thu, Sat IST), because 00:05 IST is the previous UTC day', () => {
-    const istDays = utcDays('35 18 * * 1,3,5').map((d) => (d + 1) % 7); // JS: Tue 2, Thu 4, Sat 6
+    const istDays = utcDays('35 18 * * MON,WED,FRI').map((d) => (d + 1) % 7); // JS: Tue 2, Thu 4, Sat 6
     expect(istDays).toEqual([2, 4, 6]);
   });
 
@@ -169,5 +200,37 @@ describe('dispatch gate and retry (order 0970)', () => {
     await dispatchWorkflow(env, 'scrape-prices.yml', { store: 'mybrickhouse' }, 'mybrickhouse', 'slot', [0]);
     expect(JSON.parse(fetchMock.mock.calls[0][1].body)).toEqual({ ref: 'main', inputs: { store: 'mybrickhouse' } });
     expect(JSON.parse(kv.store.get('meta:dispatch:mybrickhouse') as string)).toMatchObject({ store: 'mybrickhouse', http_status: 204 });
+  });
+});
+
+describe('cron strings use Cloudflare day syntax (order 0990)', () => {
+  const productionCrons: string[] = wrangler.triggers.crons;
+  const videoCrons = productionCrons.filter((c) => !SCRAPE_CRONS.includes(c));
+
+  it('the validator rejects day 0 and out-of-range or unknown day names, and accepts the day-name form', () => {
+    expect(cronProblems('5 14 * * 0,3,5')).toEqual([expect.stringMatching(/day-of-week 0 is not a day/)]);
+    expect(cronProblems('5 14 * * 8')).toEqual([expect.stringMatching(/day-of-week 8/)]);
+    expect(cronProblems('5 14 * * FUN')).toEqual([expect.stringMatching(/day-of-week FUN/)]);
+    expect(cronProblems('5 14 * * SUN,WED,FRI')).toEqual([]);
+    expect(cronProblems('35 18 * * MON,WED,FRI')).toEqual([]);
+    expect(cronProblems('5 14 * * 1,4')).toEqual([]); // numbers 1-7 are valid Cloudflare days
+  });
+
+  it('every production cron passes the validator', () => {
+    for (const cron of productionCrons) expect(cronProblems(cron), cron).toEqual([]);
+  });
+
+  it('each video cron has a matching dispatch key, and the keys are exactly the video crons', () => {
+    for (const cron of videoCrons) expect(Object.keys(VIDEO_DISPATCH), cron).toContain(cron);
+    expect(Object.keys(VIDEO_DISPATCH).sort()).toEqual([...videoCrons].sort());
+  });
+
+  it('the four video crons are written with the day names the order lists', () => {
+    expect([...videoCrons].sort()).toEqual([
+      '35 18 * * MON,WED,FRI',
+      '35 19 * * MON,WED,FRI',
+      '5 14 * * SUN,WED,FRI',
+      '5 15 * * SUN,WED,FRI',
+    ]);
   });
 });

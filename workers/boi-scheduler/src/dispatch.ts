@@ -25,14 +25,19 @@ export interface DispatchEnv {
   GITHUB_REPO: string;
 }
 
-/** The production cron expressions (UTC) and what each one dispatches. Slots are read from scripts/video/cadence.py. */
+/**
+ * The production cron expressions (UTC) and what each one dispatches. Each key is the cron string exactly as it is
+ * configured in wrangler.jsonc, because index.ts looks the entry up by the event's cron. Day names are used because
+ * Cloudflare numbers the days 1 = Sunday to 7 = Saturday and rejects 0 (cron syntax, Cloudflare Workers docs).
+ * Slots are read from scripts/video/cadence.py.
+ */
 export const VIDEO_DISPATCH: Record<string, { file: string; name: string }> = {
   // VID-P4 slot opens 19:30 IST on Wed, Fri, Sun. Dispatch 19:35 IST (14:05 UTC); retry 20:35 IST (15:05 UTC).
-  '5 14 * * 0,3,5': { file: 'video-publish-poller.yml', name: 'vidp4-slot' },
-  '5 15 * * 0,3,5': { file: 'video-publish-poller.yml', name: 'vidp4-retry' },
+  '5 14 * * SUN,WED,FRI': { file: 'video-publish-poller.yml', name: 'vidp4-slot' },
+  '5 15 * * SUN,WED,FRI': { file: 'video-publish-poller.yml', name: 'vidp4-retry' },
   // VID-QP slot opens 00:00 IST on Tue, Thu, Sat (Mon, Wed, Fri in UTC). Dispatch 00:05 IST (18:35 UTC); retry 01:05 IST (19:35 UTC).
-  '35 18 * * 1,3,5': { file: 'video-publish-poller-quiet-panic.yml', name: 'vidqp-slot' },
-  '35 19 * * 1,3,5': { file: 'video-publish-poller-quiet-panic.yml', name: 'vidqp-retry' },
+  '35 18 * * MON,WED,FRI': { file: 'video-publish-poller-quiet-panic.yml', name: 'vidqp-slot' },
+  '35 19 * * MON,WED,FRI': { file: 'video-publish-poller-quiet-panic.yml', name: 'vidqp-retry' },
 };
 
 /**
