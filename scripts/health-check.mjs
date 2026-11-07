@@ -489,7 +489,7 @@ try {
 
   const workflows = [
     { file: 'radar.yml',             label: 'RADAR pipeline',        maxAgeHours: 26 },
-    { file: 'social-automation.yml', label: 'Social automation',     maxAgeHours: 26 },
+    { file: 'social-automation.yml', label: 'Social automation',     maxAgeHours: 192 }, // weekly, Mondays 12:00 IST: one week plus one day (same limit as Checks 6 and 6c)
     { file: 'scrape-prices.yml',     label: 'Price scraper',         maxAgeHours: 26 },
     { file: 'generate-drafts.yml',   label: 'Batch generator',       maxAgeHours: 26 },
     // Added 2026-07-26 -- previously absent despite being two of the more
