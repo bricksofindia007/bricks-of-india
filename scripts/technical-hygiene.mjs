@@ -53,6 +53,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { execSync } from 'child_process';
 import { genuinelyAvailableAtToycra } from '../src/lib/toycra-availability.ts';
+import { socialPostStatus } from './lib/social-cadence.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
@@ -1645,18 +1646,16 @@ try {
   }
 } catch (e) { alertFail('Performance', `Gemini queue check error: ${e.message.slice(0, 80)}`); }
 
-// 15i: Social automation — posted_sets entry within 25h (skip gracefully if table missing)
+// 15i: Social automation — latest posted_sets entry within the weekly window (skip gracefully if table missing)
 try {
-  const cutoff = new Date(Date.now() - 25 * 3_600_000).toISOString();
   const { data, error } = await sb.from('posted_sets').select('id, posted_at').order('posted_at', { ascending: false }).limit(1);
   if (error) {
     log('Performance', `Social automation: posted_sets table unavailable — ${error.message.slice(0, 60)}`);
   } else if (!data || data.length === 0) {
     alertFail('Performance', 'Social automation: no rows in posted_sets — social pipeline may never have run');
   } else {
-    const lastPost = data[0].posted_at;
-    const hoursAgo = (Date.now() - new Date(lastPost).getTime()) / 3_600_000;
-    if (hoursAgo > 25) alertFail('Performance', `Social automation: last post ${hoursAgo.toFixed(1)}h ago — daily pipeline may be failing`);
+    const { hoursAgo, fresh } = socialPostStatus(data[0].posted_at, Date.now());
+    if (!fresh) alertFail('Performance', `Social automation: last post ${hoursAgo.toFixed(1)}h ago — the pipeline may be failing`);
     else log('Performance', `Social automation: last post ${hoursAgo.toFixed(1)}h ago ✓`);
   }
 } catch (e) { log('Performance', `Social automation check skipped: ${e.message.slice(0, 60)}`); }
