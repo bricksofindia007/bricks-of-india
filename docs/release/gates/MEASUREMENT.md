@@ -36,3 +36,7 @@ A measurement that fails any of these is not a pass, and a new window is needed.
 ## Chain of evidence
 - The measurement names the commit that ran (`measured_sha`). If the release commit differs only in docs, logs or this file, it is the same release.
 - The approver (`approved_by`) and the rollback release (`rollback_target`) are recorded.
+
+## Exception for the release on 73e8d52d (8 November 2026)
+
+For the release measured on commit 73e8d52d, the owner approved, once and for that release only, a difference in the page output. Every difference was reviewed. The differences were content updates: new items and changed figures on pages. No layout, wording or missing-section differences were found. The full record is kept privately.
