@@ -60,14 +60,14 @@ describe('deploy gate check-run rule: latest completed run', () => {
     expect(checkFailures(checkRuns, DOCS_ONLY)).toEqual(['check missing on the checked commit: pr-text-attribution']);
   });
 
-  it('a run still in progress is ignored until it completes (the older completed success counts)', () => {
+  it('a run still in progress blocks, even with an older completed success', () => {
     const checkRuns = runs({
-      'secret-scan': [
-        { name: 'secret-scan', status: 'in_progress', conclusion: null, id: 50, started_at: '2026-11-08T04:00:00Z', completed_at: null },
-        success('secret-scan', '2026-11-08T01:00:00Z', 5),
+      'snapshot-tests': [
+        { name: 'snapshot-tests', status: 'in_progress', conclusion: null, id: 50, started_at: '2026-11-08T04:00:00Z', completed_at: null },
+        success('snapshot-tests', '2026-11-08T01:00:00Z', 5),
       ],
     });
-    expect(checkFailures(checkRuns, CODE)).toEqual([]);
+    expect(checkFailures(checkRuns, CODE)).toEqual(['check not green: snapshot-tests (still running)']);
   });
 
   it('a skipped check with an empty diff blocks (nothing shows the change is docs-only)', () => {

@@ -104,7 +104,9 @@ export function evaluateGate(input) {
   for (const name of REQUIRED_CHECKS) {
     const runs = input.checkRuns.filter((r) => r.name === name);
     if (runs.length === 0) { failures.push(`check missing on the checked commit: ${name}`); continue; }
-    // Only the most recent completed run for this name counts. A run still in progress is ignored until it completes.
+    // Any run for this name that has not completed blocks: its result is not known yet.
+    if (runs.some((r) => r.status !== 'completed')) { failures.push(`check not green: ${name} (still running)`); continue; }
+    // Only the most recent completed run for this name counts.
     const key = (r) => `${r.completed_at || r.started_at || ''}|${String(r.id ?? 0).padStart(15, '0')}`;
     const done = runs.filter((r) => r.status === 'completed');
     const latest = done.length ? done.reduce((a, b) => (key(b) > key(a) ? b : a)) : null;
