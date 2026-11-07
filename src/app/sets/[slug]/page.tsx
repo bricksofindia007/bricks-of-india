@@ -40,7 +40,7 @@ export const revalidate = 1209600;
 // Reads are cached with unstable_cache (not fetchCache='default-cache', which
 // cached until the next deploy), so each cached value carries the time it was
 // read: that's the "as of" time the page shows, never newer than the data.
-// Tagged set:<n> for FP1.6's revalidateTag.
+// No cache tags: nothing revalidates a set by tag. A publish refreshes a page by its path, and each read has its own clock.
 
 export async function generateStaticParams() {
   return staticParamsForBuild<{ slug: string }>([], { slug: 'no-storage-build-probe' });
@@ -78,7 +78,7 @@ const readRpc = (setNumber: string, slug: string) =>
     const { data, error } = await createServerClient().rpc('set_page_data', { p_set_number: setNumber, p_slug: slug });
     if (error) throw error;  // thrown results are never cached
     return { d: data as Omit<SetPageData, 'as_of'>, at: new Date().toISOString() };
-  }, ['set_page_data', setNumber, slug], { revalidate: UNPRICED_SET_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
+  }, ['set_page_data', setNumber, slug], { revalidate: UNPRICED_SET_REVALIDATE_SECONDS })();
 
 // Priced page: the offers and summary on the 6 h clock, under their own key.
 const readPriceSide = (setNumber: string) =>
@@ -91,7 +91,7 @@ const readPriceSide = (setNumber: string) =>
     if (sp.error) throw sp.error;
     if (sum.error) throw sum.error;
     return { store_prices: sp.data ?? [], summary: (sum.data ? normalise(sum.data) : null) as SetPriceSummary | null, at: new Date().toISOString() };
-  }, ['set_price_side', setNumber], { revalidate: SET_PAGE_REVALIDATE_SECONDS, tags: [`set:${setNumber}`] })();
+  }, ['set_price_side', setNumber], { revalidate: SET_PAGE_REVALIDATE_SECONDS })();
 
 // A1: which catalogue set a slug names, when its first "-" segment isn't it (set numbers that
 // contain "-"). One extra read, only on that path; the normal page costs nothing more.
