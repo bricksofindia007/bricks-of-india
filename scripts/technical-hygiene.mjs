@@ -1501,7 +1501,7 @@ try {
 
 // 14f: All reviews have valid verdict
 try {
-  const VALID_VERDICTS = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID']);
+  const VALID_VERDICTS = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID', 'HUNT IT']);
   const { data: revs } = await sb.from('reviews').select('slug, verdict');
   const badVerdict = (revs ?? []).filter(r => !r.verdict || !VALID_VERDICTS.has((r.verdict || '').trim().toUpperCase()));
   if (badVerdict.length > 0) alertFail('ContentIntegrity', `Reviews with null/invalid verdict: ${badVerdict.map(r => `${r.slug}(${r.verdict ?? 'null'})`).join(', ')}`);
@@ -1749,7 +1749,7 @@ try {
 // 17a. All verdict values must be in VALID_VERDICTS. A rogue value ('BUY'
 //      instead of 'BUY NOW') breaks the BOI Says verdict display component.
 try {
-  const VALID_VERDICTS17 = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID']);
+  const VALID_VERDICTS17 = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID', 'HUNT IT']);
   const { data: reviewVerdicts } = await sb.from('reviews').select('id, title, verdict');
   const bad = (reviewVerdicts ?? []).filter(r => !VALID_VERDICTS17.has(r.verdict));
   if (bad.length > 0) {
