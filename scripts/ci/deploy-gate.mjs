@@ -103,8 +103,20 @@ export function evaluateGate(input) {
   // 1. checks: always required, override or not
   for (const name of REQUIRED_CHECKS) {
     const runs = input.checkRuns.filter((r) => r.name === name);
-    if (runs.length === 0) failures.push(`check missing on the checked commit: ${name}`);
-    else if (!runs.every((r) => r.status === 'completed' && r.conclusion === 'success')) failures.push(`check not green: ${name}`);
+    if (runs.length === 0) { failures.push(`check missing on the checked commit: ${name}`); continue; }
+    // Any run for this name that has not completed blocks: its result is not known yet.
+    if (runs.some((r) => r.status !== 'completed')) { failures.push(`check not green: ${name} (still running)`); continue; }
+    // Only the most recent completed run for this name counts.
+    const key = (r) => `${r.completed_at || r.started_at || ''}|${String(r.id ?? 0).padStart(15, '0')}`;
+    const done = runs.filter((r) => r.status === 'completed');
+    const latest = done.length ? done.reduce((a, b) => (key(b) > key(a) ? b : a)) : null;
+    if (!latest) { failures.push(`check not green: ${name}`); continue; }
+    if (latest.conclusion === 'success') continue;
+    // A skipped check passes only when the change from the measured commit to the target touches docs/ or logs/ only
+    // (the same NON_CODE list as the measurement rule) and at least one file changed.
+    const docsOnly = input.diffFiles.length > 0 && input.diffFiles.every((f) => NON_CODE.some((re) => re.test(f)));
+    if (latest.conclusion === 'skipped' && docsOnly) continue;
+    failures.push(`check not green: ${name}`);
   }
   // 2. emergency override: skips the measurement rule only
   if (input.override) {
@@ -173,7 +185,7 @@ async function main() {
   const prs = await gh(`/repos/${repo}/commits/${sha}/pulls`, token);
   const { checked, source } = resolveChecked(sha, prs.map((p) => ({ head_sha: p.head?.sha, merged_at: p.merged_at, merge_commit_sha: p.merge_commit_sha })));
   const runs = (await gh(`/repos/${repo}/commits/${checked}/check-runs?per_page=100`, token)).check_runs;
-  const checkRuns = runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion }));
+  const checkRuns = runs.map((r) => ({ name: r.name, status: r.status, conclusion: r.conclusion, id: r.id, started_at: r.started_at, completed_at: r.completed_at }));
 
   let evidence = null;
   if (fs.existsSync(evidencePath)) evidence = JSON.parse(fs.readFileSync(evidencePath, 'utf8'));
