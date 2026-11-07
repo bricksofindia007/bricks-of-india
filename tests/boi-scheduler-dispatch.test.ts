@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { VIDEO_DISPATCH, dispatchWorkflow } from '../workers/boi-scheduler/src/dispatch';
+import { VIDEO_DISPATCH, SCRAPE_STORE_BY_CRON, TIME_INDEX, dispatchWorkflow, resolveCron, planScheduled } from '../workers/boi-scheduler/src/dispatch';
 
 // Order 0970: the scheduler Worker triggers the two video publish pollers at their slot times, and once more an hour later.
 
@@ -232,5 +232,66 @@ describe('cron strings use Cloudflare day syntax (order 0990)', () => {
       '5 14 * * SUN,WED,FRI',
       '5 15 * * SUN,WED,FRI',
     ]);
+  });
+});
+
+// Order 1000: if the cron text is not a table key, the scheduled time decides. Both paths and the unknown time are tested.
+// 8 Nov 2026 is a Sunday, 9 Nov a Monday, 10 Nov a Tuesday (UTC).
+const SUN_1405 = Date.UTC(2026, 10, 8, 14, 5);
+const MON_1835 = Date.UTC(2026, 10, 9, 18, 35);
+const TUE_0300 = Date.UTC(2026, 10, 10, 3, 0);
+const SUN_1200 = Date.UTC(2026, 10, 8, 12, 0);
+
+describe('cron resolution: exact text first, then the scheduled time (order 1000)', () => {
+  it('an exact video key resolves as exact, and so does a scrape cron', () => {
+    expect(resolveCron('5 14 * * SUN,WED,FRI', SUN_1405)).toEqual({ match: 'exact', key: '5 14 * * SUN,WED,FRI' });
+    expect(resolveCron('0 3 * * *', TUE_0300)).toEqual({ match: 'exact', key: '0 3 * * *' });
+  });
+
+  it('a cron text that is not a key falls back to the scheduled time, for a video slot', () => {
+    expect(resolveCron('some other text', SUN_1405)).toEqual({ match: 'fallback', key: '5 14 * * SUN,WED,FRI' });
+    expect(resolveCron('some other text', MON_1835)).toEqual({ match: 'fallback', key: '35 18 * * MON,WED,FRI' });
+  });
+
+  it('a cron text that is not a key falls back to the scheduled time, for a scrape', () => {
+    expect(resolveCron('some other text', TUE_0300)).toEqual({ match: 'fallback', key: '0 3 * * *' });
+  });
+
+  it('an unknown time is recorded as none, with no key', () => {
+    expect(resolveCron('some other text', SUN_1200)).toEqual({ match: 'none', key: null });
+  });
+
+  it('a name that is only an object property elsewhere is not an exact match', () => {
+    expect(resolveCron('constructor', SUN_1200).match).toBe('none');
+    expect(resolveCron('__proto__', SUN_1405).match).toBe('fallback');
+  });
+
+  it('the time index has one entry per weekday for each configured time', () => {
+    expect(Object.keys(TIME_INDEX).length).toBe(2 * 7 + 2 * 3 + 2 * 3);
+    expect(Object.keys(SCRAPE_STORE_BY_CRON).length).toBe(2);
+  });
+});
+
+describe('planScheduled: what each event dispatches and what the heartbeat records (order 1000)', () => {
+  it('exact path: a video cron text plans its entry, with the match recorded as exact', () => {
+    const p = planScheduled('5 14 * * SUN,WED,FRI', SUN_1405);
+    expect(p).toEqual({ match: 'exact', resolved_cron: '5 14 * * SUN,WED,FRI', store: null, video: { file: 'video-publish-poller.yml', name: 'vidp4-slot' } });
+  });
+
+  it('fallback path: an unknown cron text at a video time plans that entry, and says the fallback was used', () => {
+    const p = planScheduled('5 14 * * 1,4', SUN_1405);
+    expect(p.match).toBe('fallback');
+    expect(p.resolved_cron).toBe('5 14 * * SUN,WED,FRI');
+    expect(p.video).toEqual({ file: 'video-publish-poller.yml', name: 'vidp4-slot' });
+    expect(p.store).toBeNull();
+  });
+
+  it('fallback path for a scrape time plans the scrape for that retailer', () => {
+    const p = planScheduled('something-new', TUE_0300);
+    expect(p).toEqual({ match: 'fallback', resolved_cron: '0 3 * * *', store: 'mybrickhouse', video: null });
+  });
+
+  it('unknown time: nothing is planned, and the match is recorded as none', () => {
+    expect(planScheduled('something-new', SUN_1200)).toEqual({ match: 'none', resolved_cron: null, store: null, video: null });
   });
 });

@@ -71,3 +71,67 @@ export async function dispatchWorkflow(
   if (status < 200 || status >= 300) await env.BOI_SNAPSHOTS.put('meta:dispatch_fail', JSON.stringify(note));
   return status;
 }
+
+/** The scrape crons (UTC) and the retailer each one scrapes (FP5.9). */
+export const SCRAPE_STORE_BY_CRON: Record<string, string> = { '0 3 * * *': 'mybrickhouse', '5 3 * * *': 'toycra' };
+
+// Cloudflare cron day-of-week: 1 = Sunday to 7 = Saturday, or SUN to SAT (Cloudflare Workers cron triggers docs).
+// JavaScript getUTCDay numbering is 0 = Sunday, so a number n maps to n - 1.
+const DAY_NAME_JS: Record<string, number> = { SUN: 0, MON: 1, TUE: 2, WED: 3, THU: 4, FRI: 5, SAT: 6 };
+
+function cronDays(field: string): number[] {
+  return field.split(',').map((part) => {
+    const named = DAY_NAME_JS[part.toUpperCase()];
+    if (named !== undefined) return named;
+    const n = Number(part);
+    if (!Number.isInteger(n) || n < 1 || n > 7) throw new Error(`unsupported day-of-week "${part}"`);
+    return n - 1;
+  });
+}
+
+const has = (o: object, k: string): boolean => Object.prototype.hasOwnProperty.call(o, k);
+
+/** "weekday hour minute" (UTC, JavaScript numbering) -> the production cron text that fires then. Built from the tables. */
+export const TIME_INDEX: Record<string, string> = (() => {
+  const index: Record<string, string> = {};
+  for (const cron of [...Object.keys(SCRAPE_STORE_BY_CRON), ...Object.keys(VIDEO_DISPATCH)]) {
+    const [minute, hour, , , dow] = cron.split(' ');
+    const days = dow === '*' ? [0, 1, 2, 3, 4, 5, 6] : cronDays(dow);
+    for (const day of days) {
+      const k = `${day} ${Number(hour)} ${Number(minute)}`;
+      if (has(index, k) && index[k] !== cron) throw new Error(`two crons fire at the same time: ${index[k]} and ${cron}`);
+      index[k] = cron;
+    }
+  }
+  return index;
+})();
+
+/**
+ * Which table entry this event belongs to (order 1000). An exact match on the cron text wins. Otherwise the event's
+ * scheduled time is matched against the table. 'none' means nothing is configured for that time: do nothing.
+ */
+export function resolveCron(cron: string, scheduledMs: number): { match: 'exact' | 'fallback' | 'none'; key: string | null } {
+  if (has(VIDEO_DISPATCH, cron) || has(SCRAPE_STORE_BY_CRON, cron)) return { match: 'exact', key: cron };
+  const d = new Date(scheduledMs);
+  const key = has(TIME_INDEX, `${d.getUTCDay()} ${d.getUTCHours()} ${d.getUTCMinutes()}`)
+    ? TIME_INDEX[`${d.getUTCDay()} ${d.getUTCHours()} ${d.getUTCMinutes()}`]
+    : null;
+  return key ? { match: 'fallback', key } : { match: 'none', key: null };
+}
+
+/** What one scheduled event does: which scrape and which video entry to dispatch, and how the match was made. */
+export function planScheduled(cron: string, scheduledMs: number): {
+  match: 'exact' | 'fallback' | 'none';
+  resolved_cron: string | null;
+  store: string | null;
+  video: { file: string; name: string } | null;
+} {
+  const r = resolveCron(cron, scheduledMs);
+  if (!r.key) return { match: r.match, resolved_cron: null, store: null, video: null };
+  return {
+    match: r.match,
+    resolved_cron: r.key,
+    store: has(SCRAPE_STORE_BY_CRON, r.key) ? SCRAPE_STORE_BY_CRON[r.key] : null,
+    video: has(VIDEO_DISPATCH, r.key) ? VIDEO_DISPATCH[r.key] : null,
+  };
+}
