@@ -13,7 +13,9 @@
   "vars": { "TARGET": "production", "GITHUB_REPO": "bricksofindia007/bricks-of-india" },
   "kv_namespaces": [{ "binding": "BOI_SNAPSHOTS", "id": "0af7352788ac4ba2a8c0440cfca849b1" }],
   // FP5.9: one dispatch slot per retailer (mybrickhouse :00, toycra :05); also the heartbeat ticks.
-  "triggers": { "crons": ["0 3 * * *", "5 3 * * *"] },
+  // Order 0970: video publish pollers at their slot times (dispatch.ts). VID-P4 Sun/Wed/Fri 14:05 and 15:05 UTC;
+  // VID-QP Mon/Wed/Fri 18:35 and 19:35 UTC (Tue/Thu/Sat IST). Each cron has a matching entry in dispatch.ts.
+  "triggers": { "crons": ["0 3 * * *", "5 3 * * *", "5 14 * * 0,3,5", "5 15 * * 0,3,5", "35 18 * * 1,3,5", "35 19 * * 1,3,5"] },
   "env": {
     "staging": {
       "name": "boi-scheduler-staging",

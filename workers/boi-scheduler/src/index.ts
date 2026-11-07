@@ -12,6 +12,7 @@
 //  - The dispatcher is inert unless BOTH the BOI_SCHEDULER_DISPATCH_TOKEN secret exists AND
 //    flag:v1.dispatch_enabled is true (set only after Abhinav confirms the token, P5).
 import { verifyAndParse } from './auth';
+import { VIDEO_DISPATCH, dispatchWorkflow } from './dispatch';
 import { FRESHNESS_CRON, runFreshnessWatchdog, sendAlertMail, type FreshnessEnv } from './freshness';
 import { KEEPALIVE_CRON, runKeepAlive } from './keepalive';
 import { LOADGEN_CRON, loadgenSettings, runMinute, type LoadgenEnv, type Profile, type Samples } from './loadgen';
@@ -63,21 +64,9 @@ async function health(env: Env): Promise<Response> {
   return json(200, { version: VERSION, target: env.TARGET, scheduler: self ?? null, snapshot: snap ?? null });
 }
 
-async function dispatch(env: Env, store: string, slot: string): Promise<void> {
-  const flags = ((await env.BOI_SNAPSHOTS.get('flag:v1', 'json')) ?? {}) as { dispatch_enabled?: boolean };
-  if (!env.BOI_SCHEDULER_DISPATCH_TOKEN || flags.dispatch_enabled !== true || env.TARGET !== 'production') return; // inert
-  const url = `https://api.github.com/repos/${env.GITHUB_REPO}/actions/workflows/scrape-prices.yml/dispatches`;
-  let status = 0;
-  for (const waitS of [0, 30, 90]) {  // retry twice (FP5.9)
-    if (waitS) await new Promise((r) => setTimeout(r, waitS * 1000));
-    const r = await fetch(url, { method: 'POST', headers: { authorization: `Bearer ${env.BOI_SCHEDULER_DISPATCH_TOKEN}`, accept: 'application/vnd.github+json', 'user-agent': VERSION, 'content-type': 'application/json' },
-      body: JSON.stringify({ ref: 'main', inputs: { store } }) });
-    status = r.status;
-    if (r.ok) break;
-  }
-  const note = { slot, store, dispatched_at: new Date().toISOString(), http_status: status };
-  await env.BOI_SNAPSHOTS.put(`meta:dispatch:${store}`, JSON.stringify(note));
-  if (status < 200 || status >= 300) await env.BOI_SNAPSHOTS.put('meta:dispatch_fail', JSON.stringify(note));
+// The scrape dispatch: same gate, same token, same retries (FP5.9). The shared code is in dispatch.ts.
+function dispatch(env: Env, store: string, slot: string): Promise<number> {
+  return dispatchWorkflow(env, 'scrape-prices.yml', { store }, store, slot);
 }
 
 export default {
@@ -92,6 +81,9 @@ export default {
     await env.BOI_SNAPSHOTS.put('meta:scheduler:heartbeat', JSON.stringify({ at: new Date().toISOString(), slot, cron: ev.cron, version: VERSION, target: env.TARGET }));
     const store = CRON_STORE[ev.cron];
     if (store) ctx.waitUntil(dispatch(env, store, slot));
+    // Video publish pollers at their slot times, and once more an hour later (order 0970).
+    const video = VIDEO_DISPATCH[ev.cron];
+    if (video) ctx.waitUntil(dispatchWorkflow(env, video.file, {}, video.name, slot));
     // Freshness watchdog (23 Oct 2026): staging first; the Actions copy stays until the Worker run is proven.
     if (ev.cron === FRESHNESS_CRON) {
       const fe = env as unknown as FreshnessEnv;
