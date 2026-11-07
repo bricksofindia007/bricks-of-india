@@ -19,7 +19,7 @@ export const VOICE = {
   heartRemoved: 'Removed. Your wallet is relieved.',
   ownedAdded: 'Yours now. Own it proudly.',
   wishlistEmpty: 'Nothing saved yet. Your wallet admires your patience.',
-  collectionEmpty: 'No sets here yet. Tell us what you own and we will be impressed.',
+  collectionEmpty: 'Your shelf is empty. Your wallet is suspiciously calm.',
   limitReached: 'That is a proper collection. Remove one to add another.',
   pricesUnavailable: 'Prices are unavailable right now. Names and pieces are still shown.',
 } as const;
