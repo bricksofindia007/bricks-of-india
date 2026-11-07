@@ -9,6 +9,7 @@ import { appendFileSync } from 'node:fs';
 import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { getSecret } from '../src/lib/get-secret';
+import { mrpCoverage, type SetRow } from './lib/mrp-coverage';
 
 dotenv.config({ path: '.env.local' });
 
@@ -93,35 +94,31 @@ async function audit() {
   // shows an MRP from the store anchor (set_price_summary.anchor_mrp_inr) or a verified catalogue
   // MRP. Gifts with purchase have no retail price by design (is_gwp) and are not counted.
   // Only sets a store lists now count (in stock, or seen in the last 7 days).
-  const recent = new Set((await fetchAllPaginated<{ set_id: string; in_stock: boolean; scraped_at: string }>('store_prices', 'set_id, in_stock, scraped_at'))
-    .filter((r) => r.in_stock || Date.now() - Date.parse(r.scraped_at) < 7 * 86400000).map((r) => r.set_id));
+  // Only sets with at least one IN-STOCK listing count (owner decision, 20 Oct 2026). Out-of-stock
+  // sets with no MRP are reported as information below, never as a failure.
+  const priceRows = await fetchAllPaginated<{ set_id: string; in_stock: boolean }>('store_prices', 'set_id, in_stock');
   const anchors = new Map((await fetchAllPaginated<{ set_id: string; anchor_mrp_inr: number | null }>('set_price_summary', 'set_id, anchor_mrp_inr'))
     .map((r) => [r.set_id, r.anchor_mrp_inr]));
-  const missingMrpSets: { set_number: string; name: string }[] = [];
   const CHUNK = 200;
-  const current = listedSetNumbers.filter((n) => recent.has(n));
-  for (let i = 0; i < current.length; i += CHUNK) {
-    const chunk = current.slice(i, i + CHUNK);
+  const inStockNumbers = Array.from(new Set(priceRows.filter((r) => r.in_stock).map((r) => r.set_id)));
+  const setRows: SetRow[] = [];
+  for (let i = 0; i < listedSetNumbers.length; i += CHUNK) {
+    const chunk = listedSetNumbers.slice(i, i + CHUNK);
     const { data, error } = await sb.from('sets').select('set_number, name, lego_mrp_inr, mrp_verified, is_gwp').in('set_number', chunk);
     if (error) throw error;
-    const found = new Set((data ?? []).map((s) => s.set_number));
-    for (const s of data ?? []) {
-      if (s.is_gwp) continue;
-      const pageShowsMrp = anchors.get(s.set_number) != null || (s.lego_mrp_inr != null && s.mrp_verified);
-      if (!pageShowsMrp) missingMrpSets.push({ set_number: s.set_number, name: s.name });
-    }
-    for (const sn of chunk) {
-      if (!found.has(sn)) missingMrpSets.push({ set_number: sn, name: '(not found in sets table)' });
-    }
+    setRows.push(...((data ?? []) as SetRow[]));
   }
-
-  const mrpCoveredCount = current.length - missingMrpSets.length;
+  const coverage = mrpCoverage(priceRows, setRows, anchors);
+  const current = inStockNumbers;
+  const mrpCoveredCount = current.length - coverage.missing.length;
   const pricePct = current.length ? Math.round((mrpCoveredCount / current.length) * 100) : 100;
-  console.log(`currently listed sets whose page shows an MRP (store anchor or verified; GWPs excluded): ${mrpCoveredCount}/${current.length} (${pricePct}%)`);
-  if (missingMrpSets.length > 0) {
-    const sample = missingMrpSets.slice(0, 20).map((s) => `${s.set_number} (${s.name})`).join(', ');
-    const more = missingMrpSets.length > 20 ? ` and ${missingMrpSets.length - 20} more` : '';
-    failures.push({ key: 'mrp_coverage', message: `${missingMrpSets.length} of ${current.length} currently listed set pages show no MRP: ${sample}${more}` });
+  console.log(`in-stock listed sets whose page shows an MRP (store anchor or verified; GWPs excluded): ${mrpCoveredCount}/${current.length} (${pricePct}%)`);
+  // Information only: out-of-stock listed sets with no verified MRP. Never a failure.
+  console.log(`INFO: ${coverage.outOfStockNoMrp.length} listed sets are out of stock with no verified MRP: ${coverage.outOfStockNoMrp.map((s) => s.set_number).join(', ') || 'none'}`);
+  if (coverage.missing.length > 0) {
+    const sample = coverage.missing.slice(0, 20).map((s) => `${s.set_number} (${s.name})`).join(', ');
+    const more = coverage.missing.length > 20 ? ` and ${coverage.missing.length - 20} more` : '';
+    failures.push({ key: 'mrp_coverage', message: `${coverage.missing.length} of ${current.length} in-stock listed set pages show no MRP: ${sample}${more}` });
   }
 
   // (g) Theme shown as "Unknown" (or blank) on an indexable set page.
