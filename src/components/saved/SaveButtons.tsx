@@ -119,6 +119,7 @@ export function AddToCollectionButton(ref: SetRef) {
       <button type="button" aria-label={`One fewer copy of ${ref.name}`} onClick={() => change(qty - 1)} className="w-7 h-7 rounded border border-border">−</button>
       <span aria-live="polite">{qty}</span>
       <button type="button" aria-label={`One more copy of ${ref.name}`} onClick={() => change(qty + 1)} className="w-7 h-7 rounded border border-border">+</button>
+      {note && <span role="status" className="text-xs text-gray-600">{note}</span>}
     </span>
   );
 }
