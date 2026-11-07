@@ -3,7 +3,7 @@ elevenlabs
 cerebras_cloud_sdk
 moviepy==1.0.3
 numpy==1.26.4
-Pillow==10.3.0
+Pillow==13.0.0
 requests
 python-dotenv
 supabase
