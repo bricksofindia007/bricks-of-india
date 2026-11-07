@@ -45,7 +45,8 @@ jobs:
               "catalogue-audit.yml":        [7 * 24, 2],
               "code-audit.yml":             [7 * 24, 2],
               "health-check.yml":           [24, 2],
-              "social-automation.yml":      [24, 2],
+              // Weekly schedule (Monday 06:30 UTC). It was listed as daily, which alerted every week.
+              "social-automation.yml":      [7 * 24, 2],
               // Prices are scraped once a day (03:00 UTC). The threshold is 26 hours, the same window the site uses for a fresh price.
               "scrape-prices.yml":          [26, 1],
               "generate-drafts.yml":        [24, 2],
@@ -59,9 +60,20 @@ jobs:
               "retention-cleanup.yml":      [7 * 24, 2],
             };
 
+            // Pause markers: workflows disabled on purpose. Each entry cites its row in docs/PAUSE_LEDGER.md.
+            // A paused workflow is reported in the log, not alerted, until its row is closed and the entry removed.
+            const PAUSED = {
+              "retiring-soon.yml": "paused 4 Oct 2026 19:44 IST, egress freeze, PAUSE_LEDGER row 3",
+              "sync-catalogue.yml": "paused 4 Oct 2026 19:44 IST, egress freeze, PAUSE_LEDGER row 4",
+            };
+
             const stale = [];
             const errors = [];
             for (const [file, [hours, mult]] of Object.entries(WATCHLIST)) {
+              if (PAUSED[file]) {
+                console.log(`  PAUSED (not alerted): ${file} -- ${PAUSED[file]}`);
+                continue;
+              }
               try {
                 const out = execSync(
                   `gh api "repos/${repo}/actions/workflows/${file}/runs?per_page=1&status=completed"`,
