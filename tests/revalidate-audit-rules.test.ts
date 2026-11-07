@@ -37,8 +37,8 @@ describe('export check on the per-page theme route', () => {
     expect(exportedRevalidate('// export const revalidate = 86400;\n')).toBeNull();
     expect(exportedRevalidate('export const revalidate = 86400;\n')).toBe(86400);
   });
-  it('only the per-page theme route is exempt from the sample status, and the exemption is that route alone', () => {
-    expect(Object.keys(EXPORT_CHECKED_ROUTES)).toEqual([ROUTE]);
+  it('only the theme page-number and sorted routes are exempt from the sample status (the stub has no theme data there), and no other route is', () => {
+    expect(Object.keys(EXPORT_CHECKED_ROUTES).sort()).toEqual([ROUTE, '/themes/[theme]/sort/[sort]', '/themes/[theme]/sort/[sort]/page/[page]'].sort());
   });
 });
 

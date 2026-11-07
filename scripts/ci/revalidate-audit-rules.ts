@@ -11,6 +11,15 @@ export const EXPORT_CHECKED_ROUTES: Record<string, { file: string; peers: string
     file: 'src/app/themes/[theme]/page/[page]/page.tsx',
     peers: ['src/app/themes/[theme]/page.tsx'],
   },
+  // Sorted views (23 Oct): the same stub limitation (no theme data at sort paths), so the exports are checked in source.
+  '/themes/[theme]/sort/[sort]': {
+    file: 'src/app/themes/[theme]/sort/[sort]/page.tsx',
+    peers: ['src/app/themes/[theme]/page.tsx'],
+  },
+  '/themes/[theme]/sort/[sort]/page/[page]': {
+    file: 'src/app/themes/[theme]/sort/[sort]/page/[page]/page.tsx',
+    peers: ['src/app/themes/[theme]/page.tsx'],
+  },
 };
 
 /** The value of a route file's `export const revalidate = N;`, or null when there is no such export. */
