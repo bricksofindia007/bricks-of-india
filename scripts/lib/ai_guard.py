@@ -133,6 +133,45 @@ def report_at_exit(budget: dict) -> None:
     atexit.register(_print)
 
 
+_char_budgets: dict[str, dict] = {}
+
+
+def char_budget(run_name: str) -> dict:
+    """Per-run character budget for a text-to-speech service. The limit is read from config/ai-limits.json
+    under 'elevenlabs' -> 'perRun'. A run name with no entry gets a limit of 0, so every charge is refused."""
+    if run_name not in _char_budgets:
+        found = CONFIG.get('elevenlabs', {}).get('perRun', {}).get(run_name)
+        _char_budgets[run_name] = {
+            'name': run_name,
+            'maxCharacters': found['maxCharacters'] if found else 0,
+            'characters': 0,
+            'alerted': False,
+            'alert': _send_alert,
+        }
+    return _char_budgets[run_name]
+
+
+def charge_characters(budget: dict, text: str, *, service: str = 'elevenlabs') -> int:
+    """Count the characters about to be sent to a text-to-speech service against the run's budget.
+
+    Refused before anything is sent (AiLimitError) when the total would go over the limit. One alert per run.
+    """
+    n = len(text or '')
+    if budget['characters'] + n > budget['maxCharacters']:
+        reason = (f"{service} character budget reached: {budget['maxCharacters']} characters per run, "
+                  f"{budget['characters']} already used, {n} more requested")
+        if not budget['alerted']:
+            budget['alerted'] = True
+            try:
+                budget['alert'](f"Character limit hit: {service} {budget['name']}",
+                                f"Run {budget['name']} stopped before a {service} request: {reason}.")
+            except Exception as err:  # the alert must never hide the refusal
+                print(f'[ai-guard] alert failed: {err}', file=sys.stderr)
+        raise AiLimitError(reason)
+    budget['characters'] += n
+    return n
+
+
 def gemini_generate(client, *, site: str, model: str, system: str, user: str, config=None, budget: dict | None = None):
     """The one way Python code calls Gemini. Returns {'response', 'text', 'inputTokens', 'outputTokens'}.
 

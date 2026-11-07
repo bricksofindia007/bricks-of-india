@@ -62,6 +62,7 @@ from quiet_panic_script_gen import (  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from config.feature_flags import FEATURE_FLAGS  # noqa: E402
 from coherence_judge import judge_coherence, only_held_failures, qp_judge_prompt  # noqa: E402
+from ai_guard import char_budget, charge_characters  # noqa: E402  (sys.path set by quiet_panic_script_gen)
 
 # Retry budget for script-gen's pre-TTS validation (added 2026-08-01 after
 # a real 3-for-3 miss streak on Rapunzel's Castle in production CI, all
@@ -1263,6 +1264,10 @@ def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_i
     # 1. TTS per segment, measure real duration. voice=false segments skip
     # TTS entirely -- their audio IS the SFX cue, so duration comes from
     # that file's own length instead.
+    # Per-run character budget for voice generation: the whole run's voice text is charged before the first request,
+    # so an over-budget script is refused with no text sent.
+    charge_characters(char_budget('generate_quiet_panic_video.py'),
+                      ''.join(seg['text'] for seg in segments if seg.get('voice', True)))
     segment_audio_paths = []
     for i, seg in enumerate(segments):
         voice_on = seg.get('voice', True)
