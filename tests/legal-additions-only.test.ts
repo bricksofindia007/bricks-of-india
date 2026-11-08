@@ -75,3 +75,48 @@ describe('only the approved additions', () => {
     expect(copy).toContain("DELETION_COPY");
   });
 });
+
+// Owner-approved account sentences (8 Nov 2026, 14:41 IST). The source encodes apostrophes as &apos;, so the check decodes them first.
+const decode = (s: string) => s.replace(/&apos;/g, "'");
+const ACCOUNT_PRIVACY = [
+  ['IF YOU SIGN UP', "Sign up and we keep three things: your email address, your Wishlist and your Collection. That's the lot. No snooping, no selling, no sneaky extras."],
+  ['SIGNING IN', 'Sign in with Google or with a link we email you. No passwords to forget, which is one less thing for your brain to store. Accounts are for grown-ups (18+); our age rule page explains why.'],
+  ['DELETING YOUR ACCOUNT', "Changed your mind? No hard feelings, and no guilt trips. Delete your account any time and it's gone within 30 days. Copies held only as safety backups are removed within 13 months. Our account deletion page has the details."],
+  ['INACTIVE ACCOUNTS', "Gone quiet for 24 months? We'll email you first, then take the hint and delete your account. Sign in any time before that and it stays."],
+] as const;
+const ACCOUNT_TERMS = [
+  ['ACCOUNTS', 'Accounts are for grown-ups (18+). One account each, please, and what happens in it is on you, like that impulse buy at 2 a.m.'],
+] as const;
+
+describe('account sentences: owner-approved, exact (8 Nov 2026, 14:41 IST)', () => {
+  const raw = decode(read('src/components/legal/LegalAdditions.tsx'));
+  // Link tags are stripped for the sentence checks only; the link check below reads the raw source.
+  const additions = raw.replace(/<Link href="[^"]+" className="underline">/g, '').replace(/<\/Link>/g, '');
+  for (const [heading, sentence] of ACCOUNT_PRIVACY) {
+    it(`privacy: ${heading}`, () => {
+      expect(additions).toContain(`>${heading}</h2>`);
+      expect(additions).toContain(sentence);
+    });
+  }
+  for (const [heading, sentence] of ACCOUNT_TERMS) {
+    it(`terms: ${heading}`, () => {
+      expect(additions).toContain(`>${heading}</h2>`);
+      expect(additions).toContain(sentence);
+    });
+  }
+  it('the link words point to the age rule page and the account deletion page', () => {
+    expect(raw).toMatch(/<Link href="\/legal\/age-rule" className="underline">age rule page<\/Link>/);
+    expect(raw).toMatch(/<Link href="\/legal\/data-deletion" className="underline">account deletion page<\/Link>/);
+  });
+  it('the new sections come after the existing additions in each component', () => {
+    const privacy = additions.slice(additions.indexOf('export function PrivacyAdditions'), additions.indexOf('export function TermsAdditions'));
+    expect(privacy.indexOf('WHO WE ARE')).toBeLessThan(privacy.indexOf('IF YOU SIGN UP'));
+    expect(privacy.indexOf('IF YOU SIGN UP')).toBeLessThan(privacy.indexOf('INACTIVE ACCOUNTS'));
+    const terms = additions.slice(additions.indexOf('export function TermsAdditions'));
+    expect(terms.indexOf('CONTACT')).toBeLessThan(terms.indexOf('ACCOUNTS'));
+  });
+  it('the live text is still unchanged and still first on each page', () => {
+    for (const s of LIVE_PRIVACY) expect(read('src/app/legal/privacy/page.tsx')).toContain(s);
+    for (const s of LIVE_TERMS) expect(read('src/app/legal/terms/page.tsx')).toContain(s);
+  });
+});
