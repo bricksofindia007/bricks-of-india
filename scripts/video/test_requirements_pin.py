@@ -16,7 +16,7 @@ class SdkPin(unittest.TestCase):
     def test_google_genai_is_pinned_to_the_known_good_version(self):
         lines = [line.strip() for line in REQ.read_text(encoding="utf-8").splitlines()]
         genai = [line for line in lines if re.match(r"^google-genai\b", line)]
-        self.assertEqual(genai, ["google-genai==2.34.0"])
+        self.assertEqual(genai, ["google-genai==3.0.0"])
 
 
 if __name__ == "__main__":
