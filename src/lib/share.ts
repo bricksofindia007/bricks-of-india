@@ -27,6 +27,11 @@ export const SHARE_TEXT = {
   instagramFallback: 'Save the card, add it to your story. Time to make the world jealous',
   failureGeneral: 'That didn’t go through. Nothing’s lost. Try again, or copy the link.',
   failureNoApp: 'Nothing opened. Copy the link and send it yourself.',
+  // Shared wishlist page (owner-approved 8 Nov, 14:38 IST). The metadata description reuses previewCaption.
+  wishlistHeading: 'Somebody has plans for your wallet.',
+  wishlistNoPrice: 'See the set page for prices',
+  wishlistStart: 'Start your own wishlist',
+  wishlistMetaTitle: 'A LEGO wishlist, shared with you',
 } as const;
 
 /**

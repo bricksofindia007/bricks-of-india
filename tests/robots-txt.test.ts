@@ -20,8 +20,8 @@ const REQUIRED = [
 ];
 
 describe('robots.txt agent blocks', () => {
-  it('there are 23 blocks: the generic one and the 22 named agents', () => {
-    expect(blocks).toHaveLength(23);
+  it('there are 26 blocks: the generic one, the 22 named agents, and 3 link-preview agents (order 1560, /wishlist/)', () => {
+    expect(blocks).toHaveLength(26);
     expect(blocks.map(agentOf)[0]).toBe('*');
   });
 

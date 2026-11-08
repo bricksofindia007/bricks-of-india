@@ -2,6 +2,7 @@
 // Pure: no browser, no network, no cookies. Unknown numbers are dropped when the page looks them up in the catalogue.
 
 import { MY_SETS_LIMIT, isSetNumber } from '@/lib/my-collection';
+import { slugify } from '@/lib/utils';
 
 export const WISHLIST_PATH = '/wishlist';
 const SEPARATOR = ',';
@@ -33,4 +34,9 @@ export function parseWishlistSegment(segment: string): string[] {
 export function wishlistSharePath(setNumbers: readonly unknown[]): string | null {
   const seg = wishlistSegment(setNumbers);
   return seg ? `${WISHLIST_PATH}/${seg}` : null;
+}
+
+/** Pure: the set page address, in the same format the set cards use (number, then the slugified name). */
+export function setPagePath(setNumber: string, name: string): string {
+  return `/sets/${setNumber}-${slugify(name)}`;
 }

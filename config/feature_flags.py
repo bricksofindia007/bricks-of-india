@@ -144,6 +144,8 @@ FEATURE_FLAGS = {
     # Share control on Lab tools and Minifig HQ (share plan, 23 Oct 2026). Off: no control, nothing sent.
     # Mirrored in src/lib/feature-flags.ts (shareEnabled); keep both in sync by hand.
     "share_enabled": False,
+    # Guest wishlist view at /wishlist (order 1560). Off: not found. Mirrored in src/lib/feature-flags.ts (guestWishlistPage); keep in sync.
+    "guest_wishlist_page": False,
     # Human check (Turnstile) on the admin sign-in form. Off. Mirrored in src/lib/feature-flags.ts (adminTurnstile); keep in sync.
     "admin_turnstile": False,
     # Theme pages with no priced set: noindex, follow, left out of the sitemap (25 Oct 2026). Off: unchanged.
