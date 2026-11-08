@@ -30,6 +30,9 @@ on:
       - 'scripts/video/generate_quiet_panic_video.py'
       - 'scripts/video/gates.py'
       - 'scripts/video/test_gates_g10.py'
+      - 'scripts/video/test_model_swap.py'
+      - 'config/ai-limits.json'
+      - 'scripts/canary/model_canary.py'
   workflow_dispatch:
 
 jobs:
@@ -48,6 +51,10 @@ jobs:
       - name: Run cadence unit tests
         working-directory: scripts/video
         run: python -m unittest test_cadence test_cadence_mwf -v
+
+      - name: Run Gemini model swap unit tests
+        working-directory: scripts/video
+        run: python -m unittest test_model_swap -v
 
       - name: Run coherence judge unit tests (#365, fail-closed)
         working-directory: scripts/video
