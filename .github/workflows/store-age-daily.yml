@@ -2,7 +2,8 @@ name: Store price age (daily, read-only)
 
 # Order 0560, permanent fix 3b. Separate from the scrape: reads the newest price per store and
 # fails when one is older than the limit in scripts/store-age-check.mjs. The failure mail comes
-# from the existing workflow-failure-notify step. Read-only; uses the public anon key (no new key).
+# from the existing workflow-failure-notify step. Read-only; reads through the read-only database role
+# that the staging seed uses (order 1440 item 1).
 on:
   schedule:
     - cron: '40 3 * * *'   # daily 03:40 UTC, after the scrape window
@@ -21,8 +22,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     env:
-      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      CI_READONLY_DB_URL: ${{ secrets.CI_READONLY_DB_URL }}
     steps:
       - uses: actions/checkout@v5
         with:

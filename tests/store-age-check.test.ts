@@ -1,8 +1,9 @@
 /**
- * Daily store age check (order 0560, permanent fix 3b). Pure logic only: no network, no key.
+ * Daily store age check (order 0560, permanent fix 3b; order 1440 item 1: read through the read-only role).
+ * Pure logic only: no network, no connection string.
  */
 import { describe, it, expect } from 'vitest';
-import { staleStores, newestPath, describeReadFailure, MAX_AGE_HOURS } from '../scripts/store-age-check.mjs';
+import { staleStores, newestQuery, parseNewest, describeReadError, MAX_AGE_HOURS, STORES } from '../scripts/store-age-check.mjs';
 
 const NOW = Date.parse('2026-11-07T04:00:00Z');
 const hoursAgo = (h: number) => new Date(NOW - h * 3_600_000).toISOString();
@@ -47,36 +48,60 @@ describe('staleStores: 36 hour limit', () => {
   });
 });
 
-describe('describeReadFailure: says why a read was refused, never the key', () => {
-  it('includes the service message when the body has one', () => {
-    expect(describeReadFailure('mybrickhouse', 401, '{"message":"Invalid API key","hint":"Double check your key"}'))
-      .toBe('mybrickhouse: read failed with HTTP 401 (Invalid API key)');
+describe('newestQuery: one read-only statement over the price table', () => {
+  it('runs in a read-only transaction with a statement timeout and reads only store and time', () => {
+    const q = newestQuery();
+    expect(q).toMatch(/^begin read only;/);
+    expect(q).toMatch(/set local statement_timeout = '10s'/);
+    expect(q).toMatch(/select store_id \|\| '\|' \|\| coalesce\(max\(scraped_at\)::text, ''\) from public\.store_prices/);
+    expect(q).toMatch(/where store_id in \('mybrickhouse', 'toycra'\) group by store_id; commit;$/);
   });
 
-  it('falls back to the hint, then to the status alone', () => {
-    expect(describeReadFailure('toycra', 401, '{"hint":"check the key"}')).toBe('toycra: read failed with HTTP 401 (check the key)');
-    expect(describeReadFailure('toycra', 500, 'not json')).toBe('toycra: read failed with HTTP 500');
+  it('never writes: no insert, update, delete, drop or grant in the statement', () => {
+    expect(newestQuery()).not.toMatch(/insert|update |delete|drop|grant|alter|truncate/i);
   });
 
-  it('collapses whitespace and caps the detail length', () => {
-    const long = 'x'.repeat(400);
-    const line = describeReadFailure('toycra', 403, JSON.stringify({ message: `a\n\n  b ${long}` }));
-    expect(line.length).toBeLessThan(220);
-    expect(line).not.toMatch(/\n/);
+  it('refuses a store name outside the plain pattern (nothing is put into the query unchecked)', () => {
+    expect(() => newestQuery(["toycra'; drop table x; --"])).toThrow(/store name not allowed/);
   });
 });
 
-describe('newestPath: read-only query shape', () => {
-  it('asks for one row, newest first, for one store, columns only', () => {
-    const u = new URL(newestPath('https://example.supabase.co', 'toycra'));
-    expect(u.pathname).toBe('/rest/v1/store_prices');
-    expect(u.searchParams.get('select')).toBe('scraped_at');
-    expect(u.searchParams.get('store_id')).toBe('eq.toycra');
-    expect(u.searchParams.get('order')).toBe('scraped_at.desc');
-    expect(u.searchParams.get('limit')).toBe('1');
+describe('parseNewest: reads only the store lines from the output', () => {
+  it('reads the newest time per store and ignores command tags', () => {
+    const out = 'BEGIN\nSET\nmybrickhouse|2026-11-07 03:05:50+00\ntoycra|2026-11-07 03:00:55+00\nCOMMIT\n';
+    expect(parseNewest(out)).toEqual({ mybrickhouse: '2026-11-07 03:05:50+00', toycra: '2026-11-07 03:00:55+00' });
   });
 
-  it('never writes: only the GET path is built here', () => {
-    expect(newestPath('https://example.supabase.co', 'mybrickhouse')).not.toMatch(/insert|delete|patch|upsert/i);
+  it('a store with no rows reads as null, so it is reported as no prices', () => {
+    expect(parseNewest('mybrickhouse|\n')).toEqual({ mybrickhouse: null, toycra: null });
+  });
+
+  it('ignores lines for stores the check does not track', () => {
+    expect(parseNewest('other|2026-11-07 01:00:00+00\n')).toEqual({ mybrickhouse: null, toycra: null });
+    expect(STORES).toEqual(['mybrickhouse', 'toycra']);
+  });
+});
+
+describe('describeReadError: a clear reason, never the connection string', () => {
+  const url = 'postgresql://ci_readonly:SECRETVALUE@db.example.internal:6543/postgres';
+
+  it('gives the first line of the client error', () => {
+    expect(describeReadError('psql: error: FATAL:  password authentication failed for user "ci_readonly"\nDETAIL: x', url))
+      .toBe('read failed: psql: error: FATAL:  password authentication failed for user "ci_readonly"');
+  });
+
+  it('removes the connection string and any connection-string-looking text from the line', () => {
+    const line = describeReadError(`could not connect to ${url}\n`, url);
+    expect(line).not.toContain('SECRETVALUE');
+    expect(line).not.toContain('postgresql://');
+    expect(line).toContain('[connection string]');
+  });
+
+  it('says so when the client gave no detail', () => {
+    expect(describeReadError('', url)).toBe('read failed: no detail from the database client');
+  });
+
+  it('caps the length', () => {
+    expect(describeReadError('x'.repeat(500), url).length).toBeLessThan(220);
   });
 });
