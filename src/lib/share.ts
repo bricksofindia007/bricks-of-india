@@ -7,8 +7,8 @@ import { LAB_TOOLS } from '@/lib/lab-tools';
 export const SHARE_CHANNELS = ['whatsapp', 'facebook', 'instagram', 'email', 'copy'] as const;
 export type ShareChannel = (typeof SHARE_CHANNELS)[number];
 
-// Channels shown to the visitor. Instagram stays in SHARE_CHANNELS (registry and analytics) but is hidden until a card image exists.
-export const VISIBLE_CHANNELS: readonly ShareChannel[] = ['whatsapp', 'facebook', 'email', 'copy'];
+// Channels shown to the visitor. Instagram (decision 21e) saves the browser-drawn card on the visitor's device; it never posts.
+export const VISIBLE_CHANNELS: readonly ShareChannel[] = ['whatsapp', 'facebook', 'instagram', 'email', 'copy'];
 
 export type ShareTarget = {
   id: string;        // closed list: the analytics 'tool' parameter takes only these ids
@@ -33,7 +33,7 @@ export const SHARE_TEXT = {
  * Pure (order 1510, decision 21a): on phones the phone's own share sheet comes first. A phone-first press needs a browser
  * share sheet and a touch-type pointer; anything else opens the channel list.
  */
-export function useNativeShare(env: { canShare: boolean; coarsePointer: boolean }): boolean {
+export function shouldUseNativeShare(env: { canShare: boolean; coarsePointer: boolean }): boolean {
   return env.canShare === true && env.coarsePointer === true;
 }
 
