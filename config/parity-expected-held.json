@@ -1,5 +1,4 @@
 {
-  "_rule": "Repo migrations that are held and not applied to production (KI-03, owner decision pending). The parity check passes while these are the only repo-only versions and fails on anything else. Remove each version when it is applied; remove the file when the list is empty. Source: docs/runbooks/production-db-apply-held-migrations.md (boi-ops).",
   "versions": [
     "20261022180000",
     "20261024230000",

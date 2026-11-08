@@ -9,7 +9,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { estimateCycleUsage, EGRESS_QUOTA_GB, LOG_INGEST_QUOTA_GB } from './lib/capacity-estimate.mjs';
 import { sendAlert } from './lib/alert.mjs';
-import { socialCauses, suppressKnown, emailable, SOCIAL_WORKFLOW } from './lib/social-alerts.mjs';
+import { socialCauses, alertDecision, SOCIAL_WORKFLOW } from './lib/social-alerts.mjs';
 import { zeroArticleAlert } from './lib/zero-article.mjs';
 import { LIMITS } from './lib/quota-guard.mjs';
 
@@ -543,8 +543,9 @@ try {
   );
 }
 
-// ── Social alerts: one email per cause (order 1580, alert standard rules 6 and 7) ──
-// Open known issues (config/known-issues.json) are logged, not emailed. A missing register stops nothing: every cause is sent.
+// ── Social alerts: one email per cause (order 1580, alert standard rules 6 and 7; order 1600 item 2) ──
+// A real failure always emails. A register row only changes the decision by the state-change rule (alertDecision).
+// The last-sent state is not stored anywhere yet (no alert-state table exists), so it is empty here.
 {
   let register = [];
   try {
@@ -552,11 +553,11 @@ try {
   } catch (e) {
     console.warn('[social] known-issues register unreadable; sending every social cause:', e.message);
   }
-  const causes = suppressKnown(socialCauses(social), register);
-  for (const c of causes) {
-    if (c.suppressedBy) { console.log(`[social] ${c.key} not emailed: open known issue ${c.suppressedBy}`); continue; }
-  }
-  for (const c of emailable(causes)) {
+  const lastSent = {};
+  for (const c of socialCauses(social)) {
+    const d = alertDecision(c, register, lastSent);
+    console.log(`[social] ${c.key}: ${d.emit ? 'EMAIL' : 'not emailed'} (${d.reason})`);
+    if (!d.emit) continue;
     failures.push(`social-${c.key}`);
     await sendAlert(c.subject, c.body);
   }

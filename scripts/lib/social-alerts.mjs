@@ -22,7 +22,7 @@ export function isWeeklyCron(cron) {
 
 /** Pure: the human words for how the last weekly run ended. A run that happened is "timed out" or "failed". */
 export function runWords(workflow) {
-  if (!workflow) return 'has not run';
+  if (!workflow) return 'has not completed on time';
   if (workflow.conclusion === 'cancelled') return 'timed out';
   if (workflow.conclusion === 'failure') return 'failed';
   return 'has not run on time';
@@ -95,4 +95,20 @@ export function suppressKnown(causes, register) {
 /** Pure: the causes that should be emailed now (not suppressed). */
 export function emailable(causes) {
   return causes.filter((c) => !c.suppressedBy);
+}
+
+/**
+ * Pure (order 1600 item 2b): the state-change rule for a cause.
+ * A cause that is in the register emails once when it first fires, and again each time its state changes.
+ * lastSent = { [causeKey]: state last emailed }. It must come from a store that records alert state; the health check has
+ * none today (see the evidence file), so the caller passes an empty object and the rule is not yet persistent.
+ * A cause that no open row covers always emails. Real failures are never suppressed.
+ */
+export function alertDecision(cause, register, lastSent = {}) {
+  const row = (register || []).find((r) => r.state !== 'closed' && (r.alertsCovered || []).includes(cause.key));
+  if (!row) return { emit: true, reason: 'not in the register' };
+  const prev = lastSent[cause.key];
+  if (prev === undefined) return { emit: true, reason: `${row.id} first fire` };
+  if (prev !== row.state) return { emit: true, reason: `${row.id} state changed from ${prev} to ${row.state}` };
+  return { emit: false, reason: `${row.id} already emailed for state ${row.state}` };
 }

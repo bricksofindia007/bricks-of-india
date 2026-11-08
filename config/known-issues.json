@@ -1,27 +1,5 @@
 {
-  "_source": "Copy of the open rows in boi-ops docs/specs/alert-standard.md (section 4). The boi-ops file is the record; this copy lets the health check and the Morning Brief read it. Update both in the same change.",
-  "_rule": "An open row's alerts are not emailed. They appear on the Morning Brief known-issues card. A row leaves only when its fix is merged and one clean run is seen.",
   "issues": [
-    {
-      "id": "KI-01",
-      "issue": "Weekly social job checked against a daily threshold (now 192 hours in the health check; the register row stays open until one clean run is seen)",
-      "alertsCovered": ["social-weekly-run"],
-      "fixPr": "930",
-      "state": "fix drafted"
-    },
-    {
-      "id": "KI-02",
-      "issue": "Instagram and YouTube heartbeat rules read the weekly social job; the daily video pipeline posts to both",
-      "alertsCovered": ["social-weekly-run", "social-posting-stopped"],
-      "fixPr": "none yet",
-      "state": "open"
-    },
-    {
-      "id": "KI-03",
-      "issue": "Migration parity fails on the ten held migrations (repo-only)",
-      "alertsCovered": ["migration-parity-repo-only"],
-      "fixPr": "930 (expected-differences list)",
-      "state": "fix drafted"
-    }
+    { "id": "KI-03", "alertsCovered": ["migration-parity-repo-only"], "state": "fix drafted" }
   ]
 }
