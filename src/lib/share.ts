@@ -29,6 +29,14 @@ export const SHARE_TEXT = {
   failureNoApp: 'Nothing opened. Copy the link and send it yourself.',
 } as const;
 
+/**
+ * Pure (order 1510, decision 21a): on phones the phone's own share sheet comes first. A phone-first press needs a browser
+ * share sheet and a touch-type pointer; anything else opens the channel list.
+ */
+export function useNativeShare(env: { canShare: boolean; coarsePointer: boolean }): boolean {
+  return env.canShare === true && env.coarsePointer === true;
+}
+
 /** Pure: the control shows only when the share flag is explicitly true. */
 export function shareEnabled(flags: { shareEnabled: boolean }): boolean {
   return flags.shareEnabled === true;
