@@ -133,6 +133,11 @@ jobs:
         # one.
         # 2026-10-21: the OpenNext build refuses the installed Next version (15.5.27) without this flag.
         # Remove when Next 16 ships (Stage B). Hard removal date: 2026-10-28 (tracker entry in boi-ops).
+        # Cutover (order 0570 item 2): the production build uses the no-storage config (no page copies in R2 or the queue).
+        env:
+          BOI_PRODUCTION_NO_STORAGE: '1'
+          # Build-time flag read by the app code (order 0620), inlined by Next at build: the production build renders the no-storage price path.
+          NEXT_PUBLIC_BOI_NO_STORAGE: '1'
         run: npx opennextjs-cloudflare build --dangerouslyUseUnsupportedNextVersion
 
       - name: wrangler deploy

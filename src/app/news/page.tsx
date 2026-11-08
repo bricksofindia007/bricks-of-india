@@ -2,8 +2,8 @@ import Image from 'next/image';
 import Link from 'next/link';
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
-import { unstable_cache } from 'next/cache';
 import { supabase } from '@/lib/supabase';
+import { storedCache } from '@/lib/no-storage-render';
 import { ArticleCard } from '@/components/content/ArticleCard';
 import { NEWS_CARD_COLS, toNewsCard } from '@/lib/article-cards';
 import { Badge } from '@/components/ui/Badge';
@@ -30,7 +30,7 @@ const NEWS_CATEGORIES = ['New Sets', 'Deals', 'India Launches', 'Rumours', 'Comm
 // next.config.mjs's own already-declared Cache-Control intent for this
 // exact route (`Content listing pages — 5min fresh`), not copied from an
 // unrelated page.
-const getAllNewsArticles = unstable_cache(
+const getAllNewsArticles = storedCache(
   async () => {
     const { data } = await supabase
       .from('news_articles')

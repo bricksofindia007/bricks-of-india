@@ -41,13 +41,19 @@ describe('trackEvent gate', () => {
     delete (globalThis as { window?: unknown }).window;
   });
 
-  it('sends nothing for the link events while the flag is off', () => {
+  it('sends nothing for the YouTube and Instagram link events while the flag is off', () => {
     const gtag = vi.fn();
     (globalThis as { window?: unknown }).window = { gtag };
     trackEvent('click_youtube', { location: 'footer_connect' });
     trackEvent('click_instagram', { location: 'about_hero' });
-    trackEvent('click_meet_founder', { page_type: 'precision' });
     expect(gtag).not.toHaveBeenCalled();
+  });
+
+  it('records every Meet the founder click while the flag is off (owner decision, 27 Oct 11:19)', () => {
+    const gtag = vi.fn();
+    (globalThis as { window?: unknown }).window = { gtag };
+    trackEvent('click_meet_founder', { page_type: 'precision' });
+    expect(gtag).toHaveBeenCalledWith('event', 'click_meet_founder', { page_type: 'precision' });
   });
 
   it('sends the link events once the flag is on', () => {

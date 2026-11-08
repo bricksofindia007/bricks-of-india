@@ -8,6 +8,7 @@ import { JsonLd } from "@/components/JsonLd";
 import { BreadcrumbSchema } from "@/components/BreadcrumbSchema";
 import { organizationSchema, websiteSchema } from "@/lib/schemas";
 import { BRAND } from "@/lib/brand";
+import { renderPerRequestOnNoStorageBuild } from "@/lib/no-storage-render";
 
 // Self-hosted (#219): next/font/google fetched fonts.googleapis.com at build
 // time, and a flaky fetch failed whole builds -- 3 on 2026-09-26 alone,
@@ -111,6 +112,9 @@ export default function RootLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Order 0710: on the no-storage build every route renders per request (no data cache anywhere; the edge copy is the
+  // only cache). A no-op on the production build. Covers every page, so pages do not call it themselves.
+  renderPerRequestOnNoStorageBuild();
   return (
     <html lang="en-IN" className={`${poppins.variable} ${fredoka.variable} ${inter.variable}`}>
       <body className="bg-white text-dark font-body antialiased">

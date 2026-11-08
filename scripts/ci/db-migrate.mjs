@@ -25,6 +25,7 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { compareParity, fixesScopeParity, versionOf } from './migration-parity.mjs';
+import { selectOnlyVersion, onlyVersionParity } from './only-version.mjs';
 import { PROD_REF } from './prod-reference.mjs';
 
 // Staging safety check. Runs before any connection. A staging address must not contain the
@@ -216,6 +217,11 @@ async function main() {
     p.pendingFixes = sel.apply;
   }
 
+  // ONLY_VERSION (order 0010 item 8): apply exactly one named pending migration; every other pending migration stays held.
+  const only = selectOnlyVersion({ pendingMigrations: p.pendingMigrations, onlyVersion: process.env.ONLY_VERSION, versionOf });
+  if (only.error) throw new Error(only.error);
+  const heldOnly = only.held;
+  p.pendingMigrations = only.apply;
   say(`## db-migrate: ${TARGET} (${MODE}${SCOPE === 'migrations' ? ', migrations only' : ''}${SCOPE === 'fixes' ? ', fixes only' : ''})`);
   say(`repo migrations ${migrations.length}, applied on ${TARGET} ${appliedVersions.length}; repo data fixes ${fixes.length}, applied ${appliedFixes.length}`);
   if (p.targetOnly.length) throw new Error(`${TARGET} has versions with no repo file (${p.targetOnly.join(', ')}) -- refusing to apply anything (G7)`);
@@ -226,6 +232,7 @@ async function main() {
   for (const it of items) { it.sql = fs.readFileSync(it.file, 'utf8'); it.header = parseHeader(it.sql); problems.push(...lintFile(it.kind, it.name, it.sql)); }
   say(`pending: ${items.length ? items.map((i) => `${i.kind} ${i.name}`).join('; ') : 'nothing'}`);
   if (heldFixes.length) say(`held (scope=migrations): ${heldFixes.map((f) => `fix ${f}`).join('; ')}`);
+  if (heldOnly.length) say(`held (only_version ${process.env.ONLY_VERSION}, not applied): ${heldOnly.map((f) => `migration ${f}`).join('; ')}`);
   if (heldMigrations.length) say(`held (scope=fixes, not linted or applied): ${heldMigrations.map((f) => `migration ${f}`).join('; ')}`);
   if (unauthorized.length) say(`held (not in the fixes input, not authorized for this run): ${unauthorized.map((f) => `fix ${f}`).join('; ')}`);
   if (alreadyApplied.length) say(`already applied on ${TARGET} (skipped): ${alreadyApplied.map((f) => `fix ${f}`).join('; ')}`);
@@ -293,7 +300,9 @@ async function main() {
   evidence.parity = par;
   const fixesParity = SCOPE === 'fixes' ? fixesScopeParity({ repo: migrations.map(versionOf), prod: after, heldAtStart: heldMigrations.map(versionOf) }) : null;
   if (fixesParity) evidence.fixes_scope_parity = fixesParity;
-  const parityOk = MODE === 'plan' ? par.prodOnly.length === 0 : (fixesParity ? fixesParity.ok : par.ok);
+  const onlyParity = process.env.ONLY_VERSION ? onlyVersionParity({ repoVersions: migrations.map(versionOf), prodVersions: after, heldVersions: heldOnly.map(versionOf) }) : null;
+  if (onlyParity) evidence.only_version_parity = onlyParity;
+  const parityOk = MODE === 'plan' ? par.prodOnly.length === 0 : (onlyParity ? onlyParity.ok : (fixesParity ? fixesParity.ok : par.ok));
   if (fixesParity && !fixesParity.ok) say(`parity (scope=fixes) reasons: ${fixesParity.reasons.join('; ')}`);
   say(parityOk ? `parity: PASS (repo ${par.repoCount} = ${TARGET} ${par.prodCount}${MODE === 'plan' && par.unapplied.length ? `; ${par.unapplied.length} pending` : ''})`
                : `parity: FAIL (target-only ${par.prodOnly.join(',') || '-'}; unapplied ${par.unapplied.join(',') || '-'})`);

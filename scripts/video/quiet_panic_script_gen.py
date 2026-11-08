@@ -792,7 +792,7 @@ class VerdictReasonMissingError(PreTTSValidationError):
     fix."""
 
 
-def check_word_budget(segments: list, price_inr) -> dict:
+def check_word_budget(segments: list, price_inr, extra_total_words: int = 0) -> dict:
     """Pre-TTS validation, zero ElevenLabs cost either way. Mirrors the
     {'pass', 'detail'} gate-dict shape used throughout generate_quiet_
     panic_video.py's post-render gates -- same philosophy, just against
@@ -831,6 +831,10 @@ def check_word_budget(segments: list, price_inr) -> dict:
     # tightens anything.
     price_segment_cap = max(PER_SEGMENT_WORD_CAP, price_phrase_words)
     effective_total_cap = TOTAL_WORD_CAP + max(0, price_phrase_words - PER_SEGMENT_WORD_CAP)
+    # Explicit, bounded relaxation for one reviewed run (order 0400 item 3). The default is 0, which leaves the cap unchanged.
+    if not isinstance(extra_total_words, int) or isinstance(extra_total_words, bool) or not 0 <= extra_total_words <= 3:
+        raise ValueError('extra_total_words must be a whole number from 0 to 3')
+    effective_total_cap += extra_total_words
 
     over_cap = []
     for i, wc in segment_words:
@@ -933,7 +937,8 @@ def _call_gemini(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
     _gemini_pace()
     from google import genai
     from google.genai import types
-    client = genai.Client(api_key=GEMINI_SOCIAL_API_KEY)
+    # The system instruction is rejected on the SDK's default API version (order 0760): use v1beta.
+    client = genai.Client(api_key=GEMINI_SOCIAL_API_KEY, http_options=types.HttpOptions(api_version='v1beta'))
     res = gemini_generate(
         client, site='video-qp', model='gemini-2.5-flash', system=system_prompt, user=task_prompt,
         config=types.GenerateContentConfig(system_instruction=system_prompt),

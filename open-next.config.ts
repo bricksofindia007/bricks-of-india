@@ -32,13 +32,26 @@ import { purgeCache } from "@opennextjs/cloudflare/overrides/cache-purge/index";
 //     high enough to hit Cache-API rate limits, which doesn't apply here
 //     (see wrangler.jsonc's matching comment for why NEXT_CACHE_DO_PURGE/
 //     BucketCachePurge was deliberately not added).
-export default defineCloudflareConfig({
-  incrementalCache: r2IncrementalCache,
-  queue: doQueue,
-  tagCache: doShardedTagCache({ baseShardSize: 12 }),
-  cachePurge: purgeCache({ type: "direct" }),
-  // Serve cached pages straight from the cache with the refresh time stored alongside each
-  // page (3 Oct 2026). Without this, pages made on demand were marked stale almost at once
-  // and rebuilt on nearly every visit.
-  enableCacheInterception: true,
-});
+// Build-time switch for the no-storage build (order 0560 Phase 1). It is read when the build runs, not at run time.
+//   - BOI_STAGING=1: the staging build (deploy-cloudflare-staging.yml).
+//   - BOI_PRODUCTION_NO_STORAGE=1: the production build. Not set by the production deploy until cutover (Phase 3),
+//     so merging this file changes nothing live.
+// No-storage build: no R2 page copies, no revalidation queue, no tag cache, no purge storage (OpenNext's "dummy"
+// defaults, which write nothing). Pages render per request; the edge cache in worker/ keeps them for a short time.
+const NO_STORAGE = process.env.BOI_STAGING === "1" || process.env.BOI_PRODUCTION_NO_STORAGE === "1";
+
+export default NO_STORAGE
+  ? defineCloudflareConfig({
+      // No stored pages, so there is nothing for cache interception to serve. Off.
+      enableCacheInterception: false,
+    })
+  : defineCloudflareConfig({
+      incrementalCache: r2IncrementalCache,
+      queue: doQueue,
+      tagCache: doShardedTagCache({ baseShardSize: 12 }),
+      cachePurge: purgeCache({ type: "direct" }),
+      // Serve cached pages straight from the cache with the refresh time stored alongside each
+      // page (3 Oct 2026). Without this, pages made on demand were marked stale almost at once
+      // and rebuilt on nearly every visit.
+      enableCacheInterception: true,
+    });

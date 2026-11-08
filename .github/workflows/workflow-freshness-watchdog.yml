@@ -49,6 +49,7 @@ jobs:
               // Prices are scraped once a day (03:00 UTC). The threshold is 26 hours, the same window the site uses for a fresh price.
               "scrape-prices.yml":          [26, 1],
               "generate-drafts.yml":        [24, 2],
+              "generate-guide-weekly.yml":  [7 * 24, 2],
               "radar.yml":                  [24, 2],
               "model-canary.yml":           [24, 2],
               "snapshot-prices.yml":        [24, 2],

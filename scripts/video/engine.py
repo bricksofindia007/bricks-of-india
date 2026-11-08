@@ -970,7 +970,8 @@ def generate_script(title: str, price_inr: float, pieces: int | None, theme: str
             _gemini_pace()
             from google import genai
             from google.genai import types
-            client = genai.Client(api_key=gemini_key)
+            # The system instruction is rejected on the SDK's default API version (order 0760): use v1beta.
+            client = genai.Client(api_key=gemini_key, http_options=types.HttpOptions(api_version='v1beta'))
             res = gemini_generate(
                 client, site="video", model="gemini-2.5-flash", system=prompts.SYSTEM_PROMPT, user=task_prompt,
                 config=types.GenerateContentConfig(system_instruction=prompts.SYSTEM_PROMPT),
@@ -2819,11 +2820,13 @@ def main() -> None:
             vid = video_post["id"]
             print(f"\n--- Publishing {vid} (story #{video_post.get('story_number')}, {video_post['set_title']}) ---")
 
-            # P23: the stored price must match the current in-stock price for
-            # this store. A mismatch, an out-of-stock item or no listing holds
-            # the row (publish_blocked + a plain note giving both prices).
-            # Nothing else is changed, and nothing is posted.
-            verdict = price_check.check_row(sb, video_post)
+            # P23 (order 0960): the stored price must match the price at its store
+            # OR the set's MRP. Stock status never blocks a post. The row is held
+            # only when the stored price matches neither, or nothing can be compared
+            # (publish_blocked + a plain note naming the stored, store and MRP
+            # prices). Nothing else is changed, and nothing is posted.
+            mrp = price_check.fetch_mrp(sb, video_post.get("set_number"))
+            verdict = price_check.check_row(sb, video_post, mrp)
             if verdict["decision"] == "block":
                 print(f"PRICE CHECK: {vid} not posted: {verdict['note']}")
                 price_check.hold(sb, video_post, verdict)

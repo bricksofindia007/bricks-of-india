@@ -22,6 +22,7 @@ import { spawnSync } from 'node:child_process';
 import { PROD_REF } from './prod-reference.mjs';
 export { PROD_REF };
 export const HISTORY_TRIGGER = 'trg_price_history_on_change';
+export const PUBLISH_GATE_TRIGGER = 'review_publish_gate';
 // mode 'replace' = truncate + reload every column.
 // mode 'columns' = UPDATE only the listed columns on rows staging already has (by id); no inserts, and
 //   no other column is touched, so staging's own catalogue / price pipeline data stays as it is (P12 q3).
@@ -33,7 +34,6 @@ export const TABLES = [
   // trigger's inputs for those rows, which only brings staging closer to production.
   { table: 'sets', mode: 'columns', columns: ['is_gwp', 'gwp_parent_set_number', 'pieces', 'theme', 'lego_mrp_inr', 'mrp_verified', 'mrp_review_reason'], skipInFingerprint: [] },
   { table: 'news_articles', mode: 'replace', skipInFingerprint: [] },
-  { table: 'reviews', mode: 'replace', skipInFingerprint: [] },
   { table: 'guides', mode: 'replace', skipInFingerprint: [] },
   // #450 (P14 round 4, Tier 2 approved): the lego.in history fix is rehearsed on a faithful copy.
   // ci_readonly SELECT from migration 20261001010000. Set ids, store ids, prices, stock flags and
@@ -42,6 +42,10 @@ export const TABLES = [
   // (g) catalogue health, wrong-match purge (17-wrong-store-matches.sql). Needs the Tier 2 grant
   // migration 20261001200000 (ci_readonly SELECT on store_prices) first.
   { table: 'store_prices', mode: 'replace', skipInFingerprint: [] },
+  // Order 0900: reviews load AFTER store_prices. review_publish_gate (20261016120000) refuses a review
+  // insert whose set has no store_prices row, so reviews must not load while store_prices is empty.
+  // The gate stays on; it is not disabled for the load.
+  { table: 'reviews', mode: 'replace', skipInFingerprint: [] },
 ];
 
 export function fingerprintSql(table, cols, where = '', from = `public.${table}`) {
@@ -135,7 +139,16 @@ export function buildLoadSql(plan) {
   // price_history would no longer equal production (seed 37176409045, 4 Oct). Off for this transaction only.
   const quiet = replace.some((p) => p.table === 'store_prices') ? HISTORY_TRIGGER : null;
   if (quiet) lines.push(`alter table public.store_prices disable trigger ${quiet};`);
-  for (const t of replace) lines.push(replaceSql(t.table, t.cols));
+  // review_publish_gate (20261016120000) refuses an INSERT of a review with no confirmed source, or whose set has
+  // no store listing. The copy re-inserts reviews that already exist in production (63 have no confirmed source, and
+  // they predate the gate), so the gate is off for the reviews reload only. It is switched back on right after that
+  // insert, still inside the transaction, so a failed load rolls the switch back with everything else.
+  for (const t of replace) {
+    const gated = t.table === 'reviews';
+    if (gated) lines.push(`alter table public.reviews disable trigger ${PUBLISH_GATE_TRIGGER};`);
+    lines.push(replaceSql(t.table, t.cols));
+    if (gated) lines.push(`alter table public.reviews enable trigger ${PUBLISH_GATE_TRIGGER};`);
+  }
   if (quiet) lines.push(`alter table public.store_prices enable trigger ${quiet};`);
   lines.push(`select setval(pg_get_serial_sequence('public.guides', 'id'), coalesce(max(id), 1)) from public.guides;`);
   const checks = plan.map((t) => {

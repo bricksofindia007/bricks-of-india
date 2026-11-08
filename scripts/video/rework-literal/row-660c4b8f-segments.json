@@ -1,0 +1,51 @@
+{
+  "_doc": "Original spoken segments of Quiet Panic row 45 (Snowman Ornaments), from the generation run of 24 Oct 2026 (workflow run 40077423852). Used only by the literal rework mode. The last voice segment is the verdict; its text is replaced by the row's rejection reason text in that mode.",
+  "row_id": "660c4b8f-9278-404e-9343-da305ec01769",
+  "segments": [
+    {
+      "text": "One hundred sixty eight pieces.",
+      "voice": true,
+      "target_duration": 3.79
+    },
+    {
+      "text": "Each tiny brick... a future family heirloom.",
+      "voice": false,
+      "sfx_tag": "brick_pour",
+      "target_duration": 4.52
+    },
+    {
+      "text": "Building joy, one frosty smile at a time.",
+      "voice": false,
+      "sfx_tag": "brick_snap",
+      "target_duration": 2.73
+    },
+    {
+      "text": "Your tree demands this. Your landlord doesn't care.",
+      "voice": false,
+      "sfx_tag": "sorting_rummage",
+      "target_duration": 4.05
+    },
+    {
+      "text": "The perfect smile. Or maybe a quiet cry for warmth.",
+      "voice": false,
+      "sfx_tag": "brick_snap",
+      "target_duration": 3.4
+    },
+    {
+      "text": "One thousand three hundred forty nine rupees.",
+      "voice": true,
+      "target_duration": 4.68
+    },
+    {
+      "text": "More than just plastic. It's... seasonal commitment.",
+      "voice": false,
+      "sfx_tag": "separator_pry",
+      "target_duration": 3.47
+    },
+    {
+      "text": "Verdict: buy it. Snow.",
+      "voice": true,
+      "target_duration": 4.96
+    }
+  ]
+}

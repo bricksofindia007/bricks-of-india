@@ -26,8 +26,10 @@ jobs:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.STAGING_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.STAGING_SUPABASE_PUBLISHABLE_KEY }}
       # The staging build names its own address (sitemap, canonical links) and is kept out of search (BOI_STAGING).
-      NEXT_PUBLIC_SITE_URL: https://bricks-of-india-staging.bricksofindia007.workers.dev
+      NEXT_PUBLIC_SITE_URL: https://staging-edge.bricksofindia.com
       BOI_STAGING: '1'
+      # Build-time flag read by the app code (order 0620): inlined by Next, so the staging build renders the no-storage price path.
+      NEXT_PUBLIC_BOI_NO_STORAGE: '1'
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v6
@@ -43,6 +45,9 @@ jobs:
         run: |
           if printf '%s' "$STAGING_SUPABASE_URL" | grep -q 'hqpaiarhmiocmjrzjhtw'; then echo "staging URL is the production project; stopped"; exit 1; fi
           node -e 'const k=process.env.STAGING_SUPABASE_SERVICE_ROLE_KEY||""; let r=""; try { r=JSON.parse(Buffer.from(k.split(".")[1]||"","base64url").toString()).ref||""; } catch (e) {} if (r==="hqpaiarhmiocmjrzjhtw") { console.log("service key is for the production project; stopped"); process.exit(1); } if (!r) { console.log("service key has no project ref; stopped"); process.exit(1); } console.log("staging project checks passed (values not printed)");'
+      - name: Staging robots, keep crawlers out (staging build only)
+        # Order 0830: staging's robots.txt tells every crawler to stay out. Production's public/robots.txt is not touched.
+        run: cp scripts/ci/robots-staging.txt public/robots.txt
       - name: Next.js build (public values only; staging service key for the sitemap prerender)
         env:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.STAGING_SUPABASE_SERVICE_ROLE_KEY }}

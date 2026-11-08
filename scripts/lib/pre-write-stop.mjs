@@ -143,3 +143,36 @@ export function approvalFromEnv(env = process.env) {
   const available = Number((env.APPROVE_AVAILABLE ?? '').trim());
   return store && Number.isFinite(available) && available > 0 ? { store, available } : null;
 }
+
+/**
+ * Plain-words explanation for the hold email (order 0560, permanent fix 3a). Pure: it reads the
+ * reason strings that planStoreWrite() already produced and never changes whether a write happens.
+ * Each reason maps to one cause and one action a person can take. Unknown reasons get the generic text.
+ */
+export function explainHold(storeName, reasons, approveKey = 'the store') {
+  const text = (reasons ?? []).join(' | ');
+  const approve = `If the count is right, approve one run: dispatch scrape-prices.yml with approve_store=${approveKey} and approve_available=<the expected available count>.`;
+  let cause;
+  let action;
+  if (/policy:/.test(text)) {
+    cause = "The store's rules file changed since we last approved it, so we have not updated its prices.";
+    action = "Read the store's new rules file. If it is acceptable, a reviewed change to the stored approval is needed (a code change, not an approval input). Until then this store's prices stay as they were and get older.";
+  } else if (/could not read stored rows/.test(text)) {
+    cause = 'The stored prices could not be read, so nothing could be compared. Nothing was written.';
+    action = 'Check the database connection and the scrape log, then re-run the scrape for this store.';
+  } else if (/< 90% of approved/.test(text)) {
+    cause = "The store's catalogue returned far fewer products than usual. Nothing was written.";
+    action = `Check the store's site. If the drop is real, ${approve}`;
+  } else if (/approval:/.test(text)) {
+    cause = 'The approved count did not match this run. Nothing was written.';
+    action = `Check the store's available count, then re-approve with the right number. ${approve}`;
+  } else {
+    cause = 'Too many prices or stock levels changed at once for the safety limits. Nothing was written.';
+    action = `Check the store's site. If the change is real, ${approve}`;
+  }
+  return {
+    subject: `[BOI] Prices paused for ${storeName}: nothing was written`,
+    cause,
+    action,
+  };
+}

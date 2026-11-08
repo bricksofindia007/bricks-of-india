@@ -1,5 +1,5 @@
--- Staging only. Adds two fixture rows to public.sets, so the blank-theme data fixes (706 and 709) can run
--- their real assertions on staging, which does not hold these set numbers.
+-- Staging only. Adds one fixture row to public.sets (900902), so the staging price proof has a set that is not
+-- a catalogue set. Sets 854338 and 854335 are NOT touched: they are the rehearsal rows for data fixes 706 and 709.
 --
 -- * Inserts a row only where set_number is absent. An existing row is never updated or deleted.
 -- * If a row with the same set_number already exists and differs from the fixture in name, year, theme,
@@ -17,8 +17,7 @@ declare
 begin
   for f in
     select * from (values
-      ('854338', 'Lloyd''s Sword with Sheath', 2026),
-      ('854335', 'Mateo''s Z-Blob Sword', 2026)
+      ('900902', 'Fixture set for the price proof', 2026)
     ) as v(set_number, name, year)
   loop
     select count(*) into n from public.sets where set_number = f.set_number;
@@ -42,8 +41,7 @@ end $$;
 insert into public.sets (set_number, name, year, theme, noindex_override, description)
 select v.set_number, v.name, v.year, '', false, 'FIXTURE STAGING ONLY'
 from (values
-  ('854338', 'Lloyd''s Sword with Sheath', 2026),
-  ('854335', 'Mateo''s Z-Blob Sword', 2026)
+  ('900902', 'Fixture set for the price proof', 2026)
 ) as v(set_number, name, year)
 where not exists (select 1 from public.sets s where s.set_number = v.set_number);
 

@@ -1,3 +1,4 @@
+import { staticParamsForBuild } from '@/lib/no-storage-render';
 import Image from 'next/image';
 import Link from 'next/link';
 import { TrackedLink } from '@/components/analytics/TrackedLink';
@@ -9,7 +10,7 @@ import { buildMetadata } from '@/lib/metadata';
 import { notFound } from 'next/navigation';
 import { createServerClient } from '@/lib/supabase';
 import { SET_PAGE_REVALIDATE_SECONDS, UNPRICED_SET_REVALIDATE_SECONDS, bestInStock, isPriceFresh, formatIst } from '@/lib/price-freshness';
-import { unstable_cache } from 'next/cache';
+import { storedCache } from '@/lib/no-storage-render';
 import { getSet } from '@/lib/rebrickable';
 import { formatPrice, whatsappShareUrl, socialCardImage, setMetaDescription } from '@/lib/utils';
 import { MASCOTS } from '@/lib/brand';
@@ -18,6 +19,7 @@ import { Badge, BestPriceBadge, OnlyAtBadge, DealBadge } from '@/components/ui/B
 import { priceLabel, normalise, type SetPriceSummary } from '@/lib/price-summary';
 import { ToycraDiscountBanner } from '@/components/ui/ToycraDiscountBanner';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import { setRobotsNoindex } from '@/lib/indexing-price';
 import { HeartSlot, CollectionSlot } from '@/components/saved/CollectionSlots';
 import { SetCard } from '@/components/sets/SetCard';
 import { SetImage } from '@/components/sets/SetImage';
@@ -41,7 +43,7 @@ export const revalidate = 1209600;
 // Tagged set:<n> for FP1.6's revalidateTag.
 
 export async function generateStaticParams() {
-  return [];
+  return staticParamsForBuild<{ slug: string }>([], { slug: 'no-storage-build-probe' });
 }
 
 interface Props {
@@ -72,7 +74,7 @@ type SetPageData = {
 };
 
 const readRpc = (setNumber: string, slug: string) =>
-  unstable_cache(async () => {
+  storedCache(async () => {
     const { data, error } = await createServerClient().rpc('set_page_data', { p_set_number: setNumber, p_slug: slug });
     if (error) throw error;  // thrown results are never cached
     return { d: data as Omit<SetPageData, 'as_of'>, at: new Date().toISOString() };
@@ -80,7 +82,7 @@ const readRpc = (setNumber: string, slug: string) =>
 
 // Priced page: the offers and summary on the 6 h clock, under their own key.
 const readPriceSide = (setNumber: string) =>
-  unstable_cache(async () => {
+  storedCache(async () => {
     const sb = createServerClient();
     const [sp, sum] = await Promise.all([
       sb.from('store_prices').select('*').eq('set_id', setNumber).order('store_id'),
@@ -94,7 +96,7 @@ const readPriceSide = (setNumber: string) =>
 // A1: which catalogue set a slug names, when its first "-" segment isn't it (set numbers that
 // contain "-"). One extra read, only on that path; the normal page costs nothing more.
 const resolveSetNumber = (slug: string) =>
-  unstable_cache(async () => {
+  storedCache(async () => {
     const { data, error } = await createServerClient().from('sets').select('set_number, name').in('set_number', setNumberCandidates(slug));
     if (error) throw error;
     return pickSetNumber(slug, data ?? []);
@@ -175,11 +177,14 @@ export async function generateMetadata(props: Props): Promise<Metadata> {
     // maintained and would silently get recomputed away from a manual
     // 'tier3' override on the next Rebrickable metadata resync -- see the
     // migration's own comment). Same follow:true treatment as tier3.
-    ...((set.index_tier === 'tier3' || set.noindex_override || !priced) && { robots: { index: false, follow: true } }),
+    ...(setRobotsNoindex(set, priced, FEATURE_FLAGS.unpricedSetsHidden) && { robots: { index: false, follow: true } }),
   };
 }
 
 export default async function SetPage(props: Props) {
+  // Order 0650 item 3: no unstable_noStore here. This route is ISR (revalidate 1209600, no static params), and noStore
+  // throws DYNAMIC_SERVER_USAGE in that render (500 on the no-storage build). The price reads are not cached on that
+  // build (storedCache), and the dummy incremental cache keeps nothing, so each miss reads the source again.
   const params = await props.params;
   const pageData = await getSetPageData(params.slug);
   if (!pageData?.set) notFound();

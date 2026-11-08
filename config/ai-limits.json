@@ -41,6 +41,10 @@
       "maxCalls": 4,
       "maxInputTokens": 50000
     },
+    "rework_quiet_panic.py": {
+      "maxCalls": 4,
+      "maxInputTokens": 50000
+    },
     "model_canary.py": {
       "maxCalls": 4,
       "maxInputTokens": 4000

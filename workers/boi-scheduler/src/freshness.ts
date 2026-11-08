@@ -24,6 +24,7 @@ export const WATCHLIST: Record<string, [number, number]> = {
   'reviews-weekly-refresh.yml': [7 * 24, 2],
   'sync-catalogue.yml': [7 * 24, 2],
   'retention-cleanup.yml': [7 * 24, 2],
+  'generate-guide-weekly.yml': [7 * 24, 2],
 };
 
 export interface FreshnessEnv {

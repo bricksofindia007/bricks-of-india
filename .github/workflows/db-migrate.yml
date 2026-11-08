@@ -38,6 +38,11 @@ on:
         type: choice
         options: [both, staging]
         default: both
+      only_version:
+        description: 'Apply exactly this one pending migration version (for example 20261026100000); every other pending migration stays held. Empty = all pending, as before'
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
@@ -49,6 +54,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+
   staging:
     if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-24.04
@@ -67,6 +73,7 @@ jobs:
           MODE: ${{ inputs.mode }}
           SCOPE: ${{ inputs.scope }}
           FIXES: ${{ inputs.fixes }}
+          ONLY_VERSION: ${{ inputs.only_version }}
           DATABASE_URL: ${{ secrets.MIGRATE_DB_URL }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUT_DIR: db-migrate-out
@@ -89,6 +96,7 @@ jobs:
           MODE: ${{ inputs.mode }}
           SCOPE: ${{ inputs.scope }}
           FIXES: ${{ inputs.fixes }}
+          ONLY_VERSION: ${{ inputs.only_version }}
           DATABASE_URL: ${{ secrets.MIGRATE_DB_URL }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           OUT_DIR: db-migrate-out
