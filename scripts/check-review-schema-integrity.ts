@@ -17,6 +17,7 @@ import dotenv from 'dotenv';
 import { createClient } from '@supabase/supabase-js';
 import { getSecret } from '../src/lib/get-secret';
 import { buildProductSchema } from '../src/lib/schemas';
+import { withRetry } from './ci/with-retry';
 
 dotenv.config({ path: '.env.local' });
 
@@ -35,10 +36,10 @@ async function main() {
   const PAGE = 1000;
   const allSets: any[] = [];
   for (let offset = 0; ; offset += PAGE) {
-    const { data, error } = await sb
+    const { data, error } = await withRetry(() => sb
       .from('sets')
       .select('name, set_number, image_url, theme, pieces, reviews(rating, slug, excerpt, published_at)')
-      .range(offset, offset + PAGE - 1);
+      .range(offset, offset + PAGE - 1));
     if (error) throw error;
     if (!data || data.length === 0) break;
     allSets.push(...data);
