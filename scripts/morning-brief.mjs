@@ -156,18 +156,7 @@ function loadKnownIssues() {
   }
 }
 
-// ── Section 5: Next hard deadline ────────────────────────────────────────────
-
-undefined
-
-// The dates come from config/brief-deadlines.json (order 1430 item 7). Passed dates are dropped by nextDeadlineFrom.
-const DEADLINES = loadDeadlines(new URL('../config/brief-deadlines.json', import.meta.url));
-
-function nextDeadline() {
-  return nextDeadlineFrom(DEADLINES, Date.now());
-}
-
-// ── Section 6: Sign-off ───────────────────────────────────────────────────────
+// ── Section 5: Sign-off ───────────────────────────────────────────────────────
 
 const SIGNOFFS = [
   'Chai is ₹20. This LEGO set is ₹49,999. Life is not fair. Build anyway.',
@@ -184,7 +173,7 @@ function todaySignoff() {
 
 // ── HTML builder ──────────────────────────────────────────────────────────────
 
-function buildHtml({ pipelines, freshness, pending, deadline, today, knownIssues }) {
+function buildHtml({ pipelines, freshness, pending, today, knownIssues }) {
   const scoreColor = HEALTH_SCORE >= 80 ? GREEN : HEALTH_SCORE >= 60 ? AMBER : RED;
 
   const s1 = card('1 &mdash; Health Score', `
@@ -255,22 +244,7 @@ function buildHtml({ pipelines, freshness, pending, deadline, today, knownIssues
     </table>
   `);
 
-  let s5;
-  if (!deadline) {
-    s5 = card('5 &mdash; Next Hard Deadline',
-      `<p style="margin:0;font-size:13px;color:#888;">No upcoming deadlines.</p>`);
-  } else {
-    const d = Math.ceil(deadline.daysLeft);
-    const dColor = d <= 7 ? RED : d <= 30 ? AMBER : GREEN;
-    s5 = card('5 &mdash; Next Hard Deadline', `
-      <p style="margin:0;font-size:20px;font-weight:bold;color:${dColor};">${deadline.label}</p>
-      <p style="margin:6px 0 0;font-size:13px;color:#666;">
-        ${deadline.date} &mdash; <strong style="color:${dColor};">${d} day${d === 1 ? '' : 's'}</strong> remaining
-      </p>
-    `);
-  }
-
-  const s6 = card('6 &mdash; Daily Dispatch', `
+  const s5 = card('5 &mdash; Daily Dispatch', `
     <p style="margin:0;font-size:14px;color:${NAVY};font-style:italic;line-height:1.5;">
       &ldquo;${todaySignoff()}&rdquo;
     </p>
@@ -282,10 +256,10 @@ function buildHtml({ pipelines, freshness, pending, deadline, today, knownIssues
     : knownIssues.rows.length === 0
       ? '<p style="margin:0;font-size:13px;color:#888;">No open known issues.</p>'
       : `<table width="100%" cellpadding="0" cellspacing="0">${knownIssues.rows.map(r => `
-          <tr><td style="padding:5px 0;font-size:13px;color:${NAVY};">${r.id}: ${r.issue}</td>
-              <td style="padding:5px 0 5px 12px;font-size:12px;color:#666;text-align:right;white-space:nowrap;">${r.state}, fix ${r.fixPr}</td></tr>`).join('')}
+          <tr><td style="padding:5px 0;font-size:13px;color:${NAVY};">${r.id}</td>
+              <td style="padding:5px 0 5px 12px;font-size:12px;color:#666;text-align:right;white-space:nowrap;">${r.state}</td></tr>`).join('')}
         </table>`;
-  const s7 = card('7 &mdash; Known issues', issueList);
+  const s6 = card('6 &mdash; Known issues', issueList);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -305,7 +279,7 @@ function buildHtml({ pipelines, freshness, pending, deadline, today, knownIssues
       </td></tr>
       <tr><td style="background:#EBEBEB;padding:14px 0 0;">
         <table width="100%" cellpadding="0" cellspacing="0">
-          ${s1}${s2}${s3}${s4}${s5}${s6}${s7}
+          ${s1}${s2}${s3}${s4}${s5}${s6}
         </table>
       </td></tr>
       <tr><td style="background:#FFFFFF;border-radius:0 0 8px 8px;padding:14px 26px;
@@ -336,15 +310,12 @@ const [pipelines, freshness, pending] = await Promise.all([
   fetchPending(),
 ]);
 
-const deadline = nextDeadline();
-
 console.log('Pipelines:', pipelines.map(p => `${p.label}=${p.status}`).join(', '));
 console.log('Freshness:', freshness.map(f => `${f.label}=${f.days != null ? f.days.toFixed(1) + 'd' : 'err'}`).join(', '));
 console.log(`Pending: approved=${pending.approved} draft=${pending.draft} waiting>${WAITING_DAYS}d=${pending.waitingOver14}`);
-console.log('Next deadline:', deadline ? `${deadline.label} in ${Math.ceil(deadline.daysLeft)}d` : 'none');
 
 const knownIssues = loadKnownIssues();
-const html = buildHtml({ pipelines, freshness, pending, deadline, today, knownIssues });
+const html = buildHtml({ pipelines, freshness, pending, today, knownIssues });
 
 const res = await fetch('https://api.resend.com/emails', {
   method: 'POST',

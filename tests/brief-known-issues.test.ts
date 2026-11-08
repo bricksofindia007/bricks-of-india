@@ -1,4 +1,4 @@
-// Morning Brief: waiting-draft age and the known-issues card (order 1580 item 4c, 4f, 4g).
+// Morning Brief: waiting-draft age, the known-issues card, and the card numbering (order 1580 item 4; order 1600 item 3).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -8,10 +8,10 @@ const root = join(__dirname, '..');
 const read = (p: string) => readFileSync(join(root, p), 'utf8');
 
 const register = [
-  { id: 'KI-01', issue: 'Weekly social job checked against a daily threshold', state: 'fix drafted', fixPr: '930' },
-  { id: 'KI-02', issue: 'Heartbeat rules read the weekly job', state: 'open', fixPr: 'none yet' },
-  { id: 'KI-09', issue: 'Merged and clean', state: 'fix merged', fixPr: '900' },
-  { id: 'KI-10', issue: 'Closed row', state: 'closed', fixPr: '901' },
+  { id: 'KI-01', alertsCovered: ['social-weekly-run'], state: 'fix drafted' },
+  { id: 'KI-02', alertsCovered: ['social-posting-stopped'], state: 'open' },
+  { id: 'KI-09', alertsCovered: [], state: 'fix merged' },
+  { id: 'KI-10', alertsCovered: [], state: 'closed' },
 ];
 
 describe('waiting drafts: older than 14 days', () => {
@@ -34,21 +34,30 @@ describe('known-issues card', () => {
   it('shows only open rows: closed and fix-merged rows are not on the card', () => {
     expect(openKnownIssues(register).map((r) => r.id)).toEqual(['KI-01', 'KI-02']);
   });
-  it('each card row has ID, one line, state and fix PR', () => {
-    const rows = knownIssueRows(register);
-    expect(rows[0]).toEqual({
-      id: 'KI-01',
-      issue: 'Weekly social job checked against a daily threshold',
-      state: 'fix drafted',
-      fixPr: '930',
-    });
-    expect(rows[1].fixPr).toBe('none yet');
+  it('each card row has id and state only (the public register has no issue text)', () => {
+    expect(knownIssueRows(register)).toEqual([
+      { id: 'KI-01', state: 'fix drafted' },
+      { id: 'KI-02', state: 'open' },
+    ]);
   });
-  it('the brief places the card after card 6 and reads the register with a fallback', () => {
+  it('the card is card 6 after the dispatch card, and reads the register with a fallback', () => {
     const brief = read('scripts/morning-brief.mjs');
-    expect(brief).toMatch(/const s7 = card\('7 &mdash; Known issues'/);
-    expect(brief).toMatch(/\$\{s1\}\$\{s2\}\$\{s3\}\$\{s4\}\$\{s5\}\$\{s6\}\$\{s7\}/);
+    expect(brief).toMatch(/const s6 = card\('6 &mdash; Known issues'/);
+    expect(brief).toMatch(/\$\{s1\}\$\{s2\}\$\{s3\}\$\{s4\}\$\{s5\}\$\{s6\}/);
     expect(brief).toMatch(/Register unavailable/);
     expect(brief).toMatch(/config\/known-issues\.json/);
+  });
+});
+
+describe('card 5 (Next Hard Deadline) is removed (G18, order 1600)', () => {
+  it('the brief has no deadline card, no deadline data, and no deadline import', () => {
+    const brief = read('scripts/morning-brief.mjs');
+    expect(brief).not.toMatch(/Next Hard Deadline/);
+    expect(brief).not.toMatch(/nextDeadline|loadDeadlines|brief-deadlines/);
+  });
+  it('the cards are numbered 1 to 6 with no gap', () => {
+    const brief = read('scripts/morning-brief.mjs');
+    for (const n of [1, 2, 3, 4, 5, 6]) expect(brief).toMatch(new RegExp(`card\\('${n} &mdash; `));
+    expect(brief).not.toMatch(/card\('7 &mdash;/);
   });
 });

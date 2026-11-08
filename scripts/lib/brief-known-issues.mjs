@@ -1,4 +1,5 @@
-// Morning Brief helpers (order 1580 item 4f and alert standard section 3). Pure: no database, no network.
+// Morning Brief helpers (order 1580 item 4f; order 1600 item 3). Pure: no database, no network.
+// The register in this public repo holds only id, alertsCovered and state, so the card shows ids and states only.
 
 export const WAITING_DAYS = 14;
 
@@ -12,12 +13,7 @@ export function openKnownIssues(register) {
   return (register || []).filter((r) => r.state !== 'closed' && r.state !== 'fix merged');
 }
 
-/** Pure: the card rows for the known-issues section: ID, one line, state, fix PR. */
+/** Pure: the card rows for the known-issues section: id and state only. */
 export function knownIssueRows(register) {
-  return openKnownIssues(register).map((r) => ({
-    id: r.id,
-    issue: r.issue,
-    state: r.state,
-    fixPr: r.fixPr ?? 'none yet',
-  }));
+  return openKnownIssues(register).map((r) => ({ id: r.id, state: r.state }));
 }
