@@ -112,7 +112,7 @@ async function fetchPipelineStatus() {
 
 const FRESHNESS_SOURCES = [
   { table: 'news_articles', label: 'News',    warnDays: 7  },
-  { table: 'blog_posts',    label: 'Blog',    warnDays: 14 },
+  { table: 'guides',        label: 'Guides',  warnDays: 14 },
   { table: 'reviews',       label: 'Reviews', warnDays: 30 },
 ];
 
@@ -146,21 +146,13 @@ async function fetchPending() {
 
 // ── Section 5: Next hard deadline ────────────────────────────────────────────
 
-const DEADLINES = [
-  { label: 'CE-01 subjects',   date: '2026-06-01' },
-  { label: 'CE-05 History',    date: '2026-07-01' },
-  { label: 'CE-01 Spotlights', date: '2026-07-15' },
-  { label: 'IG Token',         date: '2026-07-16' },
-  { label: 'CE-02 complete',   date: '2026-07-25' },
-  { label: 'Fan CoLab',        date: '2026-08-01' },
-];
+import { loadDeadlines, nextDeadlineFrom } from './lib/brief-deadlines.mjs';
+
+// The dates come from config/brief-deadlines.json (order 1430 item 7). Passed dates are dropped by nextDeadlineFrom.
+const DEADLINES = loadDeadlines(new URL('../config/brief-deadlines.json', import.meta.url));
 
 function nextDeadline() {
-  const now = Date.now();
-  return DEADLINES
-    .map(d => ({ ...d, daysLeft: (new Date(d.date).getTime() - now) / 86_400_000 }))
-    .filter(d => d.daysLeft > 0)
-    .sort((a, b) => a.daysLeft - b.daysLeft)[0] ?? null;
+  return nextDeadlineFrom(DEADLINES, Date.now());
 }
 
 // ── Section 6: Sign-off ───────────────────────────────────────────────────────
@@ -172,7 +164,6 @@ const SIGNOFFS = [
   'Set prices in India are 40% above MRP and people still buy. That is the audience. Respect them.',
   'Budget ke baad bhi LEGO khareedna — that is the Indian AFOL experience. Capture it.',
   '338 approved drafts sitting. Gemini quota sitting. You sitting. Someone has to move.',
-  'Fan CoLab August 1st. Count the days. Build the content.',
 ];
 
 function todaySignoff() {
