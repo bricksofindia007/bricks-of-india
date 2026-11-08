@@ -1,4 +1,4 @@
-google-genai
+google-genai==2.34.0
 elevenlabs
 cerebras_cloud_sdk
 moviepy==1.0.3
