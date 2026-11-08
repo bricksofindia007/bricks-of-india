@@ -137,16 +137,28 @@ async function fetchFreshness() {
 // ── Section 4: Pending operator actions ──────────────────────────────────────
 
 async function fetchPending() {
-  const [{ count: approved }, { count: draft }] = await Promise.all([
+  const cutoff = waitingCutoffIso(Date.now(), WAITING_DAYS);
+  const [{ count: approved }, { count: draft }, { count: waiting }] = await Promise.all([
     sb.from('pending_drafts').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
     sb.from('pending_drafts').select('*', { count: 'exact', head: true }).eq('status', 'draft'),
+    // Order 1580 (f): drafts waiting more than 14 days (created before the cutoff).
+    sb.from('pending_drafts').select('*', { count: 'exact', head: true }).eq('status', 'draft').lt('created_at', cutoff),
   ]);
-  return { approved: approved ?? 0, draft: draft ?? 0 };
+  return { approved: approved ?? 0, draft: draft ?? 0, waitingOver14: waiting ?? 0 };
+}
+
+// Order 1580 (c): the known-issues register (config/known-issues.json). A missing file shows a line, never a crash.
+function loadKnownIssues() {
+  try {
+    return { rows: knownIssueRows(JSON.parse(readFileSync(new URL('../config/known-issues.json', import.meta.url), 'utf8')).issues), error: null };
+  } catch (e) {
+    return { rows: [], error: e.message };
+  }
 }
 
 // ── Section 5: Next hard deadline ────────────────────────────────────────────
 
-import { loadDeadlines, nextDeadlineFrom } from './lib/brief-deadlines.mjs';
+undefined
 
 // The dates come from config/brief-deadlines.json (order 1430 item 7). Passed dates are dropped by nextDeadlineFrom.
 const DEADLINES = loadDeadlines(new URL('../config/brief-deadlines.json', import.meta.url));
@@ -172,7 +184,7 @@ function todaySignoff() {
 
 // ── HTML builder ──────────────────────────────────────────────────────────────
 
-function buildHtml({ pipelines, freshness, pending, deadline, today }) {
+function buildHtml({ pipelines, freshness, pending, deadline, today, knownIssues }) {
   const scoreColor = HEALTH_SCORE >= 80 ? GREEN : HEALTH_SCORE >= 60 ? AMBER : RED;
 
   const s1 = card('1 &mdash; Health Score', `
@@ -235,6 +247,11 @@ function buildHtml({ pipelines, freshness, pending, deadline, today }) {
         <td style="padding:5px 0 5px 16px;font-size:20px;font-weight:bold;
                    color:${draftColor};text-align:right;">${pending.draft}</td>
       </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:${NAVY};">Waiting more than ${WAITING_DAYS} days</td>
+        <td style="padding:5px 0 5px 16px;font-size:20px;font-weight:bold;
+                   color:${pending.waitingOver14 > 0 ? AMBER : NAVY};text-align:right;">${pending.waitingOver14}</td>
+      </tr>
     </table>
   `);
 
@@ -259,6 +276,17 @@ function buildHtml({ pipelines, freshness, pending, deadline, today }) {
     </p>
   `);
 
+  // Order 1580 (c): known issues appear here once, not in email (alert standard section 3).
+  const issueList = knownIssues.error
+    ? `<p style="margin:0;font-size:13px;color:#888;">Register unavailable: ${knownIssues.error}</p>`
+    : knownIssues.rows.length === 0
+      ? '<p style="margin:0;font-size:13px;color:#888;">No open known issues.</p>'
+      : `<table width="100%" cellpadding="0" cellspacing="0">${knownIssues.rows.map(r => `
+          <tr><td style="padding:5px 0;font-size:13px;color:${NAVY};">${r.id}: ${r.issue}</td>
+              <td style="padding:5px 0 5px 12px;font-size:12px;color:#666;text-align:right;white-space:nowrap;">${r.state}, fix ${r.fixPr}</td></tr>`).join('')}
+        </table>`;
+  const s7 = card('7 &mdash; Known issues', issueList);
+
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -277,7 +305,7 @@ function buildHtml({ pipelines, freshness, pending, deadline, today }) {
       </td></tr>
       <tr><td style="background:#EBEBEB;padding:14px 0 0;">
         <table width="100%" cellpadding="0" cellspacing="0">
-          ${s1}${s2}${s3}${s4}${s5}${s6}
+          ${s1}${s2}${s3}${s4}${s5}${s6}${s7}
         </table>
       </td></tr>
       <tr><td style="background:#FFFFFF;border-radius:0 0 8px 8px;padding:14px 26px;
@@ -312,10 +340,11 @@ const deadline = nextDeadline();
 
 console.log('Pipelines:', pipelines.map(p => `${p.label}=${p.status}`).join(', '));
 console.log('Freshness:', freshness.map(f => `${f.label}=${f.days != null ? f.days.toFixed(1) + 'd' : 'err'}`).join(', '));
-console.log(`Pending: approved=${pending.approved} draft=${pending.draft}`);
+console.log(`Pending: approved=${pending.approved} draft=${pending.draft} waiting>${WAITING_DAYS}d=${pending.waitingOver14}`);
 console.log('Next deadline:', deadline ? `${deadline.label} in ${Math.ceil(deadline.daysLeft)}d` : 'none');
 
-const html = buildHtml({ pipelines, freshness, pending, deadline, today });
+const knownIssues = loadKnownIssues();
+const html = buildHtml({ pipelines, freshness, pending, deadline, today, knownIssues });
 
 const res = await fetch('https://api.resend.com/emails', {
   method: 'POST',
