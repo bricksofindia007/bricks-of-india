@@ -32,6 +32,10 @@ export const SHARE_TEXT = {
   wishlistNoPrice: 'See the set page for prices',
   wishlistStart: 'Start your own wishlist',
   wishlistMetaTitle: 'A LEGO wishlist, shared with you',
+  // Guest wishlist view at /wishlist (owner-approved 8 Nov, 15:07 IST). The count line uses setCountLabel() in wishlist-share.ts.
+  guestWishlistHeading: 'My Wishlist',
+  guestWishlistNote: 'Saved on this device only. Clear your browser and it vanishes, like your willpower in a LEGO store.',
+  guestWishlistDescription: 'Your LEGO wishlist. Saved on this device, judged by nobody.',
 } as const;
 
 /**
@@ -48,6 +52,8 @@ export function shareEnabled(flags: { shareEnabled: boolean }): boolean {
 }
 
 const MINIFIG_HQ: ShareTarget = { id: 'minifig-hq', title: 'Minifig HQ', path: '/minifig-hq', pageType: 'minifig_hq' };
+// The guest wishlist view (order 1580): registered so its share taps reach analytics. ShareMount is not mounted on /wishlist.
+const GUEST_WISHLIST: ShareTarget = { id: 'guest-wishlist', title: SHARE_TEXT.guestWishlistHeading, path: '/wishlist', pageType: 'sets_list' };
 
 /** Every shareable page: live Lab tools with a page, and Minifig HQ. Community and coming-soon tools have no tool page here. */
 export const SHARE_TARGETS: ShareTarget[] = [
@@ -58,6 +64,7 @@ export const SHARE_TARGETS: ShareTarget[] = [
     pageType: 'lab',
   })),
   MINIFIG_HQ,
+  GUEST_WISHLIST,
 ];
 
 export const SHARE_TARGET_IDS: readonly string[] = SHARE_TARGETS.map((t) => t.id);

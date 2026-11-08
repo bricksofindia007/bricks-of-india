@@ -6,7 +6,8 @@ import { cleanSetNumbers, parseWishlistSegment, setPagePath, wishlistSegment, wi
 import { formatPrice } from '../src/lib/utils';
 import { MY_SETS_LIMIT, isSetNumber } from '../src/lib/my-collection';
 import { toolCardCopy, cardFileName, drawShareCard, CARD_SIZES, type CardCanvas } from '../src/lib/share-card';
-import { SHARE_TEXT, VISIBLE_CHANNELS } from '../src/lib/share';
+import { SHARE_TEXT, SHARE_TARGET_IDS, VISIBLE_CHANNELS } from '../src/lib/share';
+import { sanitizeParams } from '../src/lib/analytics';
 import { FEATURE_FLAGS } from '../src/lib/feature-flags';
 
 const root = join(__dirname, '..');
@@ -205,5 +206,36 @@ describe('Instagram card (decision 21e)', () => {
     }
     expect(read('src/components/share/ShareControl.tsx')).toMatch(/drawShareCard\(ctx, 'story', toolCardCopy\(title\)\)/);
     expect(read('src/components/share/ShareControl.tsx')).toMatch(/canvas\.toBlob/);
+  });
+});
+
+// Guest view wording (owner-approved 8 Nov 2026, 15:07 IST) and the count line (order 1580).
+import { setCountLabel } from '../src/lib/wishlist-share';
+
+describe('guest view wording (owner, 8 Nov 2026, 15:07 IST)', () => {
+  it('the heading, the note and the metadata description are exact', () => {
+    expect(SHARE_TEXT.guestWishlistHeading).toBe('My Wishlist');
+    expect(SHARE_TEXT.guestWishlistNote).toBe('Saved on this device only. Clear your browser and it vanishes, like your willpower in a LEGO store.');
+    expect(SHARE_TEXT.guestWishlistDescription).toBe('Your LEGO wishlist. Saved on this device, judged by nobody.');
+  });
+  it('the guest view and its route use the constants, and the old lines are gone', () => {
+    const view = read('src/components/wishlist/GuestWishlist.tsx');
+    expect(view).toMatch(/\{SHARE_TEXT\.guestWishlistHeading\}/);
+    expect(view).toMatch(/\{SHARE_TEXT\.guestWishlistNote\}/);
+    expect(view).not.toMatch(/Clearing your browser data clears this list/);
+    expect(read('src/app/wishlist/page.tsx')).toMatch(/title: SHARE_TEXT\.guestWishlistHeading/);
+    expect(read('src/app/wishlist/page.tsx')).toMatch(/description: SHARE_TEXT\.guestWishlistDescription/);
+    expect(read('src/app/wishlist/page.tsx')).not.toMatch(/saved on this device\./);
+  });
+  it('the count line is the existing 1 set / N sets wording on both pages', () => {
+    expect(setCountLabel(1)).toBe('1 set');
+    expect(setCountLabel(0)).toBe('0 sets');
+    expect(setCountLabel(12)).toBe('12 sets');
+    expect(read('src/components/wishlist/GuestWishlist.tsx')).toMatch(/setCountLabel\(wish\.length\)/);
+    expect(read(PAGE)).toMatch(/setCountLabel\(found\.length\)/);
+  });
+  it('the guest wishlist id is in the closed analytics tool list', () => {
+    expect(SHARE_TARGET_IDS).toContain('guest-wishlist');
+    expect(sanitizeParams('click_share', { page_type: 'sets_list', tool: 'guest-wishlist', channel: 'copy' }).tool).toBe('guest-wishlist');
   });
 });

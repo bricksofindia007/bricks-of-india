@@ -5,7 +5,7 @@ import { notFound } from 'next/navigation';
 import { buildMetadata } from '@/lib/metadata';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import { SHARE_TEXT, shareEnabled } from '@/lib/share';
-import { WISHLIST_PATH, parseWishlistSegment, setPagePath } from '@/lib/wishlist-share';
+import { WISHLIST_PATH, parseWishlistSegment, setCountLabel, setPagePath } from '@/lib/wishlist-share';
 import { loadWishlistSets } from '@/lib/wishlist-sets';
 import { formatPrice } from '@/lib/utils';
 
@@ -44,7 +44,7 @@ export default async function SharedWishlistPage({ params }: { params: Promise<P
       <div className="bg-primary-dark py-12 px-4">
         <div className="max-w-site mx-auto">
           <h1 className="font-heading text-white text-5xl mb-2">{SHARE_TEXT.wishlistHeading}</h1>
-          <p className="text-white/70 font-body text-lg">{found.length === 1 ? '1 set' : `${found.length} sets`}</p>
+          <p className="text-white/70 font-body text-lg">{setCountLabel(found.length)}</p>
         </div>
       </div>
 

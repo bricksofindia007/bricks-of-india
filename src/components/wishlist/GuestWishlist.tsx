@@ -13,7 +13,7 @@ import { ShareControl } from '@/components/share/ShareControl';
 import { CHANGED_EVENT, VOICE, loadWishlist, type WishItem } from '@/lib/my-collection';
 import { SHARE_TEXT } from '@/lib/share';
 import { formatPrice } from '@/lib/utils';
-import { setPagePath, wishlistSharePath } from '@/lib/wishlist-share';
+import { setCountLabel, setPagePath, wishlistSharePath } from '@/lib/wishlist-share';
 
 const PLACEHOLDER = '/images/lego-placeholder.svg';
 
@@ -54,14 +54,14 @@ export function GuestWishlist() {
 
   return (
     <section className="max-w-6xl mx-auto px-4 py-8">
-      <h1 className="font-heading text-dark text-4xl mb-2">My Wishlist</h1>
-      <p className="text-sm text-gray-500 mb-6">Saved on this device only. Clearing your browser data clears this list.</p>
+      <h1 className="font-heading text-dark text-4xl mb-2">{SHARE_TEXT.guestWishlistHeading}</h1>
+      <p className="text-sm text-gray-500 mb-6">{SHARE_TEXT.guestWishlistNote}</p>
 
       {wish.length === 0 ? (
         <p>{VOICE.wishlistEmpty}</p>
       ) : (
         <>
-          <p className="mb-4">{wish.length === 1 ? '1 set' : `${wish.length} sets`}</p>
+          <p className="mb-4">{setCountLabel(wish.length)}</p>
           <ul className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {wish.map((w) => {
               const href = setPagePath(w.set, w.name);

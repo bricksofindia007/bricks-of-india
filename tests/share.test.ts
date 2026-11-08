@@ -36,8 +36,10 @@ describe('registration', () => {
       expect(tool.share.mode).toBe('page_link');
     }
   });
-  it('registers the live Lab tools and Minifig HQ, and nothing else', () => {
-    expect(SHARE_TARGET_IDS).toEqual(expect.arrayContaining(['biryani-index', 'which-set-are-you', 'minifig-hq']));
+  // Order 1580: the guest wishlist id was added on purpose (the analytics tool list is this registry).
+  it('registers the live Lab tools, Minifig HQ and the guest wishlist, and nothing else', () => {
+    expect(SHARE_TARGET_IDS).toEqual(expect.arrayContaining(['biryani-index', 'which-set-are-you', 'minifig-hq', 'guest-wishlist']));
+    expect(SHARE_TARGET_IDS).toHaveLength(SHARE_TARGETS.length);
     expect(SHARE_TARGET_IDS).not.toContain('community');
     expect(SHARE_TARGET_IDS).not.toContain('the-brick-portfolio');
     expect(targetForPath('/lab')).toBeNull();

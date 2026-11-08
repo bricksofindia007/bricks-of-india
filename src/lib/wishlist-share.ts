@@ -7,6 +7,11 @@ import { slugify } from '@/lib/utils';
 export const WISHLIST_PATH = '/wishlist';
 const SEPARATOR = ',';
 
+/** Pure: the count line on the wishlist pages. "1 set" or "N sets". */
+export function setCountLabel(n: number): string {
+  return n === 1 ? '1 set' : `${n} sets`;
+}
+
 /** Pure: the cleaned list of set numbers: well-formed, one each, in order, capped at the existing 500-set limit. */
 export function cleanSetNumbers(input: readonly unknown[]): string[] {
   const seen = new Set<string>();
