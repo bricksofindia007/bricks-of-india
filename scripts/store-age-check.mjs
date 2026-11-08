@@ -30,6 +30,22 @@ export function staleStores(newestByStore, nowMs, maxHours = MAX_AGE_HOURS, stor
   return problems;
 }
 
+/**
+ * Pure. One plain line for a failed read: the store, the HTTP status, and the service's own error message when it sends
+ * one. The key is never part of the text. Order 1430 item 4: the daily run failed with HTTP 401 and printed no reason.
+ */
+export function describeReadFailure(store, status, bodyText = '') {
+  let detail = '';
+  try {
+    const body = JSON.parse(bodyText);
+    const message = String(body.message ?? body.hint ?? '').replace(/\s+/g, ' ').trim();
+    if (message) detail = ` (${message.slice(0, 160)})`;
+  } catch {
+    // Not JSON: no detail beyond the status.
+  }
+  return `${store}: read failed with HTTP ${status}${detail}`;
+}
+
 /** Pure. The REST path that returns the newest scraped time for one store. */
 export function newestPath(baseUrl, store) {
   const u = new URL('/rest/v1/store_prices', baseUrl);
@@ -51,7 +67,7 @@ async function main() {
   for (const store of STORES) {
     const res = await fetch(newestPath(url, store), { headers: { apikey: key, Authorization: `Bearer ${key}` } });
     if (!res.ok) {
-      console.error(`::error::${store}: read failed with HTTP ${res.status}`);
+      console.error(`::error::${describeReadFailure(store, res.status, await res.text())}`);
       process.exit(1);
     }
     const rows = await res.json();

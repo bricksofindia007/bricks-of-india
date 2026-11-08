@@ -37,6 +37,12 @@ jobs:
         continue-on-error: true
         run: node scripts/store-age-check.mjs
 
+      # The failure alert imports the mail package, which this job did not install (its run failed with
+      # "Cannot find package 'resend'" on 7 Nov). Install it only when the alert is needed.
+      - name: Install packages for the failure alert
+        if: steps.age.outcome == 'failure'
+        run: npm ci --no-audit --no-fund
+
       - name: Send failure alert
         if: steps.age.outcome == 'failure'
         continue-on-error: true
