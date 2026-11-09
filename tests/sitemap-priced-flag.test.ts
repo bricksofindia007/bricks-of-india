@@ -63,7 +63,7 @@ describe('sitemap: priced-set rule behind its flag (order 0840)', () => {
     expect(setUrls).toHaveLength(1);
     expect(setUrls[0]).toContain('/sets/10001-');
     expect(calls.storePricesRead).toBeGreaterThan(0);
-  });
+  }, 20_000); // the first import of the sitemap module graph can pass 5 s under a full parallel run
 
   it('pricedOnly keeps exactly the sets with a positive store price', async () => {
     vi.resetModules();

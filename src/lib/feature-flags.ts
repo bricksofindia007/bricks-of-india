@@ -106,7 +106,7 @@ export const FEATURE_FLAGS = {
 
   // My Collection (Bundle 2): hearts on set cards and set pages, and the My Collection page.
   // Both off until launch. Mirrored in config/feature_flags.py; keep in sync.
-  myCollectionHearts: false,
+  myCollectionHearts: true,
   myCollectionPage: false,
 
   // Link tags for YouTube and Instagram links (placements list, 23 Oct 2026). Off: the tags send nothing;
