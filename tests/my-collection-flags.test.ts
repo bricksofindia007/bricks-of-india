@@ -10,13 +10,13 @@ const root = join(__dirname, '..');
 const read = (p: string) => readFileSync(join(root, p), 'utf8');
 
 describe('My Collection flags', () => {
-  it('both are off', () => {
-    expect(FEATURE_FLAGS.myCollectionHearts).toBe(false);
+  it('hearts on for guests (release 2), My Collection page off', () => {
+    expect(FEATURE_FLAGS.myCollectionHearts).toBe(true);
     expect(FEATURE_FLAGS.myCollectionPage).toBe(false);
   });
-  it('the Python flag file agrees (both off)', () => {
+  it('the Python flag file agrees (hearts on, page off)', () => {
     const py = read('config/feature_flags.py');
-    expect(py).toMatch(/"my_collection_hearts": False/);
+    expect(py).toMatch(/"my_collection_hearts": True/);
     expect(py).toMatch(/"my_collection_page": False/);
   });
 });
