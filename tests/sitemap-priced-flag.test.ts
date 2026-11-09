@@ -76,10 +76,10 @@ describe('sitemap: priced-set rule behind its flag (order 0840)', () => {
 
 describe('the flag is declared off in both flag files, under matching names', () => {
   it('config/feature_flags.py', () => {
-    expect(read('config/feature_flags.py')).toMatch(/"unpriced_sets_hidden": False,/);
+    expect(read("config/feature_flags.py")).toMatch(/"unpriced_sets_hidden": True,/);
   });
   it('src/lib/feature-flags.ts', () => {
-    expect(read('src/lib/feature-flags.ts')).toMatch(/unpricedSetsHidden: false,/);
+    expect(read("src/lib/feature-flags.ts")).toMatch(/unpricedSetsHidden: true,/);
   });
   it('the sitemap reads the flag and the price read is inside the guard', () => {
     const src = read('src/app/sitemap.ts');

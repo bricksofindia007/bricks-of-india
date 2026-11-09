@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { buildMetadata } from '@/lib/metadata';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import { PrivacyAdditions } from '@/components/legal/LegalAdditions';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Privacy Policy',
@@ -21,6 +23,7 @@ export default function PrivacyPage() {
           <section><h2 className="font-heading text-dark text-2xl mb-3">THIRD PARTIES</h2><p>We do not sell personal data to third parties. Period. We barely have time to look after our own data, let alone someone else&apos;s.</p></section>
           <section><h2 className="font-heading text-dark text-2xl mb-3">YOUR RIGHTS</h2><p>You have the right to access, correct, or delete your personal data held by us. To exercise these rights, contact us via the contact page. We comply with applicable data protection laws including GDPR and the Indian Information Technology Act.</p></section>
           <section><h2 className="font-heading text-dark text-2xl mb-3">CONTACT</h2><p>For privacy-related queries, use our <a href="/contact" className="text-accent-blue hover:underline">contact form</a>.</p></section>
+          {FEATURE_FLAGS.accountsEnabled ? <PrivacyAdditions /> : null}
         </div>
       </div>
     </div>
