@@ -7,7 +7,8 @@
 import { useState } from 'react';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import { trackEvent } from '@/lib/analytics';
-import { SHARE_TEXT, VISIBLE_CHANNELS, channelLink, shareEnabled, type ShareChannel, type ShareTarget } from '@/lib/share';
+import { SHARE_TEXT, VISIBLE_CHANNELS, channelLink, shareEnabled, shouldUseNativeShare, type ShareChannel, type ShareTarget } from '@/lib/share';
+import { CARD_SIZES, cardFileName, drawShareCard, toolCardCopy } from '@/lib/share-card';
 
 const LABELS: Record<ShareChannel, string> = {
   whatsapp: 'WhatsApp',
@@ -19,6 +20,33 @@ const LABELS: Record<ShareChannel, string> = {
 
 const CHANNELS = VISIBLE_CHANNELS;
 
+// Decision 21e: draws the story-size card in the visitor's own browser and saves the PNG to their device.
+// Nothing is uploaded or posted. Returns false when the browser cannot draw or save, so the page shows the failure line.
+async function saveInstagramCard(title: string): Promise<boolean> {
+  try {
+    const { width, height } = CARD_SIZES.story;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+    drawShareCard(ctx, 'story', toolCardCopy(title));
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
+    if (!blob) return false;
+    const href = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = href;
+    a.download = cardFileName('tool', 'story');
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function ShareControl({ target }: { target: ShareTarget }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -27,6 +55,22 @@ export function ShareControl({ target }: { target: ShareTarget }) {
 
   // Server render has no window; the sheet only opens on the client, so the path is enough there.
   const url = typeof window === 'undefined' ? target.path : `${window.location.origin}${target.path}`;
+
+  // Decision 21a: on phones the phone's own share sheet is the first option. If it is unavailable or the visitor
+  // cancels, the channel list opens as before. Called straight from the tap, so the browser allows it.
+  async function onPress() {
+    const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+    const coarsePointer = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+    if (shouldUseNativeShare({ canShare, coarsePointer })) {
+      try {
+        await navigator.share({ title: target.title, url });
+        return;
+      } catch {
+        // Cancelled or refused: fall through to the channel list.
+      }
+    }
+    setOpen(true);
+  }
 
   async function onChannel(channel: ShareChannel) {
     // One tap, one event. Counts the tap, not a completed share.
@@ -43,8 +87,9 @@ export function ShareControl({ target }: { target: ShareTarget }) {
       return;
     }
     if (channel === 'instagram') {
-      // No image yet, so the phone share sheet is not offered. Show the approved fallback.
-      setNote(SHARE_TEXT.instagramFallback);
+      // Instagram takes the card from the visitor's own device, so the card is saved there and the visitor adds it.
+      const saved = await saveInstagramCard(target.title);
+      setNote(saved ? SHARE_TEXT.instagramFallback : SHARE_TEXT.failureGeneral);
       return;
     }
     const link = channelLink(channel, target.title, url);
@@ -64,7 +109,7 @@ export function ShareControl({ target }: { target: ShareTarget }) {
     <div className="mt-8">
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={onPress}
         className="rounded-full border border-neutral-300 px-4 py-2 text-sm font-semibold"
       >
         {SHARE_TEXT.button}
