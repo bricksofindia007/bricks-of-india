@@ -204,7 +204,7 @@ describe('Instagram card (decision 21e)', () => {
     for (const f of ['src/lib/share-card.ts', 'src/components/share/ShareControl.tsx']) {
       expect(read(f), f).not.toMatch(/₹|\bINR\b|localStorage|sessionStorage|document\.cookie/);
     }
-    expect(read('src/components/share/ShareControl.tsx')).toMatch(/drawShareCard\(ctx, 'story', toolCardCopy\(title\)\)/);
+    expect(read('src/components/share/ShareControl.tsx')).toMatch(/drawShareCard\(ctx, 'story', card \? cardCopy\(card\.kind, card\.count\) : toolCardCopy\(title\)\)/);
     expect(read('src/components/share/ShareControl.tsx')).toMatch(/canvas\.toBlob/);
   });
 });

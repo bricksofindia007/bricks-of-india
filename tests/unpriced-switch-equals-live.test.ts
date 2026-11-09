@@ -69,8 +69,8 @@ describe('review URLs: switch off equals live (both answer 200, no redirect)', (
     vi.resetModules();
     const cfg = (await import('../next.config.mjs')).default;
     const rules = await cfg.redirects();
-    // Live has 43 permanent redirects. Main adds the minifig theme redirect (accepted, 0860), so 44 with the switch off.
-    expect(rules.filter((r: { permanent?: boolean }) => r.permanent === true)).toHaveLength(44);
+    // Live has 43 permanent redirects. Main adds the minifig theme redirect (accepted, 0860), so 44. The two /shareables rules are permanent (decision (c), order 1846), so 46 with the switch off.
+    expect(rules.filter((r: { permanent?: boolean }) => r.permanent === true)).toHaveLength(46);
     expect(rules.map((r: { source: string }) => r.source)).toContain('/themes/series-16-minifigures');
   });
 
