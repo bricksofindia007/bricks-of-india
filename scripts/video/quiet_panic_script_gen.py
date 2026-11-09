@@ -937,7 +937,8 @@ def _call_gemini(system_prompt: str, task_prompt: str) -> ScriptGenCallResult:
     _gemini_pace()
     from google import genai
     from google.genai import types
-    client = genai.Client(api_key=GEMINI_SOCIAL_API_KEY)
+    # The system instruction is rejected on the SDK's default API version (order 0760): use v1beta.
+    client = genai.Client(api_key=GEMINI_SOCIAL_API_KEY, http_options=types.HttpOptions(api_version='v1beta'))
     res = gemini_generate(
         client, site='video-qp', model='gemini-2.5-flash', system=system_prompt, user=task_prompt,
         config=types.GenerateContentConfig(system_instruction=system_prompt),

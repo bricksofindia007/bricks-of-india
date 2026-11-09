@@ -62,6 +62,7 @@ from quiet_panic_script_gen import (  # noqa: E402
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from config.feature_flags import FEATURE_FLAGS  # noqa: E402
 from coherence_judge import judge_coherence, only_held_failures, qp_judge_prompt  # noqa: E402
+from av_duration import usable_av_duration  # noqa: E402
 
 # Retry budget for script-gen's pre-TTS validation (added 2026-08-01 after
 # a real 3-for-3 miss streak on Rapunzel's Castle in production CI, all
@@ -1232,6 +1233,10 @@ def _set_pieces(set_number: str):
         return None
 
 
+class DurationGateStop(RuntimeError):
+    """Raised before any image, audio or video work when the length gate fails (order 0760): the run stops here."""
+
+
 def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_image_url: str, segments: list) -> dict:
     """The actual render pipeline (TTS -> gates -> images -> audio mix ->
     video assembly -> Storage upload), factored out of process_candidate()
@@ -1300,6 +1305,10 @@ def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_i
                                         'pieces': _set_pieces(set_number)})
     for name, result in gate_results.items():
         print(f'  GATE {name}: {"PASS" if result["pass"] else "FAIL"} -- {result["detail"]}')
+    # Order 0760: a length outside the window stops the run before any image, audio or video work (the gate still
+    # counts; its window is unchanged). Other gates keep the render-and-block behaviour below.
+    if not gate_results['duration']['pass']:
+        raise DurationGateStop(f"duration gate failed, not rendering: {gate_results['duration']['detail']}")
     all_passed = all(r['pass'] for r in gate_results.values())
     # #365: failed ONLY because the coherence judge couldn't give a verdict
     # (fail-closed). Not a rejection: the render is still uploaded so a
@@ -1406,7 +1415,10 @@ def _render_segments_core(set_number: str, set_title: str, price_inr, fallback_i
     video_no_audio = concatenate_videoclips([intro_visual] + segment_clips + [outro_visual], method='compose')
 
     with AudioFileClip(str(final_audio_path)) as final_audio:
-        video_with_audio = video_no_audio.set_audio(final_audio).set_duration(actual_audio_duration)
+        # Both tracks end at the shorter of the audio reader's length and the probed length (see av_duration.py).
+        usable_duration = usable_av_duration(final_audio.duration, actual_audio_duration)
+        final_audio = final_audio.subclip(0, usable_duration)
+        video_with_audio = video_no_audio.set_audio(final_audio).set_duration(usable_duration)
 
         # Caption timing: offset by intro_duration, cumulative over measured segment durations.
         segments_timed = []
