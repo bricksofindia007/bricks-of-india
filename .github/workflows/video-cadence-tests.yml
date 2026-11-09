@@ -30,6 +30,8 @@ on:
       - 'scripts/video/generate_quiet_panic_video.py'
       - 'scripts/video/gates.py'
       - 'scripts/video/test_gates_g10.py'
+      - 'scripts/video/av_duration.py'
+      - 'scripts/video/test_av_duration.py'
   workflow_dispatch:
 
 jobs:
@@ -59,6 +61,10 @@ jobs:
         run: |
           pip install --quiet requests num2words pillow python-dotenv
           python -m unittest test_gates_g10 -v
+
+      - name: Run Quiet Panic audio length unit tests
+        working-directory: scripts/video
+        run: python -m unittest test_av_duration -v
 
       - name: Run price baseline unit tests (#383)
         working-directory: scripts/video
