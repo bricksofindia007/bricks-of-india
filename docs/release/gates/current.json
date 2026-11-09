@@ -1,0 +1,28 @@
+{
+  "measured_sha": "73e8d52d7fd0271ebabec5830b63b4b820d2e5e0",
+  "cpu_median_ms": 14.822,
+  "warmup_hours": 1,
+  "sample_hours": 24,
+  "requests_measured": 92375,
+  "worker_requests": 87992,
+  "error_rate": 0.000498,
+  "response_summary": {
+    "total": 92375,
+    "failed": 46
+  },
+  "load_profile_sha256": "ac01dbb4091ed0b0203ef319b0e301d2182cc66133820f4904666ef411eb38ea",
+  "staging_rows": {
+    "sets": 26123,
+    "store_prices": 1951,
+    "price_history": 7700
+  },
+  "production_rows": {
+    "sets": 26122,
+    "store_prices": 1951,
+    "price_history": 7902
+  },
+  "page_diff_ok": true,
+  "page_diff_exception": "owner approved after a full review of every difference, 2026-11-08 00:25 IST, record kept privately",
+  "rollback_target": "34faed19",
+  "approved_by": "owner"
+}
