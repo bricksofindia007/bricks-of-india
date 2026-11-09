@@ -7,15 +7,6 @@ Disallow: /pending/
 Disallow: /*?*draft=
 Crawl-delay: 2
 
-User-agent: GPTBot
-Allow: /
-Allow: /api/img
-Disallow: /admin/
-Disallow: /api/
-Disallow: /pending/
-Disallow: /*?*draft=
-Crawl-delay: 2
-
 User-agent: ChatGPT-User
 Allow: /
 Allow: /api/img
@@ -34,7 +25,7 @@ Disallow: /pending/
 Disallow: /*?*draft=
 Crawl-delay: 2
 
-User-agent: ClaudeBot
+User-agent: Claude-SearchBot
 Allow: /
 Allow: /api/img
 Disallow: /admin/
@@ -43,34 +34,7 @@ Disallow: /pending/
 Disallow: /*?*draft=
 Crawl-delay: 2
 
-User-agent: anthropic-ai
-Allow: /
-Allow: /api/img
-Disallow: /admin/
-Disallow: /api/
-Disallow: /pending/
-Disallow: /*?*draft=
-Crawl-delay: 2
-
-User-agent: Claude-Web
-Allow: /
-Allow: /api/img
-Disallow: /admin/
-Disallow: /api/
-Disallow: /pending/
-Disallow: /*?*draft=
-Crawl-delay: 2
-
-User-agent: Google-Extended
-Allow: /
-Allow: /api/img
-Disallow: /admin/
-Disallow: /api/
-Disallow: /pending/
-Disallow: /*?*draft=
-Crawl-delay: 2
-
-User-agent: GoogleOther
+User-agent: Claude-User
 Allow: /
 Allow: /api/img
 Disallow: /admin/
@@ -97,16 +61,7 @@ Disallow: /pending/
 Disallow: /*?*draft=
 Crawl-delay: 2
 
-User-agent: CCBot
-Allow: /
-Allow: /api/img
-Disallow: /admin/
-Disallow: /api/
-Disallow: /pending/
-Disallow: /*?*draft=
-Crawl-delay: 2
-
-User-agent: Bytespider
+User-agent: DuckAssistBot
 Allow: /
 Allow: /api/img
 Disallow: /admin/
@@ -124,51 +79,6 @@ Disallow: /pending/
 Disallow: /*?*draft=
 Crawl-delay: 2
 
-User-agent: Applebot-Extended
-Allow: /
-Allow: /api/img
-Disallow: /admin/
-Disallow: /api/
-Disallow: /pending/
-Disallow: /*?*draft=
-Crawl-delay: 2
-
-User-agent: FacebookBot
-Allow: /
-Allow: /api/img
-Disallow: /admin/
-Disallow: /api/
-Disallow: /pending/
-Disallow: /*?*draft=
-Crawl-delay: 2
-
-User-agent: Meta-ExternalAgent
-Allow: /
-Allow: /api/img
-Disallow: /admin/
-Disallow: /api/
-Disallow: /pending/
-Disallow: /*?*draft=
-Crawl-delay: 2
-
-User-agent: Amazonbot
-Allow: /
-Allow: /api/img
-Disallow: /admin/
-Disallow: /api/
-Disallow: /pending/
-Disallow: /*?*draft=
-Crawl-delay: 2
-
-User-agent: AI2Bot
-Allow: /
-Allow: /api/img
-Disallow: /admin/
-Disallow: /api/
-Disallow: /pending/
-Disallow: /*?*draft=
-Crawl-delay: 2
-
 User-agent: YouBot
 Allow: /
 Allow: /api/img
@@ -178,7 +88,7 @@ Disallow: /pending/
 Disallow: /*?*draft=
 Crawl-delay: 2
 
-User-agent: DuckAssistBot
+User-agent: MistralAI-User
 Allow: /
 Allow: /api/img
 Disallow: /admin/
@@ -186,23 +96,71 @@ Disallow: /api/
 Disallow: /pending/
 Disallow: /*?*draft=
 Crawl-delay: 2
+
+User-agent: GPTBot
+Disallow: /
+
+User-agent: ClaudeBot
+Disallow: /
+
+User-agent: anthropic-ai
+Disallow: /
+
+User-agent: Claude-Web
+Disallow: /
+
+User-agent: Google-Extended
+Disallow: /
+
+User-agent: GoogleOther
+Disallow: /
+
+User-agent: Applebot-Extended
+Disallow: /
+
+User-agent: CCBot
+Disallow: /
+
+User-agent: Bytespider
+Disallow: /
+
+User-agent: Amazonbot
+Disallow: /
+
+User-agent: FacebookBot
+Disallow: /
+
+User-agent: Meta-ExternalAgent
+Disallow: /
+
+User-agent: AI2Bot
+Disallow: /
 
 User-agent: cohere-ai
-Allow: /
-Allow: /api/img
-Disallow: /admin/
-Disallow: /api/
-Disallow: /pending/
-Disallow: /*?*draft=
-Crawl-delay: 2
+Disallow: /
+
+User-agent: cohere-training-data-crawler
+Disallow: /
 
 User-agent: Diffbot
-Allow: /
-Allow: /api/img
-Disallow: /admin/
-Disallow: /api/
-Disallow: /pending/
-Disallow: /*?*draft=
-Crawl-delay: 2
+Disallow: /
+
+User-agent: PetalBot
+Disallow: /
+
+User-agent: Baiduspider
+Disallow: /
+
+User-agent: Timpibot
+Disallow: /
+
+User-agent: Google-CloudVertexBot
+Disallow: /
+
+User-agent: ImagesiftBot
+Disallow: /
+
+User-agent: omgili
+Disallow: /
 
 Sitemap: https://bricksofindia.com/sitemap.xml

@@ -1241,37 +1241,49 @@ try {
   }
 } catch (e) { alertFail('ExtDependencies', `IG token expiry check error: ${e.message.slice(0, 60)}`); }
 
-// 12i: robots.txt — 23+ User-agent blocks, each with Allow+4 Disallows (GEO-AUDIT-FIX-01 Phase 1)
+// 12i: robots.txt — 10 search and answer agents keep Allow+4 Disallows; 22 training agents get "Disallow: /" only (owner order 17:54, 9 Nov 2026)
 try {
   const SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://bricksofindia.com').replace(/\/$/, '');
   const r = await fetch(`${SITE}/robots.txt`, { signal: AbortSignal.timeout(8000) });
   if (!r.ok) { alertFail('ExtDependencies', `robots.txt returned HTTP ${r.status}`); }
   else {
     const txt = await r.text();
-    const REQUIRED_AGENTS = [
-      'GPTBot','ChatGPT-User','OAI-SearchBot','ClaudeBot','anthropic-ai','Claude-Web',
-      'Google-Extended','GoogleOther','PerplexityBot','Perplexity-User','CCBot','Bytespider',
-      'Applebot','Applebot-Extended','FacebookBot','Meta-ExternalAgent','Amazonbot',
-      'AI2Bot','YouBot','DuckAssistBot','cohere-ai','Diffbot',
+    const ALLOWED_AGENTS = [
+      'ChatGPT-User','OAI-SearchBot','Claude-SearchBot','Claude-User','PerplexityBot',
+      'Perplexity-User','DuckAssistBot','Applebot','YouBot','MistralAI-User',
+    ];
+    const TRAINING_AGENTS = [
+      'GPTBot','ClaudeBot','anthropic-ai','Claude-Web','Google-Extended','GoogleOther',
+      'Applebot-Extended','CCBot','Bytespider','Amazonbot','FacebookBot','Meta-ExternalAgent',
+      'AI2Bot','cohere-ai','cohere-training-data-crawler','Diffbot','PetalBot','Baiduspider',
+      'Timpibot','Google-CloudVertexBot','ImagesiftBot','omgili',
     ];
     const REQUIRED_DISALLOWS = ['/admin/', '/api/', '/pending/', '/*?*draft='];
+    // Blocks are matched by their first line, so Applebot never matches Applebot-Extended.
+    const blocks = txt.split(/\n\n+/).map((b) => b.split('\n').map((l) => l.trim()).filter(Boolean));
+    const blockFor = (agent) => blocks.find((b) => b[0] === `User-agent: ${agent}`);
     const missing = [];
-    for (const agent of REQUIRED_AGENTS) {
-      const agentIdx = txt.indexOf(`User-agent: ${agent}`);
-      if (agentIdx === -1) { missing.push(`${agent}: block missing`); continue; }
-      const block = txt.slice(agentIdx, txt.indexOf('\n\n', agentIdx) + 1 || txt.length);
+    for (const agent of ALLOWED_AGENTS) {
+      const block = blockFor(agent);
+      if (!block) { missing.push(`${agent}: block missing`); continue; }
       for (const dis of REQUIRED_DISALLOWS) {
         if (!block.includes(`Disallow: ${dis}`)) missing.push(`${agent}: missing Disallow ${dis}`);
       }
       if (!block.includes('Allow: /')) missing.push(`${agent}: missing Allow: /`);
     }
+    for (const agent of TRAINING_AGENTS) {
+      const block = blockFor(agent);
+      if (!block) { missing.push(`${agent}: block missing`); continue; }
+      if (block.join('|') !== `User-agent: ${agent}|Disallow: /`) missing.push(`${agent}: expected only "Disallow: /"`);
+    }
     const uaCount = (txt.match(/^User-agent:/gm) || []).length;
+    const EXPECTED_BLOCKS = 1 + ALLOWED_AGENTS.length + TRAINING_AGENTS.length;
     if (missing.length > 0) {
       alertFail('ExtDependencies', `robots.txt integrity failures (${missing.length}): ${missing.slice(0, 3).join('; ')}${missing.length > 3 ? '…' : ''}`);
-    } else if (uaCount < 23) {
-      alertFail('ExtDependencies', `robots.txt has only ${uaCount} User-agent blocks, expected >= 23`);
+    } else if (uaCount !== EXPECTED_BLOCKS) {
+      alertFail('ExtDependencies', `robots.txt has ${uaCount} User-agent blocks, expected ${EXPECTED_BLOCKS}`);
     } else {
-      log('ExtDependencies', `robots.txt: ${uaCount} User-agent blocks, all 22 agents with required Allow+Disallows ✓`);
+      log('ExtDependencies', `robots.txt: ${uaCount} User-agent blocks: ${ALLOWED_AGENTS.length} search and answer agents with Allow+Disallows, ${TRAINING_AGENTS.length} training agents with Disallow: / ✓`);
     }
   }
 } catch (e) { alertFail('ExtDependencies', `robots.txt integrity check error: ${e.message.slice(0, 60)}`); }
