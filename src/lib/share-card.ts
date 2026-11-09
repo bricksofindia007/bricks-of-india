@@ -8,6 +8,12 @@ export type ListKind = 'collection' | 'wishlist';
 export type CardKind = ListKind | 'tool';
 export type CardFormat = 'square' | 'story';
 
+/** The list cards' two lines (owner-approved wording). These two lines are the only words this constant holds. */
+export const CARD_LINES: Record<ListKind, string> = {
+  collection: 'My LEGO collection. Running out of shelf space, savings, and excuses.',
+  wishlist: "My LEGO wishlist. What my bank account doesn't know won't hurt it.",
+};
+
 export const CARD_SIZES: Record<CardFormat, { width: number; height: number }> = {
   square: { width: 1080, height: 1080 },
   story: { width: 1080, height: 1920 },
@@ -33,7 +39,7 @@ export function cardCopy(kind: ListKind, count: number): CardCopy {
     kind,
     heading: HEADINGS[kind],
     count: n === 1 ? '1 set' : `${n} sets`,
-    line: SHARE_TEXT.collectionShared,
+    line: CARD_LINES[kind],
     footer: 'bricksofindia.com',
   };
 }

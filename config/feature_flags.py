@@ -157,5 +157,8 @@ FEATURE_FLAGS = {
     # One switch for "unpriced sets hidden from search" (orders 0840, 0870): the sitemap lists only sets with a store price,
     # and set pages without a price are noindex. Off = the live site. Mirrored in src/lib/feature-flags.ts (unpricedSetsHidden).
     "unpriced_sets_hidden": True,
+    # The share card image (wishlist and collection, option A). Off until the owner has seen it on staging. Off = no card.
+    # Mirrored in src/lib/feature-flags.ts (shareCardImage); keep in sync.
+    "share_card_image": False,
     # The two duplicate-review redirects are switched in config/review-redirect-switch.json (next.config.mjs reads it).
 }
