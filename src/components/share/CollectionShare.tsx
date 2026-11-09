@@ -8,9 +8,9 @@
 import { useState } from 'react';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import { SHARE_TEXT, shareEnabled } from '@/lib/share';
-import { cardCopy, cardFileName, drawShareCard, CARD_SIZES, type CardFormat, type CardKind } from '@/lib/share-card';
+import { cardCopy, cardFileName, drawShareCard, CARD_SIZES, type CardFormat, type ListKind } from '@/lib/share-card';
 
-export function CollectionShare({ kind, count }: { kind: CardKind; count: number }) {
+export function CollectionShare({ kind, count }: { kind: ListKind; count: number }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 

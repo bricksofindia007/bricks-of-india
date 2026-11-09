@@ -4,7 +4,8 @@
 
 import { SHARE_TEXT } from '@/lib/share';
 
-export type CardKind = 'collection' | 'wishlist';
+export type ListKind = 'collection' | 'wishlist';
+export type CardKind = ListKind | 'tool';
 export type CardFormat = 'square' | 'story';
 
 export const CARD_SIZES: Record<CardFormat, { width: number; height: number }> = {
@@ -14,19 +15,19 @@ export const CARD_SIZES: Record<CardFormat, { width: number; height: number }> =
 
 export type CardCopy = {
   kind: CardKind;
-  heading: string;   // "My Collection" or "My Wishlist"
-  count: string;     // "12 sets" / "1 set"
-  line: string;      // the approved collection share line
+  heading: string;   // "My Collection", "My Wishlist", or a tool's public title
+  count: string;     // "12 sets" / "1 set"; empty for a tool card (no count line is drawn)
+  line: string;      // the approved share line for the card
   footer: string;    // the public site name only
 };
 
-const HEADINGS: Record<CardKind, string> = {
+const HEADINGS: Record<ListKind, string> = {
   collection: 'My Collection',
   wishlist: 'My Wishlist',
 };
 
 /** Pure: the words on the card for a list with `count` sets. The count is clamped to a whole number, zero or more. */
-export function cardCopy(kind: CardKind, count: number): CardCopy {
+export function cardCopy(kind: ListKind, count: number): CardCopy {
   const n = Number.isFinite(count) && count > 0 ? Math.floor(count) : 0;
   return {
     kind,
@@ -37,9 +38,21 @@ export function cardCopy(kind: CardKind, count: number): CardCopy {
   };
 }
 
-/** Pure: a file name for the saved card. Names the list only, never the visitor. */
+/** Pure: the words on a share-target card (a Lab tool or Minifig HQ): its public title, the approved line, and no count. */
+export function toolCardCopy(title: string): CardCopy {
+  return {
+    kind: 'tool',
+    heading: title,
+    count: '',
+    line: SHARE_TEXT.previewCaption,
+    footer: 'bricksofindia.com',
+  };
+}
+
+/** Pure: a file name for the saved card. Names the list or the tool only, never the visitor. */
 export function cardFileName(kind: CardKind, format: CardFormat): string {
-  return `${kind === 'collection' ? 'my-collection' : 'my-wishlist'}-${format}.png`;
+  const stem = kind === 'collection' ? 'my-collection' : kind === 'wishlist' ? 'my-wishlist' : 'bricks-of-india';
+  return `${stem}-${format}.png`;
 }
 
 /** The minimal canvas surface the drawing needs. Lets the drawing be tested without a browser. */
@@ -55,8 +68,10 @@ export function drawShareCard(ctx: CardCanvas, format: CardFormat, copy: CardCop
   ctx.textAlign = 'center';
   ctx.font = 'bold 96px sans-serif';
   ctx.fillText(copy.heading, width / 2, mid - 120);
-  ctx.font = '64px sans-serif';
-  ctx.fillText(copy.count, width / 2, mid);
+  if (copy.count) {
+    ctx.font = '64px sans-serif';
+    ctx.fillText(copy.count, width / 2, mid);
+  }
   ctx.font = 'italic 56px sans-serif';
   ctx.fillText(copy.line, width / 2, mid + 120);
   ctx.font = '40px sans-serif';
