@@ -1,6 +1,6 @@
 // public/robots.txt: the generic block and the search and answer agents allow the one API path that social previews need,
-// keep the admin, API and pending paths and the draft rule closed, and never block /_next/. The AI training agents
-// are disallowed from the whole site (owner order 17:54, 9 Nov 2026).
+// keep the admin, API and pending paths and the draft rule closed, and never block /_next/. Training crawlers
+// are refused the whole site.
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';

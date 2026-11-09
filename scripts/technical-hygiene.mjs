@@ -1241,7 +1241,7 @@ try {
   }
 } catch (e) { alertFail('ExtDependencies', `IG token expiry check error: ${e.message.slice(0, 60)}`); }
 
-// 12i: robots.txt — 10 search and answer agents keep Allow+4 Disallows; 22 training agents get "Disallow: /" only (owner order 17:54, 9 Nov 2026)
+// 12i: robots.txt — 10 search and answer agents keep Allow+4 Disallows; training crawlers are refused the whole site ("Disallow: /" only)
 try {
   const SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://bricksofindia.com').replace(/\/$/, '');
   const r = await fetch(`${SITE}/robots.txt`, { signal: AbortSignal.timeout(8000) });

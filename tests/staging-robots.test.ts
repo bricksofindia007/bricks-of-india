@@ -29,7 +29,7 @@ describe('robots on the production build', () => {
   it('production robots.txt is the same as before: general crawlers allowed, sitemap listed', () => {
     expect(prod).toMatch(/User-agent: \*\nAllow: \//);
     expect(prod).toMatch(/Sitemap: https:\/\/bricksofindia\.com\/sitemap\.xml/);
-    // Only the generic block: the AI training agents are disallowed from the whole site on purpose (owner order 17:54, 9 Nov 2026).
+    // Only the generic block: training crawlers are refused the whole site on purpose.
     const generic = prod.split(/\n\n+/).find((b) => b.startsWith('User-agent: *')) ?? '';
     expect(generic).not.toMatch(/^Disallow: \/$/m);
   });
