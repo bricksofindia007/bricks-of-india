@@ -69,7 +69,8 @@ async function measure(path: string): Promise<{ status: number; seconds: number 
   for (const route of appRoutes) {
     const c = ROUTE_CADENCE[route];
     if (c === undefined) { rows.push({ route, kind: '?', intended: 'MISSING from route-cadence.ts', effective: '-', ok: false }); continue; }
-    if (isrParams.has(route)) {
+    // Export-checked routes take this branch too: /wishlist/[sets] has no generateStaticParams, so it is not in dynamicRoutes.
+    if (isrParams.has(route) || EXPORT_CHECKED_ROUTES[route]) {
       const parts: (undefined | 'priced' | 'unpriced')[] = typeof c === 'object' ? ['priced', 'unpriced'] : [undefined];
       for (const part of parts) {
         const key = part ? `${route}#${part}` : route;
