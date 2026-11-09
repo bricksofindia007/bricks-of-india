@@ -1,0 +1,5 @@
+{
+  "issues": [
+    { "id": "KI-03", "alertsCovered": ["migration-parity-repo-only"], "state": "fix drafted" }
+  ]
+}

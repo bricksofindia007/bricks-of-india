@@ -54,6 +54,19 @@ export function fixesScopeParity({ repo, prod, heldAtStart }) {
   return { ok: reasons.length === 0, reasons, prodOnly: par.prodOnly, unapplied, heldAtStart: held, repoCount: par.repoCount, prodCount: par.prodCount };
 }
 
+/**
+ * Order 1580 item 4(d): the expected-differences list. Versions in `expected` may be repo-only while they are held
+ * (the ten held migrations, KI-03). Anything else repo-only, and any production-only version, fails.
+ * When an expected version is applied, it is reported so the list can be cut down (the list goes when they are all applied). Pure.
+ */
+export function applyExpectedHeld({ unapplied, prodOnly, expected }) {
+  const exp = new Set(expected);
+  const unexpected = unapplied.filter((v) => !exp.has(v)).sort();
+  const expectedSeen = unapplied.filter((v) => exp.has(v)).sort();
+  const nowApplied = [...exp].filter((v) => !unapplied.includes(v)).sort();
+  return { ok: prodOnly.length === 0 && unexpected.length === 0, unexpected, expectedSeen, nowApplied };
+}
+
 function arg(name, dflt) {
   const i = process.argv.indexOf(name);
   return i > -1 ? process.argv[i + 1] : dflt;
@@ -67,10 +80,17 @@ if (import.meta.url === `file://${process.argv[1]}` || process.argv[1]?.endsWith
   const prod = fs.readFileSync(prodFile, 'utf8').split(/\r?\n/).map((s) => s.trim()).filter(Boolean);
   if (prod.length === 0 || prod.some((v) => !/^\d{14}$/.test(v))) { console.error('FAIL: production version list empty or malformed -- parity NOT checked'); process.exit(2); }
   const res = compareParity(repoVersions(dir), prod, prAdded);
+  // Order 1580 (d): the held migrations listed in config/parity-expected-held.json pass while they are the only difference.
+  const expectedFile = arg('--expected', 'config/parity-expected-held.json');
+  const expected = fs.existsSync(expectedFile) ? JSON.parse(fs.readFileSync(expectedFile, 'utf8')).versions ?? [] : [];
+  const exp = applyExpectedHeld({ unapplied: res.unapplied, prodOnly: res.prodOnly, expected });
   console.log(`repo: ${res.repoCount} migration file(s) in ${dir}; production: ${res.prodCount} schema_migrations row(s)`);
   for (const v of res.prodOnly) console.log(`FAIL production-only: ${v} is applied in production with no repo file (G7)`);
-  for (const v of res.unapplied) console.log(`FAIL repo-only: ${v} has a repo file but is not applied in production`);
+  for (const v of exp.unexpected) console.log(`FAIL repo-only: ${v} has a repo file but is not applied in production and is not on the expected list`);
+  for (const v of exp.expectedSeen) console.log(`EXPECTED: ${v} is held (repo-only, on the expected list, KI-03)`);
+  for (const v of exp.nowApplied) console.log(`NOTE: ${v} is on the expected list and is now applied: remove it from ${expectedFile}`);
   for (const v of res.pending) console.log(`PENDING: ${v} is added by this PR and not yet applied (apply staging first, then production, before merge)`);
-  console.log(res.ok ? 'PASS: repo and production migration history match' : 'FAIL: migration drift');
+  console.log(exp.ok ? 'PASS: repo and production migration history match, except the expected held list' : 'FAIL: migration drift');
+  res.ok = exp.ok;
   process.exit(res.ok ? 0 : 1);
 }
