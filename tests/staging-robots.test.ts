@@ -29,7 +29,9 @@ describe('robots on the production build', () => {
   it('production robots.txt is the same as before: general crawlers allowed, sitemap listed', () => {
     expect(prod).toMatch(/User-agent: \*\nAllow: \//);
     expect(prod).toMatch(/Sitemap: https:\/\/bricksofindia\.com\/sitemap\.xml/);
-    expect(prod).not.toMatch(/^Disallow: \/$/m);
+    // Only the generic block: training crawlers are refused the whole site on purpose.
+    const generic = prod.split(/\n\n+/).find((b) => b.startsWith('User-agent: *')) ?? '';
+    expect(generic).not.toMatch(/^Disallow: \/$/m);
   });
   it('the production workflow does not copy the staging file', () => {
     expect(read('.github/workflows/deploy-cloudflare.yml')).not.toMatch(/robots-staging\.txt/);
