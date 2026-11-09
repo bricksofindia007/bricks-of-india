@@ -38,8 +38,8 @@ describe('set-page robots: switch off equals live', () => {
 
 describe('the two switches are declared off', () => {
   it('unpriced sets: both flag files, same name', () => {
-    expect(read("config/feature_flags.py")).toMatch(/"unpriced_sets_hidden": True,/);
-    expect(read("src/lib/feature-flags.ts")).toMatch(/unpricedSetsHidden: true,/);
+    expect(read("config/feature_flags.py")).toMatch(/"unpriced_sets_hidden": False,/);
+    expect(read("src/lib/feature-flags.ts")).toMatch(/unpricedSetsHidden: false,/);
   });
   it('review redirects: JSON switch is off', () => {
     expect(JSON.parse(read('config/review-redirect-switch.json')).review_duplicate_redirects).toBe(false);
