@@ -900,10 +900,13 @@ try {
 // ── Check 9: P1 Content checks ─────────────────────────────────────────────────
 
 // 9a. Markdown leaking — scan last 10 news_articles for ** or isolated *
+const BOLD_PAIR_RE = /\*\*(?=\S)([^*\n]*?\S)\*\*/g;   // "**text**" with no space inside the markers
+const UNPAIRED_STAR_RE = /\*\*|\b\*[^*\s]/;            // a leftover ** or an isolated *word
 try {
   const { data: arts } = await sb.from('news_articles').select('slug, content')
     .not('content', 'is', null).order('published_at', { ascending: false }).limit(10);
-  const leaking = (arts ?? []).filter(a => /\*\*|\b\*[^*\s]/.test(a.content ?? ''));
+  // Properly paired **bold** is valid markup and is removed first; what remains with ** or an isolated * is leaking.
+  const leaking = (arts ?? []).filter(a => UNPAIRED_STAR_RE.test((a.content ?? '').replace(BOLD_PAIR_RE, '$1')));
   if (leaking.length > 0) {
     alertFail('ContentQuality', `Markdown asterisks leaking in ${leaking.length} article(s): ${leaking.map(a => a.slug).join(', ')}`);
   } else {
@@ -1468,10 +1471,12 @@ try {
   const { data: allPricedArticles } = await sb.from('news_articles')
     .select('slug, content').filter('content', 'not.is', null);
   const NO_STORE_LANGUAGE_RE = /import.only|no official store price|no.+(official|indian).+price|not.+(officially|yet).+available.+india/i;
+  // Stores an article may name for its price (any case). Articles that name none of them are flagged.
+  const STORE_NAME_RE = /toycra|mybrickhouse|lego\.in|flipkart|amazon/i;
   const missingStores = (allPricedArticles ?? []).filter(a => {
     const c = a.content || '';
     if (!/₹[\d,]+/.test(c)) return false;          // no price at all -- not in scope
-    if (/toycra/i.test(c) || /mybrickhouse/i.test(c)) return false;  // has at least one real store -- fine
+    if (STORE_NAME_RE.test(c)) return false;        // has at least one named store -- fine
     if (NO_STORE_LANGUAGE_RE.test(c)) return false; // explicitly acknowledges import-only/no-store -- fine, honest
     return true;  // has a ₹ figure, no store name, no acknowledgement -- genuine gap
   });
