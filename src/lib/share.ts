@@ -7,8 +7,8 @@ import { LAB_TOOLS } from '@/lib/lab-tools';
 export const SHARE_CHANNELS = ['whatsapp', 'facebook', 'instagram', 'email', 'copy'] as const;
 export type ShareChannel = (typeof SHARE_CHANNELS)[number];
 
-// Channels shown to the visitor. Instagram stays in SHARE_CHANNELS (registry and analytics) but is hidden until a card image exists.
-export const VISIBLE_CHANNELS: readonly ShareChannel[] = ['whatsapp', 'facebook', 'email', 'copy'];
+// Channels shown to the visitor. Instagram (decision 21e) saves the browser-drawn card on the visitor's device; it never posts.
+export const VISIBLE_CHANNELS: readonly ShareChannel[] = ['whatsapp', 'facebook', 'instagram', 'email', 'copy'];
 
 export type ShareTarget = {
   id: string;        // closed list: the analytics 'tool' parameter takes only these ids
@@ -27,13 +27,22 @@ export const SHARE_TEXT = {
   instagramFallback: 'Save the card, add it to your story. Time to make the world jealous',
   failureGeneral: 'That didn’t go through. Nothing’s lost. Try again, or copy the link.',
   failureNoApp: 'Nothing opened. Copy the link and send it yourself.',
+  // Shared wishlist page (owner-approved 8 Nov, 14:38 IST). The metadata description reuses previewCaption.
+  wishlistHeading: 'Somebody has plans for your wallet.',
+  wishlistNoPrice: 'See the set page for prices',
+  wishlistStart: 'Start your own wishlist',
+  wishlistMetaTitle: 'A LEGO wishlist, shared with you',
+  // Guest wishlist view at /wishlist (owner-approved 8 Nov, 15:07 IST). The count line uses setCountLabel() in wishlist-share.ts.
+  guestWishlistHeading: 'My Wishlist',
+  guestWishlistNote: 'Saved on this device only. Clear your browser and it vanishes, like your willpower in a LEGO store.',
+  guestWishlistDescription: 'Your LEGO wishlist. Saved on this device, judged by nobody.',
 } as const;
 
 /**
  * Pure (order 1510, decision 21a): on phones the phone's own share sheet comes first. A phone-first press needs a browser
  * share sheet and a touch-type pointer; anything else opens the channel list.
  */
-export function useNativeShare(env: { canShare: boolean; coarsePointer: boolean }): boolean {
+export function shouldUseNativeShare(env: { canShare: boolean; coarsePointer: boolean }): boolean {
   return env.canShare === true && env.coarsePointer === true;
 }
 
@@ -43,6 +52,8 @@ export function shareEnabled(flags: { shareEnabled: boolean }): boolean {
 }
 
 const MINIFIG_HQ: ShareTarget = { id: 'minifig-hq', title: 'Minifig HQ', path: '/minifig-hq', pageType: 'minifig_hq' };
+// The guest wishlist view (order 1580): registered so its share taps reach analytics. ShareMount is not mounted on /wishlist.
+const GUEST_WISHLIST: ShareTarget = { id: 'guest-wishlist', title: SHARE_TEXT.guestWishlistHeading, path: '/wishlist', pageType: 'sets_list' };
 
 /** Every shareable page: live Lab tools with a page, and Minifig HQ. Community and coming-soon tools have no tool page here. */
 export const SHARE_TARGETS: ShareTarget[] = [
@@ -53,6 +64,7 @@ export const SHARE_TARGETS: ShareTarget[] = [
     pageType: 'lab',
   })),
   MINIFIG_HQ,
+  GUEST_WISHLIST,
 ];
 
 export const SHARE_TARGET_IDS: readonly string[] = SHARE_TARGETS.map((t) => t.id);

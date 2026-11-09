@@ -3,17 +3,17 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { useNativeShare, SHARE_TEXT, shareEnabled } from '../src/lib/share';
+import { shouldUseNativeShare, SHARE_TEXT, shareEnabled } from '../src/lib/share';
 
 const root = join(__dirname, '..');
 const control = readFileSync(join(root, 'src/components/share/ShareControl.tsx'), 'utf8');
 
 describe('phone share sheet first (21a)', () => {
   it('uses the phone share sheet only with a share sheet and a touch pointer', () => {
-    expect(useNativeShare({ canShare: true, coarsePointer: true })).toBe(true);
-    expect(useNativeShare({ canShare: true, coarsePointer: false })).toBe(false);
-    expect(useNativeShare({ canShare: false, coarsePointer: true })).toBe(false);
-    expect(useNativeShare({ canShare: false, coarsePointer: false })).toBe(false);
+    expect(shouldUseNativeShare({ canShare: true, coarsePointer: true })).toBe(true);
+    expect(shouldUseNativeShare({ canShare: true, coarsePointer: false })).toBe(false);
+    expect(shouldUseNativeShare({ canShare: false, coarsePointer: true })).toBe(false);
+    expect(shouldUseNativeShare({ canShare: false, coarsePointer: false })).toBe(false);
   });
   it('the button calls the handler that tries the share sheet first', () => {
     expect(control).toMatch(/onClick=\{onPress\}/);
