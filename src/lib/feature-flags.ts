@@ -146,4 +146,7 @@ export const FEATURE_FLAGS = {
   // One switch for "unpriced sets hidden from search" (orders 0840, 0870): the sitemap lists only sets with a store price,
   // and set pages without a price are noindex. Off = the live site. Mirrored in config/feature_flags.py (unpriced_sets_hidden).
   unpricedSetsHidden: false,
+  // The share card image (wishlist and collection, option A). Off until the owner has seen it on staging. Off = no card.
+  // Mirrored in config/feature_flags.py (share_card_image); keep in sync.
+  shareCardImage: false,
 } as const;
