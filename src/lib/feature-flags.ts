@@ -145,5 +145,5 @@ export const FEATURE_FLAGS = {
   visitorCounter: false,
   // One switch for "unpriced sets hidden from search" (orders 0840, 0870): the sitemap lists only sets with a store price,
   // and set pages without a price are noindex. Off = the live site. Mirrored in config/feature_flags.py (unpriced_sets_hidden).
-  unpricedSetsHidden: false,
+  unpricedSetsHidden: true,
 } as const;
