@@ -7,7 +7,7 @@
 import { useState } from 'react';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import { trackEvent } from '@/lib/analytics';
-import { SHARE_TEXT, VISIBLE_CHANNELS, channelLink, shareEnabled, type ShareChannel, type ShareTarget } from '@/lib/share';
+import { SHARE_TEXT, VISIBLE_CHANNELS, channelLink, shareEnabled, useNativeShare, type ShareChannel, type ShareTarget } from '@/lib/share';
 
 const LABELS: Record<ShareChannel, string> = {
   whatsapp: 'WhatsApp',
@@ -27,6 +27,22 @@ export function ShareControl({ target }: { target: ShareTarget }) {
 
   // Server render has no window; the sheet only opens on the client, so the path is enough there.
   const url = typeof window === 'undefined' ? target.path : `${window.location.origin}${target.path}`;
+
+  // Decision 21a: on phones the phone's own share sheet is the first option. If it is unavailable or the visitor
+  // cancels, the channel list opens as before. Called straight from the tap, so the browser allows it.
+  async function onPress() {
+    const canShare = typeof navigator !== 'undefined' && typeof navigator.share === 'function';
+    const coarsePointer = typeof window !== 'undefined' && typeof window.matchMedia === 'function' && window.matchMedia('(pointer: coarse)').matches;
+    if (useNativeShare({ canShare, coarsePointer })) {
+      try {
+        await navigator.share({ title: target.title, url });
+        return;
+      } catch {
+        // Cancelled or refused: fall through to the channel list.
+      }
+    }
+    setOpen(true);
+  }
 
   async function onChannel(channel: ShareChannel) {
     // One tap, one event. Counts the tap, not a completed share.
@@ -64,7 +80,7 @@ export function ShareControl({ target }: { target: ShareTarget }) {
     <div className="mt-8">
       <button
         type="button"
-        onClick={() => setOpen(true)}
+        onClick={onPress}
         className="rounded-full border border-neutral-300 px-4 py-2 text-sm font-semibold"
       >
         {SHARE_TEXT.button}
