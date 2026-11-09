@@ -32,7 +32,7 @@ describe('waiting drafts: older than 14 days', () => {
 
 describe('known-issues card', () => {
   it('shows only open rows: closed and fix-merged rows are not on the card', () => {
-    expect(openKnownIssues(register).map((r) => r.id)).toEqual(['KI-01', 'KI-02']);
+    expect(openKnownIssues(register).map((r: { id: string }) => r.id)).toEqual(['KI-01', 'KI-02']);
   });
   it('each card row has id and state only (the public register has no issue text)', () => {
     expect(knownIssueRows(register)).toEqual([
