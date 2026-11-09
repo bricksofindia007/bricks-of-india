@@ -38,10 +38,19 @@ jobs:
         with:
           python-version: '3.11'
 
+      # Order 1600 item 4: same three packages, no recommended extras, and the apt archive cached between runs.
+      # The cache is restored before the install, so a warm run downloads only what changed.
+      - name: Cache apt packages
+        uses: actions/cache@v4
+        with:
+          path: /var/cache/apt/archives
+          key: apt-social-${{ runner.os }}-ffmpeg-libgl1-libglib2
+
       - name: Install system dependencies
         run: |
+          sudo chown -R "$(id -u):$(id -g)" /var/cache/apt/archives
           sudo apt-get update -y
-          sudo apt-get install -y ffmpeg libgl1 libglib2.0-0
+          sudo apt-get install -y --no-install-recommends ffmpeg libgl1 libglib2.0-0
 
       - name: Install Python dependencies
         run: pip install -r social-automation/requirements.txt
