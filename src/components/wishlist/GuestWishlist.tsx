@@ -90,7 +90,7 @@ export function GuestWishlist() {
             })}
           </ul>
           {sharePath && (
-            <ShareControl target={{ id: 'guest-wishlist', title: SHARE_TEXT.wishlistMetaTitle, path: sharePath, pageType: 'sets_list' }} />
+            <ShareControl target={{ id: 'guest-wishlist', title: SHARE_TEXT.wishlistMetaTitle, path: sharePath, pageType: 'sets_list' }} listCard={{ kind: 'wishlist', count: wish.length }} />
           )}
         </>
       )}

@@ -8,7 +8,10 @@ import { useState } from 'react';
 import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import { trackEvent } from '@/lib/analytics';
 import { SHARE_TEXT, VISIBLE_CHANNELS, channelLink, shareEnabled, shouldUseNativeShare, type ShareChannel, type ShareTarget } from '@/lib/share';
-import { CARD_SIZES, cardFileName, drawShareCard, toolCardCopy } from '@/lib/share-card';
+import { CARD_SIZES, cardCopy, cardFileName, drawShareCard, toolCardCopy, type ListKind } from '@/lib/share-card';
+
+/** A list card (wishlist or collection) for the Instagram channel. Used only while the card switch is on. */
+export type ListCard = { kind: ListKind; count: number };
 
 const LABELS: Record<ShareChannel, string> = {
   whatsapp: 'WhatsApp',
@@ -22,7 +25,7 @@ const CHANNELS = VISIBLE_CHANNELS;
 
 // Decision 21e: draws the story-size card in the visitor's own browser and saves the PNG to their device.
 // Nothing is uploaded or posted. Returns false when the browser cannot draw or save, so the page shows the failure line.
-async function saveInstagramCard(title: string): Promise<boolean> {
+async function saveInstagramCard(title: string, listCard?: ListCard): Promise<boolean> {
   try {
     const { width, height } = CARD_SIZES.story;
     const canvas = document.createElement('canvas');
@@ -30,13 +33,15 @@ async function saveInstagramCard(title: string): Promise<boolean> {
     canvas.height = height;
     const ctx = canvas.getContext('2d');
     if (!ctx) return false;
-    drawShareCard(ctx, 'story', toolCardCopy(title));
+    // With the card switch off, the tool card is drawn exactly as before.
+    const card = FEATURE_FLAGS.shareCardImage ? listCard : undefined;
+    drawShareCard(ctx, 'story', card ? cardCopy(card.kind, card.count) : toolCardCopy(title));
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/png'));
     if (!blob) return false;
     const href = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = href;
-    a.download = cardFileName('tool', 'story');
+    a.download = cardFileName(card ? card.kind : 'tool', 'story');
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -47,7 +52,7 @@ async function saveInstagramCard(title: string): Promise<boolean> {
   }
 }
 
-export function ShareControl({ target }: { target: ShareTarget }) {
+export function ShareControl({ target, listCard }: { target: ShareTarget; listCard?: ListCard }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
@@ -88,7 +93,7 @@ export function ShareControl({ target }: { target: ShareTarget }) {
     }
     if (channel === 'instagram') {
       // Instagram takes the card from the visitor's own device, so the card is saved there and the visitor adds it.
-      const saved = await saveInstagramCard(target.title);
+      const saved = await saveInstagramCard(target.title, listCard);
       setNote(saved ? SHARE_TEXT.instagramFallback : SHARE_TEXT.failureGeneral);
       return;
     }

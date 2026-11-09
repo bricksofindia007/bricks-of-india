@@ -65,3 +65,17 @@ describe('the card switch is off', () => {
     expect(read('src/components/share/CollectionShare.tsx')).toMatch(/!FEATURE_FLAGS\.shareCardImage\) return null;/);
   });
 });
+
+describe('the Instagram channel of the share sheet', () => {
+  const sheet = read('src/components/share/ShareControl.tsx');
+  it('uses the list card only while the switch is on; otherwise the tool card is drawn as before', () => {
+    expect(sheet).toMatch(/const card = FEATURE_FLAGS\.shareCardImage \? listCard : undefined;/);
+    expect(sheet).toMatch(/card \? cardCopy\(card\.kind, card\.count\) : toolCardCopy\(title\)/);
+  });
+  it('the Instagram path passes the list card to the saver', () => {
+    expect(sheet).toMatch(/saveInstagramCard\(target\.title, listCard\)/);
+  });
+  it('the guest wishlist share passes its own count', () => {
+    expect(read('src/components/wishlist/GuestWishlist.tsx')).toMatch(/listCard=\{\{ kind: 'wishlist', count: wish\.length \}\}/);
+  });
+});
