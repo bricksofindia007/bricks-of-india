@@ -155,5 +155,8 @@ FEATURE_FLAGS = {
     # One switch for "unpriced sets hidden from search" (orders 0840, 0870): the sitemap lists only sets with a store price,
     # and set pages without a price are noindex. Off = the live site. Mirrored in src/lib/feature-flags.ts (unpricedSetsHidden).
     "unpriced_sets_hidden": False,
+    # /shareables and every path under it answer a permanent redirect to /lab (308). Off = the page as it is today.
+    # Mirrored in src/lib/feature-flags.ts (shareablesToLab); keep in sync.
+    "shareables_to_lab": False,
     # The two duplicate-review redirects are switched in config/review-redirect-switch.json (next.config.mjs reads it).
 }

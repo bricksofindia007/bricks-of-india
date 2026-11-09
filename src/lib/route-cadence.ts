@@ -36,6 +36,8 @@ export const ROUTE_CADENCE: Record<string, Cadence> = {
   '/legal/terms': STATIC,
   '/precision': STATIC,
   '/shareables': STATIC,
+  // Every path under /shareables: a redirect to /lab when shareablesToLab is on, otherwise a 404 (no data read).
+  '/shareables/[...path]': DYNAMIC,
   '/themes': STATIC,
   '/sitemap.xml': SITEMAP_REVALIDATE_SECONDS,
 

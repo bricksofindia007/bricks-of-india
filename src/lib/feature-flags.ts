@@ -146,4 +146,7 @@ export const FEATURE_FLAGS = {
   // One switch for "unpriced sets hidden from search" (orders 0840, 0870): the sitemap lists only sets with a store price,
   // and set pages without a price are noindex. Off = the live site. Mirrored in config/feature_flags.py (unpriced_sets_hidden).
   unpricedSetsHidden: false,
+  // /shareables and every path under it answer a permanent redirect to /lab (308). Off = the page as it is today.
+  // Mirrored in config/feature_flags.py (shareables_to_lab); keep in sync.
+  shareablesToLab: false,
 } as const;

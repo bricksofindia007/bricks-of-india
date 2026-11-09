@@ -3,6 +3,8 @@ import { buildMetadata } from '@/lib/metadata';
 import Link from 'next/link';
 import { getShareablesManifest, shareablesPublicUrl, type ShareablesClip } from '@/lib/shareables';
 import { HowToShareModal } from '@/components/shareables/HowToShareModal';
+import { permanentRedirect } from 'next/navigation';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
 
 // Temporary unpublish (2026-08-08): the 27 clips are placeholder assets
 // pending Phases 2-4 (reference photography, Kling generation) -- see
@@ -164,5 +166,6 @@ function ShareablesComingSoon() {
 }
 
 export default function ShareablesPage() {
+  if (FEATURE_FLAGS.shareablesToLab) permanentRedirect('/lab');
   return SHAREABLES_LIVE ? <ShareablesGrid /> : <ShareablesComingSoon />;
 }
