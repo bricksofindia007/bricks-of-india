@@ -165,15 +165,26 @@ jobs:
             else
               echo "OK: http://$host -> HTTP $HTTP_STATUS (redirect)"
             fi
-
-            HTTPS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://$host/")
-            if [ "$HTTPS_STATUS" != "200" ]; then
-              echo "::error::https://$host returned HTTP $HTTPS_STATUS, expected 200"
-              FAIL=1
-            else
-              echo "OK: https://$host -> HTTP 200"
-            fi
           done
+
+          HTTPS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://bricksofindia.com/")
+          if [ "$HTTPS_STATUS" != "200" ]; then
+            echo "::error::https://bricksofindia.com/ returned HTTP $HTTPS_STATUS, expected 200"
+            FAIL=1
+          else
+            echo "OK: https://bricksofindia.com/ -> HTTP 200"
+          fi
+
+          # www is a permanent redirect to the main address, so it must not answer 200 itself.
+          WWW=$(curl -s -o /dev/null -w "%{http_code} %{redirect_url}" "https://www.bricksofindia.com/")
+          WWW_STATUS=${WWW%% *}
+          WWW_TARGET=${WWW#* }
+          if { [ "$WWW_STATUS" = "301" ] || [ "$WWW_STATUS" = "308" ]; } && [ "$WWW_TARGET" = "https://bricksofindia.com/" ]; then
+            echo "OK: https://www.bricksofindia.com/ -> HTTP $WWW_STATUS to https://bricksofindia.com/"
+          else
+            echo "::error::https://www.bricksofindia.com/ returned HTTP $WWW_STATUS to '$WWW_TARGET', expected 301/308 to https://bricksofindia.com/"
+            FAIL=1
+          fi
           exit $FAIL
 
       - name: Prune old R2 cache builds (keep current + previous; P8 item 6, #242)
