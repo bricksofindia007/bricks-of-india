@@ -2,10 +2,14 @@
 // The card shows only the list name, the number of sets and the approved line. It never shows a set name, a
 // rupee value, a price, a store or anything the visitor typed. The image is drawn in the visitor's own browser.
 
-import { SHARE_TEXT } from '@/lib/share';
-
 export type CardKind = 'collection' | 'wishlist';
 export type CardFormat = 'square' | 'story';
+
+/** The card's two lines (owner-approved wording). These two lines are the only words this constant holds. */
+export const CARD_LINES: Record<CardKind, string> = {
+  collection: 'My LEGO collection. Running out of shelf space, savings, and excuses.',
+  wishlist: "My LEGO wishlist. What my bank account doesn't know won't hurt it.",
+};
 
 export const CARD_SIZES: Record<CardFormat, { width: number; height: number }> = {
   square: { width: 1080, height: 1080 },
@@ -32,7 +36,7 @@ export function cardCopy(kind: CardKind, count: number): CardCopy {
     kind,
     heading: HEADINGS[kind],
     count: n === 1 ? '1 set' : `${n} sets`,
-    line: SHARE_TEXT.collectionShared,
+    line: CARD_LINES[kind],
     footer: 'bricksofindia.com',
   };
 }

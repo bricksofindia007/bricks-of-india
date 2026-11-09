@@ -14,7 +14,7 @@ export function CollectionShare({ kind, count }: { kind: CardKind; count: number
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState<string | null>(null);
 
-  if (!shareEnabled(FEATURE_FLAGS)) return null;
+  if (!shareEnabled(FEATURE_FLAGS) || !FEATURE_FLAGS.shareCardImage) return null;
 
   async function buildCard(format: CardFormat): Promise<Blob | null> {
     const canvas = document.createElement('canvas');
