@@ -2,7 +2,8 @@ name: Store price age (daily, read-only)
 
 # Order 0560, permanent fix 3b. Separate from the scrape: reads the newest price per store and
 # fails when one is older than the limit in scripts/store-age-check.mjs. The failure mail comes
-# from the existing workflow-failure-notify step. Read-only; uses the public anon key (no new key).
+# from the existing workflow-failure-notify step. Read-only; reads through the read-only database role
+# that the staging seed uses (order 1440 item 1).
 on:
   schedule:
     - cron: '40 3 * * *'   # daily 03:40 UTC, after the scrape window
@@ -23,6 +24,7 @@ jobs:
     env:
       NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
       NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      CI_READONLY_DB_URL: ${{ secrets.CI_READONLY_DB_URL }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -36,6 +38,12 @@ jobs:
         id: age
         continue-on-error: true
         run: node scripts/store-age-check.mjs
+
+      # The failure alert imports the mail package, which this job did not install (its run failed with
+      # "Cannot find package 'resend'" on 7 Nov). Install it only when the alert is needed.
+      - name: Install packages for the failure alert
+        if: steps.age.outcome == 'failure'
+        run: npm ci --no-audit --no-fund
 
       - name: Send failure alert
         if: steps.age.outcome == 'failure'
