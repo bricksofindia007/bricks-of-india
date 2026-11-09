@@ -2,17 +2,17 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CARD_LINES, cardCopy, drawShareCard, CARD_SIZES, type CardCanvas, type CardFormat, type CardKind } from '@/lib/share-card';
+import { CARD_LINES, cardCopy, drawShareCard, CARD_SIZES, type CardCanvas, type CardFormat, type ListKind } from '@/lib/share-card';
 
 const root = join(__dirname, '..');
 const read = (f: string) => readFileSync(join(root, f), 'utf8');
 
-const KINDS: CardKind[] = ['collection', 'wishlist'];
+const KINDS: ListKind[] = ['collection', 'wishlist'];
 const FORMATS: CardFormat[] = ['square', 'story'];
 const COUNTS = [0, 1, 12, 1234];
 
 // Records every word the drawing would put on the card.
-function drawnWords(format: CardFormat, kind: CardKind, count: number): string[] {
+function drawnWords(format: CardFormat, kind: ListKind, count: number): string[] {
   const words: string[] = [];
   const ctx = {
     fillStyle: '',
