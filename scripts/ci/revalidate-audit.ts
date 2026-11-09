@@ -33,6 +33,8 @@ const CI_SAMPLES: Record<string, string[]> = {
   '/community/[slug]': ['/community/ci-fixture'],
   '/themes/[theme]': ['/themes/city'],
   '/themes/[theme]/page/[page]': ['/themes/city/page/2'],
+  // The shared list page answers 404 on the stub (its switch is off); its revalidate is checked in the route file.
+  '/wishlist/[sets]': ['/wishlist/75192'],
 };
 
 type Row = { route: string; kind: string; intended: string; effective: string; ok: boolean; note?: string };
