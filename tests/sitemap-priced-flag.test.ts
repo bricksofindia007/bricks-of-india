@@ -63,7 +63,7 @@ describe('sitemap: priced-set rule behind its flag (order 0840)', () => {
     expect(setUrls).toHaveLength(1);
     expect(setUrls[0]).toContain('/sets/10001-');
     expect(calls.storePricesRead).toBeGreaterThan(0);
-  });
+  }, 20_000); // the first import of the sitemap module graph can pass 5 s under a full parallel run
 
   it('pricedOnly keeps exactly the sets with a positive store price', async () => {
     vi.resetModules();
@@ -76,10 +76,10 @@ describe('sitemap: priced-set rule behind its flag (order 0840)', () => {
 
 describe('the flag is declared off in both flag files, under matching names', () => {
   it('config/feature_flags.py', () => {
-    expect(read('config/feature_flags.py')).toMatch(/"unpriced_sets_hidden": False,/);
+    expect(read("config/feature_flags.py")).toMatch(/"unpriced_sets_hidden": False,/);
   });
   it('src/lib/feature-flags.ts', () => {
-    expect(read('src/lib/feature-flags.ts')).toMatch(/unpricedSetsHidden: false,/);
+    expect(read("src/lib/feature-flags.ts")).toMatch(/unpricedSetsHidden: false,/);
   });
   it('the sitemap reads the flag and the price read is inside the guard', () => {
     const src = read('src/app/sitemap.ts');

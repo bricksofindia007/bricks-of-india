@@ -14,6 +14,8 @@ const agentOf = (block: string) => block.split('\n')[0].replace('User-agent:', '
 const ALLOWED_AGENTS = [
   'ChatGPT-User', 'OAI-SearchBot', 'Claude-SearchBot', 'Claude-User', 'PerplexityBot',
   'Perplexity-User', 'DuckAssistBot', 'Applebot', 'YouBot', 'MistralAI-User',
+  // Link-preview agents: they may read the wishlist path (the generic block does not).
+  'facebookexternalhit', 'Facebot', 'Twitterbot',
 ];
 const TRAINING_AGENTS = [
   'GPTBot', 'ClaudeBot', 'anthropic-ai', 'Claude-Web', 'Google-Extended', 'GoogleOther',
@@ -35,10 +37,10 @@ const allowedBlocks = blocks.filter((b) => ALLOWED_AGENTS.includes(agentOf(b)) |
 const trainingBlocks = blocks.filter((b) => TRAINING_AGENTS.includes(agentOf(b)));
 
 describe('robots.txt agent blocks', () => {
-  it('there are 33 blocks: the generic one, the 10 search and answer agents and the 22 training agents', () => {
-    expect(blocks).toHaveLength(33);
+  it('there are 36 blocks: the generic one, 10 search and answer agents, 3 link-preview agents and 22 training agents', () => {
+    expect(blocks).toHaveLength(36);
     expect(blocks.map(agentOf)[0]).toBe('*');
-    expect(allowedBlocks).toHaveLength(11);
+    expect(allowedBlocks).toHaveLength(14);
     expect(trainingBlocks).toHaveLength(22);
   });
 

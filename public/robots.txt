@@ -4,6 +4,37 @@ Allow: /api/img
 Disallow: /admin/
 Disallow: /api/
 Disallow: /pending/
+Disallow: /wishlist/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: facebookexternalhit
+Allow: /
+Allow: /api/img
+Allow: /wishlist/
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: Facebot
+Allow: /
+Allow: /api/img
+Allow: /wishlist/
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
+Disallow: /*?*draft=
+Crawl-delay: 2
+
+User-agent: Twitterbot
+Allow: /
+Allow: /api/img
+Allow: /wishlist/
+Disallow: /admin/
+Disallow: /api/
+Disallow: /pending/
 Disallow: /*?*draft=
 Crawl-delay: 2
 

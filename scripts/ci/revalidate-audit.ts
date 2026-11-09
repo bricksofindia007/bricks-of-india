@@ -33,6 +33,8 @@ const CI_SAMPLES: Record<string, string[]> = {
   '/community/[slug]': ['/community/ci-fixture'],
   '/themes/[theme]': ['/themes/city'],
   '/themes/[theme]/page/[page]': ['/themes/city/page/2'],
+  // The shared list page answers 404 on the stub (its switch is off); its revalidate is checked in the route file.
+  '/wishlist/[sets]': ['/wishlist/75192'],
 };
 
 type Row = { route: string; kind: string; intended: string; effective: string; ok: boolean; note?: string };
@@ -67,7 +69,8 @@ async function measure(path: string): Promise<{ status: number; seconds: number 
   for (const route of appRoutes) {
     const c = ROUTE_CADENCE[route];
     if (c === undefined) { rows.push({ route, kind: '?', intended: 'MISSING from route-cadence.ts', effective: '-', ok: false }); continue; }
-    if (isrParams.has(route)) {
+    // Export-checked routes take this branch too: /wishlist/[sets] has no generateStaticParams, so it is not in dynamicRoutes.
+    if (isrParams.has(route) || EXPORT_CHECKED_ROUTES[route]) {
       const parts: (undefined | 'priced' | 'unpriced')[] = typeof c === 'object' ? ['priced', 'unpriced'] : [undefined];
       for (const part of parts) {
         const key = part ? `${route}#${part}` : route;

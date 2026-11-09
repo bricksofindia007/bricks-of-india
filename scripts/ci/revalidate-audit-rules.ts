@@ -11,6 +11,11 @@ export const EXPORT_CHECKED_ROUTES: Record<string, { file: string; peers: string
     file: 'src/app/themes/[theme]/page/[page]/page.tsx',
     peers: ['src/app/themes/[theme]/page.tsx'],
   },
+  // Shared guest wishlist (order 1800): 404 on the stub while its switch is off; the route file is the source.
+  '/wishlist/[sets]': {
+    file: 'src/app/wishlist/[sets]/page.tsx',
+    peers: [],
+  },
 };
 
 /** The value of a route file's `export const revalidate = N;`, or null when there is no such export. */
