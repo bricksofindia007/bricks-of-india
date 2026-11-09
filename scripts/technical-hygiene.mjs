@@ -372,7 +372,10 @@ for (const url of LIGHTHOUSE_URLS) {
   }
 }
 
-// ── Check 5: Store prices staleness (> 8 hours = alert) ──────────────────────
+// ── Check 5: Store prices staleness (> 26 hours = alert) ─────────────────────
+// Prices are collected once a day (snapshot-prices.yml, 03:10 UTC), so the newest row is up to a day old by
+// the time this weekly check runs. StoreFreshness (check 8b) uses 25 h; this limit is one hour longer.
+const STALENESS_LIMIT_HOURS = 26;
 
 log('Staleness', 'Checking store_prices MAX(scraped_at) per store');
 const stores = ['mybrickhouse', 'toycra'];
@@ -390,8 +393,8 @@ for (const store of stores) {
     }
     const ageHours = (Date.now() - new Date(data[0].scraped_at).getTime()) / 3_600_000;
     log('Staleness', `  ${store}: last scraped ${ageHours.toFixed(1)}h ago`);
-    if (ageHours > 8) {
-      alertFail('Staleness', `${store} prices stale — last scraped ${ageHours.toFixed(1)}h ago (threshold: 8h)`);
+    if (ageHours > STALENESS_LIMIT_HOURS) {
+      alertFail('Staleness', `${store} prices stale — last scraped ${ageHours.toFixed(1)}h ago (threshold: ${STALENESS_LIMIT_HOURS}h)`);
     }
   } catch (e) {
     log('Staleness', `  ${store}: error — ${e.message}`);
@@ -1513,7 +1516,8 @@ try {
 
 // 14f: All reviews have valid verdict
 try {
-  const VALID_VERDICTS = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID']);
+  // The five live verdicts (src/app/reviews/[slug]/page.tsx). Checked here only: check 17 duplicated this list and was removed.
+  const VALID_VERDICTS = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'HUNT IT', 'AVOID']);
   const { data: revs } = await sb.from('reviews').select('slug, verdict');
   const badVerdict = (revs ?? []).filter(r => !r.verdict || !VALID_VERDICTS.has((r.verdict || '').trim().toUpperCase()));
   if (badVerdict.length > 0) alertFail('ContentIntegrity', `Reviews with null/invalid verdict: ${badVerdict.map(r => `${r.slug}(${r.verdict ?? 'null'})`).join(', ')}`);
@@ -1757,19 +1761,6 @@ try {
   }
 } catch (e) { alertFail('ReviewedSetPrices', `check failed: ${e.message.slice(0, 80)}`); }
 
-// ── Check 17: Reviews verdict enum ───────────────────────────────────────────
-// 17a. All verdict values must be in VALID_VERDICTS. A rogue value ('BUY'
-//      instead of 'BUY NOW') breaks the BOI Says verdict display component.
-try {
-  const VALID_VERDICTS17 = new Set(['BUY NOW', 'WAIT', 'IMPORT ONLY', 'AVOID']);
-  const { data: reviewVerdicts } = await sb.from('reviews').select('id, title, verdict');
-  const bad = (reviewVerdicts ?? []).filter(r => !VALID_VERDICTS17.has(r.verdict));
-  if (bad.length > 0) {
-    alertFail('ReviewVerdict', `${bad.length} review(s) have invalid verdict: ${bad.map(r => `${r.title}=${r.verdict}`).join(', ')}`);
-  } else {
-    log('ReviewVerdict', `all ${(reviewVerdicts ?? []).length} review verdicts valid ✓`);
-  }
-} catch (e) { alertFail('ReviewVerdict', `check failed: ${e.message.slice(0, 80)}`); }
 
 // ── Check 18: Reviewed sets missing MRP ──────────────────────────────────────
 // 18a. Sets that have a published review must have lego_mrp_inr populated.
@@ -1986,6 +1977,7 @@ const emailBody = [
   report.join('\n'),
 ].join('\n');
 
+let reportSent = false;
 if (RESEND_API_KEY && BRIEF_EMAIL) {
   const res = await fetch('https://api.resend.com/emails', {
     method: 'POST',
@@ -1998,6 +1990,7 @@ if (RESEND_API_KEY && BRIEF_EMAIL) {
     }),
   });
   if (res.ok) {
+    reportSent = true;
     console.log('Weekly report emailed successfully');
   } else {
     console.error('Resend failed:', await res.text());
@@ -2007,4 +2000,6 @@ if (RESEND_API_KEY && BRIEF_EMAIL) {
   console.log(emailBody);
 }
 
-if (alerts.length > 0) process.exit(1);
+// Alerts are already in the emailed report. The run fails only when that report was not sent, so GitHub does not
+// send a second "Run failed" email for the same run.
+if (!reportSent) process.exit(1);
