@@ -9,8 +9,8 @@ const BASE = 'https://staging.example.supabase.co';
 const KEY = 'test-public-key';
 
 // A fake PostgREST: relations in `openTables` answer 200 with a row; everything else answers 401 with 42501.
-function fakeFetch(openTables: string[], opts: { writeRefused?: boolean; rpcRefused?: boolean } = {}) {
-  return async (input: string, init: any = {}) => {
+function fakeFetch(openTables: string[], opts: { writeRefused?: boolean; rpcRefused?: boolean } = {}): typeof fetch {
+  return (async (input: string, init: any = {}) => {
     const u = new URL(input);
     const path = u.pathname;
     if (path.startsWith('/rest/v1/rpc/')) {
@@ -25,7 +25,7 @@ function fakeFetch(openTables: string[], opts: { writeRefused?: boolean; rpcRefu
     }
     if (openTables.includes(table)) return { status: 200, text: async () => '[{"id":1}]' } as any;
     return { status: 401, text: async () => '{"code":"42501","message":"permission denied for table ' + table + '"}' } as any;
-  };
+  }) as unknown as typeof fetch;
 }
 
 describe('public-key check: the price tables are closed to anon, sets stays open', () => {
