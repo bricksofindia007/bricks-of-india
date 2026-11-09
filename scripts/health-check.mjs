@@ -9,6 +9,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { estimateCycleUsage, EGRESS_QUOTA_GB, LOG_INGEST_QUOTA_GB } from './lib/capacity-estimate.mjs';
 import { sendAlert } from './lib/alert.mjs';
+import { socialCauses, alertDecision, SOCIAL_WORKFLOW } from './lib/social-alerts.mjs';
 import { zeroArticleAlert } from './lib/zero-article.mjs';
 import { LIMITS } from './lib/quota-guard.mjs';
 
@@ -224,6 +225,8 @@ try {
 
 // Weekly social run (Mondays 12:00 IST) plus one day of margin, in hours. Used by Checks 6 and 6c.
 const SOCIAL_ATTEMPT_MAX_HOURS = 7 * 24 + 24;
+// Order 1580: facts for the social alerts, filled in by Checks 6, 6c and 9, sent once per cause before Check 10.
+const social = { ig: null, yt: null, workflow: null };
 
 // ── Check 6: Instagram heartbeat ─────────────────────────────────────────────
 // Replaces the old hardcoded-expiry-date check (removed 2026-07-26 -- it never
@@ -256,21 +259,19 @@ try {
   } else {
     const igAttemptAge = (Date.now() - new Date(igHb.last_attempt_at).getTime()) / 3_600_000;
     console.log(`[6] Instagram heartbeat: last attempt ${igAttemptAge.toFixed(1)}h ago`);
+    // Order 1580: the social alerts are recorded here and sent once per cause, after all checks (scripts/lib/social-alerts.mjs).
+    social.ig = {
+      neverRan: false,
+      attemptAgeH: igAttemptAge,
+      successAgeH: igHb.last_success_at ? (Date.now() - new Date(igHb.last_success_at).getTime()) / 3_600_000 : null,
+    };
     if (igAttemptAge > SOCIAL_ATTEMPT_MAX_HOURS) {
       failures.push('ig-heartbeat-stale');
-      await sendAlert(
-        '⚠️ BOI Health Alert — Instagram pipeline not attempting',
-        `social-automation.yml last ran ${igAttemptAge.toFixed(1)} hours ago.\n\nThreshold: 192 hours (runs weekly, Mondays at 12:00 IST, with one day of margin).\n\nCheck GitHub Actions → social-automation.yml for failures or missed triggers.`
-      );
     } else if (igHb.last_success_at) {
-      const igSuccessAge = (Date.now() - new Date(igHb.last_success_at).getTime()) / 3_600_000;
+      const igSuccessAge = social.ig.successAgeH;
       console.log(`[6] Instagram heartbeat: last success ${igSuccessAge.toFixed(1)}h ago`);
       if (igSuccessAge > 120) {
         failures.push('ig-heartbeat-no-success');
-        await sendAlert(
-          '⚠️ BOI Health Alert — Instagram not posting',
-          `Pipeline is running (last attempt ${igAttemptAge.toFixed(1)}h ago) but last successful Instagram post was ${igSuccessAge.toFixed(1)} hours ago.\n\nThreshold: 120 hours.\n\nLikely causes: token expiry/invalidation, no eligible sets, or post error. Check social-automation.yml logs.`
-        );
       }
     } else {
       console.log('[6] Instagram heartbeat: pipeline running but no successful post yet');
@@ -360,21 +361,19 @@ try {
   } else {
     const attemptAge = (Date.now() - new Date(hb.last_attempt_at).getTime()) / 3_600_000;
     console.log(`[6c] YouTube heartbeat: last attempt ${attemptAge.toFixed(1)}h ago`);
+    // Order 1580: recorded here, sent once per cause after all checks (scripts/lib/social-alerts.mjs).
+    social.yt = {
+      neverRan: false,
+      attemptAgeH: attemptAge,
+      successAgeH: hb.last_success_at ? (Date.now() - new Date(hb.last_success_at).getTime()) / 3_600_000 : null,
+    };
     if (attemptAge > SOCIAL_ATTEMPT_MAX_HOURS) {
       failures.push('yt-heartbeat-stale');
-      await sendAlert(
-        '⚠️ BOI Health Alert — YouTube pipeline not attempting',
-        `social-automation.yml last ran ${attemptAge.toFixed(1)} hours ago.\n\nThreshold: 192 hours (runs weekly, Mondays at 12:00 IST, with one day of margin).\n\nCheck GitHub Actions → social-automation.yml for failures or missed triggers.`
-      );
     } else if (hb.last_success_at) {
-      const successAge = (Date.now() - new Date(hb.last_success_at).getTime()) / 3_600_000;
+      const successAge = social.yt.successAgeH;
       console.log(`[6c] YouTube heartbeat: last success ${successAge.toFixed(1)}h ago`);
       if (successAge > 120) {
         failures.push('yt-heartbeat-no-success');
-        await sendAlert(
-          '⚠️ BOI Health Alert — YouTube not uploading',
-          `Pipeline is running (last attempt ${attemptAge.toFixed(1)}h ago) but last successful YouTube upload was ${successAge.toFixed(1)} hours ago.\n\nThreshold: 120 hours.\n\nLikely causes: token expiry, no eligible sets, or upload error. Check social-automation.yml logs.`
-        );
       }
     } else {
       // last_attempt_at fresh but last_success_at NULL — pipeline ran, never succeeded
@@ -489,7 +488,7 @@ try {
 
   const workflows = [
     { file: 'radar.yml',             label: 'RADAR pipeline',        maxAgeHours: 26 },
-    { file: 'social-automation.yml', label: 'Social automation',     maxAgeHours: 26 },
+    { file: 'social-automation.yml', label: 'Social automation',     maxAgeHours: 192 }, // weekly, Mondays 12:00 IST: one week plus one day (same limit as Checks 6 and 6c)
     { file: 'scrape-prices.yml',     label: 'Price scraper',         maxAgeHours: 26 },
     { file: 'generate-drafts.yml',   label: 'Batch generator',       maxAgeHours: 26 },
     // Added 2026-07-26 -- previously absent despite being two of the more
@@ -516,16 +515,20 @@ try {
     const status   = lastRun.conclusion ?? lastRun.status;
     console.log(`[9] ${wf.label}: last run ${ageHours.toFixed(1)}h ago (${status})`);
 
+    // Order 1580: the weekly social job's facts go to the grouped social alert (one email per cause), not to their own emails.
+    if (wf.file === SOCIAL_WORKFLOW) {
+      social.workflow = { conclusion: lastRun.conclusion, status, ageH: ageHours, createdAt: lastRun.created_at };
+    }
     if (lastRun.conclusion === 'failure') {
       failures.push(`cron-failed-${wf.file}`);
-      await sendAlert(
+      if (wf.file !== SOCIAL_WORKFLOW) await sendAlert(
         `⚠️ BOI Health Alert — ${wf.label} run failed`,
         `Workflow: ${wf.file}\nMost recent run failed ${ageHours.toFixed(1)} hours ago (${lastRun.created_at}).\n\nThis fires regardless of how recently it ran — a workflow running on schedule but failing every time previously produced no alert here. Check the run logs.`
       );
     }
     if (ageHours > wf.maxAgeHours) {
       failures.push(`cron-stale-${wf.file}`);
-      await sendAlert(
+      if (wf.file !== SOCIAL_WORKFLOW) await sendAlert(
         `⚠️ BOI Health Alert — ${wf.label} cron stale`,
         `Workflow: ${wf.file}\nLast run: ${ageHours.toFixed(1)} hours ago (${lastRun.created_at})\nStatus: ${status}\n\nThreshold: ${wf.maxAgeHours} hours.\n\nCheck GitHub Actions for failures.`
       );
@@ -538,6 +541,26 @@ try {
     '🔥 [BOI INFRA FAILURE] — Cron timestamp check crashed',
     `Check 9 itself failed to run (this is not a normal cron-stale alert): ${e.message}\n\nLikely GITHUB_TOKEN missing or the GitHub API call failing — not a workflow being stale, the check itself broke. Investigate scripts/health-check.mjs Check 9 directly.`
   );
+}
+
+// ── Social alerts: one email per cause (order 1580, alert standard rules 6 and 7; order 1600 item 2) ──
+// A real failure always emails. A register row only changes the decision by the state-change rule (alertDecision).
+// The last-sent state is not stored anywhere yet (no alert-state table exists), so it is empty here.
+{
+  let register = [];
+  try {
+    register = JSON.parse(readFileSync(join(__dirname, '../config/known-issues.json'), 'utf-8')).issues ?? [];
+  } catch (e) {
+    console.warn('[social] known-issues register unreadable; sending every social cause:', e.message);
+  }
+  const lastSent = {};
+  for (const c of socialCauses(social)) {
+    const d = alertDecision(c, register, lastSent);
+    console.log(`[social] ${c.key}: ${d.emit ? 'EMAIL' : 'not emailed'} (${d.reason})`);
+    if (!d.emit) continue;
+    failures.push(`social-${c.key}`);
+    await sendAlert(c.subject, c.body);
+  }
 }
 
 // ── Check 10: Sets with zero store coverage (log weekly, no alert) ────────────

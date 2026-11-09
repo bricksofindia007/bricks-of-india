@@ -112,7 +112,7 @@ async function fetchPipelineStatus() {
 
 const FRESHNESS_SOURCES = [
   { table: 'news_articles', label: 'News',    warnDays: 7  },
-  { table: 'blog_posts',    label: 'Blog',    warnDays: 14 },
+  { table: 'guides',        label: 'Guides',  warnDays: 14 },
   { table: 'reviews',       label: 'Reviews', warnDays: 30 },
 ];
 
@@ -137,33 +137,26 @@ async function fetchFreshness() {
 // ── Section 4: Pending operator actions ──────────────────────────────────────
 
 async function fetchPending() {
-  const [{ count: approved }, { count: draft }] = await Promise.all([
+  const cutoff = waitingCutoffIso(Date.now(), WAITING_DAYS);
+  const [{ count: approved }, { count: draft }, { count: waiting }] = await Promise.all([
     sb.from('pending_drafts').select('*', { count: 'exact', head: true }).eq('status', 'approved'),
     sb.from('pending_drafts').select('*', { count: 'exact', head: true }).eq('status', 'draft'),
+    // Order 1580 (f): drafts waiting more than 14 days (created before the cutoff).
+    sb.from('pending_drafts').select('*', { count: 'exact', head: true }).eq('status', 'draft').lt('created_at', cutoff),
   ]);
-  return { approved: approved ?? 0, draft: draft ?? 0 };
+  return { approved: approved ?? 0, draft: draft ?? 0, waitingOver14: waiting ?? 0 };
 }
 
-// ── Section 5: Next hard deadline ────────────────────────────────────────────
-
-const DEADLINES = [
-  { label: 'CE-01 subjects',   date: '2026-06-01' },
-  { label: 'CE-05 History',    date: '2026-07-01' },
-  { label: 'CE-01 Spotlights', date: '2026-07-15' },
-  { label: 'IG Token',         date: '2026-07-16' },
-  { label: 'CE-02 complete',   date: '2026-07-25' },
-  { label: 'Fan CoLab',        date: '2026-08-01' },
-];
-
-function nextDeadline() {
-  const now = Date.now();
-  return DEADLINES
-    .map(d => ({ ...d, daysLeft: (new Date(d.date).getTime() - now) / 86_400_000 }))
-    .filter(d => d.daysLeft > 0)
-    .sort((a, b) => a.daysLeft - b.daysLeft)[0] ?? null;
+// Order 1580 (c): the known-issues register (config/known-issues.json). A missing file shows a line, never a crash.
+function loadKnownIssues() {
+  try {
+    return { rows: knownIssueRows(JSON.parse(readFileSync(new URL('../config/known-issues.json', import.meta.url), 'utf8')).issues), error: null };
+  } catch (e) {
+    return { rows: [], error: e.message };
+  }
 }
 
-// ── Section 6: Sign-off ───────────────────────────────────────────────────────
+// ── Section 5: Sign-off ───────────────────────────────────────────────────────
 
 const SIGNOFFS = [
   'Chai is ₹20. This LEGO set is ₹49,999. Life is not fair. Build anyway.',
@@ -172,7 +165,6 @@ const SIGNOFFS = [
   'Set prices in India are 40% above MRP and people still buy. That is the audience. Respect them.',
   'Budget ke baad bhi LEGO khareedna — that is the Indian AFOL experience. Capture it.',
   '338 approved drafts sitting. Gemini quota sitting. You sitting. Someone has to move.',
-  'Fan CoLab August 1st. Count the days. Build the content.',
 ];
 
 function todaySignoff() {
@@ -181,7 +173,7 @@ function todaySignoff() {
 
 // ── HTML builder ──────────────────────────────────────────────────────────────
 
-function buildHtml({ pipelines, freshness, pending, deadline, today }) {
+function buildHtml({ pipelines, freshness, pending, today, knownIssues }) {
   const scoreColor = HEALTH_SCORE >= 80 ? GREEN : HEALTH_SCORE >= 60 ? AMBER : RED;
 
   const s1 = card('1 &mdash; Health Score', `
@@ -244,29 +236,30 @@ function buildHtml({ pipelines, freshness, pending, deadline, today }) {
         <td style="padding:5px 0 5px 16px;font-size:20px;font-weight:bold;
                    color:${draftColor};text-align:right;">${pending.draft}</td>
       </tr>
+      <tr>
+        <td style="padding:5px 0;font-size:13px;color:${NAVY};">Waiting more than ${WAITING_DAYS} days</td>
+        <td style="padding:5px 0 5px 16px;font-size:20px;font-weight:bold;
+                   color:${pending.waitingOver14 > 0 ? AMBER : NAVY};text-align:right;">${pending.waitingOver14}</td>
+      </tr>
     </table>
   `);
 
-  let s5;
-  if (!deadline) {
-    s5 = card('5 &mdash; Next Hard Deadline',
-      `<p style="margin:0;font-size:13px;color:#888;">No upcoming deadlines.</p>`);
-  } else {
-    const d = Math.ceil(deadline.daysLeft);
-    const dColor = d <= 7 ? RED : d <= 30 ? AMBER : GREEN;
-    s5 = card('5 &mdash; Next Hard Deadline', `
-      <p style="margin:0;font-size:20px;font-weight:bold;color:${dColor};">${deadline.label}</p>
-      <p style="margin:6px 0 0;font-size:13px;color:#666;">
-        ${deadline.date} &mdash; <strong style="color:${dColor};">${d} day${d === 1 ? '' : 's'}</strong> remaining
-      </p>
-    `);
-  }
-
-  const s6 = card('6 &mdash; Daily Dispatch', `
+  const s5 = card('5 &mdash; Daily Dispatch', `
     <p style="margin:0;font-size:14px;color:${NAVY};font-style:italic;line-height:1.5;">
       &ldquo;${todaySignoff()}&rdquo;
     </p>
   `);
+
+  // Order 1580 (c): known issues appear here once, not in email (alert standard section 3).
+  const issueList = knownIssues.error
+    ? `<p style="margin:0;font-size:13px;color:#888;">Register unavailable: ${knownIssues.error}</p>`
+    : knownIssues.rows.length === 0
+      ? '<p style="margin:0;font-size:13px;color:#888;">No open known issues.</p>'
+      : `<table width="100%" cellpadding="0" cellspacing="0">${knownIssues.rows.map(r => `
+          <tr><td style="padding:5px 0;font-size:13px;color:${NAVY};">${r.id}</td>
+              <td style="padding:5px 0 5px 12px;font-size:12px;color:#666;text-align:right;white-space:nowrap;">${r.state}</td></tr>`).join('')}
+        </table>`;
+  const s6 = card('6 &mdash; Known issues', issueList);
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -317,14 +310,12 @@ const [pipelines, freshness, pending] = await Promise.all([
   fetchPending(),
 ]);
 
-const deadline = nextDeadline();
-
 console.log('Pipelines:', pipelines.map(p => `${p.label}=${p.status}`).join(', '));
 console.log('Freshness:', freshness.map(f => `${f.label}=${f.days != null ? f.days.toFixed(1) + 'd' : 'err'}`).join(', '));
-console.log(`Pending: approved=${pending.approved} draft=${pending.draft}`);
-console.log('Next deadline:', deadline ? `${deadline.label} in ${Math.ceil(deadline.daysLeft)}d` : 'none');
+console.log(`Pending: approved=${pending.approved} draft=${pending.draft} waiting>${WAITING_DAYS}d=${pending.waitingOver14}`);
 
-const html = buildHtml({ pipelines, freshness, pending, deadline, today });
+const knownIssues = loadKnownIssues();
+const html = buildHtml({ pipelines, freshness, pending, today, knownIssues });
 
 const res = await fetch('https://api.resend.com/emails', {
   method: 'POST',
