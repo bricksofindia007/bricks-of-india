@@ -15,15 +15,15 @@ describe('/shareables redirect (decision #7)', () => {
     const list = await redirects();
     const hit = list.find((r: { source: string }) => r.source === '/shareables');
     expect(hit).toBeDefined();
-    expect(hit.destination).toBe('/lab');
-    expect(hit.permanent).toBe(false);
+    expect(hit?.destination).toBe('/lab');
+    expect(hit?.permanent).toBe(false);
   });
   it('sub-addresses under /shareables also go to /lab, temporarily', async () => {
     const list = await redirects();
     const hit = list.find((r: { source: string }) => r.source === '/shareables/:path*');
     expect(hit).toBeDefined();
-    expect(hit.destination).toBe('/lab');
-    expect(hit.permanent).toBe(false);
+    expect(hit?.destination).toBe('/lab');
+    expect(hit?.permanent).toBe(false);
   });
   it('the redirect is temporary, so the address can come back later (not 308)', async () => {
     const list = await redirects();
