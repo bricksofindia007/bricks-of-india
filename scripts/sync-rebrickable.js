@@ -47,13 +47,18 @@ function sleep(ms) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
+// Every Rebrickable request (page and theme) waits for this pacer, set up in run(). Bursts of theme lookups
+// between pages were what triggered the 429s (run 42633246866, page 27).
+let pace = async () => {};
+
 /** Fetch with exponential backoff on 429. */
 async function fetchWithRetry(url, options = {}, retries = 3) {
   for (let attempt = 0; attempt <= retries; attempt++) {
+    await pace();
     const res = await fetch(url, options);
     if (res.status === 429) {
       const delay = 2000 * Math.pow(2, attempt); // 2 s, 4 s, 8 s
-      console.warn(`[RB] 429 rate limit — retry in ${delay}ms (attempt ${attempt + 1}/${retries})`);
+      console.warn(`[RB] 429 rate limit — retry in ${delay}ms (attempt ${attempt + 1}/${retries + 1})`);
       await sleep(delay);
       continue;
     }
@@ -205,45 +210,31 @@ async function run() {
   console.log('🧱 Syncing LEGO sets from Rebrickable (full catalogue — no year filter, no page cap)');
   console.log(`   Started: ${new Date().toISOString()}\n`);
 
-  let synced = 0;
-  let failed = 0;
-  let deduped = 0;
-  let pageNum = 1;
-  let nextUrl = `${BASE_URL}/sets/?page_size=1000&ordering=-year`;
+  // Page loop lives in lib/rebrickable-pages.mjs: a page failure or an incomplete run throws (exit 1).
+  const { createPacer, paginateCatalogue } = await import('./lib/rebrickable-pages.mjs');
+  pace = createPacer(1100); // Rebrickable ~1 req/s free-tier limit, applied to every request
 
-  while (nextUrl) {
-    let data;
-    try {
-      const res = await fetchWithRetry(nextUrl, {
+  const totals = await paginateCatalogue({
+    firstUrl: `${BASE_URL}/sets/?page_size=1000&ordering=-year`,
+    fetchPage: async (url) => {
+      const res = await fetchWithRetry(url, {
         headers: { Authorization: `key ${REBRICKABLE_API_KEY}` },
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      data = await res.json();
-    } catch (err) {
-      console.error(`[RB] Page ${pageNum} fetch failed: ${err.message} — stopping pagination`);
-      break;
-    }
-
-    const results = data?.results ?? [];
-    if (results.length === 0) break;
-
-    // Batch upsert entire page in one Supabase call
-    const result = await upsertPage(results);
-    synced  += result.synced;
-    failed  += result.failed;
-    deduped += result.deduped;
-
-    const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
-    console.log(
-      `  Page ${pageNum}: ${results.length} entries, ${result.synced} unique — ` +
-      `running total: ${synced} synced, ${deduped} deduped, ${failed} failed (${elapsed}s elapsed)`,
-    );
-
-    nextUrl = data.next ?? null;
-    pageNum++;
-
-    if (nextUrl) await sleep(1100); // Respect Rebrickable ~1 req/s free-tier limit
-  }
+      return res.json();
+    },
+    upsertPage, // one Supabase call per page
+    log: (pageNum, entries, result, running) => {
+      const elapsed = ((Date.now() - startTime) / 1000).toFixed(0);
+      console.log(
+        `  Page ${pageNum}: ${entries} entries, ${result.synced} unique — ` +
+        `running total: ${running.synced} synced, ${running.deduped} deduped, ${running.failed} failed (${elapsed}s elapsed)`,
+      );
+    },
+  });
+  const synced = totals.synced;
+  const failed = totals.failed;
+  const deduped = totals.deduped;
 
   const elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
   console.log(`\n[SYNC] Complete — ${synced} unique rows upserted, ${deduped} deduped, ${failed} failed in ${elapsed}s`);
