@@ -3,7 +3,7 @@
 //
 // Causes (rule 6: one email per root cause):
 //   'social-weekly-run'      the weekly social post (social-automation.yml) did not run on time, or its last run failed or timed out
-//   'social-posting-stopped' the weekly run happens, but Instagram or YouTube has not posted for more than 120 hours
+//   'social-posting-stopped' the weekly run happens, but Instagram or YouTube has not posted for more than 192 hours (a week plus a day)
 //
 // Wording (rule 1 and the alert standard): when a run happened, say "timed out" or "failed", never "not attempting".
 // The weekly job is named as the weekly social post; the daily video pipeline posts to both channels too, so it is not named here.
@@ -12,7 +12,7 @@
 export const SOCIAL_WORKFLOW = 'social-automation.yml';
 export const SOCIAL_WEEKLY_CRON = '30 6 * * 1';
 export const SOCIAL_WEEKLY_MAX_HOURS = 7 * 24 + 24; // 192
-export const SOCIAL_SUCCESS_MAX_HOURS = 120;
+export const SOCIAL_SUCCESS_MAX_HOURS = SOCIAL_WEEKLY_MAX_HOURS; // 192: a channel with no successful post for a week plus a day
 
 /** Pure: true when a cron expression is weekly (one day of week, fixed time). */
 export function isWeeklyCron(cron) {

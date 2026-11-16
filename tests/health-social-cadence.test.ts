@@ -1,5 +1,5 @@
 // The social posting run is weekly (social-automation.yml: Mondays 12:00 IST). The health check's attempt limit for the
-// Instagram and YouTube pipelines is one week plus one day. The 120-hour success limits are unchanged.
+// Instagram and YouTube pipelines is one week plus one day. The success limits use SOCIAL_SUCCESS_MAX_HOURS (192 hours).
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -33,8 +33,9 @@ describe('social attempt limit in the health check', () => {
     expect(alerts).not.toMatch(/runs daily/);
     expect(alerts).toMatch(/export const SOCIAL_WEEKLY_MAX_HOURS = 7 \* 24 \+ 24;/);
   });
-  it('the 120-hour success limits are unchanged', () => {
-    expect(src).toMatch(/if \(igSuccessAge > 120\)/);
-    expect(src).toMatch(/if \(successAge > 120\)/);
+  it('the success limits use SOCIAL_SUCCESS_MAX_HOURS, not a literal', () => {
+    expect(src).toMatch(/if \(igSuccessAge > SOCIAL_SUCCESS_MAX_HOURS\)/);
+    expect(src).toMatch(/if \(successAge > SOCIAL_SUCCESS_MAX_HOURS\)/);
+    expect(src).not.toMatch(/Age > 120\)/);
   });
 });
