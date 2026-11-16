@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js';
 import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
+import { waitingCutoffIso, knownIssueRows, WAITING_DAYS } from './lib/brief-known-issues.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 try {
