@@ -12,11 +12,11 @@ const flagsTs = read('src/lib/feature-flags.ts');
 const flagsPy = read('config/feature_flags.py');
 
 describe('release 2: guest hearts switch', () => {
-  it('the app switch for hearts is on', () => {
-    expect(flagsTs).toMatch(/^\s*myCollectionHearts: true,/m);
+  it('the app switch for hearts is off (every new release-2 feature ships off)', () => {
+    expect(flagsTs).toMatch(/^\s*myCollectionHearts: false,/m);
   });
-  it('the config mirror for hearts is on, in sync with the app switch', () => {
-    expect(flagsPy).toMatch(/"my_collection_hearts": True,/);
+  it('the config mirror for hearts is off, in sync with the app switch', () => {
+    expect(flagsPy).toMatch(/"my_collection_hearts": False,/);
   });
   it('My Collection page and accounts stay off, in both files', () => {
     expect(flagsTs).toMatch(/^\s*myCollectionPage: false,/m);
