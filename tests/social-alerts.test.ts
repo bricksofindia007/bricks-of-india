@@ -43,7 +43,7 @@ describe('one email per cause, and real failures always email', () => {
     expect(causes[0].subject).toContain('timed out');
     expect(alertDecision(causes[0], [], {}).emit).toBe(true);
   });
-  it('posting stopped (weekly run on time, a channel quiet for 120 hours) emails', () => {
+  it('posting stopped (weekly run on time, a channel quiet for 200 hours, past the 192-hour limit) emails', () => {
     const causes = socialCauses({ ig: quiet, yt: fresh, workflow: okWorkflow });
     expect(causes.map((c) => c.key)).toEqual(['social-posting-stopped']);
     expect(causes[0].body).toContain('Instagram');
@@ -81,8 +81,8 @@ describe('wording: a run that happened is "timed out" or "failed", never "not at
     expect(c.body).toContain('Visitors affected: not known.');
     expect(c.body).toContain('Owner action: yes');
   });
-  it('the posting-stopped threshold is 120 hours', () => {
-    expect(SOCIAL_SUCCESS_MAX_HOURS).toBe(120);
+  it('the posting-stopped threshold is 192 hours (a week plus a day)', () => {
+    expect(SOCIAL_SUCCESS_MAX_HOURS).toBe(192);
   });
 });
 

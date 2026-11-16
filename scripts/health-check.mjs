@@ -9,7 +9,7 @@ import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { estimateCycleUsage, EGRESS_QUOTA_GB, LOG_INGEST_QUOTA_GB } from './lib/capacity-estimate.mjs';
 import { sendAlert } from './lib/alert.mjs';
-import { socialCauses, alertDecision, SOCIAL_WORKFLOW } from './lib/social-alerts.mjs';
+import { socialCauses, alertDecision, SOCIAL_WORKFLOW, SOCIAL_SUCCESS_MAX_HOURS } from './lib/social-alerts.mjs';
 import { zeroArticleAlert } from './lib/zero-article.mjs';
 import { LIMITS } from './lib/quota-guard.mjs';
 
@@ -236,7 +236,7 @@ const social = { ig: null, yt: null, workflow: null };
 // uses for YouTube -- real success/failure signal instead of a guessed date.
 // Primary alert  (192h): last_attempt_at stale -> workflow itself hasn't run. The workflow runs weekly, Mondays 12:00 IST
 // (social-automation.yml), so the limit is one week plus one day.
-// Secondary alert (120h): last_success_at stale -> workflow runs but IG never succeeds.
+// Secondary alert (SOCIAL_SUCCESS_MAX_HOURS, 192h): last_success_at stale -> workflow runs but IG never succeeds.
 // Widened from 72h to 120h 2026-07-26: live posted_sets history showed real,
 // non-failure gaps up to 71.9h between eligible sets (the ~7-of-17-days gate),
 // putting 72h at risk of the same false-positive shape Check 4 had. 120h gives
@@ -270,7 +270,7 @@ try {
     } else if (igHb.last_success_at) {
       const igSuccessAge = social.ig.successAgeH;
       console.log(`[6] Instagram heartbeat: last success ${igSuccessAge.toFixed(1)}h ago`);
-      if (igSuccessAge > 120) {
+      if (igSuccessAge > SOCIAL_SUCCESS_MAX_HOURS) {
         failures.push('ig-heartbeat-no-success');
       }
     } else {
@@ -341,7 +341,7 @@ try {
 
 // ── Check 6c: YouTube heartbeat ──────────────────────────────────────────────
 // Primary alert  (192h): last_attempt_at stale → workflow itself hasn't run. Weekly run (Mondays 12:00 IST), one week plus one day.
-// Secondary alert (120h): last_success_at stale → workflow runs but YouTube never succeeds.
+// Secondary alert (SOCIAL_SUCCESS_MAX_HOURS, 192h): last_success_at stale → workflow runs but YouTube never succeeds.
 // Widened from 72h to 120h 2026-07-26 -- same false-positive shape as Check 4
 // (shared eligibility-gated posting cadence with Instagram), see Check 6 note.
 try {
@@ -372,7 +372,7 @@ try {
     } else if (hb.last_success_at) {
       const successAge = social.yt.successAgeH;
       console.log(`[6c] YouTube heartbeat: last success ${successAge.toFixed(1)}h ago`);
-      if (successAge > 120) {
+      if (successAge > SOCIAL_SUCCESS_MAX_HOURS) {
         failures.push('yt-heartbeat-no-success');
       }
     } else {
