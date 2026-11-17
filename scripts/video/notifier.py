@@ -368,3 +368,15 @@ def send_stuck_rendered_alert(pipeline_label: str, stuck_rows: list[dict]) -> No
     except Exception as exc:
         print(f'[notifier] Failed to send stuck-rendered alert: {exc}')
         raise
+
+def send_slot_no_post(alert) -> None:
+    """Planned-slot alert (no post after the slot's wait). One email per slot. Text comes from slot_coverage.decide()."""
+    import html as _html
+    body = ''.join(f'<p>{_html.escape(line)}</p>' for line in alert.body_lines)
+    page = (f'<h2>{_html.escape(alert.subject)}</h2>{body}<hr>'
+            '<p style="color:#888;font-size:12px;">Bricks of India, bricksofindia.com, slot coverage</p>')
+    try:
+        _send(alert.subject, page)
+    except Exception as exc:
+        print(f'[notifier] Failed to send slot alert: {exc}')
+        raise

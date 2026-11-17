@@ -17,6 +17,9 @@ on:
       - 'scripts/video/publish.py'
       - 'scripts/video/engine.py'
       - 'scripts/video/missed_slot_watchdog.py'
+      - 'scripts/video/slot_coverage.py'
+      - 'scripts/video/slot_coverage_db.py'
+      - 'scripts/video/test_slot_coverage.py'
       - '.github/workflows/video-cadence-tests.yml'
       - 'scripts/video/coherence_judge.py'
       - 'scripts/video/test_coherence_judge.py'
@@ -50,6 +53,10 @@ jobs:
       - name: Run cadence unit tests
         working-directory: scripts/video
         run: python -m unittest test_cadence test_cadence_mwf -v
+
+      - name: Run slot coverage unit tests
+        working-directory: scripts/video
+        run: python -m unittest test_slot_coverage -v
 
       - name: Run coherence judge unit tests (#365, fail-closed)
         working-directory: scripts/video
