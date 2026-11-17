@@ -16,6 +16,10 @@ on:
     - cron: '30 0 * * 0,3,5'   # VID-P4 posting days: Wed/Fri/Sun, 06:00 IST
   workflow_dispatch:  # manual trigger for testing
     inputs:
+      source:
+        description: 'Set by the scheduler Worker; leave empty for a manual run (the same-day guard applies only to scheduled and Worker runs)'
+        required: false
+        type: string
       rerender_id:
         description: 'OPTIONAL: video_posts.id to re-render in place (re-sanitized script, fresh TTS, fresh Whisper captions, new badge -- same storage_url, status/story_number/id untouched). Leave blank for the normal daily --cloud-generate run. engine.py --rerender already existed for this; this input just gives it a cloud path, since VID-P4 has no local render environment (Stage 2 cloud pivot, 2026-07-06).'
         required: false
@@ -35,9 +39,29 @@ jobs:
       needs: 'read,write,upload'
     secrets: inherit
 
-  generate:
+  same-day:
     needs: [quota-gate]
     if: needs.quota-gate.outputs.proceed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/ci/same-day-guard.mjs video-generate-daily.yml "$GITHUB_RUN_ID" "${{ github.event_name }}" "${{ inputs.source }}" >> "$GITHUB_OUTPUT"
+
+  generate:
+    needs: [quota-gate, same-day]
+    if: needs.quota-gate.outputs.proceed == 'true' && needs.same-day.outputs.run == 'true'
     runs-on: ubuntu-24.04
     env:
       G19_TERMS: ${{ secrets.G19_TERMS }}  # G19 term list (never in the repo); gates fail closed without it

@@ -41,6 +41,32 @@ export const VIDEO_DISPATCH: Record<string, { file: string; name: string }> = {
 };
 
 /**
+ * One grid cron for the scheduled workflows below: every listed minute of the listed hours (UTC). The handler does not
+ * dispatch for the grid times that are not in the table; it matches the event's time to the table (order 1060).
+ */
+export const GRID_CRON = '25,30,40 0-3,17 * * *';
+
+/**
+ * The workflows the Worker dispatches at their current GitHub times (order 1060). Days are day names (ALL = every day).
+ * `inputs` must be inputs the workflow declares (GitHub refuses unknown inputs). `source: worker` lets the workflow's
+ * same-day guard tell a Worker dispatch from a manual run.
+ */
+export interface ScheduledWorkflow { days: string; time: string; file: string; name: string; inputs: Record<string, string> }
+export const SCHEDULED_WORKFLOWS: ScheduledWorkflow[] = [
+  { days: 'SUN,WED,FRI', time: '00:30', file: 'video-generate-daily.yml', name: 'vid-p4-generate', inputs: { source: 'worker' } },
+  { days: 'TUE,THU,SAT', time: '03:30', file: 'video-generate-quiet-panic.yml', name: 'vid-qp-generate', inputs: { source: 'worker' } },
+  { days: 'ALL', time: '17:30', file: 'radar.yml', name: 'radar', inputs: {} },
+  { days: 'ALL', time: '02:30', file: 'health-check.yml', name: 'health-check', inputs: {} },
+  { days: 'ALL', time: '01:30', file: 'brief.yml', name: 'morning-brief', inputs: { source: 'worker' } },
+  { days: 'ALL', time: '03:25', file: 'video-pending-approval-digest.yml', name: 'pending-digest', inputs: { source: 'worker' } },
+  { days: 'ALL', time: '02:40', file: 'migration-parity.yml', name: 'migration-parity', inputs: {} },
+];
+const SCHED_KEY_PREFIX = 'sched:';
+const SCHED_BY_KEY: Record<string, ScheduledWorkflow> = Object.fromEntries(
+  SCHEDULED_WORKFLOWS.map((w, i) => [`${SCHED_KEY_PREFIX}${i}`, w]),
+);
+
+/**
  * Asks GitHub to run one workflow on main. Returns the final HTTP status, or 0 when the gate is closed.
  * `waits` are the pauses before each attempt (the scrape uses 0, 30 and 90 seconds). Tests pass zeros.
  */
@@ -103,6 +129,15 @@ export const TIME_INDEX: Record<string, string> = (() => {
       index[k] = cron;
     }
   }
+  SCHEDULED_WORKFLOWS.forEach((w, i) => {
+    const [hour, minute] = w.time.split(':').map(Number);
+    const days = w.days === 'ALL' ? [0, 1, 2, 3, 4, 5, 6] : cronDays(w.days);
+    for (const day of days) {
+      const k = `${day} ${hour} ${minute}`;
+      if (has(index, k)) throw new Error(`two entries fire at the same time: ${index[k]} and ${SCHED_KEY_PREFIX}${i}`);
+      index[k] = `${SCHED_KEY_PREFIX}${i}`;
+    }
+  });
   return index;
 })();
 
@@ -130,14 +165,19 @@ export function planScheduled(cron: string, scheduledMs: number, ownCrons: reado
   match: 'exact' | 'fallback' | 'none';
   resolved_cron: string | null;
   store: string | null;
-  video: { file: string; name: string } | null;
+  video: { file: string; name: string; inputs: Record<string, string> } | null;
 } {
   const r = resolveCron(cron, scheduledMs, ownCrons);
   if (!r.key) return { match: r.match, resolved_cron: null, store: null, video: null };
+  if (has(SCHED_BY_KEY, r.key)) {
+    const w = SCHED_BY_KEY[r.key];
+    return { match: r.match, resolved_cron: `workflow ${w.file} ${w.days} ${w.time} UTC`, store: null,
+      video: { file: w.file, name: w.name, inputs: w.inputs } };
+  }
   return {
     match: r.match,
     resolved_cron: r.key,
     store: has(SCRAPE_STORE_BY_CRON, r.key) ? SCRAPE_STORE_BY_CRON[r.key] : null,
-    video: has(VIDEO_DISPATCH, r.key) ? VIDEO_DISPATCH[r.key] : null,
+    video: has(VIDEO_DISPATCH, r.key) ? { ...VIDEO_DISPATCH[r.key], inputs: {} } : null,
   };
 }

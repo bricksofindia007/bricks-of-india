@@ -15,7 +15,12 @@ name: VID Pending-Approval Digest
 on:
   schedule:
     - cron: '25 3 * * *'  # 03:25 UTC = 08:55 IST
-  workflow_dispatch:  # manual trigger for testing
+  workflow_dispatch:
+    inputs:
+      source:
+        description: 'Set by the scheduler Worker; leave empty for a manual run (the same-day guard applies only to scheduled and Worker runs)'
+        required: false
+        type: string
 
 jobs:
   # FP6.4 quota gate (P4 Step 2): non-essential workflow -- pauses when a
@@ -31,9 +36,29 @@ jobs:
       needs: 'read'
     secrets: inherit
 
-  digest:
+  same-day:
     needs: [quota-gate]
     if: needs.quota-gate.outputs.proceed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/ci/same-day-guard.mjs video-pending-approval-digest.yml "$GITHUB_RUN_ID" "${{ github.event_name }}" "${{ inputs.source }}" >> "$GITHUB_OUTPUT"
+
+  digest:
+    needs: [quota-gate, same-day]
+    if: needs.quota-gate.outputs.proceed == 'true' && needs.same-day.outputs.run == 'true'
     runs-on: ubuntu-24.04
     # No prior runs to measure yet -- same class of small, boundable
     # workload as video-rejection-reminder.yml (two simple selects + one

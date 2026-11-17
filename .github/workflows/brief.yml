@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: '30 1 * * *'  # 01:30 UTC = 07:00 IST
   workflow_dispatch:
+    inputs:
+      source:
+        description: 'Set by the scheduler Worker; leave empty for a manual run (the same-day guard applies only to scheduled and Worker runs)'
+        required: false
+        type: string
 
 jobs:
   # FP6.4 quota gate (P4 Step 2): non-essential workflow -- pauses when a
@@ -19,9 +24,29 @@ jobs:
       needs: 'read'
     secrets: inherit
 
-  brief:
+  same-day:
     needs: [quota-gate]
     if: needs.quota-gate.outputs.proceed == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      run: ${{ steps.check.outputs.run }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: node scripts/ci/same-day-guard.mjs brief.yml "$GITHUB_RUN_ID" "${{ github.event_name }}" "${{ inputs.source }}" >> "$GITHUB_OUTPUT"
+
+  brief:
+    needs: [quota-gate, same-day]
+    if: needs.quota-gate.outputs.proceed == 'true' && needs.same-day.outputs.run == 'true'
     name: Send daily morning brief
     runs-on: ubuntu-24.04
     timeout-minutes: 5

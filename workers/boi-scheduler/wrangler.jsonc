@@ -16,7 +16,9 @@
   // Video publish pollers at their slot times (dispatch.ts). Day names, because Cloudflare numbers the days 1 = Sunday to
   // 7 = Saturday (cron syntax, developers.cloudflare.com/workers/configuration/cron-triggers/), so 0 is rejected and 1,3,5
   // would mean Sun, Tue, Thu. VID-P4 SUN,WED,FRI 14:05 and 15:05 UTC; VID-QP MON,WED,FRI 18:35 and 19:35 UTC.
-  "triggers": { "crons": ["0 3 * * *", "5 3 * * *", "5 14 * * SUN,WED,FRI", "5 15 * * SUN,WED,FRI", "35 18 * * MON,WED,FRI", "35 19 * * MON,WED,FRI"] },
+  // Order 1060: one grid cron for the scheduled workflows (video generation, morning brief, digest, health check, radar,
+  // migration parity), at their current GitHub times. The handler matches each event's time to the table in dispatch.ts.
+  "triggers": { "crons": ["0 3 * * *", "5 3 * * *", "5 14 * * SUN,WED,FRI", "5 15 * * SUN,WED,FRI", "35 18 * * MON,WED,FRI", "35 19 * * MON,WED,FRI", "25,30,40 0-3,17 * * *"] },
   "env": {
     "staging": {
       "name": "boi-scheduler-staging",

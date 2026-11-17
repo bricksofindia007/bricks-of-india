@@ -2,7 +2,7 @@ import { describe, it, expect, vi, afterEach } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse as parseYaml } from 'yaml';
-import { VIDEO_DISPATCH, SCRAPE_STORE_BY_CRON, TIME_INDEX, dispatchWorkflow, resolveCron, planScheduled } from '../workers/boi-scheduler/src/dispatch';
+import { VIDEO_DISPATCH, SCRAPE_STORE_BY_CRON, TIME_INDEX, dispatchWorkflow, resolveCron, planScheduled, GRID_CRON, SCHEDULED_WORKFLOWS } from '../workers/boi-scheduler/src/dispatch';
 
 // Order 0970: the scheduler Worker triggers the two video publish pollers at their slot times, and once more an hour later.
 
@@ -83,10 +83,31 @@ afterEach(() => {
 });
 
 describe('production crons match the dispatch table (order 0970)', () => {
-  it('the production triggers are the two scrape crons plus exactly the video dispatch crons', () => {
+  it('the production triggers are the two scrape crons, the video dispatch crons, and the one grid cron (order 1060)', () => {
     const crons = [...wrangler.triggers.crons].sort();
-    const expected = [...SCRAPE_CRONS, ...Object.keys(VIDEO_DISPATCH)].sort();
+    const expected = [...SCRAPE_CRONS, ...Object.keys(VIDEO_DISPATCH), GRID_CRON].sort();
     expect(crons).toEqual(expected);
+    expect(crons.filter((c) => c === GRID_CRON)).toHaveLength(1);
+  });
+
+  it('every scheduled workflow in the grid is a workflow file on main, takes a manual dispatch, and declares each input the Worker sends (order 1060)', () => {
+    for (const w of SCHEDULED_WORKFLOWS) {
+      const path = `.github/workflows/${w.file}`;
+      expect(existsSync(join(root, path)), path).toBe(true);
+      const doc = parseYaml(read(path)) as { on: { workflow_dispatch?: { inputs?: Record<string, unknown> } | null } };
+      expect(doc.on, path).toHaveProperty('workflow_dispatch');
+      const declared = Object.keys((doc.on.workflow_dispatch && doc.on.workflow_dispatch.inputs) || {});
+      for (const key of Object.keys(w.inputs)) expect(declared, `${path} input ${key}`).toContain(key);
+    }
+  });
+
+  it('the grid cron fires at every scheduled time, in day names or as a plain grid, and never uses day 0 (order 1060)', () => {
+    for (const w of SCHEDULED_WORKFLOWS) {
+      const [h, m] = w.time.split(':').map(Number);
+      expect(GRID_CRON.split(' ')[0].split(',').map(Number)).toContain(m);
+      expect(GRID_CRON.split(' ')[1].split(',').flatMap((r) => { const [a, b] = r.split('-').map(Number); return b === undefined ? [a] : Array.from({ length: b - a + 1 }, (_, i) => a + i); })).toContain(h);
+    }
+    expect(cronProblems(GRID_CRON)).toEqual([]);
   });
 
   it('staging triggers are unchanged by this work (no video dispatch on staging)', () => {
@@ -205,7 +226,7 @@ describe('dispatch gate and retry (order 0970)', () => {
 
 describe('cron strings use Cloudflare day syntax (order 0990)', () => {
   const productionCrons: string[] = wrangler.triggers.crons;
-  const videoCrons = productionCrons.filter((c) => !SCRAPE_CRONS.includes(c));
+  const videoCrons = productionCrons.filter((c) => !SCRAPE_CRONS.includes(c) && c !== GRID_CRON);
 
   it('the validator rejects day 0 and out-of-range or unknown day names, and accepts the day-name form', () => {
     expect(cronProblems('5 14 * * 0,3,5')).toEqual([expect.stringMatching(/day-of-week 0 is not a day/)]);
@@ -267,7 +288,8 @@ describe('cron resolution: exact text first, then the scheduled time (order 1000
   });
 
   it('the time index has one entry per weekday for each configured time', () => {
-    expect(Object.keys(TIME_INDEX).length).toBe(2 * 7 + 2 * 3 + 2 * 3);
+    // scrape 2 x 7 days; VID-P4 2 x 3; VID-QP 2 x 3; scheduled workflows: 2 day-limited (3 each) and 5 daily (7 each)
+    expect(Object.keys(TIME_INDEX).length).toBe(2 * 7 + 2 * 3 + 2 * 3 + 3 + 3 + 5 * 7);
     expect(Object.keys(SCRAPE_STORE_BY_CRON).length).toBe(2);
   });
 });
@@ -275,14 +297,14 @@ describe('cron resolution: exact text first, then the scheduled time (order 1000
 describe('planScheduled: what each event dispatches and what the heartbeat records (order 1000)', () => {
   it('exact path: a video cron text plans its entry, with the match recorded as exact', () => {
     const p = planScheduled('5 14 * * SUN,WED,FRI', SUN_1405);
-    expect(p).toEqual({ match: 'exact', resolved_cron: '5 14 * * SUN,WED,FRI', store: null, video: { file: 'video-publish-poller.yml', name: 'vidp4-slot' } });
+    expect(p).toEqual({ match: 'exact', resolved_cron: '5 14 * * SUN,WED,FRI', store: null, video: { file: 'video-publish-poller.yml', name: 'vidp4-slot', inputs: {} } });
   });
 
   it('fallback path: an unknown cron text at a video time plans that entry, and says the fallback was used', () => {
     const p = planScheduled('5 14 * * 1,4', SUN_1405);
     expect(p.match).toBe('fallback');
     expect(p.resolved_cron).toBe('5 14 * * SUN,WED,FRI');
-    expect(p.video).toEqual({ file: 'video-publish-poller.yml', name: 'vidp4-slot' });
+    expect(p.video).toEqual({ file: 'video-publish-poller.yml', name: 'vidp4-slot', inputs: {} });
     expect(p.store).toBeNull();
   });
 
@@ -317,5 +339,38 @@ describe('own crons never fall back to the time table (order 1010)', () => {
     expect(read('workers/boi-scheduler/src/freshness.ts')).toContain(`FRESHNESS_CRON = '${OWN_CRONS[0]}'`);
     expect(read('workers/boi-scheduler/src/keepalive.ts')).toContain(`KEEPALIVE_CRON = '${OWN_CRONS[1]}'`);
     expect(read('workers/boi-scheduler/src/loadgen.ts')).toContain(`LOADGEN_CRON = '${OWN_CRONS[2]}'`);
+  });
+});
+
+// Order 1060: the scheduled workflows are dispatched by the grid cron through the time table (the same fallback).
+// Dates used: 8 Nov 2026 Sunday, 9 Nov Monday, 10 Nov Tuesday, 11 Nov Wednesday (UTC).
+describe('scheduled workflows through the grid cron (order 1060)', () => {
+  const GRID = GRID_CRON;
+  const at = (d: number, h: number, m: number) => Date.UTC(2026, 10, d, h, m);
+
+  it('the video generator runs at 00:30 UTC on Sunday, Wednesday and Friday, with the worker source input', () => {
+    const p = planScheduled(GRID, at(8, 0, 30));
+    expect(p.match).toBe('fallback');
+    expect(p.video).toEqual({ file: 'video-generate-daily.yml', name: 'vid-p4-generate', inputs: { source: 'worker' } });
+    expect(planScheduled(GRID, at(11, 0, 30)).video?.file).toBe('video-generate-daily.yml');
+    expect(planScheduled(GRID, at(9, 0, 30)).match).toBe('none'); // Monday: not a generation day
+  });
+
+  it('the Quiet Panic generator runs at 03:30 UTC on Tuesday, Thursday and Saturday', () => {
+    expect(planScheduled(GRID, at(10, 3, 30)).video?.file).toBe('video-generate-quiet-panic.yml');
+    expect(planScheduled(GRID, at(9, 3, 30)).match).toBe('none'); // Monday
+  });
+
+  it('the daily workflows run at their own times every day, with no inputs for radar, health check and migration parity', () => {
+    expect(planScheduled(GRID, at(9, 17, 30)).video).toEqual({ file: 'radar.yml', name: 'radar', inputs: {} });
+    expect(planScheduled(GRID, at(9, 2, 30)).video?.file).toBe('health-check.yml');
+    expect(planScheduled(GRID, at(9, 2, 40)).video?.file).toBe('migration-parity.yml');
+    expect(planScheduled(GRID, at(9, 1, 30)).video).toEqual({ file: 'brief.yml', name: 'morning-brief', inputs: { source: 'worker' } });
+    expect(planScheduled(GRID, at(9, 3, 25)).video?.file).toBe('video-pending-approval-digest.yml');
+  });
+
+  it('a grid time that no entry uses does nothing (for example 00:40 and 17:25)', () => {
+    expect(planScheduled(GRID, at(9, 0, 40))).toEqual({ match: 'none', resolved_cron: null, store: null, video: null });
+    expect(planScheduled(GRID, at(9, 17, 25)).match).toBe('none');
   });
 });

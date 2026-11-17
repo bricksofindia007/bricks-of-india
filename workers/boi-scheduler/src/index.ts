@@ -85,7 +85,7 @@ export default {
     }));
     if (plan.store) ctx.waitUntil(dispatch(env, plan.store, slot));
     // Video publish pollers at their slot times, and once more an hour later (order 0970).
-    if (plan.video) ctx.waitUntil(dispatchWorkflow(env, plan.video.file, {}, plan.video.name, slot));
+    if (plan.video) ctx.waitUntil(dispatchWorkflow(env, plan.video.file, plan.video.inputs, plan.video.name, slot));
     // Freshness watchdog (23 Oct 2026): staging first; the Actions copy stays until the Worker run is proven.
     if (ev.cron === FRESHNESS_CRON) {
       const fe = env as unknown as FreshnessEnv;
