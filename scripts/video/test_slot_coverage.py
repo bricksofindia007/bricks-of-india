@@ -113,5 +113,66 @@ class ReplayOfRealSlots(unittest.TestCase):
                 self.assertEqual(got, expected)
 
 
+class BlockedRowWithoutAttempt(unittest.TestCase):
+    """Order 1897 1a: a blocked row with no logged publish attempt is named, not 'reason not recorded'."""
+
+    def test_names_the_row_and_says_no_attempt_was_logged(self):
+        facts = sc.Facts(blocked=[{'row_number': 51, 'status': 'publish_blocked', 'reason': None}])
+        a = sc.decide('VID-QP', ist(2026, 11, 12, 0, 0), utc(ist(2026, 11, 12, 18, 0)), facts)
+        text = '\n'.join(a.body_lines)
+        self.assertEqual(a.kind, 'blocked')
+        self.assertIn('#51 (publish_blocked): no publish attempt was logged for this row', text)
+        self.assertNotIn('reason not recorded', text)
+
+
+class ApprovalTiming(unittest.TestCase):
+    """Order 1897 1b: an approved row counts for a slot only if it was approved before that slot was due."""
+
+    slot = ist(2026, 11, 15, 19, 30)            # VID-P4, Sunday 15 Nov
+    check = utc(ist(2026, 11, 16, 8, 0))        # due at 07:30 on 16 Nov
+
+    def test_story_84_approved_on_17_nov_is_not_counted_for_the_15_nov_slot(self):
+        facts = sc.Facts(blocked=[{'row_number': 84, 'status': 'approved', 'reason': None,
+                                   'approved_at': '2026-11-17T04:30:00+00:00'}])
+        a = sc.decide('VID-P4', self.slot, self.check, facts)
+        self.assertEqual(a.kind, 'nothing')
+
+    def test_the_same_row_approved_before_the_due_time_is_counted(self):
+        facts = sc.Facts(blocked=[{'row_number': 84, 'status': 'approved', 'reason': None,
+                                   'approved_at': '2026-11-15T10:00:00+05:30'}])
+        a = sc.decide('VID-P4', self.slot, self.check, facts)
+        self.assertEqual(a.kind, 'blocked')
+
+    def test_an_approved_row_with_no_approved_at_is_counted(self):
+        facts = sc.Facts(blocked=[{'row_number': 81, 'status': 'approved', 'reason': None, 'approved_at': None}])
+        a = sc.decide('VID-P4', self.slot, self.check, facts)
+        self.assertEqual(a.kind, 'blocked')
+
+
+class TwoMissedSlots(unittest.TestCase):
+    """Order 1897 1c: every missed slot in the lookback is checked, one alert per slot, deduplicated per slot."""
+
+    now = utc(ist(2026, 11, 13, 12, 0))   # lookback 6 to 13 Nov: QP slots Sat 7, Tue 10 and Thu 12 are due
+
+    def test_two_missed_slots_each_get_one_alert_and_a_repeat_run_sends_nothing(self):
+        posted_slot = ist(2026, 11, 12, 0, 0)     # Thu 12 Nov: a post went live, so not missed
+        calls = []
+
+        def facts_for(slot, end):
+            calls.append((slot, end))
+            return sc.Facts(posted=[{'id': 1}]) if slot == posted_slot else sc.Facts()
+
+        first = sc.pending_alerts('VID-QP', self.now, facts_for, set())
+        keys = [a.key for a in first]
+        self.assertEqual(keys, ['slot-no-post:VID-QP:2026-11-07 00:00', 'slot-no-post:VID-QP:2026-11-10 00:00'])
+        self.assertEqual(len(set(keys)), 2)
+        # Each slot's posted window ends at the next slot's start: a post on Tue 10 cannot cover Sat 7.
+        end_for_sat = next(end for slot, end in calls if slot == ist(2026, 11, 7, 0, 0))
+        self.assertEqual(end_for_sat, ist(2026, 11, 10, 0, 0))
+
+        second = sc.pending_alerts('VID-QP', self.now, facts_for, set(keys))
+        self.assertEqual(second, [])
+
+
 if __name__ == '__main__':
     unittest.main()
