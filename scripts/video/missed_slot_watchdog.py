@@ -81,6 +81,20 @@ def main() -> int:
         except _DryRunStop:
             stuck = {'pipeline': p.key, 'check': 'stuck_rendered', 'action': 'would_alert (dry-run, nothing recorded)'}
         print(json.dumps(stuck, default=str))
+
+    # Planned-slot check: one email per slot that passed with no post.
+    import slot_coverage_db
+
+    def send_slot(alert):
+        if args.dry_run:
+            print(f'[dry-run] WOULD SEND {alert.subject}')
+            return
+        import notifier
+        notifier.send_slot_no_post(alert)
+
+    for key in ('VID-P4', 'VID-QP', 'SOCIAL'):
+        print(json.dumps(slot_coverage_db.check_and_send(sb, key, now_utc, send_slot, dry_run=args.dry_run),
+                         default=str))
     return 0
 
 
