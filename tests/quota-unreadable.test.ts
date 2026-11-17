@@ -44,6 +44,19 @@ describe('unreadable egress', () => {
     expect(mayReadNonEssential({ egressProjectedGb: r.egressProjectedGb })).toMatchObject({ allowed: false, reason: 'usage-unreadable' });
   });
 
+  it('no saved figure and an unreadable live reading together: egress fails closed and exactly one notice is sent that day', () => {
+    // Empty state (no saved figure) and no live figure, on the same IST day.
+    const first = resolveEgress(null, {}, NOW);
+    expect(first.source).toBe('none');
+    expect(mayReadNonEssential({ egressProjectedGb: first.egressProjectedGb })).toMatchObject({ allowed: false, reason: 'usage-unreadable' });
+    const n1 = takeUnreadableNotice(first.nextState, NOW);
+    expect(n1.send).toBe(true);
+    // A second unreadable run the same IST day, with the state carried forward, sends nothing more.
+    const second = resolveEgress(null, n1.nextState, new Date(NOW.getTime() + 3600e3));
+    expect(second.source).toBe('none');
+    expect(takeUnreadableNotice(second.nextState, new Date(NOW.getTime() + 3600e3)).send).toBe(false);
+  });
+
   it('a last figure 25 hours old is not used: fail closed', () => {
     const state = { lastEgress: { gb: 1.5, at: hoursAgo(25) } };
     const r = resolveEgress(null, state, NOW);
