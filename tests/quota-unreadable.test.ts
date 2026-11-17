@@ -12,7 +12,7 @@ describe('readable egress', () => {
   it('a low reading is used live and remembered', () => {
     const r = resolveEgress(1.2, {}, NOW);
     expect([r.source, r.egressProjectedGb, r.liveUnreadable]).toEqual(['live', 1.2, false]);
-    expect(r.nextState.lastEgress).toEqual({ gb: 1.2, at: NOW.toISOString() });
+    expect((r.nextState as { lastEgress?: unknown }).lastEgress).toEqual({ gb: 1.2, at: NOW.toISOString() });
     expect(mayReadNonEssential({ egressProjectedGb: r.egressProjectedGb })).toMatchObject({ allowed: true, level: 'ok' });
   });
 
