@@ -55,6 +55,14 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci --ignore-scripts
+      # Small state file (last egress figure, notice day). Restored from the most
+      # recent run's cache; a miss only means no last figure and a possible repeat notice.
+      - uses: actions/cache@v4
+        with:
+          path: .quota-state
+          key: quota-state-${{ inputs.job }}-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            quota-state-
       - id: gate
         name: Evaluate quota guards
         env:
@@ -64,4 +72,5 @@ jobs:
           BRIEF_EMAIL:               ${{ secrets.BRIEF_EMAIL }}
           GITHUB_TOKEN:              ${{ github.token }}
           BOI_QUOTA_SIMULATE:        ${{ inputs.simulate }}
+          QUOTA_STATE_FILE:          .quota-state/state.json
         run: node scripts/quota-gate.mjs --job "${{ inputs.job }}" --needs "${{ inputs.needs }}"
