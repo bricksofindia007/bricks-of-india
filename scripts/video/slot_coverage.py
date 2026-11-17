@@ -174,13 +174,18 @@ def decide(key: str, slot_start: datetime, now_utc: datetime, facts: Facts) -> A
 
 def pending_alerts(key: str, now_utc: datetime,
                    facts_for: Callable[[datetime, datetime], Facts],
-                   already: set) -> list[Alert]:
+                   already: set, watch_from: datetime) -> list[Alert]:
     """Every missed slot in the lookback that has no alert yet, one alert per slot.
 
+    watch_from is the watchdog's first enabled run. A slot is judged only if it fell due after
+    that moment; slots due before it never alert (Chat decision, order 1898).
     facts_for(slot_start, window_end) returns the facts for that slot. `already` holds the
     dedupe keys of alerts sent before. Nothing is recorded here: the caller does that."""
     out = []
+    watch = watch_from.astimezone(IST)
     for slot in due_slots(key, now_utc):
+        if due_at(key, slot) <= watch:
+            continue
         end = window_end(key, slot, now_utc)
         alert = decide(key, slot, now_utc, facts_for(slot, end))
         if alert is None or alert.key in already:

@@ -72,6 +72,26 @@ def already_alerted_keys(sb, lookback_start: datetime) -> set:
     return {r['detail'] for r in rows if r.get('detail')}
 
 
+WATCH_KIND = 'slot_watch_start'
+
+
+def first_run_marker(sb, now_utc: datetime, dry_run: bool = False) -> datetime:
+    """When the watchdog first ran for real. Slots due before it never alert (order 1898).
+
+    The marker is one publish_attempts row (kind slot_watch_start), written by the first real run.
+    A dry run never writes it: with no marker yet, a dry run judges slots from its own time."""
+    rows = (sb.table('publish_attempts').select('attempted_at').eq('kind', WATCH_KIND)
+            .order('attempted_at').limit(1).execute().data or [])
+    if rows:
+        return sc._parse_ts(rows[0]['attempted_at'])
+    if not dry_run:
+        sb.table('publish_attempts').insert({
+            'pipeline': 'watch', 'kind': WATCH_KIND, 'outcome': 'started',
+            'detail': 'first enabled run of the missed-slot watchdog', 'attempted_at': now_utc.isoformat(),
+        }).execute()
+    return now_utc
+
+
 def check_and_send(sb, key: str, now_utc: datetime, send, dry_run: bool = False) -> list:
     """Judge every missed slot in the lookback for `key`. Calls send(alert) once per slot not yet alerted.
 
@@ -80,12 +100,13 @@ def check_and_send(sb, key: str, now_utc: datetime, send, dry_run: bool = False)
     """
     lookback_start = now_utc - timedelta(days=sc.LOOKBACK_DAYS)
     already = already_alerted_keys(sb, lookback_start)
+    watch_from = first_run_marker(sb, now_utc, dry_run)
 
     def facts_for(slot, end):
         return load_facts(sb, key, slot, end, lookback_start, now_utc)
 
     results = []
-    for alert in sc.pending_alerts(key, now_utc, facts_for, already):
+    for alert in sc.pending_alerts(key, now_utc, facts_for, already, watch_from):
         send(alert)
         if dry_run:
             results.append({'pipeline': key, 'key': alert.key,

@@ -162,7 +162,7 @@ class TwoMissedSlots(unittest.TestCase):
             calls.append((slot, end))
             return sc.Facts(posted=[{'id': 1}]) if slot == posted_slot else sc.Facts()
 
-        first = sc.pending_alerts('VID-QP', self.now, facts_for, set())
+        first = sc.pending_alerts('VID-QP', self.now, facts_for, set(), watch_from=utc(ist(2026, 11, 1, 0, 0)))
         keys = [a.key for a in first]
         self.assertEqual(keys, ['slot-no-post:VID-QP:2026-11-07 00:00', 'slot-no-post:VID-QP:2026-11-10 00:00'])
         self.assertEqual(len(set(keys)), 2)
@@ -170,8 +170,36 @@ class TwoMissedSlots(unittest.TestCase):
         end_for_sat = next(end for slot, end in calls if slot == ist(2026, 11, 7, 0, 0))
         self.assertEqual(end_for_sat, ist(2026, 11, 10, 0, 0))
 
-        second = sc.pending_alerts('VID-QP', self.now, facts_for, set(keys))
+        second = sc.pending_alerts('VID-QP', self.now, facts_for, set(keys), watch_from=utc(ist(2026, 11, 1, 0, 0)))
         self.assertEqual(second, [])
+
+
+class FirstRunMarker(unittest.TestCase):
+    """Order 1898: only slots due after the watchdog's first enabled run can alert."""
+
+    now = utc(ist(2026, 11, 13, 12, 0))   # QP slots due in the lookback: Sat 7, Tue 10, Thu 12 (Thu due 18:00 on 12 Nov)
+
+    @staticmethod
+    def nothing(slot, end):
+        return sc.Facts()
+
+    def test_a_slot_due_before_the_first_run_sends_nothing(self):
+        # First run at 12 Nov 19:00 IST: Thu 12 Nov was due at 18:00, before it. All three slots predate the marker.
+        first_run = utc(ist(2026, 11, 12, 19, 0))
+        self.assertEqual(sc.pending_alerts('VID-QP', self.now, self.nothing, set(), watch_from=first_run), [])
+
+    def test_a_slot_due_after_the_first_run_alerts(self):
+        # First run at 11 Nov 12:00 IST: only Thu 12 Nov (due 18:00 on 12 Nov) falls after it.
+        first_run = utc(ist(2026, 11, 11, 12, 0))
+        alerts = sc.pending_alerts('VID-QP', self.now, self.nothing, set(), watch_from=first_run)
+        self.assertEqual([a.key for a in alerts], ['slot-no-post:VID-QP:2026-11-12 00:00'])
+
+    def test_a_repeat_run_after_the_first_run_sends_nothing(self):
+        first_run = utc(ist(2026, 11, 11, 12, 0))
+        first = sc.pending_alerts('VID-QP', self.now, self.nothing, set(), watch_from=first_run)
+        keys = {a.key for a in first}
+        self.assertEqual(len(keys), 1)
+        self.assertEqual(sc.pending_alerts('VID-QP', self.now, self.nothing, keys, watch_from=first_run), [])
 
 
 if __name__ == '__main__':
