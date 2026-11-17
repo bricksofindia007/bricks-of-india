@@ -1,0 +1,21 @@
+name: Quota gate live proof (order 1891, dispatch only)
+
+# Dispatch-only proof: runs the shared gate on a real reading, with no simulation
+# and no cleanup side effect. Used to prove the last-known cache in a real run.
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  actions: write
+
+jobs:
+  gate-live:
+    uses: ./.github/workflows/quota-gate.yml
+    permissions:
+      contents: read
+      actions: write
+    with:
+      job: quota-gate-live-proof
+      needs: 'read'
+    secrets: inherit
