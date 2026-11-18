@@ -26,8 +26,9 @@ MARKER_OUTCOME = 'deferred'
 MARKER_PIPELINE = 'vidp4'
 MARKER_DETAIL = 'slot-watch-start'
 ROW_PLATFORM = None  # empty platform
-# Slot key -> the pipeline value written on its alert row. Social is not in the table's list.
-RECORDABLE = {'VID-P4': 'vidp4', 'VID-QP': 'vidqp'}
+# Slot key -> the pipeline value written on its alert row. The table accepts only vidp4 and vidqp,
+# so the social slot is recorded under vidp4; its detail names the social slot (order 1907).
+RECORDABLE = {'VID-P4': 'vidp4', 'VID-QP': 'vidqp', 'SOCIAL': 'vidp4'}
 
 
 def _tables(key):
@@ -109,10 +110,6 @@ def check_and_send(sb, key: str, now_utc: datetime, send, dry_run: bool = False)
     dry_run: send() is called with each alert, but nothing is recorded (no dedupe row).
     Returns one summary dict per alert (printed by the CLI; never silent).
     """
-    if key not in RECORDABLE:
-        # The table has no pipeline value for this slot, so an alert could not be recorded and a repeat
-        # run would send it again. Nothing is sent and nothing is written (fail honest). Order 1906.
-        return [{'pipeline': key, 'action': 'not_recorded_pipeline_not_accepted_by_table'}]
     lookback_start = now_utc - timedelta(days=sc.LOOKBACK_DAYS)
     already = already_alerted_keys(sb, lookback_start)
     watch_from = first_run_marker(sb, now_utc, dry_run)
