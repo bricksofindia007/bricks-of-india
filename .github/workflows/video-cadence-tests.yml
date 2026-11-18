@@ -20,6 +20,7 @@ on:
       - 'scripts/video/slot_coverage.py'
       - 'scripts/video/slot_coverage_db.py'
       - 'scripts/video/test_slot_coverage.py'
+      - 'scripts/video/test_publish_kinds.py'
       - '.github/workflows/video-cadence-tests.yml'
       - 'scripts/video/coherence_judge.py'
       - 'scripts/video/test_coherence_judge.py'
@@ -57,6 +58,10 @@ jobs:
       - name: Run slot coverage unit tests
         working-directory: scripts/video
         run: python -m unittest test_slot_coverage -v
+
+      - name: Run slot alert row-kind tests (allowed kinds from the migration)
+        working-directory: scripts/video
+        run: python -m unittest test_publish_kinds -v
 
       - name: Run coherence judge unit tests (#365, fail-closed)
         working-directory: scripts/video
