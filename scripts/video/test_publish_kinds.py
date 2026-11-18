@@ -1,30 +1,62 @@
-"""Every publish_attempts row the slot watchdog writes must use a kind the table allows (order 1902).
+"""Every publish_attempts row the slot watchdog writes must use values the table accepts (order 1906).
 
-The allowed list is read from the newest migration that changes the constraint, so this test
-follows the database, not a copy of it. An in-memory stand-in for the database client records
-the writes. No network, no database.
+The four allowed lists (kind, outcome, pipeline, platform) are read from the schema source in the repo:
+kind from the newest migration that changes the constraint; outcome, pipeline and platform from the
+baseline migration. An in-memory stand-in for the database client records the writes. No network,
+no database. The rows the test writes are printed as JSON (column names and values only).
 """
+import json
 import os
 import re
 import unittest
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 import slot_coverage as sc
 import slot_coverage_db as db
 
 IST = sc.IST
-MIGRATION = os.path.join(os.path.dirname(__file__), '..', '..', 'supabase', 'migrations',
-                         '20260929060000_publish_attempts_skipped_kind.sql')
+MIG_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'supabase', 'migrations')
+BASELINE = os.path.join(MIG_DIR, '20260927140000_baseline.sql')
+KIND_MIGRATION = os.path.join(MIG_DIR, '20260929060000_publish_attempts_skipped_kind.sql')
+NOW = None  # set below
 
 
-def allowed_kinds() -> set:
-    """The kind list of the LAST 'ADD CONSTRAINT publish_attempts_kind_check' in the newest migration."""
-    with open(MIGRATION, encoding='utf-8') as f:
-        text = f.read()
-    lists = re.findall(r"ADD CONSTRAINT publish_attempts_kind_check\s+CHECK \(kind = ANY \(ARRAY\[(.*?)\]\)\)",
-                       text, flags=re.S)
-    assert lists, 'no kind constraint found in the migration'
-    return set(re.findall(r"'([a-z_]+)'::text", lists[-1]))
+def _values(text: str) -> set:
+    return set(re.findall(r"'([a-z0-9_]+)'::text", text))
+
+
+def allowed_lists() -> dict:
+    """The accepted values per column, read from the schema source in the repo."""
+    with open(KIND_MIGRATION, encoding='utf-8') as f:
+        kind_sql = f.read()
+    kind_blocks = re.findall(r"ADD CONSTRAINT publish_attempts_kind_check\s+CHECK \(kind = ANY \(ARRAY\[(.*?)\]\)\)",
+                             kind_sql, flags=re.S)
+    with open(BASELINE, encoding='utf-8') as f:
+        base = f.read()
+
+    def block(name):
+        m = re.search(r"CONSTRAINT " + name + r" CHECK \(\((\w+) = ANY \(ARRAY\[(.*?)\]\)\)\)", base, flags=re.S)
+        assert m, f'{name} not found in the baseline migration'
+        return _values(m.group(2))
+
+    platform = re.search(r"CONSTRAINT publish_attempts_platform_check CHECK \(\(\(platform IS NULL\) OR "
+                         r"\(platform = ANY \(ARRAY\[(.*?)\]\)\)\)\)", base, flags=re.S)
+    assert kind_blocks and platform, 'a constraint was not found in the schema source'
+    return {
+        'kind': _values(kind_blocks[-1]),
+        'outcome': block('publish_attempts_outcome_check'),
+        'pipeline': block('publish_attempts_pipeline_check'),
+        'platform': _values(platform.group(1)) | {None},  # NULL is allowed (IS NULL)
+    }
+
+
+def violations(rows: list, allowed: dict) -> list:
+    out = []
+    for r in rows:
+        for col in ('kind', 'outcome', 'pipeline', 'platform'):
+            if r.get(col) not in allowed[col]:
+                out.append((col, r.get(col), r))
+    return out
 
 
 class _Result:
@@ -68,7 +100,7 @@ class FakeDB:
         return _Query(self.store, name)
 
     def written(self):
-        return [r for r in self.store['publish_attempts']]
+        return list(self.store['publish_attempts'])
 
 
 def utc(dt):
@@ -79,47 +111,101 @@ def ist(y, mo, d, h, mi):
     return datetime(y, mo, d, h, mi, tzinfo=IST)
 
 
-class KindsAreAllowed(unittest.TestCase):
-    def test_the_migration_list_is_read(self):
-        kinds = allowed_kinds()
-        self.assertEqual(kinds, {'publish', 'retry', 'missed_slot_alert', 'error_alert', 'skipped'})
+NOW = utc(ist(2026, 11, 13, 12, 0))
+MARKER_AT = utc(ist(2026, 11, 11, 12, 0))  # before the Wed 11 Nov P4 and Thu 12 Nov QP slots fell due
 
-    def test_every_kind_the_watchdog_writes_is_allowed(self):
-        allowed = allowed_kinds()
-        fake = FakeDB()
-        now = utc(ist(2026, 11, 13, 12, 0))
-        sent = []
 
-        # 1. First real run: writes the start marker, sends nothing.
-        db.check_and_send(fake, 'VID-QP', now, sent.append, dry_run=False)
-        self.assertEqual(sent, [])
-        marker = [r for r in fake.written() if r['detail'] == db.WATCH_DETAIL]
-        self.assertEqual(len(marker), 1)
+def run_flow():
+    """First real run (writes the marker), then the marker moved before two slots fell due, then a repeat."""
+    fake = FakeDB()
+    sent = []
+    db.check_and_send(fake, 'VID-P4', NOW, sent.append, dry_run=False)
+    db.check_and_send(fake, 'VID-QP', NOW, sent.append, dry_run=False)
+    assert sent == [], 'the first real run must send nothing'
+    for r in fake.written():
+        if r['detail'] == db.MARKER_DETAIL:
+            r['attempted_at'] = MARKER_AT.isoformat()
+    db.check_and_send(fake, 'VID-P4', NOW, sent.append, dry_run=False)
+    db.check_and_send(fake, 'VID-QP', NOW, sent.append, dry_run=False)
+    db.check_and_send(fake, 'VID-P4', NOW, sent.append, dry_run=False)  # repeat: must add nothing
+    db.check_and_send(fake, 'VID-QP', NOW, sent.append, dry_run=False)  # repeat: must add nothing
+    return fake.written(), sent
 
-        # 2. Move the marker before the Thu 12 Nov Quiet Panic slot is due, then run: one no-post alert.
-        marker[0]['attempted_at'] = utc(ist(2026, 11, 11, 12, 0)).isoformat()
-        db.check_and_send(fake, 'VID-QP', now, sent.append, dry_run=False)
-        self.assertEqual([a.key for a in sent], ['slot-no-post:VID-QP:2026-11-12 00:00'])
 
-        # 3. A repeat run sends nothing more (the dedupe row is found).
-        sent.clear()
-        db.check_and_send(fake, 'VID-QP', now, sent.append, dry_run=False)
-        self.assertEqual(sent, [])
+class RowsUseAllowedValues(unittest.TestCase):
+    def test_the_lists_are_read_from_the_schema(self):
+        a = allowed_lists()
+        self.assertEqual(a['kind'], {'publish', 'retry', 'missed_slot_alert', 'error_alert', 'skipped'})
+        self.assertEqual(a['outcome'], {'posted', 'partial', 'failed', 'blocked', 'deferred', 'alerted'})
+        self.assertEqual(a['pipeline'], {'vidp4', 'vidqp'})
+        self.assertEqual(a['platform'], {None, 'ig', 'yt'})
 
-        # Every row the code wrote: kind allowed, pipeline not a real pipeline key.
-        rows = fake.written()
+    def test_every_row_the_watchdog_writes_uses_allowed_values(self):
+        allowed = allowed_lists()
+        rows, sent = run_flow()
+        print('ROWS_JSON ' + json.dumps(rows, sort_keys=True, default=str))
+        self.assertEqual(len(sent), 2, 'one alert per missed slot (Wed 11 P4 and Thu 12 QP)')
         self.assertTrue(rows, 'the test wrote nothing; it proves nothing')
-        for r in rows:
-            self.assertIn(r['kind'], allowed, f"kind {r['kind']!r} is not allowed by the table")
-            self.assertNotIn(r['pipeline'], {'vidp4', 'vidqp'}, 'would be counted by the existing watchdog')
-            self.assertFalse(str(r['detail']).startswith('slot_day='), 'would be counted by the existing watchdog')
+        self.assertEqual(violations(rows, allowed), [])
 
-    def test_the_two_row_shapes(self):
-        self.assertEqual(db.WATCH_KIND, 'missed_slot_alert')
-        self.assertEqual(db.WATCH_PIPELINE, 'slot-watch')
-        self.assertEqual(db.WATCH_DETAIL, 'slot-watch-start')
-        self.assertEqual(db.ALERT_KIND, 'missed_slot_alert')
-        self.assertEqual(db.ALERT_PIPELINE, 'slot-watch')
+    def test_the_marker_and_the_alert_rows_have_the_agreed_shape(self):
+        rows, _ = run_flow()
+        marker = [r for r in rows if r['detail'] == 'slot-watch-start']
+        self.assertEqual(len(marker), 1, 'exactly one start marker')
+        self.assertEqual(marker[0]['pipeline'], 'vidp4')
+        self.assertEqual(marker[0]['kind'], 'missed_slot_alert')
+        self.assertEqual(marker[0]['outcome'], 'deferred')
+        self.assertIsNone(marker[0]['platform'])
+        self.assertIsNone(marker[0]['row_id'])
+        self.assertIsNone(marker[0]['row_number'])
+        alerts = {r['detail']: r for r in rows if r['detail'].startswith('slot-no-post:')}
+        self.assertEqual(set(alerts), {'slot-no-post:vidp4:2026-11-11 19:30', 'slot-no-post:vidqp:2026-11-12 00:00'})
+        for r in alerts.values():
+            self.assertEqual(r['kind'], 'missed_slot_alert')
+            self.assertEqual(r['outcome'], 'alerted')
+            self.assertIsNone(r['platform'])
+
+    def test_social_is_not_recorded_and_not_sent(self):
+        fake, sent = FakeDB(), []
+        result = db.check_and_send(fake, 'SOCIAL', NOW, sent.append, dry_run=False)
+        self.assertEqual(sent, [])
+        self.assertEqual(fake.written(), [])
+        self.assertEqual(result[0]['action'], 'not_recorded_pipeline_not_accepted_by_table')
+
+
+class FailsWhenAColumnIsBad(unittest.TestCase):
+    """Patch one column to a value the table refuses, in memory, and show the check fails."""
+
+    def _with(self, attr, value, fn):
+        saved = getattr(db, attr)
+        setattr(db, attr, value)
+        try:
+            return fn()
+        finally:
+            setattr(db, attr, saved)
+
+    def _fails(self, rows):
+        return violations(rows, allowed_lists())
+
+    def test_kind_bad(self):
+        rows, _ = self._with('ALERT_KIND', 'slot_no_post', run_flow)
+        bad = self._fails(rows)
+        self.assertTrue(any(col == 'kind' for col, _, _ in bad))
+
+    def test_outcome_bad(self):
+        rows, _ = self._with('ALERT_OUTCOME', 'sent', run_flow)
+        bad = self._fails(rows)
+        self.assertTrue(any(col == 'outcome' for col, _, _ in bad))
+
+    def test_pipeline_bad(self):
+        rows, _ = self._with('RECORDABLE', {'VID-P4': 'slot-watch', 'VID-QP': 'vidqp'}, run_flow)
+        bad = self._fails(rows)
+        self.assertTrue(any(col == 'pipeline' for col, _, _ in bad))
+
+    def test_platform_bad(self):
+        rows, _ = self._with('ROW_PLATFORM', 'x', run_flow)
+        bad = self._fails(rows)
+        self.assertTrue(any(col == 'platform' for col, _, _ in bad))
 
 
 if __name__ == '__main__':

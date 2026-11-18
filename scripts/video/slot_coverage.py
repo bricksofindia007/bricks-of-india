@@ -101,8 +101,13 @@ def latest_due_slot(key: str, now_utc: datetime) -> datetime | None:
     return slots[-1] if slots else None
 
 
+# The pipeline values the publish-attempts table accepts (vidp4, vidqp). Social has no such value,
+# so its slot is never recorded (see slot_coverage_db.check_and_send). Order 1906.
+PIPELINE_VALUE = {'VID-P4': 'vidp4', 'VID-QP': 'vidqp', 'SOCIAL': 'social'}
+
+
 def dedupe_key(key: str, slot_start: datetime) -> str:
-    return f"slot-no-post:{key}:{slot_start.astimezone(IST).strftime('%Y-%m-%d %H:%M')}"
+    return f"slot-no-post:{PIPELINE_VALUE[key]}:{slot_start.astimezone(IST).strftime('%Y-%m-%d %H:%M')}"
 
 
 def _fmt(dt: datetime) -> str:

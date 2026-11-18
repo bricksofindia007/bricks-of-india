@@ -69,7 +69,7 @@ class Decision(unittest.TestCase):
 
     def test_one_key_per_slot(self):
         a = sc.decide('VID-QP', self.slot, utc(ist(2026, 11, 12, 18, 0)), sc.Facts())
-        self.assertEqual(a.key, 'slot-no-post:VID-QP:2026-11-12 00:00')
+        self.assertEqual(a.key, 'slot-no-post:vidqp:2026-11-12 00:00')
 
     def test_email_names_slot_and_threshold(self):
         a = sc.decide('SOCIAL', ist(2026, 11, 16, 12, 0), utc(ist(2026, 11, 17, 0, 0)), sc.Facts())
@@ -164,7 +164,7 @@ class TwoMissedSlots(unittest.TestCase):
 
         first = sc.pending_alerts('VID-QP', self.now, facts_for, set(), watch_from=utc(ist(2026, 11, 1, 0, 0)))
         keys = [a.key for a in first]
-        self.assertEqual(keys, ['slot-no-post:VID-QP:2026-11-07 00:00', 'slot-no-post:VID-QP:2026-11-10 00:00'])
+        self.assertEqual(keys, ['slot-no-post:vidqp:2026-11-07 00:00', 'slot-no-post:vidqp:2026-11-10 00:00'])
         self.assertEqual(len(set(keys)), 2)
         # Each slot's posted window ends at the next slot's start: a post on Tue 10 cannot cover Sat 7.
         end_for_sat = next(end for slot, end in calls if slot == ist(2026, 11, 7, 0, 0))
@@ -192,7 +192,7 @@ class FirstRunMarker(unittest.TestCase):
         # First run at 11 Nov 12:00 IST: only Thu 12 Nov (due 18:00 on 12 Nov) falls after it.
         first_run = utc(ist(2026, 11, 11, 12, 0))
         alerts = sc.pending_alerts('VID-QP', self.now, self.nothing, set(), watch_from=first_run)
-        self.assertEqual([a.key for a in alerts], ['slot-no-post:VID-QP:2026-11-12 00:00'])
+        self.assertEqual([a.key for a in alerts], ['slot-no-post:vidqp:2026-11-12 00:00'])
 
     def test_a_repeat_run_after_the_first_run_sends_nothing(self):
         first_run = utc(ist(2026, 11, 11, 12, 0))

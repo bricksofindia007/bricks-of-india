@@ -16,11 +16,18 @@ from datetime import datetime, timedelta
 
 import slot_coverage as sc
 
-# Rows written here use a kind the publish_attempts table already allows ('missed_slot_alert'),
-# and a pipeline value no other reader uses ('slot-watch'). The existing watchdog filters on
-# the real pipeline keys, so it cannot count these rows. Order 1902.
+# Every value below is one the publish_attempts table accepts (checked by Chat, order 1906):
+#   pipeline in (vidp4, vidqp); kind in (publish, retry, missed_slot_alert, error_alert, skipped);
+#   outcome in (posted, partial, failed, blocked, deferred, alerted); platform NULL or ig/yt.
 ALERT_KIND = 'missed_slot_alert'
-ALERT_PIPELINE = 'slot-watch'
+ALERT_OUTCOME = 'alerted'
+MARKER_KIND = 'missed_slot_alert'
+MARKER_OUTCOME = 'deferred'
+MARKER_PIPELINE = 'vidp4'
+MARKER_DETAIL = 'slot-watch-start'
+ROW_PLATFORM = None  # empty platform
+# Slot key -> the pipeline value written on its alert row. Social is not in the table's list.
+RECORDABLE = {'VID-P4': 'vidp4', 'VID-QP': 'vidqp'}
 
 
 def _tables(key):
@@ -71,31 +78,27 @@ def load_facts(sb, key: str, slot_start: datetime, end: datetime, lookback_start
 
 def already_alerted_keys(sb, lookback_start: datetime) -> set:
     """Dedupe keys of every slot alert sent inside the lookback."""
-    rows = (sb.table('publish_attempts').select('detail').eq('pipeline', ALERT_PIPELINE).eq('kind', ALERT_KIND)
+    rows = (sb.table('publish_attempts').select('detail').eq('kind', ALERT_KIND).eq('outcome', ALERT_OUTCOME)
             .gte('attempted_at', lookback_start.isoformat()).limit(500).execute().data or [])
     return {r['detail'] for r in rows if r.get('detail')}
-
-
-WATCH_PIPELINE = 'slot-watch'
-WATCH_KIND = 'missed_slot_alert'
-WATCH_DETAIL = 'slot-watch-start'
 
 
 def first_run_marker(sb, now_utc: datetime, dry_run: bool = False) -> datetime:
     """When the watchdog first ran for real. Slots due before it never alert (order 1898).
 
-    The marker is one publish_attempts row (pipeline slot-watch, kind missed_slot_alert, detail
-    slot-watch-start, outcome started), written by the first real run.
+    The marker is one publish_attempts row (pipeline vidp4, kind missed_slot_alert, outcome deferred,
+    detail slot-watch-start, platform empty, row_id empty, row_number empty), written by the first real run.
     A dry run never writes it: with no marker yet, a dry run judges slots from its own time."""
-    rows = (sb.table('publish_attempts').select('attempted_at').eq('pipeline', WATCH_PIPELINE)
-            .eq('kind', WATCH_KIND).eq('detail', WATCH_DETAIL)
+    rows = (sb.table('publish_attempts').select('attempted_at').eq('pipeline', MARKER_PIPELINE)
+            .eq('kind', MARKER_KIND).eq('outcome', MARKER_OUTCOME).eq('detail', MARKER_DETAIL)
             .order('attempted_at').limit(1).execute().data or [])
     if rows:
         return sc._parse_ts(rows[0]['attempted_at'])
     if not dry_run:
         sb.table('publish_attempts').insert({
-            'pipeline': WATCH_PIPELINE, 'kind': WATCH_KIND, 'outcome': 'started',
-            'detail': WATCH_DETAIL, 'attempted_at': now_utc.isoformat(),
+            'pipeline': MARKER_PIPELINE, 'kind': MARKER_KIND, 'outcome': MARKER_OUTCOME,
+            'detail': MARKER_DETAIL, 'platform': ROW_PLATFORM, 'row_id': None, 'row_number': None,
+            'attempted_at': now_utc.isoformat(),
         }).execute()
     return now_utc
 
@@ -106,6 +109,10 @@ def check_and_send(sb, key: str, now_utc: datetime, send, dry_run: bool = False)
     dry_run: send() is called with each alert, but nothing is recorded (no dedupe row).
     Returns one summary dict per alert (printed by the CLI; never silent).
     """
+    if key not in RECORDABLE:
+        # The table has no pipeline value for this slot, so an alert could not be recorded and a repeat
+        # run would send it again. Nothing is sent and nothing is written (fail honest). Order 1906.
+        return [{'pipeline': key, 'action': 'not_recorded_pipeline_not_accepted_by_table'}]
     lookback_start = now_utc - timedelta(days=sc.LOOKBACK_DAYS)
     already = already_alerted_keys(sb, lookback_start)
     watch_from = first_run_marker(sb, now_utc, dry_run)
@@ -121,7 +128,8 @@ def check_and_send(sb, key: str, now_utc: datetime, send, dry_run: bool = False)
                             'action': 'would_alert (dry-run, nothing recorded)', 'kind': alert.kind})
             continue
         sb.table('publish_attempts').insert({
-            'pipeline': ALERT_PIPELINE, 'kind': ALERT_KIND, 'outcome': 'alerted', 'detail': alert.key,
+            'pipeline': RECORDABLE[key], 'kind': ALERT_KIND, 'outcome': ALERT_OUTCOME, 'detail': alert.key,
+            'platform': ROW_PLATFORM, 'row_id': None, 'row_number': None,
             'attempted_at': now_utc.isoformat(),
         }).execute()
         results.append({'pipeline': key, 'key': alert.key, 'action': 'alerted', 'kind': alert.kind})
