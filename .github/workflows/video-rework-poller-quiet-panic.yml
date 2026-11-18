@@ -102,7 +102,7 @@ jobs:
         # (tighter than the 40-min generate workflow), so failing fast here
         # matters even more for leaving room to notice and retry.
         timeout-minutes: 8
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        run: sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=20 && sudo apt-get install -y -o Acquire::Retries=3 -o Acquire::http::Timeout=20 ffmpeg
 
       # Issue #179: the ready-for-review email goes through
       # scripts/workflow-failure-notify.mjs (custom mode) -- the same sender,

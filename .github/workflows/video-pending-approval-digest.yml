@@ -73,7 +73,7 @@ jobs:
           python-version: '3.11'
 
       - name: Install system dependencies
-        run: sudo apt-get update -y && sudo apt-get install -y ffmpeg
+        run: sudo apt-get update -y -o Acquire::Retries=3 -o Acquire::http::Timeout=20 && sudo apt-get install -y -o Acquire::Retries=3 -o Acquire::http::Timeout=20 ffmpeg
 
       - name: Install Python dependencies
         # Full requirements.txt, not just supabase/resend -- engine.py

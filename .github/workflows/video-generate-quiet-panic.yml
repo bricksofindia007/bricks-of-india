@@ -121,7 +121,7 @@ jobs:
         # headroom for a manual retry within the same investigation
         # window, instead of burning the full 40-min budget on apt alone.
         timeout-minutes: 8
-        run: sudo apt-get update && sudo apt-get install -y ffmpeg
+        run: sudo apt-get update -o Acquire::Retries=3 -o Acquire::http::Timeout=20 && sudo apt-get install -y -o Acquire::Retries=3 -o Acquire::http::Timeout=20 ffmpeg
 
       - name: Validate candidate and assemble render input
         id: validate
