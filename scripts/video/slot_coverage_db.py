@@ -16,7 +16,11 @@ from datetime import datetime, timedelta
 
 import slot_coverage as sc
 
-ALERT_KIND = 'slot_no_post'
+# Rows written here use a kind the publish_attempts table already allows ('missed_slot_alert'),
+# and a pipeline value no other reader uses ('slot-watch'). The existing watchdog filters on
+# the real pipeline keys, so it cannot count these rows. Order 1902.
+ALERT_KIND = 'missed_slot_alert'
+ALERT_PIPELINE = 'slot-watch'
 
 
 def _tables(key):
@@ -67,27 +71,31 @@ def load_facts(sb, key: str, slot_start: datetime, end: datetime, lookback_start
 
 def already_alerted_keys(sb, lookback_start: datetime) -> set:
     """Dedupe keys of every slot alert sent inside the lookback."""
-    rows = (sb.table('publish_attempts').select('detail').eq('kind', ALERT_KIND)
+    rows = (sb.table('publish_attempts').select('detail').eq('pipeline', ALERT_PIPELINE).eq('kind', ALERT_KIND)
             .gte('attempted_at', lookback_start.isoformat()).limit(500).execute().data or [])
     return {r['detail'] for r in rows if r.get('detail')}
 
 
-WATCH_KIND = 'slot_watch_start'
+WATCH_PIPELINE = 'slot-watch'
+WATCH_KIND = 'missed_slot_alert'
+WATCH_DETAIL = 'slot-watch-start'
 
 
 def first_run_marker(sb, now_utc: datetime, dry_run: bool = False) -> datetime:
     """When the watchdog first ran for real. Slots due before it never alert (order 1898).
 
-    The marker is one publish_attempts row (kind slot_watch_start), written by the first real run.
+    The marker is one publish_attempts row (pipeline slot-watch, kind missed_slot_alert, detail
+    slot-watch-start, outcome started), written by the first real run.
     A dry run never writes it: with no marker yet, a dry run judges slots from its own time."""
-    rows = (sb.table('publish_attempts').select('attempted_at').eq('kind', WATCH_KIND)
+    rows = (sb.table('publish_attempts').select('attempted_at').eq('pipeline', WATCH_PIPELINE)
+            .eq('kind', WATCH_KIND).eq('detail', WATCH_DETAIL)
             .order('attempted_at').limit(1).execute().data or [])
     if rows:
         return sc._parse_ts(rows[0]['attempted_at'])
     if not dry_run:
         sb.table('publish_attempts').insert({
-            'pipeline': 'watch', 'kind': WATCH_KIND, 'outcome': 'started',
-            'detail': 'first enabled run of the missed-slot watchdog', 'attempted_at': now_utc.isoformat(),
+            'pipeline': WATCH_PIPELINE, 'kind': WATCH_KIND, 'outcome': 'started',
+            'detail': WATCH_DETAIL, 'attempted_at': now_utc.isoformat(),
         }).execute()
     return now_utc
 
@@ -113,7 +121,7 @@ def check_and_send(sb, key: str, now_utc: datetime, send, dry_run: bool = False)
                             'action': 'would_alert (dry-run, nothing recorded)', 'kind': alert.kind})
             continue
         sb.table('publish_attempts').insert({
-            'pipeline': key, 'kind': ALERT_KIND, 'outcome': 'alerted', 'detail': alert.key,
+            'pipeline': ALERT_PIPELINE, 'kind': ALERT_KIND, 'outcome': 'alerted', 'detail': alert.key,
             'attempted_at': now_utc.isoformat(),
         }).execute()
         results.append({'pipeline': key, 'key': alert.key, 'action': 'alerted', 'kind': alert.kind})
