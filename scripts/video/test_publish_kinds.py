@@ -113,6 +113,7 @@ def ist(y, mo, d, h, mi):
 
 NOW = utc(ist(2026, 11, 13, 12, 0))
 MARKER_AT = utc(ist(2026, 11, 11, 12, 0))  # before the Wed 11 Nov P4 and Thu 12 Nov QP slots fell due
+NOW_SOCIAL = utc(ist(2026, 11, 17, 12, 0))  # the Mon 16 Nov social slot is due (00:00 on 17 Nov) and falls after the marker
 
 
 def run_flow():
@@ -129,6 +130,8 @@ def run_flow():
     db.check_and_send(fake, 'VID-QP', NOW, sent.append, dry_run=False)
     db.check_and_send(fake, 'VID-P4', NOW, sent.append, dry_run=False)  # repeat: must add nothing
     db.check_and_send(fake, 'VID-QP', NOW, sent.append, dry_run=False)  # repeat: must add nothing
+    db.check_and_send(fake, 'SOCIAL', NOW_SOCIAL, sent.append, dry_run=False)
+    db.check_and_send(fake, 'SOCIAL', NOW_SOCIAL, sent.append, dry_run=False)  # repeat: must add nothing
     return fake.written(), sent
 
 
@@ -144,7 +147,7 @@ class RowsUseAllowedValues(unittest.TestCase):
         allowed = allowed_lists()
         rows, sent = run_flow()
         print('ROWS_JSON ' + json.dumps(rows, sort_keys=True, default=str))
-        self.assertEqual(len(sent), 2, 'one alert per missed slot (Wed 11 P4 and Thu 12 QP)')
+        self.assertEqual(len(sent), 3, 'one alert per missed slot (Wed 11 P4, Thu 12 QP, Mon 16 social)')
         self.assertTrue(rows, 'the test wrote nothing; it proves nothing')
         self.assertEqual(violations(rows, allowed), [])
 
@@ -159,18 +162,22 @@ class RowsUseAllowedValues(unittest.TestCase):
         self.assertIsNone(marker[0]['row_id'])
         self.assertIsNone(marker[0]['row_number'])
         alerts = {r['detail']: r for r in rows if r['detail'].startswith('slot-no-post:')}
-        self.assertEqual(set(alerts), {'slot-no-post:vidp4:2026-11-11 19:30', 'slot-no-post:vidqp:2026-11-12 00:00'})
+        self.assertEqual(set(alerts), {'slot-no-post:vidp4:2026-11-11 19:30', 'slot-no-post:vidqp:2026-11-12 00:00',
+                                       'slot-no-post:social:2026-11-16 12:00'})
+        self.assertEqual(alerts['slot-no-post:social:2026-11-16 12:00']['pipeline'], 'vidp4')
         for r in alerts.values():
             self.assertEqual(r['kind'], 'missed_slot_alert')
             self.assertEqual(r['outcome'], 'alerted')
             self.assertIsNone(r['platform'])
 
-    def test_social_is_not_recorded_and_not_sent(self):
-        fake, sent = FakeDB(), []
-        result = db.check_and_send(fake, 'SOCIAL', NOW, sent.append, dry_run=False)
-        self.assertEqual(sent, [])
-        self.assertEqual(fake.written(), [])
-        self.assertEqual(result[0]['action'], 'not_recorded_pipeline_not_accepted_by_table')
+    def test_the_social_slot_is_recorded_under_vidp4_with_its_own_detail(self):
+        rows, sent = run_flow()
+        social = [r for r in rows if r['detail'].startswith('slot-no-post:social:')]
+        self.assertEqual(len(social), 1, 'one social alert row')
+        self.assertEqual(social[0]['pipeline'], 'vidp4')
+        self.assertEqual(social[0]['kind'], 'missed_slot_alert')
+        self.assertEqual(social[0]['outcome'], 'alerted')
+        self.assertEqual(len([a for a in sent if a.key.startswith('slot-no-post:social:')]), 1)
 
 
 class FailsWhenAColumnIsBad(unittest.TestCase):
@@ -198,7 +205,7 @@ class FailsWhenAColumnIsBad(unittest.TestCase):
         self.assertTrue(any(col == 'outcome' for col, _, _ in bad))
 
     def test_pipeline_bad(self):
-        rows, _ = self._with('RECORDABLE', {'VID-P4': 'slot-watch', 'VID-QP': 'vidqp'}, run_flow)
+        rows, _ = self._with('RECORDABLE', {'VID-P4': 'slot-watch', 'VID-QP': 'vidqp', 'SOCIAL': 'vidp4'}, run_flow)
         bad = self._fails(rows)
         self.assertTrue(any(col == 'pipeline' for col, _, _ in bad))
 
