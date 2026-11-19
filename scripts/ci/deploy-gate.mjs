@@ -27,6 +27,11 @@ export const MIN_REASON_CHARS = 20;
 export const REQUIRED_CHECKS = ['snapshot-tests', 'verify-no-email-in-client-bundle', 'g19-public-text', 'pr-text-attribution'];
 // Files that may differ between the measured commit and the deployed commit without re-measuring.
 const NON_CODE = [/^docs\//, /^logs\//];
+// Changes under these paths do not alter the site's release code, so they do not ask for a repeat measurement.
+// Used only by the re-measure rule below; the docs-only check above is unchanged.
+const RE_MEASURE_EXEMPT = [/^\.github\/workflows\//, /^scripts\/video\//, /^scripts\/ci\//, /^tests\//, /^workers\/boi-scheduler\//];
+// Exact files exempted the same way. Nothing else under scripts/quota-gate.mjs or scripts/lib/ is exempted.
+const RE_MEASURE_EXEMPT_FILES = ['scripts/quota-gate.mjs', 'scripts/lib/quota-unreadable.mjs'];
 // Load-generator classes under this prefix are Cloudflare's own pages, not the site (see responsesFromCounts).
 export const EXCLUDED_CLASS_PREFIX = '/cdn-cgi/';
 
@@ -135,7 +140,7 @@ export function evaluateGate(input) {
     failures.push('no measurement file for this release');
   } else {
     if (ev.measured_sha !== input.sha) {
-      const codeFiles = input.diffFiles.filter((f) => !NON_CODE.some((re) => re.test(f)));
+      const codeFiles = input.diffFiles.filter((f) => !NON_CODE.some((re) => re.test(f)) && !RE_MEASURE_EXEMPT.some((re) => re.test(f)) && !RE_MEASURE_EXEMPT_FILES.includes(f));
       if (codeFiles.length > 0) failures.push(`code differs from the measured commit (${String(ev.measured_sha).slice(0, 7)}): re-measure`);
     }
     if (typeof ev.cpu_median_ms !== 'number') failures.push('measurement has no CPU median');
