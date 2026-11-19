@@ -119,6 +119,20 @@ describe('evaluateGate: measurement rules', () => {
     code.diffFiles = ['docs/STATUS.md', 'src/app/sets/page.tsx'];
     expect(evaluateGate(code).failures.join(' ')).toMatch(/re-measure/);
   });
+
+  it('files under workflows, video and CI scripts, tests and the scheduler Worker do not ask for a repeat measurement', () => {
+    const t = base();
+    t.evidence = { ...goodEvidence(), measured_sha: MEASURED };
+    t.diffFiles = ['.github/workflows/brief.yml', 'scripts/video/notifier.py', 'scripts/ci/same-day-guard.mjs', 'tests/deploy-gate.test.ts', 'workers/boi-scheduler/src/dispatch.ts'];
+    expect(evaluateGate(t).failures.join(' ')).not.toMatch(/re-measure/);
+  });
+
+  it('files outside those paths still ask for a repeat measurement', () => {
+    const t = base();
+    t.evidence = { ...goodEvidence(), measured_sha: MEASURED };
+    t.diffFiles = ['.github/workflows/brief.yml', 'scripts/quota-gate.mjs'];
+    expect(evaluateGate(t).failures.join(' ')).toMatch(/re-measure/);
+  });
 });
 
 describe('evaluateGate: emergency override', () => {
