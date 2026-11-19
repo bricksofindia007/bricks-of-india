@@ -41,7 +41,23 @@ jobs:
           python-version: '3.11'
 
       - name: Install system dependencies
-        run: sudo apt-get update -y -o Acquire::Retries=3 -o Acquire::http::Timeout=20 && sudo apt-get install -y -o Acquire::Retries=3 -o Acquire::http::Timeout=20 ffmpeg tesseract-ocr
+        run: |
+          missing=""
+          command -v ffmpeg >/dev/null || missing="$missing ffmpeg"
+          command -v tesseract >/dev/null || missing="$missing tesseract-ocr"
+          if [ -z "$missing" ]; then
+            echo "ffmpeg and tesseract are already installed; skipping the package update"
+            exit 0
+          fi
+          for attempt in 1 2; do
+            if timeout 120 sudo apt-get update -y -o DPkg::Lock::Timeout=60 -o Acquire::Retries=3 -o Acquire::http::Timeout=20 \
+               && timeout 180 sudo apt-get install -y -o DPkg::Lock::Timeout=60 -o Acquire::Retries=3 -o Acquire::http::Timeout=20 $missing; then
+              exit 0
+            fi
+            echo "package step attempt $attempt failed"
+          done
+          echo "package step failed on both attempts; stopping"
+          exit 1
 
       - name: Install Python dependencies
         run: pip install -r scripts/video/requirements.txt
