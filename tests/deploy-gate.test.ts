@@ -130,8 +130,21 @@ describe('evaluateGate: measurement rules', () => {
   it('files outside those paths still ask for a repeat measurement', () => {
     const t = base();
     t.evidence = { ...goodEvidence(), measured_sha: MEASURED };
-    t.diffFiles = ['.github/workflows/brief.yml', 'scripts/quota-gate.mjs'];
+    t.diffFiles = ['.github/workflows/brief.yml', 'src/app/sets/page.tsx'];
     expect(evaluateGate(t).failures.join(' ')).toMatch(/re-measure/);
+  });
+
+  it('exactly the two quota files are exempt; other files in scripts/lib and scripts/ still ask', () => {
+    const ok = base();
+    ok.evidence = { ...goodEvidence(), measured_sha: MEASURED };
+    ok.diffFiles = ['scripts/quota-gate.mjs', 'scripts/lib/quota-unreadable.mjs'];
+    expect(evaluateGate(ok).failures.join(' ')).not.toMatch(/re-measure/);
+    for (const f of ['scripts/lib/other-helper.mjs', 'scripts/quota-gate-old.mjs', 'scripts/release/measure-release.mjs', 'config/feature_flags.py', 'package.json']) {
+      const t = base();
+      t.evidence = { ...goodEvidence(), measured_sha: MEASURED };
+      t.diffFiles = [f];
+      expect(evaluateGate(t).failures.join(' ')).toMatch(/re-measure/);
+    }
   });
 });
 
