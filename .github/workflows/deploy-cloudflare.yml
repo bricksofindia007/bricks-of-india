@@ -72,7 +72,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           DEPLOY_SHA: ${{ github.sha }}
-          ROLLBACK_TARGET: '34faed19'
+          ROLLBACK_TARGET: '56eae7b8'
           EMERGENCY_CLASS: ${{ inputs.emergency_class }}
           EMERGENCY_REASON: ${{ inputs.emergency_reason }}
         run: node scripts/ci/deploy-gate.mjs
