@@ -108,6 +108,8 @@ export const FEATURE_FLAGS = {
   // Both off until launch. Mirrored in config/feature_flags.py; keep in sync.
   myCollectionHearts: false,
   myCollectionPage: false,
+  // The Minifigures tab on My Collection. Off at launch (owner decision D-2026-10-29-04: sets only). The code is kept.
+  myCollectionFigures: false,
 
   // Link tags for YouTube and Instagram links (placements list, 23 Oct 2026). Off: the tags send nothing;
   // the links are unchanged. Mirrored in config/feature_flags.py; keep in sync.

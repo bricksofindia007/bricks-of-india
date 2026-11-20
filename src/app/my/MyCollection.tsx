@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { SetImage } from '@/components/sets/SetImage';
 import { slugify } from '@/lib/utils';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
 import {
   CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, cleanCollection, cleanWishlist, loadCollection, loadWishlist, pageOf,
   priceIds, removeWish, setOwnedQty, trackCollectionEvent, updateList, type OwnedItem, type WishItem,
@@ -133,11 +134,14 @@ export function MyCollection() {
   const filterBar = (
     <div role="group" aria-label="Show" className="flex gap-2 mb-6">
       <button type="button" aria-pressed={kind === 'sets'} onClick={() => setKind('sets')} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${kind === 'sets' ? 'bg-primary text-white' : 'border border-border'}`}>Sets</button>
-      <button type="button" aria-pressed={kind === 'figures'} onClick={() => setKind('figures')} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${kind === 'figures' ? 'bg-primary text-white' : 'border border-border'}`}>Minifigures</button>
+      {FEATURE_FLAGS.myCollectionFigures && (
+        <button type="button" aria-pressed={kind === 'figures'} onClick={() => setKind('figures')} className={`px-3 py-1.5 rounded-lg text-sm font-semibold ${kind === 'figures' ? 'bg-primary text-white' : 'border border-border'}`}>Minifigures</button>
+      )}
     </div>
   );
 
-  if (kind === 'figures') {
+  // The Minifigures view is reachable only while its flag is on; with the flag off the sets view is always shown.
+  if (kind === 'figures' && FEATURE_FLAGS.myCollectionFigures) {
     return (
       <div>
         {filterBar}
