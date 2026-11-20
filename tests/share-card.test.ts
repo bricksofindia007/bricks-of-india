@@ -23,8 +23,8 @@ function recorder(): CardCanvas & { texts: string[] } {
 describe('card words', () => {
   it('uses the approved collection share line exactly', () => {
     expect(SHARE_TEXT.collectionShared).toBe('Your list, shared. Take a bow');
-    expect(cardCopy('collection', 3).line).toBe('Your list, shared. Take a bow');
-    expect(cardCopy('wishlist', 3).line).toBe('Your list, shared. Take a bow');
+    expect(cardCopy('collection', 3).line).toBe('My LEGO collection. Running out of shelf space, savings, and excuses.');
+    expect(cardCopy('wishlist', 3).line).toBe("My LEGO wishlist. What my bank account doesn't know won't hurt it.");
   });
   it('names the list and counts sets, singular and plural', () => {
     expect(cardCopy('collection', 1)).toMatchObject({ heading: 'My Collection', count: '1 set' });
@@ -50,7 +50,7 @@ describe('drawing', () => {
   it('draws only the card words, in the approved size', () => {
     const ctx = recorder();
     drawShareCard(ctx, 'story', cardCopy('wishlist', 5));
-    expect(ctx.texts).toEqual(['My Wishlist', '5 sets', 'Your list, shared. Take a bow', 'bricksofindia.com']);
+    expect(ctx.texts).toEqual(['My Wishlist', '5 sets', "My LEGO wishlist. What my bank account doesn't know won't hurt it.", 'bricksofindia.com']);
   });
   it('story format is 1080 by 1920; square is 1080 by 1080', () => {
     expect(CARD_SIZES.story).toEqual({ width: 1080, height: 1920 });
@@ -61,7 +61,7 @@ describe('drawing', () => {
 describe('the component is gated by the share flag', () => {
   const src = readFileSync(join(root, 'src/components/share/CollectionShare.tsx'), 'utf8');
   it('renders nothing while shareEnabled is off, and checks the flag before any work', () => {
-    const gate = src.indexOf('if (!shareEnabled(FEATURE_FLAGS)) return null;');
+    const gate = src.indexOf('if (!shareEnabled(FEATURE_FLAGS) || !FEATURE_FLAGS.shareCardImage) return null;');
     expect(gate).toBeGreaterThan(0);
     expect(gate).toBeLessThan(src.indexOf('async function buildCard'));
   });

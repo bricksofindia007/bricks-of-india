@@ -37,8 +37,9 @@ describe('export check on the per-page theme route', () => {
     expect(exportedRevalidate('// export const revalidate = 86400;\n')).toBeNull();
     expect(exportedRevalidate('export const revalidate = 86400;\n')).toBe(86400);
   });
-  it('only the per-page theme route is exempt from the sample status, and the exemption is that route alone', () => {
-    expect(Object.keys(EXPORT_CHECKED_ROUTES)).toEqual([ROUTE]);
+  it('only the per-page theme route and the shared list page are exempt from the sample status, and nothing else is', () => {
+    // Order 1800: /wishlist/[sets] was added on purpose (its sample answers 404 while its switch is off).
+    expect(Object.keys(EXPORT_CHECKED_ROUTES)).toEqual([ROUTE, '/wishlist/[sets]']);
   });
 });
 

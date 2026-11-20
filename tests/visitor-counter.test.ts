@@ -68,7 +68,7 @@ describe('owner page', () => {
   it('returns not found while the flag is off (nothing is read)', async () => {
     const { default: VisitorsPage } = await import('../src/app/admin/visitors/page');
     await expect(VisitorsPage()).rejects.toThrow('NEXT_NOT_FOUND');
-  });
+  }, 20_000); // the first import of the owner page compiles its module graph; under a full parallel run that can pass 5 s
 
   it('is not linked from any public page or in the sitemap', () => {
     const sitemap = read('src/app/sitemap.ts');

@@ -144,6 +144,8 @@ FEATURE_FLAGS = {
     # Share control on Lab tools and Minifig HQ (share plan, 23 Oct 2026). Off: no control, nothing sent.
     # Mirrored in src/lib/feature-flags.ts (shareEnabled); keep both in sync by hand.
     "share_enabled": False,
+    # Guest wishlist view at /wishlist (order 1560). Off: not found. Mirrored in src/lib/feature-flags.ts (guestWishlistPage); keep in sync.
+    "guest_wishlist_page": False,
     # Human check (Turnstile) on the admin sign-in form. Off. Mirrored in src/lib/feature-flags.ts (adminTurnstile); keep in sync.
     "admin_turnstile": False,
     # Theme pages with no priced set: noindex, follow, left out of the sitemap (25 Oct 2026). Off: unchanged.
@@ -155,5 +157,8 @@ FEATURE_FLAGS = {
     # One switch for "unpriced sets hidden from search" (orders 0840, 0870): the sitemap lists only sets with a store price,
     # and set pages without a price are noindex. Off = the live site. Mirrored in src/lib/feature-flags.ts (unpricedSetsHidden).
     "unpriced_sets_hidden": False,
+    # The share card image (wishlist and collection, option A). Off until the owner has seen it on staging. Off = no card.
+    # Mirrored in src/lib/feature-flags.ts (shareCardImage); keep in sync.
+    "share_card_image": False,
     # The two duplicate-review redirects are switched in config/review-redirect-switch.json (next.config.mjs reads it).
 }

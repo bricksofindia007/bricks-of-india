@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { buildMetadata } from '@/lib/metadata';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import { TermsAdditions } from '@/components/legal/LegalAdditions';
 
 export const metadata: Metadata = buildMetadata({
   title: 'Terms of Use',
@@ -23,6 +25,7 @@ export default function TermsPage() {
           <section><h2 className="font-heading text-dark text-2xl mb-3">THIRD-PARTY LINKS</h2><p>Links to third-party websites (retailers, YouTube, Instagram, etc.) are provided for convenience only. We are not responsible for the content, pricing, or conduct of linked websites.</p></section>
           <section><h2 className="font-heading text-dark text-2xl mb-3">LEGO® TRADEMARK</h2><p>LEGO® is a registered trademark of The LEGO Group. This website is not affiliated with, authorized by, or endorsed by The LEGO Group.</p></section>
           <section><h2 className="font-heading text-dark text-2xl mb-3">CHANGES</h2><p>We may update these terms at any time. Continued use of the website constitutes acceptance of the updated terms.</p></section>
+          {FEATURE_FLAGS.accountsEnabled ? <TermsAdditions /> : null}
         </div>
       </div>
     </div>

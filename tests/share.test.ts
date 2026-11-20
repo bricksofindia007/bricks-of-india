@@ -13,6 +13,7 @@ const root = join(__dirname, '..');
 const read = (p: string) => readFileSync(join(root, p), 'utf8');
 const SHARE_FILES = [
   'src/lib/share.ts',
+  'src/lib/share-card.ts',
   'src/components/share/ShareControl.tsx',
   'src/components/share/ShareMount.tsx',
 ];
@@ -35,8 +36,10 @@ describe('registration', () => {
       expect(tool.share.mode).toBe('page_link');
     }
   });
-  it('registers the live Lab tools and Minifig HQ, and nothing else', () => {
-    expect(SHARE_TARGET_IDS).toEqual(expect.arrayContaining(['biryani-index', 'which-set-are-you', 'minifig-hq']));
+  // Order 1580: the guest wishlist id was added on purpose (the analytics tool list is this registry).
+  it('registers the live Lab tools, Minifig HQ and the guest wishlist, and nothing else', () => {
+    expect(SHARE_TARGET_IDS).toEqual(expect.arrayContaining(['biryani-index', 'which-set-are-you', 'minifig-hq', 'guest-wishlist']));
+    expect(SHARE_TARGET_IDS).toHaveLength(SHARE_TARGETS.length);
     expect(SHARE_TARGET_IDS).not.toContain('community');
     expect(SHARE_TARGET_IDS).not.toContain('the-brick-portfolio');
     expect(targetForPath('/lab')).toBeNull();
@@ -49,12 +52,12 @@ describe('registration', () => {
 });
 
 describe('visible channels', () => {
-  it('Instagram is hidden until a card image exists, but stays registered', () => {
-    expect(VISIBLE_CHANNELS).not.toContain('instagram');
+  it('Instagram is visible: it saves the card on the visitor device (decision 21e, order 1520)', () => {
+    expect(VISIBLE_CHANNELS).toContain('instagram');
     expect(SHARE_CHANNELS).toContain('instagram');
   });
-  it('the visible channels are the registered channels minus Instagram', () => {
-    expect([...VISIBLE_CHANNELS].sort()).toEqual(SHARE_CHANNELS.filter((c) => c !== 'instagram').sort());
+  it('the visible channels are exactly the registered channels', () => {
+    expect([...VISIBLE_CHANNELS].sort()).toEqual([...SHARE_CHANNELS].sort());
   });
   it('analytics still accepts Instagram as a channel value', () => {
     expect(sanitizeParams('click_share', { page_type: 'lab', tool: 'biryani-index', channel: 'instagram' }).channel).toBe('instagram');

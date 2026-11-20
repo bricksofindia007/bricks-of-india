@@ -75,6 +75,13 @@ export const ROUTE_CADENCE: Record<string, Cadence> = {
   '/api/last-seen-prices': DYNAMIC,
   '/my': STATIC,
   '/api/sets/search': DYNAMIC,
+  // Guest wishlist (order 1800). /wishlist/[sets] exports revalidate 3600 (src/app/wishlist/[sets]/page.tsx:18).
+  // /wishlist has no revalidate export and reads no data, so it is built once per deploy.
+  // /api/guest-wishlist reads searchParams per request (src/app/api/guest-wishlist/route.ts:13); its s-maxage
+  // (route.ts:19) is a response header for the edge, not ISR, so the registry value is DYNAMIC.
+  '/wishlist': STATIC,
+  '/wishlist/[sets]': 3600,
+  '/api/guest-wishlist': DYNAMIC,
   '/blog': DYNAMIC,
   '/brick-rush': DYNAMIC, // sale-hub short URL: a route handler that redirects to the article
   '/compare': DYNAMIC,

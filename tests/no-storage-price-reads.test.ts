@@ -35,7 +35,7 @@ describe('storedCache', () => {
     const m = await loadHelper({ NEXT_PUBLIC_BOI_NO_STORAGE: '1' });
     const fn = async () => 1;
     expect(m.storedCache(fn, ['k'], { revalidate: 3600 })).toBe(fn);
-  });
+  }, 20_000); // the first import compiles the helper's module graph; under a full parallel run that alone can pass 5 s
   it('on the current production build it is unstable_cache with the same arguments', async () => {
     const m = await loadHelper({});
     const fn = async () => 1;

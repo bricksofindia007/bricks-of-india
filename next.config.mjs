@@ -23,6 +23,18 @@ const nextConfig = {
         destination: '/lab',
         permanent: false,
       },
+      // Decision (c), order 1846 (later than decision 7): /shareables and every path under it redirect permanently to /lab
+      // (308). The page file stays at src/app/shareables/page.tsx and is unreachable while this redirect is in place.
+      {
+        source: '/shareables',
+        destination: '/lab',
+        permanent: true,
+      },
+      {
+        source: '/shareables/:path*',
+        destination: '/lab',
+        permanent: true,
+      },
       {
         source: '/search',
         destination: '/compare',
