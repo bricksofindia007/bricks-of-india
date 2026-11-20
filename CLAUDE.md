@@ -1,14 +1,14 @@
 # BOI Agent Instructions
 
-**Canonical reference:** `boi-ops/BOI_MASTER_TRACKER.md` (private repo `bricksofindia007/boi-ops`, cloned next to this one) — read this at the start of every session. Plans, reports, reconciliation notes, evidence, the tracker and the dashboard live in that private repo (C2, P14 round 6), not in this public one.
+**Canonical reference:** `boi-ops/docs/MASTER-TRACKER.md` (private repo `bricksofindia007/boi-ops`, cloned next to this one) — read this at the start of every session. Plans, reports, reconciliation notes, evidence, the tracker and the dashboard live in that private repo (C2, P14 round 6), not in this public one.
 
 ---
 
 ## Session discipline
 
-SESSION START: Read `boi-ops/BOI_MASTER_TRACKER.md` — header block (metadata, current blockers, carry-overs, lab status, deadlines). Confirm the HEAD commit field matches `git log -1 --format="%H"`. Paste summary to strategic layer. Do not use `docs/SESSION_START_CHECKLIST.md` — that file's handover-doc protocol was abandoned after Day 35 and is queued for archival.
+SESSION START: Read `boi-ops/docs/MASTER-TRACKER.md` — header block (metadata, current blockers, carry-overs, lab status, deadlines). Confirm the HEAD commit field matches `git log -1 --format="%H"`. Paste summary to strategic layer. Do not use `docs/SESSION_START_CHECKLIST.md` — that file's handover-doc protocol was abandoned after Day 35 and is queued for archival.
 
-**Dashboard sync:** see `boi-ops/BOI_MASTER_TRACKER.md` § Auto-update protocol — every state change updates `boi-ops/admin/dashboard.html` in the same commit. The sync lint moved to boi-ops with the files.
+**Dashboard sync:** see `boi-ops/docs/MASTER-TRACKER.md` § Auto-update protocol — every state change updates `boi-ops/admin/dashboard.html` in the same commit. The sync lint moved to boi-ops with the files.
 
 **Dashboard validation:** at session start, confirm `boi-ops/admin/dashboard.html` JSON parses cleanly before doing anything else. If it doesn't, fix first.
 
@@ -20,7 +20,7 @@ SESSION START: Read `boi-ops/BOI_MASTER_TRACKER.md` — header block (metadata, 
 
 **Defect log:** `docs/BRIEF_DEFECTS.md` — log every defect found during execution. Never reuse a defect ID.
 
-**Handover docs:** Pattern retired after Day 35. Write a changelog entry in `boi-ops/BOI_MASTER_TRACKER.md` §Sprint changelog instead. No new Day_N_Ground_Truth files — `docs/handover/` is frozen.
+**Handover docs:** Pattern retired after Day 35. Write a changelog entry in `boi-ops/docs/MASTER-TRACKER.md` §Sprint changelog instead. No new Day_N_Ground_Truth files — `docs/handover/` is frozen.
 
 **Cycle 2 plan:** `boi-ops/docs/plans/BOI_Cycle2_Master_Plan.md` (v2.4, approved 27 Sep 2026) is the scope, gate and open-item register for Cycle 2. Every plan ID has a GitHub issue (label `cycle-2` plus `stage-0` / `foundation` / `build` / `trust`, title prefixed with the plan ID). No closing keywords (`Closes #`, `Fixes #`) in commits or PRs; issues close only through an evidence comment. Email addresses and DNS: `docs/email/ADDRESSES.md`.
 
