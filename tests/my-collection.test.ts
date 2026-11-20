@@ -115,7 +115,7 @@ describe('voice lines are exact', () => {
     expect(VOICE.heartRemoved).toBe('Removed. Your wallet is relieved.');
     expect(VOICE.ownedAdded).toBe('Yours now. Own it proudly.');
     expect(VOICE.wishlistEmpty).toBe('Nothing saved yet. Your wallet admires your patience.');
-    expect(VOICE.collectionEmpty).toBe('No sets here yet. Tell us what you own and we will be impressed.');
+    expect(VOICE.collectionEmpty).toBe('Your shelf is empty. Your wallet is suspiciously calm.');
     expect(VOICE.limitReached).toBe('That is a proper collection. Remove one to add another.');
   });
 });
