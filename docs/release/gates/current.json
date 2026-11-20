@@ -24,5 +24,5 @@
   "page_diff_ok": true,
   "page_diff_exception": "Nine pages differ in visible text. The differences are data (prices, deals, news, reviews, set counts) that was older on one side, plus a page title that shows in the page text on one side only. The page code is identical. Accepted for this release. Text fixes to reviews, news and guides run after release.",
   "rollback_target": "56eae7b8",
-  "approved_by": "Abhinav Bhargav (owner, chat); D-2026-11-19-02, D-2026-11-19-03"
+  "approved_by": "Abhinav Bhargav (owner)"
 }
