@@ -52,6 +52,8 @@ const ALLOWED: Record<string, readonly string[]> = {
   // Link events for the key-event placements. Sent only while the keyEvents flag is on (see trackEvent).
   click_youtube: ['page_type', 'location'],
   click_instagram: ['page_type', 'location'],
+  // Top-bar logo or home link (owner decision 29 Oct: "both work"). Location only: the logo is on every page.
+  click_logo: ['location'],
   click_meet_founder: ['page_type'],
   // Share tap (share plan, 23 Oct 2026). Counts the tap, not a completed share. Sent only while shareEnabled is on.
   click_share: ['page_type', 'tool', 'channel'],
@@ -60,12 +62,12 @@ const ALLOWED: Record<string, readonly string[]> = {
 // Closed list of places a YouTube or Instagram link can be tagged from.
 export const LINK_LOCATIONS = [
   'footer_connect', 'home_instagram_block', 'home_video_section', 'about_hero',
-  'about_find_me', 'contact_social', 'video_strip',
+  'about_find_me', 'contact_social', 'video_strip', 'nav_logo',
 ] as const;
 
 // Events that are sent only while FEATURE_FLAGS.keyEvents is on. Off means nothing is sent.
 // click_meet_founder is not here: the owner asked (27 Oct, 11:19 IST) that every Meet the founder click is recorded.
-const FLAGGED_EVENTS: readonly string[] = ['click_youtube', 'click_instagram'];
+const FLAGGED_EVENTS: readonly string[] = ['click_youtube', 'click_instagram', 'click_logo'];
 
 const STORE_ID = /^[a-z0-9_]{1,40}$/;
 const STORE_NAME = /^[\p{L}\p{N} .&'-]{1,60}$/u;

@@ -25,10 +25,10 @@ describe('allow-list', () => {
     expect(sanitizeParams('click_instagram', { location: 'about_hero' })).toEqual({ location: 'about_hero' });
     expect(sanitizeParams('click_meet_founder', { page_type: 'precision', location: 'x' })).toEqual({ page_type: 'precision' });
   });
-  it('the location list is exactly the seven agreed tags', () => {
+  it('the location list is exactly the seven agreed tags plus the top-bar logo tag (decision D-2026-10-29-01)', () => {
     expect([...LINK_LOCATIONS]).toEqual([
       'footer_connect', 'home_instagram_block', 'home_video_section', 'about_hero',
-      'about_find_me', 'contact_social', 'video_strip',
+      'about_find_me', 'contact_social', 'video_strip', 'nav_logo',
     ]);
   });
   it('rejects a location outside the list', () => {
