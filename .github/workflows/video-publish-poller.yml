@@ -31,8 +31,9 @@ jobs:
       cancel-in-progress: false
     # 10 most recent runs: 1m49s-3m29s (gh run list
     # --workflow=video-publish-poller.yml --limit 10, 2026-08-18). ~2.5x
-    # observed max.
-    timeout-minutes: 10
+    # observed max. 40 minutes covers the package step's worst case: two
+    # attempts of (120 s update + 900 s install), plus the other steps.
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v5
 
@@ -51,7 +52,7 @@ jobs:
           fi
           for attempt in 1 2; do
             if timeout 120 sudo apt-get update -y -o DPkg::Lock::Timeout=60 -o Acquire::Retries=3 -o Acquire::http::Timeout=20 \
-               && timeout 180 sudo apt-get install -y -o DPkg::Lock::Timeout=60 -o Acquire::Retries=3 -o Acquire::http::Timeout=20 $missing; then
+               && timeout 900 sudo apt-get install -y -o DPkg::Lock::Timeout=60 -o Acquire::Retries=3 -o Acquire::http::Timeout=20 $missing; then
               exit 0
             fi
             echo "package step attempt $attempt failed"
