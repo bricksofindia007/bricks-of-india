@@ -1,0 +1,50 @@
+# Staging only: seed or remove the one fixture video row for daily story 78 (Avengers Tower, set 76269).
+# Run by hand from main. The staging-seed environment needs approval, as for the other staging seeds.
+# The row is a fixture and is removed with mode remove when the rehearsal is over. Production is never touched.
+# Failure behaviour (G14): any error rolls the transaction back; staging keeps its rows.
+# Budget (G2): manual only, one staging write per run, no production read.
+name: 'Staging: seed or remove the story 78 video row (manual)'
+
+on:
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'seed inserts the one fixture row; remove deletes only that row'
+        required: true
+        type: choice
+        options:
+          - seed
+          - remove
+      confirm:
+        description: 'Type SEED STAGING STORY 78 (mode seed) or REMOVE STAGING STORY 78 (mode remove). Any other text stops the run before any step.'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-seed-video-story78
+  cancel-in-progress: false
+
+jobs:
+  seed:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      ((inputs.mode == 'seed' && inputs.confirm == 'SEED STAGING STORY 78') ||
+       (inputs.mode == 'remove' && inputs.confirm == 'REMOVE STAGING STORY 78'))
+    runs-on: ubuntu-24.04
+    environment: staging-seed
+    timeout-minutes: 10
+    env:
+      STAGING_DB_URL: ${{ secrets.STAGING_DB_URL }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+      - name: Install the postgres client
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq postgresql-client > /dev/null
+      - name: Seed or remove the one staging row
+        run: bash scripts/ci/seed-staging-video-story78.sh "${{ inputs.mode }}"
