@@ -1,14 +1,14 @@
 {
-  "measured_sha": "73e8d52d7fd0271ebabec5830b63b4b820d2e5e0",
-  "cpu_median_ms": 14.822,
+  "measured_sha": "3c507a6f1193b9097b26bc2ba5b476cb01d923c5",
+  "cpu_median_ms": 12.891,
   "warmup_hours": 1,
-  "sample_hours": 24,
-  "requests_measured": 92375,
-  "worker_requests": 87992,
-  "error_rate": 0.000498,
+  "sample_hours": 25,
+  "requests_measured": 92458,
+  "worker_requests": 89477,
+  "error_rate": 0.000227,
   "response_summary": {
-    "total": 92375,
-    "failed": 46
+    "total": 92458,
+    "failed": 21
   },
   "load_profile_sha256": "ac01dbb4091ed0b0203ef319b0e301d2182cc66133820f4904666ef411eb38ea",
   "staging_rows": {
@@ -17,12 +17,12 @@
     "price_history": 7700
   },
   "production_rows": {
-    "sets": 26122,
-    "store_prices": 1951,
-    "price_history": 7902
+    "sets": 26250,
+    "store_prices": 1956,
+    "price_history": 8082
   },
   "page_diff_ok": true,
-  "page_diff_exception": "owner approved after a full review of every difference, 2026-11-08 00:25 IST, record kept privately",
-  "rollback_target": "34faed19",
-  "approved_by": "owner"
+  "page_diff_exception": "Nine pages differ in visible text. The differences are data (prices, deals, news, reviews, set counts) that was older on one side, plus a page title that shows in the page text on one side only. The page code is identical. Accepted for this release. Text fixes to reviews, news and guides run after release.",
+  "rollback_target": "56eae7b8",
+  "approved_by": "Abhinav Bhargav (owner)"
 }
