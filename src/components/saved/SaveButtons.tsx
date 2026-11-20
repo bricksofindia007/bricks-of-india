@@ -63,10 +63,12 @@ export function HeartButton({ size = 'sm', ...ref }: SetRef & { size?: 'sm' | 'l
         type="button"
         onClick={onClick}
         aria-label={saved ? `Remove ${name} from your wishlist` : `Save ${name} to your wishlist`}
+        title={saved ? undefined : VOICE.heartPrompt}
         className={`${dim} inline-flex items-center justify-center rounded-full bg-white/90 border border-border shadow-sm hover:border-primary transition-colors ${saved ? 'text-red-600' : 'text-gray-400'}`}
       >
         <span aria-hidden="true">{saved ? '♥' : '♡'}</span>
       </button>
+      {!saved && size === 'lg' && <span className="ml-2 text-xs text-gray-600 whitespace-nowrap">{VOICE.heartPrompt}</span>}
       {note && size !== 'lg' && <span role="status" className="sr-only">{note}</span>}
       {note && size === 'lg' && (
         <span role="status" className="absolute left-0 top-full mt-1 z-10 whitespace-nowrap text-xs text-gray-600 bg-white border border-border rounded px-2 py-1 shadow-sm">
