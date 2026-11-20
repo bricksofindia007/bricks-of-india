@@ -16,7 +16,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 import { getSecret } from '../src/lib/get-secret';
-import { pacedFetcher, checkPolicy, validateListing, newRunSummary, tally, BOT_UA } from './lib/scraper-contract.mjs';
+import { pacedFetcher, checkPolicy, expectedPolicy, validateListing, newRunSummary, tally, BOT_UA } from './lib/scraper-contract.mjs';
+import { loadBaselines } from './lib/pre-write-stop.mjs';
 import { resolveIdentity, isMoreCanonical } from './lib/identity-ladder.mjs';
 import { evaluateBreaker } from './lib/circuit-breaker.mjs';
 import { modelSummary, summaryCounts } from './lib/price-summary-model.mjs';
@@ -111,11 +112,12 @@ function pickVariant(product) {
   const fp58 = { safe: [], unsafe: [] };
   const legacyRows = [];
 
+  const approvedBaselines = loadBaselines();
   for (const store of stores.filter((s) => s.scraper_kind === 'shopify_json')) {
     const cfg = store.scraper_config ?? {};
     const get = pacedFetcher();
     const summary = newRunSummary(store.id);
-    summary.policy = await checkPolicy(cfg.domain, { robots_sha256: cfg.robots_sha256 ?? null, agents_sha256: cfg.agents_sha256 ?? null }, get);
+    summary.policy = await checkPolicy(cfg.domain, expectedPolicy(store.id, cfg, approvedBaselines), get);
     // FP5.9 (#460): a per-store scrape run caches only that store's feed; skip the others.
     if (CACHE && !fs.existsSync(path.join(CACHE, `feed-${store.id}.json`))) { lines.push(`### ${store.name}`, '- not scraped in this run (store filter); skipped', ''); continue; }
     const products = CACHE ? JSON.parse(fs.readFileSync(path.join(CACHE, `feed-${store.id}.json`), 'utf8')) : await fetchFeed(get, cfg.domain, cfg.path);
