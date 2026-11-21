@@ -8,8 +8,8 @@
 -- Rollback: docs/data-fix-rollbacks/911-marker-b-reviews-rollback.sql.
 -- boi:issue 911
 -- boi:backup-tables public.reviews
--- boi:expect-before select count(*) from public.reviews where source_retailer is null and position($m$Prices move faster than a minifig loses its hat. The figure here is from when we wrote this. We check prices daily, so the set page has today's.$m$ in content) > 0
--- boi:expect-after select (select count(*) from public.reviews where source_retailer is null and position($m$Prices move faster than a minifig loses its hat. The figure here is from when we wrote this. We check prices daily, so the set page has today's.$m$ in content) > 0) - (select count(*) from public.reviews where source_retailer is null and regexp_instr(content, '₹\s?[0-9]') > 0)
+-- boi:expect-before select count(*) from public.reviews where source_retailer is null and position($m$Prices move faster than a minifig loses its hat. The figure here is from when we wrote this. We check prices daily, so the set page has today's.$m$ in content) > 0 = 0
+-- boi:expect-after select (select count(*) from public.reviews where source_retailer is null and position($m$Prices move faster than a minifig loses its hat. The figure here is from when we wrote this. We check prices daily, so the set page has today's.$m$ in content) > 0) - (select count(*) from public.reviews where source_retailer is null and regexp_instr(content, '₹\s?[0-9]') > 0) = 0
 -- The before count must be 0 (no review holds the marker yet) and the source_retailer-null count must be 63.
 -- The after count must be 0: every review with a rupee figure holds the marker once, and no other review does.
 
