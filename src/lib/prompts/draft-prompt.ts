@@ -292,8 +292,27 @@ Use this price to decide your verdict (BUY NOW / WAIT / AVOID only for this arti
 INDIA PARAGRAPH FOR THIS ARTICLE: write the usual India Paragraph inside <!-- INDIA_PARAGRAPH --> ... <!-- /INDIA_PARAGRAPH --> — the confirmed price, "${ctx.retailerDisplayName}" as the store, and one relatable Indian comparison sentence (a number and an Indian reference, e.g. Spotify, Netflix, Amul, EMI). This set is already confirmed in stock at an Indian retailer right now — do NOT use "estimated", "expect to land around", or any 4–6 week India availability lag language; it's not an estimate and it's not launching later, it's on sale today.`;
 }
 
-export function buildSystemPrompt(): string {
-  return VOICE_EXAMPLES + OUTPUT_FORMAT;
+// Batch variety (order 1953, decision 3). When earlier drafts in the same run already have openings, the model is shown
+// those openings and given a hook shape chosen by position, so consecutive drafts do not open the same way. The
+// opener-uniqueness threshold (lint gate, RECENT_OPENERS_WINDOW) is unchanged. BOI voice and wallet lines stay allowed.
+export const BATCH_OPENING_SHAPES = [
+  'a striking number from this story (piece count, size, price or date)',
+  "the Indian reader's reaction to this set or news",
+  'the one detail that makes this story different from the last one',
+  'a plain question the Indian reader is already asking',
+];
+
+/** The system prompt. With no earlier openings in the batch it is the unchanged prompt. */
+export function buildSystemPrompt(earlierOpenings: string[] = []): string {
+  const base = VOICE_EXAMPLES + OUTPUT_FORMAT;
+  const earlier = earlierOpenings.map((s) => s.trim()).filter(Boolean);
+  if (earlier.length === 0) return base;
+  const shape = BATCH_OPENING_SHAPES[earlier.length % BATCH_OPENING_SHAPES.length];
+  return `${base}
+
+BATCH VARIETY: earlier pieces in this run already open with these sentences:
+${earlier.map((s) => `- "${s}"`).join('\n')}
+Do not open with any of them, and do not reuse their shape or wording. For this piece, open with ${shape}. BOI voice openers and wallet lines are still welcome; only the repetition is ruled out.`;
 }
 
 const FORCED_TAKE_INSTRUCTION = `
