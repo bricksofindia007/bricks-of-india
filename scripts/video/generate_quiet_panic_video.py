@@ -63,6 +63,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from config.feature_flags import FEATURE_FLAGS  # noqa: E402
 from coherence_judge import judge_coherence, only_held_failures, qp_judge_prompt  # noqa: E402
 from av_duration import usable_av_duration  # noqa: E402
+from qp_blocked_notice import notify_blocked  # noqa: E402  (order 1944 item 5)
 
 # Retry budget for script-gen's pre-TTS validation (added 2026-08-01 after
 # a real 3-for-3 miss streak on Rapunzel's Castle in production CI, all
@@ -1658,6 +1659,8 @@ def process_candidate(candidate: dict, reworked_from: str = None, revision_conte
     post_id = inserted.data[0]['id']
     rework_note = f' (reworked_from={reworked_from})' if reworked_from else ''
     print(f'  Inserted quiet_panic_posts row {post_id} (status={status}){rework_note}')
+    if status == 'publish_blocked':  # order 1944 item 5; reworked rows come through here too
+        notify_blocked(sb, post_id, reason='a gate or the coherence check did not pass (see gate_results)', set_title=set_title, set_number=set_number)
 
     return {
         'post_id': post_id,
