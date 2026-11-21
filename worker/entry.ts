@@ -26,6 +26,8 @@ export default {
         ttlOverride: Number.isFinite(override) && override > 0 ? override : undefined,
         // Order 0720: only the no-storage configs set this (per-request render is our design, not a visitor signal).
         ignoreOriginNoStore: env[EDGE_IGNORE_ORIGIN_NO_STORE_VAR] === "1",
+        // Order 1944 item 3: this deploy's version (wrangler version_metadata binding). Keys stored pages per deploy.
+        cacheVersion: (env as unknown as { CF_VERSION_METADATA?: { id?: string } }).CF_VERSION_METADATA?.id,
       },
     );
   },

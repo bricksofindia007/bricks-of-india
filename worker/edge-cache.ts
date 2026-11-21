@@ -80,6 +80,17 @@ export function canonicalCacheUrl(input: string): string {
  * accepts (src/app/sets/page.tsx). Anything else bypasses, as before. Values that are not in the list below are bypassed,
  * never guessed. Theme names are matched by slug format here; a theme name with spaces is bypassed (safe, not cached).
  */
+/**
+ * Order 1944 item 3. The deploy version is part of the key. A page stored before a deploy has HTML that names that deploy's
+ * JavaScript chunks, so after the next deploy it must not be served: the chunks it names are gone (404, Application error).
+ * Only the deploy version is added; the path and the other query values are unchanged. The version is cut to safe characters.
+ */
+export function versionedCacheUrl(canonical: string, version: string | undefined): string {
+  const safe = (version ?? '').replace(/[^A-Za-z0-9-]/g, '').slice(0, 64) || 'unversioned';
+  const out = new URL(canonical);
+  out.searchParams.set('__boi_v', safe);
+  return out.toString();
+}
 export const SETS_LIST_PARAMS: Record<string, (value: string) => boolean> = {
   page: (v) => /^[1-9]\d*$/.test(v) && Number(v) <= SETS_LIST_MAX_CACHED_PAGE,
   theme: (v) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v),
@@ -145,7 +156,7 @@ export type Origin = (request: Request) => Promise<Response>;
  */
 export const EDGE_IGNORE_ORIGIN_NO_STORE_VAR = 'BOI_EDGE_IGNORE_ORIGIN_NO_STORE';
 
-export type EdgeOptions = { enabled: boolean; ttlOverride?: number; ignoreOriginNoStore?: boolean };
+export type EdgeOptions = { enabled: boolean; ttlOverride?: number; ignoreOriginNoStore?: boolean; cacheVersion?: string };
 
 function withHeader(response: Response, name: string, value: string): Response {
   const copy = new Response(response.body, response);
@@ -192,7 +203,7 @@ export async function handleWithEdgeCache(
     return withHeader(await origin(request), 'x-boi-edge-cache', 'bypass');
   }
   const ttl = options.ttlOverride ?? routeClass(pathname).ttl;
-  const key = new Request(canonicalCacheUrl(request.url), { method: 'GET' });
+  const key = new Request(versionedCacheUrl(canonicalCacheUrl(request.url), options.cacheVersion), { method: 'GET' });
   const hit = await store.match(key);
   if (hit) return visitorCopy(hit, pathname, 'hit');
   const response = await origin(request);
