@@ -78,6 +78,11 @@ describe('rupee cost from the price table and the stored rate', () => {
     expect(config.ai.prices_usd_per_million_tokens['openai/gpt-oss-120b']).toEqual({ input: 0.15, output: 0.6 });
     expect(config.ai.prices_usd_per_million_tokens['gemini-2.5-flash']).toEqual({ input: 0.3, output: 2.5 });
   });
+  it('gemini-3.5-flash-lite is a listed Gemini model, priced at the Google paid-tier rate ($0.30 in, $2.50 out)', () => {
+    expect(config.ai.providers.gemini.models).toContain('gemini-3.5-flash-lite');
+    expect(config.ai.prices_usd_per_million_tokens['gemini-3.5-flash-lite']).toEqual({ input: 0.3, output: 2.5 });
+    expect(rupeesFor('gemini-3.5-flash-lite', 1_000_000, 1_000_000)).toBeCloseTo(266, 6);
+  });
   it('Groq llama-3.3-70b and the Cerebras models are null, and the Qwen 3.6 name is absent', () => {
     const t = config.ai.prices_usd_per_million_tokens as Record<string, unknown>;
     expect(t['llama-3.3-70b-versatile']).toBeNull();

@@ -29,8 +29,8 @@ describe('Gemini client API version in the video generators', () => {
     expect(imp).toBeLessThan(client);
   });
 
-  it('the Gemini model and system instruction are unchanged', () => {
-    expect(read('scripts/video/engine.py')).toContain("model=\"gemini-2.5-flash\", system=prompts.SYSTEM_PROMPT");
-    expect(read('scripts/video/quiet_panic_script_gen.py')).toContain("model='gemini-2.5-flash', system=system_prompt");
+  it('the Gemini model is gemini-3.5-flash-lite and the system instruction is unchanged', () => {
+    expect(read('scripts/video/engine.py')).toContain("model=\"gemini-3.5-flash-lite\", system=prompts.SYSTEM_PROMPT");
+    expect(read('scripts/video/quiet_panic_script_gen.py')).toContain("model='gemini-3.5-flash-lite', system=system_prompt");
   });
 });

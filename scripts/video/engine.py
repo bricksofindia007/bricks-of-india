@@ -973,7 +973,7 @@ def generate_script(title: str, price_inr: float, pieces: int | None, theme: str
             # The system instruction is rejected on the SDK's default API version (order 0760): use v1beta.
             client = genai.Client(api_key=gemini_key, http_options=types.HttpOptions(api_version='v1beta'))
             res = gemini_generate(
-                client, site="video", model="gemini-2.5-flash", system=prompts.SYSTEM_PROMPT, user=task_prompt,
+                client, site="video", model="gemini-3.5-flash-lite", system=prompts.SYSTEM_PROMPT, user=task_prompt,
                 config=types.GenerateContentConfig(system_instruction=prompts.SYSTEM_PROMPT),
                 budget=run_budget(),
             )

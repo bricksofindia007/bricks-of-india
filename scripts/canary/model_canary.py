@@ -7,7 +7,7 @@ period, always failing open, never actually judging anything -- confirmed
 via a live 404 during the qwen rollout evidence pass).
 
 Checks, one per (provider, model, secret) actually used in production:
-  - Gemini gemini-2.5-flash            (VID-P4 + VID-QP, GEMINI_SOCIAL_API_KEY)
+  - Gemini gemini-3.5-flash-lite       (VID-P4 + VID-QP, GEMINI_SOCIAL_API_KEY)
   - Gemini gemini-2.5-flash-lite       (article pipeline, GEMINI_API_KEY)
   - Groq   openai/gpt-oss-120b         (all 3 pipelines' fallback via
                                          feature_flags.py, GROQ_API_KEY)
@@ -169,7 +169,7 @@ def check_cerebras(label: str, model: str) -> CanaryResult:
 
 def main() -> int:
     checks = [
-        check_gemini('gemini-2.5-flash (video pipelines)', 'GEMINI_SOCIAL_API_KEY', 'gemini-2.5-flash'),
+        check_gemini('gemini-3.5-flash-lite (video pipelines)', 'GEMINI_SOCIAL_API_KEY', 'gemini-3.5-flash-lite'),
         check_gemini('gemini-2.5-flash-lite (article pipeline)', 'GEMINI_API_KEY', 'gemini-2.5-flash-lite'),
         check_groq('openai/gpt-oss-120b (all 3 pipelines\' Groq fallback)', 'openai/gpt-oss-120b'),
         check_cerebras('gpt-oss-120b (all 3 pipelines\' Cerebras fallback, flagged off)', 'gpt-oss-120b'),
