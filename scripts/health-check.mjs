@@ -8,6 +8,7 @@ import { readFileSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { estimateCycleUsage, EGRESS_QUOTA_GB, LOG_INGEST_QUOTA_GB } from './lib/capacity-estimate.mjs';
+import { egressAlertDecision } from './lib/egress-alert.mjs';
 import { sendAlert } from './lib/alert.mjs';
 import { socialCauses, alertDecision, SOCIAL_WORKFLOW, SOCIAL_SUCCESS_MAX_HOURS } from './lib/social-alerts.mjs';
 import { zeroArticleAlert } from './lib/zero-article.mjs';
@@ -661,8 +662,19 @@ try {
     // reading, not a bug.
     const pe = est.projectedEgressGB;
     const egressLevel = pe >= LIMITS.egress.blockGb ? 'critical' : pe >= LIMITS.egress.alertGb ? 'warning' : null;
-    if (egressLevel) {
-      failures.push(`egress-${egressLevel}`);
+    if (egressLevel) failures.push(`egress-${egressLevel}`);
+    // Order 1941 item 4: the email is sent only when the band changes (state in public.alert_state, key 'egress').
+    // A read or write error throws, and the catch below reports it as capacity-estimate-error.
+    const { data: egressRow, error: egressReadErr } = await sb
+      .from('alert_state').select('band').eq('key', 'egress').maybeSingle();
+    if (egressReadErr) throw egressReadErr;
+    const egressDecision = egressAlertDecision(egressLevel, egressRow?.band ?? null);
+    const { error: egressWriteErr } = await sb.from('alert_state').upsert({
+      key: 'egress', band: egressDecision.nextState, updated_at: new Date().toISOString(),
+    });
+    if (egressWriteErr) throw egressWriteErr;
+    console.log(`[11b] egress alert: ${egressDecision.reason}${egressDecision.emit ? ' -- emailing' : ' -- no email'}`);
+    if (egressDecision.emit) {
       await sendAlert(
         `${egressLevel === 'critical' ? '🚨' : '⚠️'} BOI Health Alert — Supabase egress projected ${gb(pe)} GB (${egressLevel === 'critical' ? `>= ${LIMITS.egress.blockGb} GB guard: non-essential readers paused` : `>= ${LIMITS.egress.alertGb} GB alert line`})`,
         `Projected egress at cycle end is ~${gb(pe)} GB of the ${EGRESS_QUOTA_GB} GB Free-plan quota.\n\n${line}\n\nThe grace period is already used: going over stops the project serving. Confirm on the Supabase usage page, then cut API request volume (set-page renders, batch writers, CI builds -- see the 2026-09-26 capacity entry in BOI_MASTER_TRACKER.md).`
