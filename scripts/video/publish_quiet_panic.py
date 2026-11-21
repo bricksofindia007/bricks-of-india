@@ -306,6 +306,7 @@ def post_youtube_short(video_path: str, title: str, description: str) -> dict:
 # ---------------------------------------------------------------------------
 
 import cadence  # noqa: E402
+from qp_blocked_notice import notify_blocked  # noqa: E402  (order 1944 item 5)
 from quota import QuotaBlockedError  # noqa: E402  (FP6.4)
 
 
@@ -515,6 +516,7 @@ def poll_and_publish() -> int:
         except GateFailureError as exc:
             print(f'ERROR: hard guard blocked {pid}: {exc}', file=sys.stderr)
             sb.table('quiet_panic_posts').update({'status': 'publish_blocked'}).eq('id', pid).execute()
+            notify_blocked(sb, pid, reason=f'hard guard: {exc}', set_title=post.get('set_title'), set_number=post.get('sequence_number'))
             cadence.record_attempt(sb, cadence.VIDQP, post, 'publish', 'blocked', detail=f'GateFailureError: {exc}')
             # Issue #178: this path used to flip the row silently -- no email.
             _alert_error(sb, post, today, f'Hard guard blocked publish; row moved to publish_blocked: {exc}')

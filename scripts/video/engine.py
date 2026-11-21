@@ -2781,6 +2781,14 @@ def main() -> None:
         # incidental correlation, not a guarantee for every future insert
         # path -- publish order must be pinned to the field that actually
         # defines "Story #N" ordering.
+        # Order 1941 item 6: rows held for a price reason go back to 'approved' once their check passes.
+        # A failure here leaves the held rows as they are; it never blocks the normal queue.
+        try:
+            requeued = price_check.requeue_passing(sb)
+            if requeued:
+                print(f"PRICE CHECK: requeued {len(requeued)} held row(s) whose price check now passes: {requeued}")
+        except Exception as exc:
+            print(f"PRICE CHECK: requeue skipped, held rows unchanged: {exc}", file=sys.stderr)
         approved_res = sb.table("video_posts").select("*").eq("status", "approved").order("story_number").execute()
         approved_rows = approved_res.data
         head = approved_rows[0] if approved_rows else None

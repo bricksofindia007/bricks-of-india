@@ -144,11 +144,16 @@ def check_row(sb, row: dict, mrp: float | None = None) -> dict:
     return verdict
 
 
-def hold(sb, row: dict, verdict: dict) -> None:
-    """Set status publish_blocked and a plain note. Keeps any existing escalation_note."""
+def hold(sb, row: dict, verdict: dict, notify=None) -> None:
+    """Set status publish_blocked and a plain note. Keeps any existing escalation_note.
+
+    Order 1941 item 6: the owner gets one email per newly blocked row. A row whose note already
+    carries notified_at was emailed before, so a re-block (after a requeue) sends nothing.
+    """
     prior = row.get('escalation_note')
     merged = dict(prior) if isinstance(prior, dict) else {}
-    merged['price_check'] = {
+    prior_pc = merged.get('price_check') if isinstance(merged.get('price_check'), dict) else {}
+    pc = {
         'note': verdict['note'],
         'reason': verdict['reason'],
         'stored_price_inr': verdict.get('stored_price_inr'),
@@ -157,4 +162,46 @@ def hold(sb, row: dict, verdict: dict) -> None:
         'in_stock': verdict.get('in_stock'),
         'checked_at': datetime.now(timezone.utc).isoformat(),
     }
+    if prior_pc.get('notified_at'):
+        pc['notified_at'] = prior_pc['notified_at']
+    else:
+        send = notify
+        if send is None:
+            import notifier as notifier_mod
+            send = notifier_mod.send_price_block_notice
+        try:
+            send(row, verdict)
+            pc['notified_at'] = datetime.now(timezone.utc).isoformat()
+        except Exception as exc:  # the hold itself must still be recorded; the next block retries the email
+            print(f'[price_check] owner notice failed for {row.get("id")}: {exc}')
+    merged['price_check'] = pc
     sb.table('video_posts').update({'status': 'publish_blocked', 'escalation_note': merged}).eq('id', row['id']).execute()
+
+
+def requeue_passing(sb, check=None) -> list[str]:
+    """Order 1941 item 6: move publish_blocked rows held for a price reason back to 'approved' once their
+    price check passes now. The normal publish path then posts them under the usual one-per-day cap.
+
+    Only rows that carry a price_check note are considered. Rows still failing the check stay held.
+    `check(sb, row)` returns a verdict dict with 'decision' ('post' or 'block'); defaults to the live check.
+    """
+    res = sb.table('video_posts').select('*').eq('status', 'publish_blocked').execute()
+    requeued: list[str] = []
+    for row in res.data or []:
+        note = row.get('escalation_note')
+        if not isinstance(note, dict) or not isinstance(note.get('price_check'), dict):
+            continue
+        if check is None:
+            mrp = fetch_mrp(sb, row.get('set_number'))
+            verdict = check_row(sb, row, mrp)
+        else:
+            verdict = check(sb, row)
+        if verdict.get('decision') != 'post':
+            continue
+        note = dict(note)
+        pc = dict(note['price_check'])
+        pc['requeued_at'] = datetime.now(timezone.utc).isoformat()
+        note['price_check'] = pc
+        sb.table('video_posts').update({'status': 'approved', 'escalation_note': note}).eq('id', row['id']).execute()
+        requeued.append(row['id'])
+    return requeued

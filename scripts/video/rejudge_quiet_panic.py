@@ -32,6 +32,7 @@ from datetime import datetime, timezone
 import requests
 
 from coherence_judge import COHERENCE_JUDGE_MODEL, judge_coherence, qp_judge_prompt
+from qp_blocked_notice import notify_blocked  # order 1944 item 5
 
 ELIGIBLE = {'approved', 'pending_approval'}
 
@@ -55,6 +56,11 @@ def _prompt_for(row: dict) -> str:
     """QP rubric + this row's set facts (P8 item 5)."""
     return qp_judge_prompt(row['set_title'], row['set_number'], row.get('price_inr'),
                            _pieces(_PROMPT_CTX['url'], _PROMPT_CTX['h'], row['set_number']))
+
+
+def _db():
+    from supabase import create_client
+    return create_client(_env('SUPABASE_URL').rstrip('/'), _env('SUPABASE_SERVICE_ROLE_KEY'))
 
 
 def main(ids: list[str], read_only: bool = False) -> int:
@@ -95,6 +101,8 @@ def main(ids: list[str], read_only: bool = False) -> int:
                            headers={**h, 'Prefer': 'return=representation'}, data=json.dumps(patch), timeout=30)
         u.raise_for_status()
         after = u.json()[0]
+        if patch.get('status') == 'publish_blocked':  # order 1944 item 5: one owner email per row, any reason
+            notify_blocked(_db(), rid, reason=f"coherence judge did not pass: {verdict.get('detail', '')[:200]}", set_title=row.get('set_title'), set_number=row.get('sequence_number'))
         outcome = 'PASS (status unchanged)' if verdict['pass'] else ('HELD (no verdict)' if verdict.get('held') else 'FAIL')
         print(f"{tag}: {outcome} -> status={after['status']} | verdict: {verdict['detail'][:200]}")
     return rc

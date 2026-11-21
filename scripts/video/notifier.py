@@ -289,6 +289,36 @@ def send_skip_notification(reason: str, candidate_title: str | None = None, gate
         print(f'[notifier] Failed to send skip notification: {exc}')
 
 
+def send_price_block_notice(row: dict, verdict: dict) -> None:
+    """Order 1941 item 6: one email per newly held row (the caller sends it once per row, see price_check.hold)."""
+    import html as _html
+    title = _html.escape(str(row.get('set_title') or 'unknown set'))
+    note = _html.escape(str(verdict.get('note') or ''))
+    subject = f"Video held for a price check: story #{row.get('story_number')}"
+    body = (
+        f"<p><strong>Set:</strong> {title}</p>"
+        f"<p>{note}</p>"
+        "<p>The publish poller re-checks held rows on each tick and posts this one if the price check passes. "
+        "No action is needed unless the price itself is wrong.</p>"
+    )
+    _send(subject, body)
+
+
+def send_qp_blocked_notice(row_id, reason: str, set_title=None, set_number=None) -> None:
+    """Order 1944 item 5: one owner email when a Quiet Panic row becomes publish_blocked, for any reason.
+    Sent once per row by qp_blocked_notice.notify_blocked (key qp-blocked:<row id> in alert_state)."""
+    import html as _html
+    title = _html.escape(str(set_title or 'unknown set'))
+    num = _html.escape(str(set_number or '?'))
+    body = (
+        f"<p><strong>Set:</strong> {title} (#{num})</p>"
+        f"<p><strong>Row:</strong> {_html.escape(str(row_id))}</p>"
+        f"<p><strong>Why it is held:</strong> {_html.escape(str(reason))}</p>"
+        "<p>It is not published while it is held. Check the reason above and act on the row in the admin queue.</p>"
+    )
+    _send(f"Quiet Panic video held: {set_title or 'unknown set'} (#{num})", body)
+
+
 def send_publish_error_alert(pipeline_label: str, row_number, set_title: str | None, reason: str) -> None:
     """
     Issue #178: one queued row failed at publish/retry time and the poller
