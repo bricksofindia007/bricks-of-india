@@ -74,11 +74,37 @@ function freshnessColor(days, warn) {
   return GREEN;
 }
 
-// ── Section 1: Health score (hardcoded — TODO: automate from DB) ──────────────
+// ── Section 1: Pipeline output (counted from the database, last 24 h or 7 days) ──
+// Each pipeline row shows its run status and what it produced. The batch generator shows its latest run
+// (published of attempted), read from generator_runs. A PASS with no output is shown as PASS, 0 OUTPUT.
 
-const HEALTH_SCORE = 85; // TODO: automate from DB
+async function fetchOutputs() {
+  const since24 = new Date(Date.now() - 86_400_000).toISOString();
+  const since7d = new Date(Date.now() - 7 * 86_400_000).toISOString();
+  const [radar, social, prices, gen] = await Promise.all([
+    sb.from("raw_signals").select("*", { count: "exact", head: true }).gte("fetched_at", since24),
+    sb.from("posted_sets").select("*", { count: "exact", head: true }).gte("posted_at", since7d),
+    sb.from("store_prices").select("*", { count: "exact", head: true }).gte("scraped_at", since24),
+    sb.from("generator_runs").select("trigger, started_at, drafts_attempted, drafts_succeeded").order("started_at", { ascending: false }).limit(1).maybeSingle(),
+  ]);
+  const when = (iso) => new Date(iso).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "short", timeStyle: "short" });
+  const counted = (res, text) => res.error ? { err: res.error.message } : { text: text(res.count ?? 0), zero: (res.count ?? 0) === 0 };
+  let generator;
+  if (gen.error) generator = { err: gen.error.message };
+  else if (!gen.data) generator = { text: "no generator run recorded", zero: false };
+  else {
+    const d = gen.data;
+    generator = { text: `${d.drafts_succeeded} published of ${d.drafts_attempted} attempted (latest run ${when(d.started_at)}, ${d.trigger})`, zero: d.drafts_attempted > 0 && d.drafts_succeeded === 0 };
+  }
+  return {
+    "radar.yml": counted(radar, (n) => `${n} signals fetched, last 24 h`),
+    "social-automation.yml": counted(social, (n) => `${n} sets posted, last 7 days`),
+    "scrape-prices.yml": counted(prices, (n) => `${n} price rows scraped, last 24 h`),
+    "generate-drafts.yml": generator,
+  };
+}
 
-// ── Section 2: Pipeline status ───────────────────────────────────────────────
+// ── Section 1 (cont.): Pipeline list ───────────────────────────────────────────────
 
 const PIPELINES = [
   { file: 'radar.yml',             label: 'RADAR pipeline'    },
@@ -174,33 +200,27 @@ function todaySignoff() {
 
 // ── HTML builder ──────────────────────────────────────────────────────────────
 
-function buildHtml({ pipelines, freshness, pending, today, knownIssues }) {
-  const scoreColor = HEALTH_SCORE >= 80 ? GREEN : HEALTH_SCORE >= 60 ? AMBER : RED;
-
-  const s1 = card('1 &mdash; Health Score', `
-    <p style="margin:0;font-size:40px;font-weight:bold;color:${scoreColor};line-height:1.1;">
-      ${HEALTH_SCORE}<span style="font-size:18px;color:#888;">/100</span>
-    </p>
-    <p style="margin:4px 0 0;font-size:11px;color:#AAA;"><!-- TODO: automate from DB --></p>
-  `);
-
+function buildHtml({ pipelines, outputs, freshness, pending, today, knownIssues }) {
   const pipeRows = pipelines.map(p => {
-    const ok = p.status === 'success';
+    const out = outputs[p.file] ?? {};
+    const ok = p.status === "success";
     const time = p.lastRun
-      ? new Date(p.lastRun).toLocaleString('en-IN', { timeZone: 'Asia/Kolkata', dateStyle: 'short', timeStyle: 'short' })
-      : '—';
-    const statusLabel = p.status === 'success' ? 'PASS'
-      : p.status === 'failure' ? 'FAIL'
+      ? new Date(p.lastRun).toLocaleString("en-IN", { timeZone: "Asia/Kolkata", dateStyle: "short", timeStyle: "short" })
+      : "—";
+    const statusLabel = ok && out.zero ? "PASS, 0 OUTPUT"
+      : ok ? "PASS"
+      : p.status === "failure" ? "FAIL"
       : p.status.toUpperCase();
+    const statusColor = p.status === "failure" ? RED : ok && !out.zero ? GREEN : AMBER;
+    const outLine = out.err ? `output unavailable: ${out.err}` : (out.text ?? "");
     return `<tr>
-      <td style="padding:5px 0;font-size:13px;color:${NAVY};">${dot(ok)}${p.label}</td>
-      <td style="padding:5px 0 5px 16px;font-size:12px;color:#777;text-align:right;">${time}</td>
-      <td style="padding:5px 0 5px 10px;font-size:11px;font-weight:bold;
-                 color:${ok ? GREEN : p.status === 'failure' ? RED : AMBER};
-                 text-align:right;white-space:nowrap;">${statusLabel}</td>
+      <td style="padding:5px 0;font-size:13px;color:${NAVY};">${dot(ok && !out.zero)}${p.label}
+        <div style="font-size:11px;color:#777;margin-top:2px;">${outLine}</div></td>
+      <td style="padding:5px 0 5px 16px;font-size:12px;color:#777;text-align:right;vertical-align:top;">${time}</td>
+      <td style="padding:5px 0 5px 10px;font-size:11px;font-weight:bold;color:${statusColor};text-align:right;white-space:nowrap;vertical-align:top;">${statusLabel}</td>
     </tr>`;
-  }).join('');
-  const s2 = card('2 &mdash; Pipeline Status',
+  }).join("");
+  const s2 = card("1 &mdash; Pipeline Status and Output",
     `<table width="100%" cellpadding="0" cellspacing="0">${pipeRows}</table>`);
 
   const freshRows = freshness.map(f => {
@@ -220,12 +240,12 @@ function buildHtml({ pipelines, freshness, pending, today, knownIssues }) {
                  color:${color};text-align:right;">${d}d ago${flag}</td>
     </tr>`;
   }).join('');
-  const s3 = card('3 &mdash; Content Freshness',
+  const s3 = card('2 &mdash; Content Freshness',
     `<table width="100%" cellpadding="0" cellspacing="0">${freshRows}</table>`);
 
   const approvedColor = pending.approved > 50 ? RED : pending.approved > 20 ? AMBER : GREEN;
   const draftColor    = pending.draft > 20 ? AMBER : GREEN;
-  const s4 = card('4 &mdash; Pending Operator Actions', `
+  const s4 = card('3 &mdash; Pending Operator Actions', `
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
         <td style="padding:5px 0;font-size:13px;color:${NAVY};">Awaiting generation</td>
@@ -245,7 +265,7 @@ function buildHtml({ pipelines, freshness, pending, today, knownIssues }) {
     </table>
   `);
 
-  const s5 = card('5 &mdash; Daily Dispatch', `
+  const s5 = card('4 &mdash; Daily Dispatch', `
     <p style="margin:0;font-size:14px;color:${NAVY};font-style:italic;line-height:1.5;">
       &ldquo;${todaySignoff()}&rdquo;
     </p>
@@ -305,18 +325,19 @@ const today = new Date().toLocaleDateString('en-IN', {
 
 console.log('BRIEF-01: collecting data...');
 
-const [pipelines, freshness, pending] = await Promise.all([
+const [pipelines, freshness, pending, outputs] = await Promise.all([
   fetchPipelineStatus(),
   fetchFreshness(),
   fetchPending(),
+  fetchOutputs(),
 ]);
 
-console.log('Pipelines:', pipelines.map(p => `${p.label}=${p.status}`).join(', '));
+console.log('Pipelines:', pipelines.map(p => `${p.label}=${p.status} [${outputs[p.file]?.text ?? outputs[p.file]?.err ?? '-'}]`).join(', '));
 console.log('Freshness:', freshness.map(f => `${f.label}=${f.days != null ? f.days.toFixed(1) + 'd' : 'err'}`).join(', '));
 console.log(`Pending: approved=${pending.approved} draft=${pending.draft} waiting>${WAITING_DAYS}d=${pending.waitingOver14}`);
 
 const knownIssues = loadKnownIssues();
-const html = buildHtml({ pipelines, freshness, pending, today, knownIssues });
+const html = buildHtml({ pipelines, outputs, freshness, pending, today, knownIssues });
 
 const res = await fetch('https://api.resend.com/emails', {
   method: 'POST',
