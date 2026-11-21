@@ -40,10 +40,10 @@ describe('known-issues card', () => {
       { id: 'KI-02', state: 'open' },
     ]);
   });
-  it('the card is card 6 after the dispatch card, and reads the register with a fallback', () => {
+  it('the card is card 5 after the dispatch card, and reads the register with a fallback', () => {
     const brief = read('scripts/morning-brief.mjs');
-    expect(brief).toMatch(/const s6 = card\('6 &mdash; Known issues'/);
-    expect(brief).toMatch(/\$\{s1\}\$\{s2\}\$\{s3\}\$\{s4\}\$\{s5\}\$\{s6\}/);
+    expect(brief).toMatch(/const s6 = card\('5 &mdash; Known issues'/);
+    expect(brief).toMatch(/\$\{s2\}\$\{s3\}\$\{s4\}\$\{s5\}\$\{s6\}/);
     expect(brief).toMatch(/Register unavailable/);
     expect(brief).toMatch(/config\/known-issues\.json/);
   });
@@ -55,9 +55,9 @@ describe('card 5 (Next Hard Deadline) is removed (G18, order 1600)', () => {
     expect(brief).not.toMatch(/Next Hard Deadline/);
     expect(brief).not.toMatch(/nextDeadline|loadDeadlines|brief-deadlines/);
   });
-  it('the cards are numbered 1 to 6 with no gap', () => {
+  it('the cards are numbered 1 to 5 with no gap', () => {
     const brief = read('scripts/morning-brief.mjs');
-    for (const n of [1, 2, 3, 4, 5, 6]) expect(brief).toMatch(new RegExp(`card\\('${n} &mdash; `));
-    expect(brief).not.toMatch(/card\('7 &mdash;/);
+    for (const n of [1, 2, 3, 4, 5]) expect(brief).toMatch(new RegExp(`card\\(['"]${n} &mdash; `));
+    expect(brief).not.toMatch(/card\('6 &mdash;/);
   });
 });

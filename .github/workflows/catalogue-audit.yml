@@ -57,7 +57,15 @@ jobs:
       - name: Check live search endpoint
         id: search-check
         run: |
-          RESULT=$(curl -s "https://bricksofindia.com/api/sets/search?q=Concorde")
+          F=$(mktemp)
+          CODE=$(curl -s -o "$F" -w '%{http_code}' --max-time 30 "https://bricksofindia.com/api/sets/search?q=Concorde") || true
+          case "$CODE" in
+            200) ;;
+            000|"") echo "UNVERIFIED: /api/sets/search?q=Concorde could not be reached from the runner"; exit 1 ;;
+            403) echo "UNVERIFIED: /api/sets/search?q=Concorde returned HTTP 403 to the runner (not an answer from the site)"; exit 1 ;;
+            *) echo "FAIL: /api/sets/search?q=Concorde returned HTTP $CODE, expected 200"; exit 1 ;;
+          esac
+          RESULT=$(cat "$F")
           COUNT=$(echo "$RESULT" | node -e "let d=''; process.stdin.on('data',c=>d+=c).on('end',()=>{ try { const j=JSON.parse(d); console.log(j.total??0); } catch(e) { console.log(0); } })")
           echo "Search for Concorde: $COUNT results"
           if [ "$COUNT" -eq "0" ]; then
@@ -68,9 +76,15 @@ jobs:
       - name: Check /compare page renders sets (no 'Nothing found')
         id: compare-check
         run: |
-          HTML=$(curl -s "https://bricksofindia.com/compare?q=Technic")
-          if echo "$HTML" | grep -qi "NOTHING FOUND\|NO SETS TRACKED"; then
-            echo "FAIL: /compare?q=Technic shows empty state"
+          F=$(mktemp)
+          CODE=$(curl -s -o "$F" -w '%{http_code}' --max-time 30 "https://bricksofindia.com/compare?q=Technic") || true
+          case "$CODE" in
+            200) ;;
+            000|"") echo "UNVERIFIED: /compare?q=Technic could not be reached from the runner"; exit 1 ;;
+            403) echo "UNVERIFIED: /compare?q=Technic returned HTTP 403 to the runner (not an answer from the site)"; exit 1 ;;
+            *) echo "FAIL: /compare?q=Technic returned HTTP $CODE, expected 200"; exit 1 ;;
+          esac
+          if grep -qi "NOTHING FOUND\|NO SETS TRACKED" "$F"; then            echo "FAIL: /compare?q=Technic shows empty state"
             exit 1
           fi
           echo "PASS: /compare?q=Technic renders sets"
@@ -78,7 +92,15 @@ jobs:
       - name: Check Star Wars theme page (>=20 sets)
         id: starwars-check
         run: |
-          HTML=$(curl -s "https://bricksofindia.com/themes/star-wars")
+          F=$(mktemp)
+          CODE=$(curl -s -o "$F" -w '%{http_code}' --max-time 30 "https://bricksofindia.com/themes/star-wars") || true
+          case "$CODE" in
+            200) ;;
+            000|"") echo "UNVERIFIED: /themes/star-wars could not be reached from the runner"; exit 1 ;;
+            403) echo "UNVERIFIED: /themes/star-wars returned HTTP 403 to the runner (not an answer from the site)"; exit 1 ;;
+            *) echo "FAIL: /themes/star-wars returned HTTP $CODE, expected 200"; exit 1 ;;
+          esac
+          HTML=$(cat "$F")
           COUNT=$(echo "$HTML" | grep -oE "[0-9]+ sets found" | grep -oE "[0-9]+" | head -1)
           echo "Star Wars theme page: ${COUNT:-unknown} sets"
           if [ -z "$COUNT" ] || [ "$COUNT" -lt "20" ]; then
