@@ -300,7 +300,7 @@ function buildHtml({ pipelines, outputs, freshness, pending, today, knownIssues 
       </td></tr>
       <tr><td style="background:#EBEBEB;padding:14px 0 0;">
         <table width="100%" cellpadding="0" cellspacing="0">
-          ${s1}${s2}${s3}${s4}${s5}${s6}
+          ${s2}${s3}${s4}${s5}${s6}
         </table>
       </td></tr>
       <tr><td style="background:#FFFFFF;border-radius:0 0 8px 8px;padding:14px 26px;
