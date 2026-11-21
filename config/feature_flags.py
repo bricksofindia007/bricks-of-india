@@ -133,7 +133,7 @@ FEATURE_FLAGS = {
     "ai_spend_guard_pilot": False,
     # My Collection (Bundle 2). Hearts on set cards and set pages; the My Collection page
     # itself. Both off until the launch. Mirrored in src/lib/feature-flags.ts; keep in sync.
-    "my_collection_hearts": False,
+    "my_collection_hearts": True,
     "my_collection_page": False,
     # Link tags for YouTube and Instagram links (placements list, 23 Oct 2026). Off: the tags send
     # nothing; the links are unchanged. Mirrored in src/lib/feature-flags.ts; keep in sync.
@@ -156,7 +156,7 @@ FEATURE_FLAGS = {
     "visitor_counter": False,
     # One switch for "unpriced sets hidden from search" (orders 0840, 0870): the sitemap lists only sets with a store price,
     # and set pages without a price are noindex. Off = the live site. Mirrored in src/lib/feature-flags.ts (unpricedSetsHidden).
-    "unpriced_sets_hidden": False,
+    "unpriced_sets_hidden": True,
     # The share card image (wishlist and collection, option A). Off until the owner has seen it on staging. Off = no card.
     # Mirrored in src/lib/feature-flags.ts (shareCardImage); keep in sync.
     "share_card_image": False,
