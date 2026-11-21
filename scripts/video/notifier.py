@@ -289,6 +289,21 @@ def send_skip_notification(reason: str, candidate_title: str | None = None, gate
         print(f'[notifier] Failed to send skip notification: {exc}')
 
 
+def send_price_block_notice(row: dict, verdict: dict) -> None:
+    """Order 1941 item 6: one email per newly held row (the caller sends it once per row, see price_check.hold)."""
+    import html as _html
+    title = _html.escape(str(row.get('set_title') or 'unknown set'))
+    note = _html.escape(str(verdict.get('note') or ''))
+    subject = f"Video held for a price check: story #{row.get('story_number')}"
+    body = (
+        f"<p><strong>Set:</strong> {title}</p>"
+        f"<p>{note}</p>"
+        "<p>The publish poller re-checks held rows on each tick and posts this one if the price check passes. "
+        "No action is needed unless the price itself is wrong.</p>"
+    )
+    _send(subject, body)
+
+
 def send_publish_error_alert(pipeline_label: str, row_number, set_title: str | None, reason: str) -> None:
     """
     Issue #178: one queued row failed at publish/retry time and the poller

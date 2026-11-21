@@ -171,7 +171,7 @@ class FetchAndRowTests(unittest.TestCase):
         row = {'id': 'r1', 'escalation_note': {'other': 'kept'}}
         verdict = {'note': 'Price check: x', 'reason': 'price_differs', 'stored_price_inr': 1.0,
                    'current_price_inr': 2.0, 'mrp_inr': 3.0, 'in_stock': True}
-        price_check.hold(sb, row, verdict)
+        price_check.hold(sb, row, verdict, notify=lambda r, v: None)
         col, val, payload = sb.updates[0]
         self.assertEqual((col, val), ('id', 'r1'))
         self.assertEqual(payload['status'], 'publish_blocked')
@@ -179,6 +179,72 @@ class FetchAndRowTests(unittest.TestCase):
         self.assertEqual(payload['escalation_note']['other'], 'kept')
         self.assertEqual(payload['escalation_note']['price_check']['note'], 'Price check: x')
         self.assertEqual(payload['escalation_note']['price_check']['mrp_inr'], 3.0)
+
+
+class VideoRowsFake:
+    """video_posts only: select(...).eq(status).execute() and update(...).eq(id).execute()."""
+    def __init__(self, rows):
+        self.rows = rows
+        self.updates = []
+    def table(self, name):
+        assert name == 'video_posts', name
+        return self
+    def select(self, *_a, **_k):
+        self._sel = list(self.rows)
+        return self
+    def eq(self, col, val):
+        if hasattr(self, '_sel') and getattr(self, '_pending_update', None) is None:
+            self._sel = [r for r in self._sel if r.get(col) == val]
+            return self
+        return type('R', (), {'execute': lambda s: self.updates.append((col, val, self._pending_update))})()
+    def update(self, payload):
+        self._pending_update = payload
+        return self
+    def execute(self):
+        return type('Res', (), {'data': getattr(self, '_sel', [])})()
+
+
+class NoticeAndRequeueTests(unittest.TestCase):
+    VERDICT = {'note': 'Price check: held', 'reason': 'price_differs', 'decision': 'block',
+               'stored_price_inr': 1.0, 'current_price_inr': 2.0, 'mrp_inr': 3.0, 'in_stock': True}
+
+    def test_first_hold_sends_one_notice_and_records_notified_at(self):
+        sent = []
+        sb = FakeSb()
+        price_check.hold(sb, {'id': 'r1', 'escalation_note': None}, self.VERDICT, notify=lambda r, v: sent.append(r['id']))
+        self.assertEqual(sent, ['r1'])
+        self.assertIn('notified_at', sb.updates[0][2]['escalation_note']['price_check'])
+
+    def test_reblock_after_notice_sends_nothing(self):
+        sent = []
+        row = {'id': 'r2', 'escalation_note': {'price_check': {'notified_at': '2026-11-20T00:00:00+00:00'}}}
+        price_check.hold(FakeSb(), row, self.VERDICT, notify=lambda r, v: sent.append(r['id']))
+        self.assertEqual(sent, [])
+
+    def test_failed_send_keeps_the_hold_and_leaves_notified_at_unset(self):
+        def boom(r, v):
+            raise RuntimeError('resend down')
+        sb = FakeSb()
+        price_check.hold(sb, {'id': 'r3', 'escalation_note': None}, self.VERDICT, notify=boom)
+        payload = sb.updates[0][2]
+        self.assertEqual(payload['status'], 'publish_blocked')
+        self.assertNotIn('notified_at', payload['escalation_note']['price_check'])
+
+    def test_requeue_moves_only_rows_whose_check_now_passes(self):
+        rows = [
+            {'id': 'pass', 'status': 'publish_blocked', 'escalation_note': {'price_check': {'reason': 'price_differs'}}},
+            {'id': 'still', 'status': 'publish_blocked', 'escalation_note': {'price_check': {'reason': 'price_differs'}}},
+            {'id': 'other', 'status': 'publish_blocked', 'escalation_note': {'hard': 'guard'}},
+        ]
+        sb = VideoRowsFake(rows)
+        verdicts = {'pass': {'decision': 'post'}, 'still': {'decision': 'block'}}
+        done = price_check.requeue_passing(sb, check=lambda s, r: verdicts[r['id']])
+        self.assertEqual(done, ['pass'])
+        self.assertEqual([u[1] for u in sb.updates], ['pass'])
+        self.assertEqual(sb.updates[0][2]['status'], 'approved')
+        self.assertIn('requeued_at', sb.updates[0][2]['escalation_note']['price_check'])
+
+
 
 
 if __name__ == '__main__':
