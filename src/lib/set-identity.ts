@@ -57,12 +57,19 @@ async function catalogNames(sb: SupabaseClient, nums: string[]): Promise<Map<str
 
 export type ResolvedSourceSet = { setNumber: string; name: string; via: 'url' | 'title' | 'excerpt' };
 
+// A number from 2020 to 2030 is far more often a year ("Mustafar Duel ... 2027") than a set number.
+const YEAR_LIKE = (n: string) => Number(n) >= 2020 && Number(n) <= 2030;
+
 /**
  * The set a source article is actually about, or null. Candidates are, in
- * order: a /sets/ or /products/ number in the URL, then every number in the
- * title, then every number in the excerpt. A candidate is accepted only if it
- * exists in the catalogue AND its catalogue name appears in the source's own
- * title + excerpt + URL words. Never "the first number".
+ * order: a /sets/ or /products/ number in the URL, then the set-like numbers in
+ * the title, then the set-like numbers in the excerpt. Years (2020 to 2030) are
+ * candidates only when the title and excerpt hold no other number at all.
+ * When the title holds a set-like number, the excerpt is not consulted, so a
+ * title number missing from the catalogue fails honestly (null) instead of
+ * falling through to some other number in the article.
+ * A candidate is accepted only if it exists in the catalogue AND its catalogue
+ * name appears in the source's own title + excerpt + URL words. Never "the first number".
  */
 export async function resolveSourceSet(
   sb: SupabaseClient,
@@ -71,12 +78,19 @@ export async function resolveSourceSet(
   sourceExcerpt?: string | null,
 ): Promise<ResolvedSourceSet | null> {
   const urlNum = sourceUrl.match(/\/(?:sets?|products?)\/(\d{4,7})(?:[-/]|$)/i)?.[1];
-  const titleNums = [...(sourceTitle ?? '').matchAll(NUM_RE)].map((m) => m[1]);
-  const excerptNums = [...(sourceExcerpt ?? '').matchAll(NUM_RE)].map((m) => m[1]);
+  const titleAll = [...(sourceTitle ?? '').matchAll(NUM_RE)].map((m) => m[1]);
+  const excerptAll = [...(sourceExcerpt ?? '').matchAll(NUM_RE)].map((m) => m[1]);
+  const titleSetLike = titleAll.filter((n) => !YEAR_LIKE(n));
+  const excerptSetLike = excerptAll.filter((n) => !YEAR_LIKE(n));
+  const textPool = titleSetLike.length ? titleSetLike.map((n) => ({ n, via: 'title' as const }))
+    : excerptSetLike.map((n) => ({ n, via: 'excerpt' as const }));
+  // Years are a last resort: used only when the title and excerpt hold no set-like number at all.
+  const yearPool = textPool.length ? []
+    : [...titleAll.map((n) => ({ n, via: 'title' as const })), ...excerptAll.map((n) => ({ n, via: 'excerpt' as const }))];
   const ordered: { n: string; via: ResolvedSourceSet['via'] }[] = [
     ...(urlNum ? [{ n: urlNum, via: 'url' as const }] : []),
-    ...titleNums.map((n) => ({ n, via: 'title' as const })),
-    ...excerptNums.map((n) => ({ n, via: 'excerpt' as const })),
+    ...textPool,
+    ...yearPool,
   ];
   if (!ordered.length) return null;
   const names = await catalogNames(sb, ordered.map((c) => c.n));
