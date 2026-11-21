@@ -1,3 +1,4 @@
+-- boi:issue 994
 -- Order 1941 item 4: last-sent alert band, so a health alert emails only when its band changes.
 -- One row per alert key (today: 'egress'). Read and written by scripts/health-check.mjs with the service role.
 -- RLS on, and no policies: anon and authenticated get no access at all.
