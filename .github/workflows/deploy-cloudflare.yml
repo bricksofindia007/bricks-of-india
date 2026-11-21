@@ -155,10 +155,12 @@ jobs:
         # that runs strictly after a real deploy, so it's the only place
         # that can catch this class of bug (real edge/protocol behavior)
         # before a human happens to notice.
+        env:
+          BOI_MONITOR_KEY: ${{ secrets.BOI_MONITOR_KEY }}
         run: |
           FAIL=0
           for host in bricksofindia.com www.bricksofindia.com; do
-            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://$host/")
+            HTTP_STATUS=$(curl -s -H "X-BOI-Monitor: $BOI_MONITOR_KEY" -o /dev/null -w "%{http_code}" "http://$host/")
             if [ "$HTTP_STATUS" != "301" ] && [ "$HTTP_STATUS" != "308" ]; then
               echo "::error::http://$host did not redirect to https (got HTTP $HTTP_STATUS, expected 301/308)"
               FAIL=1
@@ -167,7 +169,7 @@ jobs:
             fi
           done
 
-          HTTPS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://bricksofindia.com/")
+          HTTPS_STATUS=$(curl -s -H "X-BOI-Monitor: $BOI_MONITOR_KEY" -o /dev/null -w "%{http_code}" "https://bricksofindia.com/")
           if [ "$HTTPS_STATUS" != "200" ]; then
             echo "::error::https://bricksofindia.com/ returned HTTP $HTTPS_STATUS, expected 200"
             FAIL=1
@@ -176,7 +178,7 @@ jobs:
           fi
 
           # www is a permanent redirect to the main address, so it must not answer 200 itself.
-          WWW=$(curl -s -o /dev/null -w "%{http_code} %{redirect_url}" "https://www.bricksofindia.com/")
+          WWW=$(curl -s -H "X-BOI-Monitor: $BOI_MONITOR_KEY" -o /dev/null -w "%{http_code} %{redirect_url}" "https://www.bricksofindia.com/")
           WWW_STATUS=${WWW%% *}
           WWW_TARGET=${WWW#* }
           if { [ "$WWW_STATUS" = "301" ] || [ "$WWW_STATUS" = "308" ]; } && [ "$WWW_TARGET" = "https://bricksofindia.com/" ]; then

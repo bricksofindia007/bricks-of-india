@@ -56,9 +56,11 @@ jobs:
 
       - name: Check live search endpoint
         id: search-check
+        env:
+          BOI_MONITOR_KEY: ${{ secrets.BOI_MONITOR_KEY }}
         run: |
           F=$(mktemp)
-          CODE=$(curl -s -o "$F" -w '%{http_code}' --max-time 30 "https://bricksofindia.com/api/sets/search?q=Concorde") || true
+          CODE=$(curl -s -H "X-BOI-Monitor: $BOI_MONITOR_KEY" -o "$F" -w '%{http_code}' --max-time 30 "https://bricksofindia.com/api/sets/search?q=Concorde") || true
           case "$CODE" in
             200) ;;
             000|"") echo "UNVERIFIED: /api/sets/search?q=Concorde could not be reached from the runner"; exit 1 ;;
@@ -75,9 +77,11 @@ jobs:
 
       - name: Check /compare page renders sets (no 'Nothing found')
         id: compare-check
+        env:
+          BOI_MONITOR_KEY: ${{ secrets.BOI_MONITOR_KEY }}
         run: |
           F=$(mktemp)
-          CODE=$(curl -s -o "$F" -w '%{http_code}' --max-time 30 "https://bricksofindia.com/compare?q=Technic") || true
+          CODE=$(curl -s -H "X-BOI-Monitor: $BOI_MONITOR_KEY" -o "$F" -w '%{http_code}' --max-time 30 "https://bricksofindia.com/compare?q=Technic") || true
           case "$CODE" in
             200) ;;
             000|"") echo "UNVERIFIED: /compare?q=Technic could not be reached from the runner"; exit 1 ;;
@@ -91,9 +95,11 @@ jobs:
 
       - name: Check Star Wars theme page (>=20 sets)
         id: starwars-check
+        env:
+          BOI_MONITOR_KEY: ${{ secrets.BOI_MONITOR_KEY }}
         run: |
           F=$(mktemp)
-          CODE=$(curl -s -o "$F" -w '%{http_code}' --max-time 30 "https://bricksofindia.com/themes/star-wars") || true
+          CODE=$(curl -s -H "X-BOI-Monitor: $BOI_MONITOR_KEY" -o "$F" -w '%{http_code}' --max-time 30 "https://bricksofindia.com/themes/star-wars") || true
           case "$CODE" in
             200) ;;
             000|"") echo "UNVERIFIED: /themes/star-wars could not be reached from the runner"; exit 1 ;;
