@@ -73,6 +73,14 @@ const SERVICE_KEY    = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const RESEND_API_KEY = (process.env.RESEND_API_KEY ?? '').replace(/^﻿/, '').trim();
 const BRIEF_EMAIL    = (process.env.BRIEF_EMAIL ?? '').replace(/^﻿/, '').trim();
 const SITE_URL       = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://bricksofindia.com').replace(/\/$/, '');
+
+// BOI_MONITOR_KEY is sent only on https requests to the site. Headers on plain http:// travel unencrypted.
+const MONITOR_KEY = process.env.BOI_MONITOR_KEY ?? '';
+function siteHeaders(url) {
+  const h = { 'User-Agent': 'BOI-TechHygiene/1.0' };
+  if (MONITOR_KEY && url.startsWith('https://')) h['X-BOI-Monitor'] = MONITOR_KEY;
+  return h;
+}
 const GITHUB_TOKEN   = process.env.GITHUB_TOKEN ?? '';
 const GITHUB_REPO    = process.env.GITHUB_REPOSITORY ?? 'bricksofindia007/bricks-of-india';
 
@@ -168,7 +176,7 @@ await Promise.allSettled(
       const res = await fetch(url, {
         redirect: 'follow',
         signal: AbortSignal.timeout(15_000),
-        headers: { 'User-Agent': 'BOI-TechHygiene/1.0' },
+        headers: siteHeaders(url),
       });
       if (res.ok) {
         log('RouteHealth', `  ${res.status} ${route}`);
@@ -200,7 +208,7 @@ try {
           const res = await fetch(url, {
             redirect: 'follow',
             signal: AbortSignal.timeout(15_000),
-            headers: { 'User-Agent': 'BOI-TechHygiene/1.0' },
+            headers: siteHeaders(url),
           });
           if (res.ok) {
             log('GuideRoutes', `  200 /guides/${slug}`);
@@ -1612,7 +1620,7 @@ try {
     const linkFails = [];
     await Promise.allSettled(sample.map(async href => {
       try {
-        const r = await fetch(`${SITE_URL}${href}`, { method: 'HEAD', signal: AbortSignal.timeout(8_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' }, redirect: 'follow' });
+        const r = await fetch(`${SITE_URL}${href}`, { method: 'HEAD', signal: AbortSignal.timeout(8_000), headers: siteHeaders(`${SITE_URL}${href}`), redirect: 'follow' });
         if (!r.ok) linkFails.push(`${href} → ${r.status}`);
       } catch (e) { linkFails.push(`${href} → error`); }
     }));
@@ -1910,7 +1918,7 @@ try {
 // 16c: /admin routes return X-Robots-Tag: noindex
 try {
   const SITE = (process.env.NEXT_PUBLIC_SITE_URL ?? 'https://bricksofindia.com').replace(/\/$/, '');
-  const r = await fetch(`${SITE}/admin/pending`, { method: 'HEAD', redirect: 'manual', signal: AbortSignal.timeout(8000) });
+  const r = await fetch(`${SITE}/admin/pending`, { method: 'HEAD', redirect: 'manual', headers: siteHeaders(`${SITE}/admin/pending`), signal: AbortSignal.timeout(8000) });
   const xrobots = r.headers.get('x-robots-tag') ?? '';
   if (xrobots.toLowerCase().includes('noindex')) {
     log('SecurityPosture', `X-Robots-Tag on /admin: "${xrobots}" ✓`);
