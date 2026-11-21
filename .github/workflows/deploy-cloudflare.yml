@@ -199,6 +199,11 @@ jobs:
             FAIL=1
           fi
           echo "Smoke test result: FAIL=$FAIL UNVERIFIED=$UNVERIFIED (UNVERIFIED checks need the laptop check in the evidence folder)"
+          # A blocked page never passes: any UNVERIFIED check fails the step, as in the catalogue audit.
+          if [ "$UNVERIFIED" -gt 0 ]; then
+            echo "::error::$UNVERIFIED smoke check(s) UNVERIFIED (runner blocked); the step fails until they are checked from outside the runner"
+            FAIL=1
+          fi
           exit $FAIL
 
       - name: Prune old R2 cache builds (keep current + previous; P8 item 6, #242)
