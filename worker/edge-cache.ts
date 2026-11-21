@@ -14,6 +14,16 @@ export const EDGE_TTL_OVERRIDE_VAR = 'BOI_EDGE_TTL_OVERRIDE_SECONDS';
 export const SET_PAGE_EDGE_TTL_SECONDS = 60 * 60;
 /** Edge time for pages where a publish or a deal must show quickly. */
 export const PUBLISH_SENSITIVE_TTL_SECONDS = 5 * 60;
+
+/**
+ * Order 1953 item 4a. The /sets list is stored for 2 hours (it was 1 hour, the set-page time). For one more hour after
+ * that the stored copy is still served, and a fresh copy is fetched in the background. Worst case a list price is about
+ * 3 hours old, far inside the 48 h limit. Prices on the list come from the 24 h scrape, as before.
+ */
+export const SETS_LIST_EDGE_TTL_SECONDS = 2 * 60 * 60;
+export const SETS_LIST_STALE_WINDOW_SECONDS = 60 * 60;
+/** Header the stored copy carries (ms since the epoch). Removed before a visitor sees the page. */
+export const STORED_AT_HEADER = 'x-boi-stored-at';
 /** Edge time for every other HTML page, sitemap and robots. */
 export const DEFAULT_EDGE_TTL_SECONDS = 60 * 60;
 
@@ -93,7 +103,9 @@ export function versionedCacheUrl(canonical: string, version: string | undefined
 }
 export const SETS_LIST_PARAMS: Record<string, (value: string) => boolean> = {
   page: (v) => /^[1-9]\d*$/.test(v) && Number(v) <= SETS_LIST_MAX_CACHED_PAGE,
-  theme: (v) => /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(v),
+  // Order 1953 item 4a: the page filters on the theme name as written (e.g. "Star Wars"), so names with spaces are accepted.
+  // Length and character set are bounded, so the cache key space stays limited.
+  theme: (v) => /^[A-Za-z0-9][A-Za-z0-9 .&'-]{0,79}$/.test(v),
   sort: (v) => ['newest', 'price_asc', 'price_desc', 'pieces', 'price-asc', 'price-desc'].includes(v),
   instock: (v) => v === '1',
   price: (v) => ['under2k', '2k5k', '5k10k', '10k'].includes(v),
@@ -170,12 +182,14 @@ function storedCopy(response: Response, ttl: number): Response {
   headers.delete('set-cookie');
   headers.delete('vary');
   headers.set('cache-control', `public, s-maxage=${ttl}, max-age=${ttl}`);
+  headers.set(STORED_AT_HEADER, String(Date.now()));
   return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
 }
 
 /** The copy the visitor's browser receives: a short max-age, so the browser does not hold a page longer than the edge does. */
 function visitorCopy(response: Response, pathname: string, debug: string): Response {
   const copy = new Response(response.body, response);
+  copy.headers.delete(STORED_AT_HEADER);
   copy.headers.set('cache-control', `public, max-age=${browserMaxAge(pathname)}`);
   copy.headers.set('x-boi-edge-cache', debug);
   return copy;
@@ -202,14 +216,47 @@ export async function handleWithEdgeCache(
   if (bypassReason(request.method, pathname, request.headers)) {
     return withHeader(await origin(request), 'x-boi-edge-cache', 'bypass');
   }
-  const ttl = options.ttlOverride ?? routeClass(pathname).ttl;
+  const ignoreNoStore = isSetsList || options.ignoreOriginNoStore === true;
+  const ttl = options.ttlOverride ?? (isSetsList ? SETS_LIST_EDGE_TTL_SECONDS : routeClass(pathname).ttl);
+  // Order 1953 item 4a: the /sets list keeps a stale window after its TTL; the copy is served while a fresh one is fetched.
+  const staleWindow = isSetsList && options.ttlOverride === undefined ? SETS_LIST_STALE_WINDOW_SECONDS : 0;
   const key = new Request(versionedCacheUrl(canonicalCacheUrl(request.url), options.cacheVersion), { method: 'GET' });
   const hit = await store.match(key);
-  if (hit) return visitorCopy(hit, pathname, 'hit');
+  if (hit) {
+    if (!isSetsList) return visitorCopy(hit, pathname, 'hit');
+    const age = storedAgeSeconds(hit);
+    if (age !== null && age <= ttl) return visitorCopy(hit, pathname, 'hit');
+    if (age !== null && age <= ttl + staleWindow) {
+      waitUntil(refreshCopy(request, origin, store, key, pathname, ttl + staleWindow, ignoreNoStore));
+      return visitorCopy(hit, pathname, 'stale');
+    }
+  }
   const response = await origin(request);
-  if (storeRefusal(pathname, response.status, response.headers, isSetsList || options.ignoreOriginNoStore === true)) {
+  if (storeRefusal(pathname, response.status, response.headers, ignoreNoStore)) {
     return withHeader(response, 'x-boi-edge-cache', 'bypass');
   }
-  waitUntil(store.put(key, storedCopy(response.clone(), ttl)));
+  waitUntil(store.put(key, storedCopy(response.clone(), ttl + staleWindow)));
   return visitorCopy(response, pathname, 'miss');
+}
+
+/** Seconds since a stored copy was written, or null when the copy has no usable time (treated as expired). */
+export function storedAgeSeconds(stored: Response): number | null {
+  const at = Number(stored.headers.get(STORED_AT_HEADER));
+  if (!Number.isFinite(at) || at <= 0) return null;
+  return Math.max(0, (Date.now() - at) / 1000);
+}
+
+/** Fetches a fresh copy from the origin and stores it. A refused response is not stored, so the stale copy is kept. */
+async function refreshCopy(
+  request: Request,
+  origin: Origin,
+  store: EdgeStore,
+  key: Request,
+  pathname: string,
+  ttl: number,
+  ignoreNoStore: boolean,
+): Promise<void> {
+  const response = await origin(request);
+  if (storeRefusal(pathname, response.status, response.headers, ignoreNoStore)) return;
+  await store.put(key, storedCopy(response.clone(), ttl));
 }

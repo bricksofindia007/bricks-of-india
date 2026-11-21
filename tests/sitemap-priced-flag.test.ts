@@ -56,7 +56,7 @@ describe('sitemap: priced-set rule behind its flag (order 0840)', () => {
     const { setUrls, calls } = await sitemapWithFlag(false);
     expect(setUrls.map((u) => u.split('/sets/')[1].slice(0, 5)).sort()).toEqual(['10001', '10002', '10003']);
     expect(calls.storePricesRead).toBe(0);
-  });
+  }, 20_000); // first-time import of the sitemap module graph under load, same as the flag-on test below
 
   it('flag on: only sets with a price above zero are listed', async () => {
     const { setUrls, calls } = await sitemapWithFlag(true);

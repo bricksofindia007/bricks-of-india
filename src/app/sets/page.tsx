@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { storedCache } from '@/lib/no-storage-render';
 import { createServerClient } from '@/lib/supabase';
+import { loadAllSetsOrder } from '@/lib/sets-order';
 import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { SetCard } from '@/components/sets/SetCard';
 import { MASCOTS, THEMES } from '@/lib/brand'; // THEMES used as fallback only
@@ -37,20 +38,7 @@ const SORT_ALIASES: Record<string, SortKey> = { 'price-asc': 'price_asc', 'price
 // The default order's skeleton: every set's number, year and theme, newest first. Read in pages of 1,000 and cached
 // hourly (the same clock as the price read), so a page view does not scan the table.
 const getSetsDefaultOrder = storedCache(
-  async () => {
-    const supabase = createServerClient();
-    const rows: { set_number: string; year: number | null; theme: string | null }[] = [];
-    for (let offset = 0; ; offset += 1000) {
-      const { data } = await supabase
-        .from('sets').select('set_number, year, theme')
-        .order('year', { ascending: false }).order('set_number', { ascending: false })
-        .range(offset, offset + 999);
-      if (!data || data.length === 0) break;
-      rows.push(...(data as typeof rows));
-      if (data.length < 1000) break;
-    }
-    return rows;
-  },
+  async () => loadAllSetsOrder(createServerClient()),
   ['sets-default-order'],
   { revalidate: READ_REVALIDATE_SECONDS },
 );

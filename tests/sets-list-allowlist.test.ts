@@ -1,7 +1,7 @@
 // Order 0620 item 2: the /sets list is stored at the edge for anonymous visitors only when every query key and value is one
 // the page accepts. Real header strings; the origin response carries the no-store headers the no-storage render sends.
 import { describe, it, expect } from 'vitest';
-import { handleWithEdgeCache, setsListQueryAllowed, storeRefusal, bypassReason, SETS_LIST_MAX_CACHED_PAGE, SET_PAGE_EDGE_TTL_SECONDS } from '../worker/edge-cache';
+import { handleWithEdgeCache, setsListQueryAllowed, storeRefusal, bypassReason, SETS_LIST_MAX_CACHED_PAGE, SETS_LIST_EDGE_TTL_SECONDS, SETS_LIST_STALE_WINDOW_SECONDS } from '../worker/edge-cache';
 import { SETS_PRICE_BANDS } from '../src/lib/price-bands';
 
 const ORIGIN_HEADERS = {
@@ -51,7 +51,7 @@ describe('the /sets query allowlist', () => {
     expect(setsListQueryAllowed(new URLSearchParams('page=2&q=lego'))).toBe(false);
   });
   it('refuses a bad value for each key', () => {
-    for (const q of ['page=0', 'page=-1', 'page=abc', `page=${SETS_LIST_MAX_CACHED_PAGE + 1}`, 'page=', 'sort=evil', 'sort=', 'instock=0', 'instock=true', 'price=1k', 'theme=Star Wars', 'theme=Star%20Wars', 'theme=-bad']) {
+    for (const q of ['page=0', 'page=-1', 'page=abc', `page=${SETS_LIST_MAX_CACHED_PAGE + 1}`, 'page=', 'sort=evil', 'sort=', 'instock=0', 'instock=true', 'price=1k', 'theme=-bad', 'theme=<b>']) {
       expect(setsListQueryAllowed(new URLSearchParams(q)), q).toBe(false);
     }
   });
@@ -68,7 +68,9 @@ describe('the /sets list at the edge', () => {
     const { response, puts, originCalls } = await run('/sets');
     expect(originCalls).toBe(1);
     expect(puts.length).toBe(1);
-    expect(puts[0].cacheControl).toBe(`public, s-maxage=${SET_PAGE_EDGE_TTL_SECONDS}, max-age=${SET_PAGE_EDGE_TTL_SECONDS}`);
+    // Order 1953 item 4a: 2 h edge time plus a 1 h stale window (see tests/release-4-speed.test.ts).
+    const stored = SETS_LIST_EDGE_TTL_SECONDS + SETS_LIST_STALE_WINDOW_SECONDS;
+    expect(puts[0].cacheControl).toBe(`public, s-maxage=${stored}, max-age=${stored}`);
     expect(response.headers.get('x-boi-edge-cache')).toBe('miss');
   });
   it('stores an allowlisted filtered list', async () => {

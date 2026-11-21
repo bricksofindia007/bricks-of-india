@@ -5,6 +5,7 @@ import { storedCache } from '@/lib/no-storage-render';
 import { READ_REVALIDATE_SECONDS } from '@/lib/price-freshness';
 import { EXACT_NAME_MATCH, rawThemesFor } from '@/lib/themeMapping';
 import { fetchAllRows, mergeThemeRows } from '@/lib/theme-paging';
+import { mapWithConcurrency } from '@/lib/concurrency';
 
 export type ThemeIndexRow = { set_number: string; year: number | null; pieces: number | null };
 
@@ -16,6 +17,8 @@ export type ThemeIndex = {
 
 // Sets per store_prices read: each set has a row per store, so a chunk of 100 stays well under the 1000-row cap.
 const PRICE_CHUNK = 100;
+// Chunks in flight at once (order 1953 item 4b). Four keeps the connection count modest.
+const PRICE_CONCURRENCY = 4;
 
 /** Read the theme's sets (name match plus mapped subthemes, merged) and their lowest in-stock prices. */
 export async function loadThemeIndex(themeName: string, slug: string): Promise<ThemeIndex> {
@@ -45,23 +48,42 @@ export async function loadThemeIndex(themeName: string, slug: string): Promise<T
 
   const rows = mergeThemeRows(byName, mappedRows);
 
-  const bestPrice: Record<string, number> = {};
+  // Order 1953 item 4c: the best in-stock price per set comes from set_price_summary (one row per set), not from a scan of
+  // every store row. Chunks are read PRICE_CONCURRENCY at a time instead of one after another (item 4b).
   const ids = rows.map((r) => r.set_number);
-  for (let i = 0; i < ids.length; i += PRICE_CHUNK) {
-    const chunk = ids.slice(i, i + PRICE_CHUNK);
-    const prices = await fetchAllRows<{ set_id: string; price_inr: number | null; in_stock: boolean }>((from, to) =>
-      supabase.from('store_prices').select('id, set_id, price_inr, in_stock')
-        .in('set_id', chunk)
-        .order('id', { ascending: true })
-        .range(from, to));
-    for (const p of prices) {
-      if (!p.in_stock || !p.price_inr) continue;
-      const cur = bestPrice[p.set_id];
-      if (cur === undefined || p.price_inr < cur) bestPrice[p.set_id] = p.price_inr;
-    }
-  }
+  const chunks: string[][] = [];
+  for (let i = 0; i < ids.length; i += PRICE_CHUNK) chunks.push(ids.slice(i, i + PRICE_CHUNK));
+  const parts = await mapWithConcurrency(chunks, PRICE_CONCURRENCY, (chunk) => readBestPriceSummaries(supabase, chunk));
+  const bestPrice = bestPricesFromSummaries(parts.flat());
 
   return { rows, bestPrice };
+}
+
+export type SummaryPriceRow = { set_id: string; best_price_inr: number | null; in_stock_store_count: number | null };
+
+/**
+ * Lowest in-stock price per set, from set_price_summary rows. The view already keeps only in-stock rows and scrapes from the
+ * last 12 hours, so a set whose prices are older than that has no entry here (a stale price is not shown on the theme page).
+ */
+export function bestPricesFromSummaries(rows: SummaryPriceRow[]): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const r of rows) {
+    if (r.best_price_inr == null || !((r.in_stock_store_count ?? 0) > 0)) continue;
+    out[r.set_id] = r.best_price_inr;
+  }
+  return out;
+}
+
+async function readBestPriceSummaries(
+  sb: ReturnType<typeof createServerClient>,
+  chunk: string[],
+): Promise<SummaryPriceRow[]> {
+  const { data, error } = await sb
+    .from('set_price_summary')
+    .select('set_id, best_price_inr, in_stock_store_count')
+    .in('set_id', chunk);
+  if (error) throw error;
+  return (data ?? []) as SummaryPriceRow[];
 }
 
 /** The cached index for a theme. Re-read at the price cadence, so a request does not re-read the whole theme. */
