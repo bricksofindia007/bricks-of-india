@@ -54,7 +54,7 @@ import { Resend } from 'resend';
 const key = (process.env.RESEND_API_KEY || '').replace(/^﻿/, '').trim();
 if (!key) { console.error('[workflow-failure-notify] RESEND_API_KEY not set'); process.exit(1); }
 
-const alertEmail = process.env.ALERT_EMAIL || process.env.BRIEF_EMAIL || 'abhinav@bricksofindia.com';
+const alertEmail = 'abhinav@bricksofindia.com';
 const notifyType = process.env.NOTIFY_TYPE || 'failure';
 
 if (notifyType === 'custom') {

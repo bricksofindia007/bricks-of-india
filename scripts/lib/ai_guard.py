@@ -34,7 +34,7 @@ def alert_headers(key: str) -> dict:
 def _send_alert(subject: str, body: str) -> None:
     """Same rules as scripts/lib/alert.mjs: real send only in GitHub Actions or when forced."""
     key = os.environ.get('RESEND_API_KEY', '').lstrip('﻿').strip()
-    to = os.environ.get('BRIEF_EMAIL', '').lstrip('﻿').strip()
+    to = 'abhinav@bricksofindia.com'
     in_actions = os.environ.get('GITHUB_ACTIONS') == 'true'
     forced = os.environ.get('FORCE_REAL_ALERTS') == 'true'
     if not in_actions and not forced:

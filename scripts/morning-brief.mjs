@@ -25,7 +25,7 @@ try {
 const SUPABASE_URL   = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY    = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const RESEND_API_KEY = (process.env.RESEND_API_KEY    ?? '').replace(/^﻿/, '').trim();
-const BRIEF_EMAIL    = (process.env.BRIEF_EMAIL       ?? '').replace(/^﻿/, '').trim();
+const BRIEF_EMAIL    = 'abhinav@bricksofindia.com';
 const GH_TOKEN       = (process.env.GH_DISPATCH_TOKEN ?? '').replace(/^﻿/, '').trim();
 const GH_REPO        = 'bricksofindia007/bricks-of-india';
 

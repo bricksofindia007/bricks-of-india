@@ -30,7 +30,7 @@ const SUPABASE_URL      = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const SERVICE_KEY       = process.env.SUPABASE_SERVICE_ROLE_KEY;
 // Strip BOM (U+FEFF, codepoint 65279) — GitHub Secrets copied from BOM-encoded files include it
 const RESEND_API_KEY    = (process.env.RESEND_API_KEY ?? '').replace(/^﻿/, '').trim();
-const BRIEF_EMAIL       = (process.env.BRIEF_EMAIL ?? '').replace(/^﻿/, '').trim();
+const BRIEF_EMAIL       = 'abhinav@bricksofindia.com';
 
 // GITHUB_ACTIONS=true is set automatically by every real Actions run -- nothing
 // to remember to flip. Local/manual runs (including verification testing) never

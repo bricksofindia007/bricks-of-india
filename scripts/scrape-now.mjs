@@ -94,7 +94,7 @@ const supabase = createClient(SUPABASE_URL, SERVICE_KEY);
 const DRY_RUN = process.env.DRY_RUN === 'true';
 
 const RESEND_KEY  = (getSecret('RESEND_API_KEY') || '').trim();
-const ALERT_EMAIL = process.env.BRIEF_EMAIL || 'abhinav@bricksofindia.com';
+const ALERT_EMAIL = 'abhinav@bricksofindia.com';
 
 // STORES, withRetry, fetchAllProducts, extractSetNumber, parseProduct now live
 // in ./lib/retailer-fetch.mjs (extracted 2026-07-30 for reuse by the reviews

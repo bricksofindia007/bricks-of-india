@@ -8,7 +8,7 @@ const clean = (v) => (v ?? '').replace(/^\uFEFF/, '').trim();
 
 export async function sendAlert(subject, body) {
   const RESEND_API_KEY = clean(process.env.RESEND_API_KEY);
-  const BRIEF_EMAIL = clean(process.env.BRIEF_EMAIL);
+  const BRIEF_EMAIL = 'abhinav@bricksofindia.com';
   const IS_GITHUB_ACTIONS = process.env.GITHUB_ACTIONS === 'true';
   const FORCE_REAL_ALERTS = process.env.FORCE_REAL_ALERTS === 'true';
   if (!IS_GITHUB_ACTIONS && !FORCE_REAL_ALERTS) {

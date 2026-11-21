@@ -27,7 +27,7 @@ jobs:
                 headers: { Authorization: \`Bearer \${apiKey}\`, 'Content-Type': 'application/json' },
                 body: JSON.stringify({
                   from: 'Bricks of India <abhinav@bricksofindia.com>',
-                  to: [process.env.BRIEF_EMAIL],
+                  to: ['abhinav@bricksofindia.com'],
                   subject: 'BOI Monthly 360° Audit due',
                   html: '<p>The monthly BOI 360° evidence audit is due.</p><p>Run the standing procedure in <code>docs/AUDIT_RUNBOOK.md</code>.</p>',
                 }),
