@@ -1,9 +1,9 @@
 // Order 1953 decision 5 (release-4): (a) /sets query variants and the list's stale window at the edge, (b) parallel reads
-// for the default order and the theme index, (c) the theme index best price from set_price_summary.
+// for the default order and the theme index. Part (c) (theme best price from set_price_summary) is removed, so the theme
+// index keeps reading store_prices.
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { mapWithConcurrency } from '../src/lib/concurrency';
 import { loadAllSetsOrder } from '../src/lib/sets-order';
-import { bestPricesFromSummaries } from '../src/lib/theme-index';
 import {
   handleWithEdgeCache, setsListQueryAllowed, storedAgeSeconds, SETS_LIST_EDGE_TTL_SECONDS, SETS_LIST_STALE_WINDOW_SECONDS,
   type EdgeStore,
@@ -77,22 +77,6 @@ describe('loadAllSetsOrder (default /sets order, parallel pages)', () => {
   it('a failed page throws, so a partial order is never returned', async () => {
     const { sb } = fakeSetsClient(rows, 1000);
     await expect(loadAllSetsOrder(sb, 1000, 6)).rejects.toThrow('read failed');
-  });
-});
-
-describe('bestPricesFromSummaries (theme index, c)', () => {
-  it('takes the summary best price only when a store has the set in stock', () => {
-    const out = bestPricesFromSummaries([
-      { set_id: 'a', best_price_inr: 1499, in_stock_store_count: 2 },
-      { set_id: 'b', best_price_inr: null, in_stock_store_count: 0 },
-      { set_id: 'c', best_price_inr: 999, in_stock_store_count: 0 },
-      { set_id: 'd', best_price_inr: 2999, in_stock_store_count: null },
-    ]);
-    expect(out).toEqual({ a: 1499 });
-  });
-
-  it('an empty result gives an empty map', () => {
-    expect(bestPricesFromSummaries([])).toEqual({});
   });
 });
 
