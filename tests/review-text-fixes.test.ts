@@ -63,10 +63,8 @@ describe('marker B: the wording is the approved text', () => {
   it('the marker is the exact approved sentence, as an italic paragraph', () => {
     expect(MARKER).toBe("*Prices move faster than a minifig loses its hat. The figure here is from when we wrote this. We check prices daily, so the set page has today's.*");
   });
-  it('the SQL uses the same marker text in the update and in both checks', () => {
-    const sqlMarker = "*Prices move faster than a minifig loses its hat. The figure here is from when we wrote this. We check prices daily, so the set page has today''s.*";
-    expect(count(SQL, sqlMarker.replace(/''/g, "'"))).toBeGreaterThan(0);
-    expect(count(SQL, "today''s.*')")).toBeGreaterThan(0); // the assert literal escapes the quote
+  it('the 563 review file holds no marker: fix 911 owns marker B (its header says so)', () => {
+    expect(count(SQL, 'Prices move faster than a minifig')).toBe(0);
   });
 });
 
@@ -77,7 +75,7 @@ describe('piece counts, 40912 price and the dated notes (SQL text)', () => {
     expect(SQL).toContain("$q$you get 1,411 pieces of$q$, $q$you get 1,406 pieces of$q$");
     expect(SQL).toContain("$q$At 1,411 pieces, this is$q$, $q$At 1,406 pieces, this is$q$");
     expect(SQL).toContain("$q$Heartlake City Grand Hotel has 1,411 pieces.$q$, $q$Heartlake City Grand Hotel has 1,406 pieces.$q$");
-    expect(SQL).toContain("$q$It's got 579 pieces.$q$, $q$It's got 572 pieces.$q$");
+    expect(SQL).toContain("$q$It’s got 579 pieces.$q$, $q$It’s got 572 pieces.$q$");
     expect(SQL).toContain("$q$Kakamora Barge has 579 pieces.$q$, $q$Kakamora Barge has 572 pieces.$q$");
     expect(SQL).toContain("$q$If you can swing the ₹23,300 price tag$q$, $q$If you can swing the ₹2,499 price tag$q$");
     expect(SQL).toContain("It started life as a gift with purchase, but LEGO.in now sells it on its own, no shopping spree required.");
@@ -94,24 +92,24 @@ describe('piece counts, 40912 price and the dated notes (SQL text)', () => {
       expect(u).not.toMatch(/US\$180/);
     }
   });
-  it('the expect-before and expect-after asserts are single numbers: 68 before, 63 after', () => {
+  it('the expect-before and expect-after asserts are the 5 rows, each wrapped as a select (order 1941 item 8 pattern)', () => {
     const before = SQL.split('\n').find((l) => l.startsWith('-- boi:expect-before'));
     const after = SQL.split('\n').find((l) => l.startsWith('-- boi:expect-after'));
-    expect(before).toMatch(/then 68 else 0 end = 68$/);
-    expect(after).toMatch(/then 63 else 0 end = 63$/);
+    expect(before).toMatch(/then 5 else 0 end = 5$/);
+    expect(after).toMatch(/then 5 else 0 end = 5$/);
   });
-  it('the after-assert expects the old text gone, and the marker exactly once', () => {
+  it('the after-assert expects the old text gone, and the dated note present on all 5 rows', () => {
     const after = SQL.split('\n').find((l) => l.startsWith('-- boi:expect-after')) ?? '';
     expect(after).toMatch(/position\('708 pieces' in content\) > 0\) = 0/);
     expect(after).toMatch(/position\('1,411' in content\) > 0\) = 0/);
     expect(after).toMatch(/position\('579 pieces' in content\) > 0\) = 0/);
-    expect(after).toMatch(/length\(content\) - length\(replace\(content, /);
+    expect(after).toMatch(/position\('Correction \(8 November 2026\): an earlier version of this review' in content\) > 0\) = 5/);
   });
-  it('the marker is placed after the first rupee paragraph, and skips rows that already have it', () => {
-    expect(SQL).toMatch(/WHERE u\.p ~ '₹\\s\?\[0-9\]'/);
-    expect(SQL).toMatch(/position\(\$q\$\*Prices move faster[^]*in r0\.content\) = 0/);
-    expect(SQL).toMatch(/published_at <= now\(\)/);
-    expect(SQL).toMatch(/coalesce\(r0\.source_retailer, ''\) = ''/);
+  it('every UPDATE is scoped to named slugs (no regex over all reviews)', () => {
+    const body = SQL.split('\n').filter((l) => !l.startsWith('--')).join('\n');
+    const updates = body.split(/^UPDATE /m).slice(1);
+    expect(updates.length).toBe(4);
+    for (const u of updates) expect(u).toMatch(/WHERE slug (=|IN) /);
   });
   it('is a file in the approved place, with the issue header and the backup line', () => {
     expect(SQL.startsWith('-- boi:issue 563\n-- boi:backup-tables public.reviews\n')).toBe(true);
