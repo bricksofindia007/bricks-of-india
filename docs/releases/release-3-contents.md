@@ -46,3 +46,18 @@ All times are IST (UTC + 5:30).
 - **Step 2, production: PASS.** The owner approved `production-migrations` for run 44883211273 at 13:44 IST and it succeeded. Chat read production back: `public.alert_state` exists, RLS on, 0 policies, grants to postgres and service_role only.
 - **Step 3, deploy: BLOCKED by the deploy gate.** `deploy-cloudflare.yml` dispatched on main, run 44884254512 (https://github.com/bricksofindia007/bricks-of-india/actions/runs/44884254512). Main HEAD `3858109` has the same application code as the step 1 merge `caf040ff`: since then only docs and the two supabase files changed. The gate blocked for three reasons. (1) `snapshot-tests` and `verify-no-email-in-client-bundle` are not green on `3858109`, because a docs push runs no heavy checks. (2) Code differs from the last measured commit `3c507a6`, so a re-measure is required. (3) No emergency override is set. The Build and Deploy jobs were skipped. Nothing was deployed and no production Worker changed. Rollback target from the order `22417daa-6a37-4d63-afd2-cae7912e692d` was not used. Gate script: `scripts/ci/deploy-gate.mjs`.
 - Steps 4 to 8 not started. Waiting on chat for how to clear the gate.
+
+## Order 1946 CONTINUE 4 (21 Nov, IST)
+
+- **Step 1, staging counts: NOT DONE.** Staging counts of sets, store_prices and price_history cannot be read from the automation path. `scripts/release/count-rows.mjs` needs STAGING_SUPABASE_URL and a key (GitHub secrets). No workflow runs it, and the read-only staging workflow counts only reviews, news_articles and guides. Production counts from chat: sets 26,250; store_prices 1,964; price_history 8,116. Issue #998.
+- **Step 2, measurement: NOT STARTED.** Blocked on step 1. Load profile SHA-256 matches the committed file: `ac01dbb4091ed0b0203ef319b0e301d2182cc66133820f4904666ef411eb38ea`. The gate's current measurement (`3c507a6`) recorded staging counts 26,123 / 1,951 / 7,700. Measurement end time: not set.
+- **Step 5, data fixes.**
+  - Plan (staging only, no production job): run 44884835692. Pending on staging: 563, 798, 911, 142. Fix 143 held and not named. Fix 910 already removed (PR 996).
+  - Fix 563, run 44884911592 (https://github.com/bricksofindia007/bricks-of-india/actions/runs/44884911592): staging applied. 5 rows changed (UPDATE 1, UPDATE 2, UPDATE 1, UPDATE 1). Before-count 5 OK, after-count 5 OK. Backups: schema_migrations 45 rows, data_fix_log 60 rows, public.reviews 238 rows. Staging parity PASS (45 = 45). Production WAITING for owner approval.
+  - Fixes 911, 798 and 142: not dispatched. Each waits for fix 563's production run to finish.
+- **Step 6, merges.**
+  - PR 993 merged as `c2411353`. Its copy of the migration lacked the `-- boi:issue 994` header, so I added the same line on its branch (commit `931bc7a`) before merging. Otherwise merging would have reverted PR 995.
+  - PR 987 merged as `9795a46b`. Main had changed the same fetch line (monitor-key headers). I merged main into the branch (commit `6a23fa8`) and kept both changes: GET, 25 s timeout, body cancel, and `siteHeaders()`.
+- **Step 7, log query audit (read only).** No code in bricks-of-india `origin/main` or boi-ops `HEAD` calls the Supabase logs API, query_logs or the management API. The only log figure is an estimate (`scripts/lib/capacity-estimate.mjs`, `LOG_INGEST_QUOTA_GB = 1`). `scripts/health-check.mjs` Check 11b reads `db_usage_report()` only. Not searched: boi-growth-engine and any Supabase CLI use outside these files. Nothing to list per day for 20 and 21 Nov.
+- **Step 8:** this section.
+- Open issues: #997 (parity check), #998 (staging counts).
