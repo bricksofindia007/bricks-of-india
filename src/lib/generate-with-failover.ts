@@ -9,7 +9,7 @@ import { FEATURE_FLAGS } from './feature-flags';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { AiLimitError } from '../../scripts/lib/ai-guard.mjs';
 
-import { OPENER_FEEDBACK } from './opener-pattern';
+import { OPENER_FEEDBACK, openingSentence } from './opener-pattern';
 import { AFFILIATE_FEEDBACK } from './affiliate-disclosure';
 import { gate14Check, blocking, type Gate14Facts, type Gate14Finding } from './gate14';
 import { gate14Feedback } from './gate14-facts';
@@ -111,7 +111,7 @@ export async function generateWithFailover(
   cerebrasKey: string | undefined,
   batchOpeners?: string[],   // bodies accepted earlier in this same batch run (Gate 8 same-batch race fix, 2026-07-02)
 ): Promise<GenerationOutcome> {
-  const systemPrompt = buildSystemPrompt();
+  const systemPrompt = buildSystemPrompt((batchOpeners ?? []).map((b) => openingSentence(b ?? '')));
   const userPrompt   = buildUserPrompt(input);
 
   async function runLint(body: string, verdict: string | null, wordCount: number, title?: string): Promise<LintResult> {
