@@ -128,9 +128,9 @@ describe('robots: /wishlist/ (owner, order 1560)', () => {
 });
 
 describe('shared page and the guest view: switches and budget', () => {
-  it('guestWishlistPage is off in TypeScript and in the Python mirror', () => {
-    expect(FEATURE_FLAGS.guestWishlistPage).toBe(false);
-    expect(read('config/feature_flags.py')).toMatch(/"guest_wishlist_page":\s*False/);
+  it('guestWishlistPage is on in TypeScript and in the Python mirror (order 1944 item 4)', () => {
+    expect(FEATURE_FLAGS.guestWishlistPage).toBe(true);
+    expect(read('config/feature_flags.py')).toMatch(/"guest_wishlist_page":\s*True/);
   });
   it('the guest page is gated by the switch and reads no cookies or headers', () => {
     const page = read('src/app/wishlist/page.tsx');

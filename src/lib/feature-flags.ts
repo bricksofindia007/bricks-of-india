@@ -134,7 +134,7 @@ export const FEATURE_FLAGS = {
   shareEnabled: false,
   // Guest wishlist view at /wishlist (order 1560). Off: the page is not found and the guest view's price read is not served.
   // Shows the sets the visitor hearted in this browser only; no account, nothing stored on our side. Mirrored in config/feature_flags.py (guest_wishlist_page); keep in sync.
-  guestWishlistPage: false,
+  guestWishlistPage: true,
 
   // Human check (Turnstile) on the admin sign-in form (owner, 24 Oct 2026). Off: no widget, no check. Mirrored in config/feature_flags.py (admin_turnstile); keep in sync.
   adminTurnstile: false,
