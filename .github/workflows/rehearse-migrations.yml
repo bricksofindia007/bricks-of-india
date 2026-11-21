@@ -59,7 +59,7 @@ jobs:
           done
           echo "$results" > rehearsal-result.txt
           cat rehearsal-result.txt >> "$GITHUB_STEP_SUMMARY"
-      - name: Anonymous expectations (direct reads refused, functions answer, caps and testing store)
+      - name: Anonymous expectations (direct reads and price functions refused for anon; server role caps and testing store)
         run: psql -q -v ON_ERROR_STOP=1 -f scripts/rehearsal/anon-expect.sql
       - name: Standing check (no write rights for anonymous or signed-in roles on public objects or defaults)
         run: psql -q -v ON_ERROR_STOP=1 -f scripts/rehearsal/privileges-check.sql
