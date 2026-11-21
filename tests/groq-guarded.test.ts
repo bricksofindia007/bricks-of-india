@@ -54,10 +54,11 @@ describe('Groq fallback goes through the AI call guard', () => {
 });
 
 describe('the allowlist', () => {
-  it('lists the three Gemini models and the Groq fallback model, and nothing else', () => {
+  it('lists the four Gemini models and the Groq fallback model, and nothing else', () => {
     expect(config.allowedModels).toEqual([
       'gemini-2.5-flash-lite',
       'gemini-2.5-flash',
+      'gemini-3.5-flash-lite',
       'gemini-3.1-flash-lite',
       'openai/gpt-oss-120b',
     ]);
