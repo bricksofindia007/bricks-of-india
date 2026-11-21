@@ -160,7 +160,7 @@ jobs:
         run: |
           FAIL=0
           for host in bricksofindia.com www.bricksofindia.com; do
-            HTTP_STATUS=$(curl -s -H "X-BOI-Monitor: $BOI_MONITOR_KEY" -o /dev/null -w "%{http_code}" "http://$host/")
+            HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://$host/")
             if [ "$HTTP_STATUS" != "301" ] && [ "$HTTP_STATUS" != "308" ]; then
               echo "::error::http://$host did not redirect to https (got HTTP $HTTP_STATUS, expected 301/308)"
               FAIL=1
