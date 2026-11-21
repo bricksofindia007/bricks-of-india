@@ -1612,8 +1612,10 @@ try {
     const linkFails = [];
     await Promise.allSettled(sample.map(async href => {
       try {
-        const r = await fetch(`${SITE_URL}${href}`, { method: 'HEAD', signal: AbortSignal.timeout(8_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' }, redirect: 'follow' });
+        // GET, not HEAD: a HEAD request skips the edge cache and waits on the origin, which can take longer than 8 s on an uncached page.
+        const r = await fetch(`${SITE_URL}${href}`, { method: 'GET', signal: AbortSignal.timeout(25_000), headers: { 'User-Agent': 'BOI-TechHygiene/1.0' }, redirect: 'follow' });
         if (!r.ok) linkFails.push(`${href} → ${r.status}`);
+        else await r.body?.cancel().catch(() => {});
       } catch (e) { linkFails.push(`${href} → error`); }
     }));
     if (linkFails.length > 0) alertFail('Performance', `Broken internal links: ${linkFails.join(', ')}`);
