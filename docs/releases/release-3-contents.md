@@ -27,3 +27,11 @@ Rollback files for 563, 911 and 142 have not been checked in this doc.
 
 - Worktrees under `C:\BOI\20-worktrees` were cleaned to three (`release-3`, `blocked-rechk`, `boi-ops-t2`). Free space on C: went from 9.14 GB to 11.05 GB.
 - The guest-wishlist staging-only branch `staging/guest-wishlist-on` was deleted; its change is now on release-3.
+## Order 1946 T2 run log
+
+All times are IST (UTC + 5:30).
+
+- **Step 1, merge: done.** PR 994 (release-3) was marked ready and squash-merged to main at 13:19:48 IST on 21 Nov. Merge commit `caf040ff`. Required checks had all passed (grants, parity, secret-scan, email-guard, snapshot tests, g19-public-text). No deploy started: only email-guard and the inert Netlify job ran on the merge.
+- **Step 2, migration: STOPPED, failed at plan.** `db-migrate` mode=plan, scope=all, run 44882091701 (https://github.com/bricksofindia007/bricks-of-india/actions/runs/44882091701), 13:20 IST. Staging: 45 repo migrations, 44 applied; 62 repo data fixes, 60 applied. Pending migration: `20261121120000_alert_state.sql` only. Lint failed: `missing or invalid "-- boi:issue <number>" header`. The run stopped before any write. Production job was skipped. Nothing was applied to staging or production. Steps 2 to 8 are not started.
+- Plan run also listed these data fixes as held (not in the fixes input): 142, 143, 563, 798, 910, 911. Fix 910 is not in the order's list and was not named in any run.
+- Blocker: the migration file needs a `-- boi:issue <n>` header. The issue number is not in the order. Fixing it means a change to main, which needs chat's OK. No rollback was done.
