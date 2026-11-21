@@ -155,34 +155,55 @@ jobs:
         # that runs strictly after a real deploy, so it's the only place
         # that can catch this class of bug (real edge/protocol behavior)
         # before a human happens to notice.
+        env:
+          BOI_MONITOR_KEY: ${{ secrets.BOI_MONITOR_KEY }}
         run: |
+          # A 403 from this runner is a block of the runner's network, not an answer from the site.
+          # Such a check is UNVERIFIED (not a pass, not a fail). The same checks are made from outside
+          # the runner and recorded in the evidence folder. Any other unexpected status is a FAIL.
           FAIL=0
+          UNVERIFIED=0
           for host in bricksofindia.com www.bricksofindia.com; do
             HTTP_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "http://$host/")
-            if [ "$HTTP_STATUS" != "301" ] && [ "$HTTP_STATUS" != "308" ]; then
+            if [ "$HTTP_STATUS" = "301" ] || [ "$HTTP_STATUS" = "308" ]; then
+              echo "OK: http://$host -> HTTP $HTTP_STATUS (redirect)"
+            elif [ "$HTTP_STATUS" = "403" ]; then
+              echo "UNVERIFIED: http://$host -> HTTP 403 from the runner (runner blocked, not a site answer)"
+              UNVERIFIED=$((UNVERIFIED+1))
+            else
               echo "::error::http://$host did not redirect to https (got HTTP $HTTP_STATUS, expected 301/308)"
               FAIL=1
-            else
-              echo "OK: http://$host -> HTTP $HTTP_STATUS (redirect)"
             fi
           done
 
-          HTTPS_STATUS=$(curl -s -o /dev/null -w "%{http_code}" "https://bricksofindia.com/")
-          if [ "$HTTPS_STATUS" != "200" ]; then
+          HTTPS_STATUS=$(curl -s -H "X-BOI-Monitor: $BOI_MONITOR_KEY" -o /dev/null -w "%{http_code}" "https://bricksofindia.com/")
+          if [ "$HTTPS_STATUS" = "200" ]; then
+            echo "OK: https://bricksofindia.com/ -> HTTP 200"
+          elif [ "$HTTPS_STATUS" = "403" ]; then
+            echo "UNVERIFIED: https://bricksofindia.com/ -> HTTP 403 from the runner (runner blocked, not a site answer)"
+            UNVERIFIED=$((UNVERIFIED+1))
+          else
             echo "::error::https://bricksofindia.com/ returned HTTP $HTTPS_STATUS, expected 200"
             FAIL=1
-          else
-            echo "OK: https://bricksofindia.com/ -> HTTP 200"
           fi
 
           # www is a permanent redirect to the main address, so it must not answer 200 itself.
-          WWW=$(curl -s -o /dev/null -w "%{http_code} %{redirect_url}" "https://www.bricksofindia.com/")
+          WWW=$(curl -s -H "X-BOI-Monitor: $BOI_MONITOR_KEY" -o /dev/null -w "%{http_code} %{redirect_url}" "https://www.bricksofindia.com/")
           WWW_STATUS=${WWW%% *}
           WWW_TARGET=${WWW#* }
           if { [ "$WWW_STATUS" = "301" ] || [ "$WWW_STATUS" = "308" ]; } && [ "$WWW_TARGET" = "https://bricksofindia.com/" ]; then
             echo "OK: https://www.bricksofindia.com/ -> HTTP $WWW_STATUS to https://bricksofindia.com/"
+          elif [ "$WWW_STATUS" = "403" ]; then
+            echo "UNVERIFIED: https://www.bricksofindia.com/ -> HTTP 403 from the runner (runner blocked, not a site answer)"
+            UNVERIFIED=$((UNVERIFIED+1))
           else
             echo "::error::https://www.bricksofindia.com/ returned HTTP $WWW_STATUS to '$WWW_TARGET', expected 301/308 to https://bricksofindia.com/"
+            FAIL=1
+          fi
+          echo "Smoke test result: FAIL=$FAIL UNVERIFIED=$UNVERIFIED (UNVERIFIED checks need the laptop check in the evidence folder)"
+          # A blocked page never passes: any UNVERIFIED check fails the step, as in the catalogue audit.
+          if [ "$UNVERIFIED" -gt 0 ]; then
+            echo "::error::$UNVERIFIED smoke check(s) UNVERIFIED (runner blocked); the step fails until they are checked from outside the runner"
             FAIL=1
           fi
           exit $FAIL

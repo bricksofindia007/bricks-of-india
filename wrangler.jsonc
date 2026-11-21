@@ -101,5 +101,6 @@
   "images": {
     "binding": "IMAGES"
   },
+  "version_metadata": { "binding": "CF_VERSION_METADATA" },
   "vars": { "BOI_EDGE_CACHE": "1", "BOI_EDGE_IGNORE_ORIGIN_NO_STORE": "1" }
 }

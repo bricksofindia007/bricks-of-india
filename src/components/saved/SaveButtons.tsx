@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { FEATURE_FLAGS } from '@/lib/feature-flags';
+import { SHARE_TEXT } from '@/lib/share';
 import {
   CHANGED_EVENT, COLLECTION_KEY, WISHLIST_KEY, VOICE, addOwned, addWish, cleanCollection, cleanWishlist, loadCollection,
   loadWishlist, removeWish, setOwnedQty, trackCollectionEvent, updateList, type SetRef,
@@ -68,6 +70,10 @@ export function HeartButton({ size = 'sm', ...ref }: SetRef & { size?: 'sm' | 'l
         <span aria-hidden="true">{saved ? '♥' : '♡'}</span>
       </button>
       {note && size !== 'lg' && <span role="status" className="sr-only">{note}</span>}
+      {/* Order 1944 item 4: a link to the guest wishlist once the set is saved. On the set page only, not inside a card link. */}
+      {saved && size === 'lg' && FEATURE_FLAGS.guestWishlistPage && (
+        <Link href="/wishlist" className="ml-2 self-center text-sm text-gray-700 underline whitespace-nowrap">{SHARE_TEXT.guestWishlistHeading}</Link>
+      )}
       {note && size === 'lg' && (
         <span role="status" className="absolute left-0 top-full mt-1 z-10 whitespace-nowrap text-xs text-gray-600 bg-white border border-border rounded px-2 py-1 shadow-sm">
           {note} <Link href="/my" className="underline">See your list</Link>

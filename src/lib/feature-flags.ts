@@ -106,7 +106,7 @@ export const FEATURE_FLAGS = {
 
   // My Collection (Bundle 2): hearts on set cards and set pages, and the My Collection page.
   // Both off until launch. Mirrored in config/feature_flags.py; keep in sync.
-  myCollectionHearts: false,
+  myCollectionHearts: true,
   myCollectionPage: false,
 
   // Link tags for YouTube and Instagram links (placements list, 23 Oct 2026). Off: the tags send nothing;
@@ -134,7 +134,7 @@ export const FEATURE_FLAGS = {
   shareEnabled: false,
   // Guest wishlist view at /wishlist (order 1560). Off: the page is not found and the guest view's price read is not served.
   // Shows the sets the visitor hearted in this browser only; no account, nothing stored on our side. Mirrored in config/feature_flags.py (guest_wishlist_page); keep in sync.
-  guestWishlistPage: false,
+  guestWishlistPage: true,
 
   // Human check (Turnstile) on the admin sign-in form (owner, 24 Oct 2026). Off: no widget, no check. Mirrored in config/feature_flags.py (admin_turnstile); keep in sync.
   adminTurnstile: false,
@@ -148,7 +148,7 @@ export const FEATURE_FLAGS = {
   visitorCounter: false,
   // One switch for "unpriced sets hidden from search" (orders 0840, 0870): the sitemap lists only sets with a store price,
   // and set pages without a price are noindex. Off = the live site. Mirrored in config/feature_flags.py (unpriced_sets_hidden).
-  unpricedSetsHidden: false,
+  unpricedSetsHidden: true,
   // The share card image (wishlist and collection, option A). Off until the owner has seen it on staging. Off = no card.
   // Mirrored in config/feature_flags.py (share_card_image); keep in sync.
   shareCardImage: false,

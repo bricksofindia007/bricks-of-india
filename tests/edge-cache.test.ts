@@ -6,7 +6,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
-  canonicalCacheUrl, routeClass, bypassReason, storeRefusal, handleWithEdgeCache, browserMaxAge,
+  canonicalCacheUrl, versionedCacheUrl, routeClass, bypassReason, storeRefusal, handleWithEdgeCache, browserMaxAge,
   SET_PAGE_EDGE_TTL_SECONDS, PUBLISH_SENSITIVE_TTL_SECONDS, DEFAULT_EDGE_TTL_SECONDS,
   BROWSER_MAX_AGE_PUBLISH_SECONDS, BROWSER_MAX_AGE_OTHER_SECONDS, type EdgeStore,
 } from '../worker/edge-cache';
@@ -307,5 +307,57 @@ describe('production is off, and the build flag for the no-storage build exists'
     expect(entry).toMatch(/import generated from "\.\.\/\.open-next\/worker\.js"/);
     expect(entry).toMatch(/export \{ DOQueueHandler, DOShardedTagCache, BucketCachePurge \}/);
     expect(entry).toMatch(/env\[EDGE_CACHE_VAR\] === "1"/);
+  });
+});
+
+// ---- Order 1944 item 3: a new deploy never serves a page stored by an older one (its HTML names old chunks) ----
+describe('deploy version in the cache key (order 1944 item 3)', () => {
+  const page = () => new Response('<html>page</html>', {
+    status: 200,
+    headers: { 'content-type': 'text/html; charset=utf-8', 'cache-control': 's-maxage=86394, stale-while-revalidate=2592000' },
+  });
+  const memStore = (): EdgeStore => {
+    const m = new Map<string, Response>();
+    return {
+      match: async (k) => m.get(k.url)?.clone(),
+      put: async (k, r) => { m.set(k.url, r); },
+    };
+  };
+  const visit = async (store: EdgeStore, version: string | undefined, path = '/sets/42172') => {
+    const pending: Promise<unknown>[] = [];
+    const res = await handleWithEdgeCache(
+      new Request(`https://bricksofindia.com${path}`),
+      async () => page(),
+      store,
+      (p) => { pending.push(p); },
+      { enabled: true, cacheVersion: version },
+    );
+    await Promise.all(pending);
+    return res;
+  };
+
+  it('the same deploy still hits its own stored page', async () => {
+    const store = memStore();
+    expect((await visit(store, 'v1')).headers.get('x-boi-edge-cache')).toBe('miss');
+    expect((await visit(store, 'v1')).headers.get('x-boi-edge-cache')).toBe('hit');
+  });
+
+  it('a page stored by one deploy is a miss after the next deploy', async () => {
+    const store = memStore();
+    await visit(store, 'v1');
+    expect((await visit(store, 'v2')).headers.get('x-boi-edge-cache')).toBe('miss');
+  });
+
+  it('the key keeps the path and changes only the version', () => {
+    const a = versionedCacheUrl(canonicalCacheUrl('https://bricksofindia.com/sets/42172?utm_source=x'), 'v1');
+    const b = versionedCacheUrl(canonicalCacheUrl('https://bricksofindia.com/sets/42172'), 'v2');
+    expect(a).toContain('/sets/42172');
+    expect(a).not.toBe(b);
+    expect(new URL(a).searchParams.get('utm_source')).toBeNull();
+  });
+
+  it('a missing or unsafe version falls back to a fixed safe value', () => {
+    expect(versionedCacheUrl('https://bricksofindia.com/', undefined)).toContain('__boi_v=unversioned');
+    expect(versionedCacheUrl('https://bricksofindia.com/', 'a b/../c')).toContain('__boi_v=abc');
   });
 });
