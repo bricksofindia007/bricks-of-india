@@ -248,12 +248,12 @@ function buildHtml({ pipelines, outputs, freshness, pending, today, knownIssues 
   const s4 = card('3 &mdash; Pending Operator Actions', `
     <table width="100%" cellpadding="0" cellspacing="0">
       <tr>
-        <td style="padding:5px 0;font-size:13px;color:${NAVY};">Awaiting generation</td>
+        <td style="padding:5px 0;font-size:13px;color:${NAVY};">Approved, awaiting writing</td>
         <td style="padding:5px 0 5px 16px;font-size:20px;font-weight:bold;
                    color:${approvedColor};text-align:right;">${pending.approved}</td>
       </tr>
       <tr>
-        <td style="padding:5px 0;font-size:13px;color:${NAVY};">Ready to review + publish</td>
+        <td style="padding:5px 0;font-size:13px;color:${NAVY};">Topics awaiting approval</td>
         <td style="padding:5px 0 5px 16px;font-size:20px;font-weight:bold;
                    color:${draftColor};text-align:right;">${pending.draft}</td>
       </tr>
