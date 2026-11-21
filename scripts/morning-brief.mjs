@@ -280,7 +280,7 @@ function buildHtml({ pipelines, outputs, freshness, pending, today, knownIssues 
           <tr><td style="padding:5px 0;font-size:13px;color:${NAVY};">${r.id}</td>
               <td style="padding:5px 0 5px 12px;font-size:12px;color:#666;text-align:right;white-space:nowrap;">${r.state}</td></tr>`).join('')}
         </table>`;
-  const s6 = card('6 &mdash; Known issues', issueList);
+  const s6 = card('5 &mdash; Known issues', issueList);
 
   return `<!DOCTYPE html>
 <html lang="en">
